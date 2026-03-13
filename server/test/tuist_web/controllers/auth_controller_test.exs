@@ -119,16 +119,16 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirect_url =~ "login_hint=user%40example.com"
     end
 
-    test "redirects to home with error when organization not found", %{conn: conn} do
+    test "redirects to auth error page when organization not found", %{conn: conn} do
       # When
       conn = get(conn, "/users/auth/okta?organization_id=999")
 
       # Then
-      assert redirected_to(conn) == "/"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Failed to authenticate with Okta."
+      assert redirected_to(conn) == "/users/auth/error"
+      assert get_session(conn, :auth_error_message) == "Failed to authenticate with Okta."
     end
 
-    test "redirects to home with error when organization not configured for Okta", %{conn: conn} do
+    test "redirects to auth error page when organization not configured for Okta", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -143,8 +143,8 @@ defmodule TuistWeb.AuthControllerTest do
       conn = get(conn, "/users/auth/okta?organization_id=#{organization.id}")
 
       # Then
-      assert redirected_to(conn) == "/"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Failed to authenticate with Okta."
+      assert redirected_to(conn) == "/users/auth/error"
+      assert get_session(conn, :auth_error_message) == "Failed to authenticate with Okta."
     end
   end
 
@@ -170,16 +170,16 @@ defmodule TuistWeb.AuthControllerTest do
       assert conn.status == 302
     end
 
-    test "redirects to home with error when organization not found in session", %{conn: conn} do
+    test "redirects to auth error page when organization not found in session", %{conn: conn} do
       # When
       conn = get(conn, "/users/auth/okta/callback")
 
       # Then
-      assert redirected_to(conn) == "/"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Failed to authenticate with Okta."
+      assert redirected_to(conn) == "/users/auth/error"
+      assert get_session(conn, :auth_error_message) == "Failed to authenticate with Okta."
     end
 
-    test "redirects to home with error when organization not configured for Okta", %{conn: conn} do
+    test "redirects to auth error page when organization not configured for Okta", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -197,8 +197,8 @@ defmodule TuistWeb.AuthControllerTest do
         |> get("/users/auth/okta/callback")
 
       # Then
-      assert redirected_to(conn) == "/"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Failed to authenticate with Okta."
+      assert redirected_to(conn) == "/users/auth/error"
+      assert get_session(conn, :auth_error_message) == "Failed to authenticate with Okta."
     end
   end
 

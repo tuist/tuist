@@ -59,10 +59,10 @@ defmodule TuistWeb.AuthController do
                   "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
                 )
 
-                conn
-                |> put_flash(:error, "Failed to authenticate with Okta.")
-                |> redirect(to: ~p"/")
-                |> halt()
+                redirect_to_auth_error(
+                  conn,
+                  dgettext("dashboard", "Failed to authenticate with Okta.")
+                )
             end
 
           error ->
@@ -71,10 +71,10 @@ defmodule TuistWeb.AuthController do
               "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
 
-            conn
-            |> put_flash(:error, "Failed to authenticate with Okta.")
-            |> redirect(to: ~p"/")
-            |> halt()
+            redirect_to_auth_error(
+              conn,
+              dgettext("dashboard", "Failed to authenticate with Okta.")
+            )
         end
 
       error ->
@@ -83,10 +83,10 @@ defmodule TuistWeb.AuthController do
           "Failed to extract organization_id from params: #{inspect(params)}, error: #{inspect(error)}"
         )
 
-        conn
-        |> put_flash(:error, "Failed to authenticate with Okta.")
-        |> redirect(to: ~p"/")
-        |> halt()
+        redirect_to_auth_error(
+          conn,
+          dgettext("dashboard", "Failed to authenticate with Okta.")
+        )
     end
   end
 
@@ -104,10 +104,8 @@ defmodule TuistWeb.AuthController do
       "Ueberauth failed authenticating: #{inspect(failure)}"
     )
 
-    conn
-    |> put_flash(:error, "Failed to authenticate.")
-    |> redirect(to: ~p"/")
-    |> halt()
+    error_message = oauth_failure_message(failure)
+    redirect_to_auth_error(conn, error_message)
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
@@ -205,10 +203,10 @@ defmodule TuistWeb.AuthController do
                   "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
                 )
 
-                conn
-                |> put_flash(:error, "Failed to authenticate with Okta.")
-                |> redirect(to: ~p"/")
-                |> halt()
+                redirect_to_auth_error(
+                  conn,
+                  dgettext("dashboard", "Failed to authenticate with Okta.")
+                )
             end
 
           error ->
@@ -217,10 +215,10 @@ defmodule TuistWeb.AuthController do
               "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
 
-            conn
-            |> put_flash(:error, "Failed to authenticate with Okta.")
-            |> redirect(to: ~p"/")
-            |> halt()
+            redirect_to_auth_error(
+              conn,
+              dgettext("dashboard", "Failed to authenticate with Okta.")
+            )
         end
 
       error ->
@@ -229,10 +227,10 @@ defmodule TuistWeb.AuthController do
           "Failed to extract organization_id from session: #{inspect(session_data)}, error: #{inspect(error)}"
         )
 
-        conn
-        |> put_flash(:error, "Failed to authenticate with Okta.")
-        |> redirect(to: ~p"/")
-        |> halt()
+        redirect_to_auth_error(
+          conn,
+          dgettext("dashboard", "Failed to authenticate with Okta.")
+        )
     end
   end
 
@@ -281,6 +279,31 @@ defmodule TuistWeb.AuthController do
   def complete_signup(conn, _params) do
     redirect(conn, to: ~p"/users/log_in")
   end
+
+  defp redirect_to_auth_error(conn, message) do
+    conn
+    |> put_session(:auth_error_message, message)
+    |> redirect(to: ~p"/users/auth/error")
+    |> halt()
+  end
+
+  defp oauth_failure_message(%Ueberauth.Failure{errors: errors}) do
+    case errors do
+      [%Ueberauth.Failure.Error{message_key: "access_denied"} | _] ->
+        dgettext(
+          "dashboard",
+          "Authentication failed: your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
+        )
+
+      [%Ueberauth.Failure.Error{message: message} | _] when is_binary(message) and message != "" ->
+        dgettext("dashboard", "Authentication failed: %{message}", message: message)
+
+      _ ->
+        dgettext("dashboard", "Failed to authenticate.")
+    end
+  end
+
+  defp oauth_failure_message(_), do: dgettext("dashboard", "Failed to authenticate.")
 
   defp okta_strategy_options(config, params) do
     strategy_options = [

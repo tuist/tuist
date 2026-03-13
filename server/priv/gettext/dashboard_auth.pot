@@ -36,6 +36,7 @@ msgstr ""
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr ""
 
+#: lib/tuist_web/live/auth_error_live.ex:45
 #: lib/tuist_web/live/user_forgot_password_live.ex:74
 #, elixir-autogen, elixir-format
 msgid "Back to log in"
@@ -308,6 +309,7 @@ msgstr ""
 msgid "Tuist CLI is connected!"
 msgstr ""
 
+#: lib/tuist_web/live/auth_error_live.ex:28
 #: lib/tuist_web/live/choose_username_live.ex:42
 #: lib/tuist_web/live/device_codes_success_live.ex:28
 #: lib/tuist_web/live/sso_login_live.ex:46
@@ -449,4 +451,19 @@ msgstr ""
 #: lib/tuist_web/components/app_auth_components.ex:17
 #, elixir-autogen, elixir-format
 msgid "and"
+msgstr ""
+
+#: lib/tuist_web/live/auth_error_live.ex:11
+#, elixir-autogen, elixir-format
+msgid "An unknown authentication error occurred."
+msgstr ""
+
+#: lib/tuist_web/live/auth_error_live.ex:15
+#, elixir-autogen, elixir-format
+msgid "Authentication error"
+msgstr ""
+
+#: lib/tuist_web/live/auth_error_live.ex:36
+#, elixir-autogen, elixir-format
+msgid "Authentication failed"
 msgstr ""
