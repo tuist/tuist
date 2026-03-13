@@ -31,8 +31,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
     } do
       # Given
       create_flaky_test_case(project, "testFlakyExample")
-
-      Process.sleep(1000)
+      RunsFixtures.optimize_test_case_runs()
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
@@ -50,8 +49,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       # Given
       create_flaky_test_case(project, "testFirstFlaky")
       create_flaky_test_case(project, "testSecondFlaky")
-
-      Process.sleep(1000)
+      RunsFixtures.optimize_test_case_runs()
 
       # When
       {:ok, lv, _html} =
@@ -96,8 +94,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       # Given
       create_flaky_test_case(project, "testCIFlaky", is_ci: true)
       create_flaky_test_case(project, "testLocalFlaky", is_ci: false)
-
-      Process.sleep(1000)
+      RunsFixtures.optimize_test_case_runs()
 
       # When - filter by CI environment
       {:ok, lv, _html} =
@@ -113,14 +110,12 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       organization: organization,
       project: project
     } do
-      # Given - create a flaky test case with a recent run
+      # Given
       create_flaky_test_case(project, "testRecentFlaky")
 
-      # Create a flaky test case with an old run (> 30 days ago)
       old_datetime = NaiveDateTime.add(NaiveDateTime.utc_now(), -60 * 24 * 60 * 60)
-      create_flaky_test_case(project, "testOldFlaky", inserted_at: old_datetime)
-
-      Process.sleep(1000)
+      create_flaky_test_case(project, "testOldFlaky", ran_at: old_datetime)
+      RunsFixtures.optimize_test_case_runs()
 
       # When - use default 30-day range
       {:ok, lv, _html} =
@@ -149,4 +144,5 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
     test_case
   end
+
 end

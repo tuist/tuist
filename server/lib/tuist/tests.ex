@@ -1061,17 +1061,18 @@ defmodule Tuist.Tests do
 
     query
     |> then(fn q ->
-      if start_datetime, do: from(r in q, where: r.inserted_at >= ^start_datetime), else: q
+      if start_datetime, do: from(r in q, where: r.ran_at >= ^start_datetime), else: q
     end)
     |> then(fn q ->
-      if end_datetime, do: from(r in q, where: r.inserted_at <= ^end_datetime), else: q
+      if end_datetime, do: from(r in q, where: r.ran_at <= ^end_datetime), else: q
     end)
   end
 
   defp apply_flaky_environment_filter(query, opts) do
     case Keyword.get(opts, :is_ci) do
       nil -> query
-      is_ci -> from(r in query, where: r.is_ci == ^is_ci)
+      true -> from(r in query, where: r.is_ci == true)
+      false -> from(r in query, where: r.is_ci == false)
     end
   end
 
