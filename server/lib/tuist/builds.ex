@@ -62,10 +62,6 @@ defmodule Tuist.Builds do
 
       {:ok, build_map} = Build.Buffer.insert(build_map)
 
-      if build.status == "processing" do
-        Build.Buffer.flush()
-      end
-
       Task.await_many(
         [
           Task.async(fn -> create_build_issues(build_map, Map.get(attrs, :issues, [])) end),
