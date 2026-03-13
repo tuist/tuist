@@ -133,12 +133,14 @@ defmodule TuistWeb.Authentication do
   def log_in_user(conn, user, params \\ %{}) do
     token = Accounts.generate_user_session_token(user)
     user_return_to = get_session(conn, :user_return_to)
+    auth_provider = Map.get(params, :auth_provider, :password)
 
     Analytics.user_authenticate(user)
 
     conn
     |> renew_session()
     |> put_token_in_session(token)
+    |> put_session(:auth_provider, auth_provider)
     |> maybe_write_remember_me_cookie(token, params)
     |> redirect(to: user_return_to || signed_in_path(user))
     |> halt()

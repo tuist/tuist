@@ -342,16 +342,10 @@ defmodule TuistWeb.LayoutLiveTest do
   end
 
   describe "SSO enforcement in on_mount/4 :account" do
-    test "continues normally when org has SSO enforced and user has matching identity", %{
+    test "continues normally when org has SSO enforced and session auth provider matches", %{
       session: session,
       user: user
     } do
-      Accounts.link_oauth_identity_to_user(user, %{
-        provider: :google,
-        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
-        provider_organization_id: "enforced.com"
-      })
-
       %{account: enforced_account} =
         organization =
         AccountsFixtures.organization_fixture(
@@ -364,21 +358,24 @@ defmodule TuistWeb.LayoutLiveTest do
 
       Accounts.update_organization(organization, %{sso_enforced: true})
 
+      google_session = Map.put(session, "auth_provider", :google)
+
       {:cont, socket} =
         LayoutLive.on_mount(
           :account,
           %{"account_handle" => enforced_account.name},
-          session,
+          google_session,
           %LiveView.Socket{}
         )
 
       assert socket.assigns.selected_account == enforced_account
     end
 
-    test "halts with redirect when org has SSO enforced and user has no matching identity", %{
-      session: session,
-      user: user
-    } do
+    test "halts with redirect when org has SSO enforced and session auth provider does not match",
+         %{
+           session: session,
+           user: user
+         } do
       %{account: enforced_account} =
         organization =
         AccountsFixtures.organization_fixture(
@@ -448,7 +445,7 @@ defmodule TuistWeb.LayoutLiveTest do
   end
 
   describe "SSO enforcement in on_mount/4 :project" do
-    test "halts with redirect when project's org has SSO enforced and user has no matching identity",
+    test "halts with redirect when project's org has SSO enforced and session auth provider does not match",
          %{
            session: session,
            user: user,
@@ -484,31 +481,26 @@ defmodule TuistWeb.LayoutLiveTest do
     end
 
     @tag user_role: :user
-    test "continues normally when project's org has SSO enforced and user has matching identity",
+    test "continues normally when project's org has SSO enforced and session auth provider matches",
          %{
            params: params,
            session: session,
-           user: user,
            organization: organization,
            project: project
          } do
-      Accounts.link_oauth_identity_to_user(user, %{
-        provider: :google,
-        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
-        provider_organization_id: "proj-enforced.com"
-      })
-
       Accounts.update_organization(organization, %{
         sso_provider: :google,
         sso_organization_id: "proj-enforced.com",
         sso_enforced: true
       })
 
+      google_session = Map.put(session, "auth_provider", :google)
+
       {:cont, socket} =
         LayoutLive.on_mount(
           :project,
           params,
-          session,
+          google_session,
           %LiveView.Socket{}
         )
 

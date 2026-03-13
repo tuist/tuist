@@ -63,7 +63,7 @@ defmodule TuistWeb.LayoutLive do
 
     %{account: selected_account} = selected_project
 
-    case check_sso_enforcement(current_user, selected_account, socket) do
+    case check_sso_enforcement(current_user, selected_account, session, socket) do
       {:halt, socket} ->
         {:halt, socket}
 
@@ -159,7 +159,7 @@ defmodule TuistWeb.LayoutLive do
             dgettext("dashboard", "The account you are looking for doesn't exist or has been moved.")
     end
 
-    case check_sso_enforcement(current_user, selected_account, socket) do
+    case check_sso_enforcement(current_user, selected_account, session, socket) do
       {:halt, socket} ->
         {:halt, socket}
 
@@ -215,12 +215,13 @@ defmodule TuistWeb.LayoutLive do
      |> assign(:current_user, current_user)}
   end
 
-  defp check_sso_enforcement(current_user, selected_account, socket) do
+  defp check_sso_enforcement(current_user, selected_account, session, socket) do
     with organization_id when not is_nil(organization_id) <- selected_account.organization_id,
          {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
          true <- organization.sso_enforced and not is_nil(organization.sso_provider),
          false <- is_nil(current_user),
-         false <- Accounts.belongs_to_sso_organization?(current_user, organization) do
+         auth_provider = Map.get(session, "auth_provider"),
+         false <- auth_provider == organization.sso_provider do
       return_to = ~p"/#{selected_account.name}/projects"
 
       {:halt,

@@ -111,6 +111,8 @@ defmodule TuistWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
+    auth_params = %{auth_provider: auth.provider}
+
     case Accounts.get_oauth2_identity(auth.provider, auth.uid) do
       {:ok, oauth2_identity} ->
         user = oauth2_identity.user
@@ -120,9 +122,9 @@ defmodule TuistWeb.AuthController do
           conn
           |> put_session(:user_return_to, oauth_return_url)
           |> delete_session(:oauth_return_to)
-          |> Authentication.log_in_user(user)
+          |> Authentication.log_in_user(user, auth_params)
         else
-          Authentication.log_in_user(conn, user)
+          Authentication.log_in_user(conn, user, auth_params)
         end
 
       {:error, :not_found} ->
@@ -157,9 +159,9 @@ defmodule TuistWeb.AuthController do
               conn
               |> put_session(:user_return_to, oauth_return_url)
               |> delete_session(:oauth_return_to)
-              |> Authentication.log_in_user(existing_user)
+              |> Authentication.log_in_user(existing_user, auth_params)
             else
-              Authentication.log_in_user(conn, existing_user)
+              Authentication.log_in_user(conn, existing_user, auth_params)
             end
         end
     end
@@ -267,10 +269,13 @@ defmodule TuistWeb.AuthController do
             redirect(conn, to: ~p"/users/log_in")
 
           user ->
+            pending = get_session(conn, :pending_oauth_signup)
+            auth_provider = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
+
             conn
             |> delete_session(:pending_oauth_signup)
             |> put_session(:user_return_to, oauth_return_url)
-            |> Authentication.log_in_user(user)
+            |> Authentication.log_in_user(user, %{auth_provider: auth_provider})
         end
 
       {:error, _reason} ->
