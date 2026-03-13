@@ -282,8 +282,14 @@ defmodule TuistWeb.AuthController do
 
   defp redirect_to_auth_error(conn, message) do
     conn
-    |> put_session(:auth_error_message, message)
-    |> redirect(to: ~p"/users/auth/error")
+    |> put_status(401)
+    |> put_layout(false)
+    |> put_view(TuistWeb.ErrorHTML)
+    |> render("auth_error.html",
+      head_title: dgettext("dashboard", "Authentication failed"),
+      title: message,
+      error_name: dgettext("dashboard", "Authentication failed")
+    )
     |> halt()
   end
 

@@ -611,7 +611,6 @@ defmodule TuistWeb.Router do
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
       live "/users/choose-username", ChooseUsernameLive, :new
-      live "/users/auth/error", AuthErrorLive, :new
     end
 
     post "/users/log_in", UserSessionController, :create

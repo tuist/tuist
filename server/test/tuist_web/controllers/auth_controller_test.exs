@@ -119,16 +119,17 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirect_url =~ "login_hint=user%40example.com"
     end
 
-    test "redirects to auth error page when organization not found", %{conn: conn} do
+    test "renders error page when organization not found", %{conn: conn} do
       # When
       conn = get(conn, "/users/auth/okta?organization_id=999")
 
       # Then
-      assert redirected_to(conn) == "/users/auth/error"
-      assert get_session(conn, :auth_error_message) == "Failed to authenticate with Okta."
+      assert conn.status == 401
+      assert conn.resp_body =~ "Authentication failed"
+      assert conn.resp_body =~ "Failed to authenticate with Okta."
     end
 
-    test "redirects to auth error page when organization not configured for Okta", %{conn: conn} do
+    test "renders error page when organization not configured for Okta", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -143,13 +144,14 @@ defmodule TuistWeb.AuthControllerTest do
       conn = get(conn, "/users/auth/okta?organization_id=#{organization.id}")
 
       # Then
-      assert redirected_to(conn) == "/users/auth/error"
-      assert get_session(conn, :auth_error_message) == "Failed to authenticate with Okta."
+      assert conn.status == 401
+      assert conn.resp_body =~ "Authentication failed"
+      assert conn.resp_body =~ "Failed to authenticate with Okta."
     end
   end
 
   describe "GET /users/auth/okta/callback" do
-    test "processes callback when organization is found and configured", %{conn: conn} do
+    test "renders error page when organization has no Okta credentials", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -167,19 +169,21 @@ defmodule TuistWeb.AuthControllerTest do
         |> get("/users/auth/okta/callback")
 
       # Then
-      assert conn.status == 302
+      assert conn.status == 401
+      assert conn.resp_body =~ "Authentication failed"
     end
 
-    test "redirects to auth error page when organization not found in session", %{conn: conn} do
+    test "renders error page when organization not found in session", %{conn: conn} do
       # When
       conn = get(conn, "/users/auth/okta/callback")
 
       # Then
-      assert redirected_to(conn) == "/users/auth/error"
-      assert get_session(conn, :auth_error_message) == "Failed to authenticate with Okta."
+      assert conn.status == 401
+      assert conn.resp_body =~ "Authentication failed"
+      assert conn.resp_body =~ "Failed to authenticate with Okta."
     end
 
-    test "redirects to auth error page when organization not configured for Okta", %{conn: conn} do
+    test "renders error page when organization not configured for Okta", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -197,8 +201,9 @@ defmodule TuistWeb.AuthControllerTest do
         |> get("/users/auth/okta/callback")
 
       # Then
-      assert redirected_to(conn) == "/users/auth/error"
-      assert get_session(conn, :auth_error_message) == "Failed to authenticate with Okta."
+      assert conn.status == 401
+      assert conn.resp_body =~ "Authentication failed"
+      assert conn.resp_body =~ "Failed to authenticate with Okta."
     end
   end
 
