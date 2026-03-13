@@ -395,9 +395,8 @@ defmodule Tuist.Builds do
     custom_values = Keyword.get(opts, :custom_values)
 
     base_query =
-      Build
+      from(b in Build, hints: ["FINAL"])
       |> apply_custom_values_filter(custom_values)
-      |> deduplicate_builds()
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 
@@ -416,9 +415,8 @@ defmodule Tuist.Builds do
       countIf(status = 'failure') as failed_count
     FROM (
       SELECT status
-      FROM build_runs
+      FROM build_runs FINAL
       WHERE project_id = {project_id:Int64}
-        AND NOT (status = 'processing' AND id IN (SELECT id FROM build_runs WHERE status != 'processing'))
       ORDER BY inserted_at #{order_direction}
       LIMIT {limit:UInt32}
     )
@@ -477,15 +475,6 @@ defmodule Tuist.Builds do
       ClickHouseRepo.query(query, %{project_id: project.id, since: thirty_days_ago})
 
     Enum.map(rows, fn [tag] -> tag end)
-  end
-
-  defp deduplicate_builds(query) do
-    from(b in query,
-      where:
-        fragment(
-          "NOT (status = 'processing' AND id IN (SELECT id FROM build_runs WHERE status != 'processing'))"
-        )
-    )
   end
 
   defp apply_custom_values_filter(query, nil), do: query
