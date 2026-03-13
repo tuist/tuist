@@ -110,6 +110,39 @@ defmodule Cache.KeyValueEntriesTest do
     assert record.replication_enqueued_at == local_source_updated_at
   end
 
+  test "delete_project_entries_before does not match handles containing SQL wildcards" do
+    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:a_b:ios:target",
+      json_payload: "{}",
+      last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:axb:ios:bystander",
+      json_payload: "{}",
+      last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:a%b:mac:target",
+      json_payload: "{}",
+      last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    {keys, count} = KeyValueEntries.delete_project_entries_before("a_b", "ios", old_time)
+
+    assert count == 1
+    assert keys == ["keyvalue:a_b:ios:target"]
+
+    remaining_keys = KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key))
+    assert Enum.sort(remaining_keys) == ["keyvalue:a%b:mac:target", "keyvalue:axb:ios:bystander"]
+  end
+
   test "delete_project_entries_before only returns keys that were actually deleted" do
     old_time = DateTime.add(DateTime.utc_now(), -1, :day)
     new_time = DateTime.utc_now()
