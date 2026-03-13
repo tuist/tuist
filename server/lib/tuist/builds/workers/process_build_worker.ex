@@ -26,10 +26,12 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled)
       end
 
+    build_metadata = Map.get(args, "build_metadata", %{})
+
     case result do
       {:ok, parsed_data} ->
         parsed_data = Map.put(parsed_data, "project_id", project_id)
-        replace_build_run(build_id, parsed_data, account_id)
+        replace_build_run(build_id, parsed_data, account_id, build_metadata)
 
       {:error, reason} ->
         if attempt >= max_attempts do
@@ -102,8 +104,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp replace_build_run(build_id, parsed_data, account_id) do
+  defp replace_build_run(build_id, parsed_data, account_id, build_metadata) do
     parsed = atomize_keys(parsed_data)
+    metadata = atomize_keys(build_metadata)
 
     existing_build = Builds.get_build(build_id)
 
@@ -113,7 +116,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         |> Map.from_struct()
         |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
       else
-        %{id: build_id, account_id: account_id, is_ci: false}
+        Map.merge(
+          %{id: build_id, account_id: account_id, is_ci: false},
+          metadata
+        )
       end
 
     attrs =

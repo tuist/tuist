@@ -928,7 +928,24 @@ defmodule TuistWeb.API.BuildsController do
             storage_key: storage_key,
             account_id: params.account.id,
             project_id: params.project.id,
-            xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false)
+            xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
+            build_metadata: %{
+              macos_version: Map.get(params, :macos_version),
+              xcode_version: Map.get(params, :xcode_version),
+              is_ci: Map.get(params, :is_ci),
+              model_identifier: Map.get(params, :model_identifier),
+              scheme: Map.get(params, :scheme),
+              configuration: Map.get(params, :configuration),
+              git_branch: Map.get(params, :git_branch),
+              git_commit_sha: Map.get(params, :git_commit_sha),
+              git_ref: Map.get(params, :git_ref),
+              ci_run_id: Map.get(params, :ci_run_id),
+              ci_project_handle: Map.get(params, :ci_project_handle),
+              ci_host: Map.get(params, :ci_host),
+              ci_provider: Map.get(params, :ci_provider),
+              custom_tags: Map.get(custom_metadata, :tags, []),
+              custom_values: Map.get(custom_metadata, :values, %{})
+            }
           }
           |> Tuist.Builds.Workers.ProcessBuildWorker.new()
           |> Oban.insert!()
