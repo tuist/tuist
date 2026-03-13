@@ -224,7 +224,7 @@ defmodule Tuist.Builds do
         %{
           build_run_id: build.id,
           timestamp: metric.timestamp,
-          cpu_usage_percent: metric.cpu_usage_percent,
+          cpu_usage_percent: metric.cpu_usage_percent / 1,
           memory_used_bytes: metric.memory_used_bytes,
           memory_total_bytes: metric.memory_total_bytes,
           network_bytes_in: metric.network_bytes_in,
