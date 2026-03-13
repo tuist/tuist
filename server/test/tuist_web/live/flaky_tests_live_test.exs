@@ -144,5 +144,4 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
     test_case
   end
-
 end
