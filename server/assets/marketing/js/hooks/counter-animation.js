@@ -13,7 +13,7 @@ const CounterAnimation = {
           }
         });
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     this.observer.observe(this.el);
@@ -55,9 +55,7 @@ const CounterAnimation = {
       // Ease-out cubic for smooth deceleration
       const easedProgress = 1 - Math.pow(1 - progress, 3);
 
-      this.currentValue = Math.floor(
-        startValue + (endValue - startValue) * easedProgress
-      );
+      this.currentValue = Math.floor(startValue + (endValue - startValue) * easedProgress);
       this.el.textContent = this.currentValue.toLocaleString();
 
       if (progress < 1) {
