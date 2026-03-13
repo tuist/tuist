@@ -22,8 +22,6 @@
         case missingFullHandle
         case executablePathMissing
         case mostRecentActivityLogNotFound(AbsolutePath)
-        case archiveCreationFailed
-
         var errorDescription: String? {
             switch self {
             case .missingFullHandle:
@@ -34,8 +32,6 @@
             case let .mostRecentActivityLogNotFound(projectPath):
                 return
                     "We couldn't find the most recent activity log from the project at \(projectPath.pathString)"
-            case .archiveCreationFailed:
-                return "Failed to create build archive zip."
             }
         }
     }
@@ -351,9 +347,9 @@
             for subdirectory in ["nodes", "cas", "keyvalue"] {
                 let sourceDir = stateDir.appending(component: subdirectory)
                 if try await fileSystem.exists(sourceDir) {
-                    try await fileSystem.createSymbolicLink(
-                        from: casMetadataDir.appending(component: subdirectory),
-                        to: sourceDir
+                    try await fileSystem.copy(
+                        sourceDir,
+                        to: casMetadataDir.appending(component: subdirectory)
                     )
                 }
             }
@@ -367,29 +363,8 @@
             }
 
             let zipPath = tempDirectory.appending(component: "build.zip")
-            try await createZipFollowingSymlinks(at: buildDirectory, to: zipPath)
+            try await fileSystem.zipFileOrDirectoryContent(at: buildDirectory, to: zipPath)
             return zipPath
-        }
-
-        private func createZipFollowingSymlinks(at directory: AbsolutePath, to zipPath: AbsolutePath) async throws {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
-                process.arguments = ["-r", "-q", zipPath.pathString, "."]
-                process.currentDirectoryURL = URL(fileURLWithPath: directory.pathString)
-                process.terminationHandler = { process in
-                    if process.terminationStatus == 0 {
-                        continuation.resume()
-                    } else {
-                        continuation.resume(throwing: InspectBuildCommandServiceError.archiveCreationFailed)
-                    }
-                }
-                do {
-                    try process.run()
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
         }
 
         private func truncateIssuesIfNeeded(_ issues: [XCActivityIssue]) -> [XCActivityIssue] {
