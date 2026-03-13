@@ -7,6 +7,9 @@ defmodule TuistWeb.DocsLive do
   alias Tuist.Docs.Paths
   alias TuistWeb.Errors.NotFoundError
 
+  @noora_icons_path Path.join([Mix.Project.deps_path(), "noora", "lib", "noora", "icons"])
+  @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
+
   def mount(_params, _session, socket) do
     socket =
       attach_hook(socket, :assign_current_path, :handle_params, fn _params, url, socket ->
@@ -60,7 +63,10 @@ defmodule TuistWeb.DocsLive do
   end
 
   def render(%{view: :overview} = assigns) do
-    assigns = assign(assigns, :install_path, docs_path("/en/guides/install-tuist"))
+    assigns =
+      assigns
+      |> assign(:install_path, docs_path("/en/guides/install-tuist"))
+      |> assign(:copy_check_icon, @copy_check_icon)
 
     ~H"""
     <TuistWeb.Docs.Components.layout current_slug="/en" tab={:guides} headings={[]} markdown="">
@@ -111,7 +117,8 @@ defmodule TuistWeb.DocsLive do
                     aria-label="Copy command"
                     phx-click={JS.exec("event.stopPropagation()", to: "window")}
                   >
-                    <.copy />
+                    <span data-part="copy-icon"><.copy /></span>
+                    <span data-part="copy-check-icon"><%= raw(@copy_check_icon) %></span>
                   </button>
                 </div>
                 <div data-part="terminal-body">

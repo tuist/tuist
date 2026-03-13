@@ -206,6 +206,23 @@
       height: 12px;
     }
 
+    & [data-part="copy-icon"],
+    & [data-part="copy-check-icon"] {
+      display: flex;
+    }
+
+    & [data-part="copy-check-icon"] {
+      display: none;
+    }
+
+    &[data-copied] [data-part="copy-icon"] {
+      display: none;
+    }
+
+    &[data-copied] [data-part="copy-check-icon"] {
+      display: flex;
+    }
+
     &:hover {
       background: var(--noora-surface-secondary);
     }
@@ -219,6 +236,8 @@
     border-radius: 8px;
     background: #f9fafa;
     padding: 16px 12px;
+    cursor: text;
+    user-select: text;
 
     &::after {
       position: absolute;
@@ -234,6 +253,7 @@
       font-size: 14px;
       line-height: 20px;
       font-family: "Geist Mono", var(--noora-font-mono), monospace;
+      user-select: text;
       white-space: nowrap;
     }
   }

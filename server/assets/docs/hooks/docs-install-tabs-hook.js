@@ -20,10 +20,16 @@ function selectTab(tabs, selectedTab, codeElement) {
   }
 }
 
+function stopCardNavigation(event) {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
 const DocsInstallTabsHook = {
   mounted() {
     const tabs = Array.from(this.el.querySelectorAll("[data-part='terminal-tab']"));
     const codeElement = this.el.querySelector("[data-part='terminal-body'] code");
+    const terminalBody = this.el.querySelector("[data-part='terminal-body']");
     const copyButton = this.el.querySelector("[data-part='terminal-copy']");
 
     // Set up ARIA roles
@@ -32,7 +38,8 @@ const DocsInstallTabsHook = {
       tab.setAttribute("tabindex", index === 0 ? "0" : "-1");
       tab.setAttribute("aria-selected", tab.hasAttribute("data-selected") ? "true" : "false");
 
-      tab.addEventListener("click", () => {
+      tab.addEventListener("click", (event) => {
+        stopCardNavigation(event);
         selectTab(tabs, tab, codeElement);
       });
 
@@ -44,16 +51,35 @@ const DocsInstallTabsHook = {
           target = tabs[(tabs.indexOf(tab) - 1 + tabs.length) % tabs.length];
         }
         if (target) {
-          e.preventDefault();
+          stopCardNavigation(e);
           selectTab(tabs, target, codeElement);
           target.focus();
         }
       });
     });
 
+    if (terminalBody) {
+      ["mousedown", "mouseup", "click"].forEach((eventName) => {
+        terminalBody.addEventListener(eventName, stopCardNavigation);
+      });
+    }
+
     if (copyButton && codeElement) {
-      copyButton.addEventListener("click", () => {
-        navigator.clipboard.writeText(codeElement.textContent.trim()).then(() => flashCopyCheck(copyButton));
+      copyButton.setAttribute("aria-label", "Copy code");
+
+      copyButton.addEventListener("click", (event) => {
+        stopCardNavigation(event);
+        navigator.clipboard
+          .writeText(codeElement.textContent.trim())
+          .then(() => flashCopyCheck(copyButton))
+          .catch((err) => console.error("Failed to copy code:", err));
+      });
+
+      copyButton.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          stopCardNavigation(event);
+          copyButton.click();
+        }
       });
     }
   },
