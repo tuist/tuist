@@ -6,6 +6,16 @@
   margin-top: var(--noora-spacing-5);
 }
 
+[data-part="docs-body"] .noora-alert [data-part="description"] > ul,
+[data-part="docs-body"] .noora-alert [data-part="description"] > ol {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+[data-part="docs-body"] .noora-alert [data-part="description"] :is(ul, ol) {
+  padding-left: var(--noora-spacing-5);
+}
+
 [data-part="docs-body"] .noora-alert [data-part="description"] > *:last-child {
   margin-bottom: 0;
 }

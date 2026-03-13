@@ -1,12 +1,27 @@
+function publicPathFromSlug(slug) {
+  const segments = slug.split("/").filter(Boolean);
+  if (segments.length === 0) return "/en/docs";
+
+  const [locale, ...pathSegments] = segments;
+  return pathSegments.length === 0
+    ? `/${locale}/docs`
+    : `/${locale}/docs/${pathSegments.join("/")}`;
+}
+
 function updateSidebarSelection(currentSlug) {
   const sidebar = document.getElementById("docs-sidebar");
   if (!sidebar) return;
 
-  sidebar.querySelectorAll("a[data-part='nav-link'], a[data-part='trigger']").forEach((link) => {
+  const currentPath = publicPathFromSlug(currentSlug);
+
+  sidebar.querySelectorAll("a[data-part='nav-link']").forEach((link) => {
     const tabMenu = link.querySelector(".noora-tab-menu-vertical");
     if (!tabMenu) return;
 
-    const isActive = link.getAttribute("href") === "/docs" + currentSlug;
+    const href = link.getAttribute("href");
+    if (!href) return;
+
+    const isActive = new URL(href, window.location.origin).pathname === currentPath;
     if (isActive) {
       tabMenu.setAttribute("data-selected", "true");
     } else {

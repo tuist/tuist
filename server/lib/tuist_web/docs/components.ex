@@ -7,7 +7,7 @@ defmodule TuistWeb.Docs.Components do
   alias Tuist.Docs.Sidebar
 
   @group_icons %{
-    "Guides" => "books",
+    "Guides" => "book_2",
     "Tutorials" => "book",
     "Builds" => "versions",
     "Tests" => "subtask",

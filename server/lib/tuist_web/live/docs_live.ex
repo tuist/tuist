@@ -95,7 +95,7 @@ defmodule TuistWeb.DocsLive do
             id="docs-install-card"
             data-part="hero-card"
             data-clickable
-            phx-click={JS.navigate(@install_path)}
+            phx-click={JS.patch(@install_path)}
             phx-key="Enter"
             role="link"
             tabindex="0"
@@ -136,7 +136,7 @@ defmodule TuistWeb.DocsLive do
               </div>
               <p data-part="hero-card-hint">
                 or follow the instructions to
-                <.link navigate={@install_path} data-part="hero-card-link">
+                <.link patch={@install_path} data-part="hero-card-link">
                   install specific version of tuist
                 </.link>
               </p>
@@ -198,7 +198,7 @@ defmodule TuistWeb.DocsLive do
           </p>
           <div data-part="feature-cards">
             <.link
-              navigate={docs_path("/en/guides/features/cache/module-cache")}
+              patch={docs_path("/en/guides/features/cache/module-cache")}
               data-part="feature-card"
             >
               <div data-part="feature-card-image">
@@ -211,7 +211,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate={docs_path("/en/guides/features/insights")} data-part="feature-card">
+            <.link patch={docs_path("/en/guides/features/insights")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.search /></span>
                 <span data-part="feature-card-title">Insights</span>
@@ -233,7 +233,7 @@ defmodule TuistWeb.DocsLive do
           </p>
           <div data-part="feature-cards">
             <.link
-              navigate={docs_path("/en/guides/features/selective-testing")}
+              patch={docs_path("/en/guides/features/selective-testing")}
               data-part="feature-card"
             >
               <div data-part="feature-card-image">
@@ -247,7 +247,7 @@ defmodule TuistWeb.DocsLive do
               </div>
             </.link>
             <.link
-              navigate={docs_path("/en/guides/features/test-insights/flaky-tests")}
+              patch={docs_path("/en/guides/features/test-insights/flaky-tests")}
               data-part="feature-card"
             >
               <div data-part="feature-card-image">
@@ -260,7 +260,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate={docs_path("/en/guides/features/test-insights")} data-part="feature-card">
+            <.link patch={docs_path("/en/guides/features/test-insights")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.search /></span>
                 <span data-part="feature-card-title">Insights</span>
@@ -281,7 +281,7 @@ defmodule TuistWeb.DocsLive do
             From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating.
           </p>
           <div data-part="feature-cards">
-            <.link navigate={docs_path("/en/guides/features/previews")} data-part="feature-card">
+            <.link patch={docs_path("/en/guides/features/previews")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.devices /></span>
                 <span data-part="feature-card-title">Previews</span>
@@ -292,7 +292,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate={docs_path("/en/guides/features/qa")} data-part="feature-card">
+            <.link patch={docs_path("/en/guides/features/qa")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.checkup_list /></span>
                 <span data-part="feature-card-title">Agentic QA</span>
@@ -421,7 +421,7 @@ defmodule TuistWeb.DocsLive do
             data-part="community-card"
           >
             <div data-part="community-card-header">
-              <.icon name="external_link" />
+              <.brand_linkedin />
               <span>LinkedIn</span>
             </div>
             <p>Follow Tuist on LinkedIn for news and updates.</p>

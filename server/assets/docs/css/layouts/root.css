@@ -30,6 +30,7 @@
       padding: var(--noora-spacing-7) var(--noora-spacing-4);
       min-height: 0;
       overflow-y: auto;
+      overflow-anchor: none;
       scrollbar-width: none;
     }
   }

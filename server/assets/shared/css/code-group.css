@@ -125,7 +125,7 @@
       min-width: 0;
 
       &[data-hidden="true"] {
-        visibility: hidden;
+        display: none;
       }
 
       & > .code-window {

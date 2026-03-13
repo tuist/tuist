@@ -7,7 +7,7 @@
   justify-self: end;
   gap: var(--noora-spacing-3);
   z-index: 1;
-  padding: var(--noora-spacing-5) var(--noora-spacing-2) var(--noora-spacing-7) var(--noora-spacing-2);
+  padding: var(--noora-spacing-7) var(--noora-spacing-2) var(--noora-spacing-7) var(--noora-spacing-2);
   width: 100%;
   max-width: 250px;
   max-height: calc(100vh - var(--docs-nav-height));
@@ -23,7 +23,7 @@
     flex-shrink: 0;
     align-items: center;
     gap: var(--noora-spacing-2);
-    padding: var(--noora-spacing-5) 0 0 0;
+    padding: 0;
     color: var(--noora-surface-label-primary);
 
     & svg {

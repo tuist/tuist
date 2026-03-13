@@ -197,7 +197,7 @@ defmodule Tuist.Docs.Loader do
   defp rewrite_image_paths(html) do
     html
     |> String.replace(~s(src="/images/), ~s(src="/docs/images/))
-    |> String.replace(~s(src="/logo.png"), ~s(src="/docs/images/logo.png"))
+    |> String.replace(~s(src="/logo.png"), ~s(src="/docs/images/logo.webp"))
   end
 
   @heading_anchor_regex ~r/(<h[2-4]>)(<a href="#[^"]*" aria-hidden="true" class="anchor" id="[^"]*"><\/a>)(.*?)(<\/h[2-4]>)/s
