@@ -3,6 +3,7 @@ defmodule TuistWeb.Docs.Components do
   use TuistWeb, :html
   use Noora
 
+  alias Tuist.Docs.Paths
   alias Tuist.Docs.Sidebar
 
   @group_icons %{
@@ -40,6 +41,8 @@ defmodule TuistWeb.Docs.Components do
   }
 
   defp item_icon_src(icon), do: Map.fetch!(@item_icon_srcs, icon)
+
+  defp docs_path(slug), do: Paths.public_path_from_slug(slug)
 
   defp slugify(label) do
     label

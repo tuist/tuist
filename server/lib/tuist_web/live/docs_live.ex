@@ -4,6 +4,7 @@ defmodule TuistWeb.DocsLive do
   use Noora
 
   alias Tuist.Docs
+  alias Tuist.Docs.Paths
   alias TuistWeb.Errors.NotFoundError
 
   def mount(_params, _session, socket) do
@@ -93,7 +94,7 @@ defmodule TuistWeb.DocsLive do
               </div>
               <p data-part="hero-card-hint">
                 or follow the instructions to
-                <.link navigate="/docs/en/guides/install-tuist" data-part="hero-card-link">
+                <.link navigate={docs_path("/en/guides/install-tuist")} data-part="hero-card-link">
                   install specific version of tuist
                 </.link>
               </p>
@@ -154,7 +155,10 @@ defmodule TuistWeb.DocsLive do
             Skip the manual steps, auto-generate projects, speeds up builds, and explore insights with built-in analytics.
           </p>
           <div data-part="feature-cards">
-            <.link navigate="/docs/en/guides/features/cache/module-cache" data-part="feature-card">
+            <.link
+              navigate={docs_path("/en/guides/features/cache/module-cache")}
+              data-part="feature-card"
+            >
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.database /></span>
                 <span data-part="feature-card-title">Cache</span>
@@ -165,7 +169,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate="/docs/en/guides/features/insights" data-part="feature-card">
+            <.link navigate={docs_path("/en/guides/features/insights")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.search /></span>
                 <span data-part="feature-card-title">Insights</span>
@@ -187,7 +191,7 @@ defmodule TuistWeb.DocsLive do
           </p>
           <div data-part="feature-cards">
             <.link
-              navigate="/docs/en/guides/features/selective-testing"
+              navigate={docs_path("/en/guides/features/selective-testing")}
               data-part="feature-card"
             >
               <div data-part="feature-card-image">
@@ -201,7 +205,7 @@ defmodule TuistWeb.DocsLive do
               </div>
             </.link>
             <.link
-              navigate="/docs/en/guides/features/test-insights/flaky-tests"
+              navigate={docs_path("/en/guides/features/test-insights/flaky-tests")}
               data-part="feature-card"
             >
               <div data-part="feature-card-image">
@@ -214,7 +218,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate="/docs/en/guides/features/test-insights" data-part="feature-card">
+            <.link navigate={docs_path("/en/guides/features/test-insights")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.search /></span>
                 <span data-part="feature-card-title">Insights</span>
@@ -235,7 +239,7 @@ defmodule TuistWeb.DocsLive do
             From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating.
           </p>
           <div data-part="feature-cards">
-            <.link navigate="/docs/en/guides/features/previews" data-part="feature-card">
+            <.link navigate={docs_path("/en/guides/features/previews")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.devices /></span>
                 <span data-part="feature-card-title">Previews</span>
@@ -246,7 +250,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate="/docs/en/guides/features/qa" data-part="feature-card">
+            <.link navigate={docs_path("/en/guides/features/qa")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.checkup_list /></span>
                 <span data-part="feature-card-title">Agentic QA</span>
@@ -423,6 +427,8 @@ defmodule TuistWeb.DocsLive do
     end
   end
 
-  defp build_path(%{"path" => path_parts}), do: "/en/" <> Enum.join(path_parts, "/")
-  defp build_path(_params), do: "/en"
+  defp build_path(%{"path" => path_parts}), do: Paths.slug("en", path_parts)
+  defp build_path(_params), do: Paths.slug("en")
+
+  defp docs_path(slug), do: Paths.public_path_from_slug(slug)
 end

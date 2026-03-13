@@ -326,12 +326,21 @@ defmodule TuistWeb.Router do
     end
   end
 
-  scope "/docs", TuistWeb do
+  scope "/", TuistWeb do
     pipe_through [:open_api, :browser_docs]
 
-    live_session :docs do
-      live "/en", DocsLive, :overview, metadata: %{type: :docs}
-      live "/en/*path", DocsLive, :show, metadata: %{type: :docs}
+    get "/docs", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
+
+    live_session :docs_en, on_mount: Localization do
+      live "/en/docs", DocsLive, :overview, metadata: %{type: :docs}, private: %{locale: "en"}
+
+      live "/en/docs/*path",
+           DocsLive,
+           :show,
+           metadata: %{type: :docs},
+           private: %{locale: "en"}
     end
   end
 

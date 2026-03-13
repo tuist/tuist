@@ -182,8 +182,12 @@ defmodule Tuist.MixProject do
         "ecto.migrate"
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["esbuild.install --if-missing"],
+      "assets.setup": [
+        "cmd --cd .. pnpm install --filter noora",
+        "esbuild.install --if-missing"
+      ],
       "assets.build": [
+        "cmd --cd ../noora pnpm run build",
         "esbuild app",
         "esbuild marketing",
         "esbuild docs",

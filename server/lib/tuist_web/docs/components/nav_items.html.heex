@@ -9,7 +9,7 @@
     </.link>
   <% else %>
     <%= if item.items == [] do %>
-      <.link patch={"/docs#{item.slug}"} data-part="nav-link">
+      <.link patch={docs_path(item.slug)} data-part="nav-link">
         <.tab_menu_vertical
           label={item.label}
           data-selected={Sidebar.item_active?(item, @current_slug)}
@@ -33,7 +33,7 @@
       >
         <div data-part="root">
           <%= if item.slug do %>
-            <.link patch={"/docs#{item.slug}"} data-part="trigger">
+            <.link patch={docs_path(item.slug)} data-part="trigger">
               <.tab_menu_vertical
                 label={item.label}
                 data-selected={Sidebar.item_active?(item, @current_slug)}

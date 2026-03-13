@@ -2,6 +2,7 @@ defmodule Tuist.Docs.Loader do
   @moduledoc false
 
   alias Tuist.Docs.Page
+  alias Tuist.Docs.Paths
 
   @docs_root Path.expand("../../../docs/docs", __DIR__)
   @english_docs_root Path.join(@docs_root, "en")
@@ -255,7 +256,7 @@ defmodule Tuist.Docs.Loader do
           title = Map.get(attrs, "title", "")
           details = Map.get(attrs, "details", "")
           link = Map.get(attrs, "link", "")
-          link_href = if link == "", do: "#", else: "/docs/en#{link}"
+          link_href = if link == "", do: "#", else: Paths.public_path("en", link)
 
           ~s(<a href="#{link_href}" class="docs-home-card">) <>
             ~s(<div class="docs-home-card-image"><strong>#{title}</strong></div>) <>
@@ -447,8 +448,8 @@ defmodule Tuist.Docs.Loader do
     |> String.trim()
   end
 
-  defp localize_href("/en/" <> _ = href), do: "/docs" <> href
-  defp localize_href("/" <> _ = href), do: "/docs/en" <> href
+  defp localize_href("/en/" <> _ = href), do: Paths.public_path_from_slug(href)
+  defp localize_href("/" <> _ = href), do: Paths.public_path("en", href)
   defp localize_href(href), do: href
 
   defp title_from_markdown(markdown) do
