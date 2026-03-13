@@ -527,14 +527,16 @@ defmodule TuistWeb.AuthenticationTest do
 
       Accounts.update_organization(organization, %{sso_enforced: true})
 
+      request_path = "/#{organization.account.name}/settings"
+
       conn =
-        %{conn | params: %{"account_handle" => organization.account.name}}
+        %{conn | params: %{"account_handle" => organization.account.name}, request_path: request_path, query_string: ""}
         |> assign(:current_user, user)
         |> Authentication.require_sso_authentication([])
 
       assert conn.halted
       assert redirected_to(conn) == "/users/auth/google"
-      assert get_session(conn, :oauth_return_to) == ~p"/#{organization.account.name}/projects"
+      assert get_session(conn, :oauth_return_to) == request_path
     end
 
     test "redirects to Okta SSO when org has Okta SSO enforced and session auth provider does not match",
@@ -552,7 +554,12 @@ defmodule TuistWeb.AuthenticationTest do
       Accounts.update_organization(organization, %{sso_enforced: true})
 
       conn =
-        %{conn | params: %{"account_handle" => organization.account.name}}
+        %{
+          conn
+          | params: %{"account_handle" => organization.account.name},
+            request_path: "/#{organization.account.name}/projects",
+            query_string: ""
+        }
         |> assign(:current_user, user)
         |> Authentication.require_sso_authentication([])
 

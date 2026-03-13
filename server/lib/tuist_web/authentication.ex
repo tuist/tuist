@@ -331,8 +331,14 @@ defmodule TuistWeb.Authentication do
          true <- organization.sso_enforced and not is_nil(organization.sso_provider),
          auth_provider = get_session(conn, :auth_provider),
          false <- auth_provider == organization.sso_provider do
+      return_to =
+        case conn.query_string do
+          "" -> conn.request_path
+          qs -> "#{conn.request_path}?#{qs}"
+        end
+
       conn
-      |> put_session(:oauth_return_to, ~p"/#{account_handle}/projects")
+      |> put_session(:oauth_return_to, return_to)
       |> redirect(to: sso_provider_path(organization))
       |> halt()
     else
