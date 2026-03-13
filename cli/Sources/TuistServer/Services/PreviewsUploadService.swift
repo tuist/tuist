@@ -254,7 +254,7 @@ public protocol PreviewsUploadServicing {
                         let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
                         let binaryId = try appBundleBinaryId(
                             at: bundle.path,
-                            name: bundle.infoPlist.executableName ?? bundle.path.basenameWithoutExt
+                            name: bundle.infoPlist.executableName ?? bundle.infoPlist.name
                         )
 
                         preview = try await uploadPreviewBuild(
