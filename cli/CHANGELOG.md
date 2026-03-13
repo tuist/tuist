@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* resolve --path flag not working for tuist setup cache by [@fortmarek](https://github.com/fortmarek) in [#9826](https://github.com/tuist/tuist/pull/9826)
+* use modern launchctl bootstrap/bootout for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#9819](https://github.com/tuist/tuist/pull/9819)
 * use modern launchctl bootstrap/bootout for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#9815](https://github.com/tuist/tuist/pull/9815)
 * skip binary cache mapping when graph is empty after selective testing by [@fortmarek](https://github.com/fortmarek) in [#9814](https://github.com/tuist/tuist/pull/9814)
 
