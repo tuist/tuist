@@ -111,7 +111,7 @@ defmodule Cache.CleanProjectWorker do
         Logger.info("Cleaned #{count} disk artifacts for project #{account_handle}/#{project_handle} with cutoff")
         :ok
 
-      {:error, :cleanup_lease_lost} = error ->
+      {:error, _} = error ->
         error
     end
   end

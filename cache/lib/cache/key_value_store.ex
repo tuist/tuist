@@ -126,11 +126,8 @@ defmodule Cache.KeyValueStore do
   end
 
   defp maybe_track_access(key) do
-    if Config.distributed_kv_enabled?() do
-      if KeyValueAccessTracker.shared_lineage?(key) and KeyValueAccessTracker.allow_access_bump?(key) do
-        KeyValueBuffer.enqueue_access(key)
-      end
-    else
+    if not Config.distributed_kv_enabled?() or
+         (KeyValueAccessTracker.shared_lineage?(key) and KeyValueAccessTracker.allow_access_bump?(key)) do
       KeyValueBuffer.enqueue_access(key)
     end
 

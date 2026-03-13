@@ -30,7 +30,7 @@ defmodule Cache.KeyValueAccessTracker do
   end
 
   def shared_lineage?(key) when is_binary(key) do
-    :ets.lookup(@table, {:lineage, key}) != []
+    :ets.member(@table, {:lineage, key})
   end
 
   def allow_access_bump?(key) when is_binary(key) do

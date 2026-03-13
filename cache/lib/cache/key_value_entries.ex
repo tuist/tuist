@@ -95,7 +95,7 @@ defmodule Cache.KeyValueEntries do
   def put_distributed_watermark(updated_at_value, key_value) do
     attrs = %{name: @poller_watermark, updated_at_value: updated_at_value, key_value: key_value}
 
-    _result =
+    {:ok, _state} =
       %State{name: @poller_watermark}
       |> State.changeset(attrs)
       |> KeyValueRepo.insert(
@@ -405,6 +405,7 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp merge_remote_into_local(local_entry, remote_attrs) do
+    # Pending local writes keep their payload until a strictly newer remote source version arrives.
     local_wins? =
       not is_nil(local_entry.replication_enqueued_at) and
         Logic.compare_source_versions(
