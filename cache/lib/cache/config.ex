@@ -188,12 +188,15 @@ defmodule Cache.Config do
   end
 
   def validate_distributed_kv! do
+    database_url = distributed_kv_database_url()
+    node_name = distributed_kv_node_name()
+
     if distributed_kv_enabled?() do
-      if is_nil(distributed_kv_database_url()) or distributed_kv_database_url() == "" do
+      if is_nil(database_url) or database_url == "" do
         raise "DISTRIBUTED_KV_DATABASE_URL is required when KEY_VALUE_MODE=distributed"
       end
 
-      if is_nil(distributed_kv_node_name()) or distributed_kv_node_name() == "" do
+      if is_nil(node_name) or node_name == "" do
         raise "DISTRIBUTED_KV_NODE_NAME or HOSTNAME is required when KEY_VALUE_MODE=distributed"
       end
     end

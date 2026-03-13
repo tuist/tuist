@@ -280,28 +280,37 @@ defmodule Cache.Disk do
     files
     |> Enum.chunk_every(@cleanup_progress_chunk_size)
     |> Enum.reduce_while({:ok, 0}, fn files_chunk, {:ok, deleted_acc} ->
-      case on_progress.() do
-        :ok ->
-          chunk_deleted_count =
-            Enum.reduce(files_chunk, 0, fn file_path, chunk_deleted_acc ->
-              with {:ok, %File.Stat{mtime: mtime}} <- File.stat(file_path),
-                   {:ok, mtime_datetime} <- stat_mtime_to_datetime(mtime),
-                   true <- DateTime.before?(mtime_datetime, safe_cutoff),
-                   :ok <- File.rm(file_path) do
-                chunk_deleted_acc + 1
-              else
-                false -> chunk_deleted_acc
-                {:error, :enoent} -> chunk_deleted_acc
-                {:error, _reason} -> chunk_deleted_acc
-              end
-            end)
-
-          {:cont, {:ok, deleted_acc + chunk_deleted_count}}
-
+      with :ok <- on_progress.(),
+           {:ok, chunk_deleted_count} <- delete_files_chunk_before(files_chunk, safe_cutoff) do
+        {:cont, {:ok, deleted_acc + chunk_deleted_count}}
+      else
         {:error, reason} ->
           {:halt, {:error, reason}}
       end
     end)
+  end
+
+  defp delete_files_chunk_before(files, safe_cutoff) do
+    Enum.reduce_while(files, {:ok, 0}, fn file_path, {:ok, deleted_acc} ->
+      case delete_file_if_before(file_path, safe_cutoff) do
+        :deleted -> {:cont, {:ok, deleted_acc + 1}}
+        :skipped -> {:cont, {:ok, deleted_acc}}
+        {:error, :enoent} -> {:cont, {:ok, deleted_acc}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp delete_file_if_before(file_path, safe_cutoff) do
+    with {:ok, %File.Stat{mtime: mtime}} <- File.stat(file_path),
+         {:ok, mtime_datetime} <- stat_mtime_to_datetime(mtime),
+         true <- DateTime.before?(mtime_datetime, safe_cutoff),
+         :ok <- File.rm(file_path) do
+      :deleted
+    else
+      false -> :skipped
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp prune_empty_directories(root) do

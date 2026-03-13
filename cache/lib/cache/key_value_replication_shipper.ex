@@ -11,6 +11,7 @@ defmodule Cache.KeyValueReplicationShipper do
 
   @telemetry_event [:cache, :kv, :replication, :ship, :flush]
   @pending_rows_event [:cache, :kv, :replication, :ship, :pending_rows]
+  # Shared rows resolve payload conflicts by source_updated_at, then source_node for equal timestamps.
   @shared_payload_wins_sql """
   EXCLUDED.source_updated_at > kv_entries.source_updated_at OR (
     EXCLUDED.source_updated_at = kv_entries.source_updated_at AND
