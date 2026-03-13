@@ -1,0 +1,40 @@
+name: Server — Preview Base Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - server/Dockerfile.preview-base
+  workflow_dispatch:
+
+permissions:
+  packages: write
+
+jobs:
+  build:
+    name: Build preview base image
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile.preview-base
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-preview-base:latest
+            ghcr.io/tuist/tuist-preview-base:${{ github.sha }}
