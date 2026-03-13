@@ -400,7 +400,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, %{}}
       end)
 
-      args = job_args(build.id, account.id, project.id) |> Map.put("vcs_comment_params", vcs_params)
+      args = build.id |> job_args(account.id, project.id) |> Map.put("vcs_comment_params", vcs_params)
 
       assert ProcessBuildWorker.perform(oban_job(args))
     end
@@ -503,7 +503,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       args =
-        job_args(non_existent_build_id, account.id, project.id)
+        non_existent_build_id
+        |> job_args(account.id, project.id)
         |> Map.put("build_metadata", build_metadata)
 
       assert {:error, _} = ProcessBuildWorker.perform(oban_job(args, 3, 3))
