@@ -1,0 +1,27 @@
+<aside id="docs-toc" aria-label={dgettext("docs", "Table of contents")}>
+  <div data-part="toc-actions">
+    <.button_dropdown
+      id="docs-copy-dropdown"
+      label={dgettext("docs", "Copy page")}
+      size="medium"
+      phx-click="copy-page-markdown"
+    >
+      <:icon_left><.copy /></:icon_left>
+      <.dropdown_item
+        label={dgettext("docs", "Copy as Markdown")}
+        value="copy-markdown"
+        size="small"
+        on_click="copy-page-markdown"
+      />
+    </.button_dropdown>
+  </div>
+  <div data-part="toc-header">
+    <.list_tree />
+    <span>{dgettext("docs", "On this page")}</span>
+  </div>
+  <ul data-part="list">
+    <li :for={heading <- @headings} data-part="item">
+      <a href={"##{heading.id}"} data-level={heading.level}>{heading.text}</a>
+    </li>
+  </ul>
+</aside>

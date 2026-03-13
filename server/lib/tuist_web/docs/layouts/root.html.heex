@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang={Gettext.get_locale(TuistWeb.Gettext)} class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="csp-nonce" content={get_csp_nonce()} />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title>
+      {assigns[:head_title] || "Tuist"}
+    </.live_title>
+    <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
+    <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
+    <!-- Assets -->
+    <link phx-track-static rel="stylesheet" href={~p"/docs/assets/bundle.css"} />
+    <script defer phx-track-static type="module" src={~p"/docs/assets/bundle.js"}>
+    </script>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Analytics -->
+    <TuistWeb.LayoutComponents.head_analytics_scripts page_section="docs" {assigns} />
+    <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+  </head>
+  <body data-scrollable="true">
+    <a href="#docs-content" class="docs-skip-link">
+      {dgettext("docs", "Skip to content")}
+    </a>
+    <nav id="docs-nav" aria-label={dgettext("docs", "Main navigation")}>
+      <div data-part="header">
+        <.link navigate={docs_path("/en")} data-part="logo-link">
+          <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
+          <span data-part="logo-text">Tuist</span>
+        </.link>
+        <.button_group size="large" id="docs-nav-tabs">
+          <.button_group_item
+            label={dgettext("docs", "Guides")}
+            navigate={docs_path("/en")}
+            data-tab="guides"
+            data-selected={
+              !String.starts_with?(@current_path, "/en/docs/references") &&
+                !String.starts_with?(@current_path, "/en/docs/contributors")
+            }
+          />
+          <.button_group_item
+            label={dgettext("docs", "References")}
+            navigate={docs_path("/en/references/tuist-toml")}
+            data-tab="references"
+            data-selected={String.starts_with?(@current_path, "/en/docs/references")}
+          />
+          <.button_group_item
+            label={dgettext("docs", "Resources")}
+            navigate={docs_path("/en/contributors/code")}
+            data-tab="resources"
+            data-selected={String.starts_with?(@current_path, "/en/docs/contributors")}
+          />
+        </.button_group>
+      </div>
+      <div data-part="cta">
+        <.text_input
+          id="text-input-types-search"
+          name="search"
+          type="search"
+          placeholder="Search..."
+        />
+
+        <div data-part="socials">
+          <.neutral_button
+            size="large"
+            href="https://github.com/tuist/tuist"
+            target="_blank"
+            aria-label={dgettext("docs", "GitHub")}
+          >
+            <.brand_github />
+          </.neutral_button>
+          <.neutral_button
+            size="large"
+            href="https://fosstodon.org/@tuist"
+            target="_blank"
+            aria-label={dgettext("docs", "Mastodon")}
+          >
+            <.brand_mastodon />
+          </.neutral_button>
+          <.neutral_button
+            size="large"
+            href="https://slack.tuist.dev"
+            target="_blank"
+            aria-label={dgettext("docs", "Slack")}
+          >
+            <.brand_slack />
+          </.neutral_button>
+          <.neutral_button
+            size="large"
+            href="https://bsky.app/profile/tuist.dev"
+            target="_blank"
+            aria-label={dgettext("docs", "Bluesky")}
+          >
+            <.brand_bluesky />
+          </.neutral_button>
+        </div>
+      </div>
+      <div data-part="mobile-actions">
+        <.neutral_button size="large" aria-label={dgettext("docs", "Search")}>
+          <.icon name="search" />
+        </.neutral_button>
+        <.neutral_button
+          size="large"
+          data-action="toggle-sidebar"
+          aria-label={dgettext("docs", "Toggle sidebar")}
+          aria-expanded="false"
+          aria-controls="docs-sidebar"
+        >
+          <.icon name="menu" />
+        </.neutral_button>
+      </div>
+    </nav>
+    <div id="docs-mobile-menu-bar" role="toolbar" aria-label={dgettext("docs", "Page navigation")}>
+      <button
+        type="button"
+        data-part="mobile-menu-btn"
+        id="docs-mobile-menu-trigger"
+        phx-hook="DocsMobileSidebar"
+        aria-expanded="false"
+        aria-controls="docs-sidebar"
+      >
+        <.icon name="menu_3" />
+        <span>{dgettext("docs", "Menu")}</span>
+      </button>
+      <button
+        type="button"
+        data-part="mobile-toc-btn"
+        id="docs-mobile-toc-trigger"
+        aria-expanded="false"
+        aria-controls="docs-mobile-toc"
+        phx-click={JS.toggle_attribute({"data-state", "open", "closed"}, to: "#docs-mobile-toc")}
+      >
+        <span>{dgettext("docs", "On this page")}</span>
+        <.icon name="news" />
+      </button>
+    </div>
+    <div id="docs-mobile-sidebar-overlay" role="presentation"></div>
+    {@inner_content}
+  </body>
+</html>

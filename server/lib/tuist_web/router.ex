@@ -124,6 +124,20 @@ defmodule TuistWeb.Router do
     plug Localization, :put_locale
   end
 
+  pipeline :browser_docs do
+    plug :accepts, ["html"]
+    plug :enable_robot_indexing
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {TuistWeb.Docs.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug SentryContextPlug
+    plug :content_security_policy
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
+    plug Localization, :put_locale
+  end
+
   pipeline :browser_marketing_feed do
     plug :accepts, ["xml"]
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
@@ -311,6 +325,24 @@ defmodule TuistWeb.Router do
           :newsletter_issue,
           metadata: %{type: :marketing},
           private: private
+    end
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :browser_docs]
+
+    get "/docs", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
+
+    live_session :docs_en, on_mount: Localization do
+      live "/en/docs", DocsLive, :overview, metadata: %{type: :docs}, private: %{locale: "en"}
+
+      live "/en/docs/*path",
+           DocsLive,
+           :show,
+           metadata: %{type: :docs},
+           private: %{locale: "en"}
     end
   end
 

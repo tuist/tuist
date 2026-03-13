@@ -10,8 +10,10 @@
     "./fonts.css": "./priv/static/fonts.css"
   },
   "scripts": {
+    "build:css": "esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css",
+    "build:js": "esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js",
     "test": "vitest",
-    "build": "esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js"
+    "build": "pnpm run build:js && pnpm run build:css"
   },
   "dependencies": {
     "@zag-js/avatar": "^1.8.2",

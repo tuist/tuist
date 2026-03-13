@@ -9,6 +9,12 @@
 
 Use Build Insights to track local and CI build performance. It currently supports both Xcode and Gradle build systems.
 
+::: warning REQUIREMENTS
+<!-- -->
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+<!-- -->
+:::
+
 <HomeCards>
     <HomeCard
         icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
@@ -23,9 +29,3 @@ Use Build Insights to track local and CI build performance. It currently support
         linkText="Set up Gradle build insights"
         link="/guides/features/build-insights/gradle"/>
 </HomeCards>
-
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-<!-- -->
-:::
