@@ -3,7 +3,6 @@ defmodule Cache.KeyValueReplicationShipperTest do
   use Mimic
 
   alias Cache.DistributedKV.Cleanup
-  alias Cache.DistributedKV.Entry, as: DistributedEntry
   alias Cache.DistributedKV.Repo, as: DistributedRepo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
@@ -22,10 +21,11 @@ defmodule Cache.KeyValueReplicationShipperTest do
   test "ships pending rows and clears the shipped token" do
     parent = self()
     token = DateTime.utc_now()
+    json_payload = Jason.encode!(%{entries: [%{"value" => "artifact"}]})
 
     pending_entry = %KeyValueEntry{
       key: "keyvalue:acme:ios:cas",
-      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+      json_payload: json_payload,
       last_accessed_at: token,
       source_updated_at: token,
       replication_enqueued_at: token
@@ -41,25 +41,31 @@ defmodule Cache.KeyValueReplicationShipperTest do
       1
     end)
 
-    stub(DistributedRepo, :transaction, fn fun, _opts ->
-      fun.()
-      {:ok, :ok}
-    end)
+    stub(DistributedRepo, :query!, fn sql, params, opts ->
+      assert sql =~ "INSERT INTO kv_entries"
+      assert sql =~ "ON CONFLICT (key) DO UPDATE"
 
-    stub(DistributedRepo, :all, fn _query, _opts -> [] end)
+      assert [
+               ["keyvalue:acme:ios:cas"],
+               ["acme"],
+               ["ios"],
+               ["cas"],
+               [^json_payload],
+               ["test-node"],
+               [^token],
+               [^token],
+               [updated_at]
+             ] = params
 
-    stub(DistributedRepo, :insert_all, fn DistributedEntry, [row] ->
-      assert row.account_handle == "acme"
-      assert row.project_handle == "ios"
-      assert row.cas_id == "cas"
-      assert row.source_node == "test-node"
-      send(parent, :inserted)
-      {1, nil}
+      assert %DateTime{} = updated_at
+      assert opts[:timeout]
+      send(parent, :upserted)
+      %{num_rows: 1}
     end)
 
     start_supervised!(KeyValueReplicationShipper)
 
-    assert_receive :inserted
+    assert_receive :upserted
     assert_receive :token_cleared
   end
 
@@ -99,25 +105,21 @@ defmodule Cache.KeyValueReplicationShipperTest do
       1
     end)
 
-    expect(DistributedRepo, :transaction, fn fun, _opts ->
-      send(parent, :transaction_started)
-      fun.()
-      {:ok, :ok}
-    end)
-
-    expect(DistributedRepo, :all, fn _query, _opts -> [] end)
-
-    expect(DistributedRepo, :insert_all, fn DistributedEntry, rows ->
-      assert rows |> Enum.map(& &1.cas_id) |> Enum.sort() == ["cas-a", "cas-b"]
-      send(parent, :insert_batch)
-      {2, nil}
+    expect(DistributedRepo, :query!, fn sql, params, opts ->
+      assert sql =~ "FROM UNNEST"
+      assert Enum.at(params, 0) == ["keyvalue:acme:ios:cas-a", "keyvalue:acme:ios:cas-b"]
+      assert Enum.at(params, 3) == ["cas-a", "cas-b"]
+      assert Enum.at(params, 5) == ["test-node", "test-node"]
+      assert length(Enum.at(params, 8)) == 2
+      assert opts[:timeout]
+      send(parent, :upsert_batch)
+      %{num_rows: 2}
     end)
 
     start_supervised!(KeyValueReplicationShipper)
 
     assert_receive :cutoffs_loaded
-    assert_receive :transaction_started
-    assert_receive :insert_batch
+    assert_receive :upsert_batch
     assert_receive {:token_cleared, _}
     assert_receive {:token_cleared, _}
   end
