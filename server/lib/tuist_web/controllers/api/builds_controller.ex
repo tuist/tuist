@@ -854,18 +854,20 @@ defmodule TuistWeb.API.BuildsController do
 
     {:ok, build} = get_or_create_build(run_params)
 
-    Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-      git_commit_sha: build.git_commit_sha,
-      git_ref: build.git_ref,
-      git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-      project_id: selected_project.id,
-      preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-      preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-      command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-      test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-      bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-      build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
-    })
+    if build.status not in ["processing", "failed_processing"] do
+      Tuist.VCS.enqueue_vcs_pull_request_comment(%{
+        git_commit_sha: build.git_commit_sha,
+        git_ref: build.git_ref,
+        git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
+        project_id: selected_project.id,
+        preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+        preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+        command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+        test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
+        bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+        build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+      })
+    end
 
     conn
     |> put_status(:ok)
@@ -943,8 +945,24 @@ defmodule TuistWeb.API.BuildsController do
               ci_project_handle: Map.get(params, :ci_project_handle),
               ci_host: Map.get(params, :ci_host),
               ci_provider: Map.get(params, :ci_provider),
+              git_remote_url_origin: Map.get(params, :git_remote_url_origin),
               custom_tags: Map.get(custom_metadata, :tags, []),
               custom_values: Map.get(custom_metadata, :values, %{})
+            },
+            vcs_comment_params: %{
+              git_commit_sha: Map.get(params, :git_commit_sha),
+              git_ref: Map.get(params, :git_ref),
+              git_remote_url_origin: Map.get(params, :git_remote_url_origin),
+              project_id: params.project.id,
+              preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+              preview_qr_code_url_template:
+                "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+              command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+              test_run_url_template:
+                "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
+              bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+              build_url_template:
+                "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
             }
           }
           |> Tuist.Builds.Workers.ProcessBuildWorker.new()

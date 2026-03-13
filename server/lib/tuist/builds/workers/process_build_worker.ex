@@ -33,6 +33,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         parsed_data = Map.put(parsed_data, "project_id", project_id)
         replace_build_run(build_id, parsed_data, account_id, build_metadata)
 
+        case Map.get(args, "vcs_comment_params", %{}) do
+          params when params != %{} -> enqueue_vcs_comment(params)
+          _ -> :ok
+        end
+
       {:error, reason} ->
         if attempt >= max_attempts do
           mark_failed_build_processing(build_id, project_id, account_id)
@@ -149,6 +154,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       duration: 0,
       is_ci: false
     })
+  end
+
+  defp enqueue_vcs_comment(vcs_comment_params) do
+    Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
   end
 
   defp atomize_keys(map) when is_map(map) do

@@ -367,6 +367,76 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     end
   end
 
+  describe "perform/1 VCS comment" do
+    setup do
+      stub(Tuist.Environment, :processor_url, fn -> "http://localhost:4002" end)
+      stub(Tuist.Environment, :processor_webhook_secret, fn -> "test-secret" end)
+      :ok
+    end
+
+    test "enqueues VCS comment after successful processing when vcs_comment_params present", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: parsed_data()}}
+      end)
+
+      expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
+
+      vcs_params = %{
+        "git_commit_sha" => "abc123",
+        "git_ref" => "refs/pull/1/merge",
+        "git_remote_url_origin" => "https://github.com/tuist/tuist",
+        "project_id" => project.id,
+        "build_url_template" => "http://localhost/builds/:build_id"
+      }
+
+      expect(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn params ->
+        assert params["git_commit_sha"] == "abc123"
+        assert params["git_ref"] == "refs/pull/1/merge"
+        assert params["project_id"] == project.id
+        {:ok, %{}}
+      end)
+
+      args = job_args(build.id, account.id, project.id) |> Map.put("vcs_comment_params", vcs_params)
+
+      assert ProcessBuildWorker.perform(oban_job(args))
+    end
+
+    test "does not enqueue VCS comment when vcs_comment_params not present", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: parsed_data()}}
+      end)
+
+      expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
+      reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
+
+      assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+
+    test "does not enqueue VCS comment on failed processing", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 500, body: %{"error" => "internal error"}}}
+      end)
+
+      expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
+      reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
+
+      assert {:error, _} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
+    end
+  end
+
   describe "perform/1 replace_build_run" do
     setup do
       stub(Tuist.Environment, :processor_url, fn -> "http://localhost:4002" end)
