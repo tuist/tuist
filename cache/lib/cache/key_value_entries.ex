@@ -183,9 +183,11 @@ defmodule Cache.KeyValueEntries do
   end
 
   def delete_project_entries_before(account_handle, project_handle, cutoff) do
+    prefix = "keyvalue:#{account_handle}:#{project_handle}:"
+
     query =
       from(entry in KeyValueEntry,
-        where: like(entry.key, ^"keyvalue:#{account_handle}:#{project_handle}:%"),
+        where: fragment("instr(?, ?) = 1", entry.key, ^prefix),
         where: is_nil(entry.replication_enqueued_at),
         where: is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff
       )

@@ -16,6 +16,7 @@ defmodule Cache.KeyValueReplicationPoller do
   @local_store_event [:cache, :kv, :replication, :local_store, :size_bytes]
   @page_size 1000
   @bootstrap_page_size 500
+  @max_poll_run_ms 10_000
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -55,6 +56,39 @@ defmodule Cache.KeyValueReplicationPoller do
 
     started_at = System.monotonic_time(:millisecond)
     lag_cutoff = DateTime.add(DateTime.utc_now(), -Config.distributed_kv_poll_lag_ms(), :millisecond)
+
+    {total_materialized, total_deleted} = drain_pages(lag_cutoff, started_at, {0, 0})
+
+    emit_local_store_size()
+
+    :telemetry.execute(
+      @completion_event,
+      %{
+        duration_ms: System.monotonic_time(:millisecond) - started_at,
+        rows_materialized: total_materialized,
+        rows_deleted: total_deleted
+      },
+      %{}
+    )
+
+    :ok
+  end
+
+  defp drain_pages(lag_cutoff, started_at, totals) do
+    if System.monotonic_time(:millisecond) - started_at >= @max_poll_run_ms do
+      totals
+    else
+      {page_size, new_totals} = apply_one_page(lag_cutoff, totals)
+
+      if page_size == @page_size do
+        drain_pages(lag_cutoff, started_at, new_totals)
+      else
+        new_totals
+      end
+    end
+  end
+
+  defp apply_one_page(lag_cutoff, {total_materialized, total_deleted}) do
     watermark = KeyValueEntries.distributed_watermark()
 
     query =
@@ -100,19 +134,7 @@ defmodule Cache.KeyValueReplicationPoller do
       emit_lag(last_row.updated_at)
     end
 
-    emit_local_store_size()
-
-    :telemetry.execute(
-      @completion_event,
-      %{
-        duration_ms: System.monotonic_time(:millisecond) - started_at,
-        rows_materialized: materialized_count,
-        rows_deleted: deleted_count
-      },
-      %{}
-    )
-
-    :ok
+    {length(rows), {total_materialized + materialized_count, total_deleted + deleted_count}}
   end
 
   defp maybe_bootstrap do
