@@ -8,6 +8,7 @@
     import TuistKit
     import TuistLogging
     import TuistServer
+    import TuistEnvKey
     import TuistSupport
 
     enum TuistTestFlagError: FatalError, Equatable {
@@ -237,6 +238,41 @@
         )
         var skipQuarantine: Bool = false
 
+        @Option(
+            name: .long,
+            help: "Maximum number of shards to distribute tests across.",
+            envKey: .testShardMax
+        )
+        var shardMax: Int?
+
+        @Option(
+            name: .long,
+            help: "Minimum number of shards.",
+            envKey: .testShardMin
+        )
+        var shardMin: Int?
+
+        @Option(
+            name: .long,
+            help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max).",
+            envKey: .testShardTotal
+        )
+        var shardTotal: Int?
+
+        @Option(
+            name: .long,
+            help: "Target maximum duration per shard in milliseconds.",
+            envKey: .testShardMaxDuration
+        )
+        var shardMaxDuration: Int?
+
+        @Option(
+            name: .long,
+            help: "Sharding granularity level: module (default) or suite.",
+            envKey: .testShardGranularity
+        )
+        var shardGranularity: String?
+
         @Argument(
             parsing: .postTerminator,
             help:
@@ -308,6 +344,22 @@
                     .test
                 }
 
+            let shardConfig: ShardConfiguration? = if shardMax != nil || shardMin != nil || shardTotal != nil
+                || shardMaxDuration != nil
+            {
+                ShardConfiguration(
+                    shardMin: shardMin,
+                    shardMax: shardMax,
+                    shardTotal: shardTotal,
+                    shardMaxDuration: shardMaxDuration,
+                    granularity: shardGranularity == "suite" ? .suite : .module
+                )
+            } else {
+                nil
+            }
+
+            let shardIndex: Int? = EnvKey.testShardIndex.envValue()
+
             try await TestService(
                 generatorFactory: Extension.generatorFactory,
                 cacheStorageFactory: Extension.cacheStorageFactory
@@ -347,7 +399,9 @@
                 ignoreSelectiveTesting: !selectiveTesting,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                skipQuarantine: skipQuarantine
+                skipQuarantine: skipQuarantine,
+                shardConfiguration: shardConfig,
+                shardIndex: shardIndex
             )
         }
     }

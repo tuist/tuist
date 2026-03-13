@@ -1,0 +1,47 @@
+defmodule TuistWeb.API.Schemas.Shards.ShardSession do
+  @moduledoc false
+  alias OpenApiSpex.Schema
+
+  require OpenApiSpex
+
+  OpenApiSpex.schema(%{
+    title: "ShardSession",
+    type: :object,
+    description: "A shard session with assignment details.",
+    properties: %{
+      session_id: %Schema{
+        type: :string,
+        description: "The session identifier."
+      },
+      shard_count: %Schema{
+        type: :integer,
+        description: "The number of shards."
+      },
+      shards: %Schema{
+        type: :array,
+        description: "The shard assignments.",
+        items: %Schema{
+          type: :object,
+          properties: %{
+            index: %Schema{type: :integer, description: "The zero-based shard index."},
+            test_targets: %Schema{
+              type: :array,
+              items: %Schema{type: :string},
+              description: "The test targets assigned to this shard."
+            },
+            estimated_duration_ms: %Schema{
+              type: :integer,
+              description: "The estimated duration in milliseconds."
+            }
+          },
+          required: [:index, :test_targets, :estimated_duration_ms]
+        }
+      },
+      upload_id: %Schema{
+        type: :string,
+        description: "The multipart upload ID for the test products bundle."
+      }
+    },
+    required: [:session_id, :shard_count, :shards, :upload_id]
+  })
+end

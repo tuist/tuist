@@ -234,6 +234,30 @@
             </div>
           </div>
         </div>
+        <div :if={@is_sharded} data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_tests", "Shard")}</div>
+            <span data-part="value">
+              <.badge
+                label={
+                  dgettext("dashboard_tests", "Shard %{index} of %{total}",
+                    index: @run.shard_index || 0,
+                    total: length(@shard_balance)
+                  )
+                }
+                color="information"
+                style="light-fill"
+                size="large"
+              />
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_tests", "Session ID")}</div>
+            <span data-part="value">
+              {@run.shard_session_id}
+            </span>
+          </div>
+        </div>
         <div data-part="widgets">
           <.widget
             title={dgettext("dashboard_tests", "Test cases")}
@@ -265,6 +289,45 @@
             }
             id="widget-avg-test-case-duration"
           />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={@is_sharded && length(@shard_balance) > 0}
+        data-part="shard-balance-section"
+      >
+        <div data-part="section-header">
+          <h3>{dgettext("dashboard_tests", "Shard Balance")}</h3>
+        </div>
+        <div data-part="shard-balance-list">
+          <div
+            :for={shard <- Enum.sort_by(@shard_balance, & &1.shard_index)}
+            data-part="shard-bar"
+          >
+            <div data-part="shard-label">
+              <span>
+                {dgettext("dashboard_tests", "Shard %{index}", index: shard.shard_index)}
+              </span>
+              <.badge
+                :if={shard.status == "failure"}
+                label={dgettext("dashboard_tests", "Failed")}
+                color="destructive"
+                style="light-fill"
+                size="small"
+              />
+              <.badge
+                :if={shard.status == "success"}
+                label={dgettext("dashboard_tests", "Passed")}
+                color="success"
+                style="light-fill"
+                size="small"
+              />
+            </div>
+            <div data-part="shard-value">
+              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                shard.actual_duration_ms
+              )}
+            </div>
+          </div>
         </div>
       </.card_section>
       <.card_section :if={@command_event} data-part="command-card-section">

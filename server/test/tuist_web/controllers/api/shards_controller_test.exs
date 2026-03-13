@@ -1,0 +1,148 @@
+defmodule TuistWeb.API.ShardsControllerTest do
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
+
+  alias Tuist.Shards.ShardSession
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Authentication
+
+  setup do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+    stub(Tuist.IngestRepo, :all, fn _query -> [] end)
+    stub(Tuist.IngestRepo, :insert, fn changeset -> {:ok, Ecto.Changeset.apply_changes(changeset)} end)
+    stub(Tuist.IngestRepo, :one, fn _query -> nil end)
+    stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id-123" end)
+
+    %{user: user, project: project}
+  end
+
+  describe "POST /api/projects/:account/:project/tests/shards" do
+    test "creates shard session with valid params", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            session_id: "github-123-1",
+            modules: ["AppTests", "CoreTests"],
+            shard_max: 2
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert response["session_id"] == "github-123-1"
+      assert response["shard_count"] == 2
+      assert is_list(response["shards"])
+      assert response["upload_id"] == "upload-id-123"
+    end
+
+    test "returns forbidden when user doesn't have access", %{conn: conn} do
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      other_project = ProjectsFixtures.project_fixture(preload: [:account], account_id: other_user.account.id)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(AccountsFixtures.user_fixture(preload: [:account]))
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/tests/shards",
+          %{
+            session_id: "session-1",
+            modules: ["AppTests"]
+          }
+        )
+
+      assert response(conn, :forbidden)
+    end
+
+    test "returns unauthorized when not authenticated", %{conn: conn, project: project} do
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            session_id: "session-1",
+            modules: ["AppTests"]
+          }
+        )
+
+      assert response(conn, :unauthorized)
+    end
+  end
+
+  describe "GET /api/projects/:account/:project/tests/shards/:session_id/:shard_index" do
+    test "returns shard assignment for valid params", %{conn: conn, user: user, project: project} do
+      session = %ShardSession{
+        id: Ecto.UUID.generate(),
+        session_id: "session-1",
+        project_id: project.id,
+        shard_count: 2,
+        granularity: "module",
+        shard_assignments:
+          Jason.encode!([
+            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100},
+            %{"index" => 1, "test_targets" => ["CoreTests"], "estimated_duration_ms" => 80}
+          ]),
+        bundle_object_key: "bundle.zip",
+        xctestrun_object_key: "original.xctestrun",
+        upload_completed: 1,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      stub(Tuist.IngestRepo, :one, fn _query -> session end)
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/0")
+
+      response = json_response(conn, :ok)
+      assert response["test_targets"] == ["AppTests"]
+      assert response["xctestrun_download_url"] == "https://download.example.com"
+      assert response["bundle_download_url"] == "https://download.example.com"
+    end
+
+    test "returns not found for nonexistent session", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/nonexistent/0")
+
+      response = json_response(conn, :not_found)
+      assert response["message"] =~ "not found"
+    end
+
+    test "returns not found for out-of-range shard index", %{conn: conn, user: user, project: project} do
+      session = %ShardSession{
+        id: Ecto.UUID.generate(),
+        session_id: "session-1",
+        project_id: project.id,
+        shard_count: 2,
+        shard_assignments:
+          Jason.encode!([
+            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100}
+          ]),
+        bundle_object_key: "bundle.zip",
+        xctestrun_object_key: "original.xctestrun",
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      stub(Tuist.IngestRepo, :one, fn _query -> session end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/99")
+
+      response = json_response(conn, :not_found)
+      assert response["message"] =~ "out of range"
+    end
+  end
+end

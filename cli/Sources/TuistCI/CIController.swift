@@ -17,20 +17,32 @@ public struct CIController: CIControlling {
 
         // GitHub Actions
         if env["GITHUB_ACTIONS"] != nil {
+            let shardSessionId: String? = if let runId = env["GITHUB_RUN_ID"] {
+                "github-\(runId)-\(env["GITHUB_RUN_ATTEMPT"] ?? "1")"
+            } else {
+                nil
+            }
             return CIInfo(
                 provider: .github,
                 runId: env["GITHUB_RUN_ID"],
-                projectHandle: env["GITHUB_REPOSITORY"]
+                projectHandle: env["GITHUB_REPOSITORY"],
+                shardSessionId: shardSessionId
             )
         }
 
         // GitLab CI
         if env["GITLAB_CI"] != nil {
+            let shardSessionId: String? = if let pipelineId = env["CI_PIPELINE_ID"] {
+                "gitlab-\(pipelineId)"
+            } else {
+                nil
+            }
             return CIInfo(
                 provider: .gitlab,
                 runId: env["CI_PIPELINE_ID"],
                 projectHandle: env["CI_PROJECT_PATH"],
-                host: env["CI_SERVER_HOST"]
+                host: env["CI_SERVER_HOST"],
+                shardSessionId: shardSessionId
             )
         }
 
@@ -52,10 +64,16 @@ public struct CIController: CIControlling {
             } else {
                 nil
             }
+            let shardSessionId: String? = if let workflowId = env["CIRCLE_WORKFLOW_ID"] {
+                "circleci-\(workflowId)"
+            } else {
+                nil
+            }
             return CIInfo(
                 provider: .circleci,
                 runId: env["CIRCLE_BUILD_NUM"],
-                projectHandle: projectHandle
+                projectHandle: projectHandle,
+                shardSessionId: shardSessionId
             )
         }
 
@@ -68,19 +86,31 @@ public struct CIController: CIControlling {
             } else {
                 nil
             }
+            let shardSessionId: String? = if let buildId = env["BUILDKITE_BUILD_ID"] {
+                "buildkite-\(buildId)"
+            } else {
+                nil
+            }
             return CIInfo(
                 provider: .buildkite,
                 runId: env["BUILDKITE_BUILD_NUMBER"],
-                projectHandle: projectHandle
+                projectHandle: projectHandle,
+                shardSessionId: shardSessionId
             )
         }
 
         // Codemagic
         if env["CM_BUILD_ID"] != nil {
+            let shardSessionId: String? = if let buildId = env["CM_BUILD_ID"] {
+                "codemagic-\(buildId)"
+            } else {
+                nil
+            }
             return CIInfo(
                 provider: .codemagic,
                 runId: env["CM_BUILD_ID"],
-                projectHandle: env["CM_PROJECT_ID"]
+                projectHandle: env["CM_PROJECT_ID"],
+                shardSessionId: shardSessionId
             )
         }
 

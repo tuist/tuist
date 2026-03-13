@@ -5,17 +5,20 @@ public struct CIInfo: Equatable {
     public let runId: String?
     public let projectHandle: String?
     public let host: String?
+    public let shardSessionId: String?
 
     public init(
         provider: CIProvider,
         runId: String? = nil,
         projectHandle: String? = nil,
-        host: String? = nil
+        host: String? = nil,
+        shardSessionId: String? = nil
     ) {
         self.provider = provider
         self.runId = runId
         self.projectHandle = projectHandle
         self.host = host
+        self.shardSessionId = shardSessionId
     }
 }
 
@@ -25,13 +28,15 @@ public struct CIInfo: Equatable {
             provider: CIProvider = .github,
             runId: String? = "123",
             projectHandle: String? = "test-project",
-            host: String? = nil
+            host: String? = nil,
+            shardSessionId: String? = nil
         ) -> CIInfo {
             CIInfo(
                 provider: provider,
                 runId: runId,
                 projectHandle: projectHandle,
-                host: host
+                host: host,
+                shardSessionId: shardSessionId
             )
         }
     }

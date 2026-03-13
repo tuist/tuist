@@ -6,6 +6,8 @@ import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistLoader
+import TuistLogging
+import TuistServer
 import TuistSupport
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
@@ -19,6 +21,8 @@ struct XcodeBuildBuildCommandService {
     private let xcodeBuildArgumentParser: XcodeBuildArgumentParsing
     private let derivedDataLocator: DerivedDataLocating
     private let xcActivityLogController: XCActivityLogControlling
+    private let shardPlanService: ShardPlanServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -28,7 +32,9 @@ struct XcodeBuildBuildCommandService {
         uniqueIDGenerator: UniqueIDGenerating = UniqueIDGenerator(),
         xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
-        xcActivityLogController: XCActivityLogControlling = XCActivityLogController()
+        xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
+        shardPlanService: ShardPlanServicing = ShardPlanService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -38,15 +44,32 @@ struct XcodeBuildBuildCommandService {
         self.xcodeBuildArgumentParser = xcodeBuildArgumentParser
         self.derivedDataLocator = derivedDataLocator
         self.xcActivityLogController = xcActivityLogController
+        self.shardPlanService = shardPlanService
+        self.serverEnvironmentService = serverEnvironmentService
     }
 
     func run(
-        passthroughXcodebuildArguments: [String]
+        passthroughXcodebuildArguments: [String],
+        shardConfiguration: ShardConfiguration? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
             contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         )
+
+        var shardTestProductsPath: AbsolutePath?
+        if shardConfiguration != nil {
+            let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
+            let currentDir = try await Environment.current.currentWorkingDirectory()
+            let testProductsDir = currentDir.appending(components: ".tuist", "test-products")
+            try await fileSystem.makeDirectory(at: testProductsDir)
+            let productsPath = testProductsDir.appending(component: "\(schemeName).xctestproducts")
+            shardTestProductsPath = productsPath
+            if passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) == nil {
+                passthroughXcodebuildArguments += ["-testProductsPath", productsPath.pathString]
+            }
+        }
+
         try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
@@ -54,13 +77,33 @@ struct XcodeBuildBuildCommandService {
             guard let projectPath = try await projectPath(xcodeBuildArguments: xcodeBuildArguments) else { return }
             derivedDataPath = try await derivedDataLocator.locate(for: projectPath)
         }
-        guard let derivedDataPath,
-              let mostRecentActivityLogPath = try await xcActivityLogController.mostRecentActivityLogFile(
-                  projectDerivedDataDirectory: derivedDataPath
-              )
-        else { return }
+        if let derivedDataPath,
+           let mostRecentActivityLogPath = try await xcActivityLogController.mostRecentActivityLogFile(
+               projectDerivedDataDirectory: derivedDataPath
+           )
+        {
+            await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
+        }
 
-        await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
+        if let shardConfiguration,
+           let shardTestProductsPath
+        {
+            let buildPath = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+            let config = try await configLoader.loadConfig(path: buildPath)
+            guard let fullHandle = config.fullHandle else {
+                Logger.current.warning("Shard configuration provided but no project handle configured. Skipping shard plan.")
+                return
+            }
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
+            _ = try await shardPlanService.plan(
+                xctestproductsPath: shardTestProductsPath,
+                scheme: schemeName,
+                shardConfiguration: shardConfiguration,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+        }
     }
 
     private func projectPath(xcodeBuildArguments: XcodeBuildArguments) async throws -> AbsolutePath? {
