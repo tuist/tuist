@@ -9,6 +9,8 @@ defmodule TuistWeb.AuthController do
   alias Tuist.Accounts.Organization
   alias Tuist.OAuth.Okta
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.UnauthorizedError
+  alias Ueberauth.Failure.Error
 
   require Logger
 
@@ -59,7 +61,7 @@ defmodule TuistWeb.AuthController do
                   "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
                 )
 
-                raise TuistWeb.Errors.UnauthorizedError,
+                raise UnauthorizedError,
                       dgettext("dashboard", "Failed to authenticate with Okta.")
             end
 
@@ -69,7 +71,7 @@ defmodule TuistWeb.AuthController do
               "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
 
-            raise TuistWeb.Errors.UnauthorizedError,
+            raise UnauthorizedError,
                   dgettext("dashboard", "Failed to authenticate with Okta.")
         end
 
@@ -79,7 +81,7 @@ defmodule TuistWeb.AuthController do
           "Failed to extract organization_id from params: #{inspect(params)}, error: #{inspect(error)}"
         )
 
-        raise TuistWeb.Errors.UnauthorizedError,
+        raise UnauthorizedError,
               dgettext("dashboard", "Failed to authenticate with Okta.")
     end
   end
@@ -98,7 +100,7 @@ defmodule TuistWeb.AuthController do
       "Ueberauth failed authenticating: #{inspect(failure)}"
     )
 
-    raise TuistWeb.Errors.UnauthorizedError, oauth_failure_message(failure)
+    raise UnauthorizedError, oauth_failure_message(failure)
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
@@ -196,7 +198,7 @@ defmodule TuistWeb.AuthController do
                   "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
                 )
 
-                raise TuistWeb.Errors.UnauthorizedError,
+                raise UnauthorizedError,
                       dgettext("dashboard", "Failed to authenticate with Okta.")
             end
 
@@ -206,7 +208,7 @@ defmodule TuistWeb.AuthController do
               "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
 
-            raise TuistWeb.Errors.UnauthorizedError,
+            raise UnauthorizedError,
                   dgettext("dashboard", "Failed to authenticate with Okta.")
         end
 
@@ -216,7 +218,7 @@ defmodule TuistWeb.AuthController do
           "Failed to extract organization_id from session: #{inspect(session_data)}, error: #{inspect(error)}"
         )
 
-        raise TuistWeb.Errors.UnauthorizedError,
+        raise UnauthorizedError,
               dgettext("dashboard", "Failed to authenticate with Okta.")
     end
   end
@@ -269,13 +271,13 @@ defmodule TuistWeb.AuthController do
 
   defp oauth_failure_message(%Ueberauth.Failure{errors: errors}) do
     case errors do
-      [%Ueberauth.Failure.Error{message_key: "access_denied"} | _] ->
+      [%Error{message_key: "access_denied"} | _] ->
         dgettext(
           "dashboard",
           "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
         )
 
-      [%Ueberauth.Failure.Error{message: message} | _] when is_binary(message) and message != "" ->
+      [%Error{message: message} | _] when is_binary(message) and message != "" ->
         message
 
       _ ->
