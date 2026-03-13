@@ -1,5 +1,5 @@
 defmodule Cache.ConfigTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   describe "cache_endpoint/0" do
     test "returns hostname extracted from node name" do

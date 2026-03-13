@@ -4,9 +4,7 @@ defmodule Cache.KeyValueEvictionWorker do
   within the configured time window (default: 30 days).
 
   A single worker-level deadline governs all DB-facing work: size checks,
-  eviction passes, and maintenance PRAGMAs. When the deadline is exhausted
-  the worker stops DB work but still enqueues CAS cleanup for any hashes
-  already deleted.
+  eviction passes, and maintenance PRAGMAs.
   """
 
   use Oban.Worker,
@@ -18,11 +16,9 @@ defmodule Cache.KeyValueEvictionWorker do
   alias Cache.KeyValueEntries
   alias Cache.KeyValueRepo
   alias Cache.SQLiteHelpers
-  alias Cache.XcodeCleanupWorker
 
   require Logger
 
-  @cleanup_hashes_per_job 500
   @eviction_event [:cache, :kv, :eviction, :complete]
   @default_batch_size 1000
   @default_max_db_size_bytes 25 * 1024 * 1024 * 1024
@@ -50,7 +46,7 @@ defmodule Cache.KeyValueEvictionWorker do
 
     case fetch_size_state(deadline_ms) do
       {:ok, size_state} ->
-        {trigger, grouped_hashes, count, status} =
+        {trigger, _grouped_hashes, count, status} =
           if exceeds_limit?(size_state, max_db_size_bytes) do
             Logger.warning("KV SQLite size exceeds limit, triggering size-based eviction")
             run_size_based_eviction(min_retention_days, deadline_ms, release_bytes)
@@ -66,7 +62,6 @@ defmodule Cache.KeyValueEvictionWorker do
           "Evicted #{count} key-value entries (trigger=#{trigger}, status=#{status}, max_age_days=#{max_age_days})"
         )
 
-        enqueue_cleanup_jobs(grouped_hashes)
         emit_telemetry(trigger, status, count, started_at)
         :ok
 
@@ -82,7 +77,6 @@ defmodule Cache.KeyValueEvictionWorker do
           "Evicted 0 key-value entries (trigger=time, status=time_limit_reached, max_age_days=#{max_age_days})"
         )
 
-        enqueue_cleanup_jobs(%{})
         emit_telemetry(:time, :time_limit_reached, 0, started_at)
         :ok
     end
@@ -320,23 +314,5 @@ defmodule Cache.KeyValueEvictionWorker do
       %{entries_deleted: entries_deleted, duration_ms: duration_ms},
       %{trigger: trigger, status: status}
     )
-  end
-
-  defp enqueue_cleanup_jobs(grouped_hashes) do
-    Enum.each(grouped_hashes, fn {{account, project}, hashes} ->
-      hashes
-      |> Enum.chunk_every(@cleanup_hashes_per_job)
-      |> Enum.each(fn chunk ->
-        case %{"account_handle" => account, "project_handle" => project, "cas_hashes" => chunk}
-             |> XcodeCleanupWorker.new()
-             |> Oban.insert() do
-          {:ok, _} ->
-            :ok
-
-          {:error, reason} ->
-            Logger.warning("Failed to enqueue Xcode cache cleanup for #{account}/#{project}: #{inspect(reason)}")
-        end
-      end)
-    end)
   end
 end
