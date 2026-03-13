@@ -81,9 +81,9 @@ Tuist 运行的总次数。
 
 | 标签      | 描述                                     |
 | ------- | -------------------------------------- |
-| `name`  | ` 已执行的`tuist命令名称，例如：`build` 、`test` 等。 |
-| `is_ci` | 一个布尔值，用于标识执行者是持续集成系统还是开发者的机器。          |
-| `状态`    | `0` 在`成功时`,`1` 在`失败时`.                 |
+| `name`  | 已执行的`tuist` 命令的名称，例如`build` 、`test` 等。 |
+| `is_ci` | 一个布尔值，用于指示执行者是 CI 还是开发者的机器。            |
+| `状态`    | `0` 若`成功`,`1` 若`失败`.                   |
 
 ### `tuist_runs_duration_milliseconds` (直方图) {#tuist_runs_duration_milliseconds-histogram}
 
@@ -93,9 +93,9 @@ Tuist 运行的总次数。
 
 | 标签      | 描述                                     |
 | ------- | -------------------------------------- |
-| `name`  | ` 已执行的`tuist命令名称，例如：`build` 、`test` 等。 |
-| `is_ci` | 一个布尔值，用于标识执行者是持续集成系统还是开发者的机器。          |
-| `状态`    | `0` 在`成功时`,`1` 在`失败时`.                 |
+| `name`  | 已执行的`tuist` 命令的名称，例如`build` 、`test` 等。 |
+| `is_ci` | 一个布尔值，用于指示执行者是 CI 还是开发者的机器。            |
+| `状态`    | `0` 若`成功`,`1` 若`失败`.                   |
 
 ## 缓存指标 {#cache-metrics}
 
@@ -191,9 +191,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
-| 标签             | 描述             |
-| -------------- | -------------- |
-| `project_slug` | 正在删除对象的项目项目别名。 |
+| 标签             | 描述               |
+| -------------- | ---------------- |
+| `project_slug` | 正在删除其对象的项目的项目别名。 |
 
 
 ### `tuist_storage_delete_all_objects_count` (计数器) {#tuist_storage_delete_all_objects_count-counter}
@@ -202,9 +202,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-delete-all-objects-count-tags}
 
-| 标签             | 描述             |
-| -------------- | -------------- |
-| `project_slug` | 正在删除对象的项目项目别名。 |
+| 标签             | 描述               |
+| -------------- | ---------------- |
+| `project_slug` | 正在删除其对象的项目的项目别名。 |
 
 
 ### `tuist_storage_multipart_start_upload_duration_milliseconds` (直方图) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
@@ -299,7 +299,7 @@ Tuist 运行的总次数。
 | 标签            | 描述            |
 | ------------- | ------------- |
 | `object_key`  | 对象在远程存储中的查找键。 |
-| `part_number` | 上传对象的部件编号。    |
+| `part_number` | 正在上传的对象的部件编号。 |
 | `upload_id`   | 多部分上传的上传 ID。  |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (计数) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
@@ -311,7 +311,7 @@ Tuist 运行的总次数。
 | 标签            | 描述            |
 | ------------- | ------------- |
 | `object_key`  | 对象在远程存储中的查找键。 |
-| `part_number` | 上传对象的部件编号。    |
+| `part_number` | 正在上传的对象的部件编号。 |
 | `upload_id`   | 多部分上传的上传 ID。  |
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds` (直方图) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
@@ -421,19 +421,19 @@ Tuist 运行的总次数。
 
 ### `tuist_http_queue_duration_nanoseconds_sum` (求和) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-从连接池中检索连接所需的时间。
+从连接池中获取连接所需的时间。
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (求和) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-连接处于空闲状态等待被检索的时间。
+连接处于空闲状态并等待被检索的时间。
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (分布) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-从连接池中检索连接所需的时间。
+从连接池中获取连接所需的时间。
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (分布) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-连接处于空闲状态等待被检索的时间。
+连接处于空闲状态并等待被检索的时间。
 
 ### `tuist_http_connection_count` (计数器) {#tuist_http_connection_count-counter}
 
