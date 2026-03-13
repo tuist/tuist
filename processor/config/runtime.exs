@@ -52,4 +52,12 @@ if config_env() == :prod do
   config :processor,
     webhook_secret: System.get_env("WEBHOOK_SECRET"),
     s3_bucket: System.get_env("S3_BUCKET")
+
+  sentry_dsn = System.get_env("SENTRY_DSN_PROCESSOR")
+
+  if sentry_dsn do
+    config :sentry,
+      dsn: sentry_dsn,
+      environment_name: System.get_env("SENTRY_ENV") || "production"
+  end
 end
