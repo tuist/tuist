@@ -82,8 +82,14 @@
           <span data-part="label">
             {dgettext("marketing", "Cache artifacts served in the last 24 hours")}
           </span>
-          <span data-part="value">
-            {Number.Delimit.number_to_delimited(@last_24h_artifacts_count, precision: 0)}
+          <span
+            data-part="value"
+            id="cache-artifacts-counter"
+            phx-hook="CounterAnimation"
+            data-counter-target={@last_24h_artifacts_count}
+            data-counter-duration="2000"
+          >
+            0
           </span>
         </div>
         <%!-- <div data-part="testimonial">

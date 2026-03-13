@@ -80,8 +80,14 @@
       <div data-part="content">
         <div data-part="stat">
           <span data-part="label">{dgettext("marketing", "Test runs in the last 24 hours")}</span>
-          <span data-part="value">
-            {Number.Delimit.number_to_delimited(@test_runs_last_24h, precision: 0)}
+          <span
+            data-part="value"
+            id="test-runs-counter"
+            phx-hook="CounterAnimation"
+            data-counter-target={@test_runs_last_24h}
+            data-counter-duration="2000"
+          >
+            0
           </span>
         </div>
         <%!-- <div data-part="testimonial">
