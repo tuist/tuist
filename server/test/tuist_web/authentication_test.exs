@@ -7,6 +7,7 @@ defmodule TuistWeb.AuthenticationTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Repo
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
@@ -77,6 +78,16 @@ defmodule TuistWeb.AuthenticationTest do
     test "redirects to the configured path", %{conn: conn, user: user} do
       conn = conn |> put_session(:user_return_to, "/hello") |> Authentication.log_in_user(user)
       assert redirected_to(conn) == "/hello"
+    end
+
+    test "stores auth_provider as :password by default", %{conn: conn, user: user} do
+      conn = Authentication.log_in_user(conn, user)
+      assert get_session(conn, :auth_provider) == :password
+    end
+
+    test "stores auth_provider when provided", %{conn: conn, user: user} do
+      conn = Authentication.log_in_user(conn, user, %{auth_provider: :google})
+      assert get_session(conn, :auth_provider) == :google
     end
 
     test "writes a cookie if remember_me is configured", %{conn: conn, user: user} do
@@ -500,6 +511,99 @@ defmodule TuistWeb.AuthenticationTest do
       # Then
       refute conn.halted
       refute conn.status
+    end
+  end
+
+  describe "require_sso_authentication/2" do
+    test "redirects to Google SSO when org has Google SSO enforced and session auth provider does not match",
+         %{conn: conn, user: user} do
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+
+      conn =
+        %{conn | params: %{"account_handle" => organization.account.name}}
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+
+      assert conn.halted
+      assert redirected_to(conn) == "/users/auth/google"
+      assert get_session(conn, :oauth_return_to) == ~p"/#{organization.account.name}/projects"
+    end
+
+    test "redirects to Okta SSO when org has Okta SSO enforced and session auth provider does not match",
+         %{conn: conn, user: user} do
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :okta,
+          sso_organization_id: "company.okta.com",
+          okta_client_id: "client_id",
+          okta_client_secret: "client_secret",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+
+      conn =
+        %{conn | params: %{"account_handle" => organization.account.name}}
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+
+      assert conn.halted
+      assert redirected_to(conn) == "/users/auth/okta?organization_id=#{organization.id}"
+    end
+
+    test "does not redirect when session auth provider matches org SSO provider",
+         %{conn: conn, user: user} do
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+
+      conn =
+        conn
+        |> put_session(:auth_provider, :google)
+        |> Map.put(:params, %{"account_handle" => organization.account.name})
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+
+      refute conn.halted
+    end
+
+    test "does not redirect when org has SSO but enforcement is disabled",
+         %{conn: conn, user: user} do
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      conn =
+        %{conn | params: %{"account_handle" => organization.account.name}}
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+
+      refute conn.halted
+    end
+
+    test "does not redirect when no account_handle param is present",
+         %{conn: conn} do
+      conn = Authentication.require_sso_authentication(conn, [])
+      refute conn.halted
     end
   end
 
