@@ -441,7 +441,7 @@ struct PreviewsUploadServiceTests {
 
         // When
         _ = try await subject.uploadPreview(
-            .appBundles([.test(path: preview, infoPlist: .test(name: appName))]),
+            .appBundles([.test(path: preview, infoPlist: .test(name: appName, executableName: appName))]),
             fullHandle: "tuist/tuist",
             serverURL: serverURL,
             gitBranch: nil,
@@ -456,6 +456,73 @@ struct PreviewsUploadServiceTests {
             .startPreviewsMultipartUpload(
                 type: .any,
                 displayName: .any,
+                version: .any,
+                buildVersion: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                binaryId: .value(expectedUUID.uuidString),
+                fullHandle: .any,
+                serverURL: .any,
+                track: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_app_bundle_uses_executable_name_not_bundle_name() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given: CFBundleName differs from CFBundleExecutable
+        let executableName = "myapp"
+        let bundleName = "My App"
+        let preview = temporaryDirectory.appending(component: "\(executableName).app")
+        try await fileSystem.makeDirectory(at: preview)
+
+        let expectedUUID = UUID()
+
+        given(fileArchiver)
+            .zip(name: .any)
+            .willReturn(temporaryDirectory.appending(component: "\(executableName).zip"))
+
+        precompiledMetadataProvider.uuidsStub = { path in
+            if path == preview.appending(component: executableName) {
+                return [expectedUUID]
+            }
+            return []
+        }
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        // When
+        _ = try await subject.uploadPreview(
+            .appBundles([
+                .test(
+                    path: preview,
+                    infoPlist: .test(name: bundleName, executableName: executableName)
+                ),
+            ]),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
+            track: nil,
+            updateProgress: { _ in }
+        )
+
+        // Then
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .any,
+                displayName: .value(bundleName),
                 version: .any,
                 buildVersion: .any,
                 bundleIdentifier: .any,
@@ -488,7 +555,7 @@ struct PreviewsUploadServiceTests {
         // When / Then
         await #expect(throws: PreviewsUploadServiceError.binaryIdNotFound(preview.appending(component: appName))) {
             try await subject.uploadPreview(
-                .appBundles([.test(path: preview, infoPlist: .test(name: appName))]),
+                .appBundles([.test(path: preview, infoPlist: .test(name: appName, executableName: appName))]),
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
                 gitBranch: nil,

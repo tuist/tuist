@@ -102,6 +102,9 @@ public struct AppBundle: Equatable {
         /// Name of the app
         public let name: String
 
+        /// Executable file name (CFBundleExecutable), if present in Info.plist
+        public let executableName: String?
+
         /// Bundle ID
         public let bundleId: String
 
@@ -118,6 +121,7 @@ public struct AppBundle: Equatable {
             version: String,
             buildVersion: String,
             name: String,
+            executableName: String?,
             bundleId: String,
             minimumOSVersion: Version,
             supportedPlatforms: [DestinationType],
@@ -126,6 +130,7 @@ public struct AppBundle: Equatable {
             self.version = version
             self.buildVersion = buildVersion
             self.name = name
+            self.executableName = executableName
             self.bundleId = bundleId
             self.minimumOSVersion = minimumOSVersion
             self.supportedPlatforms = supportedPlatforms
@@ -136,6 +141,7 @@ public struct AppBundle: Equatable {
             case version = "CFBundleShortVersionString"
             case buildVersion = "CFBundleVersion"
             case name = "CFBundleName"
+            case executableName = "CFBundleExecutable"
             case bundleId = "CFBundleIdentifier"
             case minimumOSVersion = "MinimumOSVersion"
             case supportedPlatforms = "CFBundleSupportedPlatforms"
@@ -149,6 +155,7 @@ public struct AppBundle: Equatable {
             buildVersion = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.buildVersion)
             let name = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.name)
             self.name = name
+            executableName = try container.decodeIfPresent(String.self, forKey: AppBundle.InfoPlist.CodingKeys.executableName)
             bundleId = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.bundleId)
             minimumOSVersion = Version(
                 stringLiteral: try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.minimumOSVersion)
@@ -193,6 +200,7 @@ public struct AppBundle: Equatable {
             version: String = "1.0",
             buildVersion: String = "1",
             name: String = "App",
+            executableName: String? = "App",
             bundleId: String = "dev.tuist.App",
             minimumOSVersion: Version = Version("17.4"),
             supportedPlatforms: [DestinationType] = [.simulator(.iOS)],
@@ -202,6 +210,7 @@ public struct AppBundle: Equatable {
                 version: version,
                 buildVersion: buildVersion,
                 name: name,
+                executableName: executableName,
                 bundleId: bundleId,
                 minimumOSVersion: minimumOSVersion,
                 supportedPlatforms: supportedPlatforms,
