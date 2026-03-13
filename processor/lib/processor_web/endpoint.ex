@@ -1,8 +1,11 @@
 defmodule ProcessorWeb.Endpoint do
+  use Sentry.PlugCapture
   use Phoenix.Endpoint, otp_app: :processor
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+
+  plug Sentry.PlugContext
 
   plug Plug.Parsers,
     parsers: [:json],

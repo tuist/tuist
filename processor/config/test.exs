@@ -10,3 +10,5 @@ config :processor,
   webhook_secret: "test-webhook-secret"
 
 config :logger, level: :warning
+
+config :sentry, dsn: nil

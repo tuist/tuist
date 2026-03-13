@@ -21,4 +21,10 @@ config :phoenix, :json_library, Jason
 
 config :tuist_common, finch_name: Processor.Finch
 
+config :sentry,
+  client: TuistCommon.SentryHTTPClient,
+  enable_source_code_context: true,
+  root_source_code_paths: [File.cwd!()],
+  before_send: {TuistCommon.SentryEventFilter, :before_send}
+
 import_config "#{config_env()}.exs"

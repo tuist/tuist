@@ -747,6 +747,7 @@ defmodule TuistWeb.Router do
       :open_api,
       :browser_app,
       :require_authenticated_user,
+      :require_sso_authentication,
       :analytics
     ]
 
@@ -772,6 +773,7 @@ defmodule TuistWeb.Router do
       :browser_app,
       :rate_limit,
       :require_authenticated_user_for_private_projects,
+      :require_sso_authentication,
       :analytics,
       :require_user_can_read_project
     ]

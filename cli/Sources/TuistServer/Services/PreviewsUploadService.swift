@@ -252,7 +252,10 @@ public protocol PreviewsUploadServicing {
                             .makeFileArchiver(for: [bundle.path])
                             .zip(name: bundle.path.basename)
                         let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
-                        let binaryId = try appBundleBinaryId(at: bundle.path, name: bundle.infoPlist.name)
+                        let binaryId = try appBundleBinaryId(
+                            at: bundle.path,
+                            name: bundle.infoPlist.executableName ?? bundle.infoPlist.name
+                        )
 
                         preview = try await uploadPreviewBuild(
                             buildPath: bundleArchivePath,
