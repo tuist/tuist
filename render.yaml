@@ -183,6 +183,10 @@ services:
         - server/**
         - tuist_common/**
     envVars:
+      - key: RUNNER_IMAGE
+        value: ghcr.io/tuist/tuist-preview-base:latest
+      - key: PREBUILT_RUNNER
+        value: true
       - key: MIX_ENV
         value: stag
       - key: TUIST_HOSTED

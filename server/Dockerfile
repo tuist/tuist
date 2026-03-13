@@ -2,6 +2,8 @@ ARG ELIXIR_VERSION=1.19.1
 ARG OTP_VERSION=28.1
 ARG DEBIAN_VERSION=bookworm-20251020-slim
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
+# For preview environments, override with ghcr.io/tuist/tuist-preview-base:latest
+# to skip system package and ClickHouse installation (~7 min savings).
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 # ========================================
@@ -81,14 +83,21 @@ RUN mix release
 # ========================================
 # Stage 4: Final runtime image
 # ========================================
+# When RUNNER_IMAGE is the preview base (ghcr.io/tuist/tuist-preview-base:latest),
+# system packages, locale, and ClickHouse are already installed — the conditional
+# RUN steps below become no-ops, saving ~7 minutes on preview builds.
 FROM ${RUNNER_IMAGE}
 
-RUN apt-get update -y && \
+ARG PREBUILT_RUNNER=false
+ARG EMBED_CLICKHOUSE=false
+
+RUN if [ "$PREBUILT_RUNNER" = "false" ]; then \
+  apt-get update -y && \
   apt-get upgrade -y && \
   apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git \
-  && apt-get clean && rm -f /var/lib/apt/lists/*_*
-
-RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+  && apt-get clean && rm -f /var/lib/apt/lists/*_* && \
+  sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen; \
+  fi
 
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
@@ -99,7 +108,6 @@ RUN chown nobody /app
 
 ARG MIX_ENV=prod
 ARG TUIST_HOSTED=1
-ARG EMBED_CLICKHOUSE=false
 ENV MIX_ENV=$MIX_ENV
 ENV TUIST_HOSTED=$TUIST_HOSTED
 
@@ -116,9 +124,8 @@ RUN if [ "$TUIST_HOSTED" = "0" ]; then \
   rm -rf /app/priv/secrets/prod.yml.enc; \
   fi
 
-# Optionally embed ClickHouse for environments without a separate ClickHouse service
-# (e.g. preview environments). Set EMBED_CLICKHOUSE=true to enable.
-RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
+# Install ClickHouse only when not using the prebuilt runner (which has it already).
+RUN if [ "$PREBUILT_RUNNER" = "false" ] && [ "$EMBED_CLICKHOUSE" = "true" ]; then \
   echo "Installing embedded ClickHouse..."; \
   curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg && \
   echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg] https://packages.clickhouse.com/deb stable main" > /etc/apt/sources.list.d/clickhouse.list && \
@@ -130,7 +137,7 @@ RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
   fi
 
 COPY server/clickhouse-preview-config.xml /tmp/clickhouse-preview-config.xml
-RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
+RUN if [ "$EMBED_CLICKHOUSE" = "true" ] || [ "$PREBUILT_RUNNER" = "true" ]; then \
   cp /tmp/clickhouse-preview-config.xml /etc/clickhouse-server/config.d/preview.xml; \
   fi && rm -f /tmp/clickhouse-preview-config.xml
 

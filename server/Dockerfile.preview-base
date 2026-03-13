@@ -1,0 +1,22 @@
+ARG DEBIAN_VERSION=bookworm-20251020-slim
+FROM debian:${DEBIAN_VERSION}
+
+RUN apt-get update -y && \
+  apt-get upgrade -y && \
+  apt-get install -y curl build-essential gcc wget libvips libstdc++6 openssl libncurses5 locales ca-certificates postgresql-client zip unzip git \
+  && apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+RUN echo "Installing embedded ClickHouse..." && \
+  curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg && \
+  echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg] https://packages.clickhouse.com/deb stable main" > /etc/apt/sources.list.d/clickhouse.list && \
+  apt-get update && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y clickhouse-server clickhouse-client && \
+  apt-get clean && rm -rf /var/lib/apt/lists/* && \
+  mkdir -p /var/lib/clickhouse/coordination/log /var/lib/clickhouse/coordination/snapshots && \
+  chown -R nobody:nogroup /var/lib/clickhouse /var/log/clickhouse-server /etc/clickhouse-server
