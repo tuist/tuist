@@ -1,6 +1,9 @@
 #!/bin/sh
 cd -P -- "$(dirname -- "$0")"
 
+# Preview environments should show the marketing page, not redirect to dashboard.
+export TUIST_HOSTED=1
+
 # Derive TUIST_APP_URL from Render's automatic RENDER_EXTERNAL_URL if not already set.
 if [ -z "$TUIST_APP_URL" ] && [ -n "$RENDER_EXTERNAL_URL" ]; then
   export TUIST_APP_URL="$RENDER_EXTERNAL_URL"
