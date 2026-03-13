@@ -394,9 +394,7 @@ defmodule Tuist.Builds do
     preload = Keyword.get(opts, :preload, [])
     custom_values = Keyword.get(opts, :custom_values)
 
-    base_query =
-      from(b in Build, hints: ["FINAL"])
-      |> apply_custom_values_filter(custom_values)
+    base_query = apply_custom_values_filter(from(b in Build, hints: ["FINAL"]), custom_values)
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 

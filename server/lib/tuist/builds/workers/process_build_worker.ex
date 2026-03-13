@@ -111,24 +111,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   defp replace_build_run(build_id, parsed_data, account_id, build_metadata) do
     parsed = atomize_keys(parsed_data)
-    metadata = atomize_keys(build_metadata)
-
-    existing_build = Builds.get_build(build_id)
-
-    base_attrs =
-      if existing_build do
-        existing_build
-        |> Map.from_struct()
-        |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
-      else
-        Map.merge(
-          %{id: build_id, account_id: account_id, is_ci: false},
-          metadata
-        )
-      end
 
     attrs =
-      Map.merge(base_attrs, %{
+      Map.merge(base_build_attrs(build_id, account_id, build_metadata), %{
         project_id: parsed[:project_id],
         duration: parsed[:duration] || 0,
         status: parsed[:status] || "success",
@@ -146,23 +131,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   end
 
   defp mark_failed_build_processing(build_id, project_id, account_id, build_metadata) do
-    metadata = atomize_keys(build_metadata)
-    existing_build = Builds.get_build(build_id)
-
-    base_attrs =
-      if existing_build do
-        existing_build
-        |> Map.from_struct()
-        |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
-      else
-        Map.merge(
-          %{id: build_id, account_id: account_id, is_ci: false},
-          metadata
-        )
-      end
-
     attrs =
-      Map.merge(base_attrs, %{
+      Map.merge(base_build_attrs(build_id, account_id, build_metadata), %{
         project_id: project_id,
         status: "failed_processing",
         duration: 0
@@ -171,6 +141,20 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     Builds.create_build(attrs)
   end
 
+  defp base_build_attrs(build_id, account_id, build_metadata) do
+    case Builds.get_build(build_id) do
+      nil ->
+        Map.merge(
+          %{id: build_id, account_id: account_id, is_ci: false},
+          atomize_keys(build_metadata)
+        )
+
+      existing_build ->
+        existing_build
+        |> Map.from_struct()
+        |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+    end
+  end
 
   defp atomize_keys(map) when is_map(map) do
     Map.new(map, fn
