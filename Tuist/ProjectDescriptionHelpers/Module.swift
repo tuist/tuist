@@ -956,6 +956,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "Logging"),
                     .external(name: "XCLogParser"),
+                    .external(name: "XCActivityLogParser"),
                     .external(name: "SwiftToolsSupport"),
                 ]
             case .rootDirectoryLocator:

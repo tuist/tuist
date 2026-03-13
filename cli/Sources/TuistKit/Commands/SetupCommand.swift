@@ -15,15 +15,8 @@ public struct SetupCommand: AsyncParsableCommand {
         )
     }
 
-    @Option(
-        name: .shortAndLong,
-        help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
-    )
-    var path: String?
-
     public func run() async throws {
-        try await SetupCacheCommandService().run(path: path)
+        try await SetupCacheCommandService().run(path: nil)
         try await SetupInsightsCommandService().run()
     }
 }

@@ -33,6 +33,7 @@
             #expect(lines.count >= 2)
 
             let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
             let sample = try decoder.decode(
                 MachineMetricSample.self,
                 from: Data(lines.first!.utf8)
@@ -63,6 +64,7 @@
             #expect(lines.count >= 2)
 
             let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
             let samples = try lines.map { line in
                 try decoder.decode(MachineMetricSample.self, from: Data(line.utf8))
             }
@@ -88,6 +90,7 @@
             let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
 
             let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
             let samples = try lines.map { line in
                 try decoder.decode(MachineMetricSample.self, from: Data(line.utf8))
             }
@@ -133,6 +136,7 @@
                 diskBytesWritten: 0
             )
             let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
             let existingLine = String(data: try encoder.encode(existingSample), encoding: .utf8)!
 
             try await fileSystem.makeDirectory(at: metricsPath.parentDirectory)
@@ -150,6 +154,7 @@
             #expect(lines.count >= 2)
 
             let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
             let firstSample = try decoder.decode(MachineMetricSample.self, from: Data(lines.first!.utf8))
             #expect(firstSample.timestamp == 1000)
         }

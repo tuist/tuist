@@ -82,8 +82,8 @@ end
 defmodule Cache.DiskIntegrationTest do
   use ExUnit.Case, async: true
 
-  alias Cache.CAS
   alias Cache.Disk
+  alias Cache.Xcode
 
   defp unique_account do
     "test_account_#{:erlang.unique_integer([:positive, :monotonic])}"
@@ -94,15 +94,15 @@ defmodule Cache.DiskIntegrationTest do
       account = unique_account()
       project = "test_project"
 
-      CAS.Disk.put(account, project, "hash1", "content1")
-      CAS.Disk.put(account, project, "hash2", "content2")
-      assert CAS.Disk.exists?(account, project, "hash1")
-      assert CAS.Disk.exists?(account, project, "hash2")
+      Xcode.Disk.put(account, project, "hash1", "content1")
+      Xcode.Disk.put(account, project, "hash2", "content2")
+      assert Xcode.Disk.exists?(account, project, "hash1")
+      assert Xcode.Disk.exists?(account, project, "hash2")
 
       assert :ok = Disk.delete_project(account, project)
 
-      refute CAS.Disk.exists?(account, project, "hash1")
-      refute CAS.Disk.exists?(account, project, "hash2")
+      refute Xcode.Disk.exists?(account, project, "hash1")
+      refute Xcode.Disk.exists?(account, project, "hash2")
     end
 
     test "returns :ok when project directory does not exist" do

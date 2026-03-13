@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -29,7 +30,7 @@ struct LaunchAgentServiceTests {
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
         given(launchctlController)
-            .load(plistPath: .any)
+            .bootstrap(plistPath: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -47,9 +48,14 @@ struct LaunchAgentServiceTests {
         #expect(plistContent.contains("<string>tuist.test</string>"))
         #expect(plistContent.contains("<string>/usr/local/bin/tuist</string>"))
         #expect(plistContent.contains("<string>test-start</string>"))
+        let stateDirectory = Environment.current.stateDirectory
+        #expect(plistContent.contains("<key>StandardOutPath</key>"))
+        #expect(plistContent.contains(stateDirectory.appending(component: "tuist.test.stdout.log").pathString))
+        #expect(plistContent.contains("<key>StandardErrorPath</key>"))
+        #expect(plistContent.contains(stateDirectory.appending(component: "tuist.test.stderr.log").pathString))
 
         verify(launchctlController)
-            .load(plistPath: .value(expectedPlistPath))
+            .bootstrap(plistPath: .value(expectedPlistPath))
             .called(1)
     }
 
@@ -59,7 +65,7 @@ struct LaunchAgentServiceTests {
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
         given(launchctlController)
-            .load(plistPath: .any)
+            .bootstrap(plistPath: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -86,7 +92,7 @@ struct LaunchAgentServiceTests {
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
         given(launchctlController)
-            .load(plistPath: .any)
+            .bootstrap(plistPath: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -118,11 +124,11 @@ struct LaunchAgentServiceTests {
         try await fileSystem.writeText("existing plist", at: expectedPlistPath)
 
         given(launchctlController)
-            .unload(plistPath: .value(expectedPlistPath))
+            .bootout(label: .value("tuist.test"))
             .willReturn()
 
         given(launchctlController)
-            .load(plistPath: .any)
+            .bootstrap(plistPath: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -132,11 +138,11 @@ struct LaunchAgentServiceTests {
         )
 
         verify(launchctlController)
-            .unload(plistPath: .value(expectedPlistPath))
+            .bootout(label: .value("tuist.test"))
             .called(1)
 
         verify(launchctlController)
-            .load(plistPath: .value(expectedPlistPath))
+            .bootstrap(plistPath: .value(expectedPlistPath))
             .called(1)
     }
 
@@ -154,11 +160,11 @@ struct LaunchAgentServiceTests {
         try await fileSystem.writeText("existing plist", at: expectedPlistPath)
 
         given(launchctlController)
-            .unload(plistPath: .any)
+            .bootout(label: .any)
             .willThrow(NSError(domain: "test", code: 1))
 
         given(launchctlController)
-            .load(plistPath: .any)
+            .bootstrap(plistPath: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -168,20 +174,29 @@ struct LaunchAgentServiceTests {
         )
 
         verify(launchctlController)
-            .load(plistPath: .value(expectedPlistPath))
+            .bootstrap(plistPath: .value(expectedPlistPath))
             .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func setupLaunchAgent_throwsWhenLoadFails() async throws {
+    func setupLaunchAgent_throwsWhenBootstrapFails() async throws {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willThrow(NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Load failed"]))
+        let bootstrapError = CommandError.terminated(
+            78,
+            stderr: "Bootstrap failed: 78: Function not implemented",
+            command: ["/bin/launchctl", "bootstrap", "gui/501", "/Users/test/Library/LaunchAgents/tuist.test.plist"]
+        )
 
-        await #expect(throws: LaunchAgentServiceError.failedToLoadLaunchAgent("Load failed")) {
+        given(launchctlController)
+            .bootstrap(plistPath: .any)
+            .willThrow(bootstrapError)
+
+        await #expect(
+            throws: LaunchAgentServiceError
+                .failedToLoadLaunchAgent(String(describing: bootstrapError))
+        ) {
             try await subject.setupLaunchAgent(
                 label: "tuist.test",
                 plistFileName: "tuist.test.plist",
@@ -221,7 +236,7 @@ struct LaunchAgentServiceTests {
         try await fileSystem.writeText("", at: expectedBinaryPath)
 
         given(launchctlController)
-            .load(plistPath: .any)
+            .bootstrap(plistPath: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -255,7 +270,7 @@ struct LaunchAgentServiceTests {
         try await fileSystem.writeText("", at: expectedBinaryPath)
 
         given(launchctlController)
-            .load(plistPath: .any)
+            .bootstrap(plistPath: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(
@@ -283,7 +298,7 @@ struct LaunchAgentServiceTests {
         environment.currentExecutablePathStub = currentMisePath
 
         given(launchctlController)
-            .load(plistPath: .any)
+            .bootstrap(plistPath: .any)
             .willReturn()
 
         try await subject.setupLaunchAgent(

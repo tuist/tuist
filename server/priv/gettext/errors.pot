@@ -15,3 +15,8 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Page not found"
 msgstr ""
+
+#: lib/tuist_web/controllers/build_controller.ex:27
+#, elixir-autogen, elixir-format
+msgid "Build not found"
+msgstr ""

@@ -24,7 +24,8 @@
 
     vultrMachines = [
       "cache-sa-west"
-			"cache-au-east"
+      "cache-au-east"
+      "cache-us-central"
     ];
 
     sharedModules = [
