@@ -31,7 +31,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
       replication_enqueued_at: token
     }
 
-    stub(Cleanup, :latest_project_cleanup_cutoff, fn _account, _project -> nil end)
+    stub(Cleanup, :latest_project_cleanup_cutoffs, fn _scopes -> %{} end)
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
 
     stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
@@ -46,20 +46,79 @@ defmodule Cache.KeyValueReplicationShipperTest do
       {:ok, :ok}
     end)
 
-    stub(DistributedRepo, :get, fn DistributedEntry, "keyvalue:acme:ios:cas" -> nil end)
+    stub(DistributedRepo, :all, fn _query, _opts -> [] end)
 
-    stub(DistributedRepo, :insert!, fn changeset ->
-      assert changeset.changes.account_handle == "acme"
-      assert changeset.changes.project_handle == "ios"
-      assert changeset.changes.cas_id == "cas"
-      assert changeset.changes.source_node == "test-node"
+    stub(DistributedRepo, :insert_all, fn DistributedEntry, [row] ->
+      assert row.account_handle == "acme"
+      assert row.project_handle == "ios"
+      assert row.cas_id == "cas"
+      assert row.source_node == "test-node"
       send(parent, :inserted)
-      %DistributedEntry{}
+      {1, nil}
     end)
 
     start_supervised!(KeyValueReplicationShipper)
 
     assert_receive :inserted
     assert_receive :token_cleared
+  end
+
+  test "batches shared repo work for one flush" do
+    parent = self()
+    token = DateTime.utc_now()
+
+    pending_entries = [
+      %KeyValueEntry{
+        key: "keyvalue:acme:ios:cas-a",
+        json_payload: Jason.encode!(%{entries: [%{"value" => "artifact-a"}]}),
+        last_accessed_at: token,
+        source_updated_at: token,
+        replication_enqueued_at: token
+      },
+      %KeyValueEntry{
+        key: "keyvalue:acme:ios:cas-b",
+        json_payload: Jason.encode!(%{entries: [%{"value" => "artifact-b"}]}),
+        last_accessed_at: token,
+        source_updated_at: token,
+        replication_enqueued_at: token
+      }
+    ]
+
+    expect(Cleanup, :latest_project_cleanup_cutoffs, fn scopes ->
+      assert Enum.map(scopes, &{&1.account_handle, &1.project_handle}) == [{"acme", "ios"}, {"acme", "ios"}]
+      send(parent, :cutoffs_loaded)
+      %{}
+    end)
+
+    stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
+    stub(KeyValueEntries, :list_pending_replication, fn -> pending_entries end)
+
+    expect(KeyValueEntries, :clear_replication_token, 2, fn key, ^token ->
+      assert key in ["keyvalue:acme:ios:cas-a", "keyvalue:acme:ios:cas-b"]
+      send(parent, {:token_cleared, key})
+      1
+    end)
+
+    expect(DistributedRepo, :transaction, fn fun, _opts ->
+      send(parent, :transaction_started)
+      fun.()
+      {:ok, :ok}
+    end)
+
+    expect(DistributedRepo, :all, fn _query, _opts -> [] end)
+
+    expect(DistributedRepo, :insert_all, fn DistributedEntry, rows ->
+      assert rows |> Enum.map(& &1.cas_id) |> Enum.sort() == ["cas-a", "cas-b"]
+      send(parent, :insert_batch)
+      {2, nil}
+    end)
+
+    start_supervised!(KeyValueReplicationShipper)
+
+    assert_receive :cutoffs_loaded
+    assert_receive :transaction_started
+    assert_receive :insert_batch
+    assert_receive {:token_cleared, _}
+    assert_receive {:token_cleared, _}
   end
 end

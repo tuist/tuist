@@ -312,7 +312,7 @@ defmodule Cache.S3 do
       {:ok, response} ->
         case last_modified_from_response(response) do
           {:ok, last_modified} ->
-            if DateTime.before?(last_modified, cutoff) do
+            if DateTime.compare(last_modified, cutoff) in [:lt, :eq] do
               case bucket |> ExAws.S3.delete_object(key) |> ExAws.request() do
                 {:ok, _} -> :deleted
                 {:error, reason} -> {:error, reason}

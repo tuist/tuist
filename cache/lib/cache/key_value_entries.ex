@@ -187,20 +187,35 @@ defmodule Cache.KeyValueEntries do
       from(entry in KeyValueEntry,
         where: like(entry.key, ^"keyvalue:#{account_handle}:#{project_handle}:%"),
         where: is_nil(entry.replication_enqueued_at),
-        where: is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff,
-        select: entry.key
+        where: is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff
       )
 
-    keys = KeyValueRepo.all(query)
+    {:ok, {deleted_keys, count}} =
+      KeyValueRepo.transaction(fn ->
+        candidate_keys =
+          query
+          |> select([entry], entry.key)
+          |> KeyValueRepo.all()
 
-    {count, _} =
-      KeyValueRepo.delete_all(
-        from(entry in KeyValueEntry,
-          where: entry.key in ^keys
-        )
-      )
+        {count, _} = KeyValueRepo.delete_all(query)
 
-    {keys, count}
+        remaining_keys =
+          case candidate_keys do
+            [] ->
+              []
+
+            _ ->
+              KeyValueEntry
+              |> where([entry], entry.key in ^candidate_keys)
+              |> select([entry], entry.key)
+              |> KeyValueRepo.all()
+          end
+
+        deleted_keys = candidate_keys -- remaining_keys
+        {deleted_keys, count}
+      end)
+
+    {deleted_keys, count}
   end
 
   def estimated_size_bytes do

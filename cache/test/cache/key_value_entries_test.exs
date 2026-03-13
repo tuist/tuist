@@ -110,7 +110,7 @@ defmodule Cache.KeyValueEntriesTest do
     assert record.replication_enqueued_at == local_source_updated_at
   end
 
-  test "delete_project_entries_before removes matching rows and returns keys" do
+  test "delete_project_entries_before only returns keys that were actually deleted" do
     old_time = DateTime.add(DateTime.utc_now(), -1, :day)
     new_time = DateTime.utc_now()
 
@@ -128,12 +128,20 @@ defmodule Cache.KeyValueEntriesTest do
       source_updated_at: new_time
     })
 
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:pending",
+      json_payload: "{}",
+      last_accessed_at: old_time,
+      source_updated_at: old_time,
+      replication_enqueued_at: old_time
+    })
+
     {keys, count} = KeyValueEntries.delete_project_entries_before("acme", "ios", old_time)
 
     assert count == 1
     assert keys == ["keyvalue:acme:ios:old"]
 
     remaining_keys = KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key))
-    assert remaining_keys == ["keyvalue:acme:ios:new"]
+    assert Enum.sort(remaining_keys) == ["keyvalue:acme:ios:new", "keyvalue:acme:ios:pending"]
   end
 end
