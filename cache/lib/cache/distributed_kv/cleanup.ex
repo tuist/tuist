@@ -58,7 +58,8 @@ defmodule Cache.DistributedKV.Cleanup do
         from(entry in Entry,
           where: entry.account_handle == ^account_handle,
           where: entry.project_handle == ^project_handle,
-          where: entry.source_updated_at <= ^cleanup_started_at
+          where: entry.source_updated_at <= ^cleanup_started_at,
+          where: is_nil(entry.deleted_at)
         ),
         set: [deleted_at: cleanup_started_at, updated_at: now]
       )

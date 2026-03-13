@@ -7,8 +7,6 @@ defmodule Cache.KeyValueStore do
   import Cachex.Spec, only: [expiration: 1, limit: 1]
 
   alias Cache.Config
-  alias Cache.DistributedKV.Entry, as: DistributedEntry
-  alias Cache.DistributedKV.Repo, as: DistributedRepo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntries
@@ -79,7 +77,7 @@ defmodule Cache.KeyValueStore do
   defp fetch_entry(key, cache) do
     case Cachex.get(cache, key) do
       {:ok, nil} ->
-        load_from_persistence_or_remote(key, cache)
+        load_from_persistence(key, cache)
 
       {:ok, json} when is_binary(json) ->
         if Config.distributed_kv_enabled?(), do: maybe_track_access(key)
@@ -89,7 +87,7 @@ defmodule Cache.KeyValueStore do
         {:error, :not_found}
 
       {:error, _} ->
-        load_from_persistence_or_remote(key, cache)
+        load_from_persistence(key, cache)
     end
   end
 
@@ -97,11 +95,11 @@ defmodule Cache.KeyValueStore do
     :ok = KeyValueBuffer.enqueue(key, json)
   end
 
-  defp load_from_persistence_or_remote(key, cache) do
+  defp load_from_persistence(key, cache) do
     with_repo_busy_timeout(Config.key_value_read_busy_timeout_ms(), fn ->
       case KeyValueRepo.get_by(KeyValueEntry, key: key) do
         nil ->
-          maybe_load_from_remote(key, cache)
+          {:error, :not_found}
 
         record ->
           Cachex.put(cache, key, record.json_payload)
@@ -138,35 +136,6 @@ defmodule Cache.KeyValueStore do
     end
 
     :ok
-  end
-
-  defp maybe_load_from_remote(key, cache) do
-    if Config.distributed_kv_enabled?() and Config.distributed_kv_remote_fallback_enabled?() do
-      case DistributedRepo.get_by(DistributedEntry, key: key, deleted_at: nil) do
-        %DistributedEntry{} = entry ->
-          materialize_remote_hit(entry, cache)
-
-        nil ->
-          {:error, :not_found}
-      end
-    else
-      {:error, :not_found}
-    end
-  end
-
-  defp materialize_remote_hit(entry, cache) do
-    local_attrs = %{
-      key: entry.key,
-      json_payload: entry.json_payload,
-      last_accessed_at: entry.last_accessed_at,
-      source_updated_at: entry.source_updated_at
-    }
-
-    _ = KeyValueEntries.materialize_remote_entry(local_attrs)
-    :ok = KeyValueAccessTracker.mark_shared_lineage(entry.key)
-    {:ok, _} = Cachex.put(cache, entry.key, entry.json_payload)
-    maybe_track_access(entry.key)
-    {:ok, entry.json_payload}
   end
 
   defp encode_entries(values) do

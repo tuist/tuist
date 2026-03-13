@@ -59,8 +59,7 @@ config :cache,
   storage_dir: "/tmp/test_cas",
   api_key: "test-secret-key",
   key_value_mode: :local,
-  distributed_kv_node_name: "test-node",
-  distributed_kv_remote_fallback_enabled: false
+  distributed_kv_node_name: "test-node"
 
 config :logger, level: :warning
 

@@ -9,11 +9,9 @@ defmodule Cache.KeyValueReplicationShipper do
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
 
-  require Logger
-
   @telemetry_event [:cache, :kv, :replication, :ship, :flush]
   @pending_rows_event [:cache, :kv, :replication, :ship, :pending_rows]
-  @timeout_event [:cache, :kv, :replication, :ship, :timeout]
+  @cutoff_cache_ttl_ms 10_000
   @shared_payload_wins_sql """
   EXCLUDED.source_updated_at > kv_entries.source_updated_at OR (
     EXCLUDED.source_updated_at = kv_entries.source_updated_at AND
@@ -37,72 +35,73 @@ defmodule Cache.KeyValueReplicationShipper do
   end
 
   @impl true
-  def init(state) do
+  def init(_opts) do
     schedule_flush(0)
-    {:ok, state}
+    {:ok, %{cutoff_cache: %{}, cutoff_fetched_at: 0}}
   end
 
   @impl true
   def handle_call(:flush, _from, state) do
-    {:reply, flush_pending_rows(), state}
+    {result, new_state} = flush_pending_rows(state)
+    {:reply, result, new_state}
   end
 
   @impl true
   def handle_info(:flush, state) do
-    _ = flush_pending_rows()
+    {_result, new_state} = flush_pending_rows(state)
     schedule_flush(Config.distributed_kv_ship_interval_ms())
-    {:noreply, state}
+    {:noreply, new_state}
   end
 
-  defp flush_pending_rows do
+  defp flush_pending_rows(state) do
     pending_rows = KeyValueEntries.list_pending_replication()
     :telemetry.execute(@pending_rows_event, %{count: length(pending_rows)}, %{})
 
     started_at = System.monotonic_time(:millisecond)
-
-    result =
-      try do
-        ship_entries(pending_rows)
-        :ok
-      rescue
-        error ->
-          maybe_emit_timeout(error)
-          Logger.warning("Distributed KV shipper failed: #{Exception.message(error)}")
-          {:error, error}
-      end
+    new_state = ship_entries(pending_rows, state)
 
     :telemetry.execute(
       @telemetry_event,
       %{duration_ms: System.monotonic_time(:millisecond) - started_at, batch_size: length(pending_rows)},
-      %{status: if(result == :ok, do: :ok, else: :error)}
+      %{status: :ok}
     )
 
-    result
+    {:ok, new_state}
   end
 
-  defp ship_entries([]), do: :ok
+  defp ship_entries([], state), do: state
 
-  defp ship_entries(pending_rows) do
+  defp ship_entries(pending_rows, state) do
     prepared_rows = Enum.map(pending_rows, &prepare_pending_row/1)
 
-    cleanup_cutoffs =
-      prepared_rows
-      |> Enum.map(& &1.scope)
-      |> Cleanup.latest_project_cleanup_cutoffs()
+    {cleanup_cutoffs, new_state} = fetch_cleanup_cutoffs(prepared_rows, state)
 
     {stale_rows, active_rows} =
       Enum.split_with(prepared_rows, &stale_against_cleanup?(&1, cleanup_cutoffs))
 
     Enum.each(stale_rows, &discard_stale_row/1)
     ship_batch(active_rows)
+    new_state
+  end
+
+  defp fetch_cleanup_cutoffs(prepared_rows, state) do
+    now_ms = System.monotonic_time(:millisecond)
+
+    if now_ms - state.cutoff_fetched_at < @cutoff_cache_ttl_ms do
+      {state.cutoff_cache, state}
+    else
+      cutoffs =
+        prepared_rows
+        |> Enum.map(& &1.scope)
+        |> Cleanup.latest_project_cleanup_cutoffs()
+
+      new_state = %{state | cutoff_cache: cutoffs, cutoff_fetched_at: now_ms}
+      {cutoffs, new_state}
+    end
   end
 
   defp prepare_pending_row(entry) do
-    scope =
-      case Cache.KeyValueEntry.scope_from_key(entry.key) do
-        {:ok, scope} -> scope
-        :error -> raise "invalid KV key format for replication: #{entry.key}"
-      end
+    scope = Cache.KeyValueEntry.scope_from_key(entry.key)
 
     incoming = %{
       key: entry.key,
@@ -241,12 +240,6 @@ defmodule Cache.KeyValueReplicationShipper do
       cleanup_started_at -> DateTime.compare(row.entry.source_updated_at, cleanup_started_at) in [:lt, :eq]
     end
   end
-
-  defp maybe_emit_timeout(%DBConnection.ConnectionError{} = _error) do
-    :telemetry.execute(@timeout_event, %{count: 1}, %{region: System.get_env("DEPLOY_REGION") || "unknown"})
-  end
-
-  defp maybe_emit_timeout(_error), do: :ok
 
   defp schedule_flush(interval_ms) do
     Process.send_after(self(), :flush, interval_ms)

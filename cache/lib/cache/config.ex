@@ -176,10 +176,6 @@ defmodule Cache.Config do
     Application.get_env(:cache, :distributed_kv_tombstone_retention_days, 7)
   end
 
-  def distributed_kv_remote_fallback_enabled? do
-    Application.get_env(:cache, :distributed_kv_remote_fallback_enabled, false)
-  end
-
   def distributed_kv_cleanup_lease_ms do
     Application.get_env(:cache, :distributed_kv_cleanup_lease_ms, 300_000)
   end

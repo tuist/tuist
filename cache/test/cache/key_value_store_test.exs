@@ -6,7 +6,6 @@ defmodule Cache.KeyValueStoreTest do
   import Ecto.Query
   import ExUnit.CaptureLog
 
-  alias Cache.DistributedKV.Repo, as: DistributedRepo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
@@ -29,7 +28,6 @@ defmodule Cache.KeyValueStoreTest do
     stub(KeyValueAccessTracker, :shared_lineage?, fn _key -> false end)
     stub(KeyValueAccessTracker, :allow_access_bump?, fn _key -> false end)
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
-    stub(DistributedRepo, :get_by, fn _schema, _clauses -> nil end)
 
     cache_name = :"kv_cache_test_#{suffix}"
     start_supervised!({Cachex, name: cache_name})

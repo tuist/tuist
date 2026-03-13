@@ -88,12 +88,6 @@ if config_env() == :prod do
       _ -> false
     end
 
-  distributed_kv_remote_fallback_enabled =
-    case System.get_env("DISTRIBUTED_KV_REMOTE_FALLBACK") do
-      value when is_binary(value) -> String.downcase(value) in ["1", "true"]
-      _ -> false
-    end
-
   otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT")
 
   s3_config =
@@ -182,8 +176,7 @@ if config_env() == :prod do
     distributed_kv_tombstone_retention_days:
       String.to_integer(System.get_env("DISTRIBUTED_KV_TOMBSTONE_RETENTION_DAYS") || "7"),
     distributed_kv_cleanup_lease_ms: String.to_integer(System.get_env("DISTRIBUTED_KV_CLEANUP_LEASE_MS") || "300000"),
-    distributed_kv_node_name: System.get_env("DISTRIBUTED_KV_NODE_NAME") || System.get_env("HOSTNAME"),
-    distributed_kv_remote_fallback_enabled: distributed_kv_remote_fallback_enabled
+    distributed_kv_node_name: System.get_env("DISTRIBUTED_KV_NODE_NAME") || System.get_env("HOSTNAME")
 
   # Note: connect_options cannot be used with Finch
   # Connection settings are handled at the Finch pool level

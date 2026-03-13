@@ -28,17 +28,12 @@ defmodule Cache.KeyValueEntry do
   end
 
   def scope_from_key(key) when is_binary(key) do
-    case String.split(key, ":", parts: 4) do
-      ["keyvalue", account_handle, project_handle, cas_id] ->
-        {:ok,
-         %{
-           account_handle: account_handle,
-           project_handle: project_handle,
-           cas_id: cas_id
-         }}
+    ["keyvalue", account_handle, project_handle, cas_id] = String.split(key, ":", parts: 4)
 
-      _ ->
-        :error
-    end
+    %{
+      account_handle: account_handle,
+      project_handle: project_handle,
+      cas_id: cas_id
+    }
   end
 end
