@@ -284,15 +284,17 @@ defmodule TuistWeb.AuthController do
   end
 
   defp redirect_to_auth_error(conn, message) do
+    body =
+      TuistWeb.ErrorHTML.render_error_page(%{
+        head_title: dgettext("dashboard", "Authentication failed"),
+        title: message,
+        error_name: dgettext("dashboard", "401")
+      })
+
     conn
     |> put_status(401)
-    |> put_layout(false)
-    |> put_view(TuistWeb.ErrorHTML)
-    |> render("auth_error.html",
-      head_title: dgettext("dashboard", "Authentication failed"),
-      title: message,
-      error_name: dgettext("dashboard", "401")
-    )
+    |> put_resp_content_type("text/html")
+    |> send_resp(401, Phoenix.HTML.Safe.to_iodata(body))
     |> halt()
   end
 

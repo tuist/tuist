@@ -95,10 +95,6 @@ defmodule TuistWeb.ErrorHTML do
     |> render_error_page()
   end
 
-  def render("auth_error.html", assigns) do
-    render_error_page(assigns)
-  end
-
   # The default is to render a plain text page based on
   # the template name. For example, "404.html" becomes
   # "Not Found".
