@@ -29,7 +29,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     case result do
       {:ok, parsed_data} ->
         parsed_data = Map.put(parsed_data, "project_id", project_id)
-        replace_build_run(build_id, parsed_data)
+        replace_build_run(build_id, parsed_data, account_id)
 
       {:error, reason} ->
         if attempt >= max_attempts do
@@ -102,14 +102,19 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp replace_build_run(build_id, parsed_data) do
+  defp replace_build_run(build_id, parsed_data, account_id) do
     parsed = atomize_keys(parsed_data)
 
+    existing_build = Builds.get_build(build_id)
+
     base_attrs =
-      build_id
-      |> Builds.get_build()
-      |> Map.from_struct()
-      |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+      if existing_build do
+        existing_build
+        |> Map.from_struct()
+        |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+      else
+        %{id: build_id, account_id: account_id, is_ci: false}
+      end
 
     attrs =
       Map.merge(base_attrs, %{
