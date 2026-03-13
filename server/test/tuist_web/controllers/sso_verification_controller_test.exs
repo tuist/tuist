@@ -56,7 +56,7 @@ defmodule TuistWeb.SSOVerificationControllerTest do
       assert get_session(conn, :oauth_return_to) == return_to
     end
 
-    test "redirects back with error when organization has no SSO configured", %{
+    test "redirects back when organization has no SSO configured", %{
       conn: conn,
       user: user
     } do
@@ -70,13 +70,11 @@ defmodule TuistWeb.SSOVerificationControllerTest do
         get(conn, "/sso/verify?organization_id=#{organization.id}&return_to=/some/path")
 
       assert redirected_to(conn) == "/some/path"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "SSO configuration not found"
     end
 
-    test "redirects back with error when organization does not exist", %{conn: conn} do
+    test "redirects back when organization does not exist", %{conn: conn} do
       conn = get(conn, "/sso/verify?organization_id=999999&return_to=/some/path")
       assert redirected_to(conn) == "/some/path"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "SSO configuration not found"
     end
 
     test "redirects to root when params are missing", %{conn: conn} do

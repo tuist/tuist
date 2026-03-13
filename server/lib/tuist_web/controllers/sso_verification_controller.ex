@@ -12,7 +12,6 @@ defmodule TuistWeb.SSOVerificationController do
 
       _ ->
         conn
-        |> put_flash(:error, dgettext("dashboard", "SSO configuration not found."))
         |> redirect(to: return_to)
         |> halt()
     end
