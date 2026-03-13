@@ -119,7 +119,7 @@ defmodule Cache.Disk do
         Enum.reduce(files, 0, fn file_path, deleted_acc ->
           with {:ok, %File.Stat{mtime: mtime}} <- File.stat(file_path),
                {:ok, mtime_datetime} <- stat_mtime_to_datetime(mtime),
-               true <- DateTime.before?(mtime_datetime, safe_cutoff),
+               true <- DateTime.compare(mtime_datetime, safe_cutoff) in [:lt, :eq],
                :ok <- File.rm(file_path) do
             deleted_acc + 1
           else

@@ -177,7 +177,7 @@ defmodule Cache.Config do
   end
 
   def distributed_kv_remote_fallback_enabled? do
-    Application.get_env(:cache, :distributed_kv_remote_fallback_enabled, true)
+    Application.get_env(:cache, :distributed_kv_remote_fallback_enabled, false)
   end
 
   def distributed_kv_cleanup_lease_ms do

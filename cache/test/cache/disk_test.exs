@@ -109,4 +109,23 @@ defmodule Cache.DiskIntegrationTest do
       assert :ok = Disk.delete_project("nonexistent_account", "nonexistent_project")
     end
   end
+
+  describe "delete_project_before/3" do
+    test "deletes files whose mtime matches the cutoff second" do
+      account = unique_account()
+      project = "cutoff_project"
+      artifact_key = "#{account}/#{project}/xcode/AB/CD/equal-cutoff"
+      artifact_path = Disk.artifact_path(artifact_key)
+
+      assert :ok = Disk.ensure_directory(artifact_path)
+      File.write!(artifact_path, "content")
+
+      cutoff = DateTime.truncate(DateTime.utc_now(), :second)
+      unix_seconds = DateTime.to_unix(cutoff, :second)
+      assert :ok = File.touch(artifact_path, unix_seconds)
+
+      assert {:ok, 1} = Disk.delete_project_before(account, project, cutoff)
+      refute File.exists?(artifact_path)
+    end
+  end
 end

@@ -3,6 +3,8 @@ defmodule Cache.KeyValueReplicationShipper do
 
   use GenServer
 
+  import Ecto.Query
+
   alias Cache.Config
   alias Cache.DistributedKV.Cleanup
   alias Cache.DistributedKV.Entry, as: DistributedEntry
@@ -58,7 +60,7 @@ defmodule Cache.KeyValueReplicationShipper do
 
     result =
       try do
-        Enum.each(pending_rows, &ship_entry/1)
+        ship_entries(pending_rows)
         :ok
       rescue
         error ->
@@ -76,7 +78,24 @@ defmodule Cache.KeyValueReplicationShipper do
     result
   end
 
-  defp ship_entry(entry) do
+  defp ship_entries([]), do: :ok
+
+  defp ship_entries(pending_rows) do
+    prepared_rows = Enum.map(pending_rows, &prepare_pending_row/1)
+
+    cleanup_cutoffs =
+      prepared_rows
+      |> Enum.map(& &1.scope)
+      |> Cleanup.latest_project_cleanup_cutoffs()
+
+    {stale_rows, active_rows} =
+      Enum.split_with(prepared_rows, &stale_against_cleanup?(&1, cleanup_cutoffs))
+
+    Enum.each(stale_rows, &discard_stale_row/1)
+    ship_batch(active_rows)
+  end
+
+  defp prepare_pending_row(entry) do
     scope =
       case Cache.KeyValueEntry.scope_from_key(entry.key) do
         {:ok, scope} -> scope
@@ -94,47 +113,70 @@ defmodule Cache.KeyValueReplicationShipper do
       last_accessed_at: entry.last_accessed_at
     }
 
-    if stale_against_cleanup?(entry, scope) do
-      _ = KeyValueEntries.delete_local_entry_if_before_or_equal(entry.key, entry.source_updated_at)
-      _ = KeyValueEntries.clear_replication_token(entry.key, entry.replication_enqueued_at)
-      KeyValueAccessTracker.clear(entry.key)
-      Cachex.del(:cache_keyvalue_store, entry.key)
-      :ok
-    else
-      do_ship_entry(entry, incoming)
-    end
+    %{entry: entry, scope: scope, incoming: incoming}
   end
 
-  defp do_ship_entry(entry, incoming) do
+  defp ship_batch([]), do: :ok
+
+  defp ship_batch(rows) do
     now = DateTime.utc_now()
+    keys = Enum.map(rows, & &1.entry.key)
 
     DistributedRepo.transaction(
       fn ->
-        case DistributedRepo.get(DistributedEntry, entry.key) do
-          nil ->
-            %DistributedEntry{}
-            |> DistributedEntry.changeset(Map.put(incoming, :updated_at, now))
-            |> DistributedRepo.insert!()
+        existing_entries = fetch_existing_entries(keys)
 
-          existing ->
-            merged = Logic.merge_shared_entry(existing, incoming, now)
+        {insert_rows, update_rows} =
+          Enum.reduce(rows, {[], []}, fn row, {insert_rows, update_rows} ->
+            case Map.get(existing_entries, row.entry.key) do
+              nil ->
+                {[Map.put(row.incoming, :updated_at, now) | insert_rows], update_rows}
 
-            existing
-            |> DistributedEntry.changeset(merged)
-            |> DistributedRepo.update!()
+              existing ->
+                merged = Logic.merge_shared_entry(existing, row.incoming, now)
+                {insert_rows, [{existing, merged} | update_rows]}
+            end
+          end)
+
+        if insert_rows != [] do
+          DistributedRepo.insert_all(DistributedEntry, insert_rows)
         end
+
+        Enum.each(update_rows, fn {existing, merged} ->
+          existing
+          |> DistributedEntry.changeset(merged)
+          |> DistributedRepo.update!()
+        end)
       end,
       timeout: Config.distributed_kv_database_timeout_ms()
     )
 
-    _ = KeyValueEntries.clear_replication_token(entry.key, entry.replication_enqueued_at)
+    Enum.each(rows, fn row ->
+      _ = KeyValueEntries.clear_replication_token(row.entry.key, row.entry.replication_enqueued_at)
+    end)
+
     :ok
   end
 
-  defp stale_against_cleanup?(entry, scope) do
-    case Cleanup.latest_project_cleanup_cutoff(scope.account_handle, scope.project_handle) do
+  defp fetch_existing_entries(keys) do
+    DistributedEntry
+    |> where([entry], entry.key in ^keys)
+    |> DistributedRepo.all(timeout: Config.distributed_kv_database_timeout_ms())
+    |> Map.new(fn entry -> {entry.key, entry} end)
+  end
+
+  defp discard_stale_row(row) do
+    _ = KeyValueEntries.delete_local_entry_if_before_or_equal(row.entry.key, row.entry.source_updated_at)
+    _ = KeyValueEntries.clear_replication_token(row.entry.key, row.entry.replication_enqueued_at)
+    KeyValueAccessTracker.clear(row.entry.key)
+    Cachex.del(:cache_keyvalue_store, row.entry.key)
+    :ok
+  end
+
+  defp stale_against_cleanup?(row, cleanup_cutoffs) do
+    case Map.get(cleanup_cutoffs, {row.scope.account_handle, row.scope.project_handle}) do
       nil -> false
-      cleanup_started_at -> DateTime.compare(entry.source_updated_at, cleanup_started_at) in [:lt, :eq]
+      cleanup_started_at -> DateTime.compare(row.entry.source_updated_at, cleanup_started_at) in [:lt, :eq]
     end
   end
 

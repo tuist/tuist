@@ -60,7 +60,7 @@ config :cache,
   api_key: "test-secret-key",
   key_value_mode: :local,
   distributed_kv_node_name: "test-node",
-  distributed_kv_remote_fallback_enabled: true
+  distributed_kv_remote_fallback_enabled: false
 
 config :logger, level: :warning
 
