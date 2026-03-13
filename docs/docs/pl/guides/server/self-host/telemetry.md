@@ -7,21 +7,21 @@
 ---
 # Telemetria {#telemetry}
 
-Możesz pobrać metryki zebrane przez serwer Tuist za pomocą
-[Prometheus](https://prometheus.io/) i narzędzia do wizualizacji, takiego jak
+Możesz pobrać metryki zebrane przez serwer Tuist przy użyciu
+[Prometheus](https://prometheus.io/) oraz narzędzia do wizualizacji, takiego jak
 [Grafana](https://grafana.com/), aby stworzyć niestandardowy pulpit nawigacyjny
-dostosowany do swoich potrzeb. Metryki Prometheus są udostępniane za
-pośrednictwem punktu końcowego `/metrics` na porcie 9091. Prometheus
+dostosowany do Twoich potrzeb. Metryki Prometheusa są udostępniane przez punkt
+końcowy `/metrics` na porcie 9091.
 [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)
-powinien być ustawiony na mniej niż 10_000 sekund (zalecamy pozostawienie
-domyślnego ustawienia 15 sekund).
+Prometheusa powinien być ustawiony na mniej niż 10_000 sekund (zalecamy
+zachowanie domyślnego ustawienia 15 sekund).
 
 ## Analizy PostHog {#posthog-analytics}
 
 Tuist integruje się z [PostHog](https://posthog.com/) w celu analizy zachowań
 użytkowników i śledzenia zdarzeń. Pozwala to zrozumieć, w jaki sposób
 użytkownicy wchodzą w interakcję z serwerem Tuist, śledzić wykorzystanie funkcji
-i uzyskać wgląd w zachowania użytkowników w witrynie marketingowej, panelu
+oraz uzyskać wgląd w zachowania użytkowników w witrynie marketingowej, panelu
 nawigacyjnym i dokumentacji API.
 
 ### Konfiguracja {#posthog-configuration}
@@ -39,7 +39,7 @@ zdarzenia użytkowników, wyświetlenia stron i ścieżki użytkowników.
 <!-- -->
 Analizy są włączone tylko wtedy, gdy skonfigurowane są zarówno
 `TUIST_POSTHOG_API_KEY`, jak i `TUIST_POSTHOG_URL`. Jeśli brakuje którejkolwiek
-z tych zmiennych, żadne zdarzenia analityczne nie będą wysyłane.
+z tych zmiennych, zdarzenia analityczne nie będą wysyłane.
 <!-- -->
 :::
 
@@ -48,41 +48,41 @@ z tych zmiennych, żadne zdarzenia analityczne nie będą wysyłane.
 Gdy PostHog jest włączony, Tuist automatycznie śledzi:
 
 - **Identyfikacja użytkownika**: Użytkownicy są identyfikowani na podstawie
-  unikalnego identyfikatora i adresu e-mail.
-- **Aliasy użytkowników**: Użytkownicy otrzymują aliasy na podstawie nazwy
-  swojego konta, aby ułatwić ich identyfikację.
-- **Analiza grupowa**: Użytkownicy są grupowani według wybranego projektu i
-  organizacji w celu przeprowadzenia analizy segmentowej.
-- **Sekcje strony**: Zdarzenia zawierają superwłaściwości wskazujące, która
+  unikalnego identyfikatora i adresu e-mail
+- **Aliasy użytkowników**: Użytkownicy są identyfikowani za pomocą aliasów
+  utworzonych na podstawie nazw ich kont, co ułatwia ich rozpoznawanie
+- **Analizy grupowe**: Użytkownicy są grupowani według wybranego projektu i
+  organizacji w celu przeprowadzenia analiz segmentowych
+- **Sekcje strony**: Zdarzenia zawierają właściwości nadrzędne wskazujące, która
   sekcja aplikacji je wygenerowała:
   - `marketing` - Wydarzenia ze stron marketingowych i treści publicznych
-  - `dashboard` - Wydarzenia z głównego pulpitu aplikacji i obszarów
-    uwierzytelnionych
+  - `pulpit nawigacyjny` - Zdarzenia z głównego pulpitu nawigacyjnego aplikacji
+    i obszarów wymagających uwierzytelnienia
   - `api-docs` - Zdarzenia ze stron dokumentacji API
-- **Wyświetlenia strony**: Automatyczne śledzenie nawigacji po stronie za pomocą
-  Phoenix LiveView
+- **Wyświetlenia strony**: Automatyczne śledzenie nawigacji po stronie przy
+  użyciu Phoenix LiveView
 - **Zdarzenia niestandardowe**: Zdarzenia specyficzne dla aplikacji dotyczące
-  korzystania z funkcji i interakcji użytkownika.
+  korzystania z funkcji i interakcji użytkownika
 
 ### Kwestie dotyczące prywatności {#posthog-privacy}
 
 - W przypadku uwierzytelnionych użytkowników PostHog wykorzystuje unikalny
-  identyfikator użytkownika jako odrębny identyfikator i dołącza jego adres
-  e-mail.
-- W przypadku anonimowych użytkowników PostHog wykorzystuje pamięć tylko do
-  przechowywania danych, aby uniknąć lokalnego przechowywania danych.
-- Wszystkie analizy respektują prywatność użytkowników i są zgodne z najlepszymi
-  praktykami w zakresie ochrony danych.
-- Dane PostHog są przetwarzane zgodnie z polityką prywatności PostHog i
-  konfiguracją użytkownika.
+  identyfikator użytkownika jako jednoznaczny identyfikator i dołącza jego adres
+  e-mail
+- W przypadku anonimowych użytkowników PostHog wykorzystuje trwałość wyłącznie w
+  pamięci, aby uniknąć lokalnego przechowywania danych
+- Wszystkie narzędzia analityczne szanują prywatność użytkowników i stosują się
+  do najlepszych praktyk w zakresie ochrony danych
+- Dane PostHog są przetwarzane zgodnie z polityką prywatności PostHog i Twoimi
+  ustawieniami
 
 ## Metryki Elixir {#elixir-metrics}
 
-Domyślnie uwzględniamy metryki środowiska uruchomieniowego Elixir, BEAM, Elixir
-oraz niektórych bibliotek, z których korzystamy. Poniżej przedstawiono niektóre
-z metryk, których można się spodziewać:
+Domyślnie uwzględniamy wskaźniki środowiska uruchomieniowego Elixir, BEAM,
+Elixir oraz niektórych bibliotek, z których korzystamy. Poniżej przedstawiono
+niektóre wskaźniki, które można zobaczyć:
 
-- [Aplikacja](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
+- [Zastosowanie](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
 - [Phoenix](https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
 - [Phoenix
@@ -93,13 +93,13 @@ z metryk, których można się spodziewać:
 Zalecamy zapoznanie się z tymi stronami, aby dowiedzieć się, jakie wskaźniki są
 dostępne i jak z nich korzystać.
 
-## Metryki uruchomień {#runs-metrics}
+## Uruchamia metryki {#runs-metrics}
 
 Zestaw wskaźników związanych z Tuist Runs.
 
 ### `tuist_runs_total` (licznik) {#tuist_runs_total-counter}
 
-Łączna liczba Tuist Runs.
+Łączna liczba przebiegów Tuist.
 
 #### Tagi {#tuist-runs-total-tags}
 
@@ -107,7 +107,7 @@ Zestaw wskaźników związanych z Tuist Runs.
 | -------- | ---------------------------------------------------------------------------- |
 | `nazwa`  | Nazwa uruchomionego polecenia `tuist`, np. `build`, `test` itp.              |
 | `is_ci`  | Wartość logiczna wskazująca, czy wykonawcą był CI, czy komputer programisty. |
-| `status` | `0` w przypadku sukcesu `` , `1` w przypadku niepowodzenia `` .              |
+| `status` | `0` w przypadku powodzenia `` , `1` w przypadku niepowodzenia `` .           |
 
 ### `tuist_runs_duration_milliseconds` (histogram) {#tuist_runs_duration_milliseconds-histogram}
 
@@ -119,25 +119,25 @@ Całkowity czas trwania każdego przebiegu tuist w milisekundach.
 | -------- | ---------------------------------------------------------------------------- |
 | `nazwa`  | Nazwa uruchomionego polecenia `tuist`, np. `build`, `test` itp.              |
 | `is_ci`  | Wartość logiczna wskazująca, czy wykonawcą był CI, czy komputer programisty. |
-| `status` | `0` w przypadku sukcesu `` , `1` w przypadku niepowodzenia `` .              |
+| `status` | `0` w przypadku powodzenia `` , `1` w przypadku niepowodzenia `` .           |
 
-## Metryki pamięci podręcznej {#cache-metrics}
+## Wskaźniki pamięci podręcznej {#cache-metrics}
 
 Zestaw wskaźników związanych z pamięcią podręczną Tuist.
 
 ### `tuist_cache_events_total` (licznik) {#tuist_cache_events_total-counter}
 
-Całkowita liczba zdarzeń pamięci podręcznej binarnej.
+Łączna liczba zdarzeń pamięci podręcznej binarnej.
 
 #### Tagi {#tuist-cache-events-total-tags}
 
-| Tag          | Opis                                                                     |
-| ------------ | ------------------------------------------------------------------------ |
-| `event_type` | Może to być jedno z następujących: `local_hit`, `remote_hit` lub `miss`. |
+| Tag          | Opis                                                                              |
+| ------------ | --------------------------------------------------------------------------------- |
+| `event_type` | Może to być jedna z następujących wartości: `local_hit`, `remote_hit` lub `miss`. |
 
 ### `tuist_cache_uploads_total` (licznik) {#tuist_cache_uploads_total-counter}
 
-Liczba przesłanych plików do pamięci podręcznej plików binarnych.
+Liczba operacji zapisywania do pamięci podręcznej plików binarnych.
 
 ### `tuist_cache_uploaded_bytes` (sum) {#tuist_cache_uploaded_bytes-sum}
 
@@ -147,7 +147,7 @@ Liczba bajtów przesłanych do pamięci podręcznej plików binarnych.
 
 Liczba pobrań do pamięci podręcznej plików binarnych.
 
-### `tuist_cache_downloaded_bytes` (suma) {#tuist_cache_downloaded_bytes-sum}
+### `tuist_cache_downloaded_bytes` (sum) {#tuist_cache_downloaded_bytes-sum}
 
 Liczba bajtów pobranych z pamięci podręcznej plików binarnych.
 
@@ -167,7 +167,7 @@ Zestaw wskaźników związanych z funkcją podglądu.
 
 ---
 
-## Wskaźniki pamięci masowej {#storage-metrics}
+## Wskaźniki dotyczące pamięci masowej {#storage-metrics}
 
 Zestaw wskaźników związanych z przechowywaniem artefaktów w zdalnej pamięci
 masowej (np. s3).
@@ -175,7 +175,7 @@ masowej (np. s3).
 ::: napiwek
 <!-- -->
 Wskaźniki te są przydatne do zrozumienia wydajności operacji przechowywania
-danych i identyfikacji potencjalnych wąskich gardeł.
+danych oraz do identyfikacji potencjalnych wąskich gardeł.
 <!-- -->
 :::
 
@@ -192,7 +192,8 @@ Rozmiar (w bajtach) obiektu pobranego ze zdalnej pamięci.
 
 ### `tuist_storage_get_object_size_duration_miliseconds` (histogram) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-Czas (w milisekundach) pobierania rozmiaru obiektu ze zdalnej pamięci.
+Czas (w milisekundach) potrzebny na pobranie rozmiaru obiektu ze zdalnej
+pamięci.
 
 #### Tagi {#tuist-storage-get-object-size-duration-miliseconds-tags}
 
@@ -203,7 +204,7 @@ Czas (w milisekundach) pobierania rozmiaru obiektu ze zdalnej pamięci.
 
 ### `tuist_storage_get_object_size_count` (licznik) {#tuist_storage_get_object_size_count-counter}
 
-Liczba pobrań rozmiaru obiektu z pamięci zdalnej.
+Liczba pobrań rozmiaru obiektu ze zdalnej pamięci.
 
 #### Tagi {#tuist-storage-get-object-size-count-tags}
 
@@ -213,29 +214,31 @@ Liczba pobrań rozmiaru obiektu z pamięci zdalnej.
 
 ### `tuist_storage_delete_all_objects_duration_milliseconds` (histogram) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
-Czas trwania (w milisekundach) usuwania wszystkich obiektów ze zdalnej pamięci.
+Czas (w milisekundach) potrzebny do usunięcia wszystkich obiektów ze zdalnej
+pamięci.
 
 #### Tagi {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
 | Tag            | Opis                                        |
 | -------------- | ------------------------------------------- |
-| `project_slug` | Nazwa projektu, którego obiekty są usuwane. |
+| `project_slug` | Skrót projektu, którego obiekty są usuwane. |
 
 
 ### `tuist_storage_delete_all_objects_count` (licznik) {#tuist_storage_delete_all_objects_count-counter}
 
-Liczba przypadków usunięcia wszystkich obiektów projektu z pamięci zdalnej.
+Liczba przypadków, w których wszystkie obiekty projektu zostały usunięte ze
+zdalnej pamięci.
 
 #### Tagi {#tuist-storage-delete-all-objects-count-tags}
 
 | Tag            | Opis                                        |
 | -------------- | ------------------------------------------- |
-| `project_slug` | Nazwa projektu, którego obiekty są usuwane. |
+| `project_slug` | Skrót projektu, którego obiekty są usuwane. |
 
 
 ### `tuist_storage_multipart_start_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
-Czas trwania (w milisekundach) rozpoczęcia przesyłania do zdalnej pamięci.
+Czas (w milisekundach) rozpoczęcia przesyłania do zdalnej pamięci.
 
 #### Tagi {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
 
@@ -245,7 +248,7 @@ Czas trwania (w milisekundach) rozpoczęcia przesyłania do zdalnej pamięci.
 
 ### `tuist_storage_multipart_start_upload_duration_count` (licznik) {#tuist_storage_multipart_start_upload_duration_count-counter}
 
-Liczba przypadków rozpoczęcia przesyłania do zdalnej pamięci masowej.
+Liczba prób rozpoczęcia przesyłania do zdalnej pamięci.
 
 #### Tagi {#tuist-storage-multipart-start-upload-duration-count-tags}
 
@@ -256,7 +259,8 @@ Liczba przypadków rozpoczęcia przesyłania do zdalnej pamięci masowej.
 
 ### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-Czas (w milisekundach) pobierania obiektu jako ciągu znaków ze zdalnej pamięci.
+Czas (w milisekundach) potrzebny na pobranie obiektu jako ciągu znaków ze
+zdalnej pamięci.
 
 #### Tagi {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
@@ -266,7 +270,8 @@ Czas (w milisekundach) pobierania obiektu jako ciągu znaków ze zdalnej pamięc
 
 ### `tuist_storage_get_object_as_string_count` (count) {#tuist_storage_get_object_as_string_count-count}
 
-Liczba pobrań obiektu jako ciągu znaków z pamięci zdalnej.
+Liczba przypadków, w których obiekt został pobrany jako ciąg znaków ze zdalnej
+pamięci.
 
 #### Tagi {#tuist-storage-get-object-as-string-count-tags}
 
@@ -277,7 +282,8 @@ Liczba pobrań obiektu jako ciągu znaków z pamięci zdalnej.
 
 ### `tuist_storage_check_object_existence_duration_milliseconds` (histogram) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-Czas (w milisekundach) sprawdzania istnienia obiektu w zdalnej pamięci.
+Czas (w milisekundach) potrzebny na sprawdzenie istnienia obiektu w zdalnej
+pamięci.
 
 #### Tagi {#tuist-storage-check-object-existence-duration-milliseconds-tags}
 
@@ -287,7 +293,7 @@ Czas (w milisekundach) sprawdzania istnienia obiektu w zdalnej pamięci.
 
 ### `tuist_storage_check_object_existence_count` (count) {#tuist_storage_check_object_existence_count-count}
 
-Liczba sprawdzeń istnienia obiektu w zdalnej pamięci.
+Liczba sprawdzeń obecności obiektu w zdalnej pamięci.
 
 #### Tagi {#tuist-storage-check-object-existence-count-tags}
 
@@ -297,8 +303,8 @@ Liczba sprawdzeń istnienia obiektu w zdalnej pamięci.
 
 ### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
-Czas (w milisekundach) generowania wstępnie podpisanego adresu URL do pobrania
-obiektu w zdalnej pamięci.
+Czas (w milisekundach) potrzebny do wygenerowania podpisanego z góry adresu URL
+do pobrania obiektu z pamięci zdalnej.
 
 #### Tagi {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
 
@@ -309,8 +315,8 @@ obiektu w zdalnej pamięci.
 
 ### `tuist_storage_generate_download_presigned_url_count` (count) {#tuist_storage_generate_download_presigned_url_count-count}
 
-Liczba przypadków wygenerowania wstępnie podpisanego adresu URL do pobrania dla
-obiektu w zdalnej pamięci.
+Liczba przypadków wygenerowania podpisanego URL-u do pobrania dla obiektu w
+zdalnej pamięci.
 
 #### Tagi {#tuist-storage-generate-download-presigned-url-count-tags}
 
@@ -320,8 +326,8 @@ obiektu w zdalnej pamięci.
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
-Czas (w milisekundach) generowania częściowo przesłanego adresu URL z podpisem
-dla obiektu w zdalnej pamięci.
+Czas (w milisekundach) potrzebny do wygenerowania wstępnie podpisanego adresu
+URL do przesłania części obiektu w zdalnej pamięci.
 
 #### Tagi {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
@@ -333,8 +339,8 @@ dla obiektu w zdalnej pamięci.
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
-Liczba wygenerowanych częściowo przesłanych adresów URL dla obiektu w zdalnej
-pamięci masowej.
+Liczba przypadków, w których wygenerowano adres URL z wstępnym podpisem do
+częściowego przesłania obiektu w zdalnej pamięci.
 
 #### Tagi {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
@@ -346,7 +352,8 @@ pamięci masowej.
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
-Czas (w milisekundach) potrzebny do zakończenia przesyłania do zdalnej pamięci.
+Czas (w milisekundach) potrzebny do zakończenia przesyłania danych do zdalnej
+pamięci.
 
 #### Tagi {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
 
@@ -358,7 +365,7 @@ Czas (w milisekundach) potrzebny do zakończenia przesyłania do zdalnej pamięc
 
 ### `tuist_storage_multipart_complete_upload_count` (count) {#tuist_storage_multipart_complete_upload_count-count}
 
-Łączna liczba zakończonych operacji przesyłania do zdalnej pamięci masowej.
+Łączna liczba pomyślnych operacji przesłania danych do zdalnej pamięci.
 
 #### Tagi {#tuist-storage-multipart-complete-upload-count-tags}
 
@@ -379,14 +386,14 @@ Zestaw wskaźników związanych z uwierzytelnianiem.
 
 #### Tagi {#tuist-authentication-token-refresh-error-total-tags}
 
-| Tag           | Opis                                                                                      |
-| ------------- | ----------------------------------------------------------------------------------------- |
-| `cli_version` | Wersja Tuist CLI, w której wystąpił błąd.                                                 |
-| `powód`       | Przyczyną błędu odświeżania tokenu może być np. `invalid_token_type` lub `invalid_token`. |
+| Tag           | Opis                                                                              |
+| ------------- | --------------------------------------------------------------------------------- |
+| `cli_version` | Wersja interfejsu CLI Tuist, w której wystąpił błąd.                              |
+| `powód`       | Przyczyna błędu odświeżania tokenu, np. `invalid_token_type` lub `invalid_token`. |
 
 ---
 
-## Wskaźniki projektów {#projects-metrics}
+## Wskaźniki projektu {#projects-metrics}
 
 Zestaw wskaźników związanych z projektami.
 
@@ -406,10 +413,10 @@ Zestaw wskaźników związanych z kontami (użytkownikami i organizacjami).
 
 ### `tuist_accounts_users_total` (last_value) {#tuist_accounts_users_total-last_value}
 
-Całkowita liczba użytkowników.
+Łączna liczba użytkowników.
 
 
-## Metryki bazy danych {#database-metrics}
+## Wskaźniki bazy danych {#database-metrics}
 
 Zestaw wskaźników związanych z połączeniem z bazą danych.
 
@@ -420,19 +427,19 @@ przypisanie do połączenia z bazą danych.
 
 ### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
 
-Liczba połączeń z bazą danych, które są gotowe do przypisania do zapytania do
-bazy danych.
+Liczba połączeń z bazą danych gotowych do przypisania do zapytania do bazy
+danych.
 
 
 ### `tuist_repo_pool_db_connection_connected` (licznik) {#tuist_repo_pool_db_connection_connected-counter}
 
-Liczba połączeń, które zostały nawiązane z bazą danych.
+Liczba połączeń nawiązanych z bazą danych.
 
 ### `tuist_repo_pool_db_connection_disconnected` (licznik) {#tuist_repo_pool_db_connection_disconnected-counter}
 
 Liczba połączeń, które zostały rozłączone z bazą danych.
 
-## Metryki HTTP {#http-metrics}
+## Wskaźniki HTTP {#http-metrics}
 
 Zestaw wskaźników związanych z interakcjami Tuist z innymi usługami za
 pośrednictwem protokołu HTTP.
@@ -443,12 +450,12 @@ Liczba wychodzących żądań HTTP.
 
 ### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
 
-Suma czasu trwania wychodzących żądań (w tym czasu oczekiwania na przypisanie do
-połączenia).
+Suma czasu trwania wychodzących żądań (w tym czasu, jaki upłynął na oczekiwanie
+na przypisanie do połączenia).
 
-### `tuist_http_request_duration_nanosecond_bucket` (dystrybucja) {#tuist_http_request_duration_nanosecond_bucket-distribution}
-Rozkład czasu trwania wychodzących żądań (w tym czasu oczekiwania na przypisanie
-do połączenia).
+### `tuist_http_request_duration_nanosecond_bucket` (rozkład) {#tuist_http_request_duration_nanosecond_bucket-distribution}
+Rozkład czasu trwania żądań wychodzących (w tym czasu, jaki upłynął na
+oczekiwanie na przypisanie do połączenia).
 
 ### `tuist_http_queue_count` (licznik) {#tuist_http_queue_count-counter}
 
@@ -460,7 +467,7 @@ Czas potrzebny do pobrania połączenia z puli.
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-Czas, przez jaki połączenie pozostawało nieaktywne w oczekiwaniu na pobranie
+Czas, przez jaki połączenie pozostawało bezczynne w oczekiwaniu na pobranie
 danych.
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (dystrybucja) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
@@ -469,7 +476,7 @@ Czas potrzebny do pobrania połączenia z puli.
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (dystrybucja) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-Czas, przez jaki połączenie pozostawało nieaktywne w oczekiwaniu na pobranie
+Czas, przez jaki połączenie pozostawało bezczynne w oczekiwaniu na pobranie
 danych.
 
 ### `tuist_http_connection_count` (licznik) {#tuist_http_connection_count-counter}
@@ -480,7 +487,7 @@ Liczba nawiązanych połączeń.
 
 Czas potrzebny do nawiązania połączenia z hostem.
 
-### `tuist_http_connection_duration_nanoseconds_bucket` (dystrybucja) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
+### `tuist_http_connection_duration_nanoseconds_bucket` (rozkład) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
 Rozkład czasu potrzebnego do nawiązania połączenia z hostem.
 
@@ -490,24 +497,24 @@ Liczba żądań, które zostały wysłane po przypisaniu do połączenia z puli.
 
 ### `tuist_http_send_duration_nanoseconds_sum` (sum) {#tuist_http_send_duration_nanoseconds_sum-sum}
 
-Czas potrzebny do wykonania żądań po przypisaniu ich do połączenia z puli.
+Czas potrzebny do zrealizowania żądań po przypisaniu ich do połączenia z puli.
 
 ### `tuist_http_send_duration_nanoseconds_bucket` (dystrybucja) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
-Rozkład czasu potrzebnego na wykonanie żądań po przypisaniu ich do połączenia z
-puli.
+Rozkład czasu potrzebnego do zrealizowania żądań po przypisaniu ich do
+połączenia z puli.
 
 ### `tuist_http_receive_count` (licznik) {#tuist_http_receive_count-counter}
 
-Liczba odpowiedzi otrzymanych na wysłane zapytania.
+Liczba odpowiedzi otrzymanych w odpowiedzi na wysłane żądania.
 
 ### `tuist_http_receive_duration_nanoseconds_sum` (sum) {#tuist_http_receive_duration_nanoseconds_sum-sum}
 
-Czas poświęcony na otrzymanie odpowiedzi.
+Czas poświęcony na otrzymywanie odpowiedzi.
 
 ### `tuist_http_receive_duration_nanoseconds_bucket` (dystrybucja) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
-Rozkład czasu poświęconego na otrzymanie odpowiedzi.
+Rozkład czasu poświęconego na otrzymywanie odpowiedzi.
 
 ### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
 
@@ -515,4 +522,4 @@ Liczba połączeń dostępnych w kolejce.
 
 ### `tuist_http_queue_in_use_connections` (last_value) {#tuist_http_queue_in_use_connections-last_value}
 
-Liczba używanych połączeń w kolejce.
+Liczba aktywnych połączeń w kolejce.
