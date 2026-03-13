@@ -11,9 +11,7 @@ defmodule Processor.BuildProcessor do
     build_path = Path.join(temp_dir, "build.zip")
 
     try do
-      result = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
-      Logger.info("S3 download result: #{inspect(result)}")
-      {:ok, _} = result
+      {:ok, _} = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
       process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
     after
       cleanup_temp(temp_dir)
