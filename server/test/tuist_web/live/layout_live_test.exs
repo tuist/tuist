@@ -340,4 +340,179 @@ defmodule TuistWeb.LayoutLiveTest do
       end
     end
   end
+
+  describe "SSO enforcement in on_mount/4 :account" do
+    test "continues normally when org has SSO enforced and user has matching identity", %{
+      session: session,
+      user: user
+    } do
+      Accounts.link_oauth_identity_to_user(user, %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: "enforced.com"
+      })
+
+      %{account: enforced_account} =
+        organization =
+        AccountsFixtures.organization_fixture(
+          name: "enforced-org",
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "enforced.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :account,
+          %{"account_handle" => enforced_account.name},
+          session,
+          %LiveView.Socket{}
+        )
+
+      assert socket.assigns.selected_account == enforced_account
+    end
+
+    test "halts with redirect when org has SSO enforced and user has no matching identity", %{
+      session: session,
+      user: user
+    } do
+      %{account: enforced_account} =
+        organization =
+        AccountsFixtures.organization_fixture(
+          name: "enforced-org-2",
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "enforced2.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+
+      {:halt, socket} =
+        LayoutLive.on_mount(
+          :account,
+          %{"account_handle" => enforced_account.name},
+          session,
+          %LiveView.Socket{}
+        )
+
+      assert socket.redirected ==
+               {:redirect,
+                %{
+                  status: 302,
+                  to: "/sso/verify?organization_id=#{organization.id}&return_to=%2F#{enforced_account.name}%2Fprojects"
+                }}
+    end
+
+    test "continues normally when org has SSO but enforcement is disabled", %{
+      session: session,
+      user: user
+    } do
+      %{account: non_enforced_account} =
+        AccountsFixtures.organization_fixture(
+          name: "non-enforced-org",
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "notenforced.com",
+          preload: [:account]
+        )
+
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :account,
+          %{"account_handle" => non_enforced_account.name},
+          session,
+          %LiveView.Socket{}
+        )
+
+      assert socket.assigns.selected_account == non_enforced_account
+    end
+
+    test "continues normally for personal accounts (no organization)", %{
+      session: session,
+      user: user
+    } do
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :account,
+          %{},
+          session,
+          %LiveView.Socket{}
+        )
+
+      assert socket.assigns.selected_account == user.account
+    end
+  end
+
+  describe "SSO enforcement in on_mount/4 :project" do
+    test "halts with redirect when project's org has SSO enforced and user has no matching identity",
+         %{
+           session: session,
+           user: user,
+           organization: organization,
+           project: project
+         } do
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      Accounts.update_organization(organization, %{
+        sso_provider: :google,
+        sso_organization_id: "enforced-proj.com",
+        sso_enforced: true
+      })
+
+      {:halt, socket} =
+        LayoutLive.on_mount(
+          :project,
+          %{
+            "account_handle" => organization.account.name,
+            "project_handle" => project.name
+          },
+          session,
+          %LiveView.Socket{}
+        )
+
+      assert socket.redirected ==
+               {:redirect,
+                %{
+                  status: 302,
+                  to:
+                    "/sso/verify?organization_id=#{organization.id}&return_to=%2F#{organization.account.name}%2Fprojects"
+                }}
+    end
+
+    @tag user_role: :user
+    test "continues normally when project's org has SSO enforced and user has matching identity",
+         %{
+           params: params,
+           session: session,
+           user: user,
+           organization: organization,
+           project: project
+         } do
+      Accounts.link_oauth_identity_to_user(user, %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: "proj-enforced.com"
+      })
+
+      Accounts.update_organization(organization, %{
+        sso_provider: :google,
+        sso_organization_id: "proj-enforced.com",
+        sso_enforced: true
+      })
+
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :project,
+          params,
+          session,
+          %LiveView.Socket{}
+        )
+
+      assert socket.assigns.selected_project == project
+    end
+  end
 end

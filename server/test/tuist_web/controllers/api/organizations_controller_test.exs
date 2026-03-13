@@ -422,6 +422,47 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["name"] == "tuist-org"
       assert response["sso_provider"] == "google"
       assert response["sso_organization_id"] == "tuist.io"
+      assert response["sso_enforced"] == false
+    end
+
+    test "updates an organization with SSO enforcement enabled",
+         %{conn: conn} do
+      # Given
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :google,
+          uid: System.unique_integer([:positive]),
+          info: %{
+            email: "enforced@tuist.dev"
+          },
+          extra: %{
+            raw_info: %{
+              user: %{
+                "hd" => "tuist.io"
+              }
+            }
+          }
+        })
+
+      conn = Authentication.put_current_user(conn, user)
+
+      AccountsFixtures.organization_fixture(name: "enforced-org", creator: user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/enforced-org",
+          sso_provider: "google",
+          sso_organization_id: "tuist.io",
+          sso_enforced: true
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["name"] == "enforced-org"
+      assert response["sso_provider"] == "google"
+      assert response["sso_enforced"] == true
     end
 
     test "updates SSO to nil",
@@ -449,6 +490,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["name"] == "tuist-org"
       assert response["sso_provider"] == nil
       assert response["sso_organization_id"] == nil
+      assert response["sso_enforced"] == false
     end
 
     test "returns :forbidden when user is not an admin of an organization", %{

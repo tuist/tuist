@@ -224,15 +224,7 @@ defmodule TuistWeb.LayoutLive do
       return_to = ~p"/#{selected_account.name}/projects"
 
       {:halt,
-       socket
-       |> Phoenix.LiveView.put_flash(
-         :error,
-         dgettext(
-           "dashboard",
-           "This organization requires SSO authentication. You will be redirected to verify your identity."
-         )
-       )
-       |> Phoenix.LiveView.redirect(to: ~p"/sso/verify?organization_id=#{organization_id}&return_to=#{return_to}")}
+       Phoenix.LiveView.redirect(socket, to: ~p"/sso/verify?organization_id=#{organization_id}&return_to=#{return_to}")}
     else
       _ -> :cont
     end
