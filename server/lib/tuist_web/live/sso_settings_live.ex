@@ -43,8 +43,7 @@ defmodule TuistWeb.SSOSettingsLive do
     sso_enabled = not socket.assigns.sso_enabled
 
     socket
-    |> assign(sso_enabled: sso_enabled, flash_message: nil)
-    |> then(fn s -> if sso_enabled, do: s, else: assign(s, sso_enforced: false) end)
+    |> assign(sso_enabled: sso_enabled, sso_enforced: sso_enabled and socket.assigns.sso_enforced, flash_message: nil)
     |> compute_form_valid()
     |> compute_has_changes()
     |> then(&{:noreply, &1})
