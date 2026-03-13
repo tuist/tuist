@@ -270,15 +270,9 @@
         }
       }
 
-      stage.replace {
-        source     = "method"
-        expression = "^(?:GET|HEAD|POST|PUT|DELETE|PATCH|OPTIONS|CONNECT|TRACE|PROPFIND)$"
-        replace    = "{{ .Value }}"
-      }
-      stage.replace {
-        source     = "method"
-        expression = "^(?!GET$|HEAD$|POST$|PUT$|DELETE$|PATCH$|OPTIONS$|CONNECT$|TRACE$|PROPFIND$).+"
-        replace    = "INVALID"
+      stage.template {
+        source   = "method"
+        template = "{{ if or (eq .method \"GET\") (eq .method \"HEAD\") (eq .method \"POST\") (eq .method \"PUT\") (eq .method \"DELETE\") (eq .method \"PATCH\") (eq .method \"OPTIONS\") (eq .method \"CONNECT\") (eq .method \"TRACE\") (eq .method \"PROPFIND\") }}{{ .method }}{{ else }}INVALID{{ end }}"
       }
 
       stage.labels {
