@@ -80,14 +80,14 @@ defmodule TuistWeb.AuthenticationTest do
       assert redirected_to(conn) == "/hello"
     end
 
-    test "stores auth_provider as :password by default", %{conn: conn, user: user} do
+    test "stores auth_method as :password by default", %{conn: conn, user: user} do
       conn = Authentication.log_in_user(conn, user)
-      assert get_session(conn, :auth_provider) == :password
+      assert get_session(conn, :auth_method) == :password
     end
 
-    test "stores auth_provider when provided", %{conn: conn, user: user} do
-      conn = Authentication.log_in_user(conn, user, %{auth_provider: :google})
-      assert get_session(conn, :auth_provider) == :google
+    test "stores auth_method when provided", %{conn: conn, user: user} do
+      conn = Authentication.log_in_user(conn, user, %{auth_method: :google})
+      assert get_session(conn, :auth_method) == :google
     end
 
     test "writes a cookie if remember_me is configured", %{conn: conn, user: user} do
@@ -527,16 +527,19 @@ defmodule TuistWeb.AuthenticationTest do
 
       Accounts.update_organization(organization, %{sso_enforced: true})
 
-      request_path = "/#{organization.account.name}/settings"
-
       conn =
-        %{conn | params: %{"account_handle" => organization.account.name}, request_path: request_path, query_string: ""}
+        %{
+          conn
+          | params: %{"account_handle" => organization.account.name},
+            path_info: [organization.account.name, "settings"],
+            query_string: ""
+        }
         |> assign(:current_user, user)
         |> Authentication.require_sso_authentication([])
 
       assert conn.halted
       assert redirected_to(conn) == "/users/auth/google"
-      assert get_session(conn, :oauth_return_to) == request_path
+      assert get_session(conn, :oauth_return_to) == "/#{organization.account.name}/settings"
     end
 
     test "redirects to Okta SSO when org has Okta SSO enforced and session auth provider does not match",
@@ -557,7 +560,7 @@ defmodule TuistWeb.AuthenticationTest do
         %{
           conn
           | params: %{"account_handle" => organization.account.name},
-            request_path: "/#{organization.account.name}/projects",
+            path_info: [organization.account.name, "projects"],
             query_string: ""
         }
         |> assign(:current_user, user)
@@ -581,7 +584,7 @@ defmodule TuistWeb.AuthenticationTest do
 
       conn =
         conn
-        |> put_session(:auth_provider, :google)
+        |> put_session(:auth_method, :google)
         |> Map.put(:params, %{"account_handle" => organization.account.name})
         |> assign(:current_user, user)
         |> Authentication.require_sso_authentication([])

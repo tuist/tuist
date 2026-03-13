@@ -46,7 +46,7 @@ defmodule TuistWeb.API.Schemas.Organization do
       },
       sso_enforced: %Schema{
         type: :boolean,
-        description: "When true, organization members must use SSO and cannot log in with email and password"
+        description: "Whether SSO is enforced for the organization"
       }
     },
     required: [:id, :name, :plan, :members, :invitations]

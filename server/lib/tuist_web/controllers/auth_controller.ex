@@ -111,7 +111,7 @@ defmodule TuistWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
-    auth_params = %{auth_provider: auth.provider}
+    auth_params = %{auth_method: auth.provider}
 
     case Accounts.get_oauth2_identity(auth.provider, auth.uid) do
       {:ok, oauth2_identity} ->
@@ -270,12 +270,12 @@ defmodule TuistWeb.AuthController do
 
           user ->
             pending = get_session(conn, :pending_oauth_signup)
-            auth_provider = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
+            auth_method = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
 
             conn
             |> delete_session(:pending_oauth_signup)
             |> put_session(:user_return_to, oauth_return_url)
-            |> Authentication.log_in_user(user, %{auth_provider: auth_provider})
+            |> Authentication.log_in_user(user, %{auth_method: auth_method})
         end
 
       {:error, _reason} ->

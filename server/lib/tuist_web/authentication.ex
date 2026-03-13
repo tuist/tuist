@@ -133,14 +133,14 @@ defmodule TuistWeb.Authentication do
   def log_in_user(conn, user, params \\ %{}) do
     token = Accounts.generate_user_session_token(user)
     user_return_to = get_session(conn, :user_return_to)
-    auth_provider = Map.get(params, :auth_provider, :password)
+    auth_method = Map.get(params, :auth_method, :password)
 
     Analytics.user_authenticate(user)
 
     conn
     |> renew_session()
     |> put_token_in_session(token)
-    |> put_session(:auth_provider, auth_provider)
+    |> put_session(:auth_method, auth_method)
     |> maybe_write_remember_me_cookie(token, params)
     |> redirect(to: user_return_to || signed_in_path(user))
     |> halt()
@@ -329,16 +329,10 @@ defmodule TuistWeb.Authentication do
          organization_id when not is_nil(organization_id) <- account.organization_id,
          {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
          true <- organization.sso_enforced and not is_nil(organization.sso_provider),
-         auth_provider = get_session(conn, :auth_provider),
-         false <- auth_provider == organization.sso_provider do
-      return_to =
-        case conn.query_string do
-          "" -> conn.request_path
-          qs -> "#{conn.request_path}?#{qs}"
-        end
-
+         auth_method = get_session(conn, :auth_method),
+         false <- auth_method == organization.sso_provider do
       conn
-      |> put_session(:oauth_return_to, return_to)
+      |> put_session(:oauth_return_to, current_path(conn))
       |> redirect(to: sso_provider_path(organization))
       |> halt()
     else

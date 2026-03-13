@@ -29,7 +29,7 @@ defmodule TuistWeb.SSOSettingsLive do
       |> assign(selected_tab: "sso")
       |> assign(organization: organization)
       |> assign(sso_enabled: sso_enabled)
-      |> assign(sso_enforced: organization.sso_enforced || false)
+      |> assign(sso_enforced: organization.sso_enforced)
       |> assign(flash_message: nil)
       |> assign_form_from_organization(organization)
       |> assign_saved_state()

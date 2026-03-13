@@ -268,7 +268,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
       {:ok, org} = Accounts.get_organization_by_id(enforced_account.organization_id)
       Accounts.update_organization(org, %{sso_enforced: true})
 
-      conn = init_test_session(conn, %{auth_provider: :google})
+      conn = init_test_session(conn, %{auth_method: :google})
       {:ok, lv, html} = live(conn, ~p"/#{enforced_account.name}/sso")
 
       # Verify enforcement is shown as enabled
