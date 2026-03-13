@@ -3,12 +3,8 @@ defmodule Cache.KeyValueReplicationShipper do
 
   use GenServer
 
-  import Ecto.Query
-
   alias Cache.Config
   alias Cache.DistributedKV.Cleanup
-  alias Cache.DistributedKV.Entry, as: DistributedEntry
-  alias Cache.DistributedKV.Logic
   alias Cache.DistributedKV.Repo, as: DistributedRepo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
@@ -18,6 +14,12 @@ defmodule Cache.KeyValueReplicationShipper do
   @telemetry_event [:cache, :kv, :replication, :ship, :flush]
   @pending_rows_event [:cache, :kv, :replication, :ship, :pending_rows]
   @timeout_event [:cache, :kv, :replication, :ship, :timeout]
+  @shared_payload_wins_sql """
+  EXCLUDED.source_updated_at > kv_entries.source_updated_at OR (
+    EXCLUDED.source_updated_at = kv_entries.source_updated_at AND
+      EXCLUDED.source_node > kv_entries.source_node
+  )
+  """
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -120,36 +122,7 @@ defmodule Cache.KeyValueReplicationShipper do
 
   defp ship_batch(rows) do
     now = DateTime.utc_now()
-    keys = Enum.map(rows, & &1.entry.key)
-
-    DistributedRepo.transaction(
-      fn ->
-        existing_entries = fetch_existing_entries(keys)
-
-        {insert_rows, update_rows} =
-          Enum.reduce(rows, {[], []}, fn row, {insert_rows, update_rows} ->
-            case Map.get(existing_entries, row.entry.key) do
-              nil ->
-                {[Map.put(row.incoming, :updated_at, now) | insert_rows], update_rows}
-
-              existing ->
-                merged = Logic.merge_shared_entry(existing, row.incoming, now)
-                {insert_rows, [{existing, merged} | update_rows]}
-            end
-          end)
-
-        if insert_rows != [] do
-          DistributedRepo.insert_all(DistributedEntry, insert_rows)
-        end
-
-        Enum.each(update_rows, fn {existing, merged} ->
-          existing
-          |> DistributedEntry.changeset(merged)
-          |> DistributedRepo.update!()
-        end)
-      end,
-      timeout: Config.distributed_kv_database_timeout_ms()
-    )
+    upsert_shared_entries(Enum.map(rows, & &1.incoming), now)
 
     Enum.each(rows, fn row ->
       _ = KeyValueEntries.clear_replication_token(row.entry.key, row.entry.replication_enqueued_at)
@@ -158,11 +131,100 @@ defmodule Cache.KeyValueReplicationShipper do
     :ok
   end
 
-  defp fetch_existing_entries(keys) do
-    DistributedEntry
-    |> where([entry], entry.key in ^keys)
-    |> DistributedRepo.all(timeout: Config.distributed_kv_database_timeout_ms())
-    |> Map.new(fn entry -> {entry.key, entry} end)
+  @doc false
+  def upsert_shared_entries(rows, now \\ DateTime.utc_now())
+
+  def upsert_shared_entries([], _now), do: :ok
+
+  def upsert_shared_entries(rows, now) do
+    DistributedRepo.query!(
+      """
+      INSERT INTO kv_entries (
+        key,
+        account_handle,
+        project_handle,
+        cas_id,
+        json_payload,
+        source_node,
+        source_updated_at,
+        last_accessed_at,
+        updated_at
+      )
+      SELECT
+        incoming.key,
+        incoming.account_handle,
+        incoming.project_handle,
+        incoming.cas_id,
+        incoming.json_payload,
+        incoming.source_node,
+        incoming.source_updated_at,
+        incoming.last_accessed_at,
+        incoming.updated_at
+      FROM UNNEST(
+        $1::text[],
+        $2::text[],
+        $3::text[],
+        $4::text[],
+        $5::text[],
+        $6::text[],
+        $7::timestamptz[],
+        $8::timestamptz[],
+        $9::timestamptz[]
+      ) AS incoming(
+        key,
+        account_handle,
+        project_handle,
+        cas_id,
+        json_payload,
+        source_node,
+        source_updated_at,
+        last_accessed_at,
+        updated_at
+      )
+      ON CONFLICT (key) DO UPDATE
+      SET
+        account_handle = EXCLUDED.account_handle,
+        project_handle = EXCLUDED.project_handle,
+        cas_id = EXCLUDED.cas_id,
+        json_payload = CASE
+          WHEN #{@shared_payload_wins_sql} THEN EXCLUDED.json_payload
+          ELSE kv_entries.json_payload
+        END,
+        source_node = CASE
+          WHEN #{@shared_payload_wins_sql} THEN EXCLUDED.source_node
+          ELSE kv_entries.source_node
+        END,
+        source_updated_at = CASE
+          WHEN #{@shared_payload_wins_sql} THEN EXCLUDED.source_updated_at
+          ELSE kv_entries.source_updated_at
+        END,
+        last_accessed_at = GREATEST(kv_entries.last_accessed_at, EXCLUDED.last_accessed_at),
+        deleted_at = CASE
+          WHEN #{@shared_payload_wins_sql} AND kv_entries.deleted_at IS NOT NULL AND
+                 EXCLUDED.source_updated_at > kv_entries.deleted_at THEN NULL
+          ELSE kv_entries.deleted_at
+        END,
+        updated_at = EXCLUDED.updated_at
+      """,
+      upsert_shared_entry_params(rows, now),
+      timeout: Config.distributed_kv_database_timeout_ms()
+    )
+
+    :ok
+  end
+
+  defp upsert_shared_entry_params(rows, now) do
+    [
+      Enum.map(rows, & &1.key),
+      Enum.map(rows, & &1.account_handle),
+      Enum.map(rows, & &1.project_handle),
+      Enum.map(rows, & &1.cas_id),
+      Enum.map(rows, & &1.json_payload),
+      Enum.map(rows, & &1.source_node),
+      Enum.map(rows, & &1.source_updated_at),
+      Enum.map(rows, & &1.last_accessed_at),
+      List.duplicate(now, length(rows))
+    ]
   end
 
   defp discard_stale_row(row) do

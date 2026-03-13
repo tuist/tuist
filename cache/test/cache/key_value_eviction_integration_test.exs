@@ -3,6 +3,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
   use Mimic
   use Oban.Testing, repo: Cache.Repo
 
+  import Ecto.Query
   import ExUnit.CaptureLog
 
   alias Cache.KeyValueEntry
