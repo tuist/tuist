@@ -12,7 +12,6 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Marketing.MarketingController
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
-  alias TuistWeb.Plugs.SSOEnforcementPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
   pipeline :open_api do
@@ -745,7 +744,7 @@ defmodule TuistWeb.Router do
       :open_api,
       :browser_app,
       :require_authenticated_user,
-      SSOEnforcementPlug,
+      :require_sso_authentication,
       :analytics
     ]
 
@@ -771,7 +770,7 @@ defmodule TuistWeb.Router do
       :browser_app,
       :rate_limit,
       :require_authenticated_user_for_private_projects,
-      SSOEnforcementPlug,
+      :require_sso_authentication,
       :analytics,
       :require_user_can_read_project
     ]

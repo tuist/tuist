@@ -324,6 +324,29 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  def require_sso_authentication(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
+    with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
+         organization_id when not is_nil(organization_id) <- account.organization_id,
+         {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
+         true <- organization.sso_enforced and not is_nil(organization.sso_provider),
+         auth_provider = get_session(conn, :auth_provider),
+         false <- auth_provider == organization.sso_provider do
+      conn
+      |> put_session(:oauth_return_to, ~p"/#{account_handle}/projects")
+      |> redirect(to: sso_provider_path(organization))
+      |> halt()
+    else
+      _ -> conn
+    end
+  end
+
+  def require_sso_authentication(conn, _opts), do: conn
+
+  defp sso_provider_path(%{sso_provider: :google}), do: ~p"/users/auth/google"
+
+  defp sso_provider_path(%{id: organization_id, sso_provider: :okta}),
+    do: ~p"/users/auth/okta?organization_id=#{organization_id}"
+
   def require_authenticated_user_for_private_projects(
         %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn,
         opts
