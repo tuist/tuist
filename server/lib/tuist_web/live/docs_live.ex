@@ -9,6 +9,14 @@ defmodule TuistWeb.DocsLive do
 
   @noora_icons_path Path.join([Mix.Project.deps_path(), "noora", "lib", "noora", "icons"])
   @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
+  @overview_headings [
+    %{id: "learn-more", text: "Learn more about what Tuist offers", level: 2},
+    %{id: "builds", text: "Builds", level: 2},
+    %{id: "tests", text: "Tests", level: 2},
+    %{id: "artifacts", text: "Artifacts", level: 2},
+    %{id: "see-tuist-in-action", text: "See Tuist in action", level: 2},
+    %{id: "open-source-and-community", text: "Open source and community", level: 2}
+  ]
 
   def mount(_params, _session, socket) do
     socket =
@@ -67,9 +75,10 @@ defmodule TuistWeb.DocsLive do
       assigns
       |> assign(:install_path, docs_path("/en/guides/install-tuist"))
       |> assign(:copy_check_icon, @copy_check_icon)
+      |> assign(:headings, @overview_headings)
 
     ~H"""
-    <TuistWeb.Docs.Components.layout current_slug="/en" tab={:guides} headings={[]} markdown="">
+    <TuistWeb.Docs.Components.layout current_slug="/en" tab={:guides} headings={@headings} markdown="">
       <div id="docs-overview">
         <%!-- Hero --%>
         <section data-part="hero">
@@ -175,7 +184,7 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- What Tuist offers --%>
         <section data-part="section-intro">
-          <h1>Learn more about what Tuist offers</h1>
+          <h1 id="learn-more">Learn more about what Tuist offers</h1>
           <p>
             Learn how to generate projects, automate your workflows, and scale your app development efficiently with Tuist.
           </p>
@@ -183,7 +192,7 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- Builds --%>
         <section data-part="feature-section">
-          <h2>Builds</h2>
+          <h2 id="builds">Builds</h2>
           <p>
             Skip the manual steps, auto-generate projects, speeds up builds, and explore insights with built-in analytics.
           </p>
@@ -218,7 +227,7 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- Tests --%>
         <section data-part="feature-section">
-          <h2>Tests</h2>
+          <h2 id="tests">Tests</h2>
           <p>
             Run only impacted tests based on your changes, faster feedback loops, less waiting, both locally and on CI.
           </p>
@@ -267,7 +276,7 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- Artifacts --%>
         <section data-part="feature-section">
-          <h2>Artifacts</h2>
+          <h2 id="artifacts">Artifacts</h2>
           <p>
             From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating.
           </p>
@@ -299,7 +308,7 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- See Tuist in action --%>
         <section data-part="section-intro">
-          <h1>See Tuist in action</h1>
+          <h1 id="see-tuist-in-action">See Tuist in action</h1>
           <p>
             Learn from real implementations and get inspired by what's possible when your toolchain just works.
           </p>
@@ -325,7 +334,7 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- Open source and community --%>
         <section data-part="section-intro">
-          <h1>Open source and community</h1>
+          <h1 id="open-source-and-community">Open source and community</h1>
           <p>
             Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape
             the future of app development tooling.

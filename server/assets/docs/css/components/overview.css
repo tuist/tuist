@@ -1,6 +1,10 @@
 /* Widen the content area for the overview page */
 #docs-page-layout:has(#docs-overview) #docs-layout {
-  grid-template-columns: 1fr 850px 1fr;
+  grid-template-columns:
+    var(--docs-sidebar-width)
+    minmax(0, 850px)
+    var(--docs-toc-width);
+  justify-content: center;
 }
 
 #docs-overview {

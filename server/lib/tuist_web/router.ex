@@ -28,7 +28,7 @@ defmodule TuistWeb.Router do
     [
       frame_ancestors: "'self'",
       img_src:
-        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com #{s3_endpoint}",
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com https://videos.tuist.dev #{s3_endpoint}",
       media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org #{s3_endpoint}",
       style_src:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
@@ -330,6 +330,7 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_docs]
 
     get "/docs", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
 
