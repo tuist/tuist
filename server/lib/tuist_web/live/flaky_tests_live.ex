@@ -177,7 +177,21 @@ defmodule TuistWeb.FlakyTestsLive do
       page_size: 20
     }
 
-    {flaky_tests, flaky_tests_meta} = Tests.list_flaky_test_cases(project.id, options)
+    analytics_environment = params["analytics-environment"] || "any"
+
+    %{period: {start_datetime, end_datetime}} =
+      DatePicker.date_picker_params(params, "analytics")
+
+    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
+
+    opts =
+      case analytics_environment do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
+
+    {flaky_tests, flaky_tests_meta} = Tests.list_flaky_test_cases(project.id, options, opts)
 
     socket
     |> assign(:active_filters, filters)

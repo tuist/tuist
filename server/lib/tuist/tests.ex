@@ -955,7 +955,7 @@ defmodule Tuist.Tests do
   Lists test cases that are marked as flaky for a project.
   Queries test_cases where is_flaky = true and joins with test_case_runs for aggregated stats.
   """
-  def list_flaky_test_cases(project_id, attrs) do
+  def list_flaky_test_cases(project_id, attrs, opts \\ []) do
     page = Map.get(attrs, :page, 1)
     page_size = Map.get(attrs, :page_size, 20)
     order_by = attrs |> Map.get(:order_by, [:flaky_runs_count]) |> List.first()
@@ -967,7 +967,7 @@ defmodule Tuist.Tests do
 
     results =
       project_id
-      |> build_flaky_test_cases_query(search_term)
+      |> build_flaky_test_cases_query(search_term, opts)
       |> apply_flaky_order(order_by, order_direction)
       |> from(limit: ^page_size, offset: ^offset)
       |> ClickHouseRepo.all()
@@ -976,7 +976,7 @@ defmodule Tuist.Tests do
 
     total_count =
       project_id
-      |> build_flaky_test_cases_count_query(search_term)
+      |> build_flaky_test_cases_count_query(search_term, opts)
       |> ClickHouseRepo.one()
 
     total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
@@ -996,7 +996,7 @@ defmodule Tuist.Tests do
     if search_filter, do: search_filter[:value]
   end
 
-  defp build_flaky_test_cases_query(project_id, search_term) do
+  defp build_flaky_test_cases_query(project_id, search_term, opts) do
     stats_subquery =
       from(test_case_run in TestCaseRun,
         where: test_case_run.project_id == ^project_id and test_case_run.is_flaky == true,
@@ -1008,14 +1008,15 @@ defmodule Tuist.Tests do
           last_flaky_run_id: fragment("argMax(test_run_id, inserted_at)")
         }
       )
+      |> apply_flaky_time_filter(opts)
+      |> apply_flaky_environment_filter(opts)
 
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
-        left_join: stats in subquery(stats_subquery),
+        inner_join: stats in subquery(stats_subquery),
         on: test_case.id == stats.test_case_id,
         where: test_case.project_id == ^project_id,
-        where: test_case.is_flaky == true,
         select: %{
           id: test_case.id,
           name: test_case.name,
@@ -1030,16 +1031,48 @@ defmodule Tuist.Tests do
     apply_name_search(base_query, search_term)
   end
 
-  defp build_flaky_test_cases_count_query(project_id, search_term) do
+  defp build_flaky_test_cases_count_query(project_id, search_term, opts) do
+    stats_subquery =
+      from(test_case_run in TestCaseRun,
+        where: test_case_run.project_id == ^project_id and test_case_run.is_flaky == true,
+        group_by: test_case_run.test_case_id,
+        select: %{
+          test_case_id: test_case_run.test_case_id
+        }
+      )
+      |> apply_flaky_time_filter(opts)
+      |> apply_flaky_environment_filter(opts)
+
     base_query =
       from(test_case in TestCase,
         hints: ["FINAL"],
+        inner_join: stats in subquery(stats_subquery),
+        on: test_case.id == stats.test_case_id,
         where: test_case.project_id == ^project_id,
-        where: test_case.is_flaky == true,
         select: count(test_case.id)
       )
 
     apply_name_search(base_query, search_term)
+  end
+
+  defp apply_flaky_time_filter(query, opts) do
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+
+    query
+    |> then(fn q ->
+      if start_datetime, do: from(r in q, where: r.inserted_at >= ^start_datetime), else: q
+    end)
+    |> then(fn q ->
+      if end_datetime, do: from(r in q, where: r.inserted_at <= ^end_datetime), else: q
+    end)
+  end
+
+  defp apply_flaky_environment_filter(query, opts) do
+    case Keyword.get(opts, :is_ci) do
+      nil -> query
+      is_ci -> from(r in query, where: r.is_ci == ^is_ci)
+    end
   end
 
   defp apply_name_search(query, nil), do: query
