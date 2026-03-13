@@ -206,6 +206,27 @@
         </div>
       </div>
 
+      <div :if={@sso_enabled} data-part="section">
+        <div data-part="toggle-label">
+          <.toggle
+            id="sso-enforced-toggle"
+            checked={@sso_enforced}
+            phx-click="toggle_sso_enforced"
+          />
+          <div data-part="label-text">
+            <span data-part="title">
+              {dgettext("dashboard_account", "Enforce SSO")}
+            </span>
+            <span data-part="description">
+              {dgettext(
+                "dashboard_account",
+                "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div data-part="footer">
         <.button
           type="submit"

@@ -657,6 +657,12 @@ defmodule TuistWeb.Router do
     post "/:provider/callback", AuthController, :callback
   end
 
+  scope "/sso", TuistWeb do
+    pipe_through [:browser_app, :require_authenticated_user]
+
+    get "/verify", SSOVerificationController, :verify
+  end
+
   scope "/auth", TuistWeb do
     pipe_through [:browser_app, :require_authenticated_user]
 
