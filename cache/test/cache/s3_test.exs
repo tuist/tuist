@@ -571,7 +571,7 @@ defmodule Cache.S3Test do
   end
 
   describe "delete_objects_with_prefix_before/3" do
-    test "deletes objects whose last-modified matches the cutoff second" do
+    test "skips objects whose last-modified matches the cutoff second" do
       prefix = "test_account/test_project/"
       key = "#{prefix}cas/AB/CD/hash1"
       cutoff = ~U[2026-03-12 12:00:00Z]
@@ -584,6 +584,24 @@ defmodule Cache.S3Test do
 
       expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
         {:ok, %{headers: %{"Last-Modified" => "Thu, 12 Mar 2026 12:00:00 GMT"}}}
+      end)
+
+      assert {:ok, 0} = S3.delete_objects_with_prefix_before(prefix, cutoff)
+    end
+
+    test "deletes objects whose last-modified is older than the cutoff second" do
+      prefix = "test_account/test_project/"
+      key = "#{prefix}cas/AB/CD/hash1"
+      cutoff = ~U[2026-03-12 12:00:00Z]
+
+      expect(ExAws, :stream!, fn _operation -> [%{key: key}] end)
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
+        {:ok, %{headers: %{"Last-Modified" => "Thu, 12 Mar 2026 11:59:59 GMT"}}}
       end)
 
       expect(ExAws.S3, :delete_object, fn "test-bucket", ^key ->

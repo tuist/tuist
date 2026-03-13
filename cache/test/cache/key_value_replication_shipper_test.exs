@@ -159,4 +159,43 @@ defmodule Cache.KeyValueReplicationShipperTest do
     assert :ok = KeyValueReplicationShipper.flush_now()
     assert_receive :cutoffs_loaded
   end
+
+  test "same-second cleanup cutoffs do not discard pending rows" do
+    parent = self()
+    entry_updated_at = ~U[2026-03-12 12:00:00.050000Z]
+    cleanup_started_at = ~U[2026-03-12 12:00:00.900000Z]
+    json_payload = Jason.encode!(%{entries: [%{"value" => "artifact"}]})
+
+    pending_entry = %KeyValueEntry{
+      key: "keyvalue:acme:ios:cas",
+      json_payload: json_payload,
+      last_accessed_at: entry_updated_at,
+      source_updated_at: entry_updated_at,
+      replication_enqueued_at: entry_updated_at
+    }
+
+    expect(Cleanup, :latest_project_cleanup_cutoffs, fn _scopes ->
+      %{{"acme", "ios"} => cleanup_started_at}
+    end)
+
+    stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
+    stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
+
+    expect(KeyValueEntries, :clear_replication_token, fn "keyvalue:acme:ios:cas", ^entry_updated_at ->
+      send(parent, :token_cleared)
+      1
+    end)
+
+    expect(DistributedRepo, :query!, fn sql, params, _opts ->
+      assert sql =~ "INSERT INTO kv_entries"
+      assert Enum.at(params, 0) == ["keyvalue:acme:ios:cas"]
+      send(parent, :upserted)
+      %{num_rows: 1}
+    end)
+
+    start_supervised!(KeyValueReplicationShipper)
+
+    assert_receive :upserted
+    assert_receive :token_cleared
+  end
 end

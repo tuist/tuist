@@ -20,6 +20,7 @@ defmodule Cache.S3 do
   @exists_cache :s3_exists_cache
   @exists_positive_ttl to_timeout(hour: 6)
   @exists_negative_ttl to_timeout(second: 30)
+  @cleanup_progress_chunk_size 250
 
   def child_spec(_) do
     %{
@@ -251,14 +252,15 @@ defmodule Cache.S3 do
 
   @doc """
   Deletes objects under a prefix only when their current `Last-Modified`
-  timestamp is at or before the cutoff.
+  timestamp is strictly before the cutoff second.
   """
   def delete_objects_with_prefix_before(prefix, cutoff, opts \\ []) do
     type = Keyword.get(opts, :type, :cache)
     bucket = bucket_for_type(type)
     safe_cutoff = DateTime.truncate(cutoff, :second)
+    on_progress = Keyword.get(opts, :on_progress, fn -> :ok end)
 
-    {duration, result} = :timer.tc(fn -> list_and_delete_objects_before(bucket, prefix, safe_cutoff) end)
+    {duration, result} = :timer.tc(fn -> list_and_delete_objects_before(bucket, prefix, safe_cutoff, on_progress) end)
 
     case result do
       {:ok, count} ->
@@ -291,14 +293,26 @@ defmodule Cache.S3 do
     end)
   end
 
-  defp list_and_delete_objects_before(nil, _prefix, _cutoff), do: {:ok, 0}
+  defp list_and_delete_objects_before(nil, _prefix, _cutoff, _on_progress), do: {:ok, 0}
 
-  defp list_and_delete_objects_before(bucket, prefix, cutoff) do
+  defp list_and_delete_objects_before(bucket, prefix, cutoff, on_progress) do
     bucket
     |> ExAws.S3.list_objects(prefix: prefix)
     |> ExAws.stream!()
     |> Stream.map(& &1.key)
-    |> Enum.reduce_while({:ok, 0}, fn key, {:ok, count} ->
+    |> Stream.chunk_every(@cleanup_progress_chunk_size)
+    |> Enum.reduce_while({:ok, 0}, fn keys_chunk, {:ok, count} ->
+      with :ok <- on_progress.(),
+           {:ok, chunk_count} <- delete_objects_in_chunk_if_before(bucket, keys_chunk, cutoff) do
+        {:cont, {:ok, count + chunk_count}}
+      else
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp delete_objects_in_chunk_if_before(bucket, keys, cutoff) do
+    Enum.reduce_while(keys, {:ok, 0}, fn key, {:ok, count} ->
       case delete_object_if_before(bucket, key, cutoff) do
         :deleted -> {:cont, {:ok, count + 1}}
         :skipped -> {:cont, {:ok, count}}
@@ -312,7 +326,7 @@ defmodule Cache.S3 do
       {:ok, response} ->
         case last_modified_from_response(response) do
           {:ok, last_modified} ->
-            if DateTime.compare(last_modified, cutoff) in [:lt, :eq] do
+            if DateTime.before?(last_modified, cutoff) do
               case bucket |> ExAws.S3.delete_object(key) |> ExAws.request() do
                 {:ok, _} -> :deleted
                 {:error, reason} -> {:error, reason}

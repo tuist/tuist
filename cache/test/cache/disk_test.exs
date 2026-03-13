@@ -111,7 +111,7 @@ defmodule Cache.DiskIntegrationTest do
   end
 
   describe "delete_project_before/3" do
-    test "deletes files whose mtime matches the cutoff second" do
+    test "skips files whose mtime matches the cutoff second" do
       account = unique_account()
       project = "cutoff_project"
       artifact_key = "#{account}/#{project}/xcode/AB/CD/equal-cutoff"
@@ -122,6 +122,23 @@ defmodule Cache.DiskIntegrationTest do
 
       cutoff = DateTime.truncate(DateTime.utc_now(), :second)
       unix_seconds = DateTime.to_unix(cutoff, :second)
+      assert :ok = File.touch(artifact_path, unix_seconds)
+
+      assert {:ok, 0} = Disk.delete_project_before(account, project, cutoff)
+      assert File.exists?(artifact_path)
+    end
+
+    test "deletes files whose mtime is older than the cutoff second" do
+      account = unique_account()
+      project = "older_cutoff_project"
+      artifact_key = "#{account}/#{project}/xcode/AB/CD/older-than-cutoff"
+      artifact_path = Disk.artifact_path(artifact_key)
+
+      assert :ok = Disk.ensure_directory(artifact_path)
+      File.write!(artifact_path, "content")
+
+      cutoff = DateTime.truncate(DateTime.utc_now(), :second)
+      unix_seconds = DateTime.to_unix(DateTime.add(cutoff, -1, :second), :second)
       assert :ok = File.touch(artifact_path, unix_seconds)
 
       assert {:ok, 1} = Disk.delete_project_before(account, project, cutoff)

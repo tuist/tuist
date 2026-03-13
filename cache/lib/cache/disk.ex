@@ -17,6 +17,8 @@ defmodule Cache.Disk do
 
   require Logger
 
+  @cleanup_progress_chunk_size 1_000
+
   @doc """
   Converts a cache key to an absolute file system path.
 
@@ -102,11 +104,13 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Deletes project artifacts only when their current mtime is at or before the cutoff.
+  Deletes project artifacts only when their current mtime is strictly before the
+  cutoff second.
   """
-  def delete_project_before(account_handle, project_handle, cutoff) do
+  def delete_project_before(account_handle, project_handle, cutoff, opts \\ []) do
     path = Path.join(storage_dir(), "#{account_handle}/#{project_handle}")
     safe_cutoff = DateTime.truncate(cutoff, :second)
+    on_progress = Keyword.get(opts, :on_progress, fn -> :ok end)
 
     if File.exists?(path) do
       files =
@@ -115,22 +119,14 @@ defmodule Cache.Disk do
         |> Path.wildcard(match_dot: true)
         |> Enum.filter(&File.regular?/1)
 
-      deleted_count =
-        Enum.reduce(files, 0, fn file_path, deleted_acc ->
-          with {:ok, %File.Stat{mtime: mtime}} <- File.stat(file_path),
-               {:ok, mtime_datetime} <- stat_mtime_to_datetime(mtime),
-               true <- DateTime.compare(mtime_datetime, safe_cutoff) in [:lt, :eq],
-               :ok <- File.rm(file_path) do
-            deleted_acc + 1
-          else
-            false -> deleted_acc
-            {:error, :enoent} -> deleted_acc
-            {:error, _reason} -> deleted_acc
-          end
-        end)
+      case delete_files_before(files, safe_cutoff, on_progress) do
+        {:ok, deleted_count} ->
+          _ = prune_empty_directories(path)
+          {:ok, deleted_count}
 
-      _ = prune_empty_directories(path)
-      {:ok, deleted_count}
+        {:error, reason} ->
+          {:error, reason}
+      end
     else
       {:ok, 0}
     end
@@ -278,6 +274,34 @@ defmodule Cache.Disk do
       {:ok, naive} -> DateTime.from_naive(naive, "Etc/UTC")
       error -> error
     end
+  end
+
+  defp delete_files_before(files, safe_cutoff, on_progress) do
+    files
+    |> Enum.chunk_every(@cleanup_progress_chunk_size)
+    |> Enum.reduce_while({:ok, 0}, fn files_chunk, {:ok, deleted_acc} ->
+      case on_progress.() do
+        :ok ->
+          chunk_deleted_count =
+            Enum.reduce(files_chunk, 0, fn file_path, chunk_deleted_acc ->
+              with {:ok, %File.Stat{mtime: mtime}} <- File.stat(file_path),
+                   {:ok, mtime_datetime} <- stat_mtime_to_datetime(mtime),
+                   true <- DateTime.before?(mtime_datetime, safe_cutoff),
+                   :ok <- File.rm(file_path) do
+                chunk_deleted_acc + 1
+              else
+                false -> chunk_deleted_acc
+                {:error, :enoent} -> chunk_deleted_acc
+                {:error, _reason} -> chunk_deleted_acc
+              end
+            end)
+
+          {:cont, {:ok, deleted_acc + chunk_deleted_count}}
+
+        {:error, reason} ->
+          {:halt, {:error, reason}}
+      end
+    end)
   end
 
   defp prune_empty_directories(root) do
