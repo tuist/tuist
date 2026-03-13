@@ -1510,6 +1510,109 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
     }
 
+    func test_run_filters_test_targets_not_in_scheme() async throws {
+        // Given
+        // Scheme has only "TargetA" in its test action — "PrunedTarget" was removed by selective testing
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let scheme = Scheme.test(
+            name: "App-Workspace",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                ]
+            )
+        )
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any
+            )
+            .willReturn(generator)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path,
+                    .test(
+                        projects: [
+                            projectPath: .test(
+                                path: projectPath,
+                                targets: [.test(name: "TargetA")],
+                                schemes: [scheme]
+                            ),
+                        ]
+                    ),
+                    MapperEnvironment()
+                )
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+
+        var capturedTestTargets: [TestIdentifier]?
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, testTargets, _, _, _ in
+                capturedTestTargets = testTargets
+                self.testedSchemes.append(scheme)
+            }
+
+        // When — user passes both TargetA (present) and PrunedTarget (not in scheme)
+        try await testRun(
+            path: try temporaryPath(),
+            testTargets: [
+                try .init(target: "TargetA", class: nil),
+                try .init(target: "PrunedTarget", class: nil),
+            ]
+        )
+
+        // Then — only TargetA should be passed to xcodebuild, PrunedTarget should be filtered out
+        XCTAssertEqual(testedSchemes, ["App-Workspace"])
+        XCTAssertEqual(capturedTestTargets, [try TestIdentifier(target: "TargetA", class: nil)])
+    }
+
     func test_run_tests_all_project_schemes_when_fails() async throws {
         // Given
         givenGenerator()
