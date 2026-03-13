@@ -105,7 +105,6 @@ config :cache,
   distributed_kv_access_throttle_ms: 30_000,
   distributed_kv_tombstone_retention_days: 7,
   distributed_kv_cleanup_lease_ms: 300_000,
-  distributed_kv_remote_fallback_enabled: false,
   registry_sync_limit: 1_000
 
 config :ex_aws, http_client: TuistCommon.AWS.Client
