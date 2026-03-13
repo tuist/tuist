@@ -133,12 +133,14 @@ defmodule TuistWeb.Authentication do
   def log_in_user(conn, user, params \\ %{}) do
     token = Accounts.generate_user_session_token(user)
     user_return_to = get_session(conn, :user_return_to)
+    auth_method = Map.get(params, :auth_method, :password)
 
     Analytics.user_authenticate(user)
 
     conn
     |> renew_session()
     |> put_token_in_session(token)
+    |> put_session(:auth_method, auth_method)
     |> maybe_write_remember_me_cookie(token, params)
     |> redirect(to: user_return_to || signed_in_path(user))
     |> halt()
@@ -321,6 +323,29 @@ defmodule TuistWeb.Authentication do
       |> halt()
     end
   end
+
+  def require_sso_authentication(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
+    with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
+         organization_id when not is_nil(organization_id) <- account.organization_id,
+         {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
+         true <- organization.sso_enforced and not is_nil(organization.sso_provider),
+         auth_method = get_session(conn, :auth_method),
+         false <- auth_method == organization.sso_provider do
+      conn
+      |> put_session(:oauth_return_to, current_path(conn))
+      |> redirect(to: sso_provider_path(organization))
+      |> halt()
+    else
+      _ -> conn
+    end
+  end
+
+  def require_sso_authentication(conn, _opts), do: conn
+
+  defp sso_provider_path(%{sso_provider: :google}), do: ~p"/users/auth/google"
+
+  defp sso_provider_path(%{id: organization_id, sso_provider: :okta}),
+    do: ~p"/users/auth/okta?organization_id=#{organization_id}"
 
   def require_authenticated_user_for_private_projects(
         %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn,
