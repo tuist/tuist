@@ -60,6 +60,8 @@ defmodule TuistWeb.DocsLive do
   end
 
   def render(%{view: :overview} = assigns) do
+    assigns = assign(assigns, :install_path, docs_path("/en/guides/install-tuist"))
+
     ~H"""
     <TuistWeb.Docs.Components.layout current_slug="/en" tab={:guides} headings={[]} markdown="">
       <div id="docs-overview">
@@ -74,17 +76,41 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- Hero cards --%>
         <section data-part="hero-cards">
-          <div data-part="hero-card">
+          <div
+            id="docs-install-card"
+            data-part="hero-card"
+            data-clickable
+            phx-click={JS.navigate(@install_path)}
+            phx-key="Enter"
+            role="link"
+            tabindex="0"
+            aria-label="Install Tuist CLI"
+          >
             <div data-part="hero-card-bg"></div>
             <h3>Install Tuist CLI</h3>
             <div data-part="terminal-group" id="docs-install-terminal" phx-hook="DocsInstallTabs">
               <div data-part="terminal">
                 <div data-part="terminal-header">
                   <div data-part="terminal-tabs">
-                    <span data-part="terminal-tab" data-selected>mise</span>
-                    <span data-part="terminal-tab">homebrew</span>
+                    <span
+                      data-part="terminal-tab"
+                      data-selected
+                      phx-click={JS.exec("event.stopPropagation()", to: "window")}
+                    >
+                      mise
+                    </span>
+                    <span
+                      data-part="terminal-tab"
+                      phx-click={JS.exec("event.stopPropagation()", to: "window")}
+                    >
+                      homebrew
+                    </span>
                   </div>
-                  <button data-part="terminal-copy" aria-label="Copy command">
+                  <button
+                    data-part="terminal-copy"
+                    aria-label="Copy command"
+                    phx-click={JS.exec("event.stopPropagation()", to: "window")}
+                  >
                     <.copy />
                   </button>
                 </div>
@@ -94,7 +120,7 @@ defmodule TuistWeb.DocsLive do
               </div>
               <p data-part="hero-card-hint">
                 or follow the instructions to
-                <.link navigate={docs_path("/en/guides/install-tuist")} data-part="hero-card-link">
+                <.link navigate={@install_path} data-part="hero-card-link">
                   install specific version of tuist
                 </.link>
               </p>

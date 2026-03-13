@@ -59,6 +59,15 @@
     box-shadow: var(--noora-light-border-focus);
   }
 
+  & [data-part="hero-card"][data-clickable] {
+    cursor: pointer;
+
+    &:focus-visible {
+      box-shadow: var(--noora-light-border-focus);
+      outline: none;
+    }
+  }
+
   & [data-part="hero-card-bg"] {
     position: absolute;
     inset: 0;
