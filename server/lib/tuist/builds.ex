@@ -24,6 +24,18 @@ defmodule Tuist.Builds do
     "#{account_handle}/#{project_handle}/builds/#{build_id}/build.zip"
   end
 
+  def total_count do
+    Build
+    |> from(select: count())
+    |> ClickHouseRepo.one()
+  end
+
+  def last_24h_build_count do
+    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
+
+    ClickHouseRepo.one(from(b in Build, where: b.inserted_at >= ^twenty_four_hours_ago, select: count())) || 0
+  end
+
   def get_build(id) do
     Build
     |> from(where: [id: ^id], order_by: [desc: :inserted_at], limit: 1)

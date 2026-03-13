@@ -64,7 +64,6 @@ defmodule Tuist.Application do
       OpentelemetryLoggerMetadata.setup()
       OpentelemetryBandit.setup()
       OpentelemetryPhoenix.setup(adapter: :bandit)
-      OpentelemetryEcto.setup(event_prefix: [:tuist, :repo])
       OpentelemetryFinch.setup()
       OpentelemetryBroadway.setup()
     end
@@ -172,6 +171,13 @@ defmodule Tuist.Application do
           {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
         ],
         else: []
+    )
+    # Marketing.Stats polls ClickHouse on init. Skip it in test where
+    # ClickHouse tables may not exist when the app boots for migrations.
+    |> Kernel.++(
+      if Environment.test?(),
+        do: [],
+        else: [Tuist.Marketing.Stats]
     )
   end
 

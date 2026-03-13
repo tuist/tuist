@@ -21,6 +21,7 @@ defmodule Tuist do
       Marketing.Newsletter,
       Marketing.BlogContentProcessor,
       Marketing.Customers,
+      Marketing.Stats,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies

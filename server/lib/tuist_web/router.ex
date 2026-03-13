@@ -212,6 +212,36 @@ defmodule TuistWeb.Router do
              TuistWeb.Marketing.MarketingCustomersLive,
              metadata: %{type: :marketing},
              private: private
+
+        live Path.join(locale_path_prefix, "/cache"),
+             TuistWeb.Marketing.MarketingCacheLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/build-insights"),
+             TuistWeb.Marketing.MarketingBuildInsightsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/selective-testing"),
+             TuistWeb.Marketing.MarketingSelectiveTestingLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/flaky-tests"),
+             TuistWeb.Marketing.MarketingFlakyTestsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/test-insights"),
+             TuistWeb.Marketing.MarketingTestInsightsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/previews"),
+             TuistWeb.Marketing.MarketingPreviewsLive,
+             metadata: %{type: :marketing},
+             private: private
       end
 
       get locale_path_prefix, MarketingController, :home,

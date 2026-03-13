@@ -26,7 +26,7 @@ defmodule Cache.DiskEvictionWorkerTest do
   end
 
   test "skips eviction when usage is below threshold", %{storage_dir: storage_dir} do
-    key = "account/project/cas/file"
+    key = "account/project/xcode/file"
     path = Disk.artifact_path(key)
 
     File.mkdir_p!(Path.dirname(path))
@@ -50,9 +50,9 @@ defmodule Cache.DiskEvictionWorkerTest do
   end
 
   test "evicts least recently used artifacts when disk usage is high", %{storage_dir: storage_dir} do
-    key_old = "acct/project/cas/old"
-    key_new = "acct/project/cas/new"
-    key_newest = "acct/project/cas/newest"
+    key_old = "acct/project/xcode/old"
+    key_new = "acct/project/xcode/new"
+    key_newest = "acct/project/xcode/newest"
 
     older = Disk.artifact_path(key_old)
     newer = Disk.artifact_path(key_new)

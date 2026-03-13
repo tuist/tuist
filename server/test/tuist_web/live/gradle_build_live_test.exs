@@ -165,6 +165,33 @@ defmodule TuistWeb.GradleBuildLiveTest do
     refute html =~ ":lib:test"
   end
 
+  test "gradle cache tab excludes up_to_date tasks", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    build_id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: @now,
+        tasks: [
+          %{task_path: ":app:compileKotlin", outcome: "executed", cacheable: true, duration_ms: 1000},
+          %{task_path: ":app:compileJava", outcome: "up_to_date", cacheable: true, duration_ms: 500},
+          %{task_path: ":app:assembleDebug", outcome: "local_hit", cacheable: true, duration_ms: 200}
+        ]
+      )
+
+    {:ok, _lv, html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tab=gradle-cache"
+      )
+
+    assert html =~ ":app:compileKotlin"
+    assert html =~ ":app:assembleDebug"
+    refute html =~ ":app:compileJava"
+  end
+
   test "search event triggers filtering via form change", %{
     conn: conn,
     organization: organization,

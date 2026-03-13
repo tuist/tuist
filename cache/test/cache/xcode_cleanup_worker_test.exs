@@ -1,17 +1,17 @@
-defmodule Cache.CASCleanupWorkerTest do
+defmodule Cache.XcodeCleanupWorkerTest do
   use ExUnit.Case, async: true
   use Mimic
 
   import ExUnit.CaptureLog
 
   alias Cache.CacheArtifacts
-  alias Cache.CAS
-  alias Cache.CASCleanupWorker
   alias Cache.Disk
   alias Cache.KeyValueEntries
+  alias Cache.Xcode
+  alias Cache.XcodeCleanupWorker
 
   describe "perform/1" do
-    test "deletes CAS artifacts from disk and metadata" do
+    test "deletes Xcode cache artifacts from disk and metadata" do
       account_handle = "test_account"
       project_handle = "test_project"
       cas_hashes = ["abcd1234", "efgh5678"]
@@ -20,20 +20,20 @@ defmodule Cache.CASCleanupWorkerTest do
         cas_hashes
       end)
 
-      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
-        "test_account/test_project/cas/ab/cd/abcd1234"
+      expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+        "test_account/test_project/xcode/ab/cd/abcd1234"
       end)
 
-      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "efgh5678" ->
-        "test_account/test_project/cas/ef/gh/efgh5678"
+      expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "efgh5678" ->
+        "test_account/test_project/xcode/ef/gh/efgh5678"
       end)
 
-      expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" -> :ok end)
-      expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ef/gh/efgh5678" -> :ok end)
+      expect(Disk, :delete_artifact, fn "test_account/test_project/xcode/ab/cd/abcd1234" -> :ok end)
+      expect(Disk, :delete_artifact, fn "test_account/test_project/xcode/ef/gh/efgh5678" -> :ok end)
 
       expect(CacheArtifacts, :delete_by_keys, fn [
-                                                   "test_account/test_project/cas/ab/cd/abcd1234",
-                                                   "test_account/test_project/cas/ef/gh/efgh5678"
+                                                   "test_account/test_project/xcode/ab/cd/abcd1234",
+                                                   "test_account/test_project/xcode/ef/gh/efgh5678"
                                                  ] ->
         :ok
       end)
@@ -47,7 +47,7 @@ defmodule Cache.CASCleanupWorkerTest do
       }
 
       capture_log(fn ->
-        assert :ok = CASCleanupWorker.perform(job)
+        assert :ok = XcodeCleanupWorker.perform(job)
       end)
     end
 
@@ -60,11 +60,11 @@ defmodule Cache.CASCleanupWorkerTest do
         cas_hashes
       end)
 
-      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
-        "test_account/test_project/cas/ab/cd/abcd1234"
+      expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+        "test_account/test_project/xcode/ab/cd/abcd1234"
       end)
 
-      expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" ->
+      expect(Disk, :delete_artifact, fn "test_account/test_project/xcode/ab/cd/abcd1234" ->
         {:error, :eacces}
       end)
 
@@ -78,10 +78,10 @@ defmodule Cache.CASCleanupWorkerTest do
 
       log =
         capture_log(fn ->
-          assert {:error, {:disk_delete_failed, 1}} = CASCleanupWorker.perform(job)
+          assert {:error, {:disk_delete_failed, 1}} = XcodeCleanupWorker.perform(job)
         end)
 
-      assert log =~ "Failed to delete CAS artifact"
+      assert log =~ "Failed to delete Xcode cache artifact"
     end
 
     test "cleans up metadata for successful deletes even when some fail" do
@@ -93,21 +93,21 @@ defmodule Cache.CASCleanupWorkerTest do
         cas_hashes
       end)
 
-      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
-        "test_account/test_project/cas/ab/cd/abcd1234"
+      expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+        "test_account/test_project/xcode/ab/cd/abcd1234"
       end)
 
-      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "efgh5678" ->
-        "test_account/test_project/cas/ef/gh/efgh5678"
+      expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "efgh5678" ->
+        "test_account/test_project/xcode/ef/gh/efgh5678"
       end)
 
-      expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" -> :ok end)
+      expect(Disk, :delete_artifact, fn "test_account/test_project/xcode/ab/cd/abcd1234" -> :ok end)
 
-      expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ef/gh/efgh5678" ->
+      expect(Disk, :delete_artifact, fn "test_account/test_project/xcode/ef/gh/efgh5678" ->
         {:error, :eacces}
       end)
 
-      expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/cas/ab/cd/abcd1234"] ->
+      expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/xcode/ab/cd/abcd1234"] ->
         :ok
       end)
 
@@ -121,10 +121,10 @@ defmodule Cache.CASCleanupWorkerTest do
 
       log =
         capture_log(fn ->
-          assert {:error, {:disk_delete_failed, 1}} = CASCleanupWorker.perform(job)
+          assert {:error, {:disk_delete_failed, 1}} = XcodeCleanupWorker.perform(job)
         end)
 
-      assert log =~ "Failed to delete CAS artifact"
+      assert log =~ "Failed to delete Xcode cache artifact"
     end
 
     test "treats :enoent as successful disk cleanup and proceeds with metadata" do
@@ -136,15 +136,15 @@ defmodule Cache.CASCleanupWorkerTest do
         cas_hashes
       end)
 
-      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
-        "test_account/test_project/cas/ab/cd/abcd1234"
+      expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+        "test_account/test_project/xcode/ab/cd/abcd1234"
       end)
 
-      expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" ->
+      expect(Disk, :delete_artifact, fn "test_account/test_project/xcode/ab/cd/abcd1234" ->
         {:error, :enoent}
       end)
 
-      expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/cas/ab/cd/abcd1234"] ->
+      expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/xcode/ab/cd/abcd1234"] ->
         :ok
       end)
 
@@ -158,10 +158,10 @@ defmodule Cache.CASCleanupWorkerTest do
 
       log =
         capture_log(fn ->
-          assert :ok = CASCleanupWorker.perform(job)
+          assert :ok = XcodeCleanupWorker.perform(job)
         end)
 
-      refute log =~ "Failed to delete CAS artifact"
+      refute log =~ "Failed to delete Xcode cache artifact"
     end
 
     test "handles empty cas_hashes gracefully" do
@@ -177,7 +177,7 @@ defmodule Cache.CASCleanupWorkerTest do
       }
 
       capture_log(fn ->
-        assert :ok = CASCleanupWorker.perform(job)
+        assert :ok = XcodeCleanupWorker.perform(job)
       end)
     end
 
@@ -190,13 +190,13 @@ defmodule Cache.CASCleanupWorkerTest do
         ["abcd1234"]
       end)
 
-      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
-        "test_account/test_project/cas/ab/cd/abcd1234"
+      expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+        "test_account/test_project/xcode/ab/cd/abcd1234"
       end)
 
-      expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" -> :ok end)
+      expect(Disk, :delete_artifact, fn "test_account/test_project/xcode/ab/cd/abcd1234" -> :ok end)
 
-      expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/cas/ab/cd/abcd1234"] ->
+      expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/xcode/ab/cd/abcd1234"] ->
         :ok
       end)
 
@@ -209,7 +209,7 @@ defmodule Cache.CASCleanupWorkerTest do
       }
 
       capture_log(fn ->
-        assert :ok = CASCleanupWorker.perform(job)
+        assert :ok = XcodeCleanupWorker.perform(job)
       end)
     end
 
@@ -231,7 +231,7 @@ defmodule Cache.CASCleanupWorkerTest do
       }
 
       capture_log(fn ->
-        assert :ok = CASCleanupWorker.perform(job)
+        assert :ok = XcodeCleanupWorker.perform(job)
       end)
     end
   end

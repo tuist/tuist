@@ -13,6 +13,12 @@
 @import "css/routes/case-study.css";
 @import "css/routes/changelog.css";
 @import "css/routes/pricing.css";
+@import "css/routes/cache.css";
+@import "css/routes/build-insights.css";
+@import "css/routes/selective-testing.css";
+@import "css/routes/flaky-tests.css";
+@import "css/routes/test-insights.css";
+@import "css/routes/previews.css";
 @import "css/routes/newsletter.css";
 @import "css/routes/newsletter-verify.css";
 @import "css/components/header-background.css";
@@ -39,6 +45,8 @@ body {
   padding: 0px;
   overflow-x: hidden;
   font-family: var(--noora-font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 
   & > div[data-part="content"] {
     background: var(--noora-surface-background-primary);

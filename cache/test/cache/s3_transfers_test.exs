@@ -20,26 +20,26 @@ defmodule Cache.S3TransfersTest do
     {:ok, context}
   end
 
-  describe "enqueue_cas_upload/3" do
+  describe "enqueue_xcode_upload/3" do
     test "creates a new upload transfer" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", "account/project/xcode/AB/CD/artifact123")
       :ok = S3TransfersBuffer.flush()
 
-      transfer = Repo.get_by!(S3Transfer, key: "account/project/cas/AB/CD/artifact123", type: :upload)
+      transfer = Repo.get_by!(S3Transfer, key: "account/project/xcode/AB/CD/artifact123", type: :upload)
 
       assert transfer.type == :upload
       assert transfer.account_handle == "account"
       assert transfer.project_handle == "project"
-      assert transfer.artifact_type == :xcode_cas
-      assert transfer.key == "account/project/cas/AB/CD/artifact123"
+      assert transfer.artifact_type == :xcode_cache
+      assert transfer.key == "account/project/xcode/AB/CD/artifact123"
       assert transfer.inserted_at
     end
 
     test "does not create duplicate transfers" do
-      key = "account/project/cas/AB/CD/artifact123"
+      key = "account/project/xcode/AB/CD/artifact123"
 
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", key)
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", key)
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", key)
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", key)
       :ok = S3TransfersBuffer.flush()
 
       count = Repo.aggregate(from(t in S3Transfer, where: t.type == :upload and t.key == ^key), :count, :id)
@@ -47,11 +47,11 @@ defmodule Cache.S3TransfersTest do
     end
 
     test "allows same key for different types" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
-      :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", "account/project/xcode/AB/CD/artifact123")
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", "account/project/xcode/AB/CD/artifact123")
       :ok = S3TransfersBuffer.flush()
 
-      key = "account/project/cas/AB/CD/artifact123"
+      key = "account/project/xcode/AB/CD/artifact123"
 
       transfers = Repo.all(from(t in S3Transfer, where: t.key == ^key))
       assert Enum.uniq_by(transfers, & &1.id) == transfers
@@ -61,26 +61,26 @@ defmodule Cache.S3TransfersTest do
     end
   end
 
-  describe "enqueue_cas_download/3" do
+  describe "enqueue_xcode_download/3" do
     test "creates a new download transfer" do
-      :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", "account/project/xcode/AB/CD/artifact123")
       :ok = S3TransfersBuffer.flush()
 
-      transfer = Repo.get_by!(S3Transfer, key: "account/project/cas/AB/CD/artifact123", type: :download)
+      transfer = Repo.get_by!(S3Transfer, key: "account/project/xcode/AB/CD/artifact123", type: :download)
 
       assert transfer.type == :download
       assert transfer.account_handle == "account"
       assert transfer.project_handle == "project"
-      assert transfer.artifact_type == :xcode_cas
-      assert transfer.key == "account/project/cas/AB/CD/artifact123"
+      assert transfer.artifact_type == :xcode_cache
+      assert transfer.key == "account/project/xcode/AB/CD/artifact123"
       assert transfer.inserted_at
     end
 
     test "does not create duplicate transfers" do
-      key = "account/project/cas/AB/CD/artifact123"
+      key = "account/project/xcode/AB/CD/artifact123"
 
-      :ok = S3Transfers.enqueue_cas_download("account", "project", key)
-      :ok = S3Transfers.enqueue_cas_download("account", "project", key)
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", key)
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", key)
       :ok = S3TransfersBuffer.flush()
 
       count = Repo.aggregate(from(t in S3Transfer, where: t.type == :download and t.key == ^key), :count, :id)
@@ -192,9 +192,9 @@ defmodule Cache.S3TransfersTest do
 
   describe "pending/2" do
     test "returns pending transfers of given type" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact2")
-      :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact3")
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", "account/project/xcode/ar/ti/artifact1")
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", "account/project/xcode/ar/ti/artifact2")
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", "account/project/xcode/ar/ti/artifact3")
       :ok = S3TransfersBuffer.flush()
 
       uploads = S3Transfers.pending(:upload, 10)
@@ -209,7 +209,7 @@ defmodule Cache.S3TransfersTest do
 
     test "respects limit" do
       for i <- 1..5 do
-        S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact#{i}")
+        S3Transfers.enqueue_xcode_upload("account", "project", "account/project/xcode/ar/ti/artifact#{i}")
       end
 
       :ok = S3TransfersBuffer.flush()
@@ -226,10 +226,10 @@ defmodule Cache.S3TransfersTest do
 
   describe "delete/1" do
     test "deletes a transfer by id" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", "account/project/xcode/AB/CD/artifact123")
       :ok = S3TransfersBuffer.flush()
 
-      transfer = Repo.get_by!(S3Transfer, key: "account/project/cas/AB/CD/artifact123", type: :upload)
+      transfer = Repo.get_by!(S3Transfer, key: "account/project/xcode/AB/CD/artifact123", type: :upload)
 
       S3Transfers.delete(transfer.id)
       :ok = S3TransfersBuffer.flush()
@@ -239,10 +239,10 @@ defmodule Cache.S3TransfersTest do
     end
 
     test "is idempotent" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", "account/project/xcode/AB/CD/artifact123")
       :ok = S3TransfersBuffer.flush()
 
-      transfer = Repo.get_by!(S3Transfer, key: "account/project/cas/AB/CD/artifact123", type: :upload)
+      transfer = Repo.get_by!(S3Transfer, key: "account/project/xcode/AB/CD/artifact123", type: :upload)
 
       S3Transfers.delete(transfer.id)
       S3Transfers.delete(transfer.id)
@@ -255,9 +255,9 @@ defmodule Cache.S3TransfersTest do
 
   describe "delete_all/1" do
     test "deletes multiple transfers by ids" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact2")
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact3")
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", "account/project/xcode/ar/ti/artifact1")
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", "account/project/xcode/ar/ti/artifact2")
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", "account/project/xcode/ar/ti/artifact3")
       :ok = S3TransfersBuffer.flush()
 
       [t1, t2 | _] = S3Transfers.pending(:upload, 10)
@@ -267,13 +267,13 @@ defmodule Cache.S3TransfersTest do
 
       remaining = S3Transfers.pending(:upload, 10)
       assert length(remaining) == 1
-      assert Enum.any?(remaining, fn transfer -> transfer.key == "account/project/cas/ar/ti/artifact3" end)
+      assert Enum.any?(remaining, fn transfer -> transfer.key == "account/project/xcode/ar/ti/artifact3" end)
     end
 
     test "handles empty list" do
-      key = "account/project/cas/ar/ti/artifact1"
+      key = "account/project/xcode/ar/ti/artifact1"
 
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", key)
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", key)
       :ok = S3TransfersBuffer.flush()
 
       S3Transfers.delete_all([])

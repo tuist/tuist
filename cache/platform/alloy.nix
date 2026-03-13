@@ -221,7 +221,7 @@
 
         stage.template {
           source   = "path_group"
-          template = "cas"
+          template = "xcode"
         }
       }
 
@@ -268,6 +268,17 @@
           source   = "path_group"
           template = "metrics"
         }
+      }
+
+      stage.replace {
+        source     = "method"
+        expression = "^(?:GET|HEAD|POST|PUT|DELETE|PATCH|OPTIONS|CONNECT|TRACE|PROPFIND)$"
+        replace    = "{{ .Value }}"
+      }
+      stage.replace {
+        source     = "method"
+        expression = "^(?!GET$|HEAD$|POST$|PUT$|DELETE$|PATCH$|OPTIONS$|CONNECT$|TRACE$|PROPFIND$).+"
+        replace    = "INVALID"
       }
 
       stage.labels {
