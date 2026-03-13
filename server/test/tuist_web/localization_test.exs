@@ -1,7 +1,7 @@
 defmodule TuistWeb.Marketing.LocalizationTest do
   use TuistTestSupport.Cases.ConnCase, async: true
 
-  # alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.Localization
 
   # describe "plug put_locale" do
   #   test "returns the same connection if the assigns has no locale", %{conn: conn} do
@@ -357,4 +357,34 @@ defmodule TuistWeb.Marketing.LocalizationTest do
   #     assert result == "/"
   #   end
   # end
+
+  describe "docs URL localization" do
+    test "places the locale before the docs section" do
+      Gettext.put_locale(TuistWeb.Gettext, "ko")
+
+      result = Localization.localized_href("https://docs.tuist.dev/guides/features/projects")
+
+      assert result == "https://docs.tuist.dev/ko/docs/guides/features/projects"
+    end
+
+    test "normalizes old locale-prefixed docs URLs" do
+      result =
+        Localization.localized_href(
+          "https://docs.tuist.dev/en/guides/features/projects",
+          "ja"
+        )
+
+      assert result == "https://docs.tuist.dev/ja/docs/guides/features/projects"
+    end
+
+    test "keeps docs-prefixed URLs stable when switching locales" do
+      result =
+        Localization.localized_href(
+          "https://docs.tuist.dev/ko/docs/guides/features/projects",
+          "ja"
+        )
+
+      assert result == "https://docs.tuist.dev/ja/docs/guides/features/projects"
+    end
+  end
 end
