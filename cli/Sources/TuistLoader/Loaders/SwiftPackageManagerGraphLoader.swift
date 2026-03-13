@@ -235,6 +235,9 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             (
                 packageInfo: packageInfo,
                 hash: packageInfo.hash,
+
+                // MARK: executable target is missed here
+
                 projectManifest: try await packageInfoMapper.map(
                     packageInfo: packageInfo.info,
                     path: packageInfo.folder,

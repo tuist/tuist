@@ -50,4 +50,5 @@ public enum Product: String, Codable, Equatable, Sendable {
     /// enable them by adding a command line tool target, a target dependency in
     /// the dependent targets, and the right build settings to use the macro executable.
     case macro
+    case plugin
 }
