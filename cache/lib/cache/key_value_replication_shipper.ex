@@ -221,8 +221,11 @@ defmodule Cache.KeyValueReplicationShipper do
 
   defp stale_against_cleanup?(row, cleanup_cutoffs) do
     case Map.get(cleanup_cutoffs, {row.scope.account_handle, row.scope.project_handle}) do
-      nil -> false
-      cleanup_started_at -> DateTime.compare(row.entry.source_updated_at, cleanup_started_at) in [:lt, :eq]
+      nil ->
+        false
+
+      cleanup_started_at ->
+        DateTime.compare(row.entry.source_updated_at, Cleanup.safe_cleanup_cutoff(cleanup_started_at)) in [:lt, :eq]
     end
   end
 

@@ -95,4 +95,27 @@ defmodule Cache.DistributedKV.CleanupTest do
     assert persisted_cutoff == fresh_cutoff
     assert DateTime.after?(persisted_lease, fresh_cutoff)
   end
+
+  test "renew_project_cleanup_lease extends the active lease for the same cleanup" do
+    cutoff = DateTime.utc_now()
+
+    expect(DistributedRepo, :query!, fn sql, ["acme", "ios", now, lease_expires_at, ^cutoff], opts ->
+      assert sql =~ "UPDATE distributed_kv_project_cleanups"
+      assert Keyword.get(opts, :timeout) == Cache.Config.distributed_kv_database_timeout_ms()
+      assert DateTime.after?(lease_expires_at, now)
+      %{num_rows: 1}
+    end)
+
+    assert :ok = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
+  end
+
+  test "renew_project_cleanup_lease reports when the lease is no longer active" do
+    cutoff = DateTime.utc_now()
+
+    expect(DistributedRepo, :query!, fn _sql, ["acme", "ios", _now, _lease_expires_at, ^cutoff], _opts ->
+      %{num_rows: 0}
+    end)
+
+    assert {:error, :cleanup_lease_lost} = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
+  end
 end

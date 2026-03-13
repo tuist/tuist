@@ -50,6 +50,39 @@ defmodule Cache.DistributedKV.Cleanup do
     {:ok, cleanup_started_at}
   end
 
+  def renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
+    now = DateTime.utc_now()
+    lease_expires_at = DateTime.add(now, Config.distributed_kv_cleanup_lease_ms(), :millisecond)
+
+    result =
+      Repo.query!(
+        """
+        UPDATE distributed_kv_project_cleanups
+        SET
+          lease_expires_at = $4,
+          updated_at = $3
+        WHERE
+          account_handle = $1 AND
+          project_handle = $2 AND
+          cleanup_started_at = $5 AND
+          lease_expires_at > $3
+        RETURNING cleanup_started_at
+        """,
+        [account_handle, project_handle, now, lease_expires_at, cleanup_started_at],
+        timeout: Config.distributed_kv_database_timeout_ms()
+      )
+
+    if result.num_rows == 1 do
+      :ok
+    else
+      {:error, :cleanup_lease_lost}
+    end
+  end
+
+  def safe_cleanup_cutoff(cutoff) do
+    DateTime.truncate(cutoff, :second)
+  end
+
   def tombstone_project_entries(account_handle, project_handle, cleanup_started_at) do
     now = DateTime.utc_now()
 
@@ -73,6 +106,10 @@ defmodule Cache.DistributedKV.Cleanup do
     |> where([cleanup], cleanup.project_handle == ^project_handle)
     |> select([cleanup], cleanup.cleanup_started_at)
     |> Repo.one()
+    |> case do
+      nil -> nil
+      cleanup_started_at -> safe_cleanup_cutoff(cleanup_started_at)
+    end
   end
 
   def latest_project_cleanup_cutoffs(scopes) do
@@ -100,7 +137,7 @@ defmodule Cache.DistributedKV.Cleanup do
         |> select([cleanup], {cleanup.account_handle, cleanup.project_handle, cleanup.cleanup_started_at})
         |> Repo.all()
         |> Map.new(fn {account_handle, project_handle, cleanup_started_at} ->
-          {{account_handle, project_handle}, cleanup_started_at}
+          {{account_handle, project_handle}, safe_cleanup_cutoff(cleanup_started_at)}
         end)
     end
   end
