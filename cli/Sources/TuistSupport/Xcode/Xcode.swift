@@ -4,12 +4,17 @@ import Path
 import TuistLogging
 
 public enum XcodeError: FatalError, Equatable {
-    case infoPlistNotFound(AbsolutePath)
+    case infoPlistNotFound(Xcode.PathSource)
 
     public var description: String {
         switch self {
-        case let .infoPlistNotFound(path):
-            return "Couldn't find Xcode's Info.plist at \(path.pathString). Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
+        case let .infoPlistNotFound(source):
+            switch source {
+            case let .environment(path):
+                return "Couldn't find Xcode's Info.plist at \(path.pathString). This path was set via the environment variable DEVELOPER_DIR."
+            case let .xcodeSelect(path):
+                return "Couldn't find Xcode's Info.plist at \(path.pathString). Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
+            }
         }
     }
 
@@ -22,6 +27,28 @@ public enum XcodeError: FatalError, Equatable {
 }
 
 public struct Xcode {
+    public enum PathSource: Equatable {
+        case environment(AbsolutePath)
+        case xcodeSelect(AbsolutePath)
+
+        var path: AbsolutePath {
+            switch self {
+            case let .environment(path),
+                 let .xcodeSelect(path):
+                return path
+            }
+        }
+
+        func with(path: AbsolutePath) -> Self {
+            switch self {
+            case .environment:
+                return .environment(path)
+            case .xcodeSelect:
+                return .xcodeSelect(path)
+            }
+        }
+    }
+
     /// It represents the content of the Info.plist file inside the Xcode app bundle.
     public struct InfoPlist: Codable {
         /// App version number (e.g. 10.3)
@@ -47,20 +74,20 @@ public struct Xcode {
 
     /// Initializes an Xcode instance by reading it from a local Xcode.app bundle.
     ///
-    /// - Parameter path: Path to a local Xcode.app bundle.
+    /// - Parameter source: Path to a local Xcode.app bundle.
     /// - Returns: Initialized Xcode instance.
     /// - Throws: An error if the local installation can't be read.
-    static func read(path: AbsolutePath) async throws -> Xcode {
-        let infoPlistPath = path.appending(try RelativePath(validating: "Contents/Info.plist"))
+    static func read(source: PathSource) async throws -> Xcode {
+        let infoPlistPath = source.path.appending(try RelativePath(validating: "Contents/Info.plist"))
         let fileSystem = FileSystem()
         if try await !fileSystem.exists(infoPlistPath) {
-            throw XcodeError.infoPlistNotFound(infoPlistPath)
+            throw XcodeError.infoPlistNotFound(source.with(path: infoPlistPath))
         }
         let plistDecoder = PropertyListDecoder()
         let data = try Data(contentsOf: infoPlistPath.url)
         let infoPlist = try plistDecoder.decode(InfoPlist.self, from: data)
 
-        return Xcode(path: path, infoPlist: infoPlist)
+        return Xcode(path: source.path, infoPlist: infoPlist)
     }
 
     /// Initializes an instance of Xcode which represents a local installation of Xcode
