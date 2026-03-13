@@ -63,83 +63,77 @@ defmodule TuistWeb.LayoutLive do
 
     %{account: selected_account} = selected_project
 
-    case check_sso_enforcement(current_user, selected_account, session, socket) do
-      {:halt, socket} ->
-        {:halt, socket}
+    selected_projects = get_projects(selected_account, current_user)
 
-      :cont ->
-        selected_projects = get_projects(selected_account, current_user)
+    current_user_accounts =
+      if is_nil(current_user) do
+        []
+      else
+        get_user_organization_accounts(current_user) ++ [current_user.account]
+      end
 
-        current_user_accounts =
-          if is_nil(current_user) do
-            []
-          else
-            get_user_organization_accounts(current_user) ++ [current_user.account]
-          end
-
-        {:cont,
-         socket
-         |> assign_current_path()
-         |> append_breadcrumb(%{
-           label: selected_account.name,
-           icon: "smart_home",
-           show_avatar: true,
-           avatar_color: Accounts.avatar_color(selected_account),
-           items:
-             Enum.map(current_user_accounts, fn account ->
-               %{
-                 label: account.name,
-                 value: account.id,
-                 selected: account.id == selected_account.id,
-                 href: ~p"/#{account.name}/projects",
-                 show_avatar: true,
-                 avatar_color: Accounts.avatar_color(account)
-               }
-             end) ++
-               [
-                 %{
-                   label: dgettext("dashboard", "Create organization"),
-                   value: "create-organization",
-                   href: ~p"/organizations/new",
-                   icon: "building_plus",
-                   selected: false
-                 }
-               ]
-         })
-         |> append_breadcrumb(%{
-           label: selected_project.name,
-           badge: build_system_badge(selected_project.build_system),
-           items:
-             Enum.map(selected_projects, fn project ->
-               %{
-                 label: project.name,
-                 value: project.id,
-                 selected: selected_project.id == project.id,
-                 href: ~p"/#{account_handle}/#{project.name}",
-                 badge: build_system_badge(project.build_system)
-               }
-             end) ++
-               [
-                 %{
-                   label: dgettext("dashboard", "Create project"),
-                   value: "create-project",
-                   href: ~p"/projects/new?account_id=#{selected_account.id}",
-                   icon: "circle_plus",
-                   selected: false
-                 }
-               ]
-         })
-         |> assign_latest_app_release()
-         |> assign_latest_cli_release()
-         |> assign(:selected_account, selected_account)
-         |> assign(:selected_project, selected_project)
-         |> assign(:current_user, current_user)
-         |> assign(
-           :selected_projects,
-           selected_projects
-         )
-         |> assign_selected_run(params)}
-    end
+    {:cont,
+     socket
+     |> assign_current_path()
+     |> append_breadcrumb(%{
+       label: selected_account.name,
+       icon: "smart_home",
+       show_avatar: true,
+       avatar_color: Accounts.avatar_color(selected_account),
+       items:
+         Enum.map(current_user_accounts, fn account ->
+           %{
+             label: account.name,
+             value: account.id,
+             selected: account.id == selected_account.id,
+             href: ~p"/#{account.name}/projects",
+             show_avatar: true,
+             avatar_color: Accounts.avatar_color(account)
+           }
+         end) ++
+           [
+             %{
+               label: dgettext("dashboard", "Create organization"),
+               value: "create-organization",
+               href: ~p"/organizations/new",
+               icon: "building_plus",
+               selected: false
+             }
+           ]
+     })
+     |> append_breadcrumb(%{
+       label: selected_project.name,
+       badge: build_system_badge(selected_project.build_system),
+       items:
+         Enum.map(selected_projects, fn project ->
+           %{
+             label: project.name,
+             value: project.id,
+             selected: selected_project.id == project.id,
+             href: ~p"/#{account_handle}/#{project.name}",
+             badge: build_system_badge(project.build_system)
+           }
+         end) ++
+           [
+             %{
+               label: dgettext("dashboard", "Create project"),
+               value: "create-project",
+               href: ~p"/projects/new?account_id=#{selected_account.id}",
+               icon: "circle_plus",
+               selected: false
+             }
+           ]
+     })
+     |> assign_latest_app_release()
+     |> assign_latest_cli_release()
+     |> assign(:selected_account, selected_account)
+     |> assign(:selected_project, selected_project)
+     |> assign(:current_user, current_user)
+     |> assign(
+       :selected_projects,
+       selected_projects
+     )
+     |> assign_selected_run(params)}
   end
 
   def on_mount(:account, params, session, socket) do
@@ -159,49 +153,43 @@ defmodule TuistWeb.LayoutLive do
             dgettext("dashboard", "The account you are looking for doesn't exist or has been moved.")
     end
 
-    case check_sso_enforcement(current_user, selected_account, session, socket) do
-      {:halt, socket} ->
-        {:halt, socket}
-
-      :cont ->
-        {:cont,
-         socket
-         |> assign_current_path()
-         |> append_breadcrumb(%{
-           label: selected_account.name,
-           show_avatar: true,
-           avatar_color: Accounts.avatar_color(selected_account),
-           items:
-             Enum.map(current_user_accounts, fn account ->
-               %{
-                 label: account.name,
-                 value: account.id,
-                 href: ~p"/#{account.name}/projects",
-                 selected: account.id == selected_account.id,
-                 show_avatar: true,
-                 avatar_color: Accounts.avatar_color(account)
-               }
-             end) ++
-               [
-                 %{
-                   label: dgettext("dashboard", "Create organization"),
-                   value: "create-organization",
-                   href: ~p"/organizations/new",
-                   icon: "building_plus",
-                   selected: false
-                 }
-               ]
-         })
-         |> assign(
-           :can_read_billing,
-           Authorization.authorize(:billing_read, current_user, selected_account) == :ok
-         )
-         |> assign_latest_app_release()
-         |> assign_latest_cli_release()
-         |> assign(:selected_account, selected_account)
-         |> assign(:current_user, current_user)
-         |> assign(:current_user_accounts, current_user_accounts)}
-    end
+    {:cont,
+     socket
+     |> assign_current_path()
+     |> append_breadcrumb(%{
+       label: selected_account.name,
+       show_avatar: true,
+       avatar_color: Accounts.avatar_color(selected_account),
+       items:
+         Enum.map(current_user_accounts, fn account ->
+           %{
+             label: account.name,
+             value: account.id,
+             href: ~p"/#{account.name}/projects",
+             selected: account.id == selected_account.id,
+             show_avatar: true,
+             avatar_color: Accounts.avatar_color(account)
+           }
+         end) ++
+           [
+             %{
+               label: dgettext("dashboard", "Create organization"),
+               value: "create-organization",
+               href: ~p"/organizations/new",
+               icon: "building_plus",
+               selected: false
+             }
+           ]
+     })
+     |> assign(
+       :can_read_billing,
+       Authorization.authorize(:billing_read, current_user, selected_account) == :ok
+     )
+     |> assign_latest_app_release()
+     |> assign_latest_cli_release()
+     |> assign(:selected_account, selected_account)
+     |> assign(:current_user, current_user)
+     |> assign(:current_user_accounts, current_user_accounts)}
   end
 
   def on_mount(:ops, _params, session, socket) do
@@ -213,22 +201,6 @@ defmodule TuistWeb.LayoutLive do
      |> assign_latest_app_release()
      |> assign_latest_cli_release()
      |> assign(:current_user, current_user)}
-  end
-
-  defp check_sso_enforcement(current_user, selected_account, session, socket) do
-    with organization_id when not is_nil(organization_id) <- selected_account.organization_id,
-         {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
-         true <- organization.sso_enforced and not is_nil(organization.sso_provider),
-         false <- is_nil(current_user),
-         auth_provider = Map.get(session, "auth_provider"),
-         false <- auth_provider == organization.sso_provider do
-      return_to = ~p"/#{selected_account.name}/projects"
-
-      {:halt,
-       Phoenix.LiveView.redirect(socket, to: ~p"/sso/verify?organization_id=#{organization_id}&return_to=#{return_to}")}
-    else
-      _ -> :cont
-    end
   end
 
   defp get_user_organization_accounts(user) do
