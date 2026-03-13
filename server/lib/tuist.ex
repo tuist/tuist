@@ -18,6 +18,7 @@ defmodule Tuist do
       Marketing.Pages,
       Docs,
       Docs.Page,
+      Docs.Paths,
       Docs.Sidebar,
       Marketing.Changelog,
       Marketing.OpenGraph,

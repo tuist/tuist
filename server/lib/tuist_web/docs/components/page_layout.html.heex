@@ -38,7 +38,7 @@
       phx-update="ignore"
     >
       <div data-part="sidebar-scroll">
-        <.link :if={@tab == :guides} patch="/docs/en" data-part="nav-link">
+        <.link :if={@tab == :guides} patch={docs_path("/en")} data-part="nav-link">
           <.tab_menu_vertical label="Overview" data-selected={@current_slug == "/en"}>
             <:icon_left>
               <.icon name="smart_home" />
