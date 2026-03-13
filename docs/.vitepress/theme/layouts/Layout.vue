@@ -4,6 +4,7 @@ import { useData } from "vitepress";
 import { computed, watchEffect } from "vue";
 const inBrowser = typeof document !== "undefined";
 import { localizedString } from "../../i18n.mjs";
+import { localizedDocsPath } from "../../paths.mjs";
 
 const { lang } = useData();
 watchEffect(() => {
@@ -30,7 +31,7 @@ const showAsideBottom = computed(() => lang.value !== "en");
                     }}
                 </p>
                 <p>
-                    <a :href="`/${lang}/contributors/translate`">{{
+                    <a :href="localizedDocsPath(lang, '/contributors/translate')">{{
                         localizedString(lang, "aside.translate.cta.text")
                     }}</a>
                 </p>

@@ -95,7 +95,7 @@ defmodule TuistWeb.Marketing.Localization do
   def path_without_locale(path) do
     Enum.reduce(all_locales(), path, fn locale, acc ->
       # For marketing URLs, English uses "/" as prefix
-      # For docs URLs, we need to handle "/en/" explicitly
+      # For docs URLs, we need to handle "/en/docs/..." explicitly
       locale_prefix = if locale == "en", do: "/en", else: locale_path_prefix(locale)
 
       # Handle paths like /ko/ or /ko/pricing using regex
@@ -182,7 +182,7 @@ defmodule TuistWeb.Marketing.Localization do
   @doc """
   Localizes a URL path based on the current locale.
 
-  For docs.tuist.dev URLs, inserts locale after domain (or replaces existing locale).
+  For docs.tuist.dev URLs, inserts the locale before the `/docs` section.
   For relative marketing URLs, prepends locale (except for English which has no prefix).
   External URLs that are not docs.tuist.dev are returned as-is.
   """
@@ -194,7 +194,7 @@ defmodule TuistWeb.Marketing.Localization do
   @doc """
   Localizes a URL path to a specific target locale.
 
-  For docs.tuist.dev URLs, inserts locale after domain (or replaces existing locale).
+  For docs.tuist.dev URLs, inserts the locale before the `/docs` section.
   For relative marketing URLs, prepends locale (except for English which has no prefix).
   External URLs that are not docs.tuist.dev are returned as-is.
   """
@@ -209,8 +209,10 @@ defmodule TuistWeb.Marketing.Localization do
 
       # Handle docs.tuist.dev URLs
       uri.host == "docs.tuist.dev" ->
-        clean_path = path_without_locale(uri.path || "/")
-        localized_path = "/#{target_locale}#{clean_path}"
+        localized_path =
+          uri.path
+          |> normalize_docs_path()
+          |> then(&"/#{target_locale}#{&1}")
 
         uri
         |> Map.put(:path, localized_path)
@@ -245,6 +247,21 @@ defmodule TuistWeb.Marketing.Localization do
       # Return as-is for other external URLs
       true ->
         href
+    end
+  end
+
+  defp normalize_docs_path(path) do
+    localized_path = path_without_locale(path || "/")
+
+    cond do
+      localized_path == "/" ->
+        "/docs/"
+
+      localized_path == "/docs" or String.starts_with?(localized_path, "/docs/") ->
+        localized_path
+
+      true ->
+        "/docs" <> localized_path
     end
   end
 

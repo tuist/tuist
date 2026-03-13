@@ -441,18 +441,17 @@ defmodule TuistWeb.Router do
           post "/attachments", TestCaseRunAttachmentsController, :create
         end
 
-        scope "/builds/xcode" do
-          get "/", BuildsController, :index
-          get "/:build_id/targets", BuildTargetsController, :index
-          get "/:build_id/files", BuildFilesController, :index
-          get "/:build_id/issues", BuildIssuesController, :index
-          get "/:build_id/cache-tasks", BuildCacheTasksController, :index
-          get "/:build_id/cas-outputs", BuildCASOutputsController, :index
-          get "/:build_id", BuildsController, :show
-          post "/", BuildsController, :create
-          post "/upload/start", BuildsController, :multipart_start
-          post "/upload/generate-url", BuildsController, :multipart_generate_url
-          post "/upload/complete", BuildsController, :multipart_complete
+        scope "/xcode" do
+          scope "/builds" do
+            get "/", BuildsController, :index
+            get "/:build_id/targets", BuildTargetsController, :index
+            get "/:build_id/files", BuildFilesController, :index
+            get "/:build_id/issues", BuildIssuesController, :index
+            get "/:build_id/cache-tasks", BuildCacheTasksController, :index
+            get "/:build_id/cas-outputs", BuildCASOutputsController, :index
+            get "/:build_id", BuildsController, :show
+            post "/", BuildsController, :create
+          end
         end
 
         scope "/gradle" do
