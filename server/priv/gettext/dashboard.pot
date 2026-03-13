@@ -21,23 +21,23 @@ msgstr ""
 msgid "400"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:294
-#: lib/tuist_web/controllers/error_html.ex:37
+#: lib/tuist_web/controllers/error_html.ex:34
+#: lib/tuist_web/controllers/error_html.ex:49
 #, elixir-autogen, elixir-format
 msgid "401"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:58
+#: lib/tuist_web/controllers/error_html.ex:70
 #, elixir-autogen, elixir-format
 msgid "404"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:79
+#: lib/tuist_web/controllers/error_html.ex:91
 #, elixir-autogen, elixir-format
 msgid "429"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:94
+#: lib/tuist_web/controllers/error_html.ex:106
 #, elixir-autogen, elixir-format
 msgid "500"
 msgstr ""
@@ -109,7 +109,7 @@ msgstr ""
 msgid "Emails"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:125
+#: lib/tuist_web/controllers/error_html.ex:133
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr ""
@@ -130,7 +130,7 @@ msgstr ""
 msgid "Get started"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:147
+#: lib/tuist_web/controllers/error_html.ex:155
 #, elixir-autogen, elixir-format
 msgid "Go to dashboard"
 msgstr ""
@@ -201,7 +201,7 @@ msgstr ""
 msgid "No data yet"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:52
+#: lib/tuist_web/controllers/error_html.ex:64
 #, elixir-autogen, elixir-format
 msgid "Not found"
 msgstr ""
@@ -212,12 +212,12 @@ msgstr ""
 msgid "Only operations roles can access this page."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:86
+#: lib/tuist_web/controllers/error_html.ex:98
 #, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:53
+#: lib/tuist_web/controllers/error_html.ex:65
 #, elixir-autogen, elixir-format
 msgid "Oops, we couldn't find that page"
 msgstr ""
@@ -233,7 +233,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:32
+#: lib/tuist_web/controllers/error_html.ex:44
 #, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
 msgstr ""
@@ -253,7 +253,7 @@ msgstr ""
 msgid "Projects"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:85
+#: lib/tuist_web/controllers/error_html.ex:97
 #, elixir-autogen, elixir-format
 msgid "Server error"
 msgstr ""
@@ -264,17 +264,17 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:89
+#: lib/tuist_web/controllers/error_html.ex:101
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:46
+#: lib/tuist_web/controllers/error_html.ex:58
 #, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:67
+#: lib/tuist_web/controllers/error_html.ex:79
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
@@ -360,12 +360,12 @@ msgstr ""
 msgid "The run you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:73
+#: lib/tuist_web/controllers/error_html.ex:85
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:74
+#: lib/tuist_web/controllers/error_html.ex:86
 #, elixir-autogen, elixir-format
 msgid "Too many requests."
 msgstr ""
@@ -381,7 +381,7 @@ msgstr ""
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:28
+#: lib/tuist_web/controllers/error_html.ex:40
 #, elixir-autogen, elixir-format
 msgid "Unauthorized"
 msgstr ""
@@ -398,7 +398,7 @@ msgstr ""
 msgid "Xcode Cache"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:29
+#: lib/tuist_web/controllers/error_html.ex:41
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to view this page"
 msgstr ""
@@ -498,27 +498,27 @@ msgstr ""
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:311
+#: lib/tuist_web/controllers/auth_controller.ex:282
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:64
-#: lib/tuist_web/controllers/auth_controller.ex:76
-#: lib/tuist_web/controllers/auth_controller.ex:88
-#: lib/tuist_web/controllers/auth_controller.ex:207
-#: lib/tuist_web/controllers/auth_controller.ex:219
-#: lib/tuist_web/controllers/auth_controller.ex:231
+#: lib/tuist_web/controllers/auth_controller.ex:63
+#: lib/tuist_web/controllers/auth_controller.ex:73
+#: lib/tuist_web/controllers/auth_controller.ex:83
+#: lib/tuist_web/controllers/auth_controller.ex:200
+#: lib/tuist_web/controllers/auth_controller.ex:210
+#: lib/tuist_web/controllers/auth_controller.ex:220
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with Okta."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:292
+#: lib/tuist_web/controllers/error_html.ex:28
 #, elixir-autogen, elixir-format
 msgid "Authentication failed"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:302
+#: lib/tuist_web/controllers/auth_controller.ex:273
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""

@@ -59,10 +59,8 @@ defmodule TuistWeb.AuthController do
                   "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
                 )
 
-                redirect_to_auth_error(
-                  conn,
-                  dgettext("dashboard", "Failed to authenticate with Okta.")
-                )
+                raise TuistWeb.Errors.UnauthorizedError,
+                      dgettext("dashboard", "Failed to authenticate with Okta.")
             end
 
           error ->
@@ -71,10 +69,8 @@ defmodule TuistWeb.AuthController do
               "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
 
-            redirect_to_auth_error(
-              conn,
-              dgettext("dashboard", "Failed to authenticate with Okta.")
-            )
+            raise TuistWeb.Errors.UnauthorizedError,
+                  dgettext("dashboard", "Failed to authenticate with Okta.")
         end
 
       error ->
@@ -83,10 +79,8 @@ defmodule TuistWeb.AuthController do
           "Failed to extract organization_id from params: #{inspect(params)}, error: #{inspect(error)}"
         )
 
-        redirect_to_auth_error(
-          conn,
-          dgettext("dashboard", "Failed to authenticate with Okta.")
-        )
+        raise TuistWeb.Errors.UnauthorizedError,
+              dgettext("dashboard", "Failed to authenticate with Okta.")
     end
   end
 
@@ -98,13 +92,13 @@ defmodule TuistWeb.AuthController do
     |> halt()
   end
 
-  def callback(%{assigns: %{ueberauth_failure: failure}} = conn, _params) do
+  def callback(%{assigns: %{ueberauth_failure: failure}} = _conn, _params) do
     log(
       :error,
       "Ueberauth failed authenticating: #{inspect(failure)}"
     )
 
-    redirect_to_auth_error(conn, failure)
+    raise TuistWeb.Errors.UnauthorizedError, oauth_failure_message(failure)
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
@@ -202,10 +196,8 @@ defmodule TuistWeb.AuthController do
                   "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
                 )
 
-                redirect_to_auth_error(
-                  conn,
-                  dgettext("dashboard", "Failed to authenticate with Okta.")
-                )
+                raise TuistWeb.Errors.UnauthorizedError,
+                      dgettext("dashboard", "Failed to authenticate with Okta.")
             end
 
           error ->
@@ -214,10 +206,8 @@ defmodule TuistWeb.AuthController do
               "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
 
-            redirect_to_auth_error(
-              conn,
-              dgettext("dashboard", "Failed to authenticate with Okta.")
-            )
+            raise TuistWeb.Errors.UnauthorizedError,
+                  dgettext("dashboard", "Failed to authenticate with Okta.")
         end
 
       error ->
@@ -226,10 +216,8 @@ defmodule TuistWeb.AuthController do
           "Failed to extract organization_id from session: #{inspect(session_data)}, error: #{inspect(error)}"
         )
 
-        redirect_to_auth_error(
-          conn,
-          dgettext("dashboard", "Failed to authenticate with Okta.")
-        )
+        raise TuistWeb.Errors.UnauthorizedError,
+              dgettext("dashboard", "Failed to authenticate with Okta.")
     end
   end
 
@@ -277,25 +265,6 @@ defmodule TuistWeb.AuthController do
 
   def complete_signup(conn, _params) do
     redirect(conn, to: ~p"/users/log_in")
-  end
-
-  defp redirect_to_auth_error(conn, %Ueberauth.Failure{} = failure) do
-    redirect_to_auth_error(conn, oauth_failure_message(failure))
-  end
-
-  defp redirect_to_auth_error(conn, message) do
-    body =
-      TuistWeb.ErrorHTML.render_error_page(%{
-        head_title: dgettext("dashboard", "Authentication failed"),
-        title: message,
-        error_name: dgettext("dashboard", "401")
-      })
-
-    conn
-    |> put_status(401)
-    |> put_resp_content_type("text/html")
-    |> send_resp(401, Phoenix.HTML.Safe.to_iodata(body))
-    |> halt()
   end
 
   defp oauth_failure_message(%Ueberauth.Failure{errors: errors}) do
