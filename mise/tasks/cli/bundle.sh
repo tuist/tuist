@@ -153,6 +153,9 @@ echo "$(format_section "Bundling")"
     xcodebuild -create-xcframework -framework ProjectDescription.framework -output ProjectDescription.xcframework
     zip -q -r --symlinks ProjectDescription.xcframework.zip ProjectDescription.xcframework
 
+    echo "$(format_subsection "Generating tuist.usage.kdl")"
+    /usr/bin/python3 "$TUIST_DIR/mise/tasks/cli/release/generate-usage-spec.py" --tuist-path tuist --output tuist.usage.kdl
+
     rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor
 
     : > SHASUMS256.txt

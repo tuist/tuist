@@ -562,6 +562,7 @@ jobs:
             mise.lock
             build/ProjectDescription.xcframework.zip
             build/tuist.zip
+            build/tuist.usage.kdl
             build/SHASUMS256.txt
             build/SHASUMS512.txt
           retention-days: 1
@@ -1405,6 +1406,7 @@ jobs:
             build/SHASUMS256.txt
             build/SHASUMS512.txt
             build/ProjectDescription.xcframework.zip
+            build/tuist.usage.kdl
 
       - name: Create App GitHub Release
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
