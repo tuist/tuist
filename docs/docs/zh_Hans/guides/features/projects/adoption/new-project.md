@@ -7,12 +7,13 @@
 ---
 # 创建新项目{#create-a-new-project}
 
-使用Tuist创建新项目的最简便方式是执行`命令：tuist init`
-。该命令将启动交互式命令行界面，引导您完成项目配置。在提示时，请务必选择创建"生成项目"的选项。
+使用 Tuist 启动新项目的最简单方法是执行`tuist init`
+命令。该命令将启动一个交互式命令行界面，引导您完成项目设置。在系统提示时，请务必选择创建“生成项目”的选项。
 
-随后可通过运行`tuist
-edit`<LocalizedLink href="/guides/features/projects/editing">编辑项目</LocalizedLink>，Xcode将打开可编辑的项目。生成的文件之一是`Project.swift`
-，其中包含项目定义。若您熟悉Swift Package Manager，可将其视为`Package.swift` 的Xcode项目版本。
+随后，您可以通过运行`tuist edit` 来
+<LocalizedLink href="/guides/features/projects/editing">编辑该项目</LocalizedLink>，Xcode
+将打开一个项目供您进行编辑。生成的文件之一是`Project.swift` ，其中包含项目的定义。如果您熟悉 Swift Package
+Manager，可以将其视为`Package.swift` ，只不过采用了 Xcode 项目的术语。
 
 代码组
 ```swift [Project.swift]
@@ -56,21 +57,22 @@ let project = Project(
 
 信息
 <!-- -->
-为减少维护负担，我们刻意将可用模板列表保持精简。若需创建非应用程序类型的项目（如框架），可使用 ``` 或 `tuist init` `
-作为起点，随后根据需求修改生成的项目。
+我们特意将可用模板列表保持简短，以尽量减少维护工作量。如果您想创建一个不代表应用程序的项目（例如框架），可以使用`tuist init`
+作为起点，然后根据需要修改生成的项目。
 <!-- -->
 :::
 
 ## 手动创建项目{#manually-creating-a-project}
 
-或者，您也可以手动创建项目。我们建议仅在您已熟悉 Tuist 及其概念时才采用此方法。首先需要为项目结构创建额外的目录：
+或者，您可以手动创建项目。我们建议仅在您已熟悉 Tuist 及其相关概念时才采用此方法。首先，您需要为项目结构创建额外的目录：
 
 ```bash
 mkdir MyFramework
 cd MyFramework
 ```
 
-然后创建`文件Tuist.swift` ，该文件用于配置Tuist并确定项目根目录；另创建`文件Project.swift` ，用于声明项目：
+然后创建一个`Tuist.swift` 文件，该文件将配置 Tuist 并用于确定项目的根目录；同时创建一个`Project.swift`
+文件，用于声明您的项目：
 
 代码组
 ```swift [Project.swift]
@@ -100,7 +102,7 @@ let tuist = Tuist()
 
 :: 警告
 <!-- -->
-Tuist通过`Tuist/` 目录确定项目根目录，并由此通过目录通配符查找其他清单文件。建议使用您偏好的编辑器创建这些文件，之后可通过`tuist edit`
-命令使用Xcode编辑项目。
+Tuist 通过`Tuist/` 目录来确定项目的根目录，并以此为起点，通过通配符查找其他 manifests
+文件。我们建议您使用自己喜欢的编辑器创建这些文件，之后即可使用`tuist edit` 命令在 Xcode 中编辑项目。
 <!-- -->
 :::
