@@ -104,8 +104,7 @@ defmodule TuistWeb.AuthController do
       "Ueberauth failed authenticating: #{inspect(failure)}"
     )
 
-    error_message = oauth_failure_message(failure)
-    redirect_to_auth_error(conn, error_message)
+    redirect_to_auth_error(conn, failure)
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
@@ -280,6 +279,10 @@ defmodule TuistWeb.AuthController do
     redirect(conn, to: ~p"/users/log_in")
   end
 
+  defp redirect_to_auth_error(conn, %Ueberauth.Failure{} = failure) do
+    redirect_to_auth_error(conn, oauth_failure_message(failure))
+  end
+
   defp redirect_to_auth_error(conn, message) do
     conn
     |> put_status(401)
@@ -288,7 +291,7 @@ defmodule TuistWeb.AuthController do
     |> render("auth_error.html",
       head_title: dgettext("dashboard", "Authentication failed"),
       title: message,
-      error_name: dgettext("dashboard", "Authentication failed")
+      error_name: dgettext("dashboard", "401")
     )
     |> halt()
   end
@@ -298,18 +301,16 @@ defmodule TuistWeb.AuthController do
       [%Ueberauth.Failure.Error{message_key: "access_denied"} | _] ->
         dgettext(
           "dashboard",
-          "Authentication failed: your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
+          "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
         )
 
       [%Ueberauth.Failure.Error{message: message} | _] when is_binary(message) and message != "" ->
-        dgettext("dashboard", "Authentication failed: %{message}", message: message)
+        message
 
       _ ->
         dgettext("dashboard", "Failed to authenticate.")
     end
   end
-
-  defp oauth_failure_message(_), do: dgettext("dashboard", "Failed to authenticate.")
 
   defp okta_strategy_options(config, params) do
     strategy_options = [

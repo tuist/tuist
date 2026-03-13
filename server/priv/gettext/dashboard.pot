@@ -21,6 +21,7 @@ msgstr ""
 msgid "400"
 msgstr ""
 
+#: lib/tuist_web/controllers/auth_controller.ex:294
 #: lib/tuist_web/controllers/error_html.ex:37
 #, elixir-autogen, elixir-format
 msgid "401"
@@ -497,18 +498,7 @@ msgstr ""
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:305
-#, elixir-autogen, elixir-format
-msgid "Authentication failed: %{message}"
-msgstr ""
-
-#: lib/tuist_web/controllers/auth_controller.ex:299
-#, elixir-autogen, elixir-format
-msgid "Authentication failed: your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
-msgstr ""
-
-#: lib/tuist_web/controllers/auth_controller.ex:308
-#: lib/tuist_web/controllers/auth_controller.ex:312
+#: lib/tuist_web/controllers/auth_controller.ex:311
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate."
 msgstr ""
@@ -516,15 +506,19 @@ msgstr ""
 #: lib/tuist_web/controllers/auth_controller.ex:64
 #: lib/tuist_web/controllers/auth_controller.ex:76
 #: lib/tuist_web/controllers/auth_controller.ex:88
-#: lib/tuist_web/controllers/auth_controller.ex:208
-#: lib/tuist_web/controllers/auth_controller.ex:220
-#: lib/tuist_web/controllers/auth_controller.ex:232
+#: lib/tuist_web/controllers/auth_controller.ex:207
+#: lib/tuist_web/controllers/auth_controller.ex:219
+#: lib/tuist_web/controllers/auth_controller.ex:231
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with Okta."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:289
-#: lib/tuist_web/controllers/auth_controller.ex:291
+#: lib/tuist_web/controllers/auth_controller.ex:292
 #, elixir-autogen, elixir-format
 msgid "Authentication failed"
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:302
+#, elixir-autogen, elixir-format
+msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""
