@@ -80,5 +80,9 @@ if [ $? -ne 0 ]; then
 fi
 echo "Seeding completed successfully."
 
+# Show the marketing page instead of redirecting to dashboard.
+# Set after migrations so that migration guards for hosted-only logic are unaffected.
+export TUIST_HOSTED=1
+
 echo "Starting the server..."
 TUIST_WEB=true exec ./tuist start

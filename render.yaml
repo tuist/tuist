@@ -192,7 +192,7 @@ services:
       - key: MIX_ENV
         value: stag
       - key: TUIST_HOSTED
-        value: 0
+        value: 1
       - key: EMBED_CLICKHOUSE
         value: true
       - key: TUIST_USE_SSL_FOR_DATABASE
