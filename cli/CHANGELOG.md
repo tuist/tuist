@@ -1,7 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.157.2<!-- RELEASE NOTES START -->
+## What's Changed in 4.158.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* server-side xcactivitylog processing by [@fortmarek](https://github.com/fortmarek) in [#9752](https://github.com/tuist/tuist/pull/9752)
+### 🐛 Bug Fixes
+
+* filter pruned test targets from -only-testing flags by [@fortmarek](https://github.com/fortmarek) in [#9823](https://github.com/tuist/tuist/pull/9823)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.157.4...4.158.0
+
+## What's Changed in 4.157.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
@@ -10,7 +21,7 @@ All notable changes to this project will be documented in this file.
 * use modern launchctl bootstrap/bootout for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#9815](https://github.com/tuist/tuist/pull/9815)
 * skip binary cache mapping when graph is empty after selective testing by [@fortmarek](https://github.com/fortmarek) in [#9814](https://github.com/tuist/tuist/pull/9814)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.157.1...4.157.2
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.157.1...4.157.4
 
 ## What's Changed in 4.157.1<!-- RELEASE NOTES START -->
 
