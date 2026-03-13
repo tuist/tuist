@@ -9,7 +9,6 @@ defmodule Cache.KeyValueStore do
   alias Cache.Config
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueBuffer
-  alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
   alias Cache.SQLiteHelpers

@@ -11,7 +11,6 @@ defmodule Cache.KeyValueReplicationShipper do
 
   @telemetry_event [:cache, :kv, :replication, :ship, :flush]
   @pending_rows_event [:cache, :kv, :replication, :ship, :pending_rows]
-  @cutoff_cache_ttl_ms 10_000
   @shared_payload_wins_sql """
   EXCLUDED.source_updated_at > kv_entries.source_updated_at OR (
     EXCLUDED.source_updated_at = kv_entries.source_updated_at AND
@@ -37,28 +36,27 @@ defmodule Cache.KeyValueReplicationShipper do
   @impl true
   def init(_opts) do
     schedule_flush(0)
-    {:ok, %{cutoff_cache: %{}, cutoff_fetched_at: 0}}
+    {:ok, %{}}
   end
 
   @impl true
   def handle_call(:flush, _from, state) do
-    {result, new_state} = flush_pending_rows(state)
-    {:reply, result, new_state}
+    {:reply, flush_pending_rows(), state}
   end
 
   @impl true
   def handle_info(:flush, state) do
-    {_result, new_state} = flush_pending_rows(state)
+    _ = flush_pending_rows()
     schedule_flush(Config.distributed_kv_ship_interval_ms())
-    {:noreply, new_state}
+    {:noreply, state}
   end
 
-  defp flush_pending_rows(state) do
+  defp flush_pending_rows do
     pending_rows = KeyValueEntries.list_pending_replication()
     :telemetry.execute(@pending_rows_event, %{count: length(pending_rows)}, %{})
 
     started_at = System.monotonic_time(:millisecond)
-    new_state = ship_entries(pending_rows, state)
+    :ok = ship_entries(pending_rows)
 
     :telemetry.execute(
       @telemetry_event,
@@ -66,38 +64,25 @@ defmodule Cache.KeyValueReplicationShipper do
       %{status: :ok}
     )
 
-    {:ok, new_state}
+    :ok
   end
 
-  defp ship_entries([], state), do: state
+  defp ship_entries([]), do: :ok
 
-  defp ship_entries(pending_rows, state) do
+  defp ship_entries(pending_rows) do
     prepared_rows = Enum.map(pending_rows, &prepare_pending_row/1)
 
-    {cleanup_cutoffs, new_state} = fetch_cleanup_cutoffs(prepared_rows, state)
+    cleanup_cutoffs =
+      prepared_rows
+      |> Enum.map(& &1.scope)
+      |> Cleanup.latest_project_cleanup_cutoffs()
 
     {stale_rows, active_rows} =
       Enum.split_with(prepared_rows, &stale_against_cleanup?(&1, cleanup_cutoffs))
 
     Enum.each(stale_rows, &discard_stale_row/1)
     ship_batch(active_rows)
-    new_state
-  end
-
-  defp fetch_cleanup_cutoffs(prepared_rows, state) do
-    now_ms = System.monotonic_time(:millisecond)
-
-    if now_ms - state.cutoff_fetched_at < @cutoff_cache_ttl_ms do
-      {state.cutoff_cache, state}
-    else
-      cutoffs =
-        prepared_rows
-        |> Enum.map(& &1.scope)
-        |> Cleanup.latest_project_cleanup_cutoffs()
-
-      new_state = %{state | cutoff_cache: cutoffs, cutoff_fetched_at: now_ms}
-      {cutoffs, new_state}
-    end
+    :ok
   end
 
   defp prepare_pending_row(entry) do

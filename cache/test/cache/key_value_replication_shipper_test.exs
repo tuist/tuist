@@ -123,4 +123,40 @@ defmodule Cache.KeyValueReplicationShipperTest do
     assert_receive {:token_cleared, _}
     assert_receive {:token_cleared, _}
   end
+
+  test "reloads cleanup cutoffs on each flush" do
+    parent = self()
+    token = DateTime.utc_now()
+    original_interval = Application.get_env(:cache, :distributed_kv_ship_interval_ms)
+
+    Application.put_env(:cache, :distributed_kv_ship_interval_ms, 60_000)
+
+    on_exit(fn ->
+      Application.put_env(:cache, :distributed_kv_ship_interval_ms, original_interval)
+    end)
+
+    pending_entry = %KeyValueEntry{
+      key: "keyvalue:acme:ios:cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+      last_accessed_at: token,
+      source_updated_at: token,
+      replication_enqueued_at: token
+    }
+
+    expect(Cleanup, :latest_project_cleanup_cutoffs, 2, fn _scopes ->
+      send(parent, :cutoffs_loaded)
+      %{}
+    end)
+
+    stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
+    stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
+    stub(KeyValueEntries, :clear_replication_token, fn _key, _token -> 1 end)
+    stub(DistributedRepo, :query!, fn _sql, _params, _opts -> %{num_rows: 1} end)
+
+    start_supervised!(KeyValueReplicationShipper)
+    assert_receive :cutoffs_loaded
+
+    assert :ok = KeyValueReplicationShipper.flush_now()
+    assert_receive :cutoffs_loaded
+  end
 end

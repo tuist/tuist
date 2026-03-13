@@ -156,4 +156,32 @@ defmodule Cache.KeyValueReplicationPollerTest do
     assert_receive :materialized
     assert_receive :watermark_updated
   end
+
+  test "throttles local store size measurement across repeated polls" do
+    parent = self()
+    original_interval = Application.get_env(:cache, :distributed_kv_sync_interval_ms)
+
+    Application.put_env(:cache, :distributed_kv_sync_interval_ms, 60_000)
+
+    on_exit(fn ->
+      Application.put_env(:cache, :distributed_kv_sync_interval_ms, original_interval)
+    end)
+
+    stub(KeyValueEntries, :distributed_watermark, fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
+
+    stub(KeyValueEntries, :estimated_size_bytes, fn ->
+      send(parent, :size_measured)
+      0
+    end)
+
+    stub(DistributedRepo, :all, fn _query, _opts -> [] end)
+
+    start_supervised!(KeyValueReplicationPoller)
+    assert_receive :size_measured, 10_000
+
+    assert :ok = KeyValueReplicationPoller.poll_now()
+    assert :ok = KeyValueReplicationPoller.poll_now()
+
+    refute_receive :size_measured, 200
+  end
 end

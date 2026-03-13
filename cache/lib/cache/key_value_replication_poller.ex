@@ -17,6 +17,7 @@ defmodule Cache.KeyValueReplicationPoller do
   @page_size 1000
   @bootstrap_page_size 500
   @max_poll_run_ms 10_000
+  @local_store_emit_interval_ms 10 * 60_000
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -34,24 +35,25 @@ defmodule Cache.KeyValueReplicationPoller do
   end
 
   @impl true
-  def init(state) do
+  def init(_opts) do
     schedule_poll(0)
-    {:ok, state}
+    {:ok, %{last_local_store_size_emitted_at_ms: nil}}
   end
 
   @impl true
   def handle_call(:poll, _from, state) do
-    {:reply, poll_once(), state}
+    {result, new_state} = poll_once(state)
+    {:reply, result, new_state}
   end
 
   @impl true
   def handle_info(:poll, state) do
-    _ = poll_once()
+    {_result, new_state} = poll_once(state)
     schedule_poll(Config.distributed_kv_sync_interval_ms())
-    {:noreply, state}
+    {:noreply, new_state}
   end
 
-  defp poll_once do
+  defp poll_once(state) do
     maybe_bootstrap()
 
     started_at = System.monotonic_time(:millisecond)
@@ -59,7 +61,7 @@ defmodule Cache.KeyValueReplicationPoller do
 
     {total_materialized, total_deleted} = drain_pages(lag_cutoff, started_at, {0, 0})
 
-    emit_local_store_size()
+    new_state = maybe_emit_local_store_size(state)
 
     :telemetry.execute(
       @completion_event,
@@ -71,7 +73,7 @@ defmodule Cache.KeyValueReplicationPoller do
       %{}
     )
 
-    :ok
+    {:ok, new_state}
   end
 
   defp drain_pages(lag_cutoff, started_at, totals) do
@@ -226,10 +228,24 @@ defmodule Cache.KeyValueReplicationPoller do
     :telemetry.execute(@lag_event, %{lag_ms: lag_ms}, %{})
   end
 
-  defp emit_local_store_size do
+  defp maybe_emit_local_store_size(%{last_local_store_size_emitted_at_ms: last_emitted_at_ms} = state) do
+    now_ms = System.monotonic_time(:millisecond)
+
+    if is_nil(last_emitted_at_ms) or now_ms - last_emitted_at_ms >= @local_store_emit_interval_ms do
+      size_bytes = KeyValueEntries.estimated_size_bytes()
+
+      emit_local_store_size(size_bytes)
+
+      %{state | last_local_store_size_emitted_at_ms: now_ms}
+    else
+      state
+    end
+  end
+
+  defp emit_local_store_size(size_bytes) do
     :telemetry.execute(
       @local_store_event,
-      %{size_bytes: KeyValueEntries.estimated_size_bytes()},
+      %{size_bytes: size_bytes},
       %{node: Config.distributed_kv_node_name(), region: System.get_env("DEPLOY_REGION") || "unknown"}
     )
   end
