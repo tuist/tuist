@@ -7,16 +7,16 @@
 ---
 # Utwórz nowy projekt {#create-a-new-project}
 
-Najprostszym sposobem rozpoczęcia nowego projektu w Tuist jest użycie polecenia
-`tuist init`. Polecenie to uruchamia interaktywny interfejs CLI, który
-poprowadzi Cię przez proces konfiguracji projektu. Po wyświetleniu monitu
-wybierz opcję utworzenia „wygenerowanego projektu”.
+Najprostszym sposobem na rozpoczęcie nowego projektu w Tuist jest użycie
+polecenia `tuist init`. Polecenie to uruchamia interaktywny interfejs CLI, który
+przeprowadzi Cię przez proces konfiguracji projektu. Po wyświetleniu monitu
+wybierz opcję utworzenia „projektu generowanego”.
 
 Następnie możesz
 <LocalizedLink href="/guides/features/projects/editing">edytować
 projekt</LocalizedLink>, uruchamiając `tuist edit`, a Xcode otworzy projekt, w
 którym możesz go edytować. Jednym z wygenerowanych plików jest `Project.swift`,
-który zawiera definicję projektu. Jeśli znasz menedżera pakietów Swift,
+który zawiera definicję Twojego projektu. Jeśli znasz Swift Package Manager,
 potraktuj go jako `Package.swift`, ale w języku projektów Xcode.
 
 ::: code-group
@@ -62,9 +62,9 @@ let project = Project(
 :: info
 <!-- -->
 Celowo ograniczamy listę dostępnych szablonów, aby zminimalizować nakłady
-związane z utrzymaniem. Jeśli chcesz utworzyć projekt, który nie reprezentuje
-aplikacji, na przykład framework, możesz użyć `tuist init` jako punktu wyjścia,
-a następnie zmodyfikować wygenerowany projekt zgodnie z własnymi potrzebami.
+związane z utrzymaniem. Jeśli chcesz stworzyć projekt, który nie jest aplikacją,
+na przykład framework, możesz użyć `tuist init` jako punktu wyjścia, a następnie
+zmodyfikować wygenerowany projekt zgodnie z własnymi potrzebami.
 <!-- -->
 :::
 
@@ -79,9 +79,9 @@ mkdir MyFramework
 cd MyFramework
 ```
 
-Następnie utwórz plik `Tuist.swift`, który skonfiguruje Tuist i będzie używany
-przez Tuist do określenia katalogu głównego projektu, oraz plik `Project.swift`,
-w którym zostanie zadeklarowany Twój projekt:
+Następnie utwórz plik `Tuist.swift`, który skonfiguruje Tuist i zostanie
+wykorzystany przez Tuist do określenia katalogu głównego projektu, oraz plik
+`Project.swift`, w którym zostanie zadeklarowany Twój projekt:
 
 ::: code-group
 ```swift [Project.swift]
@@ -111,9 +111,9 @@ let tuist = Tuist()
 
 ::: warning
 <!-- -->
-Tuist używa katalogu `Tuist/` do określenia katalogu głównego projektu, a
-następnie szuka innych plików manifestu, przeszukując katalogi. Zalecamy
-utworzenie tych plików za pomocą wybranego edytora, a następnie użycie polecenia
-`tuist edit` do edycji projektu w Xcode.
+Tuist wykorzystuje katalog `Tuist/` do określenia katalogu głównego projektu, a
+następnie wyszukuje w nim inne pliki manifestu, przeszukując katalogi. Zalecamy
+utworzenie tych plików w wybranym edytorze, a następnie użycie polecenia `tuist
+edit`, aby edytować projekt w Xcode.
 <!-- -->
 :::
