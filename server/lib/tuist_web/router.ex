@@ -438,6 +438,9 @@ defmodule TuistWeb.Router do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
+          post "/upload/start", BuildsController, :multipart_start
+          post "/upload/generate-url", BuildsController, :multipart_generate_url
+          post "/upload/complete", BuildsController, :multipart_complete
         end
 
         scope "/gradle" do
@@ -803,6 +806,7 @@ defmodule TuistWeb.Router do
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
+      get "/builds/build-runs/:build_run_id/download", BuildController, :download
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,

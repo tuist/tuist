@@ -528,6 +528,14 @@ defmodule Tuist.Environment do
     get([:cache_api_key], secrets)
   end
 
+  def processor_url(secrets \\ secrets()) do
+    get([:processor, :url], secrets)
+  end
+
+  def processor_webhook_secret(secrets \\ secrets()) do
+    get([:processor, :webhook_secret], secrets)
+  end
+
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do
     case get([:clickhouse, :flush_interval_ms], secrets) do
       flush_interval when is_binary(flush_interval) -> String.to_integer(flush_interval)

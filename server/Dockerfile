@@ -5,6 +5,28 @@ ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-$
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 # ========================================
+# Stage: Swift NIF builder
+# Only built when referenced by selfhosted target (BuildKit skips otherwise)
+# ========================================
+FROM swift:6.2-bookworm AS swift-builder
+
+RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /nif
+
+COPY processor/native/xcactivitylog_nif/Package.swift .
+COPY processor/native/xcactivitylog_nif/Package.resolved .
+COPY processor/native/xcactivitylog_nif/Sources/ Sources/
+COPY processor/native/xcactivitylog_nif/Tests/ Tests/
+COPY processor/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
+
+RUN swift build -c release --replace-scm-with-registry && \
+    cp .build/release/libXCActivityLogNIF.so /nif/libXCActivityLogNIF.so && \
+    mkdir -p /nif/swift-libs && \
+    cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
+
+# ========================================
 # Stage 1: NPM dependencies
 # ========================================
 FROM node:22-slim AS npm-deps
@@ -45,14 +67,18 @@ ENV TUIST_HOSTED=$TUIST_HOSTED
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
 
-# Copy path dependencies
+# Copy path dependencies (only mix.exs/mix.lock for dep resolution)
 COPY tuist_common /tuist_common
 COPY noora /noora
+COPY processor/mix.exs processor/mix.lock /processor/
 
 RUN mix deps.get --only $MIX_ENV
 
 # Config files must be present before compiling dependencies
 COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
+
+# Copy processor source for path dependency compilation
+COPY processor/lib /processor/lib
 
 RUN mix deps.compile
 
@@ -79,9 +105,29 @@ RUN mix assets.deploy
 RUN mix release
 
 # ========================================
-# Stage 4: Final runtime image
+# Stage: NIF bridge builder (for selfhosted)
+# Compiles the C NIF bridge linking against the Swift library
 # ========================================
-FROM ${RUNNER_IMAGE}
+FROM builder AS nif-bridge-builder
+
+COPY processor/native/xcactivitylog_nif/nif_bridge.c /tmp/nif/nif_bridge.c
+COPY --from=swift-builder /nif/libXCActivityLogNIF.so /tmp/nif/libXCActivityLogNIF.so
+
+RUN mkdir -p /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native && \
+    ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell) && \
+    cc -shared -fPIC \
+      -o /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/xcactivitylog_nif.so \
+      /tmp/nif/nif_bridge.c \
+      -I"$ERL_INCLUDE" \
+      -L/tmp/nif \
+      -lXCActivityLogNIF \
+      -Wl,-rpath,'$ORIGIN' && \
+    cp /tmp/nif/libXCActivityLogNIF.so /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/
+
+# ========================================
+# Stage 5: Common runtime base
+# ========================================
+FROM ${RUNNER_IMAGE} AS runner-base
 
 RUN apt-get update -y && \
   apt-get upgrade -y && \
@@ -136,6 +182,30 @@ RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
 
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
+
+# ========================================
+# Stage: Self-hosted runtime — includes Swift NIF
+# Build with: docker build --target runner-selfhosted .
+# ========================================
+FROM runner-base AS runner-selfhosted
+
+# Swift runtime libraries needed by the NIF
+COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
+RUN ldconfig
+
+# Copy compiled NIF .so files into processor priv dir
+COPY --from=nif-bridge-builder /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/ /app/lib/processor-0.1.0/priv/native/
+
+USER nobody
+
+CMD ["sh", "-c", "/app/bin/start"]
+
+# ========================================
+# Stage: Default runtime (hosted) — no Swift NIF
+# BuildKit skips swift-builder since it's not referenced by this target
+# This must be the LAST stage so it's the default docker build target
+# ========================================
+FROM runner-base AS runner
 
 USER nobody
 

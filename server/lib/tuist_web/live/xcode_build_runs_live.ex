@@ -221,10 +221,12 @@ defmodule TuistWeb.XcodeBuildRunsLive do
         field: :status,
         display_name: dgettext("dashboard_builds", "Status"),
         type: :option,
-        options: ["success", "failure"],
+        options: ["success", "failure", "processing", "failed_processing"],
         options_display_names: %{
           "success" => dgettext("dashboard_builds", "Passed"),
-          "failure" => dgettext("dashboard_builds", "Failed")
+          "failure" => dgettext("dashboard_builds", "Failed"),
+          "processing" => dgettext("dashboard_builds", "Processing"),
+          "failed_processing" => dgettext("dashboard_builds", "Failed processing")
         },
         operator: :==,
         value: nil
