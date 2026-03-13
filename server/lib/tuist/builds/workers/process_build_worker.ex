@@ -40,7 +40,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
       {:error, reason} ->
         if attempt >= max_attempts do
-          mark_failed_build_processing(build_id, project_id, account_id)
+          mark_failed_build_processing(build_id, project_id, account_id, build_metadata)
         end
 
         {:error, reason}
@@ -145,15 +145,30 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     :ok
   end
 
-  defp mark_failed_build_processing(build_id, project_id, account_id) do
-    Builds.create_build(%{
-      id: build_id,
-      project_id: project_id,
-      account_id: account_id,
-      status: "failed_processing",
-      duration: 0,
-      is_ci: false
-    })
+  defp mark_failed_build_processing(build_id, project_id, account_id, build_metadata) do
+    metadata = atomize_keys(build_metadata)
+    existing_build = Builds.get_build(build_id)
+
+    base_attrs =
+      if existing_build do
+        existing_build
+        |> Map.from_struct()
+        |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+      else
+        Map.merge(
+          %{id: build_id, account_id: account_id, is_ci: false},
+          metadata
+        )
+      end
+
+    attrs =
+      Map.merge(base_attrs, %{
+        project_id: project_id,
+        status: "failed_processing",
+        duration: 0
+      })
+
+    Builds.create_build(attrs)
   end
 
 

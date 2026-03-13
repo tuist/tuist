@@ -437,6 +437,79 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     end
   end
 
+  describe "perform/1 mark_failed_build_processing" do
+    setup do
+      stub(Tuist.Environment, :processor_url, fn -> "http://localhost:4002" end)
+      stub(Tuist.Environment, :processor_webhook_secret, fn -> "test-secret" end)
+      :ok
+    end
+
+    test "preserves existing build fields when marking as failed", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Req, :post, fn _url, _opts ->
+        {:error, :timeout}
+      end)
+
+      expect(Tuist.Builds, :create_build, fn attrs ->
+        assert attrs.status == "failed_processing"
+        assert attrs.duration == 0
+        assert attrs.id == build.id
+        assert attrs.account_id == account.id
+        assert attrs.xcode_version == build.xcode_version
+        assert attrs.macos_version == build.macos_version
+        assert attrs.is_ci == build.is_ci
+        {:ok, %{id: build.id}}
+      end)
+
+      assert {:error, :timeout} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
+    end
+
+    test "uses build metadata when no existing build found", %{
+      account: account,
+      project: project
+    } do
+      non_existent_build_id = Ecto.UUID.generate()
+
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 500, body: %{"error" => "internal error"}}}
+      end)
+
+      build_metadata = %{
+        "xcode_version" => "16.0",
+        "macos_version" => "15.0",
+        "is_ci" => true,
+        "scheme" => "App",
+        "git_branch" => "main",
+        "git_commit_sha" => "abc123"
+      }
+
+      expect(Tuist.Builds, :get_build, fn ^non_existent_build_id -> nil end)
+
+      expect(Tuist.Builds, :create_build, fn attrs ->
+        assert attrs.status == "failed_processing"
+        assert attrs.duration == 0
+        assert attrs.id == non_existent_build_id
+        assert attrs.xcode_version == "16.0"
+        assert attrs.macos_version == "15.0"
+        assert attrs.is_ci == true
+        assert attrs.scheme == "App"
+        assert attrs.git_branch == "main"
+        assert attrs.git_commit_sha == "abc123"
+        {:ok, %{id: non_existent_build_id}}
+      end)
+
+      args =
+        job_args(non_existent_build_id, account.id, project.id)
+        |> Map.put("build_metadata", build_metadata)
+
+      assert {:error, _} = ProcessBuildWorker.perform(oban_job(args, 3, 3))
+    end
+  end
+
   describe "perform/1 replace_build_run" do
     setup do
       stub(Tuist.Environment, :processor_url, fn -> "http://localhost:4002" end)
