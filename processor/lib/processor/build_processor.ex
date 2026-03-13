@@ -3,7 +3,6 @@ defmodule Processor.BuildProcessor do
 
   @apple_reference_date_offset 978_307_200
 
-  require Logger
 
   def process(storage_key, xcode_cache_upload_enabled) do
     bucket = Application.get_env(:processor, :s3_bucket, "tuist")
