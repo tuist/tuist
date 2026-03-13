@@ -34,7 +34,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         replace_build_run(build_id, parsed_data, account_id, build_metadata)
 
         case Map.get(args, "vcs_comment_params", %{}) do
-          params when params != %{} -> enqueue_vcs_comment(params)
+          params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
           _ -> :ok
         end
 
@@ -156,9 +156,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     })
   end
 
-  defp enqueue_vcs_comment(vcs_comment_params) do
-    Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
-  end
 
   defp atomize_keys(map) when is_map(map) do
     Map.new(map, fn
