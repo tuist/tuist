@@ -578,14 +578,15 @@
 
   /* Community cards */
   & [data-part="community-cards"] {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--noora-spacing-7);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--noora-spacing-5);
   }
 
   & [data-part="community-card"],
   & [data-part="community-card"]:link,
   & [data-part="community-card"]:visited {
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -594,7 +595,7 @@
     border-radius: 12px;
     background: var(--noora-surface-primary);
     padding: var(--noora-spacing-6);
-    width: 370px;
+    width: 100%;
     overflow: hidden;
     color: var(--noora-text-body);
     text-decoration: none;
@@ -656,6 +657,10 @@
 
     & [data-part="community-card"] {
       width: 100%;
+    }
+
+    & [data-part="community-cards"] {
+      grid-template-columns: 1fr;
     }
   }
 }
