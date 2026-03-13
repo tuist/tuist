@@ -30,7 +30,7 @@ PostHog entegrasyonu isteğe bağlıdır ve uygun ortam değişkenleri ayarlanar
 etkinleştirilebilir. Yapılandırıldığında, Tuist kullanıcı olaylarını, sayfa
 görüntülemelerini ve kullanıcı yolculuklarını otomatik olarak izler.
 
-| Ortam değişkeni         | Açıklama                        | Gerekli | Varsayılan | Örnekler                                          |
+| Ortam değişkeni         | Açıklama                        | Gerekli | Varsayılan | Örnek                                             |
 | ----------------------- | ------------------------------- | ------- | ---------- | ------------------------------------------------- |
 | `TUIST_POSTHOG_API_KEY` | PostHog projenizin API anahtarı | Hayır   |            | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `TUIST_POSTHOG_URL`     | PostHog API uç nokta URL'si     | Hayır   |            | `https://eu.i.posthog.com`                        |
