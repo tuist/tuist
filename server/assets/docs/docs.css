@@ -12,6 +12,9 @@
 :root {
   color-scheme: light;
   --docs-nav-height: 73px;
+  --docs-sidebar-width: 220px;
+  --docs-content-width: 800px;
+  --docs-toc-width: 250px;
 }
 
 @media (max-width: 1024px) {
