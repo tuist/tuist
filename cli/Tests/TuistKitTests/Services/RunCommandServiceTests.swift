@@ -361,6 +361,49 @@ struct RunCommandServiceTests {
         ) { try await subject.run(runnable: .scheme("App")) }
     }
 
+    @Test(
+        .inTemporaryDirectory
+    )
+    func run_throws_unspecifiedPlatform_when_target_is_multiplatform_and_no_platform_given() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+        let projectPath = try AbsolutePath(validating: "/path/to")
+        let runnableScheme = Scheme.test(
+            name: "App",
+            runAction: .test(executable: TargetReference(projectPath: projectPath, name: "App"))
+        )
+        let graph = Graph.test(
+            projects: [
+                projectPath: .test(
+                    targets: [
+                        .test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app),
+                    ],
+                    schemes: [runnableScheme]
+                ),
+            ]
+        )
+
+        given(generator)
+            .load(path: .any, options: .any)
+            .willReturn(graph)
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+        given(buildGraphInspector)
+            .workspacePath(directory: .any)
+            .willReturn(workspacePath)
+        given(buildGraphInspector)
+            .runnableSchemes(graphTraverser: .any)
+            .willReturn([runnableScheme])
+        targetRunner.assertCanRunTargetStub = { _ in }
+
+        // Then
+        await #expect(
+            throws: RunCommandServiceError.unspecifiedPlatform(target: "App", platforms: ["ios", "macos"])
+        ) { try await subject.run(runnable: .scheme("App")) }
+    }
+
     @Test
     func run_share_link_when_app_build_artifact_not_found() async throws {
         // Given
@@ -953,6 +996,7 @@ extension RunCommandService {
         clean: Bool = false,
         configuration: String? = nil,
         device: String? = nil,
+        platform: XcodeGraph.Platform? = nil,
         osVersion: String? = nil,
         rosetta: Bool = false,
         arguments: [String] = []
@@ -964,6 +1008,7 @@ extension RunCommandService {
             clean: clean,
             configuration: configuration,
             device: device,
+            platform: platform,
             osVersion: osVersion,
             rosetta: rosetta,
             arguments: arguments

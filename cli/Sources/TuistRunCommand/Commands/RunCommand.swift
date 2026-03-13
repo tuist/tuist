@@ -1,6 +1,9 @@
 import ArgumentParser
 import Foundation
 import TuistEnvKey
+#if os(macOS)
+    import XcodeGraph
+#endif
 
 enum Runnable: ExpressibleByArgument, Equatable {
     init?(argument: String) {
@@ -80,6 +83,13 @@ public struct RunCommand: AsyncParsableCommand {
         var configuration: String?
 
         @Option(
+            name: .long,
+            help: "The platform to run on (ios, macos, tvos, watchos, visionos). Required when the target supports multiple platforms.",
+            envKey: .runPlatform
+        )
+        var platform: XcodeGraph.Platform?
+
+        @Option(
             name: .shortAndLong,
             help: "The OS version of the simulator.",
             envKey: .runOS
@@ -109,6 +119,7 @@ public struct RunCommand: AsyncParsableCommand {
                 clean: clean,
                 configuration: configuration,
                 device: device,
+                platform: platform,
                 osVersion: os,
                 rosetta: rosetta,
                 arguments: arguments
