@@ -8,6 +8,7 @@ servers:
       - cache-ap-southeast.tuist.dev
       - cache-sa-west.tuist.dev
       - cache-au-east.tuist.dev
+      - cache-us-central.tuist.dev
 
 env:
   clear:
