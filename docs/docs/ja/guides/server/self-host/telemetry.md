@@ -5,58 +5,62 @@
   "description": "Monitor your Tuist server with Prometheus and Grafana telemetry."
 }
 ---
-# テレメトリー{#telemetry}
+# テレメトリ{#telemetry}
 
-Tuistサーバーが収集したメトリクスは[Prometheus](https://prometheus.io/)と[Grafana](https://grafana.com/)などの可視化ツールで取り込み、ニーズに合わせたカスタムダッシュボードを作成できます。
-Prometheusメトリクスは、` の/metricsエンドポイント（`
-、ポート9091）経由で提供されます。Prometheusの[scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)は10_000秒未満に設定してください（デフォルトの15秒を維持することを推奨します）。
+[Prometheus](https://prometheus.io/) を使用して Tuist
+サーバーが収集したメトリクスをインポートし、[Grafana](https://grafana.com/)
+などの可視化ツールを使って、ニーズに合わせたカスタムダッシュボードを作成できます。 Prometheusメトリクスは、ポート9091の`/metrics`
+エンドポイント経由で提供されます。Prometheusの
+[scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)
+は10,000秒未満に設定してください（デフォルトの15秒のままにすることを推奨します）。
 
 ## PostHog アナリティクス{#posthog-analytics}
 
-Tuistはユーザー行動分析とイベント追跡のために[PostHog](https://posthog.com/)と連携します。これにより、ユーザーがTuistサーバーとどのようにやり取りしているかを理解し、機能の使用状況を追跡し、マーケティングサイト、ダッシュボード、APIドキュメント全体にわたるユーザー行動に関する洞察を得ることができます。
+Tuistは、ユーザー行動分析とイベント追跡のために[PostHog](https://posthog.com/)と連携しています。これにより、ユーザーがTuistサーバーとどのようにやり取りしているかを把握し、機能の利用状況を追跡し、マーケティングサイト、ダッシュボード、APIドキュメント全体におけるユーザー行動に関する洞察を得ることができます。
 
 ### 設定{#posthog-configuration}
 
-PostHogの統合はオプションであり、適切な環境変数を設定することで有効化できます。設定すると、Tuistはユーザーイベント、ページビュー、ユーザージャーニーを自動的に追跡します。
+PostHog との統合はオプションであり、適切な環境変数を設定することで有効化できます。設定が完了すると、Tuist
+はユーザーイベント、ページビュー、およびユーザージャーニーを自動的に追跡します。
 
-| 環境変数                    | 説明                      | 必須  | デフォルト | 例                                                 |
-| ----------------------- | ----------------------- | --- | ----- | ------------------------------------------------- |
-| `TUIST_POSTHOG_API_KEY` | あなたのPostHogプロジェクトAPIキー  | いいえ |       | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL`     | PostHog API エンドポイント URL | いいえ |       | `https://eu.i.posthog.com`                        |
+| 環境変数                    | 説明                     | 必須  | デフォルト | 例                                                 |
+| ----------------------- | ---------------------- | --- | ----- | ------------------------------------------------- |
+| `TUIST_POSTHOG_API_KEY` | PostHogプロジェクトのAPIキー    | いいえ |       | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `TUIST_POSTHOG_URL`     | PostHog APIのエンドポイントURL | いいえ |       | `https://eu.i.posthog.com`                        |
 
 ::: info ANALYTICS ENABLEMENT
 <!-- -->
-`TUIST_POSTHOG_API_KEY` と`TUIST_POSTHOG_URL`
-の両方が設定されている場合にのみ、アナリティクスが有効になります。いずれかの変数が欠けている場合、アナリティクスイベントは送信されません。
+アナリティクスは、`TUIST_POSTHOG_API_KEY` および`TUIST_POSTHOG_URL`
+の両方が設定されている場合にのみ有効になります。いずれかの変数が欠けている場合、アナリティクスイベントは送信されません。
 <!-- -->
 :::
 
 ### 機能{#posthog-features}
 
-PostHogが有効な場合、Tuistは自動的に以下を追跡します：
+PostHogが有効になっている場合、Tuistは自動的に以下を追跡します：
 
-- **ユーザー識別**: ユーザーは固有のIDとメールアドレスで識別されます
-- **ユーザーエイリアシング**: 識別を容易にするため、ユーザーはアカウント名でエイリアス化されます
-- **グループ分析**: ユーザーは選択したプロジェクトと組織ごとにグループ化され、セグメント化された分析が可能です
-- **ページセクション**: イベントには、アプリケーションのどのセクションで生成されたかを示すスーパープロパティが含まれます:
+- **ユーザー識別**: ユーザーは固有のIDとメールアドレスによって識別されます
+- **ユーザーエイリアス**: ユーザーは識別しやすくするため、アカウント名でエイリアスが設定されています
+- **グループ分析**: セグメント分析を行うため、ユーザーは選択したプロジェクトおよび組織ごとにグループ分けされます
+- **ページセクション**: イベントには、アプリケーションのどのセクションで生成されたかを示すスーパープロパティが含まれています:
   - `marketing` - マーケティングページおよび公開コンテンツからのイベント
-  - `dashboard` - メインアプリケーションのダッシュボードおよび認証済みエリアからのイベント
+  - `ダッシュボード` - メインアプリケーションのダッシュボードおよび認証済みエリアからのイベント
   - `api-docs` - APIドキュメントページからのイベント
 - **ページビュー**: Phoenix LiveView を使用したページナビゲーションの自動追跡
-- **カスタムイベント**: 機能使用とユーザー操作に関するアプリケーション固有のイベント
+- **カスタムイベント**: 機能の使用やユーザー操作に関するアプリケーション固有のイベント
 
-### プライバシーに関する考慮事項{#posthog-privacy}
+### プライバシーに関する注意事項{#posthog-privacy}
 
-- 認証済みユーザーの場合、PostHogはユーザー固有のIDを一意の識別子として使用し、メールアドレスを含めます
-- 匿名ユーザーの場合、PostHogはデータをローカルに保存しないようメモリのみによる永続化を使用します
-- すべての分析はユーザーのプライバシーを尊重し、データ保護のベストプラクティスに従います
+- 認証済みユーザーの場合、PostHogはユーザーの一意のIDを識別子として使用し、メールアドレスを含めます
+- 匿名ユーザーの場合、PostHogはデータをローカルに保存しないよう、メモリのみの永続化を使用します
+- すべての分析はユーザーのプライバシーを尊重し、データ保護のベストプラクティスに従っています
 - PostHogのデータは、PostHogのプライバシーポリシーおよびお客様の設定に従って処理されます
 
-## Elixir metrics{#elixir-metrics}
+## Elixir メトリクス{#elixir-metrics}
 
-デフォルトでは、Elixirランタイム、BEAM、Elixir、および使用しているライブラリの一部に関するメトリクスを含みます。以下は、確認できるメトリクスの例です：
+デフォルトでは、Elixirランタイム、BEAM、Elixir、および使用しているライブラリの一部に関するメトリクスが含まれます。以下は、表示されるメトリクスの例です：
 
-- [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
+- [アプリケーション](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
 - [Phoenix](https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
 - [Phoenix
@@ -64,11 +68,11 @@ PostHogが有効な場合、Tuistは自動的に以下を追跡します：
 - [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
 - [Oban](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-利用可能な指標とその使用方法については、該当ページを確認することをお勧めします。
+利用可能な指標やその使用方法については、これらのページを確認することをお勧めします。
 
-## 実行メトリクス{#runs-metrics}
+## メトリクスの実行{#runs-metrics}
 
-Tuist Runsに関連する一連の指標。
+Tuist Runs に関連する一連のメトリクス。
 
 ### `tuist_runs_total` (カウンター){#tuist_runs_total-counter}
 
@@ -76,27 +80,27 @@ Tuist Runsの総数。
 
 #### タグ{#tuist-runs-total-tags}
 
-| Tag      | 説明                                        |
-| -------- | ----------------------------------------- |
-| `name`   | 実行された`tuistの` コマンド名（例：`build` 、`test` など） |
-| `is_ci`  | 実行環境がCIサーバーか開発者マシンかを示すブール値。               |
-| `status` | ``` 0`の成功時`,`1`の失敗時`.                     |
+| Tag     | 説明                                          |
+| ------- | ------------------------------------------- |
+| `名前`    | 実行された`のtuist` コマンドの名前。例：`build` 、`test` など。 |
+| `is_ci` | 実行者がCI環境か開発者のマシンかを示すブール値。                   |
+| `ステータス` | `0` （`が成功した場合）`,`1` （`が失敗した場合）`.            |
 
-### `tuist_runs_duration_milliseconds` (histogram){#tuist_runs_duration_milliseconds-histogram}
+### `tuist_runs_duration_milliseconds` (ヒストグラム){#tuist_runs_duration_milliseconds-histogram}
 
-各tuistの実行時間の合計（ミリ秒単位）。
+各tuistの実行にかかる合計時間（ミリ秒単位）。
 
 #### タグ{#tuist-runs-duration-miliseconds-tags}
 
-| Tag      | 説明                                        |
-| -------- | ----------------------------------------- |
-| `name`   | 実行された`tuistの` コマンド名（例：`build` 、`test` など） |
-| `is_ci`  | 実行環境がCIサーバーか開発者マシンかを示すブール値。               |
-| `status` | ``` 0`の成功時`,`1`の失敗時`.                     |
+| Tag     | 説明                                          |
+| ------- | ------------------------------------------- |
+| `名前`    | 実行された`のtuist` コマンドの名前。例：`build` 、`test` など。 |
+| `is_ci` | 実行者がCI環境か開発者のマシンかを示すブール値。                   |
+| `ステータス` | `0` （`が成功した場合）`,`1` （`が失敗した場合）`.            |
 
 ## キャッシュメトリクス{#cache-metrics}
 
-Tuist Cacheに関連する一連のメトリクス。
+Tuist Cache に関連する一連のメトリクス。
 
 ### `tuist_cache_events_total` (カウンター){#tuist_cache_events_total-counter}
 
@@ -104,29 +108,29 @@ Tuist Cacheに関連する一連のメトリクス。
 
 #### タグ{#tuist-cache-events-total-tags}
 
-| Tag          | 説明                                             |
-| ------------ | ---------------------------------------------- |
-| `event_type` | `local_hit` 、`remote_hit` 、 または`miss` のいずれかです。 |
+| Tag          | 説明                                                        |
+| ------------ | --------------------------------------------------------- |
+| `event_type` | `（local_hit）、` 、`（remote_hit）、` 、または`（miss）、` のいずれかになります。 |
 
 ### `tuist_cache_uploads_total` (カウンター){#tuist_cache_uploads_total-counter}
 
 バイナリキャッシュへのアップロード回数。
 
-### `tuist_cache_uploaded_bytes` (合計){#tuist_cache_uploaded_bytes-sum}
+### `tuist_cache_uploaded_bytes` (sum){#tuist_cache_uploaded_bytes-sum}
 
 バイナリキャッシュにアップロードされたバイト数。
 
 ### `tuist_cache_downloads_total` (カウンター){#tuist_cache_downloads_total-counter}
 
-バイナリキャッシュへのダウンロード回数。
+バイナリキャッシュへのダウンロード数。
 
-### `tuist_cache_downloaded_bytes` (合計){#tuist_cache_downloaded_bytes-sum}
+### `tuist_cache_downloaded_bytes` (sum){#tuist_cache_downloaded_bytes-sum}
 
 バイナリキャッシュからダウンロードされたバイト数。
 
 ---
 
-## プレビュー指標{#previews-metrics}
+## プレビューの指標{#previews-metrics}
 
 プレビュー機能に関連する一連の指標。
 
@@ -140,17 +144,17 @@ Tuist Cacheに関連する一連のメトリクス。
 
 ---
 
-## ストレージ指標{#storage-metrics}
+## ストレージメトリクス{#storage-metrics}
 
-リモートストレージ（例：s3）におけるアーティファクトの保存に関連する一連のメトリクス。
+リモートストレージ（例：S3）におけるアーティファクトの保存に関連する一連の指標。
 
 ::: チップ
 <!-- -->
-これらの指標は、ストレージ操作のパフォーマンスを理解し、潜在的なボトルネックを特定するのに役立ちます。
+これらの指標は、ストレージ操作のパフォーマンスを把握し、潜在的なボトルネックを特定するのに役立ちます。
 <!-- -->
 :::
 
-### `tuist_storage_get_object_size_size_bytes` (histogram){#tuist_storage_get_object_size_size_bytes-histogram}
+### `tuist_storage_get_object_size_size_bytes` (ヒストグラム){#tuist_storage_get_object_size_size_bytes-histogram}
 
 リモートストレージから取得したオブジェクトのサイズ（バイト単位）。
 
@@ -161,9 +165,9 @@ Tuist Cacheに関連する一連のメトリクス。
 | `オブジェクト・キー` | リモート・ストレージ内のオブジェクトのルックアップ・キー。 |
 
 
-### `tuist_storage_get_object_size_duration_miliseconds` (histogram){#tuist_storage_get_object_size_duration_miliseconds-histogram}
+### `tuist_storage_get_object_size_duration_miliseconds` (ヒストグラム){#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-リモートストレージからオブジェクトサイズを取得する時間（ミリ秒単位）。
+リモートストレージからオブジェクトサイズを取得するのにかかった時間（ミリ秒単位）。
 
 #### タグ{#tuist-storage-get-object-size-duration-miliseconds-tags}
 
@@ -182,9 +186,9 @@ Tuist Cacheに関連する一連のメトリクス。
 | ----------- | ----------------------------- |
 | `オブジェクト・キー` | リモート・ストレージ内のオブジェクトのルックアップ・キー。 |
 
-### `tuist_storage_delete_all_objects_duration_milliseconds` （ヒストグラム）{#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
+### `tuist_storage_delete_all_objects_duration_milliseconds` (ヒストグラム){#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
-リモートストレージから全てのオブジェクトを削除する時間（ミリ秒単位）。
+リモートストレージからすべてのオブジェクトを削除するのにかかる時間（ミリ秒単位）。
 
 #### タグ{#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
@@ -204,9 +208,9 @@ Tuist Cacheに関連する一連のメトリクス。
 | `project_slug` | オブジェクトが削除されるプロジェクトのプロジェクトスラッグ。 |
 
 
-### `tuist_storage_multipart_start_upload_duration_milliseconds` （ヒストグラム）{#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
+### `tuist_storage_multipart_start_upload_duration_milliseconds` (ヒストグラム){#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
-リモートストレージへのアップロード開始までの時間（ミリ秒単位）。
+リモートストレージへのアップロードを開始するまでの時間（ミリ秒単位）。
 
 #### タグ{#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
 
@@ -225,9 +229,9 @@ Tuist Cacheに関連する一連のメトリクス。
 | `オブジェクト・キー` | リモート・ストレージ内のオブジェクトのルックアップ・キー。 |
 
 
-### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram){#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
+### `tuist_storage_get_object_as_string_duration_milliseconds` (ヒストグラム){#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-リモートストレージからオブジェクトを文字列として取得する時間（ミリ秒単位）。
+リモートストレージからオブジェクトを文字列として取得するのにかかる時間（ミリ秒単位）。
 
 #### タグ{#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
@@ -237,7 +241,7 @@ Tuist Cacheに関連する一連のメトリクス。
 
 ### `tuist_storage_get_object_as_string_count` (count){#tuist_storage_get_object_as_string_count-count}
 
-リモートストレージからオブジェクトが文字列として取得された回数。
+リモートストレージから文字列としてオブジェクトが取得された回数。
 
 #### タグ{#tuist-storage-get-object-as-string-count-tags}
 
@@ -246,9 +250,9 @@ Tuist Cacheに関連する一連のメトリクス。
 | `オブジェクト・キー` | リモート・ストレージ内のオブジェクトのルックアップ・キー。 |
 
 
-### `tuist_storage_check_object_existence_duration_milliseconds` (histogram){#tuist_storage_check_object_existence_duration_milliseconds-histogram}
+### `tuist_storage_check_object_existence_duration_milliseconds` (ヒストグラム){#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-リモートストレージ内のオブジェクトの存在を確認する時間（ミリ秒単位）。
+リモートストレージ内のオブジェクトの存在を確認する処理にかかる時間（ミリ秒単位）。
 
 #### タグ{#tuist-storage-check-object-existence-duration-milliseconds-tags}
 
@@ -258,7 +262,7 @@ Tuist Cacheに関連する一連のメトリクス。
 
 ### `tuist_storage_check_object_existence_count` (count){#tuist_storage_check_object_existence_count-count}
 
-リモートストレージにおけるオブジェクトの存在確認回数。
+リモートストレージ内でオブジェクトの存在が確認された回数。
 
 #### タグ{#tuist-storage-check-object-existence-count-tags}
 
@@ -266,9 +270,9 @@ Tuist Cacheに関連する一連のメトリクス。
 | ----------- | ----------------------------- |
 | `オブジェクト・キー` | リモート・ストレージ内のオブジェクトのルックアップ・キー。 |
 
-### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (histogram){#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (ヒストグラム){#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
-リモートストレージ内のオブジェクトに対して事前署名済みダウンロードURLを生成する時間（ミリ秒単位）。
+リモートストレージ内のオブジェクトに対して、ダウンロード用事前署名済みURLを生成するのにかかる時間（ミリ秒単位）。
 
 #### タグ{#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
 
@@ -279,7 +283,7 @@ Tuist Cacheに関連する一連のメトリクス。
 
 ### `tuist_storage_generate_download_presigned_url_count` (count){#tuist_storage_generate_download_presigned_url_count-count}
 
-リモートストレージ内のオブジェクトに対して事前署名済みダウンロードURLが生成された回数。
+リモートストレージ内のオブジェクトに対して、ダウンロード用事前署名済みURLが生成された回数。
 
 #### タグ{#tuist-storage-generate-download-presigned-url-count-tags}
 
@@ -287,31 +291,31 @@ Tuist Cacheに関連する一連のメトリクス。
 | ----------- | ----------------------------- |
 | `オブジェクト・キー` | リモート・ストレージ内のオブジェクトのルックアップ・キー。 |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` （ヒストグラム）{#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
+### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (ヒストグラム){#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
-リモートストレージ内のオブジェクトに対する部分アップロード事前署名URLを生成する時間（ミリ秒単位）。
+リモートストレージ内のオブジェクトに対するパートアップロード用事前署名済みURLを生成するのにかかる時間（ミリ秒単位）。
 
 #### タグ{#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
 | Tag           | 説明                            |
 | ------------- | ----------------------------- |
 | `オブジェクト・キー`   | リモート・ストレージ内のオブジェクトのルックアップ・キー。 |
-| `part_number` | アップロード対象オブジェクトの部品番号。          |
+| `part_number` | アップロードされるオブジェクトの部品番号。         |
 | `upload_id`   | マルチパートアップロードのアップロードID。        |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count){#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
-リモートストレージ内のオブジェクトに対して、事前署名済みURLがアップロードされた回数。
+リモートストレージ内のオブジェクトに対して、部分アップロードの事前署名済みURLが生成された回数。
 
 #### タグ{#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
 | Tag           | 説明                            |
 | ------------- | ----------------------------- |
 | `オブジェクト・キー`   | リモート・ストレージ内のオブジェクトのルックアップ・キー。 |
-| `part_number` | アップロード対象オブジェクトの部品番号。          |
+| `part_number` | アップロードされるオブジェクトの部品番号。         |
 | `upload_id`   | マルチパートアップロードのアップロードID。        |
 
-### `tuist_storage_multipart_complete_upload_duration_milliseconds` （ヒストグラム）{#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
+### `tuist_storage_multipart_complete_upload_duration_milliseconds` (ヒストグラム){#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
 リモートストレージへのアップロード完了までの所要時間（ミリ秒単位）。
 
@@ -336,24 +340,24 @@ Tuist Cacheに関連する一連のメトリクス。
 
 ---
 
-## 認証メトリクス{#authentication-metrics}
+## 認証指標{#authentication-metrics}
 
 認証に関連する一連の指標。
 
-### `tuist_authentication_token_refresh_error_total` （カウンター）{#tuist_authentication_token_refresh_error_total-counter}
+### `tuist_authentication_token_refresh_error_total` (カウンター){#tuist_authentication_token_refresh_error_total-counter}
 
 トークン更新エラーの総数。
 
 #### タグ{#tuist-authentication-token-refresh-error-total-tags}
 
-| Tag           | 説明                                                    |
-| ------------- | ----------------------------------------------------- |
-| `cli_version` | エラーが発生したTuist CLIのバージョン。                              |
-| `理由`          | トークン更新エラーの原因例：`invalid_token_type` または`invalid_token` |
+| Tag           | 説明                                                                |
+| ------------- | ----------------------------------------------------------------- |
+| `cli_version` | エラーが発生したTuist CLIのバージョン。                                          |
+| `理由`          | `、invalid_token_type、` 、または`、invalid_token、` などのトークン更新エラーが発生する理由。 |
 
 ---
 
-## プロジェクト指標{#projects-metrics}
+## プロジェクトの指標{#projects-metrics}
 
 プロジェクトに関連する一連の指標。
 
@@ -373,100 +377,100 @@ Tuist Cacheに関連する一連のメトリクス。
 
 ### `tuist_accounts_users_total` (last_value){#tuist_accounts_users_total-last_value}
 
-総ユーザー数。
+ユーザー総数。
 
 
-## データベース指標{#database-metrics}
+## データベースのメトリクス{#database-metrics}
 
 データベース接続に関連する一連のメトリクス。
 
 ### `tuist_repo_pool_checkout_queue_length` (last_value){#tuist_repo_pool_checkout_queue_length-last_value}
 
-データベース接続に割り当てられるのを待機しているキュー内のデータベースクエリの数。
+データベース接続に割り当てられるのを待機している、キューに滞留しているデータベースクエリの数。
 
 ### `tuist_repo_pool_ready_conn_count` (last_value){#tuist_repo_pool_ready_conn_count-last_value}
 
-データベースクエリに割り当て可能な状態にあるデータベース接続の数。
+データベースクエリに割り当て可能なデータベース接続の数。
 
 
 ### `tuist_repo_pool_db_connection_connected` (カウンター){#tuist_repo_pool_db_connection_connected-counter}
 
-データベースに確立された接続の数。
+データベースへの接続が確立された数。
 
 ### `tuist_repo_pool_db_connection_disconnected` (カウンター){#tuist_repo_pool_db_connection_disconnected-counter}
 
 データベースから切断された接続の数。
 
-## HTTPメトリクス{#http-metrics}
+## HTTP メトリクス{#http-metrics}
 
-TuistがHTTP経由で他のサービスとやり取りする際に関連する一連のメトリクス。
+TuistがHTTP経由で他のサービスとやり取りする際のメトリクス一式。
 
 ### `tuist_http_request_count` (カウンター){#tuist_http_request_count-last_value}
 
 送信されるHTTPリクエストの数。
 
-### `tuist_http_request_duration_nanosecond_sum` (合計){#tuist_http_request_duration_nanosecond_sum-last_value}
+### `tuist_http_request_duration_nanosecond_sum` (sum){#tuist_http_request_duration_nanosecond_sum-last_value}
 
-送信リクエストの合計時間（接続割り当て待ち時間を含む）。
+送信リクエストの合計所要時間（接続の割り当て待ち時間を含む）。
 
-### `tuist_http_request_duration_nanosecond_bucket` (distribution){#tuist_http_request_duration_nanosecond_bucket-distribution}
-送信リクエストの所要時間分布（接続割り当て待機時間を含む）。
+### `tuist_http_request_duration_nanosecond_bucket` (分布){#tuist_http_request_duration_nanosecond_bucket-distribution}
+送信リクエストの所要時間の分布（接続への割り当て待ち時間を含む）。
 
-### `tuist_http_queue_count` （カウンター）{#tuist_http_queue_count-counter}
+### `tuist_http_queue_count` (カウンター){#tuist_http_queue_count-counter}
 
 プールから取得されたリクエストの数。
 
-### `tuist_http_queue_duration_nanoseconds_sum` (合計){#tuist_http_queue_duration_nanoseconds_sum-sum}
+### `tuist_http_queue_duration_nanoseconds_sum` (sum){#tuist_http_queue_duration_nanoseconds_sum-sum}
 
 プールから接続を取得するのにかかる時間。
 
-### `tuist_http_queue_idle_time_nanoseconds_sum` (合計){#tuist_http_queue_idle_time_nanoseconds_sum-sum}
+### `tuist_http_queue_idle_time_nanoseconds_sum` (sum){#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-接続が取得待機状態でアイドル状態だった時間。
+接続が取得されるのを待機している間のアイドル時間。
 
-### `tuist_http_queue_duration_nanoseconds_bucket` (distribution){#tuist_http_queue_duration_nanoseconds_bucket-distribution}
+### `tuist_http_queue_duration_nanoseconds_bucket` (分布){#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
 プールから接続を取得するのにかかる時間。
 
-### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution){#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
+### `tuist_http_queue_idle_time_nanoseconds_bucket` (分布){#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-接続が取得待機状態でアイドル状態だった時間。
+接続が取得されるのを待機している間のアイドル時間。
 
 ### `tuist_http_connection_count` (カウンター){#tuist_http_connection_count-counter}
 
 確立された接続の数。
 
-### `tuist_http_connection_duration_nanoseconds_sum` (合計値){#tuist_http_connection_duration_nanoseconds_sum-sum}
+### `tuist_http_connection_duration_nanoseconds_sum` (sum){#tuist_http_connection_duration_nanoseconds_sum-sum}
 
-ホストに対する接続確立にかかる時間。
+ホストへの接続を確立するのにかかる時間。
 
-### `tuist_http_connection_duration_nanoseconds_bucket` (distribution){#tuist_http_connection_duration_nanoseconds_bucket-distribution}
+### `tuist_http_connection_duration_nanoseconds_bucket` (分布){#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
-ホストに対する接続確立時間の分布。
+ホストへの接続確立にかかる時間の分布。
 
 ### `tuist_http_send_count` (カウンター){#tuist_http_send_count-counter}
 
-プールから接続に割り当てられた後に送信されたリクエストの数。
+プールから割り当てられた接続に対して送信されたリクエストの数。
 
-### `tuist_http_send_duration_nanoseconds_sum` (合計値){#tuist_http_send_duration_nanoseconds_sum-sum}
+### `tuist_http_send_duration_nanoseconds_sum` (sum){#tuist_http_send_duration_nanoseconds_sum-sum}
 
-プールから接続に割り当てられた後、リクエストが完了するまでの所要時間。
+プールから接続が割り当てられた後、リクエストが完了するまでの時間。
 
-### `tuist_http_send_duration_nanoseconds_bucket` (distribution){#tuist_http_send_duration_nanoseconds_bucket-distribution}
+### `tuist_http_send_duration_nanoseconds_bucket` (分布){#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
-プールから接続に割り当てられた後、リクエストが完了するまでの時間の分布。
+プールから接続が割り当てられた後、リクエストが完了するまでの所要時間の分布。
 
 ### `tuist_http_receive_count` (カウンター){#tuist_http_receive_count-counter}
 
-送信したリクエストから受信した応答の数。
+送信したリクエストに対して受け取った応答の数。
 
-### `tuist_http_receive_duration_nanoseconds_sum` (合計){#tuist_http_receive_duration_nanoseconds_sum-sum}
+### `tuist_http_receive_duration_nanoseconds_sum` (sum){#tuist_http_receive_duration_nanoseconds_sum-sum}
 
-応答を受信するのに要した時間。
+回答の受信に要した時間。
 
-### `tuist_http_receive_duration_nanoseconds_bucket` (distribution){#tuist_http_receive_duration_nanoseconds_bucket-distribution}
+### `tuist_http_receive_duration_nanoseconds_bucket` (分布){#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
-応答受信に要した時間の分布。
+応答の受信に要した時間の分布。
 
 ### `tuist_http_queue_available_connections` (last_value){#tuist_http_queue_available_connections-last_value}
 
