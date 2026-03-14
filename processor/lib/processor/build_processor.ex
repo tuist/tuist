@@ -4,26 +4,45 @@ defmodule Processor.BuildProcessor do
   @apple_reference_date_offset 978_307_200
 
   def process(storage_key, xcode_cache_upload_enabled) do
-    bucket = Application.get_env(:processor, :s3_bucket, "tuist")
-    temp_dir = make_temp_dir()
-    build_path = Path.join(temp_dir, "build.zip")
+    :telemetry.span([:processor, :build], %{}, fn ->
+      bucket = Application.get_env(:processor, :s3_bucket, "tuist")
+      temp_dir = make_temp_dir()
+      build_path = Path.join(temp_dir, "build.zip")
 
-    try do
-      {:ok, _} = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
-      process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
-    after
-      cleanup_temp(temp_dir)
-    end
+      try do
+        :telemetry.span([:processor, :s3, :download], %{}, fn ->
+          {:ok, _} = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
+          file_size = File.stat!(build_path).size
+          {:ok, %{file_size: file_size}}
+        end)
+
+        result = process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
+        {result, %{status: :ok}}
+      rescue
+        e ->
+          cleanup_temp(temp_dir)
+          reraise e, __STACKTRACE__
+      after
+        cleanup_temp(temp_dir)
+      end
+    end)
   end
 
   def process_build(build_zip_path, xcode_cache_upload_enabled) do
-    temp_dir = make_temp_dir()
+    :telemetry.span([:processor, :build], %{}, fn ->
+      temp_dir = make_temp_dir()
 
-    try do
-      process_zip(build_zip_path, temp_dir, xcode_cache_upload_enabled)
-    after
-      cleanup_temp(temp_dir)
-    end
+      try do
+        result = process_zip(build_zip_path, temp_dir, xcode_cache_upload_enabled)
+        {result, %{status: :ok}}
+      rescue
+        e ->
+          cleanup_temp(temp_dir)
+          reraise e, __STACKTRACE__
+      after
+        cleanup_temp(temp_dir)
+      end
+    end)
   end
 
   defp process_zip(zip_path, temp_dir, xcode_cache_upload_enabled) do
@@ -32,7 +51,10 @@ defmodule Processor.BuildProcessor do
     cas_path = Path.join(temp_dir, "cas_metadata")
 
     {:ok, parsed_data} =
-      Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, xcode_cache_upload_enabled)
+      :telemetry.span([:processor, :nif, :parse], %{}, fn ->
+        result = Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, xcode_cache_upload_enabled)
+        {result, %{}}
+      end)
 
     machine_metrics =
       read_machine_metrics(
