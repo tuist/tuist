@@ -14,34 +14,36 @@
 <!-- -->
 :::
 
-处理大型项目不应令人感到乏味。事实上，它应该像两周前刚启动的项目那样充满乐趣。
-开发体验恶化的根源在于：项目规模扩大时，构建时间延长，测试变得迟缓且不稳定。这些问题往往在达到忍无可忍的程度前容易被忽视——而一旦发展到这种地步，解决起来就困难重重。Tuist
-Insights 为您提供工具，助您监控项目健康状况，在项目扩展过程中维持高效的开发环境。
+处理大型项目不应让人感到像是在做苦差事。事实上，它应该像两周前刚开始的项目一样令人愉悦。
+之所以并非如此，部分原因在于随着项目规模的扩大，开发者体验会受到影响。构建时间变长，测试变得缓慢且不稳定。这些问题往往容易被忽视，直到它们变得难以忍受——然而，到了那个时候，要解决它们就很难了。Tuist
+Insights 为您提供工具，帮助您监控项目健康状况，并在项目扩展时维持高效的开发环境。
 
-换言之，Tuist Insights 助您解答诸如：
-- 上周构建时间是否显著增加？
-- 我的构建在CI环境中是否比本地开发慢？
+换句话说，Tuist Insights 能帮助您解答以下问题：
+- 过去一周内，构建时间是否显著增加？
+- 与本地开发相比，我的 CI 构建速度是否变慢了？
 
-虽然您可能已建立持续集成工作流的性能指标体系，但本地开发环境的可视化程度可能存在不足。然而，本地构建时长正是影响开发者体验的核心要素之一。
+虽然您可能已掌握持续集成 (CI) 工作流的性能指标，但对本地开发环境的可见性可能并不充分。然而，本地构建时间是影响开发者体验的最重要因素之一。
 
-要开始追踪本地构建时间，可将`tuist inspect build` 命令添加至方案的后处理操作中：
+要开始跟踪本地构建时间，您可以通过将以下命令添加到方案的 post-action 中，利用`tuist inspect build` 命令：
 
-![检查构建后的操作](/images/guides/features/insights/inspect-build-scheme-post-action.png)
+![构建检查后的操作](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
 信息
 <!-- -->
-建议将"提供构建设置来源"设置为可执行文件或您的主构建目标，以便Tuist能够追踪构建配置。
+我们建议将“从以下位置获取构建设置”设置为可执行文件或您的主构建目标，以便 Tuist 能够跟踪构建配置。
 <!-- -->
 :::
 
 信息
 <!-- -->
-若未使用<LocalizedLink href="/guides/features/projects">生成的项目</LocalizedLink>，则构建失败时不会执行后方案操作。
+如果您未使用
+<LocalizedLink href="/guides/features/projects">生成的项目</LocalizedLink>，则在构建失败时不会执行后处理操作。
 <!-- -->
 :::
 > 
-> ` ````
-> Xcode中存在一项未文档化的功能，即使在此情况下仍可执行。在相关项目（`）的项目文件（project.pbxproj）中，于方案（scheme）的构建设置（`）下，将`的runPostActionsOnFailure属性设置为YES，具体操作如下：
+> ` ``
+> Xcode中有一项未记录的功能，允许您即使在此情况下也能执行该操作。请在相关项目的.pbxproj文件中，于方案的`BuildAction中，将属性`runPostActionsOnFailure`
+> 设置为`YES` ，具体操作如下：
 > 
 > ```diff
 > <BuildAction
@@ -65,16 +67,16 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 :::
 
 
-只要登录Tuist账户，您的本地构建进度将自动追踪。您现在可通过Tuist仪表盘查看构建时间，并追踪其随时间的变化趋势：
+只要您登录了 Tuist 账户，您的本地构建情况就会被记录下来。现在，您可以在 Tuist 仪表盘中查看构建时间，并观察其随时间的变化趋势：
 
 
 ::: tip
 <!-- -->
-要快速访问仪表板，请在命令行界面运行：`tuist project show --web`
+要快速访问仪表盘，请在命令行界面（CLI）中运行：`tuist project show --web` 。
 <!-- -->
 :::
 
-![包含构建洞察的仪表板](/images/guides/features/insights/builds-dashboard.png)
+![包含构建分析的仪表板](/images/guides/features/insights/builds-dashboard.png)
 
 ## 生成的项目 {#generated-projects}
 
@@ -84,11 +86,11 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 <!-- -->
 :::
 > 
-> 若您不希望在自动生成的架构中追踪洞察数据，请通过
+> 如果您不希望在自动生成的方案中追踪洞察数据，请使用
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
-> 生成功能选项禁用该功能。
+> 生成选项将其禁用。
 
-若使用自定义方案生成的项目，可为构建洞察设置后置操作：
+如果您使用的是带有自定义方案的生成项目，可以为构建洞察设置后处理操作：
 
 ```swift
 let project = Project(
@@ -139,14 +141,14 @@ buildAction: .buildAction(
 
 ## 持续集成{#continuous-integration}
 
-要在持续集成中追踪构建洞察，您需要确保您的持续集成已完成<LocalizedLink href="/guides/integrations/continuous-integration#authentication">身份验证</LocalizedLink>。
+要在 CI 上追蹤建置分析資料，您需要確保您的 CI 已
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">完成驗證</LocalizedLink>。
 
 此外，您还需要：
 - 调用`xcodebuild` 操作时，请使用
   <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
   xcodebuild`</LocalizedLink> 命令。
-- `在调用 ``` 时添加 `xcodebuild` ` 参数 `-resultBundlePath` `。
+- `` 在调用 ``` 时添加 `xcodebuild` 参数 `-resultBundlePath` `。
 
-当执行 ``` 并使用 `xcodebuild` ` 构建项目时，若未指定 ``` 及
-`-resultBundlePath``，则不会生成必需的活动日志和结果包文件。`的 `tuist inspect build` `
-后置操作需要这些文件来分析构建结果。
+当`xcodebuild` 在未指定`-resultBundlePath` 的情况下构建项目时，所需的活动日志和结果包文件将不会生成。`tuist
+inspect build` 的后处理操作需要这些文件来分析您的构建。
