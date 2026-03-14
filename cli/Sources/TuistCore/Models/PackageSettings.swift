@@ -6,6 +6,9 @@ public struct PackageSettings: Equatable, Codable {
     /// The custom `Product` types to be used for SPM targets.
     public let productTypes: [String: Product]
 
+    /// The default product type (usually static framework)
+    public let baseProductType: Product
+
     /// Custom destinations to be used for SPM products.
     public let productDestinations: [String: Destinations]
 
@@ -21,17 +24,20 @@ public struct PackageSettings: Equatable, Codable {
     /// Initializes a new `PackageSettings` instance.
     /// - Parameters:
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
+    ///    - baseProductType: The default product type (usually static framework)
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
     ///    - projectOptions: The custom project options for each project generated from a swift package
     public init(
         productTypes: [String: Product],
+        baseProductType: Product,
         productDestinations: [String: Destinations],
         baseSettings: Settings,
         targetSettings: [String: Settings],
         projectOptions: [String: XcodeGraph.Project.Options] = [:]
     ) {
         self.productTypes = productTypes
+        self.baseProductType = baseProductType
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
@@ -43,6 +49,7 @@ public struct PackageSettings: Equatable, Codable {
     extension PackageSettings {
         public static func test(
             productTypes: [String: Product] = [:],
+            baseProductType: Product = .staticFramework,
             productDestinations: [String: Destinations] = [:],
             baseSettings: Settings = Settings.default,
             targetSettings: [String: Settings] = [:],
@@ -50,6 +57,7 @@ public struct PackageSettings: Equatable, Codable {
         ) -> PackageSettings {
             PackageSettings(
                 productTypes: productTypes,
+                baseProductType: baseProductType,
                 productDestinations: productDestinations,
                 baseSettings: baseSettings,
                 targetSettings: targetSettings,

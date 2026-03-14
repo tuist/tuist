@@ -325,6 +325,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     path: path,
                     packageFolder: path,
                     productTypes: productTypes,
+                    baseProductType: packageSettings.baseProductType,
                     productDestinations: packageSettings.productDestinations,
                     baseSettings: packageSettings.baseSettings,
                     targetSettings: packageSettings.targetSettings,
@@ -432,6 +433,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
+        baseProductType: XcodeGraph.Product,
         productDestinations: [String: XcodeGraph.Destinations],
         baseSettings: XcodeGraph.Settings,
         targetSettings: [String: XcodeGraph.Settings],
@@ -463,7 +465,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             name: target.name,
             type: target.type,
             products: products,
-            productTypes: productTypes
+            productTypes: productTypes,
+            baseProductType: baseProductType
         )
         else {
             Logger.current.debug("Target \(target.name) ignored by product type")
@@ -802,7 +805,8 @@ extension ProjectDescription.Product {
         name: String,
         type: PackageInfo.Target.TargetType,
         products: Set<PackageInfo.Product>,
-        productTypes: [String: XcodeGraph.Product]
+        productTypes: [String: XcodeGraph.Product],
+        baseProductType: XcodeGraph.Product
     ) -> Self? {
         // Swift Macros are command line tools that run in the host (macOS) at compilation time.
         switch type {
@@ -849,8 +853,8 @@ extension ProjectDescription.Product {
         }
 
         if hasAutomaticProduct {
-            // contains automatic product, default to static framework
-            return .staticFramework
+            // contains automatic product, default to base product type (usually static framework)
+            return ProjectDescription.Product.from(product: baseProductType)
         } else if product != nil {
             // return found product if there is no automatic products
             return product

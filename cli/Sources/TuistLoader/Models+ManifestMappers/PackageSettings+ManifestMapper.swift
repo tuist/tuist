@@ -13,6 +13,7 @@ extension TuistCore.PackageSettings {
         generatorPaths: GeneratorPaths
     ) throws -> Self {
         let productTypes = manifest.productTypes.mapValues { XcodeGraph.Product.from(manifest: $0) }
+        let baseProductType = XcodeGraph.Product.from(manifest: manifest.baseProductType)
         let productDestinations = try manifest.productDestinations.mapValues { try XcodeGraph.Destination.from(destinations: $0) }
         let baseSettings = try XcodeGraph.Settings.from(manifest: manifest.baseSettings, generatorPaths: generatorPaths)
         let targetSettings = try manifest.targetSettings.mapValues { try XcodeGraph.Settings.from(
@@ -25,6 +26,7 @@ extension TuistCore.PackageSettings {
 
         return .init(
             productTypes: productTypes,
+            baseProductType: baseProductType,
             productDestinations: productDestinations,
             baseSettings: baseSettings,
             targetSettings: targetSettings,

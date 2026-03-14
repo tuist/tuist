@@ -27,6 +27,9 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// The custom `Product` type to be used for SPM targets.
     public var productTypes: [String: Product]
 
+    /// The default product type (usually static framework)
+    public var baseProductType: Product
+
     /// Custom product destinations where key of the dictionary is the name of the SPM product and the value contains the
     /// supported destinations.
     /// **Note**: This setting should only be used when using Tuist for SPM package projects, _not_ for your external
@@ -48,18 +51,21 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameters:
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
+    ///     - baseProductType: The default product type (usually static framework).
     ///     - productDestinations: Custom destinations to be used for SPM products.
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     public init(
         productTypes: [String: Product] = [:],
+        baseProductType: Product = .staticFramework,
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: Settings] = [:],
         projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
+        self.baseProductType = baseProductType
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
@@ -70,6 +76,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameters:
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
+    ///     - baseProductType: The default product type (usually static framework).
     ///     - productDestinations: Custom destinations to be used for SPM products.
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
@@ -84,12 +91,14 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     )
     public init(
         productTypes: [String: Product] = [:],
+        baseProductType: Product = .staticFramework,
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
+        self.baseProductType = baseProductType
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings.mapValues { .settings(base: $0) }
