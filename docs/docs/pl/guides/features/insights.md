@@ -16,48 +16,48 @@
 
 Praca nad dużymi projektami nie powinna być uciążliwa. W rzeczywistości powinna
 być tak samo przyjemna, jak praca nad projektem, który rozpocząłeś zaledwie dwa
-tygodnie temu. Jednym z powodów, dla których tak nie jest, jest to, że wraz z
-rozwojem projektu pogarsza się komfort pracy programistów. Czas kompilacji
-wydłuża się, a testy stają się powolne i zawodne. Często łatwo jest przeoczyć te
-problemy, dopóki nie osiągną one punktu, w którym stają się nie do zniesienia —
+tygodnie temu. Jednym z powodów, dla których tak nie jest, jest fakt, że wraz z
+rozwojem projektu pogarsza się komfort pracy programistów. Wydłuża się czas
+kompilacji, a testy stają się powolne i zawodne. Często łatwo przeoczyć te
+problemy, dopóki nie osiągną punktu, w którym stają się nie do zniesienia –
 jednak w tym momencie trudno jest je rozwiązać. Tuist Insights zapewnia
-narzędzia do monitorowania stanu projektu i utrzymania produktywnego środowiska
-programistycznego w miarę jego rozwoju.
+narzędzia do monitorowania kondycji projektu i utrzymania produktywnego
+środowiska programistycznego w miarę jego skalowania.
 
-Innymi słowy, Tuist Insights pomaga odpowiedzieć na takie pytania, jak:
-- Czy czas kompilacji znacznie wzrósł w ciągu ostatniego tygodnia?
+Innymi słowy, Tuist Insights pomaga odpowiedzieć na pytania takie jak:
+- Czy czas kompilacji znacznie się wydłużył w ciągu ostatniego tygodnia?
 - Czy moje kompilacje są wolniejsze na CI w porównaniu do rozwoju lokalnego?
 
 Chociaż prawdopodobnie dysponujesz pewnymi wskaźnikami wydajności procesów CI,
 możesz nie mieć takiego samego wglądu w lokalne środowisko programistyczne.
 Jednak czas lokalnej kompilacji jest jednym z najważniejszych czynników
-wpływających na komfort pracy programistów.
+wpływających na komfort pracy programisty.
 
-Aby rozpocząć śledzenie lokalnych czasów kompilacji, możesz skorzystać z
-polecenia `tuist inspect build`, dodając je do akcji po zakończeniu schematu:
+Aby rozpocząć śledzenie lokalnych czasów kompilacji, możesz wykorzystać
+polecenie `tuist inspect build`, dodając je do post-action swojego schematu:
 
-![Czynności po zakończeniu inspekcji
+![Działania po zakończeniu
 kompilacji](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
 :: info
 <!-- -->
-Zalecamy ustawienie opcji „Provide build settings from” (Podaj ustawienia
-kompilacji z) na plik wykonywalny lub główny cel kompilacji, aby umożliwić Tuist
-śledzenie konfiguracji kompilacji.
+Zalecamy ustawienie opcji „Provide build settings from” na plik wykonywalny lub
+główny cel kompilacji, aby umożliwić Tuist śledzenie konfiguracji kompilacji.
 <!-- -->
 :::
 
 :: info
 <!-- -->
-Jeśli nie używasz <LocalizedLink href="/guides/features/projects">wygenerowanych
-projektów</LocalizedLink>, akcja po schemacie nie zostanie wykonana w przypadku
-niepowodzenia kompilacji.
+Jeśli nie korzystasz z
+<LocalizedLink href="/guides/features/projects">generowanych
+projektów</LocalizedLink>, akcja po zakończeniu kompilacji nie zostanie wykonana
+w przypadku niepowodzenia kompilacji.
 <!-- -->
 :::
 > 
-> Nieudokumentowana funkcja w Xcode pozwala na wykonanie tego nawet w tym
-> przypadku. Ustaw atrybut `runPostActionsOnFailure` na `YES` w schemacie
-> `BuildAction` w odpowiednim `project.pbxproj` pliku w następujący sposób:
+> Nieudokumentowana funkcja w Xcode pozwala na wykonanie kodu nawet w tym
+> przypadku. Ustaw atrybut `runPostActionsOnFailure` na `YES` w sekcji
+> `BuildAction` w odpowiednim pliku `project.pbxproj` w następujący sposób:
 > 
 > ```diff
 > <BuildAction
@@ -92,8 +92,8 @@ zobaczyć, jak zmieniają się one w czasie:
 
 ::: napiwek
 <!-- -->
-Aby szybko uzyskać dostęp do pulpitu nawigacyjnego, uruchom `tuist project show
---web` z poziomu CLI.
+Aby szybko uzyskać dostęp do pulpitu nawigacyjnego, uruchom polecenie `tuist
+project show --web` z poziomu CLI.
 <!-- -->
 :::
 
@@ -171,7 +171,7 @@ Aby śledzić informacje o kompilacji w CI, należy upewnić się, że CI jest
 Dodatkowo należy:
 - Użyj polecenia <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
   xcodebuild`</LocalizedLink> podczas wywoływania akcji `xcodebuild`.
-- Dodaj `-resultBundlePath` do wywołania `xcodebuild`.
+- Dodaj `-resultBundlePath` do swojego wywołania `xcodebuild`.
 
 Gdy `xcodebuild` buduje projekt bez `-resultBundlePath`, wymagane pliki
 dziennika aktywności i pakietu wyników nie są generowane. Funkcja `tuist inspect
