@@ -44,39 +44,46 @@ defmodule Tuist.Tests do
 
   def total_test_run_count do
     Test
-    |> from(select: count())
+    |> from(hints: ["FINAL"], select: count())
     |> ClickHouseRepo.one() || 0
   end
 
   def total_test_case_run_count do
     TestCaseRun
-    |> from(select: count())
+    |> from(hints: ["FINAL"], select: count())
     |> ClickHouseRepo.one() || 0
   end
 
   def flaky_test_case_run_count do
     TestCaseRun
-    |> from(where: [is_flaky: true], select: count())
+    |> from(hints: ["FINAL"], where: [is_flaky: true], select: count())
     |> ClickHouseRepo.one() || 0
   end
 
   def last_24h_test_run_count do
     twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
-    ClickHouseRepo.one(from(t in Test, where: t.inserted_at >= ^twenty_four_hours_ago, select: count())) || 0
+    ClickHouseRepo.one(from(t in Test, hints: ["FINAL"], where: t.inserted_at >= ^twenty_four_hours_ago, select: count())) ||
+      0
   end
 
   def last_24h_test_case_run_count do
     twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
-    ClickHouseRepo.one(from(t in TestCaseRun, where: t.inserted_at >= ^twenty_four_hours_ago, select: count())) || 0
+    ClickHouseRepo.one(
+      from(t in TestCaseRun, hints: ["FINAL"], where: t.inserted_at >= ^twenty_four_hours_ago, select: count())
+    ) || 0
   end
 
   def last_24h_flaky_test_case_run_count do
     twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
     ClickHouseRepo.one(
-      from(t in TestCaseRun, where: t.is_flaky == true and t.inserted_at >= ^twenty_four_hours_ago, select: count())
+      from(t in TestCaseRun,
+        hints: ["FINAL"],
+        where: t.is_flaky == true and t.inserted_at >= ^twenty_four_hours_ago,
+        select: count()
+      )
     ) || 0
   end
 

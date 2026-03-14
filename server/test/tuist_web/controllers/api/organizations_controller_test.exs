@@ -422,6 +422,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["name"] == "tuist-org"
       assert response["sso_provider"] == "google"
       assert response["sso_organization_id"] == "tuist.io"
+      assert response["sso_enforced"] == false
     end
 
     test "updates SSO to nil",
@@ -449,6 +450,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["name"] == "tuist-org"
       assert response["sso_provider"] == nil
       assert response["sso_organization_id"] == nil
+      assert response["sso_enforced"] == false
     end
 
     test "returns :forbidden when user is not an admin of an organization", %{

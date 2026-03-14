@@ -12,6 +12,9 @@ defmodule Processor.Application do
     ]
 
     opts = [strategy: :one_for_one, name: Processor.Supervisor]
+
+    start_sentry_logger()
+
     Supervisor.start_link(children, opts)
   end
 
@@ -19,5 +22,13 @@ defmodule Processor.Application do
   def config_change(changed, _new, removed) do
     ProcessorWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  defp start_sentry_logger do
+    if Application.get_env(:sentry, :dsn) do
+      :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
+        config: %{metadata: [:file, :line]}
+      })
+    end
   end
 end

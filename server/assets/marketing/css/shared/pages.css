@@ -3,6 +3,17 @@
   flex-direction: column;
   align-items: center;
 
+  & > [data-part="stats"] {
+    & [data-part="stat"] {
+      & > [data-part="value"] {
+        display: inline-block;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+        white-space: nowrap;
+      }
+    }
+  }
+
   & > section,
   & > header:not(#marketing-navbar),
   & > figure {

@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.158.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use CFBundleExecutable for binary lookup in tuist share by [@fortmarek](https://github.com/fortmarek) in [#9840](https://github.com/tuist/tuist/pull/9840)
+* correct SYMROOT path in cache warm builds by [@fortmarek](https://github.com/fortmarek) in [#9833](https://github.com/tuist/tuist/pull/9833)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.158.0...4.158.1
+
 ## What's Changed in 4.158.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

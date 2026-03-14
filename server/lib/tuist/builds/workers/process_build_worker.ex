@@ -152,7 +152,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       existing_build ->
         existing_build
         |> Map.from_struct()
-        |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+        |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets, :machine_metrics])
     end
   end
 
