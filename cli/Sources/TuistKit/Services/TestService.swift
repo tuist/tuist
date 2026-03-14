@@ -354,6 +354,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let schemeTestTargetNames = Set(
+            schemes.flatMap {
+                testActionTargetReferences(
+                    scheme: $0,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
+                )
+            }.map(\.name)
+        )
+        let testTargets = testTargets.filter { schemeTestTargetNames.contains($0.target) }
+
         do {
             try await testSchemes(
                 schemes,

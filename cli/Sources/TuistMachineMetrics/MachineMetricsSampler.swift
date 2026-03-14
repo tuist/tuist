@@ -203,6 +203,7 @@
 
         private func appendSample(_ sample: MachineMetricSample) async throws {
             let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
             guard let data = try? encoder.encode(sample),
                   let line = String(data: data, encoding: .utf8)
             else { return }
@@ -236,6 +237,7 @@
                 let cutoff = Date().timeIntervalSince1970 - 3600
 
                 let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
                 let recentLines = lines.filter { line in
                     guard let lineData = line.data(using: .utf8),
                           let sample = try? decoder.decode(MachineMetricSample.self, from: lineData)

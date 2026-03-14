@@ -138,7 +138,9 @@ defmodule TuistWeb.XcodeOverviewLive do
       Builds.list_build_runs(%{
         last: 30,
         filters: [
-          %{field: :project_id, op: :==, value: project_id}
+          %{field: :project_id, op: :==, value: project_id},
+          %{field: :status, op: :!=, value: "processing"},
+          %{field: :status, op: :!=, value: "failed_processing"}
         ],
         order_by: [:inserted_at],
         order_directions: [:asc]

@@ -211,11 +211,17 @@ jobs:
         with:
           path: .build
           key: ${{ steps.spm-cache.outputs.cache-primary-key }}
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y curl
       - uses: jdx/mise-action@v2
+        with:
+          working_directory: docs
+      - uses: 1password/install-cli-action@v2
       - name: Deploy to Cloudflare Pages
+        working-directory: docs
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
           CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
         run: |
-          op run -- npx wrangler pages deploy --commit-hash ${{ github.sha }} --branch main --project-name tuist-projectdescription .build/documentation
+          op run -- npx wrangler pages deploy --commit-hash ${{ github.sha }} --branch main --project-name tuist-projectdescription ../.build/documentation

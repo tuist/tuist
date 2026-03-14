@@ -20,6 +20,22 @@ defmodule Tuist.Builds do
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
+  def build_storage_key(account_handle, project_handle, build_id) do
+    "#{account_handle}/#{project_handle}/builds/#{build_id}/build.zip"
+  end
+
+  def total_count do
+    Build
+    |> from(select: count())
+    |> ClickHouseRepo.one()
+  end
+
+  def last_24h_build_count do
+    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
+
+    ClickHouseRepo.one(from(b in Build, where: b.inserted_at >= ^twenty_four_hours_ago, select: count())) || 0
+  end
+
   def get_build(id) do
     Build
     |> from(where: [id: ^id], order_by: [desc: :inserted_at], limit: 1)
@@ -35,10 +51,10 @@ defmodule Tuist.Builds do
       cacheable_tasks_count: Map.get(attrs, :cacheable_tasks_count) || length(cacheable_tasks),
       cacheable_task_local_hits_count:
         Map.get(attrs, :cacheable_task_local_hits_count) ||
-          Enum.count(cacheable_tasks, &(&1.status == :hit_local)),
+          Enum.count(cacheable_tasks, &(to_string(&1.status) == "hit_local")),
       cacheable_task_remote_hits_count:
         Map.get(attrs, :cacheable_task_remote_hits_count) ||
-          Enum.count(cacheable_tasks, &(&1.status == :hit_remote))
+          Enum.count(cacheable_tasks, &(to_string(&1.status) == "hit_remote"))
     }
 
     attrs = Map.merge(attrs, cacheable_task_counts)
@@ -94,7 +110,10 @@ defmodule Tuist.Builds do
           type:
             case file_attrs.type do
               :swift -> 0
+              "swift" -> 0
               :c -> 1
+              "c" -> 1
+              _ -> 0
             end,
           path: file_attrs.path,
           target: file_attrs.target,
@@ -118,36 +137,12 @@ defmodule Tuist.Builds do
       Enum.map(issues, fn issue_attrs ->
         %{
           build_run_id: build.id,
-          type:
-            case issue_attrs.type do
-              :warning -> 0
-              :error -> 1
-            end,
+          type: normalize_issue_type(issue_attrs.type),
           target: issue_attrs.target,
           project: issue_attrs.project,
           title: issue_attrs.title,
           signature: issue_attrs.signature,
-          step_type:
-            case issue_attrs.step_type do
-              :c_compilation -> 0
-              :swift_compilation -> 1
-              :script_execution -> 2
-              :create_static_library -> 3
-              :linker -> 4
-              :copy_swift_libs -> 5
-              :compile_assets_catalog -> 6
-              :compile_storyboard -> 7
-              :write_auxiliary_file -> 8
-              :link_storyboards -> 9
-              :copy_resource_file -> 10
-              :merge_swift_module -> 11
-              :xib_compilation -> 12
-              :swift_aggregated_compilation -> 13
-              :precompile_bridging_header -> 14
-              :other -> 15
-              :validate_embedded_binary -> 16
-              :validate -> 17
-            end,
+          step_type: normalize_step_type(issue_attrs.step_type),
           path: Map.get(issue_attrs, :path),
           message: Map.get(issue_attrs, :message),
           starting_line: issue_attrs.starting_line,
@@ -162,6 +157,42 @@ defmodule Tuist.Builds do
       issues
     )
   end
+
+  defp normalize_issue_type(:warning), do: 0
+  defp normalize_issue_type("warning"), do: 0
+  defp normalize_issue_type(:error), do: 1
+  defp normalize_issue_type("error"), do: 1
+  defp normalize_issue_type(_), do: 0
+
+  @step_type_map %{
+    c_compilation: 0,
+    swift_compilation: 1,
+    script_execution: 2,
+    create_static_library: 3,
+    linker: 4,
+    copy_swift_libs: 5,
+    compile_assets_catalog: 6,
+    compile_storyboard: 7,
+    write_auxiliary_file: 8,
+    link_storyboards: 9,
+    copy_resource_file: 10,
+    merge_swift_module: 11,
+    xib_compilation: 12,
+    swift_aggregated_compilation: 13,
+    precompile_bridging_header: 14,
+    other: 15,
+    validate_embedded_binary: 16,
+    validate: 17
+  }
+
+  defp normalize_step_type(value) when is_atom(value), do: Map.get(@step_type_map, value, 15)
+
+  defp normalize_step_type(value) when is_binary(value) do
+    atom = String.to_atom(value)
+    Map.get(@step_type_map, atom, 15)
+  end
+
+  defp normalize_step_type(_), do: 15
 
   defp create_cacheable_tasks(build, tasks) do
     tasks =
@@ -193,7 +224,7 @@ defmodule Tuist.Builds do
         %{
           build_run_id: build.id,
           timestamp: metric.timestamp,
-          cpu_usage_percent: metric.cpu_usage_percent,
+          cpu_usage_percent: metric.cpu_usage_percent / 1,
           memory_used_bytes: metric.memory_used_bytes,
           memory_total_bytes: metric.memory_total_bytes,
           network_bytes_in: metric.network_bytes_in,
@@ -363,7 +394,7 @@ defmodule Tuist.Builds do
     preload = Keyword.get(opts, :preload, [])
     custom_values = Keyword.get(opts, :custom_values)
 
-    base_query = apply_custom_values_filter(Build, custom_values)
+    base_query = apply_custom_values_filter(from(b in Build, hints: ["FINAL"]), custom_values)
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 
@@ -382,7 +413,7 @@ defmodule Tuist.Builds do
       countIf(status = 'failure') as failed_count
     FROM (
       SELECT status
-      FROM build_runs
+      FROM build_runs FINAL
       WHERE project_id = {project_id:Int64}
       ORDER BY inserted_at #{order_direction}
       LIMIT {limit:UInt32}

@@ -13,6 +13,11 @@ defmodule TuistWeb.API.Schemas.Builds.Build do
     properties: %{
       type: %Schema{type: :string, enum: ["build"], description: "The type of the run, which is 'build' in this case"},
       id: %Schema{type: :string, description: "The unique identifier of the build run"},
+      status: %Schema{
+        type: :string,
+        enum: ["success", "failure", "processing", "failed_processing"],
+        description: "The status of the build run"
+      },
       duration: %Schema{type: :integer, description: "The duration of the build run in milliseconds"},
       project_id: %Schema{type: :integer, description: "The ID of the Tuist project associated with this build run"},
       url: %Schema{type: :string, description: "The URL to access the build run"}

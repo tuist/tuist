@@ -37,6 +37,8 @@ services:
         value: http://tuist-fmpt:4317
       - key: TUIST_LOKI_URL
         value: http://tuist-fmpt:3100
+      - key: TUIST_PROCESSOR_URL
+        value: http://processor.tuist.dev:4002
     domains:
       - tuist.dev
 
@@ -73,6 +75,8 @@ services:
         value: http://tuist-fmpt:4317
       - key: TUIST_LOKI_URL
         value: http://tuist-fmpt:3100
+      - key: TUIST_PROCESSOR_URL
+        value: http://processor-canary.tuist.dev:4002
     domains:
       - canary.tuist.dev
 
@@ -104,6 +108,8 @@ services:
         value: http://tuist-fmpt:4317
       - key: TUIST_LOKI_URL
         value: http://tuist-fmpt:3100
+      - key: TUIST_PROCESSOR_URL
+        value: http://processor-staging.tuist.dev:4002
     domains:
       - staging.tuist.dev
 
@@ -186,7 +192,7 @@ services:
       - key: MIX_ENV
         value: stag
       - key: TUIST_HOSTED
-        value: 0
+        value: 1
       - key: EMBED_CLICKHOUSE
         value: true
       - key: TUIST_USE_SSL_FOR_DATABASE
