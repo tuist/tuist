@@ -436,6 +436,11 @@ defmodule TuistWeb.Router do
 
         scope "/builds" do
           get "/", BuildsController, :index
+
+          scope "/gradle" do
+            get "/:build_id/tasks", GradleTasksController, :index
+          end
+
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
           post "/upload/start", BuildsController, :multipart_start

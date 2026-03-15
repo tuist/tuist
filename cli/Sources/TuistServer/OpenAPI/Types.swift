@@ -294,6 +294,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache/clean/put(cleanCache)`.
     func cleanCache(_ input: Operations.cleanCache.Input) async throws -> Operations.cleanCache.Output
+    /// List tasks for a Gradle build.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/get(listGradleBuildTasks)`.
+    func listGradleBuildTasks(_ input: Operations.listGradleBuildTasks.Input) async throws -> Operations.listGradleBuildTasks.Output
     /// Revoke an account token.
     ///
     /// This endpoint revokes (deletes) an account token by name.
@@ -1214,6 +1219,21 @@ extension APIProtocol {
     ) async throws -> Operations.cleanCache.Output {
         try await cleanCache(Operations.cleanCache.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// List tasks for a Gradle build.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/get(listGradleBuildTasks)`.
+    public func listGradleBuildTasks(
+        path: Operations.listGradleBuildTasks.Input.Path,
+        query: Operations.listGradleBuildTasks.Input.Query = .init(),
+        headers: Operations.listGradleBuildTasks.Input.Headers = .init()
+    ) async throws -> Operations.listGradleBuildTasks.Output {
+        try await listGradleBuildTasks(Operations.listGradleBuildTasks.Input(
+            path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -2268,6 +2288,10 @@ public enum Components {
                 case upload_id
             }
         }
+        /// The page number to return.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GradleTasksIndexPage`.
+        public typealias GradleTasksIndexPage = Swift.Int
         /// A command event.
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEvent`.
@@ -5920,6 +5944,16 @@ public enum Components {
                 case url
             }
         }
+        /// - Remark: Generated from `#/components/schemas/GradleBuildStatus`.
+        @frozen public enum GradleBuildStatus: String, Codable, Hashable, Sendable, CaseIterable {
+            case success = "success"
+            case failure = "failure"
+            case cancelled = "cancelled"
+        }
+        /// The maximum number of builds to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GradleBuildsIndexPageSize`.
+        public typealias GradleBuildsIndexPageSize = Swift.Int
         /// A token to authenticate API requests as a project.
         ///
         /// - Remark: Generated from `#/components/schemas/ProjectToken`.
@@ -6499,6 +6533,16 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseRunsByTestRunPage`.
         public typealias TestCaseRunsByTestRunPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/GradleTaskOutcome`.
+        @frozen public enum GradleTaskOutcome: String, Codable, Hashable, Sendable, CaseIterable {
+            case local_hit = "local_hit"
+            case remote_hit = "remote_hit"
+            case up_to_date = "up_to_date"
+            case executed = "executed"
+            case failed = "failed"
+            case skipped = "skipped"
+            case no_source = "no_source"
+        }
         /// A paginated list of test case runs.
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseRunsList`.
@@ -6602,6 +6646,10 @@ public enum Components {
                 case error
             }
         }
+        /// The page number to return.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GradleBuildsIndexPage`.
+        public typealias GradleBuildsIndexPage = Swift.Int
         /// - Remark: Generated from `#/components/schemas/Error`.
         public struct _Error: Codable, Hashable, Sendable {
             /// The error message
@@ -8677,6 +8725,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseRunsByTestRunPageSize`.
         public typealias TestCaseRunsByTestRunPageSize = Swift.Int
+        /// The maximum number of tasks to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GradleTasksIndexPageSize`.
+        public typealias GradleTasksIndexPageSize = Swift.Int
         /// A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
         ///
         /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
@@ -12681,28 +12733,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -23581,25 +23633,45 @@ public enum Operations {
             public var path: Operations.listGradleBuilds.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Maximum number of builds to return.
+                /// Filter by git branch.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query/limit`.
-                public var limit: Swift.Int?
-                /// Number of builds to skip.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query/git_branch`.
+                public var git_branch: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                    case cancelled = "cancelled"
+                }
+                /// Filter by build status.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query/offset`.
-                public var offset: Swift.Int?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query/status`.
+                public var status: Operations.listGradleBuilds.Input.Query.statusPayload?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query/page`.
+                public var page: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - limit: Maximum number of builds to return.
-                ///   - offset: Number of builds to skip.
+                ///   - git_branch: Filter by git branch.
+                ///   - status: Filter by build status.
+                ///   - page_size:
+                ///   - page:
                 public init(
-                    limit: Swift.Int? = nil,
-                    offset: Swift.Int? = nil
+                    git_branch: Swift.String? = nil,
+                    status: Operations.listGradleBuilds.Input.Query.statusPayload? = nil,
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil
                 ) {
-                    self.limit = limit
-                    self.offset = offset
+                    self.git_branch = git_branch
+                    self.status = status
+                    self.page_size = page_size
+                    self.page = page
                 }
             }
             public var query: Operations.listGradleBuilds.Input.Query
@@ -23647,6 +23719,8 @@ public enum Operations {
                             public var duration_ms: Swift.Int?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/git_branch`.
                             public var git_branch: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/gradle_version`.
                             public var gradle_version: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/id`.
@@ -23657,6 +23731,8 @@ public enum Operations {
                             public var is_ci: Swift.Bool?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/java_version`.
                             public var java_version: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/requested_tasks`.
+                            public var requested_tasks: [Swift.String]?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/root_project_name`.
                             public var root_project_name: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/status`.
@@ -23682,11 +23758,13 @@ public enum Operations {
                             ///   - cacheable_tasks_count:
                             ///   - duration_ms:
                             ///   - git_branch:
+                            ///   - git_commit_sha:
                             ///   - gradle_version:
                             ///   - id:
                             ///   - inserted_at:
                             ///   - is_ci:
                             ///   - java_version:
+                            ///   - requested_tasks:
                             ///   - root_project_name:
                             ///   - status:
                             ///   - tasks_executed_count:
@@ -23698,11 +23776,13 @@ public enum Operations {
                                 cacheable_tasks_count: Swift.Int? = nil,
                                 duration_ms: Swift.Int? = nil,
                                 git_branch: Swift.String? = nil,
+                                git_commit_sha: Swift.String? = nil,
                                 gradle_version: Swift.String? = nil,
                                 id: Swift.String? = nil,
                                 inserted_at: Foundation.Date? = nil,
                                 is_ci: Swift.Bool? = nil,
                                 java_version: Swift.String? = nil,
+                                requested_tasks: [Swift.String]? = nil,
                                 root_project_name: Swift.String? = nil,
                                 status: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload? = nil,
                                 tasks_executed_count: Swift.Int? = nil,
@@ -23714,11 +23794,13 @@ public enum Operations {
                                 self.cacheable_tasks_count = cacheable_tasks_count
                                 self.duration_ms = duration_ms
                                 self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
                                 self.gradle_version = gradle_version
                                 self.id = id
                                 self.inserted_at = inserted_at
                                 self.is_ci = is_ci
                                 self.java_version = java_version
+                                self.requested_tasks = requested_tasks
                                 self.root_project_name = root_project_name
                                 self.status = status
                                 self.tasks_executed_count = tasks_executed_count
@@ -23731,11 +23813,13 @@ public enum Operations {
                                 case cacheable_tasks_count
                                 case duration_ms
                                 case git_branch
+                                case git_commit_sha
                                 case gradle_version
                                 case id
                                 case inserted_at
                                 case is_ci
                                 case java_version
+                                case requested_tasks
                                 case root_project_name
                                 case status
                                 case tasks_executed_count
@@ -23748,15 +23832,23 @@ public enum Operations {
                         public typealias buildsPayload = [Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/builds`.
                         public var builds: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - builds:
-                        public init(builds: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayload) {
+                        ///   - pagination_metadata:
+                        public init(
+                            builds: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayload,
+                            pagination_metadata: Components.Schemas.PaginationMetadata
+                        ) {
                             self.builds = builds
+                            self.pagination_metadata = pagination_metadata
                         }
                         public enum CodingKeys: String, CodingKey {
                             case builds
+                            case pagination_metadata
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/application\/json`.
@@ -24055,6 +24147,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metrics`.
                     public var machine_metrics: Operations.createGradleBuild.Input.Body.jsonPayload.machine_metricsPayload?
+                    /// The tasks requested by the user (e.g., assembleRelease).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/requested_tasks`.
+                    public var requested_tasks: [Swift.String]?
                     /// Root project name.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/root_project_name`.
@@ -24175,6 +24271,7 @@ public enum Operations {
                     ///   - is_ci: Whether the build ran on CI.
                     ///   - java_version: Java version.
                     ///   - machine_metrics: Machine performance metrics collected during the build.
+                    ///   - requested_tasks: The tasks requested by the user (e.g., assembleRelease).
                     ///   - root_project_name: Root project name.
                     ///   - status: Build status.
                     ///   - tasks:
@@ -24189,6 +24286,7 @@ public enum Operations {
                         is_ci: Swift.Bool? = nil,
                         java_version: Swift.String? = nil,
                         machine_metrics: Operations.createGradleBuild.Input.Body.jsonPayload.machine_metricsPayload? = nil,
+                        requested_tasks: [Swift.String]? = nil,
                         root_project_name: Swift.String? = nil,
                         status: Operations.createGradleBuild.Input.Body.jsonPayload.statusPayload,
                         tasks: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayload
@@ -24203,6 +24301,7 @@ public enum Operations {
                         self.is_ci = is_ci
                         self.java_version = java_version
                         self.machine_metrics = machine_metrics
+                        self.requested_tasks = requested_tasks
                         self.root_project_name = root_project_name
                         self.status = status
                         self.tasks = tasks
@@ -24218,6 +24317,7 @@ public enum Operations {
                         case is_ci
                         case java_version
                         case machine_metrics
+                        case requested_tasks
                         case root_project_name
                         case status
                         case tasks
@@ -25882,6 +25982,425 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.cleanCache.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List tasks for a Gradle build.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/get(listGradleBuildTasks)`.
+    public enum listGradleBuildTasks {
+        public static let id: Swift.String = "listGradleBuildTasks"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the Gradle build.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/path/build_id`.
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - build_id: The ID of the Gradle build.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    build_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.build_id = build_id
+                }
+            }
+            public var path: Operations.listGradleBuildTasks.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/query/outcome`.
+                @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case local_hit = "local_hit"
+                    case remote_hit = "remote_hit"
+                    case up_to_date = "up_to_date"
+                    case executed = "executed"
+                    case failed = "failed"
+                    case skipped = "skipped"
+                    case no_source = "no_source"
+                }
+                /// Filter by task outcome.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/query/outcome`.
+                public var outcome: Operations.listGradleBuildTasks.Input.Query.outcomePayload?
+                /// Filter by whether the task is cacheable.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/query/cacheable`.
+                public var cacheable: Swift.Bool?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/query/page`.
+                public var page: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - outcome: Filter by task outcome.
+                ///   - cacheable: Filter by whether the task is cacheable.
+                ///   - page_size:
+                ///   - page:
+                public init(
+                    outcome: Operations.listGradleBuildTasks.Input.Query.outcomePayload? = nil,
+                    cacheable: Swift.Bool? = nil,
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil
+                ) {
+                    self.outcome = outcome
+                    self.cacheable = cacheable
+                    self.page_size = page_size
+                    self.page = page
+                }
+            }
+            public var query: Operations.listGradleBuildTasks.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listGradleBuildTasks.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listGradleBuildTasks.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listGradleBuildTasks.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listGradleBuildTasks.Input.Path,
+                query: Operations.listGradleBuildTasks.Input.Query = .init(),
+                headers: Operations.listGradleBuildTasks.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// Size of cache artifact in bytes.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/cache_artifact_size`.
+                            public var cache_artifact_size: Swift.Int?
+                            /// Cache key for cacheable tasks.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/cache_key`.
+                            public var cache_key: Swift.String?
+                            /// Whether the task is cacheable.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/cacheable`.
+                            public var cacheable: Swift.Bool
+                            /// Task duration in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/duration_ms`.
+                            public var duration_ms: Swift.Int
+                            /// The task ID.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/id`.
+                            public var id: Swift.String
+                            /// Task outcome.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/outcome`.
+                            @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case local_hit = "local_hit"
+                                case remote_hit = "remote_hit"
+                                case up_to_date = "up_to_date"
+                                case executed = "executed"
+                                case failed = "failed"
+                                case skipped = "skipped"
+                                case no_source = "no_source"
+                            }
+                            /// Task outcome.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/outcome`.
+                            public var outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.outcomePayload
+                            /// When the task started executing.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/started_at`.
+                            public var started_at: Foundation.Date?
+                            /// Task path (e.g., :app:compileKotlin).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/task_path`.
+                            public var task_path: Swift.String
+                            /// Task type class name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/task_type`.
+                            public var task_type: Swift.String?
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - cache_artifact_size: Size of cache artifact in bytes.
+                            ///   - cache_key: Cache key for cacheable tasks.
+                            ///   - cacheable: Whether the task is cacheable.
+                            ///   - duration_ms: Task duration in milliseconds.
+                            ///   - id: The task ID.
+                            ///   - outcome: Task outcome.
+                            ///   - started_at: When the task started executing.
+                            ///   - task_path: Task path (e.g., :app:compileKotlin).
+                            ///   - task_type: Task type class name.
+                            public init(
+                                cache_artifact_size: Swift.Int? = nil,
+                                cache_key: Swift.String? = nil,
+                                cacheable: Swift.Bool,
+                                duration_ms: Swift.Int,
+                                id: Swift.String,
+                                outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.outcomePayload,
+                                started_at: Foundation.Date? = nil,
+                                task_path: Swift.String,
+                                task_type: Swift.String? = nil
+                            ) {
+                                self.cache_artifact_size = cache_artifact_size
+                                self.cache_key = cache_key
+                                self.cacheable = cacheable
+                                self.duration_ms = duration_ms
+                                self.id = id
+                                self.outcome = outcome
+                                self.started_at = started_at
+                                self.task_path = task_path
+                                self.task_type = task_type
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case cache_artifact_size
+                                case cache_key
+                                case cacheable
+                                case duration_ms
+                                case id
+                                case outcome
+                                case started_at
+                                case task_path
+                                case task_type
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasks`.
+                        public var tasks: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - pagination_metadata:
+                        ///   - tasks:
+                        public init(
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            tasks: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayload
+                        ) {
+                            self.pagination_metadata = pagination_metadata
+                            self.tasks = tasks
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
+                            case tasks
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/application\/json`.
+                    case json(Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGradleBuildTasks.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGradleBuildTasks.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of Gradle build tasks
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/get(listGradleBuildTasks)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listGradleBuildTasks.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listGradleBuildTasks.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGradleBuildTasks.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGradleBuildTasks.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/get(listGradleBuildTasks)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listGradleBuildTasks.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listGradleBuildTasks.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGradleBuildTasks.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGradleBuildTasks.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Build not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/get(listGradleBuildTasks)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listGradleBuildTasks.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listGradleBuildTasks.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -31518,6 +32037,8 @@ public enum Operations {
                         public var is_ci: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/java_version`.
                         public var java_version: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/requested_tasks`.
+                        public var requested_tasks: [Swift.String]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/root_project_name`.
                         public var root_project_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
@@ -31619,6 +32140,7 @@ public enum Operations {
                         ///   - inserted_at:
                         ///   - is_ci:
                         ///   - java_version:
+                        ///   - requested_tasks:
                         ///   - root_project_name:
                         ///   - status:
                         ///   - tasks:
@@ -31641,6 +32163,7 @@ public enum Operations {
                             inserted_at: Foundation.Date? = nil,
                             is_ci: Swift.Bool? = nil,
                             java_version: Swift.String? = nil,
+                            requested_tasks: [Swift.String]? = nil,
                             root_project_name: Swift.String? = nil,
                             status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload? = nil,
                             tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload? = nil,
@@ -31663,6 +32186,7 @@ public enum Operations {
                             self.inserted_at = inserted_at
                             self.is_ci = is_ci
                             self.java_version = java_version
+                            self.requested_tasks = requested_tasks
                             self.root_project_name = root_project_name
                             self.status = status
                             self.tasks = tasks
@@ -31686,6 +32210,7 @@ public enum Operations {
                             case inserted_at
                             case is_ci
                             case java_version
+                            case requested_tasks
                             case root_project_name
                             case status
                             case tasks
