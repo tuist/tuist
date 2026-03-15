@@ -65,9 +65,13 @@ public struct AppBundleLoader: AppBundleLoading {
     }
 
     public func load(_ appBundle: AbsolutePath) async throws -> AppBundle {
-        let infoPlistPath = appBundle.appending(component: "Info.plist")
+        // macOS bundles use Contents/ subdirectory layout, other Apple platforms use flat layout.
+        let isMacOSBundle = try await fileSystem.exists(appBundle.appending(component: "Contents"), isDirectory: true)
+        let infoPlistPath = isMacOSBundle
+            ? appBundle.appending(components: "Contents", "Info.plist")
+            : appBundle.appending(component: "Info.plist")
 
-        if try await !fileSystem.exists(infoPlistPath) {
+        guard try await fileSystem.exists(infoPlistPath) else {
             throw AppBundleLoaderError.missingInfoPlist(infoPlistPath)
         }
 

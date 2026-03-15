@@ -148,6 +148,11 @@ public struct AppBundle: Equatable {
             case bundleIcons = "CFBundleIcons"
         }
 
+        /// macOS bundles use LSMinimumSystemVersion instead of MinimumOSVersion
+        private enum MacOSCodingKeys: String, CodingKey {
+            case minimumSystemVersion = "LSMinimumSystemVersion"
+        }
+
         public init(from decoder: any Decoder) throws {
             let container: KeyedDecodingContainer<AppBundle.InfoPlist.CodingKeys> = try decoder
                 .container(keyedBy: AppBundle.InfoPlist.CodingKeys.self)
@@ -157,9 +162,15 @@ public struct AppBundle: Equatable {
             self.name = name
             executableName = try container.decodeIfPresent(String.self, forKey: AppBundle.InfoPlist.CodingKeys.executableName)
             bundleId = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.bundleId)
-            minimumOSVersion = Version(
-                stringLiteral: try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.minimumOSVersion)
-            )
+            // iOS/tvOS/watchOS/visionOS use MinimumOSVersion, macOS uses LSMinimumSystemVersion
+            if let version = try container.decodeIfPresent(String.self, forKey: .minimumOSVersion) {
+                minimumOSVersion = Version(stringLiteral: version)
+            } else {
+                let macOSContainer = try decoder.container(keyedBy: MacOSCodingKeys.self)
+                minimumOSVersion = Version(
+                    stringLiteral: try macOSContainer.decode(String.self, forKey: .minimumSystemVersion)
+                )
+            }
             supportedPlatforms = try container.decode([String].self, forKey: AppBundle.InfoPlist.CodingKeys.supportedPlatforms)
                 .map { platformSDK in
                     if let platform = Platform.allCases
