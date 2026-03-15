@@ -756,160 +756,6 @@
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
-      "id": 30,
-      "panels": [],
-      "title": "BEAM VM",
-      "type": "row"
-    },
-    {
-      "datasource": "$datasource",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
-          },
-          "unit": "decbytes"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
-      "id": 31,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": "$datasource",
-          "editorMode": "code",
-          "expr": "processor_prom_ex_beam_memory_total_bytes{instance=~\"$instance\"}",
-          "legendFormat": "Total {{instance}}",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": "$datasource",
-          "editorMode": "code",
-          "expr": "processor_prom_ex_beam_memory_processes_bytes{instance=~\"$instance\"}",
-          "legendFormat": "Processes {{instance}}",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": "$datasource",
-          "editorMode": "code",
-          "expr": "processor_prom_ex_beam_memory_binary_bytes{instance=~\"$instance\"}",
-          "legendFormat": "Binary {{instance}}",
-          "range": true,
-          "refId": "C"
-        },
-        {
-          "datasource": "$datasource",
-          "editorMode": "code",
-          "expr": "processor_prom_ex_beam_memory_ets_bytes{instance=~\"$instance\"}",
-          "legendFormat": "ETS {{instance}}",
-          "range": true,
-          "refId": "D"
-        }
-      ],
-      "title": "BEAM Memory",
-      "type": "timeseries",
-      "description": "BEAM VM memory breakdown."
-    },
-    {
-      "datasource": "$datasource",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
-      "id": 32,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": "$datasource",
-          "editorMode": "code",
-          "expr": "processor_prom_ex_beam_system_process_count{instance=~\"$instance\"}",
-          "legendFormat": "{{instance}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "BEAM Process Count",
-      "type": "timeseries",
-      "description": "Number of BEAM processes running."
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 },
       "id": 40,
       "panels": [],
       "title": "Host Metrics",
@@ -953,7 +799,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
       "id": 41,
       "options": {
         "legend": {
@@ -1014,7 +860,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
       "id": 42,
       "options": {
         "legend": {
@@ -1085,7 +931,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 52 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 43 },
       "id": 43,
       "options": {
         "legend": {
@@ -1146,7 +992,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 52 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 },
       "id": 44,
       "options": {
         "legend": {
