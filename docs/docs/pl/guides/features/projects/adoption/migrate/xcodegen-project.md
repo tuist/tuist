@@ -5,7 +5,7 @@
   "description": "Learn how to migrate your projects from XcodeGen to Tuist."
 }
 ---
-# Migracja projektu XcodeGen {#migrate-an-xcodegen-project}
+# Przenieś projekt XcodeGen {#migrate-an-xcodegen-project}
 
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) to narzędzie do generowania
 projektów, które wykorzystuje YAML jako [format
@@ -22,10 +22,10 @@ Tuist.
 
 ::: tip SWIFT OVER YAML
 <!-- -->
-Wiele organizacji preferuje Tuist jako narzędzie do generowania projektów,
-ponieważ wykorzystuje ono Swift jako format konfiguracyjny. Swift jest językiem
-programowania znanym programistom, który zapewnia im wygodę korzystania z
-funkcji autouzupełniania, sprawdzania typów i walidacji w Xcode.
+Wiele organizacji preferuje również Tuist jako narzędzie do generowania
+projektów, ponieważ wykorzystuje ono Swift jako format konfiguracyjny. Swift
+jest językiem programowania, który jest znany programistom i zapewnia im wygodę
+korzystania z funkcji autouzupełniania, sprawdzania typów i walidacji w Xcode.
 <!-- -->
 :::
 
@@ -34,8 +34,8 @@ projekty z XcodeGen do Tuist.
 
 ## Generowanie projektu {#project-generation}
 
-Zarówno Tuist, jak i XcodeGen udostępniają polecenie „ `generate` ”, które
-przekształca deklarację projektu w projekty i obszary robocze Xcode.
+Zarówno Tuist, jak i XcodeGen udostępniają polecenie „ `” oraz „generate` ”,
+które przekształcają deklarację projektu w projekty i obszary robocze Xcode.
 
 ::: code-group
 
@@ -49,18 +49,18 @@ tuist generate
 <!-- -->
 :::
 
-Różnica polega na doświadczeniu związanym z edycją. Dzięki Tuist możesz
-uruchomić polecenie `tuist edit`, które generuje projekt Xcode, który możesz
-otworzyć i rozpocząć pracę. Jest to szczególnie przydatne, gdy chcesz wprowadzić
-szybkie zmiany w swoim projekcie.
+Różnica polega na sposobie edycji. Dzięki Tuist możesz uruchomić polecenie `
+`tuist edit` `, które generuje na bieżąco projekt Xcode, który możesz otworzyć i
+zacząć nad nim pracować. Jest to szczególnie przydatne, gdy chcesz szybko
+wprowadzić zmiany w swoim projekcie.
 
 ## `project.yaml` {#projectyaml}
 
-`XcodeGen project.yaml` plik opisu staje się `Project.swift`. Ponadto można mieć
-`Workspace.swift` jako sposób dostosowania sposobu grupowania projektów w
-obszarach roboczych. Można również mieć projekt `Project.swift` z celami, które
-odwołują się do celów z innych projektów. W takich przypadkach Tuist wygeneruje
-obszar roboczy Xcode zawierający wszystkie projekty.
+Plik opisowy XcodeGen `project.yaml` staje się `Project.swift`. Ponadto możesz
+mieć `Workspace.swift` jako sposób na dostosowanie sposobu grupowania projektów
+w obszarach roboczych. Możesz również mieć projekt `Project.swift` z celami,
+które odwołują się do celów z innych projektów. W takich przypadkach Tuist
+wygeneruje obszar roboczy Xcode zawierający wszystkie projekty.
 
 ::: code-group
 
@@ -81,21 +81,21 @@ obszar roboczy Xcode zawierający wszystkie projekty.
 ::: tip XCODE'S LANGUAGE
 <!-- -->
 Zarówno XcodeGen, jak i Tuist wykorzystują język i koncepcje Xcode. Jednak
-konfiguracja Tuist oparta na Swift zapewnia wygodę korzystania z funkcji
-autouzupełniania, sprawdzania typów i walidacji Xcode.
+konfiguracja Tuist oparta na języku Swift zapewnia wygodę korzystania z funkcji
+autouzupełniania, sprawdzania typów i walidacji dostępnych w Xcode.
 <!-- -->
 :::
 
 ## Szablony specyfikacji {#spec-templates}
 
-Jedną z wad języka YAML jako języka konfiguracji projektów jest to, że nie
-obsługuje on ponownego wykorzystania plików YAML bez dodatkowych modyfikacji.
-Jest to częsta potrzeba podczas opisywania projektów, którą XcodeGen musiał
-rozwiązać za pomocą własnego, zastrzeżonego rozwiązania o nazwie „szablony” *
-„templates”*. Dzięki Tuist ponowne wykorzystanie jest wbudowane w sam język
-Swift oraz poprzez moduł Swift o nazwie
+Jedną z wad języka YAML jako języka do konfiguracji projektów jest to, że nie
+obsługuje on od razu ponownego wykorzystania plików YAML. Jest to powszechna
+potrzeba podczas opisywania projektów, którą XcodeGen musiał rozwiązać za pomocą
+własnego, zastrzeżonego rozwiązania o nazwie „szablony” ** . W Tuist możliwość
+ponownego wykorzystania jest wbudowana w sam język, Swift, oraz poprzez moduł
+Swift o nazwie
 <LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink>, który umożliwia ponowne wykorzystanie kodu we
+helpers</LocalizedLink>, który pozwala na ponowne wykorzystanie kodu we
 wszystkich plikach manifestu.
 
 ::: code-group
