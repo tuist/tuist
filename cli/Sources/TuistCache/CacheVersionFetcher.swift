@@ -20,7 +20,7 @@ enum CacheVersion: String, Equatable, Hashable {
     /// https://github.com/tuist/tuist/pull/7977)
     /// but that caused incompatibilities in the graph edges (e.g. x86_64 linking against arm64), so we had to revert this
     /// decision (PR: https://github.com/tuist/tuist/pull/8094).
-    /// Because the cache might have gotten polluted, for examle if it was warmed from x86_64 and consumed from arm64, it's
+    /// Because the cache might have gotten polluted, for example if it was warmed from x86_64 and consumed from arm64, it's
     /// important to bump the cache version to
     /// flag those artifacts as invalid.
     case version3 = "3"

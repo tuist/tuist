@@ -15,7 +15,7 @@ public enum InitCommandServiceError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .emptyProjectHandle:
-            return "The project handel introduced is empty."
+            return "The project handle is empty."
         }
     }
 }

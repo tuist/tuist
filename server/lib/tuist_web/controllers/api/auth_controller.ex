@@ -145,7 +145,7 @@ defmodule TuistWeb.API.AuthController do
        }},
     responses: %{
       ok: {
-        "Succcessfully generated new API tokens.",
+        "Successfully generated new API tokens.",
         "application/json",
         AuthenticationTokens
       },
