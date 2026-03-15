@@ -16,4 +16,6 @@ defmodule ProcessorWeb.Router do
   end
 
   get "/health", ProcessorWeb.HealthController, :check
+
+  forward "/metrics", PromEx.Plug, prom_ex_module: Processor.PromEx
 end
