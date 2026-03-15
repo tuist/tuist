@@ -14,7 +14,14 @@ protocol WorkspaceSettingsDescriptorGenerating {
 
 struct WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGenerating {
     func generateWorkspaceSettings(workspace: Workspace) -> WorkspaceSettingsDescriptor? {
-        guard let enableAutomaticXcodeSchemes = workspace.generationOptions.enableAutomaticXcodeSchemes else { return nil }
-        return WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: enableAutomaticXcodeSchemes)
+        let options = workspace.generationOptions
+        guard options.enableAutomaticXcodeSchemes != nil || options.derivedDataLocationStyle != nil else {
+            return nil
+        }
+        return WorkspaceSettingsDescriptor(
+            enableAutomaticXcodeSchemes: options.enableAutomaticXcodeSchemes,
+            derivedDataLocationStyle: options.derivedDataLocationStyle,
+            derivedDataCustomLocation: options.derivedDataCustomLocation
+        )
     }
 }
