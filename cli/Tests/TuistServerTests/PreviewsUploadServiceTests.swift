@@ -538,6 +538,68 @@ struct PreviewsUploadServiceTests {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory) func upload_macos_app_bundle_extracts_binary_id() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given: macOS bundle with Contents/MacOS/ layout
+        let appName = "MacApp"
+        let preview = temporaryDirectory.appending(component: "\(appName).app")
+        let contentsDir = preview.appending(component: "Contents")
+        try await fileSystem.makeDirectory(at: contentsDir.appending(component: "MacOS"))
+
+        let expectedUUID = UUID()
+
+        given(fileArchiver)
+            .zip(name: .any)
+            .willReturn(temporaryDirectory.appending(component: "\(appName).zip"))
+
+        precompiledMetadataProvider.uuidsStub = { path in
+            if path == contentsDir.appending(components: "MacOS", appName) {
+                return [expectedUUID]
+            }
+            return []
+        }
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        // When
+        _ = try await subject.uploadPreview(
+            .appBundles([.test(path: preview, infoPlist: .test(name: appName, executableName: appName))]),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
+            track: nil,
+            updateProgress: { _ in }
+        )
+
+        // Then
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .any,
+                displayName: .any,
+                version: .any,
+                buildVersion: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                binaryId: .value(expectedUUID.uuidString),
+                fullHandle: .any,
+                serverURL: .any,
+                track: .any
+            )
+            .called(1)
+    }
+
     @Test(.inTemporaryDirectory) func upload_app_bundle_throws_when_uuid_not_found() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
