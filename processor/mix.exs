@@ -44,7 +44,7 @@ defmodule Processor.MixProject do
       {:phoenix, "~> 1.7"},
       {:phoenix_pubsub, "~> 2.1"},
       {:plug, "~> 1.18"},
-      {:prom_ex, "~> 1.10"},
+      {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
       {:hackney, "~> 1.8"},
       {:req, "~> 0.5"},
       {:sentry, "~> 11.0.4"},
