@@ -1,8 +1,8 @@
-defmodule Cache.RegistryDownloadEventsPipelineTest do
+defmodule Cache.Registry.EventsPipelineTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Cache.RegistryDownloadEventsPipeline
+  alias Cache.Registry.EventsPipeline
 
   setup :set_mimic_from_context
 
@@ -19,7 +19,7 @@ defmodule Cache.RegistryDownloadEventsPipelineTest do
         version: "1.0.0"
       }
 
-      assert :ok = RegistryDownloadEventsPipeline.async_push(event)
+      assert :ok = EventsPipeline.async_push(event)
     end
   end
 
@@ -36,7 +36,7 @@ defmodule Cache.RegistryDownloadEventsPipelineTest do
         acknowledger: {Broadway.CallerAcknowledger, {self(), make_ref()}, :ok}
       }
 
-      result = RegistryDownloadEventsPipeline.handle_message(:default, message, %{})
+      result = EventsPipeline.handle_message(:default, message, %{})
 
       assert result.batch_key == :default
       assert result.batcher == :http
@@ -63,7 +63,7 @@ defmodule Cache.RegistryDownloadEventsPipelineTest do
       reject(&Req.request/1)
 
       result =
-        RegistryDownloadEventsPipeline.handle_batch(
+        EventsPipeline.handle_batch(
           :http,
           messages,
           %{batch_key: :default},
@@ -114,7 +114,7 @@ defmodule Cache.RegistryDownloadEventsPipelineTest do
       end)
 
       result =
-        RegistryDownloadEventsPipeline.handle_batch(
+        EventsPipeline.handle_batch(
           :http,
           messages,
           %{batch_key: :default},
@@ -155,7 +155,7 @@ defmodule Cache.RegistryDownloadEventsPipelineTest do
         {:ok, %{status: 200, body: ""}}
       end)
 
-      RegistryDownloadEventsPipeline.handle_batch(
+      EventsPipeline.handle_batch(
         :http,
         messages,
         %{batch_key: :default},

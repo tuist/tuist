@@ -1,8 +1,8 @@
-defmodule Cache.RegistryDownloadEventsPipeline do
+defmodule Cache.Xcode.EventsPipeline do
   @moduledoc """
-  Broadway pipeline for batching and sending registry download events to the server.
+  Broadway pipeline for batching and sending Xcode cache events to the server.
 
-  Events are sent to the registry webhook endpoint.
+  Events are sent to the cache webhook endpoint.
   """
   use Broadway
 
@@ -15,7 +15,7 @@ defmodule Cache.RegistryDownloadEventsPipeline do
     Broadway.start_link(__MODULE__,
       name: __MODULE__,
       producer: [
-        module: {OffBroadwayMemory.Producer, buffer: :registry_download_events_buffer},
+        module: {OffBroadwayMemory.Producer, buffer: :xcode_events_buffer},
         concurrency: 1
       ],
       processors: [
@@ -32,10 +32,10 @@ defmodule Cache.RegistryDownloadEventsPipeline do
   end
 
   @doc """
-  Pushes a registry download event to the pipeline asynchronously.
+  Pushes a Xcode cache event to the pipeline asynchronously.
   """
   def async_push(event) do
-    OffBroadwayMemory.Buffer.async_push(:registry_download_events_buffer, event)
+    OffBroadwayMemory.Buffer.async_push(:xcode_events_buffer, event)
   end
 
   @impl true
@@ -54,19 +54,21 @@ defmodule Cache.RegistryDownloadEventsPipeline do
 
   defp send_batch(events) do
     server_url = Cache.Authentication.server_url()
-    url = "#{server_url}/webhooks/registry"
+    url = "#{server_url}/webhooks/cache"
 
     api_events =
       Enum.map(events, fn event ->
         %{
-          scope: event.scope,
-          name: event.name,
-          version: event.version
+          account_handle: event.account_handle,
+          project_handle: event.project_handle,
+          action: event.action,
+          size: event.size,
+          cas_id: event.cas_id
         }
       end)
 
     body = Jason.encode!(%{events: api_events})
 
-    Cache.WebhookClient.signed_post(url, body, "registry download events")
+    Cache.WebhookClient.signed_post(url, body, "Xcode cache analytics")
   end
 end

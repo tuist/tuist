@@ -1,13 +1,13 @@
-defmodule CacheWeb.ModuleCacheController do
+defmodule CacheWeb.XcodeModuleController do
   use CacheWeb, :controller
   use OpenApiSpex.ControllerSpecs
 
   alias Cache.BodyReader
   alias Cache.CacheArtifacts
-  alias Cache.Module.Disk
   alias Cache.MultipartUploads
   alias Cache.S3
   alias Cache.S3Transfers
+  alias Cache.XcodeModule.Disk
   alias CacheWeb.API.Schemas.CompleteMultipartUploadRequest
   alias CacheWeb.API.Schemas.Error
   alias CacheWeb.API.Schemas.StartMultipartUploadResponse

@@ -1,8 +1,8 @@
-defmodule Cache.GradleCacheEventsPipeline do
+defmodule Cache.Registry.EventsPipeline do
   @moduledoc """
-  Broadway pipeline for batching and sending Gradle cache events to the server.
+  Broadway pipeline for batching and sending registry download events to the server.
 
-  Events are sent to the gradle-cache webhook endpoint.
+  Events are sent to the registry webhook endpoint.
   """
   use Broadway
 
@@ -15,7 +15,7 @@ defmodule Cache.GradleCacheEventsPipeline do
     Broadway.start_link(__MODULE__,
       name: __MODULE__,
       producer: [
-        module: {OffBroadwayMemory.Producer, buffer: :gradle_cache_events_buffer},
+        module: {OffBroadwayMemory.Producer, buffer: :registry_events_buffer},
         concurrency: 1
       ],
       processors: [
@@ -32,10 +32,10 @@ defmodule Cache.GradleCacheEventsPipeline do
   end
 
   @doc """
-  Pushes a Gradle cache event to the pipeline asynchronously.
+  Pushes a registry download event to the pipeline asynchronously.
   """
   def async_push(event) do
-    OffBroadwayMemory.Buffer.async_push(:gradle_cache_events_buffer, event)
+    OffBroadwayMemory.Buffer.async_push(:registry_events_buffer, event)
   end
 
   @impl true
@@ -54,21 +54,19 @@ defmodule Cache.GradleCacheEventsPipeline do
 
   defp send_batch(events) do
     server_url = Cache.Authentication.server_url()
-    url = "#{server_url}/webhooks/gradle-cache"
+    url = "#{server_url}/webhooks/registry"
 
     api_events =
       Enum.map(events, fn event ->
         %{
-          account_handle: event.account_handle,
-          project_handle: event.project_handle,
-          action: event.action,
-          size: event.size,
-          cache_key: event.cache_key
+          scope: event.scope,
+          name: event.name,
+          version: event.version
         }
       end)
 
     body = Jason.encode!(%{events: api_events})
 
-    Cache.WebhookClient.signed_post(url, body, "Gradle cache analytics")
+    Cache.WebhookClient.signed_post(url, body, "registry download events")
   end
 end
