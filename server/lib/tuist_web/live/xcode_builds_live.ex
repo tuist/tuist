@@ -281,7 +281,9 @@ defmodule TuistWeb.XcodeBuildsLive do
             %{
               first: 40,
               filters: [
-                %{field: :project_id, op: :==, value: project.id}
+                %{field: :project_id, op: :==, value: project.id},
+                %{field: :status, op: :!=, value: "processing"},
+                %{field: :status, op: :!=, value: "failed_processing"}
               ],
               order_by: [:inserted_at],
               order_directions: [:desc]
@@ -294,7 +296,7 @@ defmodule TuistWeb.XcodeBuildsLive do
             color =
               case run.status do
                 "success" -> "var:noora-chart-primary"
-                "failure" -> "var:noora-chart-destructive"
+                _ -> "var:noora-chart-destructive"
               end
 
             value = run.duration

@@ -6,11 +6,14 @@ defmodule Cache.KeyValueStore do
 
   import Cachex.Spec, only: [expiration: 1, limit: 1]
 
+  alias Cache.Config
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
-  alias Cache.Repo
+  alias Cache.KeyValueRepo
+  alias Cache.SQLiteHelpers
 
   @cache_name :cache_keyvalue_store
+  @contention_event [:cache, :kv, :get, :contention]
   # 1 week
   @ttl_ms to_timeout(week: 1)
 
@@ -48,16 +51,15 @@ defmodule Cache.KeyValueStore do
 
   @doc """
   Retrieves the pre-encoded JSON payload for a given CAS ID, account, and project.
-  Returns `{:error, :not_found}` if no entry is stored.
+  Returns `{:error, :not_found}` if no entry is stored or if the SQLite database
+  is under lock contention (contention is absorbed as a cache miss to avoid
+  blocking request serving).
   """
   def get_key_value(cas_id, account_handle, project_handle, opts \\ []) do
     key = build_key(account_handle, project_handle, cas_id)
     cache = Keyword.get(opts, :cache_name, @cache_name)
 
-    case fetch_entry(key, cache) do
-      {:ok, json} -> {:ok, json}
-      {:error, :not_found} -> {:error, :not_found}
-    end
+    fetch_entry(key, cache)
   end
 
   defp cache_options do
@@ -90,15 +92,29 @@ defmodule Cache.KeyValueStore do
   end
 
   defp load_from_persistence(key, cache) do
-    case Repo.get_by(KeyValueEntry, key: key) do
-      nil ->
-        {:error, :not_found}
+    with_repo_busy_timeout(Config.key_value_read_busy_timeout_ms(), fn ->
+      case KeyValueRepo.get_by(KeyValueEntry, key: key) do
+        nil ->
+          {:error, :not_found}
 
-      record ->
-        Cachex.put(cache, key, record.json_payload)
-        KeyValueBuffer.enqueue_access(key)
-        {:ok, record.json_payload}
-    end
+        record ->
+          Cachex.put(cache, key, record.json_payload)
+          KeyValueBuffer.enqueue_access(key)
+          {:ok, record.json_payload}
+      end
+    end)
+  rescue
+    error ->
+      if SQLiteHelpers.busy_error?(error) do
+        :telemetry.execute(@contention_event, %{count: 1}, %{})
+        {:error, :not_found}
+      else
+        reraise error, __STACKTRACE__
+      end
+  end
+
+  defp with_repo_busy_timeout(timeout_ms, fun) do
+    SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout_ms, fun)
   end
 
   defp encode_entries(values) do

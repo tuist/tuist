@@ -43,7 +43,7 @@ tasks.shadowJar {
     relocate("org.tomlj", "dev.tuist.shadow.tomlj")
     relocate("org.antlr", "dev.tuist.shadow.antlr")
     minimize {
-        exclude(dependency("net.java.dev.jna:jna:.*"))
+        exclude(dependency("net.java.dev.jna:.*"))
     }
 }
 

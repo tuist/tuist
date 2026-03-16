@@ -121,15 +121,15 @@ private const val kIOMainPortDefault = 0
 object MacOSSystemMetrics {
     private val systemLib: SystemLib? = try {
         Native.load("System", SystemLib::class.java)
-    } catch (e: Exception) { null }
+    } catch (e: Throwable) { null }
 
     private val ioKit: IOKitLib? = try {
         Native.load("IOKit", IOKitLib::class.java)
-    } catch (e: Exception) { null }
+    } catch (e: Throwable) { null }
 
     private val cf: CoreFoundationLib? = try {
         Native.load("CoreFoundation", CoreFoundationLib::class.java)
-    } catch (e: Exception) { null }
+    } catch (e: Throwable) { null }
 
     val isAvailable: Boolean get() = systemLib != null && ioKit != null && cf != null
 

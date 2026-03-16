@@ -3,6 +3,8 @@ defmodule Cache.Application do
 
   use Application
 
+  require Logger
+
   @impl true
   def start(_type, _args) do
     if System.get_env("SKIP_MIGRATIONS") != "true" do
@@ -20,6 +22,7 @@ defmodule Cache.Application do
 
     base_children = [
       Cache.Repo,
+      Cache.KeyValueRepo,
       Cache.KeyValueBuffer,
       Cache.CacheArtifactsBuffer,
       Cache.S3TransfersBuffer,
@@ -41,7 +44,7 @@ defmodule Cache.Application do
     children =
       if Cache.Config.analytics_enabled?() do
         base_children ++
-          [Cache.CASEventsPipeline, Cache.GradleCacheEventsPipeline, Cache.RegistryDownloadEventsPipeline]
+          [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline]
       else
         base_children
       end

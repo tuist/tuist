@@ -8,7 +8,7 @@ defmodule Tuist.Builds.Build do
 
   import Ecto.Changeset
 
-  @status_values ["success", "failure"]
+  @status_values ["success", "failure", "processing", "failed_processing"]
   @category_values ["clean", "incremental"]
   @ci_provider_values ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
@@ -59,6 +59,7 @@ defmodule Tuist.Builds.Build do
     field :cacheable_tasks_count, Ch, type: "Int32", default: 0
     field :custom_tags, {:array, :string}, default: []
     field :custom_values, Ch, type: "Map(String, String)", default: %{}
+    field :xcode_cache_upload_enabled, :boolean, default: false
     field :inserted_at, Ch, type: "DateTime64(6)"
 
     belongs_to :project, Tuist.Projects.Project, define_field: false
@@ -115,7 +116,8 @@ defmodule Tuist.Builds.Build do
         :cacheable_task_local_hits_count,
         :cacheable_tasks_count,
         :custom_tags,
-        :custom_values
+        :custom_values,
+        :xcode_cache_upload_enabled
       ])
       |> validate_required([
         :id,

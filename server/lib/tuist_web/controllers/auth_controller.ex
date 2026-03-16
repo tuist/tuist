@@ -9,6 +9,8 @@ defmodule TuistWeb.AuthController do
   alias Tuist.Accounts.Organization
   alias Tuist.OAuth.Okta
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.UnauthorizedError
+  alias Ueberauth.Failure.Error
 
   require Logger
 
@@ -59,10 +61,8 @@ defmodule TuistWeb.AuthController do
                   "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
                 )
 
-                conn
-                |> put_flash(:error, "Failed to authenticate with Okta.")
-                |> redirect(to: ~p"/")
-                |> halt()
+                raise UnauthorizedError,
+                      dgettext("dashboard", "Failed to authenticate with Okta.")
             end
 
           error ->
@@ -71,10 +71,8 @@ defmodule TuistWeb.AuthController do
               "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
 
-            conn
-            |> put_flash(:error, "Failed to authenticate with Okta.")
-            |> redirect(to: ~p"/")
-            |> halt()
+            raise UnauthorizedError,
+                  dgettext("dashboard", "Failed to authenticate with Okta.")
         end
 
       error ->
@@ -83,10 +81,8 @@ defmodule TuistWeb.AuthController do
           "Failed to extract organization_id from params: #{inspect(params)}, error: #{inspect(error)}"
         )
 
-        conn
-        |> put_flash(:error, "Failed to authenticate with Okta.")
-        |> redirect(to: ~p"/")
-        |> halt()
+        raise UnauthorizedError,
+              dgettext("dashboard", "Failed to authenticate with Okta.")
     end
   end
 
@@ -98,19 +94,18 @@ defmodule TuistWeb.AuthController do
     |> halt()
   end
 
-  def callback(%{assigns: %{ueberauth_failure: failure}} = conn, _params) do
+  def callback(%{assigns: %{ueberauth_failure: failure}} = _conn, _params) do
     log(
       :error,
       "Ueberauth failed authenticating: #{inspect(failure)}"
     )
 
-    conn
-    |> put_flash(:error, "Failed to authenticate.")
-    |> redirect(to: ~p"/")
-    |> halt()
+    raise UnauthorizedError, oauth_failure_message(failure)
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
+    auth_params = %{auth_method: auth.provider}
+
     case Accounts.get_oauth2_identity(auth.provider, auth.uid) do
       {:ok, oauth2_identity} ->
         user = oauth2_identity.user
@@ -120,9 +115,9 @@ defmodule TuistWeb.AuthController do
           conn
           |> put_session(:user_return_to, oauth_return_url)
           |> delete_session(:oauth_return_to)
-          |> Authentication.log_in_user(user)
+          |> Authentication.log_in_user(user, auth_params)
         else
-          Authentication.log_in_user(conn, user)
+          Authentication.log_in_user(conn, user, auth_params)
         end
 
       {:error, :not_found} ->
@@ -157,9 +152,9 @@ defmodule TuistWeb.AuthController do
               conn
               |> put_session(:user_return_to, oauth_return_url)
               |> delete_session(:oauth_return_to)
-              |> Authentication.log_in_user(existing_user)
+              |> Authentication.log_in_user(existing_user, auth_params)
             else
-              Authentication.log_in_user(conn, existing_user)
+              Authentication.log_in_user(conn, existing_user, auth_params)
             end
         end
     end
@@ -205,10 +200,8 @@ defmodule TuistWeb.AuthController do
                   "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
                 )
 
-                conn
-                |> put_flash(:error, "Failed to authenticate with Okta.")
-                |> redirect(to: ~p"/")
-                |> halt()
+                raise UnauthorizedError,
+                      dgettext("dashboard", "Failed to authenticate with Okta.")
             end
 
           error ->
@@ -217,10 +210,8 @@ defmodule TuistWeb.AuthController do
               "Failed to find organization with id #{organization_id}: #{inspect(error)}"
             )
 
-            conn
-            |> put_flash(:error, "Failed to authenticate with Okta.")
-            |> redirect(to: ~p"/")
-            |> halt()
+            raise UnauthorizedError,
+                  dgettext("dashboard", "Failed to authenticate with Okta.")
         end
 
       error ->
@@ -229,10 +220,8 @@ defmodule TuistWeb.AuthController do
           "Failed to extract organization_id from session: #{inspect(session_data)}, error: #{inspect(error)}"
         )
 
-        conn
-        |> put_flash(:error, "Failed to authenticate with Okta.")
-        |> redirect(to: ~p"/")
-        |> halt()
+        raise UnauthorizedError,
+              dgettext("dashboard", "Failed to authenticate with Okta.")
     end
   end
 
@@ -267,10 +256,13 @@ defmodule TuistWeb.AuthController do
             redirect(conn, to: ~p"/users/log_in")
 
           user ->
+            pending = get_session(conn, :pending_oauth_signup)
+            auth_method = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
+
             conn
             |> delete_session(:pending_oauth_signup)
             |> put_session(:user_return_to, oauth_return_url)
-            |> Authentication.log_in_user(user)
+            |> Authentication.log_in_user(user, %{auth_method: auth_method})
         end
 
       {:error, _reason} ->
@@ -280,6 +272,22 @@ defmodule TuistWeb.AuthController do
 
   def complete_signup(conn, _params) do
     redirect(conn, to: ~p"/users/log_in")
+  end
+
+  defp oauth_failure_message(%Ueberauth.Failure{errors: errors}) do
+    case errors do
+      [%Error{message_key: "access_denied"} | _] ->
+        dgettext(
+          "dashboard",
+          "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
+        )
+
+      [%Error{message: message} | _] when is_binary(message) and message != "" ->
+        message
+
+      _ ->
+        dgettext("dashboard", "Failed to authenticate.")
+    end
   end
 
   defp okta_strategy_options(config, params) do

@@ -207,7 +207,7 @@
         font-size: 24px;
         line-height: 32px;
       }
-      /* We're applying the box-shadow as ::after, so the image overlaps correctly */
+      /* We're applying the box-shadow as ::after */
       &::after {
         position: absolute;
         top: 0;

@@ -221,7 +221,7 @@
 
         stage.template {
           source   = "path_group"
-          template = "cas"
+          template = "xcode"
         }
       }
 
@@ -268,6 +268,11 @@
           source   = "path_group"
           template = "metrics"
         }
+      }
+
+      stage.template {
+        source   = "method"
+        template = "{{ if or (eq .method \"GET\") (eq .method \"HEAD\") (eq .method \"POST\") (eq .method \"PUT\") (eq .method \"DELETE\") (eq .method \"PATCH\") (eq .method \"OPTIONS\") (eq .method \"CONNECT\") (eq .method \"TRACE\") (eq .method \"PROPFIND\") }}{{ .method }}{{ else }}INVALID{{ end }}"
       }
 
       stage.labels {

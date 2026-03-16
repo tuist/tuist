@@ -1,0 +1,8 @@
+servers:
+  web:
+    hosts:
+      - processor-canary.tuist.dev
+
+env:
+  clear:
+    DEPLOY_ENV: canary

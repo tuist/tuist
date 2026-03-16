@@ -96,6 +96,7 @@ Mimic.copy(UeberauthApple)
 Mimic.copy(Zstream)
 Mimic.copy(Slipstream)
 Mimic.copy(Port)
+Mimic.copy(Processor.BuildProcessor)
 
 ExUnit.start(exclude: [:skip])
 Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)

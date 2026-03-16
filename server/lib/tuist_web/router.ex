@@ -212,6 +212,36 @@ defmodule TuistWeb.Router do
              TuistWeb.Marketing.MarketingCustomersLive,
              metadata: %{type: :marketing},
              private: private
+
+        live Path.join(locale_path_prefix, "/cache"),
+             TuistWeb.Marketing.MarketingCacheLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/build-insights"),
+             TuistWeb.Marketing.MarketingBuildInsightsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/selective-testing"),
+             TuistWeb.Marketing.MarketingSelectiveTestingLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/flaky-tests"),
+             TuistWeb.Marketing.MarketingFlakyTestsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/test-insights"),
+             TuistWeb.Marketing.MarketingTestInsightsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/previews"),
+             TuistWeb.Marketing.MarketingPreviewsLive,
+             metadata: %{type: :marketing},
+             private: private
       end
 
       get locale_path_prefix, MarketingController, :home,
@@ -416,6 +446,9 @@ defmodule TuistWeb.Router do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
+          post "/upload/start", BuildsController, :multipart_start
+          post "/upload/generate-url", BuildsController, :multipart_generate_url
+          post "/upload/complete", BuildsController, :multipart_complete
         end
 
         scope "/gradle" do
@@ -722,6 +755,7 @@ defmodule TuistWeb.Router do
       :open_api,
       :browser_app,
       :require_authenticated_user,
+      :require_sso_authentication,
       :analytics
     ]
 
@@ -747,6 +781,7 @@ defmodule TuistWeb.Router do
       :browser_app,
       :rate_limit,
       :require_authenticated_user_for_private_projects,
+      :require_sso_authentication,
       :analytics,
       :require_user_can_read_project
     ]
@@ -782,6 +817,7 @@ defmodule TuistWeb.Router do
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
+      get "/builds/build-runs/:build_run_id/download", BuildController, :download
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,

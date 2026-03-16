@@ -490,6 +490,21 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         _ = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
     }
 
+    func test_map_returns_early_when_graph_has_no_targets() async throws {
+        // Given
+        let inputGraph = Graph.test(name: "empty")
+
+        // When
+        let (got, sideEffects, gotEnvironment) = try await subject.map(
+            graph: inputGraph, environment: MapperEnvironment()
+        )
+
+        // Then
+        XCTAssertEqual(got, inputGraph)
+        XCTAssertTrue(sideEffects.isEmpty)
+        XCTAssertEqual(gotEnvironment.initialGraphWithSources, inputGraph)
+    }
+
     func test_map_stores_subhashes_in_run_metadata_storage() async throws {
         let path = try temporaryPath()
         let project = Project.test(path: path)

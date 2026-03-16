@@ -3,6 +3,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
   use Mimic
 
   alias Tuist.Builds
+  alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -407,6 +408,115 @@ defmodule TuistWeb.API.BuildsControllerTest do
                "runner" => "macos-14",
                "jira" => "https://jira.example.com/PROJ-123"
              }
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/builds/upload/start" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "starts a multipart upload for a build", %{conn: conn, user: user, project: project} do
+      build_id = Ecto.UUID.generate()
+
+      stub(Storage, :multipart_start, fn _key, _account ->
+        "multipart-upload-id-123"
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds/upload/start", %{
+          build_id: build_id
+        })
+
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      assert response["data"]["upload_id"] == "multipart-upload-id-123"
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{project.account.name}/#{project.name}/builds/upload/start", %{
+          build_id: Ecto.UUID.generate()
+        })
+
+      assert json_response(conn, :forbidden)
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/builds/upload/generate-url" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "generates a signed URL for a part", %{conn: conn, user: user, project: project} do
+      build_id = Ecto.UUID.generate()
+
+      stub(Storage, :multipart_generate_url, fn _key, _upload_id, _part_number, _account, _opts ->
+        "https://s3.example.com/part-upload-url"
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds/upload/generate-url", %{
+          build_id: build_id,
+          multipart_upload_part: %{
+            part_number: 1,
+            upload_id: "multipart-upload-id-123"
+          }
+        })
+
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      assert response["data"]["url"] == "https://s3.example.com/part-upload-url"
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/builds/upload/complete" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "completes a multipart upload", %{conn: conn, user: user, project: project} do
+      build_id = Ecto.UUID.generate()
+
+      stub(Storage, :multipart_complete_upload, fn _key, _upload_id, _parts, _account ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds/upload/complete", %{
+          build_id: build_id,
+          multipart_upload_parts: %{
+            upload_id: "multipart-upload-id-123",
+            parts: [
+              %{part_number: 1, etag: "etag1"},
+              %{part_number: 2, etag: "etag2"}
+            ]
+          }
+        })
+
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      assert response["data"] == %{}
     end
   end
 end

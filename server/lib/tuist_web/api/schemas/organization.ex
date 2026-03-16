@@ -43,6 +43,10 @@ defmodule TuistWeb.API.Schemas.Organization do
       sso_organization_id: %Schema{
         type: :string,
         description: "The organization ID associated with the SSO provider"
+      },
+      sso_enforced: %Schema{
+        type: :boolean,
+        description: "Whether SSO is enforced for the organization"
       }
     },
     required: [:id, :name, :plan, :members, :invitations]

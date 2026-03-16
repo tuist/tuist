@@ -3044,6 +3044,225 @@ defmodule Tuist.TestsTest do
       {project2_results, _} = Tests.list_flaky_test_cases(project2.id, %{})
       assert project2_results == []
     end
+
+    test "filters by time range" do
+      project = ProjectsFixtures.project_fixture()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "recentFlaky", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, recent_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "recent1",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "recent1",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      {[recent_run | _], _} =
+        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: recent_test.id}]})
+
+      {:ok, _} = Tests.update_test_case(recent_run.test_case_id, %{is_flaky: true})
+
+      old_test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "oldFlaky", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      old_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -90 * 24 * 60 * 60)
+
+      {:ok, old_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "old1",
+          is_ci: true,
+          status: "success",
+          ran_at: old_ran_at,
+          test_modules: old_test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "old1",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.add(old_ran_at, 60),
+          test_modules: old_test_modules.("failure")
+        )
+
+      {[old_run | _], _} =
+        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: old_test.id}]})
+
+      {:ok, _} = Tests.update_test_case(old_run.test_case_id, %{is_flaky: true})
+
+      RunsFixtures.optimize_test_case_runs()
+
+      now = DateTime.utc_now()
+      thirty_days_ago = DateTime.add(now, -30, :day)
+
+      {results, meta} =
+        Tests.list_flaky_test_cases(project.id, %{}, start_datetime: thirty_days_ago, end_datetime: now)
+
+      assert length(results) == 1
+      assert meta.total_count == 1
+      assert hd(results).name == "recentFlaky"
+
+      {all_results, all_meta} = Tests.list_flaky_test_cases(project.id, %{})
+
+      assert length(all_results) == 2
+      assert all_meta.total_count == 2
+    end
+
+    test "filters by CI environment" do
+      project = ProjectsFixtures.project_fixture()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "ciFlaky", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, ci_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "ci1",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "ci1",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      {[ci_run | _], _} =
+        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: ci_test.id}]})
+
+      {:ok, _} = Tests.update_test_case(ci_run.test_case_id, %{is_flaky: true})
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {ci_results, ci_meta} = Tests.list_flaky_test_cases(project.id, %{}, is_ci: true)
+
+      assert length(ci_results) == 1
+      assert ci_meta.total_count == 1
+      assert hd(ci_results).name == "ciFlaky"
+
+      {no_ci_results, _} = Tests.list_flaky_test_cases(project.id, %{}, is_ci: false)
+
+      assert Enum.empty?(no_ci_results)
+    end
+
+    test "combines time range and environment filters" do
+      project = ProjectsFixtures.project_fixture()
+
+      test_modules = fn name, status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: name, status: status, duration: 250}]
+          }
+        ]
+      end
+
+      create_flaky_ci_pair = fn name, commit, ran_at ->
+        {:ok, test} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: commit,
+            is_ci: true,
+            status: "success",
+            ran_at: ran_at,
+            test_modules: test_modules.(name, "success")
+          )
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: commit,
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.add(ran_at, 60),
+            test_modules: test_modules.(name, "failure")
+          )
+
+        {[run | _], _} =
+          Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
+
+        {:ok, _} = Tests.update_test_case(run.test_case_id, %{is_flaky: true})
+      end
+
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
+      old = NaiveDateTime.add(NaiveDateTime.utc_now(), -90 * 24 * 60 * 60)
+
+      create_flaky_ci_pair.("recentCI", "rc1", recent)
+      create_flaky_ci_pair.("oldCI", "oc1", old)
+
+      RunsFixtures.optimize_test_case_runs()
+
+      now = DateTime.utc_now()
+      thirty_days_ago = DateTime.add(now, -30, :day)
+
+      {results, meta} =
+        Tests.list_flaky_test_cases(project.id, %{},
+          start_datetime: thirty_days_ago,
+          end_datetime: now,
+          is_ci: true
+        )
+
+      assert length(results) == 1
+      assert meta.total_count == 1
+      assert hd(results).name == "recentCI"
+    end
   end
 
   describe "get_flaky_runs_groups_count_for_test_case/1" do
@@ -4647,6 +4866,27 @@ defmodule Tuist.TestsTest do
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(non_flaky_test_case_id)
       assert fetched_test_case.is_flaky == false
     end
+
+    test "does not clear flaky flag for quarantined test cases" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          is_flaky: true,
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _count} = Tests.clear_stale_flaky_flags()
+
+      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
+      assert fetched_test_case.is_flaky == true
+      assert fetched_test_case.is_quarantined == true
+    end
   end
 
   describe "is_new detection for test case runs" do
@@ -5928,6 +6168,100 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert schemes == []
+    end
+  end
+
+  describe "total_test_run_count/0" do
+    test "returns the total number of test runs" do
+      # Given
+      before_count = Tests.total_test_run_count()
+      {:ok, _} = RunsFixtures.test_fixture()
+      {:ok, _} = RunsFixtures.test_fixture()
+
+      # When
+      count = Tests.total_test_run_count()
+
+      # Then
+      assert count == before_count + 2
+    end
+  end
+
+  describe "total_test_case_run_count/0" do
+    test "returns the total number of test case runs" do
+      # Given
+      before_count = Tests.total_test_case_run_count()
+      RunsFixtures.test_case_run_fixture()
+      RunsFixtures.test_case_run_fixture()
+      RunsFixtures.test_case_run_fixture()
+
+      # When
+      count = Tests.total_test_case_run_count()
+
+      # Then
+      assert count == before_count + 3
+    end
+  end
+
+  describe "flaky_test_case_run_count/0" do
+    test "returns only the count of flaky test case runs" do
+      # Given
+      before_count = Tests.flaky_test_case_run_count()
+      RunsFixtures.test_case_run_fixture(is_flaky: true)
+      RunsFixtures.test_case_run_fixture(is_flaky: true)
+      RunsFixtures.test_case_run_fixture(is_flaky: false)
+
+      # When
+      count = Tests.flaky_test_case_run_count()
+
+      # Then
+      assert count == before_count + 2
+    end
+  end
+
+  describe "last_24h_test_run_count/0" do
+    test "returns the number of test runs from the last 24 hours" do
+      # Given
+      before_count = Tests.last_24h_test_run_count()
+      {:ok, _} = RunsFixtures.test_fixture()
+      {:ok, _} = RunsFixtures.test_fixture()
+
+      # When
+      count = Tests.last_24h_test_run_count()
+
+      # Then
+      assert count == before_count + 2
+    end
+  end
+
+  describe "last_24h_test_case_run_count/0" do
+    test "returns the number of test case runs from the last 24 hours" do
+      # Given
+      before_count = Tests.last_24h_test_case_run_count()
+      RunsFixtures.test_case_run_fixture()
+      RunsFixtures.test_case_run_fixture()
+      RunsFixtures.test_case_run_fixture()
+
+      # When
+      count = Tests.last_24h_test_case_run_count()
+
+      # Then
+      assert count == before_count + 3
+    end
+  end
+
+  describe "last_24h_flaky_test_case_run_count/0" do
+    test "returns only the count of flaky test case runs from the last 24 hours" do
+      # Given
+      before_count = Tests.last_24h_flaky_test_case_run_count()
+      RunsFixtures.test_case_run_fixture(is_flaky: true)
+      RunsFixtures.test_case_run_fixture(is_flaky: true)
+      RunsFixtures.test_case_run_fixture(is_flaky: false)
+
+      # When
+      count = Tests.last_24h_flaky_test_case_run_count()
+
+      # Then
+      assert count == before_count + 2
     end
   end
 end

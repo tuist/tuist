@@ -32,6 +32,7 @@ import TuistHTTP
             macOSVersion: String,
             scheme: String?,
             targets: [XCActivityTarget],
+            xcodeCacheUploadEnabled: Bool,
             xcodeVersion: String?,
             status: ServerBuildRunStatus,
             ciRunId: String?,
@@ -67,7 +68,7 @@ import TuistHTTP
     }
 
     public enum ServerBuildRunStatus {
-        case success, failure
+        case success, failure, processing
     }
 
     public struct CreateBuildService: CreateBuildServicing {
@@ -99,6 +100,7 @@ import TuistHTTP
             macOSVersion: String,
             scheme: String?,
             targets: [XCActivityTarget],
+            xcodeCacheUploadEnabled: Bool,
             xcodeVersion: String?,
             status: ServerBuildRunStatus,
             ciRunId: String?,
@@ -117,6 +119,8 @@ import TuistHTTP
                     .success
                 case .failure:
                     .failure
+                case .processing:
+                    .processing
                 }
 
             let category: Operations.createBuild.Input.Body.jsonPayload.categoryPayload =
@@ -185,6 +189,7 @@ import TuistHTTP
                             status: status,
                             targets: targets
                                 .map(Operations.createBuild.Input.Body.jsonPayload.targetsPayloadPayload.init),
+                            xcode_cache_upload_enabled: xcodeCacheUploadEnabled,
                             xcode_version: xcodeVersion
                         )
                     )

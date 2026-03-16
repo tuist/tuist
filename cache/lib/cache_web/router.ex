@@ -56,15 +56,15 @@ defmodule CacheWeb.Router do
 
     get "/keyvalue/:cas_id", KeyValueController, :get_value
     put "/keyvalue", KeyValueController, :put_value
-    get "/cas/:id", CASController, :download
-    post "/cas/:id", CASController, :save
+    get "/cas/:id", XcodeController, :download
+    post "/cas/:id", XcodeController, :save
 
-    head "/module/:id", ModuleCacheController, :exists
-    get "/module/:id", ModuleCacheController, :download
+    head "/module/:id", XcodeModuleController, :exists
+    get "/module/:id", XcodeModuleController, :download
 
-    post "/module/start", ModuleCacheController, :start_multipart
-    post "/module/part", ModuleCacheController, :upload_part
-    post "/module/complete", ModuleCacheController, :complete_multipart
+    post "/module/start", XcodeModuleController, :start_multipart
+    post "/module/part", XcodeModuleController, :upload_part
+    post "/module/complete", XcodeModuleController, :complete_multipart
 
     delete "/clean", CleanController, :clean
 
