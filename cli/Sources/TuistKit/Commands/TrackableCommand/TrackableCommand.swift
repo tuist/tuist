@@ -43,6 +43,7 @@ public class TrackableCommand {
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let uploadAnalyticsService: UploadAnalyticsServicing
     private let fileSystem: FileSysteming
+    private let sessionDirectory: AbsolutePath?
 
     public init(
         command: ParsableCommand,
@@ -52,7 +53,8 @@ public class TrackableCommand {
         fileHandler: FileHandling = FileHandler.shared,
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        sessionDirectory: AbsolutePath? = nil
     ) {
         self.command = command
         self.commandArguments = commandArguments
@@ -62,6 +64,7 @@ public class TrackableCommand {
         self.backgroundProcessRunner = backgroundProcessRunner
         self.uploadAnalyticsService = uploadAnalyticsService
         self.fileSystem = fileSystem
+        self.sessionDirectory = sessionDirectory
     }
 
     public func run(
@@ -156,7 +159,8 @@ public class TrackableCommand {
                 let serverCommandEvent = try await uploadAnalyticsService.upload(
                     commandEvent: commandEvent,
                     fullHandle: fullHandle,
-                    serverURL: serverURL
+                    serverURL: serverURL,
+                    sessionDirectory: sessionDirectory
                 )
                 if let testRunURL = serverCommandEvent.testRunURL {
                     Logger.current
@@ -179,13 +183,17 @@ public class TrackableCommand {
             let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
             let commandEventPath = tempDirectory.appending(component: "command-event.json")
             try await fileSystem.writeAsJSON(commandEvent, at: commandEventPath)
+            var backgroundArguments = [
+                "analytics-upload",
+                commandEventPath.pathString,
+                fullHandle,
+                serverURL.absoluteString,
+            ]
+            if let sessionDirectory {
+                backgroundArguments.append(sessionDirectory.pathString)
+            }
             try backgroundProcessRunner.runInBackground(
-                [Environment.current.currentExecutablePath()?.pathString ?? "tuist"] + [
-                    "analytics-upload",
-                    commandEventPath.pathString,
-                    fullHandle,
-                    serverURL.absoluteString,
-                ],
+                [Environment.current.currentExecutablePath()?.pathString ?? "tuist"] + backgroundArguments,
                 environment: ProcessInfo.processInfo.environment
             )
         }

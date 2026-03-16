@@ -145,6 +145,7 @@ public struct TuistCommand: AsyncParsableCommand {
     // swiftlint:disable:next function_body_length
     public static func main(
         logFilePath: AbsolutePath,
+        sessionDirectory: AbsolutePath? = nil,
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
@@ -185,7 +186,8 @@ public struct TuistCommand: AsyncParsableCommand {
 
                     let trackableCommand = TrackableCommand(
                         command: command,
-                        commandArguments: processedArguments
+                        commandArguments: processedArguments,
+                        sessionDirectory: sessionDirectory
                     )
                     let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
                         && processedArguments.prefix(2) != ["auth", "refresh-token"]

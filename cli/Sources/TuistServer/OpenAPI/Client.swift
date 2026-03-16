@@ -1146,15 +1146,15 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "page_size",
-                    value: input.query.page_size
+                    name: "git_branch",
+                    value: input.query.git_branch
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "git_branch",
-                    value: input.query.git_branch
+                    name: "page_size",
+                    value: input.query.page_size
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
@@ -4987,7 +4987,7 @@ public struct Client: APIProtocol {
     }
     /// Complete a multipart upload for a build archive.
     ///
-    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)`.
@@ -6584,6 +6584,8 @@ public struct Client: APIProtocol {
         )
     }
     /// Start a multipart upload for a build archive.
+    ///
+    /// Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/start`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)`.
@@ -10564,7 +10566,7 @@ public struct Client: APIProtocol {
     }
     /// Generate a signed URL for uploading a build archive part.
     ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload.
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)`.

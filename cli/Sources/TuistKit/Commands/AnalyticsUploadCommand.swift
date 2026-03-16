@@ -24,11 +24,17 @@ public struct AnalyticsUploadCommand: AsyncParsableCommand {
     )
     var serverURL: String
 
+    @Argument(
+        help: "Path to the session directory containing logs and network recordings."
+    )
+    var sessionDirectoryPath: String?
+
     public func run() async throws {
         try await AnalyticsUploadCommandService().run(
             eventFilePath: eventFilePath,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            sessionDirectoryPath: sessionDirectoryPath
         )
     }
 }
