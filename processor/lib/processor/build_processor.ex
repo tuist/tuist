@@ -18,10 +18,6 @@ defmodule Processor.BuildProcessor do
 
         result = process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
         {result, %{status: :ok}}
-      rescue
-        e ->
-          cleanup_temp(temp_dir)
-          reraise e, __STACKTRACE__
       after
         cleanup_temp(temp_dir)
       end
@@ -35,10 +31,6 @@ defmodule Processor.BuildProcessor do
       try do
         result = process_zip(build_zip_path, temp_dir, xcode_cache_upload_enabled)
         {result, %{status: :ok}}
-      rescue
-        e ->
-          cleanup_temp(temp_dir)
-          reraise e, __STACKTRACE__
       after
         cleanup_temp(temp_dir)
       end
