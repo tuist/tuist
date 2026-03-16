@@ -251,7 +251,6 @@ _account =
       account
 
     {:ok, user} ->
-      Accounts.reset_user_password(user, %{password: password, password_confirmation: password})
       user
   end
 
