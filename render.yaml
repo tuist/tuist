@@ -184,7 +184,6 @@ services:
     numInstances: 1
     previews:
       generation: manual
-      expireAfterDays: 1
     buildFilter:
       paths:
         - server/**
