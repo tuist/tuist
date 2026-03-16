@@ -3,7 +3,8 @@ defmodule Cache.DistributedKV.CleanupTest do
   use Mimic
 
   alias Cache.DistributedKV.Cleanup
-  alias Cache.DistributedKV.Repo, as: DistributedRepo
+  alias Cache.DistributedKV.ProjectCleanup
+  alias Cache.DistributedKV.Repo
 
   setup :set_mimic_from_context
 
@@ -22,24 +23,17 @@ defmodule Cache.DistributedKV.CleanupTest do
     {:ok, cleanup_agent} = Agent.start_link(fn -> nil end)
     parent = self()
 
-    stub(DistributedRepo, :query!, fn sql, ["acme", "ios", now, lease_expires_at], opts ->
-      assert sql =~ "ON CONFLICT"
-      assert Keyword.get(opts, :timeout) == Cache.Config.distributed_kv_database_timeout_ms()
+    stub(Repo, :insert, fn %ProjectCleanup{account_handle: "acme", project_handle: "ios"} = struct,
+                                      opts ->
+      assert opts[:conflict_target] == [:account_handle, :project_handle]
+      assert opts[:returning] == true
 
-      Agent.get_and_update(cleanup_agent, fn state ->
-        case state do
-          %{cleanup_started_at: cleanup_started_at, lease_expires_at: active_lease} ->
-            if DateTime.after?(active_lease, now) do
-              {%{rows: [[cleanup_started_at]]}, state}
-            else
-              next_state = %{cleanup_started_at: now, lease_expires_at: lease_expires_at}
-              {%{rows: [[now]]}, next_state}
-            end
+      Agent.get_and_update(cleanup_agent, fn
+        nil ->
+          {{:ok, struct}, struct}
 
-          _state ->
-            next_state = %{cleanup_started_at: now, lease_expires_at: lease_expires_at}
-            {%{rows: [[now]]}, next_state}
-        end
+        %ProjectCleanup{} = existing ->
+          {{:ok, existing}, existing}
       end)
     end)
 
@@ -66,7 +60,7 @@ defmodule Cache.DistributedKV.CleanupTest do
     assert {:ok, cutoff_2} = Task.await(task_2)
     assert DateTime.compare(cutoff_1, cutoff_2) == :eq
 
-    assert %{cleanup_started_at: persisted_cutoff} = Agent.get(cleanup_agent, & &1)
+    assert %ProjectCleanup{cleanup_started_at: persisted_cutoff} = Agent.get(cleanup_agent, & &1)
     assert persisted_cutoff == cutoff_1
   end
 
@@ -74,16 +68,24 @@ defmodule Cache.DistributedKV.CleanupTest do
     stale_cutoff = DateTime.add(DateTime.utc_now(), -120, :second)
     stale_lease = DateTime.add(DateTime.utc_now(), -60, :second)
 
-    {:ok, cleanup_agent} =
-      Agent.start_link(fn -> %{cleanup_started_at: stale_cutoff, lease_expires_at: stale_lease} end)
+    stale_cleanup = %ProjectCleanup{
+      account_handle: "acme",
+      project_handle: "ios",
+      cleanup_started_at: stale_cutoff,
+      lease_expires_at: stale_lease,
+      updated_at: stale_cutoff
+    }
 
-    stub(DistributedRepo, :query!, fn _sql, ["acme", "ios", now, lease_expires_at], _opts ->
-      Agent.get_and_update(cleanup_agent, fn %{lease_expires_at: current_lease} = state ->
+    {:ok, cleanup_agent} = Agent.start_link(fn -> stale_cleanup end)
+
+    stub(Repo, :insert, fn %ProjectCleanup{} = struct, _opts ->
+      Agent.get_and_update(cleanup_agent, fn %ProjectCleanup{lease_expires_at: current_lease} = existing ->
+        now = DateTime.utc_now()
+
         if DateTime.after?(current_lease, now) do
-          {%{rows: [[state.cleanup_started_at]]}, state}
+          {{:ok, existing}, existing}
         else
-          next_state = %{cleanup_started_at: now, lease_expires_at: lease_expires_at}
-          {%{rows: [[now]]}, next_state}
+          {{:ok, struct}, struct}
         end
       end)
     end)
@@ -91,7 +93,9 @@ defmodule Cache.DistributedKV.CleanupTest do
     assert {:ok, fresh_cutoff} = Cleanup.begin_project_cleanup("acme", "ios")
     assert DateTime.after?(fresh_cutoff, stale_cutoff)
 
-    assert %{cleanup_started_at: persisted_cutoff, lease_expires_at: persisted_lease} = Agent.get(cleanup_agent, & &1)
+    assert %ProjectCleanup{cleanup_started_at: persisted_cutoff, lease_expires_at: persisted_lease} =
+             Agent.get(cleanup_agent, & &1)
+
     assert persisted_cutoff == fresh_cutoff
     assert DateTime.after?(persisted_lease, fresh_cutoff)
   end
@@ -99,11 +103,11 @@ defmodule Cache.DistributedKV.CleanupTest do
   test "renew_project_cleanup_lease extends the active lease for the same cleanup" do
     cutoff = DateTime.utc_now()
 
-    expect(DistributedRepo, :query!, fn sql, ["acme", "ios", now, lease_expires_at, ^cutoff], opts ->
-      assert sql =~ "UPDATE distributed_kv_project_cleanups"
-      assert Keyword.get(opts, :timeout) == Cache.Config.distributed_kv_database_timeout_ms()
-      assert DateTime.after?(lease_expires_at, now)
-      %{num_rows: 1}
+    expect(Repo, :update_all, fn _query, updates ->
+      [set: set_values] = updates
+      assert DateTime.after?(set_values[:lease_expires_at], cutoff)
+      assert %DateTime{} = set_values[:updated_at]
+      {1, nil}
     end)
 
     assert :ok = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
@@ -112,8 +116,8 @@ defmodule Cache.DistributedKV.CleanupTest do
   test "renew_project_cleanup_lease reports when the lease is no longer active" do
     cutoff = DateTime.utc_now()
 
-    expect(DistributedRepo, :query!, fn _sql, ["acme", "ios", _now, _lease_expires_at, ^cutoff], _opts ->
-      %{num_rows: 0}
+    expect(Repo, :update_all, fn _query, _updates ->
+      {0, nil}
     end)
 
     assert {:error, :cleanup_lease_lost} = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)

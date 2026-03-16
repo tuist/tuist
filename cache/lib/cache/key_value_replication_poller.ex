@@ -6,8 +6,8 @@ defmodule Cache.KeyValueReplicationPoller do
   import Ecto.Query
 
   alias Cache.Config
-  alias Cache.DistributedKV.Entry, as: DistributedEntry
-  alias Cache.DistributedKV.Repo, as: DistributedRepo
+  alias Cache.DistributedKV.Entry
+  alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
 
@@ -94,13 +94,13 @@ defmodule Cache.KeyValueReplicationPoller do
     watermark = KeyValueEntries.distributed_watermark()
 
     query =
-      DistributedEntry
+      Entry
       |> where([entry], entry.updated_at < ^lag_cutoff)
       |> apply_watermark(watermark)
       |> order_by([entry], asc: entry.updated_at, asc: entry.key)
       |> limit(^@page_size)
 
-    rows = DistributedRepo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
+    rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
 
     {materialized_count, deleted_count} =
       Enum.reduce(rows, {0, 0}, fn row, {materialized_acc, deleted_acc} ->
@@ -153,23 +153,23 @@ defmodule Cache.KeyValueReplicationPoller do
   end
 
   defp latest_cutoff do
-    DistributedEntry
+    Entry
     |> order_by([entry], desc: entry.updated_at, desc: entry.key)
     |> limit(1)
-    |> DistributedRepo.one(timeout: Config.distributed_kv_database_timeout_ms())
+    |> Repo.one(timeout: Config.distributed_kv_database_timeout_ms())
   end
 
   defp bootstrap_rows(current_size, budget, _cursor) when current_size >= budget, do: :ok
 
   defp bootstrap_rows(current_size, budget, cursor) do
     query =
-      DistributedEntry
+      Entry
       |> where([entry], is_nil(entry.deleted_at))
       |> apply_bootstrap_cursor(cursor)
       |> order_by([entry], desc: entry.last_accessed_at, desc: entry.key)
       |> limit(^@bootstrap_page_size)
 
-    rows = DistributedRepo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
+    rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
 
     case rows do
       [] ->

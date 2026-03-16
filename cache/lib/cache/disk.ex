@@ -295,7 +295,7 @@ defmodule Cache.Disk do
   end
 
   defp delete_file_if_before(file_path, safe_cutoff) do
-    with {:ok, %File.Stat{mtime: mtime}} <- File.stat(file_path),
+    with {:ok, %File.Stat{mtime: mtime}} <- File.stat(file_path, time: :universal),
          {:ok, mtime_datetime} <- stat_mtime_to_datetime(mtime),
          true <- DateTime.before?(mtime_datetime, safe_cutoff),
          :ok <- File.rm(file_path) do

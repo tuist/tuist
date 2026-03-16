@@ -3,21 +3,17 @@ defmodule Cache.KeyValueReplicationShipper do
 
   use GenServer
 
+  import Ecto.Query
+
   alias Cache.Config
   alias Cache.DistributedKV.Cleanup
-  alias Cache.DistributedKV.Repo, as: DistributedRepo
+  alias Cache.DistributedKV.Entry
+  alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
 
   @telemetry_event [:cache, :kv, :replication, :ship, :flush]
   @pending_rows_event [:cache, :kv, :replication, :ship, :pending_rows]
-  # Shared rows resolve payload conflicts by source_updated_at, then source_node for equal timestamps.
-  @shared_payload_wins_sql """
-  EXCLUDED.source_updated_at > key_value_entries.source_updated_at OR (
-    EXCLUDED.source_updated_at = key_value_entries.source_updated_at AND
-      EXCLUDED.source_node > key_value_entries.source_node
-  )
-  """
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -122,94 +118,76 @@ defmodule Cache.KeyValueReplicationShipper do
   def upsert_shared_entries([], _now), do: :ok
 
   def upsert_shared_entries(rows, now) do
-    DistributedRepo.query!(
-      """
-      INSERT INTO key_value_entries (
-        key,
-        account_handle,
-        project_handle,
-        cas_id,
-        json_payload,
-        source_node,
-        source_updated_at,
-        last_accessed_at,
-        updated_at
+    insert_rows =
+      Enum.map(rows, fn row ->
+        %{
+          key: row.key,
+          account_handle: row.account_handle,
+          project_handle: row.project_handle,
+          cas_id: row.cas_id,
+          json_payload: row.json_payload,
+          source_node: row.source_node,
+          source_updated_at: row.source_updated_at,
+          last_accessed_at: row.last_accessed_at,
+          updated_at: now
+        }
+      end)
+
+    # Shared rows resolve payload conflicts by source_updated_at, then source_node for equal timestamps.
+    on_conflict =
+      from(e in Entry,
+        update: [
+          set: [
+            account_handle: fragment("EXCLUDED.account_handle"),
+            project_handle: fragment("EXCLUDED.project_handle"),
+            cas_id: fragment("EXCLUDED.cas_id"),
+            json_payload:
+              fragment(
+                "CASE WHEN EXCLUDED.source_updated_at > ? OR (EXCLUDED.source_updated_at = ? AND EXCLUDED.source_node > ?) THEN EXCLUDED.json_payload ELSE ? END",
+                e.source_updated_at,
+                e.source_updated_at,
+                e.source_node,
+                e.json_payload
+              ),
+            source_node:
+              fragment(
+                "CASE WHEN EXCLUDED.source_updated_at > ? OR (EXCLUDED.source_updated_at = ? AND EXCLUDED.source_node > ?) THEN EXCLUDED.source_node ELSE ? END",
+                e.source_updated_at,
+                e.source_updated_at,
+                e.source_node,
+                e.source_node
+              ),
+            source_updated_at:
+              fragment(
+                "CASE WHEN EXCLUDED.source_updated_at > ? OR (EXCLUDED.source_updated_at = ? AND EXCLUDED.source_node > ?) THEN EXCLUDED.source_updated_at ELSE ? END",
+                e.source_updated_at,
+                e.source_updated_at,
+                e.source_node,
+                e.source_updated_at
+              ),
+            last_accessed_at: fragment("GREATEST(?, EXCLUDED.last_accessed_at)", e.last_accessed_at),
+            deleted_at:
+              fragment(
+                "CASE WHEN (EXCLUDED.source_updated_at > ? OR (EXCLUDED.source_updated_at = ? AND EXCLUDED.source_node > ?)) AND ? IS NOT NULL AND EXCLUDED.source_updated_at > ? THEN NULL ELSE ? END",
+                e.source_updated_at,
+                e.source_updated_at,
+                e.source_node,
+                e.deleted_at,
+                e.deleted_at,
+                e.deleted_at
+              ),
+            updated_at: fragment("EXCLUDED.updated_at")
+          ]
+        ]
       )
-      SELECT
-        incoming.key,
-        incoming.account_handle,
-        incoming.project_handle,
-        incoming.cas_id,
-        incoming.json_payload,
-        incoming.source_node,
-        incoming.source_updated_at,
-        incoming.last_accessed_at,
-        incoming.updated_at
-      FROM UNNEST(
-        $1::text[],
-        $2::text[],
-        $3::text[],
-        $4::text[],
-        $5::text[],
-        $6::text[],
-        $7::timestamptz[],
-        $8::timestamptz[],
-        $9::timestamptz[]
-      ) AS incoming(
-        key,
-        account_handle,
-        project_handle,
-        cas_id,
-        json_payload,
-        source_node,
-        source_updated_at,
-        last_accessed_at,
-        updated_at
-      )
-      ON CONFLICT (key) DO UPDATE
-      SET
-        account_handle = EXCLUDED.account_handle,
-        project_handle = EXCLUDED.project_handle,
-        cas_id = EXCLUDED.cas_id,
-        json_payload = CASE
-          WHEN #{@shared_payload_wins_sql} THEN EXCLUDED.json_payload
-          ELSE key_value_entries.json_payload
-        END,
-        source_node = CASE
-          WHEN #{@shared_payload_wins_sql} THEN EXCLUDED.source_node
-          ELSE key_value_entries.source_node
-        END,
-        source_updated_at = CASE
-          WHEN #{@shared_payload_wins_sql} THEN EXCLUDED.source_updated_at
-          ELSE key_value_entries.source_updated_at
-        END,
-        last_accessed_at = GREATEST(key_value_entries.last_accessed_at, EXCLUDED.last_accessed_at),
-        deleted_at = CASE
-          WHEN #{@shared_payload_wins_sql} AND key_value_entries.deleted_at IS NOT NULL AND
-                 EXCLUDED.source_updated_at > key_value_entries.deleted_at THEN NULL
-          ELSE key_value_entries.deleted_at
-        END,
-        updated_at = EXCLUDED.updated_at
-      """,
-      upsert_shared_entry_params(rows, now),
+
+    Repo.insert_all(Entry, insert_rows,
+      on_conflict: on_conflict,
+      conflict_target: :key,
       timeout: Config.distributed_kv_database_timeout_ms()
     )
 
     :ok
-  end
-
-  defp upsert_shared_entry_params(rows, now) do
-    [
-      Enum.map(rows, & &1.key),
-      Enum.map(rows, & &1.account_handle),
-      Enum.map(rows, & &1.project_handle),
-      Enum.map(rows, & &1.cas_id),
-      Enum.map(rows, & &1.json_payload),
-      Enum.map(rows, & &1.source_node),
-      Enum.map(rows, & &1.source_updated_at),
-      Enum.map(rows, & &1.last_accessed_at),
-      List.duplicate(now, length(rows))
-    ]
   end
 
   defp discard_stale_row(row) do

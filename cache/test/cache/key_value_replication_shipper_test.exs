@@ -3,7 +3,8 @@ defmodule Cache.KeyValueReplicationShipperTest do
   use Mimic
 
   alias Cache.DistributedKV.Cleanup
-  alias Cache.DistributedKV.Repo, as: DistributedRepo
+  alias Cache.DistributedKV.Entry
+  alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
@@ -41,26 +42,21 @@ defmodule Cache.KeyValueReplicationShipperTest do
       1
     end)
 
-    stub(DistributedRepo, :query!, fn sql, params, opts ->
-      assert sql =~ "INSERT INTO kv_entries"
-      assert sql =~ "ON CONFLICT (key) DO UPDATE"
-
-      assert [
-               ["keyvalue:acme:ios:cas"],
-               ["acme"],
-               ["ios"],
-               ["cas"],
-               [^json_payload],
-               ["test-node"],
-               [^token],
-               [^token],
-               [updated_at]
-             ] = params
-
-      assert %DateTime{} = updated_at
+    stub(Repo, :insert_all, fn Entry, rows, opts ->
+      assert [row] = rows
+      assert row.key == "keyvalue:acme:ios:cas"
+      assert row.account_handle == "acme"
+      assert row.project_handle == "ios"
+      assert row.cas_id == "cas"
+      assert row.json_payload == json_payload
+      assert row.source_node == "test-node"
+      assert row.source_updated_at == token
+      assert row.last_accessed_at == token
+      assert %DateTime{} = row.updated_at
+      assert opts[:conflict_target] == :key
       assert opts[:timeout]
       send(parent, :upserted)
-      %{num_rows: 1}
+      {1, nil}
     end)
 
     start_supervised!(KeyValueReplicationShipper)
@@ -105,15 +101,16 @@ defmodule Cache.KeyValueReplicationShipperTest do
       1
     end)
 
-    expect(DistributedRepo, :query!, fn sql, params, opts ->
-      assert sql =~ "FROM UNNEST"
-      assert Enum.at(params, 0) == ["keyvalue:acme:ios:cas-a", "keyvalue:acme:ios:cas-b"]
-      assert Enum.at(params, 3) == ["cas-a", "cas-b"]
-      assert Enum.at(params, 5) == ["test-node", "test-node"]
-      assert length(Enum.at(params, 8)) == 2
+    expect(Repo, :insert_all, fn Entry, rows, opts ->
+      assert length(rows) == 2
+      assert Enum.map(rows, & &1.key) == ["keyvalue:acme:ios:cas-a", "keyvalue:acme:ios:cas-b"]
+      assert Enum.map(rows, & &1.cas_id) == ["cas-a", "cas-b"]
+      assert Enum.all?(rows, &(&1.source_node == "test-node"))
+      assert %DateTime{} = hd(rows).updated_at
+      assert opts[:conflict_target] == :key
       assert opts[:timeout]
       send(parent, :upsert_batch)
-      %{num_rows: 2}
+      {2, nil}
     end)
 
     start_supervised!(KeyValueReplicationShipper)
@@ -151,7 +148,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
     stub(KeyValueEntries, :clear_replication_token, fn _key, _token -> 1 end)
-    stub(DistributedRepo, :query!, fn _sql, _params, _opts -> %{num_rows: 1} end)
+    stub(Repo, :insert_all, fn _schema, _rows, _opts -> {1, nil} end)
 
     start_supervised!(KeyValueReplicationShipper)
     assert_receive :cutoffs_loaded
@@ -186,11 +183,10 @@ defmodule Cache.KeyValueReplicationShipperTest do
       1
     end)
 
-    expect(DistributedRepo, :query!, fn sql, params, _opts ->
-      assert sql =~ "INSERT INTO kv_entries"
-      assert Enum.at(params, 0) == ["keyvalue:acme:ios:cas"]
+    expect(Repo, :insert_all, fn Entry, rows, _opts ->
+      assert [%{key: "keyvalue:acme:ios:cas"}] = rows
       send(parent, :upserted)
-      %{num_rows: 1}
+      {1, nil}
     end)
 
     start_supervised!(KeyValueReplicationShipper)

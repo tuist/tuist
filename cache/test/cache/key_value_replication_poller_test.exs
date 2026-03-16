@@ -2,8 +2,8 @@ defmodule Cache.KeyValueReplicationPollerTest do
   use ExUnit.Case, async: false
   use Mimic
 
-  alias Cache.DistributedKV.Entry, as: DistributedEntry
-  alias Cache.DistributedKV.Repo, as: DistributedRepo
+  alias Cache.DistributedKV.Entry
+  alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
   alias Cache.KeyValueReplicationPoller
@@ -30,7 +30,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
     make_row = fn i ->
       updated_at = DateTime.add(base_time, i, :second)
 
-      %DistributedEntry{
+      %Entry{
         key: "keyvalue:acme:ios:cas-#{i}",
         account_handle: "acme",
         project_handle: "ios",
@@ -68,7 +68,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
     stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
 
-    stub(DistributedRepo, :all, fn _query, _opts ->
+    stub(Repo, :all, fn _query, _opts ->
       Agent.get_and_update(calls_agent, fn count ->
         next_count = count + 1
 
@@ -103,7 +103,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
     updated_at = DateTime.add(DateTime.utc_now(), -120, :second)
 
-    row = %DistributedEntry{
+    row = %Entry{
       key: "keyvalue:acme:ios:cas",
       account_handle: "acme",
       project_handle: "ios",
@@ -134,7 +134,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
     stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
 
-    stub(DistributedRepo, :all, fn _query, _opts ->
+    stub(Repo, :all, fn _query, _opts ->
       Agent.get_and_update(calls_agent, fn count ->
         next_count = count + 1
 
@@ -149,7 +149,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
       end)
     end)
 
-    stub(DistributedRepo, :one, fn _query, _opts -> row end)
+    stub(Repo, :one, fn _query, _opts -> row end)
 
     start_supervised!(KeyValueReplicationPoller)
 
@@ -174,7 +174,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
       0
     end)
 
-    stub(DistributedRepo, :all, fn _query, _opts -> [] end)
+    stub(Repo, :all, fn _query, _opts -> [] end)
 
     start_supervised!(KeyValueReplicationPoller)
     assert_receive :size_measured, 10_000
