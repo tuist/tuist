@@ -41,14 +41,14 @@ tuist xcodebuild build -scheme App -workspace App.xcworkspace -configuration Rel
 tuist share App --configuration Release
 ```
 ```bash [Xcode Project (Debug)]
-tuist xcodebuild -scheme App -project App.xcodeproj -configuration Debug # Build the app for the simulator
-tuist xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
+tuist xcodebuild build -scheme App -project App.xcodeproj -configuration Debug # Build the app for the simulator
+tuist xcodebuild build -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa # Share an existing .ipa file
 ```
 ```bash [Xcode Project (Release)]
-tuist xcodebuild -scheme App -project App.xcodeproj -configuration Release # Build the app for the simulator
-tuist xcodebuild -scheme App -project App.xcodeproj -configuration Release -destination 'generic/platform=iOS' # Build the app for the device
+tuist xcodebuild build -scheme App -project App.xcodeproj -configuration Release # Build the app for the simulator
+tuist xcodebuild build -scheme App -project App.xcodeproj -configuration Release -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App --configuration Release --platforms iOS
 tuist share App.ipa # Share an existing .ipa file
 ```
