@@ -441,6 +441,12 @@ defmodule TuistWeb.Router do
           post "/attachments", TestCaseRunAttachmentsController, :create
         end
 
+        scope "/builds" do
+          post "/upload/start", BuildsController, :multipart_start
+          post "/upload/generate-url", BuildsController, :multipart_generate_url
+          post "/upload/complete", BuildsController, :multipart_complete
+        end
+
         scope "/xcode" do
           scope "/builds" do
             get "/", BuildsController, :index
