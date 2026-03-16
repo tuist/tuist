@@ -44,8 +44,8 @@
     border-radius: var(--noora-radius-2xlarge);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-4);
-    overflow: hidden;
     max-width: 100%;
+    overflow: hidden;
 
     & > [data-part="content"] {
       display: flex;
@@ -57,9 +57,9 @@
 
       @media (max-width: 768px) {
         & {
+          padding-inline: var(--noora-spacing-5);
           width: 100%;
           max-width: 100%;
-          padding-inline: var(--noora-spacing-5);
         }
       }
 
