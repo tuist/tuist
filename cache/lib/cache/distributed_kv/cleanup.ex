@@ -68,7 +68,9 @@ defmodule Cache.DistributedKV.Cleanup do
           where:
             pc.account_handle == ^account_handle and pc.project_handle == ^project_handle and
               pc.cleanup_started_at == ^cleanup_started_at and pc.lease_expires_at > ^now
-        ), set: [lease_expires_at: lease_expires_at, updated_at: now])
+        ),
+        set: [lease_expires_at: lease_expires_at, updated_at: now]
+      )
 
     if count == 1 do
       :ok

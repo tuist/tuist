@@ -23,8 +23,7 @@ defmodule Cache.DistributedKV.CleanupTest do
     {:ok, cleanup_agent} = Agent.start_link(fn -> nil end)
     parent = self()
 
-    stub(Repo, :insert, fn %ProjectCleanup{account_handle: "acme", project_handle: "ios"} = struct,
-                                      opts ->
+    stub(Repo, :insert, fn %ProjectCleanup{account_handle: "acme", project_handle: "ios"} = struct, opts ->
       assert opts[:conflict_target] == [:account_handle, :project_handle]
       assert opts[:returning] == true
 
