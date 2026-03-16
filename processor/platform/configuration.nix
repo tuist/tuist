@@ -7,6 +7,8 @@
   imports = [
     (modulesPath + "/installer/scan/not-detected.nix")
     (modulesPath + "/profiles/qemu-guest.nix")
+    ./secrets.nix
+    ./alloy.nix
   ];
   system.stateVersion = "25.11";
 
@@ -28,6 +30,12 @@
         22
         4002
       ];
+      interfaces."br-+" = {
+        allowedTCPPorts = [
+          3100
+          4317
+        ];
+      };
     };
   };
 

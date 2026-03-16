@@ -26,6 +26,8 @@ builder:
 env:
   clear:
     PORT: "4002"
+    LOKI_URL: http://host.docker.internal:3100
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
 
   secret:
     - SECRET_KEY_BASE
