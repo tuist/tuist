@@ -129,7 +129,12 @@ defmodule Cache.KeyValueBuffer do
     |> Enum.chunk_every(@query_chunk_size)
     |> Enum.each(fn keys_chunk ->
       KeyValueRepo.update_all(from(e in KeyValueEntry, where: e.key in ^keys_chunk),
-        set: [last_accessed_at: now, updated_at: now_truncated, replication_enqueued_at: now]
+        set: [last_accessed_at: now, updated_at: now_truncated]
+      )
+
+      KeyValueRepo.update_all(
+        from(e in KeyValueEntry, where: e.key in ^keys_chunk, where: not is_nil(e.source_updated_at)),
+        set: [replication_enqueued_at: now]
       )
     end)
   end

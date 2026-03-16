@@ -96,7 +96,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle -> {:ok, cutoff} end)
 
-      expect(Cleanup, :renew_project_cleanup_lease, 3, fn ^account_handle, ^project_handle, ^cutoff ->
+      expect(Cleanup, :renew_project_cleanup_lease, 2, fn ^account_handle, ^project_handle, ^cutoff ->
         send(self(), :renew_called)
         :ok
       end)
