@@ -3,12 +3,12 @@ import Foundation
 import Path
 import TuistNooraExtension
 
-public struct BuildFileListCommand: AsyncParsableCommand, NooraReadyCommand {
+public struct BuildXcodeIssueListCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
-            abstract: "Lists compiled files for a build."
+            abstract: "Lists issues for a build."
         )
     }
 
@@ -30,21 +30,15 @@ public struct BuildFileListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @Option(
         name: .long,
+        help: "Filter by issue type (warning or error)."
+    )
+    var type: String?
+
+    @Option(
+        name: .long,
         help: "Filter by target name."
     )
     var target: String?
-
-    @Option(
-        name: .long,
-        help: "Filter by file type."
-    )
-    var fileType: String?
-
-    @Option(
-        name: .long,
-        help: "Sort by field (compilation_duration or path)."
-    )
-    var sortBy: String?
 
     @Option(
         name: .long,
@@ -54,7 +48,7 @@ public struct BuildFileListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @Option(
         name: .long,
-        help: "The number of files per page. Defaults to 10."
+        help: "The number of issues per page. Defaults to 10."
     )
     var pageSize: Int?
 
@@ -64,13 +58,12 @@ public struct BuildFileListCommand: AsyncParsableCommand, NooraReadyCommand {
     public var jsonThroughNoora: Bool = true
 
     public func run() async throws {
-        try await BuildFileListCommandService().run(
+        try await BuildXcodeIssueListCommandService().run(
             fullHandle: project,
             buildId: buildId,
             path: path,
+            type: type,
             target: target,
-            fileType: fileType,
-            sortBy: sortBy,
             page: page,
             pageSize: pageSize,
             json: json

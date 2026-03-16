@@ -8,11 +8,11 @@ public struct BuildXcodeCommand: ParsableCommand {
             commandName: "xcode",
             abstract: "A set of commands to inspect Xcode build details.",
             subcommands: [
-                BuildTargetCommand.self,
-                BuildFileCommand.self,
-                BuildIssueCommand.self,
-                BuildCacheTaskCommand.self,
-                BuildCASOutputCommand.self,
+                BuildXcodeTargetCommand.self,
+                BuildXcodeFileCommand.self,
+                BuildXcodeIssueCommand.self,
+                BuildXcodeCacheTaskCommand.self,
+                BuildXcodeCASOutputCommand.self,
             ]
         )
     }

@@ -3,43 +3,44 @@ import Noora
 import Path
 import TuistConfigLoader
 import TuistEnvironment
+import TuistNooraExtension
 import TuistServer
 
-protocol BuildIssueListCommandServicing {
+protocol BuildXcodeCASOutputListCommandServicing {
     func run(
         fullHandle: String?,
         buildId: String,
         path: String?,
-        type: String?,
-        target: String?,
+        operation: String?,
+        outputType: String?,
         page: Int?,
         pageSize: Int?,
         json: Bool
     ) async throws
 }
 
-enum BuildIssueListCommandServiceError: Equatable, LocalizedError {
+enum BuildXcodeCASOutputListCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
 
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
-            return "We couldn't list the build issues because the full handle is missing. You can pass either its value or a path to a Tuist project."
+            return "We couldn't list the build CAS outputs because the full handle is missing. You can pass either its value or a path to a Tuist project."
         }
     }
 }
 
-struct BuildIssueListCommandService: BuildIssueListCommandServicing {
-    private let listBuildIssuesService: ListBuildIssuesServicing
+struct BuildXcodeCASOutputListCommandService: BuildXcodeCASOutputListCommandServicing {
+    private let listBuildCASOutputsService: ListBuildCASOutputsServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
-        listBuildIssuesService: ListBuildIssuesServicing = ListBuildIssuesService(),
+        listBuildCASOutputsService: ListBuildCASOutputsServicing = ListBuildCASOutputsService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
-        self.listBuildIssuesService = listBuildIssuesService
+        self.listBuildCASOutputsService = listBuildCASOutputsService
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
@@ -48,8 +49,8 @@ struct BuildIssueListCommandService: BuildIssueListCommandServicing {
         fullHandle: String?,
         buildId: String,
         path: String?,
-        type: String?,
-        target: String?,
+        operation: String?,
+        outputType: String?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -58,7 +59,7 @@ struct BuildIssueListCommandService: BuildIssueListCommandServicing {
 
         let config = try await configLoader.loadConfig(path: directoryPath)
         guard let resolvedFullHandle = fullHandle ?? config.fullHandle else {
-            throw BuildIssueListCommandServiceError.missingFullHandle
+            throw BuildXcodeCASOutputListCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -66,42 +67,41 @@ struct BuildIssueListCommandService: BuildIssueListCommandServicing {
         let startPage = (page ?? 1) - 1
         let pageSize = pageSize ?? 10
 
-        let initialPage = try await listBuildIssuesService.listBuildIssues(
+        let initialPage = try await listBuildCASOutputsService.listBuildCASOutputs(
             fullHandle: resolvedFullHandle,
             serverURL: serverURL,
             buildId: buildId,
-            type: type,
-            target: target,
-            stepType: nil,
+            operation: operation,
+            type: outputType,
             page: startPage + 1,
             pageSize: pageSize
         )
 
-        let issues = initialPage.issues
+        let outputs = initialPage.outputs
 
         if json {
-            try Noora.current.json(issues)
+            try Noora.current.json(outputs)
             return
         }
 
-        if issues.isEmpty {
-            Noora.current.passthrough("No issues found for build \(buildId).")
+        if outputs.isEmpty {
+            Noora.current.passthrough("No CAS outputs found for build \(buildId).")
             return
         }
 
         let totalPages = initialPage.pagination_metadata.total_pages ?? 1
 
-        let initialRows = issues.map { issue in
+        let initialRows = outputs.map { output in
             [
-                issue._type.rawValue,
-                issue.message ?? issue.title,
-                issue.target,
-                issue.path ?? "-",
+                output.node_id,
+                output.operation.rawValue,
+                output._type?.rawValue ?? "-",
+                Formatters.formatBytes(output.size),
             ]
         }
 
         try await Noora.current.paginatedTable(
-            headers: ["Type", "Message", "Target", "File"],
+            headers: ["Name", "Operation", "Type", "Size"],
             pageSize: pageSize,
             totalPages: totalPages,
             startPage: startPage,
@@ -109,22 +109,21 @@ struct BuildIssueListCommandService: BuildIssueListCommandServicing {
                 if pageIndex == startPage {
                     return initialRows
                 }
-                let issuePage = try await listBuildIssuesService.listBuildIssues(
+                let outputPage = try await listBuildCASOutputsService.listBuildCASOutputs(
                     fullHandle: resolvedFullHandle,
                     serverURL: serverURL,
                     buildId: buildId,
-                    type: type,
-                    target: target,
-                    stepType: nil,
+                    operation: operation,
+                    type: outputType,
                     page: pageIndex + 1,
                     pageSize: pageSize
                 )
-                return issuePage.issues.map { issue in
+                return outputPage.outputs.map { output in
                     [
-                        issue._type.rawValue,
-                        issue.message ?? issue.title,
-                        issue.target,
-                        issue.path ?? "-",
+                        output.node_id,
+                        output.operation.rawValue,
+                        output._type?.rawValue ?? "-",
+                        Formatters.formatBytes(output.size),
                     ]
                 }
             }

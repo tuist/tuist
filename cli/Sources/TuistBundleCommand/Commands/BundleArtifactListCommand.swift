@@ -24,6 +24,12 @@ public struct BundleArtifactListCommand: AsyncParsableCommand, NooraReadyCommand
     @Option(name: .shortAndLong, help: "The path to the directory or a subdirectory of the project.", completion: .directory)
     var path: String?
 
+    @Option(
+        name: .long,
+        help: "The number of artifacts per page. Defaults to 50."
+    )
+    var pageSize: Int?
+
     @Flag(help: "The output in JSON format.")
     var json: Bool = false
 
@@ -34,6 +40,7 @@ public struct BundleArtifactListCommand: AsyncParsableCommand, NooraReadyCommand
             bundleId: bundleId,
             fullHandle: project,
             path: path,
+            pageSize: pageSize,
             json: json
         )
     }

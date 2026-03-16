@@ -3,12 +3,12 @@ import Foundation
 import Path
 import TuistNooraExtension
 
-public struct BuildCacheTaskListCommand: AsyncParsableCommand, NooraReadyCommand {
+public struct BuildXcodeCASOutputListCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
-            abstract: "Lists cacheable tasks for a build."
+            abstract: "Lists CAS outputs for a build."
         )
     }
 
@@ -30,15 +30,15 @@ public struct BuildCacheTaskListCommand: AsyncParsableCommand, NooraReadyCommand
 
     @Option(
         name: .long,
-        help: "Filter by cache status (hit_local, hit_remote, or miss)."
+        help: "Filter by operation (download or upload)."
     )
-    var status: String?
+    var operation: String?
 
     @Option(
         name: .long,
-        help: "Filter by task type (clang or swift)."
+        help: "Filter by output type (e.g. swift, object, swiftmodule, dSYM, llvm-bc)."
     )
-    var taskType: String?
+    var outputType: String?
 
     @Option(
         name: .long,
@@ -48,7 +48,7 @@ public struct BuildCacheTaskListCommand: AsyncParsableCommand, NooraReadyCommand
 
     @Option(
         name: .long,
-        help: "The number of tasks per page. Defaults to 10."
+        help: "The number of outputs per page. Defaults to 10."
     )
     var pageSize: Int?
 
@@ -58,12 +58,12 @@ public struct BuildCacheTaskListCommand: AsyncParsableCommand, NooraReadyCommand
     public var jsonThroughNoora: Bool = true
 
     public func run() async throws {
-        try await BuildCacheTaskListCommandService().run(
+        try await BuildXcodeCASOutputListCommandService().run(
             fullHandle: project,
             buildId: buildId,
             path: path,
-            status: status,
-            taskType: taskType,
+            operation: operation,
+            outputType: outputType,
             page: page,
             pageSize: pageSize,
             json: json

@@ -6,40 +6,42 @@ import TuistEnvironment
 import TuistNooraExtension
 import TuistServer
 
-protocol BuildTargetListCommandServicing {
+protocol BuildXcodeFileListCommandServicing {
     func run(
         fullHandle: String?,
         buildId: String,
         path: String?,
-        status: String?,
+        target: String?,
+        fileType: String?,
+        sortBy: String?,
         page: Int?,
         pageSize: Int?,
         json: Bool
     ) async throws
 }
 
-enum BuildTargetListCommandServiceError: Equatable, LocalizedError {
+enum BuildXcodeFileListCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
 
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
-            return "We couldn't list the build targets because the full handle is missing. You can pass either its value or a path to a Tuist project."
+            return "We couldn't list the build files because the full handle is missing. You can pass either its value or a path to a Tuist project."
         }
     }
 }
 
-struct BuildTargetListCommandService: BuildTargetListCommandServicing {
-    private let listBuildTargetsService: ListBuildTargetsServicing
+struct BuildXcodeFileListCommandService: BuildXcodeFileListCommandServicing {
+    private let listBuildFilesService: ListBuildFilesServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
-        listBuildTargetsService: ListBuildTargetsServicing = ListBuildTargetsService(),
+        listBuildFilesService: ListBuildFilesServicing = ListBuildFilesService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
-        self.listBuildTargetsService = listBuildTargetsService
+        self.listBuildFilesService = listBuildFilesService
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
@@ -48,7 +50,9 @@ struct BuildTargetListCommandService: BuildTargetListCommandServicing {
         fullHandle: String?,
         buildId: String,
         path: String?,
-        status: String?,
+        target: String?,
+        fileType: String?,
+        sortBy: String?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -57,7 +61,7 @@ struct BuildTargetListCommandService: BuildTargetListCommandServicing {
 
         let config = try await configLoader.loadConfig(path: directoryPath)
         guard let resolvedFullHandle = fullHandle ?? config.fullHandle else {
-            throw BuildTargetListCommandServiceError.missingFullHandle
+            throw BuildXcodeFileListCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -65,39 +69,42 @@ struct BuildTargetListCommandService: BuildTargetListCommandServicing {
         let startPage = (page ?? 1) - 1
         let pageSize = pageSize ?? 10
 
-        let initialPage = try await listBuildTargetsService.listBuildTargets(
+        let initialPage = try await listBuildFilesService.listBuildFiles(
             fullHandle: resolvedFullHandle,
             serverURL: serverURL,
             buildId: buildId,
-            status: status,
+            target: target,
+            type: fileType,
+            sortBy: sortBy,
             page: startPage + 1,
             pageSize: pageSize
         )
 
-        let targets = initialPage.targets
+        let files = initialPage.files
 
         if json {
-            try Noora.current.json(targets)
+            try Noora.current.json(files)
             return
         }
 
-        if targets.isEmpty {
-            Noora.current.passthrough("No targets found for build \(buildId).")
+        if files.isEmpty {
+            Noora.current.passthrough("No files found for build \(buildId).")
             return
         }
 
         let totalPages = initialPage.pagination_metadata.total_pages ?? 1
 
-        let initialRows = targets.map { target in
+        let initialRows = files.map { file in
             [
-                target.name,
-                target.status.rawValue,
-                Formatters.formatDuration(target.build_duration),
+                file.path,
+                file.target,
+                file._type.rawValue,
+                Formatters.formatDuration(file.compilation_duration),
             ]
         }
 
         try await Noora.current.paginatedTable(
-            headers: ["Name", "Status", "Duration"],
+            headers: ["Path", "Target", "Type", "Duration"],
             pageSize: pageSize,
             totalPages: totalPages,
             startPage: startPage,
@@ -105,19 +112,22 @@ struct BuildTargetListCommandService: BuildTargetListCommandServicing {
                 if pageIndex == startPage {
                     return initialRows
                 }
-                let targetPage = try await listBuildTargetsService.listBuildTargets(
+                let filePage = try await listBuildFilesService.listBuildFiles(
                     fullHandle: resolvedFullHandle,
                     serverURL: serverURL,
                     buildId: buildId,
-                    status: status,
+                    target: target,
+                    type: fileType,
+                    sortBy: sortBy,
                     page: pageIndex + 1,
                     pageSize: pageSize
                 )
-                return targetPage.targets.map { target in
+                return filePage.files.map { file in
                     [
-                        target.name,
-                        target.status.rawValue,
-                        Formatters.formatDuration(target.build_duration),
+                        file.path,
+                        file.target,
+                        file._type.rawValue,
+                        Formatters.formatDuration(file.compilation_duration),
                     ]
                 }
             }

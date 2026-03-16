@@ -3,12 +3,12 @@ import Foundation
 import Path
 import TuistNooraExtension
 
-public struct BuildTargetListCommand: AsyncParsableCommand, NooraReadyCommand {
+public struct BuildXcodeCacheTaskListCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
-            abstract: "Lists all targets for a build."
+            abstract: "Lists cacheable tasks for a build."
         )
     }
 
@@ -30,9 +30,15 @@ public struct BuildTargetListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @Option(
         name: .long,
-        help: "Filter targets by status (success or failure)."
+        help: "Filter by cache status (hit_local, hit_remote, or miss)."
     )
     var status: String?
+
+    @Option(
+        name: .long,
+        help: "Filter by task type (clang or swift)."
+    )
+    var taskType: String?
 
     @Option(
         name: .long,
@@ -42,7 +48,7 @@ public struct BuildTargetListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @Option(
         name: .long,
-        help: "The number of targets per page. Defaults to 10."
+        help: "The number of tasks per page. Defaults to 10."
     )
     var pageSize: Int?
 
@@ -52,11 +58,12 @@ public struct BuildTargetListCommand: AsyncParsableCommand, NooraReadyCommand {
     public var jsonThroughNoora: Bool = true
 
     public func run() async throws {
-        try await BuildTargetListCommandService().run(
+        try await BuildXcodeCacheTaskListCommandService().run(
             fullHandle: project,
             buildId: buildId,
             path: path,
             status: status,
+            taskType: taskType,
             page: page,
             pageSize: pageSize,
             json: json

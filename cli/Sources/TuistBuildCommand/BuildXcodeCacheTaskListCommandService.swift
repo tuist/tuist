@@ -6,41 +6,41 @@ import TuistEnvironment
 import TuistNooraExtension
 import TuistServer
 
-protocol BuildCASOutputListCommandServicing {
+protocol BuildXcodeCacheTaskListCommandServicing {
     func run(
         fullHandle: String?,
         buildId: String,
         path: String?,
-        operation: String?,
-        outputType: String?,
+        status: String?,
+        taskType: String?,
         page: Int?,
         pageSize: Int?,
         json: Bool
     ) async throws
 }
 
-enum BuildCASOutputListCommandServiceError: Equatable, LocalizedError {
+enum BuildXcodeCacheTaskListCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
 
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
-            return "We couldn't list the build CAS outputs because the full handle is missing. You can pass either its value or a path to a Tuist project."
+            return "We couldn't list the build cache tasks because the full handle is missing. You can pass either its value or a path to a Tuist project."
         }
     }
 }
 
-struct BuildCASOutputListCommandService: BuildCASOutputListCommandServicing {
-    private let listBuildCASOutputsService: ListBuildCASOutputsServicing
+struct BuildXcodeCacheTaskListCommandService: BuildXcodeCacheTaskListCommandServicing {
+    private let listBuildCacheTasksService: ListBuildCacheTasksServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
-        listBuildCASOutputsService: ListBuildCASOutputsServicing = ListBuildCASOutputsService(),
+        listBuildCacheTasksService: ListBuildCacheTasksServicing = ListBuildCacheTasksService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
-        self.listBuildCASOutputsService = listBuildCASOutputsService
+        self.listBuildCacheTasksService = listBuildCacheTasksService
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
@@ -49,8 +49,8 @@ struct BuildCASOutputListCommandService: BuildCASOutputListCommandServicing {
         fullHandle: String?,
         buildId: String,
         path: String?,
-        operation: String?,
-        outputType: String?,
+        status: String?,
+        taskType: String?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -59,7 +59,7 @@ struct BuildCASOutputListCommandService: BuildCASOutputListCommandServicing {
 
         let config = try await configLoader.loadConfig(path: directoryPath)
         guard let resolvedFullHandle = fullHandle ?? config.fullHandle else {
-            throw BuildCASOutputListCommandServiceError.missingFullHandle
+            throw BuildXcodeCacheTaskListCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -67,41 +67,41 @@ struct BuildCASOutputListCommandService: BuildCASOutputListCommandServicing {
         let startPage = (page ?? 1) - 1
         let pageSize = pageSize ?? 10
 
-        let initialPage = try await listBuildCASOutputsService.listBuildCASOutputs(
+        let initialPage = try await listBuildCacheTasksService.listBuildCacheTasks(
             fullHandle: resolvedFullHandle,
             serverURL: serverURL,
             buildId: buildId,
-            operation: operation,
-            type: outputType,
+            status: status,
+            type: taskType,
             page: startPage + 1,
             pageSize: pageSize
         )
 
-        let outputs = initialPage.outputs
+        let tasks = initialPage.tasks
 
         if json {
-            try Noora.current.json(outputs)
+            try Noora.current.json(tasks)
             return
         }
 
-        if outputs.isEmpty {
-            Noora.current.passthrough("No CAS outputs found for build \(buildId).")
+        if tasks.isEmpty {
+            Noora.current.passthrough("No cache tasks found for build \(buildId).")
             return
         }
 
         let totalPages = initialPage.pagination_metadata.total_pages ?? 1
 
-        let initialRows = outputs.map { output in
+        let initialRows = tasks.map { task in
             [
-                output.node_id,
-                output.operation.rawValue,
-                output._type?.rawValue ?? "-",
-                Formatters.formatBytes(output.size),
+                task.key,
+                task.status.rawValue,
+                task._type.rawValue,
+                task.read_duration.map { Formatters.formatDuration(Int($0)) } ?? "-",
             ]
         }
 
         try await Noora.current.paginatedTable(
-            headers: ["Name", "Operation", "Type", "Size"],
+            headers: ["Name", "Status", "Type", "Duration"],
             pageSize: pageSize,
             totalPages: totalPages,
             startPage: startPage,
@@ -109,21 +109,21 @@ struct BuildCASOutputListCommandService: BuildCASOutputListCommandServicing {
                 if pageIndex == startPage {
                     return initialRows
                 }
-                let outputPage = try await listBuildCASOutputsService.listBuildCASOutputs(
+                let taskPage = try await listBuildCacheTasksService.listBuildCacheTasks(
                     fullHandle: resolvedFullHandle,
                     serverURL: serverURL,
                     buildId: buildId,
-                    operation: operation,
-                    type: outputType,
+                    status: status,
+                    type: taskType,
                     page: pageIndex + 1,
                     pageSize: pageSize
                 )
-                return outputPage.outputs.map { output in
+                return taskPage.tasks.map { task in
                     [
-                        output.node_id,
-                        output.operation.rawValue,
-                        output._type?.rawValue ?? "-",
-                        Formatters.formatBytes(output.size),
+                        task.key,
+                        task.status.rawValue,
+                        task._type.rawValue,
+                        task.read_duration.map { Formatters.formatDuration(Int($0)) } ?? "-",
                     ]
                 }
             }

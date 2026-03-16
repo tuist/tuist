@@ -3,12 +3,12 @@ import Foundation
 import Path
 import TuistNooraExtension
 
-public struct BuildCASOutputListCommand: AsyncParsableCommand, NooraReadyCommand {
+public struct BuildXcodeTargetListCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
-            abstract: "Lists CAS outputs for a build."
+            abstract: "Lists all targets for a build."
         )
     }
 
@@ -30,15 +30,9 @@ public struct BuildCASOutputListCommand: AsyncParsableCommand, NooraReadyCommand
 
     @Option(
         name: .long,
-        help: "Filter by operation (download or upload)."
+        help: "Filter targets by status (success or failure)."
     )
-    var operation: String?
-
-    @Option(
-        name: .long,
-        help: "Filter by output type (e.g. swift, object, swiftmodule, dSYM, llvm-bc)."
-    )
-    var outputType: String?
+    var status: String?
 
     @Option(
         name: .long,
@@ -48,7 +42,7 @@ public struct BuildCASOutputListCommand: AsyncParsableCommand, NooraReadyCommand
 
     @Option(
         name: .long,
-        help: "The number of outputs per page. Defaults to 10."
+        help: "The number of targets per page. Defaults to 10."
     )
     var pageSize: Int?
 
@@ -58,12 +52,11 @@ public struct BuildCASOutputListCommand: AsyncParsableCommand, NooraReadyCommand
     public var jsonThroughNoora: Bool = true
 
     public func run() async throws {
-        try await BuildCASOutputListCommandService().run(
+        try await BuildXcodeTargetListCommandService().run(
             fullHandle: project,
             buildId: buildId,
             path: path,
-            operation: operation,
-            outputType: outputType,
+            status: status,
             page: page,
             pageSize: pageSize,
             json: json

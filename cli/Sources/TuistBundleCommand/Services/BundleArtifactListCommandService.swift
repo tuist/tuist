@@ -11,6 +11,7 @@ protocol BundleArtifactListCommandServicing {
         bundleId: String,
         fullHandle: String?,
         path: String?,
+        pageSize: Int?,
         json: Bool
     ) async throws
 }
@@ -45,6 +46,7 @@ struct BundleArtifactListCommandService: BundleArtifactListCommandServicing {
         bundleId: String,
         fullHandle: String?,
         path: String?,
+        pageSize: Int?,
         json: Bool
     ) async throws {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
@@ -82,6 +84,6 @@ struct BundleArtifactListCommandService: BundleArtifactListCommandServicing {
                 "\(artifact.path)",
                 "\(Formatters.formatBytes(artifact.size))",
             ]
-        }), pageSize: 50)
+        }), pageSize: pageSize ?? 50)
     }
 }
