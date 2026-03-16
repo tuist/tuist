@@ -14,7 +14,6 @@ defmodule Processor.BuildProcessing.PromExPlugin do
           reporter_options: [
             buckets: [100, 500, 1000, 5000, 10_000, 30_000, 60_000, 120_000, 300_000, 600_000]
           ],
-          tag_values: &extract_status/1,
           tags: [:status],
           unit: {:native, :millisecond}
         ),
@@ -22,7 +21,6 @@ defmodule Processor.BuildProcessing.PromExPlugin do
           [:processor, :build, :total],
           event_name: [:processor, :build, :stop],
           description: "Total builds processed.",
-          tag_values: &extract_status/1,
           tags: [:status]
         ),
         distribution(
@@ -49,6 +47,4 @@ defmodule Processor.BuildProcessing.PromExPlugin do
     )
   end
 
-  defp extract_status(%{status: status}), do: %{status: status}
-  defp extract_status(_), do: %{status: :unknown}
 end
