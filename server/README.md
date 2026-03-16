@@ -15,23 +15,23 @@ Contributions to the Tuist Server require signing a Contributor License Agreemen
 
 ### Set up
 
-1. Clone the repository: `git clone https://github.com/tuist/server.git`.
+1. Clone the repository: `git clone https://github.com/tuist/tuist.git`.
 1. Open the folder: `cd server`.
-1. Get the private key from 1Password.
-1. Create a `priv/secrets/dev.key` file and add the key to decrypt the secrets needed for development.
-1. Install additional system dependencies with: `mise install`.
+1. Install system dependencies with: `mise install`.
 1. Start Postgres with: `brew services start postgresql@16`.
 1. Start ClickHouse with: `mise run clickhouse:start`
-1. Create a new database with: `mise run db:create`.
-1. Load the data into database with: `mise run db:load`.
-1. Seed your database with data: `mise run db:seed`.
+1. Install dependencies: `mise run install`
+1. Create and set up the database: `mise run db:setup`
 1. Run the server: `mise run dev`
-1. We already have a pre-made user account that you can use to test the server:
+1. Open `http://localhost:8080` in your browser and log in with the pre-made test user account:
 
 ```
 Email: tuistrocks@tuist.dev
 Pass: tuistrocks
 ```
+
+> [!NOTE]
+> First-party developers can load encrypted secrets from `priv/secrets/dev.key`. External contributors don't need this key — the server runs locally without it. OAuth, Stripe, and other third-party integrations will be disabled, but core functionality works.
 
 #### To run additional features
 1. Clone the repository: `https://github.com/tuist/tuist.git`.
