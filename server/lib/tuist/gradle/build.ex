@@ -7,7 +7,16 @@ defmodule Tuist.Gradle.Build do
 
   @derive {
     Flop.Schema,
-    filterable: [:project_id, :status, :is_ci, :git_branch, :root_project_name, :account_id, :gradle_version, :java_version],
+    filterable: [
+      :project_id,
+      :status,
+      :is_ci,
+      :git_branch,
+      :root_project_name,
+      :account_id,
+      :gradle_version,
+      :java_version
+    ],
     sortable: [:inserted_at, :duration_ms, :status],
     default_order: %{
       order_by: [:inserted_at],
