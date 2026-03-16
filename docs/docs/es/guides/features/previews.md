@@ -14,19 +14,19 @@
 <!-- -->
 :::
 
-Al crear una aplicación, es posible que desee compartirla con otras personas
-para obtener comentarios. Tradicionalmente, esto es algo que los equipos hacen
-creando, firmando y enviando sus aplicaciones a plataformas como
-[TestFlight](https://developer.apple.com/testflight/) de Apple. Sin embargo,
-este proceso puede ser engorroso y lento, especialmente cuando solo se busca
-obtener comentarios rápidos de un colega o amigo.
+Al desarrollar una aplicación, es posible que quieras compartirla con otras
+personas para recibir comentarios. Tradicionalmente, esto es algo que los
+equipos hacen compilando, firmando y enviando sus aplicaciones a plataformas
+como [TestFlight](https://developer.apple.com/testflight/) de Apple. Sin
+embargo, este proceso puede resultar engorroso y lento, especialmente cuando
+solo buscas comentarios rápidos de un compañero o un amigo.
 
 Para agilizar este proceso, Tuist ofrece una forma de generar y compartir vistas
 previas de tus aplicaciones con cualquier persona.
 
 ::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
-Al crear para un dispositivo, actualmente es su responsabilidad asegurarse de
+Al compilar para un dispositivo, actualmente es tu responsabilidad asegurarte de
 que la aplicación esté firmada correctamente. Tenemos previsto simplificar este
 proceso en el futuro.
 <!-- -->
@@ -48,24 +48,24 @@ tuist share App.ipa # Share an existing .ipa file
 <!-- -->
 :::
 
-El comando generará un enlace que podrás compartir con cualquier persona para
-ejecutar la aplicación, ya sea en un simulador o en un dispositivo real. Todo lo
-que tendrán que hacer es ejecutar el siguiente comando:
+El comando generará un enlace que puedes compartir con cualquier persona para
+ejecutar la aplicación, ya sea en un simulador o en un dispositivo real. Lo
+único que tendrán que hacer es ejecutar el comando siguiente:
 
 ```bash
 tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-Al compartir un archivo `.ipa`, puede descargar la aplicación directamente desde
-el dispositivo móvil utilizando el enlace de vista previa. Los enlaces a las
-vistas previas de `.ipa` son, por defecto, _privados_, lo que significa que el
-destinatario debe autenticarse con su cuenta de Tuist para descargar la
-aplicación. Puede cambiar esto a público en la configuración del proyecto si
-desea compartir la aplicación con cualquier persona.
+Al compartir un archivo `.ipa`, puedes descargar la aplicación directamente
+desde el dispositivo móvil utilizando el enlace de vista previa. Los enlaces a
+las vistas previas de `.ipa` son, por defecto, _privados_, lo que significa que
+el destinatario debe autenticarse con su cuenta de Tuist para descargar la
+aplicación. Puedes cambiarlo a público en la configuración del proyecto si
+deseas compartir la aplicación con cualquier persona.
 
 `tuist run` también te permite ejecutar una vista previa más reciente basada en
-un especificador como `latest`, nombre de la rama o un hash de confirmación
+un especificador como `latest`, el nombre de una rama o un hash de confirmación
 específico:
 
 ```bash
@@ -77,11 +77,11 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 ::: warning UNIQUE BUILD NUMBERS IN CI
 <!-- -->
 Asegúrate de que `CFBundleVersion` (versión de compilación) sea único utilizando
-un número de ejecución de CI que la mayoría de los proveedores de CI exponen.
-Por ejemplo, en GitHub Actions puedes establecer `CFBundleVersion` en la
-variable <code v-pre>${{ github.run_number }}</code>.
+el número de ejecución de CI que la mayoría de los proveedores de CI
+proporcionan. Por ejemplo, en GitHub Actions puedes establecer `CFBundleVersion`
+en la variable <code v-pre>${{ github.run_number }}</code>.
 
-La carga de una vista previa con el mismo binario (compilación) y el mismo
+La subida de una vista previa con el mismo binario (compilación) y el mismo
 `CFBundleVersion` fallará.
 <!-- -->
 :::
@@ -89,9 +89,9 @@ La carga de una vista previa con el mismo binario (compilación) y el mismo
 ## Pistas {#tracks}
 
 Las pistas te permiten organizar tus vistas previas en grupos con nombre. Por
-ejemplo, puedes tener una pista `beta` para probadores internos y una pista
-`nightly` para compilaciones automatizadas. Las pistas se crean de forma
-diferida: solo tienes que especificar un nombre de pista al compartir y se
+ejemplo, podrías tener una pista « `beta»` para probadores internos y una pista
+« `nightly»` para compilaciones automatizadas. Las pistas se crean de forma
+diferida: solo tienes que especificar un nombre de pista al compartir, y se
 creará automáticamente si no existe.
 
 Para compartir una vista previa de una pista específica, utiliza la opción
@@ -103,12 +103,12 @@ tuist share App --track nightly
 ```
 
 Esto es útil para:
-- **Organizar vistas previas**: Agrupar las vistas previas por finalidad (por
-  ejemplo, `beta`, `nightly`, `internal`)
-- **Actualizaciones en la aplicación**: El SDK de Tuist utiliza pistas para
-  determinar qué actualizaciones notificar a los usuarios.
-- **Filtrado de**: Encuentre y gestione fácilmente las vistas previas por pista
-  en el panel de control de Tuist.
+- **Organización de las vistas previas**: Agrupa las vistas previas por
+  finalidad (p. ej., `beta`, `nightly`, `internal`)
+- **Actualizaciones dentro de la aplicación**: El SDK de Tuist utiliza pistas
+  para determinar de qué actualizaciones se debe notificar a los usuarios
+- **Filtrado de**: Encuentra y gestiona fácilmente las vistas previas por pista
+  en el panel de control de Tuist
 
 ::: warning PREVIEWS' VISIBILITY
 <!-- -->
@@ -127,23 +127,24 @@ enlaces caducados.
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-Para facilitar aún más la ejecución de Tuist Previews, hemos desarrollado una
-aplicación Tuist para la barra de menú de macOS. En lugar de ejecutar Previews a
-través de la CLI de Tuist, puedes [descargar](https://tuist.dev/download) la
-aplicación para macOS. También puedes instalar la aplicación ejecutando `brew
-install --cask tuist/tuist/tuist`.
+Para facilitar aún más la ejecución de las vistas previas de Tuist, hemos
+desarrollado una aplicación de Tuist para la barra de menús de macOS. En lugar
+de ejecutar las vistas previas a través de la CLI de Tuist, puedes
+[descargar](https://tuist.dev/download) la aplicación para macOS. También puedes
+instalar la aplicación ejecutando `brew install --cask tuist/tuist/tuist`.
 
 Ahora, cuando hagas clic en «Ejecutar» en la página de vista previa, la
-aplicación macOS lo iniciará automáticamente en el dispositivo seleccionado
-actualmente.
+aplicación de macOS se iniciará automáticamente en el dispositivo que tengas
+seleccionado.
 
 ::: advertencia REQUISITOS
 <!-- -->
-Debes tener Xcode instalado localmente y utilizar macOS 14 o posterior.
+Debes tener Xcode instalado localmente y utilizar macOS 14 o una versión
+posterior.
 <!-- -->
 :::
 
-## Aplicación Tuist para iOS. {#tuist-ios-app}
+## Aplicación Tuist para iOS {#tuist-ios-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/images/guides/features/ios-icon.png" style="height: 100px;" />
@@ -154,14 +155,14 @@ Debes tener Xcode instalado localmente y utilizar macOS 14 o posterior.
     </a>
 </div>
 
-Al igual que la aplicación para macOS, las aplicaciones Tuist para iOS agilizan
-el acceso y la ejecución de las vistas previas.
+Al igual que la aplicación para macOS, las aplicaciones de Tuist para iOS
+agilizan el acceso y la ejecución de tus vistas previas.
 
 ## Comentarios sobre solicitudes de extracción/fusión {#pullmerge-request-comments}
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-Para obtener comentarios automáticos de solicitudes de extracción/fusión,
+Para obtener comentarios automáticos en las solicitudes de extracción/fusión,
 integra tu <LocalizedLink href="/guides/server/accounts-and-projects">proyecto
 remoto</LocalizedLink> con una
 <LocalizedLink href="/guides/server/authentication">plataforma
@@ -169,47 +170,47 @@ Git</LocalizedLink>.
 <!-- -->
 :::
 
-Probar las nuevas funcionalidades debería formar parte de cualquier revisión de
-código. Sin embargo, tener que crear una aplicación localmente añade una
-fricción innecesaria, lo que a menudo lleva a los desarrolladores a saltarse por
-completo la prueba de funcionalidades en su dispositivo. Pero, ¿ *, qué pasaría
-si cada solicitud de extracción contuviera un enlace a la compilación que
-ejecutara automáticamente la aplicación en un dispositivo seleccionado en la
-aplicación Tuist para macOS?*
+Probar nuevas funcionalidades debería formar parte de cualquier revisión de
+código. Pero tener que compilar una aplicación localmente añade una complicación
+innecesaria, lo que a menudo lleva a los desarrolladores a saltarse por completo
+las pruebas de funcionalidad en su dispositivo. Pero *¿y si cada solicitud de
+incorporación de cambios incluyera un enlace a la compilación que ejecutara
+automáticamente la aplicación en un dispositivo seleccionado en la aplicación
+Tuist para macOS?*
 
-Una vez que tu proyecto Tuist esté conectado con tu plataforma Git, como
-[GitHub](https://github.com), añade <LocalizedLink href="/cli/share">`tuist
+Una vez que tu proyecto de Tuist esté conectado con tu plataforma Git, como
+[GitHub](https://github.com), añade un <LocalizedLink href="/cli/share">`tuist
 share MyApp`</LocalizedLink> a tu flujo de trabajo de CI. Tuist publicará
 entonces un enlace de vista previa directamente en tus solicitudes de
-extracción: ![Comentario de la aplicación GitHub con un enlace de vista previa
-de Tuist](/images/guides/features/github-app-with-preview.png)
+incorporación de cambios: ![Comentario de la aplicación de GitHub con un enlace
+de vista previa de Tuist](/images/guides/features/github-app-with-preview.png)
 
 
-## Notificaciones de actualización en la aplicación. {#in-app-update-notifications}
+## Notificaciones de actualizaciones dentro de la aplicación {#in-app-update-notifications}
 
-El [Tuist SDK](https://github.com/tuist/sdk) permite a tu aplicación detectar
-cuándo hay disponible una versión preliminar más reciente y notificarlo a los
+El [Tuist SDK](https://github.com/tuist/sdk) permite que tu aplicación detecte
+cuándo hay una versión preliminar más reciente disponible y notifique a los
 usuarios. Esto resulta útil para mantener a los probadores con la última
 versión.
 
 El SDK comprueba si hay actualizaciones dentro de la misma pista de vista previa
-**** . Cuando compartes una vista previa con una pista explícita utilizando
+de **** . Cuando compartes una vista previa con una pista explícita utilizando
 `--track`, el SDK buscará actualizaciones en esa pista. Si no se especifica
-ninguna pista, se utiliza la rama git como pista, por lo que una vista previa
-creada a partir de la rama principal `` solo notificará las vistas previas más
-recientes creadas también a partir de la rama principal `` .
+ninguna pista, se utiliza la rama de Git como pista, por lo que una vista previa
+compilada a partir de la rama principal de `` solo notificará sobre vistas
+previas más recientes compiladas también a partir de `main`.
 
 ### Instalación {#sdk-installation}
 
-Añade Tuist SDK como dependencia del paquete Swift:
+Añade el SDK de Tuist como dependencia del paquete Swift:
 
 ```swift
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### Supervisar las actualizaciones. {#sdk-monitor-updates}
+### Esté atento a las actualizaciones {#sdk-monitor-updates}
 
-Utilice `monitorPreviewUpdates` para comprobar periódicamente si hay nuevas
+Utiliza `monitorPreviewUpdates` para comprobar periódicamente si hay nuevas
 versiones de vista previa:
 
 ```swift
@@ -231,7 +232,7 @@ struct MyApp: App {
 }
 ```
 
-### Comprobación de actualización única. {#sdk-single-check}
+### Comprobación de una sola actualización {#sdk-single-check}
 
 Para la comprobación manual de actualizaciones:
 
@@ -261,8 +262,8 @@ task.cancel()
 
 ::: info
 <!-- -->
-La comprobación de actualizaciones se desactiva automáticamente en los
-simuladores y en las compilaciones de la App Store.
+La comprobación de actualizaciones se desactiva automáticamente en simuladores y
+en las versiones de la App Store.
 <!-- -->
 :::
 
@@ -275,22 +276,22 @@ de Tuist:
 [![Vista previa de
 Tuist](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
 
-Para añadir la insignia a tu README de `` , utiliza el siguiente marcado y
-sustituye los nombres de usuario y del proyecto por los tuyos propios:
+Para añadir la insignia a tu README de `` , utiliza el siguiente código Markdown
+y sustituye los nombres de usuario de la cuenta y del proyecto por los tuyos:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
 Si tu proyecto contiene varias aplicaciones con diferentes identificadores de
-paquete, puedes especificar a qué vista previa de la aplicación enlazar
-añadiendo un parámetro de consulta `bundle-id`:
+paquete, puedes especificar a la vista previa de qué aplicación quieres enlazar
+añadiendo el parámetro de consulta `bundle-id`:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
 ## Automatizaciones {#automations}
 
-Puede utilizar el indicador `--json` para obtener una salida JSON del comando
+Puedes utilizar el indicador `--json` para obtener una salida JSON del comando
 `tuist share`:
 ```
 tuist share --json
@@ -298,9 +299,9 @@ tuist share --json
 
 La salida JSON es útil para crear automatizaciones personalizadas, como publicar
 un mensaje de Slack utilizando tu proveedor de CI. El JSON contiene una clave
-`url` con el enlace de vista previa completo y una clave `qrCodeURL` con la URL
-de la imagen del código QR para facilitar la descarga de vistas previas desde un
-dispositivo real. A continuación se muestra un ejemplo de salida JSON:
+url` ` con el enlace completo de la vista previa y una clave qrCodeURL` ` con la
+URL de la imagen del código QR para facilitar la descarga de vistas previas
+desde un dispositivo real. A continuación se muestra un ejemplo de salida JSON:
 ```json
 {
   "id": 1234567890,
