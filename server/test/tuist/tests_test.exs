@@ -4647,6 +4647,27 @@ defmodule Tuist.TestsTest do
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(non_flaky_test_case_id)
       assert fetched_test_case.is_flaky == false
     end
+
+    test "does not clear flaky flag for quarantined test cases" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          is_flaky: true,
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _count} = Tests.clear_stale_flaky_flags()
+
+      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
+      assert fetched_test_case.is_flaky == true
+      assert fetched_test_case.is_quarantined == true
+    end
   end
 
   describe "is_new detection for test case runs" do
