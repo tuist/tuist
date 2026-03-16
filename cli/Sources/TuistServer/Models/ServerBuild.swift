@@ -30,18 +30,7 @@ extension ServerBuild {
         guard let url = URL(string: build.url)
         else { return nil }
         self.url = url
-        switch build.status {
-        case .success:
-            status = .success
-        case .failure:
-            status = .failure
-        case .processing:
-            status = .processing
-        case .failed_processing:
-            status = .failedProcessing
-        case .none:
-            status = nil
-        }
+        status = nil
     }
 }
 
