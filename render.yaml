@@ -1,5 +1,8 @@
 version: "1"
 
+previews:
+  expireAfterDays: 1
+
 services:
   - &server-base
     type: web
@@ -184,7 +187,6 @@ services:
     numInstances: 1
     previews:
       generation: manual
-      expireAfterDays: 1
     buildFilter:
       paths:
         - server/**
