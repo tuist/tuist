@@ -7,8 +7,8 @@
     & [data-part="stat"] {
       & > [data-part="value"] {
         display: inline-block;
+        font-family: var(--noora-font-body);
         font-variant-numeric: tabular-nums;
-        font-feature-settings: "tnum";
         white-space: nowrap;
       }
     }

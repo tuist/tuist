@@ -158,9 +158,13 @@
         & > [data-part="value"] {
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-medium) var(--noora-font-display-xlarge);
+          font-family: var(--noora-font-body);
+          font-variant-numeric: tabular-nums;
 
           @media (max-width: 1024px) {
             font: var(--noora-font-weight-medium) var(--noora-font-display-medium);
+            font-family: var(--noora-font-body);
+            font-variant-numeric: tabular-nums;
           }
         }
       }
