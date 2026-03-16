@@ -36,8 +36,7 @@ defmodule Tuist.IngestRepo.Migrations.FixBuildRunsOrderByForDeduplication do
       timeout: 1_200_000
     )
 
-    IngestRepo.query!("RENAME TABLE build_runs TO build_runs_old")
-    IngestRepo.query!("RENAME TABLE build_runs_new TO build_runs")
+    IngestRepo.query!("EXCHANGE TABLES build_runs AND build_runs_new")
 
     Logger.info("Fixed build_runs ORDER BY to (project_id, id) for proper deduplication")
   end
