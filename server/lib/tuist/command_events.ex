@@ -142,6 +142,11 @@ defmodule Tuist.CommandEvents do
     "#{project.account.name}/#{project.name}/runs/#{command_event.id}/#{result_bundle_object_id}.json"
   end
 
+  def get_session_key(command_event) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
+  end
+
   def get_result_bundle_key(run_id, project) do
     "#{get_command_event_artifact_base_path_key(run_id, project)}/result_bundle.zip"
   end
