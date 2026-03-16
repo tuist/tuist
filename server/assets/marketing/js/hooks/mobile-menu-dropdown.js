@@ -172,4 +172,3 @@ export const MobileMenuDropdown = {
     setOpenState(restoreOpen, false);
   },
 };
-
