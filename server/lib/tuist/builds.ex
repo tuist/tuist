@@ -38,7 +38,7 @@ defmodule Tuist.Builds do
 
   def get_build(id) do
     Build
-    |> from(where: [id: ^id], order_by: [desc: :inserted_at], limit: 1)
+    |> from(hints: ["FINAL"], where: [id: ^id])
     |> ClickHouseRepo.one()
   end
 
