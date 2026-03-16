@@ -12,10 +12,7 @@ export const MobileMenuDropdown = {
   },
 
   updated() {
-    // Preserve open state across LiveView patches
-    const wasOpen = this.isOpen || false;
-    this.cleanup();
-    this.initDropdown(wasOpen);
+    this.updateDropdown();
   },
 
   destroyed() {
@@ -38,7 +35,36 @@ export const MobileMenuDropdown = {
     }
   },
 
-  initDropdown(restoreOpen = false) {
+  updateDropdown() {
+    const menu = this.el;
+    const action = menu.querySelector('[data-part="action"]');
+    const dropdown = menu.querySelector('[data-part="dropdown"]');
+
+    if (!action || !dropdown) return;
+
+    this.dropdown = dropdown;
+
+    // Restore the visual open/closed state without animation after a LiveView patch
+    const isOpen = this.isOpen || false;
+    menu.setAttribute("data-open", isOpen ? "true" : "false");
+    action.setAttribute("data-open", isOpen ? "true" : "false");
+    action.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    dropdown.setAttribute("data-open", isOpen ? "true" : "false");
+    dropdown.setAttribute("aria-hidden", isOpen ? "false" : "true");
+
+    dropdown.style.transition = "height 0.35s cubic-bezier(0.4, 0, 0.2, 1)";
+    if (isOpen) {
+      dropdown.style.display = "flex";
+      dropdown.style.height = "auto";
+      dropdown.style.overflow = "visible";
+    } else {
+      dropdown.style.height = "0px";
+      dropdown.style.overflow = "hidden";
+      dropdown.style.display = "none";
+    }
+  },
+
+  initDropdown() {
     const menu = this.el;
     const action = menu.querySelector('[data-part="action"]');
     const dropdown = menu.querySelector('[data-part="dropdown"]');
@@ -169,6 +195,6 @@ export const MobileMenuDropdown = {
     addListener(action, "keydown", keydownHandler);
 
     // Restore previous state or initialize closed
-    setOpenState(restoreOpen, false);
+    setOpenState(false, false);
   },
 };
