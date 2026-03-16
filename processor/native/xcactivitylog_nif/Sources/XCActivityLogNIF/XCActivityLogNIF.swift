@@ -23,8 +23,7 @@ public func parseXCActivityLog(
         do {
             let parsed = try await XCActivityLogParser().parse(
                 xcactivitylogURL: url,
-                casMetadataPath: try AbsolutePath(validating: casMetadataPath),
-                cacheUploadEnabled: cacheUploadEnabled != 0
+                casMetadataPath: try AbsolutePath(validating: casMetadataPath)
             )
             result = .success(parsed)
         } catch {

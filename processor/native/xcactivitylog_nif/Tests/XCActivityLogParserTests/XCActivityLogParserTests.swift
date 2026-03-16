@@ -31,8 +31,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
+            casMetadataPath: casPath
         )
 
         #expect(result.category == "clean")
@@ -49,8 +48,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
+            casMetadataPath: casPath
         )
 
         for target in result.targets {
@@ -67,8 +65,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
+            casMetadataPath: casPath
         )
 
         #expect(!result.files.isEmpty)
@@ -88,8 +85,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
+            casMetadataPath: casPath
         )
 
         #expect(result.category == "incremental")
@@ -104,8 +100,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
+            casMetadataPath: casPath
         )
 
         #expect(result.status == "failure")
@@ -121,8 +116,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
+            casMetadataPath: casPath
         )
 
         #expect(result.issues.contains { $0.type == "warning" })
@@ -140,8 +134,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
+            casMetadataPath: casPath
         )
 
         #expect(result.category == "clean")
@@ -153,8 +146,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
+            casMetadataPath: casPath
         )
 
         #expect(result.category == "incremental")
@@ -168,8 +160,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
+            casMetadataPath: casPath
         )
 
         #expect(!result.cacheable_tasks.isEmpty)
@@ -182,23 +173,16 @@ struct XCActivityLogParserTests {
 
     // MARK: - Build With Uploads
 
-    @Test func buildWithUploads_parsesCASOutputs_whenUploadEnabled() async throws {
+    @Test func buildWithUploads_parsesCASOutputs() async throws {
         let url = try fixtureURL("build-with-uploads")
         let casPath = try await emptyCASMetadataPath()
 
-        let resultWithUploads = try await parser.parse(
+        let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: true
+            casMetadataPath: casPath
         )
 
-        let resultWithoutUploads = try await parser.parse(
-            xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
-        )
-
-        #expect(resultWithUploads.cas_outputs.count >= resultWithoutUploads.cas_outputs.count)
+        #expect(!result.cacheable_tasks.isEmpty)
     }
 
     // MARK: - CAS Metadata
@@ -216,8 +200,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: true
+            casMetadataPath: casPath
         )
 
         // With empty CAS metadata dirs, CAS outputs that need metadata will be filtered out
@@ -233,8 +216,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath,
-            cacheUploadEnabled: false
+            casMetadataPath: casPath
         )
 
         #expect(!result.unique_identifier.isEmpty)
