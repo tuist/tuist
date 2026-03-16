@@ -14,9 +14,7 @@ export const MobileMenu = {
   },
 
   updated() {
-    const wasOpen = this.isOpen || false;
-    this.cleanup();
-    this.initMenu(wasOpen);
+    this.updateMenu();
   },
 
   destroyed() {
@@ -37,7 +35,17 @@ export const MobileMenu = {
     }
   },
 
-  initMenu(restoreOpen = false) {
+  updateMenu() {
+    const navbar = document.getElementById("marketing-navbar");
+    if (!navbar) return;
+
+    const isOpen = this.isOpen || false;
+    navbar.dataset.mobileMenuOpen = isOpen ? "true" : "false";
+    this.el.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    document.body.style.overflow = isOpen ? "hidden" : "";
+  },
+
+  initMenu() {
     const button = this.el;
     const navbar = document.getElementById("marketing-navbar");
     this.isOpen = false;
@@ -78,9 +86,5 @@ export const MobileMenu = {
 
     addListener(button, "click", toggleMenu);
     addListener(document, "keydown", handleEscape);
-
-    if (restoreOpen) {
-      setOpenState(true);
-    }
   },
 };
