@@ -1,5 +1,5 @@
 <div id="shards">
-  <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="overview">
+  <.card title={dgettext("dashboard_tests", "Shards")} icon="stack_2" data-part="overview">
     <:actions>
       <.date_picker
         id="shards-date-range-picker"
@@ -505,13 +505,6 @@
         </div>
       </.card_section>
     </div>
-  </.card>
-
-  <.card
-    title={dgettext("dashboard_tests", "Sharded Runs")}
-    icon="chart_arcs"
-    data-part="shard-sessions"
-  >
     <.card_section data-part="shard-sessions-section">
       <div data-part="filters">
         <.form for={%{}} phx-change="search-shard-sessions" phx-debounce="200">
@@ -600,7 +593,7 @@
             <.status_badge_cell
               :if={session.status == "in_progress"}
               label={dgettext("dashboard_tests", "In Progress")}
-              status="warning"
+              status="in_progress"
             />
           </:col>
           <:col :let={session} label={dgettext("dashboard_tests", "Shards")}>

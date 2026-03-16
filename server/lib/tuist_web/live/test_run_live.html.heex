@@ -24,9 +24,9 @@
             <.alert_circle />
           </div>
         </div>
-        <div :if={@display_status == "in_progress"} data-part="badge-warning">
+        <div :if={@display_status == "in_progress"} data-part="badge-processing">
           <div data-part="icon">
-            <.alert_hexagon />
+            <.circle_dashed />
           </div>
         </div>
         <div :if={@display_status == "skipped"} data-part="badge-warning">
@@ -174,7 +174,7 @@
               <.badge
                 :if={@display_status == "in_progress"}
                 label={dgettext("dashboard_tests", "In progress")}
-                color="warning"
+                color="neutral"
                 style="fill"
                 size="large"
               />
@@ -194,12 +194,15 @@
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Duration")}</div>
-              <span data-part="value">
+              <span :if={@display_status != "in_progress"} data-part="value">
                 <.history />
                 {dgettext("dashboard_tests", "%{run_duration}s",
                   run_duration:
                     (@display_duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
                 )}
+              </span>
+              <span :if={@display_status == "in_progress"} data-part="value">
+                <.status_badge_cell label={dgettext("dashboard_tests", "In Progress")} status="in_progress" />
               </span>
             </div>
             <div data-part="metadata">
@@ -330,7 +333,7 @@
     <.card
       :if={@is_sharded}
       title={dgettext("dashboard_tests", "Shards")}
-      icon="chart_arcs"
+      icon="stack_2"
       data-part="shards-card"
     >
       <.card_section :if={length(@shard_rows) > 0} data-part="shard-balance-section">
@@ -361,7 +364,7 @@
               }
               icon="history"
             />
-            <.text_cell :if={!shard.actual_duration_ms} label="—" />
+            <.status_badge_cell :if={!shard.actual_duration_ms} label={dgettext("dashboard_tests", "In Progress")} status="in_progress" />
           </:col>
           <:col :let={shard} label={dgettext("dashboard_tests", "Status")}>
             <.status_badge_cell
