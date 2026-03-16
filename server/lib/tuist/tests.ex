@@ -1061,10 +1061,20 @@ defmodule Tuist.Tests do
 
     query
     |> then(fn q ->
-      if start_datetime, do: from(r in q, where: r.ran_at >= ^start_datetime), else: q
+      if start_datetime do
+        naive = DateTime.to_naive(start_datetime)
+        from(r in q, where: r.ran_at >= ^naive)
+      else
+        q
+      end
     end)
     |> then(fn q ->
-      if end_datetime, do: from(r in q, where: r.ran_at <= ^end_datetime), else: q
+      if end_datetime do
+        naive = DateTime.to_naive(end_datetime)
+        from(r in q, where: r.ran_at <= ^naive)
+      else
+        q
+      end
     end)
   end
 
