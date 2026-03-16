@@ -1,8 +1,8 @@
-defmodule Cache.XcodeEventsPipeline do
+defmodule Cache.Gradle.EventsPipeline do
   @moduledoc """
-  Broadway pipeline for batching and sending Xcode cache events to the server.
+  Broadway pipeline for batching and sending Gradle cache events to the server.
 
-  Events are sent to the cache webhook endpoint.
+  Events are sent to the gradle-cache webhook endpoint.
   """
   use Broadway
 
@@ -15,7 +15,7 @@ defmodule Cache.XcodeEventsPipeline do
     Broadway.start_link(__MODULE__,
       name: __MODULE__,
       producer: [
-        module: {OffBroadwayMemory.Producer, buffer: :xcode_events_buffer},
+        module: {OffBroadwayMemory.Producer, buffer: :gradle_events_buffer},
         concurrency: 1
       ],
       processors: [
@@ -32,10 +32,10 @@ defmodule Cache.XcodeEventsPipeline do
   end
 
   @doc """
-  Pushes a Xcode cache event to the pipeline asynchronously.
+  Pushes a Gradle cache event to the pipeline asynchronously.
   """
   def async_push(event) do
-    OffBroadwayMemory.Buffer.async_push(:xcode_events_buffer, event)
+    OffBroadwayMemory.Buffer.async_push(:gradle_events_buffer, event)
   end
 
   @impl true
@@ -54,7 +54,7 @@ defmodule Cache.XcodeEventsPipeline do
 
   defp send_batch(events) do
     server_url = Cache.Authentication.server_url()
-    url = "#{server_url}/webhooks/cache"
+    url = "#{server_url}/webhooks/gradle-cache"
 
     api_events =
       Enum.map(events, fn event ->
@@ -63,12 +63,12 @@ defmodule Cache.XcodeEventsPipeline do
           project_handle: event.project_handle,
           action: event.action,
           size: event.size,
-          cas_id: event.cas_id
+          cache_key: event.cache_key
         }
       end)
 
     body = Jason.encode!(%{events: api_events})
 
-    Cache.WebhookClient.signed_post(url, body, "Xcode cache analytics")
+    Cache.WebhookClient.signed_post(url, body, "Gradle cache analytics")
   end
 end

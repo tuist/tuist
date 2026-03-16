@@ -44,7 +44,7 @@ defmodule Cache.Application do
     children =
       if Cache.Config.analytics_enabled?() do
         base_children ++
-          [Cache.XcodeEventsPipeline, Cache.GradleCacheEventsPipeline, Cache.RegistryDownloadEventsPipeline]
+          [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline]
       else
         base_children
       end
