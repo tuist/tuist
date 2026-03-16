@@ -36,10 +36,10 @@ defmodule Processor.BuildProcessing.PromExPlugin do
           unit: {:native, :millisecond}
         ),
         distribution(
-          [:processor, :nif, :parse, :duration, :milliseconds],
-          event_name: [:processor, :nif, :parse, :stop],
+          [:processor, :build, :parse, :duration, :milliseconds],
+          event_name: [:processor, :build, :parse, :stop],
           measurement: :duration,
-          description: "NIF xcactivitylog parse duration in milliseconds.",
+          description: "Build parse duration in milliseconds.",
           reporter_options: [
             buckets: [100, 500, 1000, 5000, 10_000, 30_000, 60_000, 120_000]
           ],

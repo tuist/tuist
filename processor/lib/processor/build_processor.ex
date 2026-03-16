@@ -51,7 +51,7 @@ defmodule Processor.BuildProcessor do
     cas_path = Path.join(temp_dir, "cas_metadata")
 
     {:ok, parsed_data} =
-      :telemetry.span([:processor, :nif, :parse], %{}, fn ->
+      :telemetry.span([:processor, :build, :parse], %{}, fn ->
         result = Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, xcode_cache_upload_enabled)
         {result, %{}}
       end)
