@@ -6,7 +6,6 @@ defmodule Cache.KeyValueEntries do
   import Ecto.Query
 
   alias Cache.Config
-  alias Cache.DistributedKV.Logic
   alias Cache.DistributedKV.State
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
@@ -405,10 +404,9 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp merge_remote_into_local(local_entry, remote_attrs) do
-    # Pending local writes keep their payload until a strictly newer remote source version arrives.
     local_wins? =
       not is_nil(local_entry.replication_enqueued_at) and
-        Logic.compare_source_versions(
+        compare_source_versions(
           local_entry.source_updated_at,
           local_entry.source_updated_at && Config.distributed_kv_node_name(),
           remote_attrs.source_updated_at,
@@ -416,14 +414,33 @@ defmodule Cache.KeyValueEntries do
         ) == :gt
 
     if local_wins? do
-      %{last_accessed_at: Logic.max_datetime(local_entry.last_accessed_at, remote_attrs.last_accessed_at)}
+      %{last_accessed_at: max_datetime(local_entry.last_accessed_at, remote_attrs.last_accessed_at)}
     else
       %{
         json_payload: remote_attrs.json_payload,
         source_updated_at: remote_attrs.source_updated_at,
-        last_accessed_at: Logic.max_datetime(local_entry.last_accessed_at, remote_attrs.last_accessed_at),
+        last_accessed_at: max_datetime(local_entry.last_accessed_at, remote_attrs.last_accessed_at),
         replication_enqueued_at: local_entry.replication_enqueued_at
       }
     end
   end
+
+  defp compare_source_versions(nil, _left_node, nil, _right_node), do: :eq
+  defp compare_source_versions(nil, _left_node, _right_time, _right_node), do: :lt
+  defp compare_source_versions(_left_time, _left_node, nil, _right_node), do: :gt
+
+  defp compare_source_versions(left_time, left_node, right_time, right_node) do
+    case DateTime.compare(left_time, right_time) do
+      :eq -> compare_node_names(left_node || "", right_node || "")
+      other -> other
+    end
+  end
+
+  defp compare_node_names(left, right) when left > right, do: :gt
+  defp compare_node_names(left, right) when left < right, do: :lt
+  defp compare_node_names(_left, _right), do: :eq
+
+  defp max_datetime(nil, right), do: right
+  defp max_datetime(left, nil), do: left
+  defp max_datetime(left, right), do: if(DateTime.before?(left, right), do: right, else: left)
 end

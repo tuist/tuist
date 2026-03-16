@@ -10,8 +10,6 @@ defmodule Cache.Application do
 
   @impl true
   def start(_type, _args) do
-    Cache.Config.validate_distributed_kv!()
-
     if System.get_env("SKIP_MIGRATIONS") != "true" do
       migrate()
     end
@@ -44,7 +42,8 @@ defmodule Cache.Application do
       # credo:disable-for-next-line Credo.Check.Design.AliasUsage
       {Finch, name: Cache.Finch, pools: Cache.Finch.Pools.config()},
       Cache.PromEx,
-      {Oban, Application.get_env(:cache, Oban)}
+      {Oban, Application.get_env(:cache, Oban)},
+      Cache.KeyValueStore
     ]
 
     distributed_children =
@@ -63,10 +62,9 @@ defmodule Cache.Application do
       if Cache.Config.analytics_enabled?() do
         base_children ++
           distributed_children ++
-          [Cache.KeyValueStore] ++
           [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline]
       else
-        base_children ++ distributed_children ++ [Cache.KeyValueStore]
+        base_children ++ distributed_children
       end
 
     opts = [strategy: :one_for_one, name: Cache.Supervisor]

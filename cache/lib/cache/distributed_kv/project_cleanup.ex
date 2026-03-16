@@ -6,7 +6,7 @@ defmodule Cache.DistributedKV.ProjectCleanup do
   import Ecto.Changeset
 
   @primary_key false
-  schema "distributed_kv_project_cleanups" do
+  schema "project_cleanups" do
     field :account_handle, :string, primary_key: true
     field :project_handle, :string, primary_key: true
     field :cleanup_started_at, :utc_datetime_usec

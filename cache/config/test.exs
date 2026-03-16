@@ -3,13 +3,15 @@ import Config
 alias Ecto.Adapters.SQL.Sandbox
 
 config :cache, Cache.DistributedKV.Repo,
-  url: "ecto://postgres:postgres@localhost/cache_test",
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  database: "cache_test",
   pool: Sandbox,
   pool_size: System.schedulers_online() * 2 + 10,
   timeout: 45_000,
   queue_target: 45_000,
-  queue_interval: 45_000,
-  show_sensitive_data_on_connection_error: false
+  queue_interval: 45_000
 
 config :cache, Cache.Guardian,
   issuer: "tuist",

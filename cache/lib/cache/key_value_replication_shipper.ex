@@ -13,9 +13,9 @@ defmodule Cache.KeyValueReplicationShipper do
   @pending_rows_event [:cache, :kv, :replication, :ship, :pending_rows]
   # Shared rows resolve payload conflicts by source_updated_at, then source_node for equal timestamps.
   @shared_payload_wins_sql """
-  EXCLUDED.source_updated_at > kv_entries.source_updated_at OR (
-    EXCLUDED.source_updated_at = kv_entries.source_updated_at AND
-      EXCLUDED.source_node > kv_entries.source_node
+  EXCLUDED.source_updated_at > key_value_entries.source_updated_at OR (
+    EXCLUDED.source_updated_at = key_value_entries.source_updated_at AND
+      EXCLUDED.source_node > key_value_entries.source_node
   )
   """
 
@@ -124,7 +124,7 @@ defmodule Cache.KeyValueReplicationShipper do
   def upsert_shared_entries(rows, now) do
     DistributedRepo.query!(
       """
-      INSERT INTO kv_entries (
+      INSERT INTO key_value_entries (
         key,
         account_handle,
         project_handle,
@@ -173,21 +173,21 @@ defmodule Cache.KeyValueReplicationShipper do
         cas_id = EXCLUDED.cas_id,
         json_payload = CASE
           WHEN #{@shared_payload_wins_sql} THEN EXCLUDED.json_payload
-          ELSE kv_entries.json_payload
+          ELSE key_value_entries.json_payload
         END,
         source_node = CASE
           WHEN #{@shared_payload_wins_sql} THEN EXCLUDED.source_node
-          ELSE kv_entries.source_node
+          ELSE key_value_entries.source_node
         END,
         source_updated_at = CASE
           WHEN #{@shared_payload_wins_sql} THEN EXCLUDED.source_updated_at
-          ELSE kv_entries.source_updated_at
+          ELSE key_value_entries.source_updated_at
         END,
-        last_accessed_at = GREATEST(kv_entries.last_accessed_at, EXCLUDED.last_accessed_at),
+        last_accessed_at = GREATEST(key_value_entries.last_accessed_at, EXCLUDED.last_accessed_at),
         deleted_at = CASE
-          WHEN #{@shared_payload_wins_sql} AND kv_entries.deleted_at IS NOT NULL AND
-                 EXCLUDED.source_updated_at > kv_entries.deleted_at THEN NULL
-          ELSE kv_entries.deleted_at
+          WHEN #{@shared_payload_wins_sql} AND key_value_entries.deleted_at IS NOT NULL AND
+                 EXCLUDED.source_updated_at > key_value_entries.deleted_at THEN NULL
+          ELSE key_value_entries.deleted_at
         END,
         updated_at = EXCLUDED.updated_at
       """,
@@ -226,7 +226,7 @@ defmodule Cache.KeyValueReplicationShipper do
         false
 
       cleanup_started_at ->
-        DateTime.compare(row.entry.source_updated_at, Cleanup.safe_cleanup_cutoff(cleanup_started_at)) in [:lt, :eq]
+        DateTime.compare(row.entry.source_updated_at, DateTime.truncate(cleanup_started_at, :second)) in [:lt, :eq]
     end
   end
 

@@ -7,7 +7,7 @@ defmodule Cache.CleanProjectWorker do
 
   alias Cache.Config
   alias Cache.Disk
-  alias Cache.DistributedKV.Cleanup, as: DistributedCleanup
+  alias Cache.DistributedKV.Cleanup
   alias Cache.KeyValueEntries
   alias Cache.S3
 
@@ -24,8 +24,7 @@ defmodule Cache.CleanProjectWorker do
   end
 
   defp perform_local_cleanup(account_handle, project_handle) do
-    cutoff = DateTime.utc_now()
-    invalidate_local_kv(account_handle, project_handle, cutoff)
+    invalidate_local_kv(account_handle, project_handle, DateTime.utc_now())
 
     case Disk.delete_project(account_handle, project_handle) do
       :ok ->
@@ -43,55 +42,44 @@ defmodule Cache.CleanProjectWorker do
   end
 
   defp perform_distributed_cleanup(account_handle, project_handle) do
-    with {:ok, cleanup_started_at} <- DistributedCleanup.begin_project_cleanup(account_handle, project_handle) do
-      safe_cleanup_cutoff = DistributedCleanup.safe_cleanup_cutoff(cleanup_started_at)
+    with {:ok, cleanup_started_at} <- Cleanup.begin_project_cleanup(account_handle, project_handle) do
+      safe_cutoff = DateTime.truncate(cleanup_started_at, :second)
+      on_progress = fn -> Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) end
 
-      renew_lease = fn ->
-        DistributedCleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at)
-      end
-
-      with :ok <- renew_lease.(),
-           :ok <- invalidate_local_kv(account_handle, project_handle, safe_cleanup_cutoff),
-           :ok <- renew_lease.(),
-           :ok <- delete_disk_with_cutoff(account_handle, project_handle, safe_cleanup_cutoff, renew_lease),
-           :ok <-
-             maybe_delete_s3_artifacts_with_cutoff(
-               account_handle,
-               project_handle,
-               :xcode_cache,
-               "xcode cache",
-               safe_cleanup_cutoff,
-               renew_lease
-             ),
-           :ok <- renew_lease.(),
+      with :ok <- invalidate_local_kv(account_handle, project_handle, safe_cutoff),
+           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
+           :ok <- delete_disk_with_cutoff(account_handle, project_handle, safe_cutoff, on_progress),
+           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
+           :ok <- maybe_delete_xcode_s3_artifacts(account_handle, project_handle, safe_cutoff, on_progress),
+           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
            :ok <-
              delete_s3_artifacts_with_cutoff(
                account_handle,
                project_handle,
                :cache,
                "cache",
-               safe_cleanup_cutoff,
-               renew_lease
+               safe_cutoff,
+               on_progress
              ),
-           :ok <- renew_lease.() do
-        tombstoned = DistributedCleanup.tombstone_project_entries(account_handle, project_handle, safe_cleanup_cutoff)
+           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
+        tombstoned = Cleanup.tombstone_project_entries(account_handle, project_handle, safe_cutoff)
 
         Logger.info(
-          "Distributed cleanup finished for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cleanup_cutoff)} (tombstoned=#{tombstoned})"
+          "Distributed cleanup finished for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)} (tombstoned=#{tombstoned})"
         )
 
         :ok
       else
         {:error, :cleanup_lease_lost} = error ->
           Logger.warning(
-            "Distributed cleanup lease lost for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cleanup_cutoff)}; aborting so a newer cleanup can continue safely"
+            "Distributed cleanup lease lost for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)}; aborting so a newer cleanup can continue safely"
           )
 
           error
 
         {:error, reason} = error ->
           Logger.error(
-            "Distributed cleanup failed for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cleanup_cutoff)}: #{inspect(reason)}"
+            "Distributed cleanup failed for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)}: #{inspect(reason)}"
           )
 
           error
@@ -105,8 +93,8 @@ defmodule Cache.CleanProjectWorker do
     :ok
   end
 
-  defp delete_disk_with_cutoff(account_handle, project_handle, cleanup_started_at, renew_lease) do
-    case Disk.delete_project_before(account_handle, project_handle, cleanup_started_at, on_progress: renew_lease) do
+  defp delete_disk_with_cutoff(account_handle, project_handle, cutoff, on_progress) do
+    case Disk.delete_project_before(account_handle, project_handle, cutoff, on_progress: on_progress) do
       {:ok, count} ->
         Logger.info("Cleaned #{count} disk artifacts for project #{account_handle}/#{project_handle} with cutoff")
         :ok
@@ -128,47 +116,18 @@ defmodule Cache.CleanProjectWorker do
     end
   end
 
-  defp maybe_delete_s3_artifacts_with_cutoff(
-         account_handle,
-         project_handle,
-         :xcode_cache,
-         label,
-         cleanup_started_at,
-         renew_lease
-       ) do
+  defp maybe_delete_xcode_s3_artifacts(account_handle, project_handle, cutoff, on_progress) do
     if Config.xcode_cache_bucket() do
-      with :ok <- renew_lease.() do
-        delete_s3_artifacts_with_cutoff(
-          account_handle,
-          project_handle,
-          :xcode_cache,
-          label,
-          cleanup_started_at,
-          renew_lease
-        )
-      end
+      delete_s3_artifacts_with_cutoff(account_handle, project_handle, :xcode_cache, "xcode cache", cutoff, on_progress)
     else
       :ok
     end
   end
 
-  defp maybe_delete_s3_artifacts_with_cutoff(
-         account_handle,
-         project_handle,
-         type,
-         label,
-         cleanup_started_at,
-         renew_lease
-       ) do
-    with :ok <- renew_lease.() do
-      delete_s3_artifacts_with_cutoff(account_handle, project_handle, type, label, cleanup_started_at, renew_lease)
-    end
-  end
-
-  defp delete_s3_artifacts_with_cutoff(account_handle, project_handle, type, label, cleanup_started_at, renew_lease) do
+  defp delete_s3_artifacts_with_cutoff(account_handle, project_handle, type, label, cutoff, on_progress) do
     prefix = "#{account_handle}/#{project_handle}/"
 
-    case S3.delete_objects_with_prefix_before(prefix, cleanup_started_at, type: type, on_progress: renew_lease) do
+    case S3.delete_objects_with_prefix_before(prefix, cutoff, type: type, on_progress: on_progress) do
       {:ok, count} ->
         Logger.info("Cleaned #{count} S3 #{label} objects with prefix #{prefix} using cutoff-aware deletion")
         :ok

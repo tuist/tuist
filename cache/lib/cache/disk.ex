@@ -95,9 +95,7 @@ defmodule Cache.Disk do
   Returns :ok on success, {:error, reason} on failure.
   """
   def delete_project(account_handle, project_handle) do
-    path = Path.join(storage_dir(), "#{account_handle}/#{project_handle}")
-
-    case File.rm_rf(path) do
+    case File.rm_rf(project_path(account_handle, project_handle)) do
       {:ok, _} -> :ok
       {:error, reason, _} -> {:error, reason}
     end
@@ -108,9 +106,8 @@ defmodule Cache.Disk do
   cutoff second.
   """
   def delete_project_before(account_handle, project_handle, cutoff, opts \\ []) do
-    path = Path.join(storage_dir(), "#{account_handle}/#{project_handle}")
-    safe_cutoff = DateTime.truncate(cutoff, :second)
-    on_progress = Keyword.get(opts, :on_progress, fn -> :ok end)
+    path = project_path(account_handle, project_handle)
+    on_progress = Keyword.get(opts, :on_progress)
 
     if File.exists?(path) do
       files =
@@ -119,14 +116,7 @@ defmodule Cache.Disk do
         |> Path.wildcard(match_dot: true)
         |> Enum.filter(&File.regular?/1)
 
-      case delete_files_before(files, safe_cutoff, on_progress) do
-        {:ok, deleted_count} ->
-          _ = prune_empty_directories(path)
-          {:ok, deleted_count}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+      delete_files_before(files, DateTime.truncate(cutoff, :second), on_progress)
     else
       {:ok, 0}
     end
@@ -280,7 +270,7 @@ defmodule Cache.Disk do
     files
     |> Enum.chunk_every(@cleanup_progress_chunk_size)
     |> Enum.reduce_while({:ok, 0}, fn files_chunk, {:ok, deleted_acc} ->
-      with :ok <- on_progress.(),
+      with :ok <- maybe_call_progress(on_progress),
            {:ok, chunk_deleted_count} <- delete_files_chunk_before(files_chunk, safe_cutoff) do
         {:cont, {:ok, deleted_acc + chunk_deleted_count}}
       else
@@ -289,6 +279,9 @@ defmodule Cache.Disk do
       end
     end)
   end
+
+  defp maybe_call_progress(nil), do: :ok
+  defp maybe_call_progress(fun) when is_function(fun, 0), do: fun.()
 
   defp delete_files_chunk_before(files, safe_cutoff) do
     Enum.reduce_while(files, {:ok, 0}, fn file_path, {:ok, deleted_acc} ->
@@ -313,19 +306,7 @@ defmodule Cache.Disk do
     end
   end
 
-  defp prune_empty_directories(root) do
-    root
-    |> Path.join("**")
-    |> Path.wildcard(match_dot: true)
-    |> Enum.filter(&File.dir?/1)
-    |> Enum.sort_by(&String.length/1, :desc)
-    |> Enum.each(fn dir ->
-      case File.ls(dir) do
-        {:ok, []} -> File.rmdir(dir)
-        _ -> :ok
-      end
-    end)
-
-    :ok
+  defp project_path(account_handle, project_handle) do
+    Path.join(storage_dir(), "#{account_handle}/#{project_handle}")
   end
 end

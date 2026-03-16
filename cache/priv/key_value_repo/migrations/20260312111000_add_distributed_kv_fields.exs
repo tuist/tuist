@@ -9,7 +9,7 @@ defmodule Cache.KeyValueRepo.Migrations.AddDistributedKvFields do
 
     create index(:key_value_entries, [:replication_enqueued_at], where: "replication_enqueued_at IS NOT NULL")
 
-    create table(:distributed_kv_state, primary_key: false) do
+    create table(:replication_state, primary_key: false) do
       add :name, :text, primary_key: true
       add :updated_at_value, :utc_datetime_usec
       add :key_value, :text

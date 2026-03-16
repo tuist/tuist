@@ -101,7 +101,7 @@ if config_env() == :prod do
   s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
 
   key_value_mode =
-    case System.get_env("KEY_VALUE_MODE") || "local" do
+    case System.get_env("KEY_VALUE_MODE", "local") do
       "distributed" -> :distributed
       _ -> :local
     end
@@ -116,11 +116,21 @@ if config_env() == :prod do
     show_sensitive_data_on_connection_error: false
 
   if key_value_mode == :distributed do
+    database_url = System.get_env("DISTRIBUTED_KV_DATABASE_URL")
+    node_name = System.get_env("DISTRIBUTED_KV_NODE_NAME") || System.get_env("HOSTNAME")
+
+    if is_nil(database_url) or database_url == "" do
+      raise "DISTRIBUTED_KV_DATABASE_URL is required when KEY_VALUE_MODE=distributed"
+    end
+
+    if is_nil(node_name) or node_name == "" do
+      raise "DISTRIBUTED_KV_NODE_NAME or HOSTNAME is required when KEY_VALUE_MODE=distributed"
+    end
+
     config :cache, Repo,
-      url: System.get_env("DISTRIBUTED_KV_DATABASE_URL"),
+      url: database_url,
       pool_size: String.to_integer(System.get_env("DISTRIBUTED_KV_POOL_SIZE") || "5"),
-      timeout: String.to_integer(System.get_env("DISTRIBUTED_KV_DATABASE_TIMEOUT_MS") || "10000"),
-      show_sensitive_data_on_connection_error: false
+      timeout: String.to_integer(System.get_env("DISTRIBUTED_KV_DATABASE_TIMEOUT_MS") || "10000")
 
     config :cache, :ecto_repos, [Cache.Repo, Cache.KeyValueRepo, Repo]
   end

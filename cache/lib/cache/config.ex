@@ -187,23 +187,6 @@ defmodule Cache.Config do
       cache_endpoint()
   end
 
-  def validate_distributed_kv! do
-    database_url = distributed_kv_database_url()
-    node_name = distributed_kv_node_name()
-
-    if distributed_kv_enabled?() do
-      if is_nil(database_url) or database_url == "" do
-        raise "DISTRIBUTED_KV_DATABASE_URL is required when KEY_VALUE_MODE=distributed"
-      end
-
-      if is_nil(node_name) or node_name == "" do
-        raise "DISTRIBUTED_KV_NODE_NAME or HOSTNAME is required when KEY_VALUE_MODE=distributed"
-      end
-    end
-
-    :ok
-  end
-
   def key_value_read_busy_timeout_ms do
     Application.get_env(:cache, :key_value_read_busy_timeout_ms, 2_000)
   end

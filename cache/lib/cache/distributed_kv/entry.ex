@@ -6,7 +6,7 @@ defmodule Cache.DistributedKV.Entry do
   import Ecto.Changeset
 
   @primary_key {:key, :string, autogenerate: false}
-  schema "kv_entries" do
+  schema "key_value_entries" do
     field :account_handle, :string
     field :project_handle, :string
     field :cas_id, :string

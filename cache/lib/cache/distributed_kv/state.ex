@@ -6,7 +6,7 @@ defmodule Cache.DistributedKV.State do
   import Ecto.Changeset
 
   @primary_key {:name, :string, autogenerate: false}
-  schema "distributed_kv_state" do
+  schema "replication_state" do
     field :updated_at_value, :utc_datetime_usec
     field :key_value, :string
   end
