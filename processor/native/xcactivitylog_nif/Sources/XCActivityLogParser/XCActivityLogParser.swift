@@ -8,8 +8,7 @@ public struct XCActivityLogParser: Sendable {
 
     public func parse(
         xcactivitylogURL: URL,
-        casMetadataPath: AbsolutePath,
-        cacheUploadEnabled: Bool
+        casMetadataPath: AbsolutePath
     ) async throws -> BuildData {
         let activityLog = try ActivityParser().parseActivityLogInURL(
             xcactivitylogURL,
@@ -55,8 +54,7 @@ public struct XCActivityLogParser: Sendable {
         )
         let casOutputs = await analyzeCASOutputs(
             from: steps,
-            casReader: casReader,
-            cacheUploadEnabled: cacheUploadEnabled
+            casReader: casReader
         )
 
         let duration = Int(activityLog.mainSection.timeStoppedRecording * 1000)
@@ -340,8 +338,7 @@ public struct XCActivityLogParser: Sendable {
 
     private func analyzeCASOutputs(
         from buildSteps: [BuildStep],
-        casReader: CASMetadataReader,
-        cacheUploadEnabled: Bool
+        casReader: CASMetadataReader
     ) async -> [CASOutput] {
         var downloads = [(nodeID: String, type: String)]()
         var uploads = [(nodeID: String, type: String)]()
@@ -373,13 +370,11 @@ public struct XCActivityLogParser: Sendable {
         }
 
         var uniqueUploads = [(nodeID: String, type: String)]()
-        if cacheUploadEnabled {
-            var seenUploads = Set<String>()
-            for meta in uploads {
-                guard !seenUploads.contains(meta.nodeID) else { continue }
-                seenUploads.insert(meta.nodeID)
-                uniqueUploads.append(meta)
-            }
+        var seenUploads = Set<String>()
+        for meta in uploads {
+            guard !seenUploads.contains(meta.nodeID) else { continue }
+            seenUploads.insert(meta.nodeID)
+            uniqueUploads.append(meta)
         }
 
         return await withTaskGroup(of: CASOutput?.self, returning: [CASOutput].self) { group in
