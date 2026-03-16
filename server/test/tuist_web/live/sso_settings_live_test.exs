@@ -287,6 +287,23 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     end
   end
 
+  test "handles validate_sso event without sso params", %{conn: conn, account: account} do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+    html = render_hook(lv, "validate_sso", %{})
+
+    assert html =~ "Single Sign-On"
+  end
+
+  test "handles select_provider event with empty value", %{conn: conn, account: account} do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+    render_hook(lv, "toggle_sso")
+    html = render_hook(lv, "select_provider", %{"value" => []})
+
+    assert html =~ "Single Sign-On"
+  end
+
   describe "disable SSO" do
     test "disables Google SSO", %{conn: conn, user: user} do
       %{account: google_account} =

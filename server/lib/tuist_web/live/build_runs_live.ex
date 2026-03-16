@@ -40,7 +40,7 @@ defmodule TuistWeb.BuildRunsLive do
     end
   end
 
-  def handle_info({:build_created, _build}, socket) do
+  def handle_info({:xcode_build_created, _build}, socket) do
     {:noreply, TuistWeb.XcodeBuildRunsLive.handle_info_build_created(socket)}
   end
 

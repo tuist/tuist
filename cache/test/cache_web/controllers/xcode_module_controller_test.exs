@@ -1,4 +1,4 @@
-defmodule CacheWeb.ModuleCacheControllerTest do
+defmodule CacheWeb.XcodeModuleControllerTest do
   use ExUnit.Case, async: true
   use Mimic
 
@@ -9,10 +9,10 @@ defmodule CacheWeb.ModuleCacheControllerTest do
   alias Cache.Authentication
   alias Cache.CacheArtifacts
   alias Cache.Disk
-  alias Cache.Module.Disk, as: ModuleDisk
   alias Cache.MultipartUploads
   alias Cache.S3
   alias Cache.S3Transfers
+  alias Cache.XcodeModule
   alias Ecto.Adapters.SQL.Sandbox
 
   @endpoint CacheWeb.Endpoint
@@ -42,7 +42,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(XcodeModule.Disk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
         {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
@@ -78,7 +78,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(XcodeModule.Disk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
         {:error, :enoent}
       end)
 
@@ -125,7 +125,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(XcodeModule.Disk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
         {:error, :enoent}
       end)
 
@@ -162,7 +162,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
         true
       end)
 
@@ -187,7 +187,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
         false
       end)
 
@@ -217,7 +217,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
         false
       end)
 
@@ -247,7 +247,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
         false
       end)
 
@@ -274,7 +274,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
         true
       end)
 
@@ -301,7 +301,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :exists?, fn "test-account", "test-project", ^category, ^hash, ^name ->
+      expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", ^category, ^hash, ^name ->
         false
       end)
 
@@ -410,7 +410,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :complete_assembly, fn ^assembly_path, completed_upload, [^tmp_path] ->
+      expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, completed_upload, [^tmp_path] ->
         assert completed_upload.account_handle == "test-account"
         assert completed_upload.project_handle == "test-project"
         assert completed_upload.category == "builds"
@@ -512,7 +512,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :complete_assembly, fn ^assembly_path, completed_upload, part_paths ->
+      expect(XcodeModule.Disk, :complete_assembly, fn ^assembly_path, completed_upload, part_paths ->
         assert completed_upload.account_handle == "test-account"
         assert completed_upload.project_handle == "test-project"
         assert completed_upload.category == "builds"

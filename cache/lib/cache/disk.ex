@@ -9,7 +9,7 @@ defmodule Cache.Disk do
   - `Cache.Xcode.Disk` - Xcode compilation cache operations
   - `Cache.Gradle.Disk` - Gradle build cache operations
   - `Cache.Registry.Disk` - Swift package registry operations
-  - `Cache.Module.Disk` - Module cache operations
+  - `Cache.XcodeModule.Disk` - Xcode module cache operations
 
   This module stores artifacts on the local filesystem with configurable storage directory.
   Uses two-level directory sharding to prevent ext4 directory index overflow.

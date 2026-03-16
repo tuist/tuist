@@ -19,7 +19,7 @@ defmodule Cache.PromEx do
       PromEx.Plugins.Oban,
       Cache.Xcode.PromExPlugin,
       Cache.KeyValue.PromExPlugin,
-      Cache.Module.PromExPlugin,
+      Cache.XcodeModule.PromExPlugin,
       Cache.Finch.PromExPlugin,
       Cache.SQLiteBuffer.PromExPlugin,
       Cache.S3Transfers.PromExPlugin,

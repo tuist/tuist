@@ -9,8 +9,17 @@ defmodule Processor.BuildProcessor do
     build_path = Path.join(temp_dir, "build.zip")
 
     try do
-      {:ok, _} = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
-      process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
+      :telemetry.span([:processor, :build], %{}, fn ->
+        :telemetry.span([:processor, :s3, :download], %{}, fn ->
+          {:ok, _} = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
+          file_size = File.stat!(build_path).size
+          {:ok, %{file_size: file_size}}
+        end)
+
+        result = process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
+        status = if match?({:ok, _}, result), do: :ok, else: :error
+        {result, %{status: status}}
+      end)
     after
       cleanup_temp(temp_dir)
     end
@@ -20,7 +29,11 @@ defmodule Processor.BuildProcessor do
     temp_dir = make_temp_dir()
 
     try do
-      process_zip(build_zip_path, temp_dir, xcode_cache_upload_enabled)
+      :telemetry.span([:processor, :build], %{}, fn ->
+        result = process_zip(build_zip_path, temp_dir, xcode_cache_upload_enabled)
+        status = if match?({:ok, _}, result), do: :ok, else: :error
+        {result, %{status: status}}
+      end)
     after
       cleanup_temp(temp_dir)
     end
@@ -31,22 +44,36 @@ defmodule Processor.BuildProcessor do
     xcactivitylog_path = find_xcactivitylog(temp_dir)
     cas_path = Path.join(temp_dir, "cas_metadata")
 
-    {:ok, parsed_data} =
-      Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, xcode_cache_upload_enabled)
+    with {:ok, parsed_data} <-
+           parse_build(xcactivitylog_path, cas_path, xcode_cache_upload_enabled) do
+      machine_metrics =
+        read_machine_metrics(
+          Path.join(temp_dir, "machine_metrics.jsonl"),
+          parsed_data["time_started_recording"],
+          parsed_data["time_stopped_recording"]
+        )
 
-    machine_metrics =
-      read_machine_metrics(
-        Path.join(temp_dir, "machine_metrics.jsonl"),
-        parsed_data["time_started_recording"],
-        parsed_data["time_stopped_recording"]
-      )
+      parsed_data =
+        parsed_data
+        |> Map.drop(["time_started_recording", "time_stopped_recording"])
+        |> Map.put("machine_metrics", machine_metrics)
 
-    parsed_data =
-      parsed_data
-      |> Map.drop(["time_started_recording", "time_stopped_recording"])
-      |> Map.put("machine_metrics", machine_metrics)
+      {:ok, parsed_data}
+    end
+  end
 
-    {:ok, parsed_data}
+  defp parse_build(xcactivitylog_path, cas_path, xcode_cache_upload_enabled) do
+    :telemetry.span([:processor, :build, :parse], %{}, fn ->
+      result =
+        Processor.XCActivityLogNIF.parse(
+          xcactivitylog_path,
+          cas_path,
+          xcode_cache_upload_enabled
+        )
+
+      status = if match?({:ok, _}, result), do: :ok, else: :error
+      {result, %{status: status}}
+    end)
   end
 
   defp make_temp_dir do

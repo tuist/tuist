@@ -55,7 +55,7 @@ defmodule Cache.Telemetry do
       project_handle: metadata.project_handle
     }
 
-    Cache.XcodeEventsPipeline.async_push(event)
+    Cache.Xcode.EventsPipeline.async_push(event)
   end
 
   defp push_gradle_event(action, measurements, metadata) do
@@ -67,6 +67,6 @@ defmodule Cache.Telemetry do
       project_handle: metadata.project_handle
     }
 
-    Cache.GradleCacheEventsPipeline.async_push(event)
+    Cache.Gradle.EventsPipeline.async_push(event)
   end
 end

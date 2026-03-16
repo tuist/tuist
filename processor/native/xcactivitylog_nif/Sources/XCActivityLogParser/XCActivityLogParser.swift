@@ -8,8 +8,7 @@ public struct XCActivityLogParser: Sendable {
 
     public func parse(
         xcactivitylogURL: URL,
-        casMetadataPath: AbsolutePath,
-        cacheUploadEnabled: Bool
+        casMetadataPath: AbsolutePath
     ) async throws -> BuildData {
         let activityLog = try ActivityParser().parseActivityLogInURL(
             xcactivitylogURL,
@@ -49,14 +48,13 @@ public struct XCActivityLogParser: Sendable {
 
         let casReader = CASMetadataReader(casMetadataPath: casMetadataPath)
 
-        let cacheableTasks = await analyzeCacheableTasks(
+        let cacheableTasks = try await analyzeCacheableTasks(
             buildSteps: steps,
             casReader: casReader
         )
-        let casOutputs = await analyzeCASOutputs(
+        let casOutputs = try await analyzeCASOutputs(
             from: steps,
-            casReader: casReader,
-            cacheUploadEnabled: cacheUploadEnabled
+            casReader: casReader
         )
 
         let duration = Int(activityLog.mainSection.timeStoppedRecording * 1000)
@@ -243,7 +241,7 @@ public struct XCActivityLogParser: Sendable {
     private func analyzeCacheableTasks(
         buildSteps: [BuildStep],
         casReader: CASMetadataReader
-    ) async -> [CacheableTask] {
+    ) async throws -> [CacheableTask] {
         var keyStatuses = [String: (taskType: String, hasQuery: Bool, hasMaterialize: Bool, hasUpload: Bool, isMiss: Bool)]()
         var keyDescriptions = [String: String]()
         var keyNodeIDs = [String: Set<String>]()
@@ -292,47 +290,35 @@ public struct XCActivityLogParser: Sendable {
         let descriptions = keyDescriptions
         let nodeIDs = keyNodeIDs
 
-        return await withTaskGroup(of: CacheableTask.self, returning: [CacheableTask].self) { group in
-            for (key, status) in keyStatuses {
-                let description = descriptions[key]
-                let casOutputNodeIDs = Array(nodeIDs[key] ?? [])
-                group.addTask {
-                    let cacheStatus: String
-                    if status.isMiss { cacheStatus = "miss" }
-                    else if status.hasQuery { cacheStatus = "hit_remote" }
-                    else { cacheStatus = "hit_local" }
+        return try await Array(keyStatuses).concurrentMap(maxConcurrentTasks: 50) { (key, status) in
+            let cacheStatus: String
+            if status.isMiss { cacheStatus = "miss" }
+            else if status.hasQuery { cacheStatus = "hit_remote" }
+            else { cacheStatus = "hit_local" }
 
-                    let readDuration: Double?
-                    if cacheStatus == "hit_remote" || cacheStatus == "miss" {
-                        readDuration = await casReader.readKeyValueMetadata(key: key, operationType: "read")?.duration
-                    } else {
-                        readDuration = nil
-                    }
-
-                    let writeDuration: Double?
-                    if status.hasUpload {
-                        writeDuration = await casReader.readKeyValueMetadata(key: key, operationType: "write")?.duration
-                    } else {
-                        writeDuration = nil
-                    }
-
-                    return CacheableTask(
-                        type: status.taskType,
-                        status: cacheStatus,
-                        key: key,
-                        read_duration: readDuration,
-                        write_duration: writeDuration,
-                        description: description,
-                        cas_output_node_ids: casOutputNodeIDs
-                    )
-                }
+            let readDuration: Double?
+            if cacheStatus == "hit_remote" || cacheStatus == "miss" {
+                readDuration = await casReader.readKeyValueMetadata(key: key, operationType: "read")?.duration
+            } else {
+                readDuration = nil
             }
 
-            var results = [CacheableTask]()
-            for await task in group {
-                results.append(task)
+            let writeDuration: Double?
+            if status.hasUpload {
+                writeDuration = await casReader.readKeyValueMetadata(key: key, operationType: "write")?.duration
+            } else {
+                writeDuration = nil
             }
-            return results
+
+            return CacheableTask(
+                type: status.taskType,
+                status: cacheStatus,
+                key: key,
+                read_duration: readDuration,
+                write_duration: writeDuration,
+                description: descriptions[key],
+                cas_output_node_ids: Array(nodeIDs[key] ?? [])
+            )
         }
     }
 
@@ -340,9 +326,8 @@ public struct XCActivityLogParser: Sendable {
 
     private func analyzeCASOutputs(
         from buildSteps: [BuildStep],
-        casReader: CASMetadataReader,
-        cacheUploadEnabled: Bool
-    ) async -> [CASOutput] {
+        casReader: CASMetadataReader
+    ) async throws -> [CASOutput] {
         var downloads = [(nodeID: String, type: String)]()
         var uploads = [(nodeID: String, type: String)]()
 
@@ -373,32 +358,19 @@ public struct XCActivityLogParser: Sendable {
         }
 
         var uniqueUploads = [(nodeID: String, type: String)]()
-        if cacheUploadEnabled {
-            var seenUploads = Set<String>()
-            for meta in uploads {
-                guard !seenUploads.contains(meta.nodeID) else { continue }
-                seenUploads.insert(meta.nodeID)
-                uniqueUploads.append(meta)
-            }
+        var seenUploads = Set<String>()
+        for meta in uploads {
+            guard !seenUploads.contains(meta.nodeID) else { continue }
+            seenUploads.insert(meta.nodeID)
+            uniqueUploads.append(meta)
         }
 
-        return await withTaskGroup(of: CASOutput?.self, returning: [CASOutput].self) { group in
-            for meta in uniqueDownloads {
-                group.addTask {
-                    await createCASOutput(nodeID: meta.nodeID, type: meta.type, operation: "download", casReader: casReader)
-                }
-            }
-            for meta in uniqueUploads {
-                group.addTask {
-                    await createCASOutput(nodeID: meta.nodeID, type: meta.type, operation: "upload", casReader: casReader)
-                }
-            }
+        let allItems: [(nodeID: String, type: String, operation: String)] =
+            uniqueDownloads.map { ($0.nodeID, $0.type, "download") } +
+            uniqueUploads.map { ($0.nodeID, $0.type, "upload") }
 
-            var results = [CASOutput]()
-            for await output in group {
-                if let output { results.append(output) }
-            }
-            return results
+        return try await allItems.concurrentCompactMap(maxConcurrentTasks: 50) { item in
+            await createCASOutput(nodeID: item.nodeID, type: item.type, operation: item.operation, casReader: casReader)
         }
     }
 

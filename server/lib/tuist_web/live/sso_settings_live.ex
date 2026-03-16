@@ -68,12 +68,20 @@ defmodule TuistWeb.SSOSettingsLive do
     |> then(&{:noreply, &1})
   end
 
+  def handle_event("select_provider", _params, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("validate_sso", %{"sso" => form_params}, socket) do
     socket
     |> assign(current_form_params: form_params)
     |> compute_form_valid()
     |> compute_has_changes()
     |> then(&{:noreply, &1})
+  end
+
+  def handle_event("validate_sso", _params, socket) do
+    {:noreply, socket}
   end
 
   def handle_event("save_sso", _params, %{assigns: %{sso_enabled: false}} = socket) do

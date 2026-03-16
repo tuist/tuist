@@ -58,6 +58,22 @@ if config_env() == :prod do
   if sentry_dsn do
     config :sentry,
       dsn: sentry_dsn,
-      environment_name: System.get_env("SENTRY_ENV") || "production"
+      environment_name: System.get_env("DEPLOY_ENV") || "production"
+  end
+
+  otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT")
+
+  if otel_endpoint do
+    config :opentelemetry,
+      traces_exporter: :otlp,
+      span_processor: :batch,
+      resource: [
+        service: [name: "tuist-processor", namespace: "tuist"],
+        deployment: [environment: System.get_env("DEPLOY_ENV") || "production"]
+      ]
+
+    config :opentelemetry_exporter,
+      otlp_protocol: :grpc,
+      otlp_endpoint: otel_endpoint
   end
 end

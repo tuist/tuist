@@ -14,10 +14,8 @@
     gap: var(--noora-spacing-4);
   }
 
-  & > [data-part="analytics"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-4);
+  & > [data-part="flaky-tests"] {
+    overflow-x: hidden;
 
     & .noora-dropdown-item:not([data-selected]) svg {
       visibility: hidden;
@@ -59,13 +57,6 @@
       & td:nth-child(3) {
         padding-left: var(--noora-spacing-7);
       }
-    }
-  }
-
-  & > [data-part="flaky-tests"] {
-    overflow-x: hidden;
-    & .noora-dropdown-item:not([data-selected]) svg {
-      visibility: hidden;
     }
   }
 
