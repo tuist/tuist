@@ -8,6 +8,7 @@ servers:
       publish: 4002:4002
       health-cmd: "curl -f http://localhost:4002/health || exit 1"
       health-interval: 10s
+      ulimit: "nofile=65536:65536"
 
 ssh:
   user: github-actions
