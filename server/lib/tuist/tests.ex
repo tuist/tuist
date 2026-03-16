@@ -27,6 +27,7 @@ defmodule Tuist.Tests do
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Shards.ShardSession
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.QuarantinedTestCase
@@ -79,12 +80,21 @@ defmodule Tuist.Tests do
             {:error, :not_found}
 
           test ->
+            {manual_preloads, preload} = Enum.split_with(preload, &(&1 == :shard_session))
             {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 in [:build_run, :gradle_build]))
 
             test =
               test
               |> Repo.preload(pg_preloads)
               |> ClickHouseRepo.preload(ch_preloads)
+
+            test =
+              if :shard_session in manual_preloads do
+                shard_session = load_shard_session(test)
+                Map.put(test, :shard_session, shard_session)
+              else
+                test
+              end
 
             {:ok, test}
         end
@@ -93,6 +103,20 @@ defmodule Tuist.Tests do
         {:error, :not_found}
     end
   end
+
+  defp load_shard_session(%{shard_session_id: session_id, project_id: project_id})
+       when is_binary(session_id) and session_id != "" do
+    IngestRepo.one(
+      from(s in ShardSession,
+        where: s.project_id == ^project_id,
+        where: s.session_id == ^session_id,
+        order_by: [desc: s.inserted_at],
+        limit: 1
+      )
+    )
+  end
+
+  defp load_shard_session(_test), do: nil
 
   def get_latest_test_by_build_run_id(build_run_id) do
     query =
@@ -528,6 +552,7 @@ defmodule Tuist.Tests do
 
   defp create_test_modules(test, test_modules) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
+    shard_session = load_shard_session(test)
 
     Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
@@ -558,6 +583,8 @@ defmodule Tuist.Tests do
         test_suite_count: test_suite_count,
         test_case_count: test_case_count,
         avg_test_case_duration: avg_test_case_duration,
+        shard_id: if(shard_session, do: shard_session.id),
+        shard_index: test.shard_index,
         inserted_at: NaiveDateTime.utc_now()
       }
 
@@ -566,7 +593,8 @@ defmodule Tuist.Tests do
         |> TestModuleRun.create_changeset(module_run_attrs)
         |> IngestRepo.insert()
 
-      suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
+      suite_name_to_id =
+        create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data, shard_session)
 
       {flaky_ids, test_case_runs} =
         create_test_cases_for_module(
@@ -575,7 +603,8 @@ defmodule Tuist.Tests do
           test_cases,
           suite_name_to_id,
           module_name,
-          module_test_case_run_data
+          module_test_case_run_data,
+          shard_session
         )
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
@@ -698,7 +727,7 @@ defmodule Tuist.Tests do
     |> MapSet.new()
   end
 
-  defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data) do
+  defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_session) do
     test_cases_by_suite =
       Enum.group_by(test_cases, fn case_attrs ->
         Map.get(case_attrs, :test_suite_name, "")
@@ -731,6 +760,8 @@ defmodule Tuist.Tests do
           duration: Map.get(suite_attrs, :duration, 0),
           test_case_count: test_case_count,
           avg_test_case_duration: avg_test_case_duration,
+          shard_id: if(shard_session, do: shard_session.id),
+          shard_index: test.shard_index,
           inserted_at: NaiveDateTime.utc_now()
         }
 
@@ -742,7 +773,15 @@ defmodule Tuist.Tests do
     suite_name_to_id
   end
 
-  defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name, test_case_run_data) do
+  defp create_test_cases_for_module(
+         test,
+         module_id,
+         test_cases,
+         suite_name_to_id,
+         module_name,
+         test_case_run_data,
+         shard_session
+       ) do
     test_case_data_list =
       test_cases
       |> Enum.map(fn case_attrs ->
@@ -802,7 +841,9 @@ defmodule Tuist.Tests do
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
-          suite_name: suite_name || ""
+          suite_name: suite_name || "",
+          shard_id: if(shard_session, do: shard_session.id),
+          shard_index: test.shard_index
         }
 
         failures = Map.get(case_attrs, :failures, [])

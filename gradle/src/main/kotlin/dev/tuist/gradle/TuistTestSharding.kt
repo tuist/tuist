@@ -4,9 +4,13 @@ import com.google.gson.Gson
 import dev.tuist.gradle.api.model.CreateShardSessionBody
 import dev.tuist.gradle.api.model.ShardAssignmentResponse
 import dev.tuist.gradle.api.model.ShardSessionResponse
+import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.testing.Test
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -125,6 +129,120 @@ class TuistTestShardingService(
     }
 }
 
+private val classPattern = Regex("""^\s*class\s+(\w+)""", RegexOption.MULTILINE)
+
+internal fun discoverTestSuites(project: Project): List<String> {
+    val testSuites = mutableSetOf<String>()
+    for (subproject in project.allprojects) {
+        val testDirs = listOf("src/test/java", "src/test/kotlin")
+        for (testDir in testDirs) {
+            val dir = subproject.file(testDir)
+            if (!dir.exists()) continue
+            dir.walkTopDown()
+                .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
+                .forEach { file ->
+                    val relativePath = file.relativeTo(dir).path
+                    val packagePrefix = relativePath
+                        .substringBeforeLast(java.io.File.separatorChar.toString(), "")
+                        .replace(java.io.File.separatorChar, '.')
+                    val content = file.readText()
+                    val classNames = classPattern.findAll(content).map { it.groupValues[1] }.toList()
+                    for (className in classNames) {
+                        val fqcn = if (packagePrefix.isNotEmpty()) "$packagePrefix.$className" else className
+                        testSuites.add(fqcn)
+                    }
+                }
+        }
+    }
+    return testSuites.sorted()
+}
+
+abstract class TuistPrepareTestShardsTask : DefaultTask() {
+
+    @get:Input
+    var shardMax: Int = 2
+
+    @get:Input
+    @get:Optional
+    var shardMin: Int? = null
+
+    @get:Input
+    @get:Optional
+    var shardMaxDuration: Int? = null
+
+    @get:Input
+    @get:Optional
+    var sessionIdOverride: String? = null
+
+    @get:Input
+    var serverUrl: String = "https://tuist.dev"
+
+    @get:Input
+    @get:Optional
+    var tuistProject: String? = null
+
+    @TaskAction
+    fun execute() {
+        val shardingService = createShardingService()
+
+        val sessionId = sessionIdOverride
+            ?: shardingService.deriveSessionId()
+            ?: throw org.gradle.api.GradleException(
+                "Could not derive shard session ID. Set TUIST_SHARD_SESSION_ID or run in a supported CI environment."
+            )
+
+        val testSuites = discoverTestSuites(project)
+        if (testSuites.isEmpty()) {
+            throw org.gradle.api.GradleException("No test suites found. Ensure test source directories contain *Test.kt or *Test.java files.")
+        }
+
+        logger.lifecycle("Tuist: Discovered ${testSuites.size} test suite(s): ${testSuites.joinToString(", ")}")
+
+        val response = shardingService.createShardSession(
+            sessionId = sessionId,
+            testSuites = testSuites,
+            shardMax = shardMax,
+            shardMin = shardMin,
+            shardMaxDuration = shardMaxDuration
+        ) ?: throw org.gradle.api.GradleException("Failed to create shard session on the server.")
+
+        logger.lifecycle("Tuist: Shard session created — session=$sessionId, shards=${response.shardCount}")
+        for (shard in response.shards) {
+            logger.lifecycle("Tuist:   Shard ${shard.index}: ${shard.testTargets.joinToString(", ")} (est. ${shard.estimatedDurationMs}ms)")
+        }
+
+        val outputFile = project.layout.buildDirectory.file("tuist/shard-matrix.json").get().asFile
+        outputFile.parentFile.mkdirs()
+        val matrix = mapOf(
+            "session_id" to sessionId,
+            "shard_count" to response.shardCount,
+            "shards" to response.shards.map { shard ->
+                mapOf(
+                    "index" to shard.index,
+                    "test_targets" to shard.testTargets,
+                    "estimated_duration_ms" to shard.estimatedDurationMs
+                )
+            }
+        )
+        outputFile.writeText(Gson().toJson(matrix))
+        logger.lifecycle("Tuist: Shard matrix written to ${outputFile.path}")
+    }
+
+    private fun createShardingService(): TuistTestShardingService {
+        val configProvider = DefaultConfigurationProvider(
+            project = tuistProject,
+            serverUrl = serverUrl,
+            projectDir = project.rootDir
+        )
+        val httpClient = TuistHttpClient(
+            configurationProvider = configProvider,
+            connectTimeoutMs = 10_000,
+            readTimeoutMs = 10_000
+        )
+        return TuistTestShardingService(httpClient = httpClient, baseUrl = serverUrl)
+    }
+}
+
 internal abstract class TuistTestShardingPlugin : Plugin<Project> {
 
     private val logger = Logging.getLogger(TuistTestShardingPlugin::class.java)
@@ -132,14 +250,27 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
     override fun apply(project: Project) {
         if (project !== project.rootProject) return
 
+        val config = TuistGradleConfig.from(project) ?: return
+
+        project.tasks.register("tuistPrepareTestShards", TuistPrepareTestShardsTask::class.java).configure {
+            group = "tuist"
+            description = "Discover test suites and create a shard session on the Tuist server"
+            serverUrl = config.url
+            tuistProject = config.project
+
+            project.findProperty("tuistShardMax")?.toString()?.toIntOrNull()?.let { shardMax = it }
+            project.findProperty("tuistShardMin")?.toString()?.toIntOrNull()?.let { shardMin = it }
+            project.findProperty("tuistShardMaxDuration")?.toString()?.toIntOrNull()?.let { shardMaxDuration = it }
+
+            System.getenv("TUIST_SHARD_SESSION_ID")?.let { sessionIdOverride = it }
+        }
+
         val shardIndexStr = System.getenv("TUIST_SHARD_INDEX") ?: return
         val shardIndex = shardIndexStr.toIntOrNull()
         if (shardIndex == null) {
             logger.warn("Tuist: TUIST_SHARD_INDEX is not a valid integer: $shardIndexStr")
             return
         }
-
-        val config = TuistGradleConfig.from(project) ?: return
 
         val configProvider = DefaultConfigurationProvider(
             project = config.project,
@@ -153,7 +284,7 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
         )
         val shardingService = TuistTestShardingService(httpClient = httpClient, baseUrl = config.url)
 
-        val sessionId = shardingService.deriveSessionId()
+        val sessionId = System.getenv("TUIST_SHARD_SESSION_ID") ?: shardingService.deriveSessionId()
         if (sessionId == null) {
             logger.warn("Tuist: Could not derive shard session ID, skipping test sharding")
             return

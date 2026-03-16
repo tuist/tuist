@@ -2513,7 +2513,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 )
 
             given(inspectResultBundleService)
-                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any, shardSessionId: .any, shardIndex: .any)
                 .willThrow(TestError("Inspect failed"))
 
             // When

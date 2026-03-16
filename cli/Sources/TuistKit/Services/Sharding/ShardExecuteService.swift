@@ -9,6 +9,12 @@
     import TuistServer
     import TuistSupport
 
+    public struct ShardExecuteResult {
+        public let testProductsPath: AbsolutePath
+        public let testTargets: [String]
+        public let hashData: ShardHashData?
+    }
+
     @Mockable
     public protocol ShardExecuteServicing {
         func execute(
@@ -17,7 +23,7 @@
             fullHandle: String,
             serverURL: URL,
             outputPath: AbsolutePath
-        ) async throws -> (testProductsPath: AbsolutePath, testTargets: [String])
+        ) async throws -> ShardExecuteResult
     }
 
     public enum ShardExecuteServiceError: LocalizedError, Equatable {
@@ -58,7 +64,7 @@
             fullHandle: String,
             serverURL: URL,
             outputPath: AbsolutePath
-        ) async throws -> (testProductsPath: AbsolutePath, testTargets: [String]) {
+        ) async throws -> ShardExecuteResult {
             guard let sessionId = ciController.ciInfo()?.shardSessionId else {
                 throw ShardExecuteServiceError.cannotDeriveSessionId
             }
@@ -79,6 +85,7 @@
             Logger.current.info("Downloaded test products bundle.")
 
             let unzippedPath = outputPath.appending(component: "unzipped")
+            try? FileManager.default.removeItem(atPath: unzippedPath.pathString)
             try FileManager.default.createDirectory(
                 atPath: unzippedPath.pathString,
                 withIntermediateDirectories: true
@@ -113,7 +120,20 @@
                 toPath: targetXctestrunPath.pathString
             )
 
-            return (testProductsPath: bundlePath, testTargets: assignment.testTargets)
+            let hashDataPath = bundlePath.appending(component: ShardHashData.fileName)
+            var hashData: ShardHashData?
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: hashDataPath.pathString)) {
+                hashData = try? JSONDecoder().decode(ShardHashData.self, from: data)
+                if hashData != nil {
+                    Logger.current.info("Loaded shard hash data from test products bundle.")
+                }
+            }
+
+            return ShardExecuteResult(
+                testProductsPath: bundlePath,
+                testTargets: assignment.testTargets,
+                hashData: hashData
+            )
         }
 
         private func downloadFile(from urlString: String, to path: AbsolutePath) async throws {

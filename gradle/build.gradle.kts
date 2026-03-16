@@ -42,8 +42,9 @@ tasks.shadowJar {
     relocate("com.google.gson", "dev.tuist.shadow.gson")
     relocate("org.tomlj", "dev.tuist.shadow.tomlj")
     relocate("org.antlr", "dev.tuist.shadow.antlr")
-    relocate("com.sun.jna", "dev.tuist.shadow.jna")
-    minimize()
+    minimize {
+        exclude(dependency("net.java.dev.jna:jna:.*"))
+    }
 }
 
 tasks.jar {

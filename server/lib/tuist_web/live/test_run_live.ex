@@ -14,6 +14,7 @@ defmodule TuistWeb.TestRunLive do
   alias Noora.Filter
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Shards.ShardSession
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Xcode
@@ -25,7 +26,9 @@ defmodule TuistWeb.TestRunLive do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
-      case Tests.get_test(params["test_run_id"], preload: [:ran_by_account, :build_run, :gradle_build]) do
+      case Tests.get_test(params["test_run_id"],
+             preload: [:ran_by_account, :build_run, :gradle_build, :shard_session]
+           ) do
         {:ok, test} ->
           test
 
@@ -60,6 +63,14 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
+      |> assign(:is_sharded, run.shard_session_id != "" && run.shard_session_id != nil)
+      |> assign(
+        :shard_granularity,
+        case Map.get(run, :shard_session) do
+          %{granularity: g} when g in ["module", "suite"] -> g
+          _ -> "module"
+        end
+      )
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
       |> assign_initial_failures_state()
@@ -68,8 +79,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:active_filters, [])
       |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
       |> assign(:has_binary_cache_data, command_event && Xcode.has_binary_cache_data?(command_event))
-      |> assign(:shard_balance, Tests.Analytics.shard_balance_metrics(run.shard_session_id))
-      |> assign(:is_sharded, run.shard_session_id != "" && run.shard_session_id != nil)
+      |> assign_shard_rows(run)
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
@@ -255,7 +265,10 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:expanded_target_names, MapSet.new())
   end
 
-  defp assign_initial_test_cases_state(%{assigns: %{selected_project: project}} = socket) do
+  defp assign_initial_test_cases_state(
+         %{assigns: %{selected_project: project, run: run, is_sharded: is_sharded, shard_granularity: shard_granularity}} =
+           socket
+       ) do
     socket
     |> assign(:selected_test_tab, "test-cases")
     |> assign(:test_cases, [])
@@ -264,7 +277,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_cases_search, "")
     |> assign(:test_cases_sort_by, "name")
     |> assign(:test_cases_sort_order, "asc")
-    |> assign(:test_cases_available_filters, define_test_cases_filters())
+    |> assign(:test_cases_available_filters, define_test_cases_filters(run, is_sharded))
     |> assign(:test_cases_active_filters, [])
     |> assign(:test_suites, [])
     |> assign(:test_suites_meta, %{})
@@ -272,7 +285,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_suites_search, "")
     |> assign(:test_suites_sort_by, "name")
     |> assign(:test_suites_sort_order, "asc")
-    |> assign(:test_suites_available_filters, define_test_suites_filters())
+    |> assign(:test_suites_available_filters, define_test_suites_filters(run, is_sharded))
     |> assign(:test_suites_active_filters, [])
     |> assign(:test_modules, [])
     |> assign(:test_modules_meta, %{})
@@ -280,7 +293,10 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_modules_search, "")
     |> assign(:test_modules_sort_by, "name")
     |> assign(:test_modules_sort_order, "asc")
-    |> assign(:test_modules_available_filters, define_test_modules_filters(project))
+    |> assign(
+      :test_modules_available_filters,
+      define_test_modules_filters(project, run, is_sharded, shard_granularity)
+    )
     |> assign(:test_modules_active_filters, [])
   end
 
@@ -548,7 +564,10 @@ defmodule TuistWeb.TestRunLive do
 
   defp ensure_allowed_params("selective-testing-sort-by", _value), do: :name
 
-  defp load_test_cases_data(run, params, available_filters \\ define_test_cases_filters()) do
+  defp load_test_cases_data(run, params, available_filters \\ nil) do
+    is_sharded = run.shard_session_id != "" && run.shard_session_id != nil
+    available_filters = available_filters || define_test_cases_filters(run, is_sharded)
+
     flop_params = %{
       filters: test_cases_filters(run, params, available_filters, params["test-cases-filter"]),
       page: String.to_integer(params["test-cases-page"] || "1"),
@@ -560,7 +579,10 @@ defmodule TuistWeb.TestRunLive do
     Tests.list_test_case_runs(flop_params)
   end
 
-  defp load_test_suites_data(run, params, available_filters \\ define_test_suites_filters()) do
+  defp load_test_suites_data(run, params, available_filters \\ nil) do
+    is_sharded = run.shard_session_id != "" && run.shard_session_id != nil
+    available_filters = available_filters || define_test_suites_filters(run, is_sharded)
+
     flop_params = %{
       filters: test_suites_filters(run, params, available_filters, params["test-suites-filter"]),
       page: String.to_integer(params["test-suites-page"] || "1"),
@@ -573,7 +595,16 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp load_test_modules_data(run, params, available_filters \\ nil) do
-    available_filters = available_filters || define_test_modules_filters(run.project)
+    is_sharded = run.shard_session_id != "" && run.shard_session_id != nil
+
+    granularity =
+      case Map.get(run, :shard_session) do
+        %{granularity: g} when g in ["module", "suite"] -> g
+        _ -> "module"
+      end
+
+    available_filters =
+      available_filters || define_test_modules_filters(run.project, run, is_sharded, granularity)
 
     flop_params = %{
       filters: test_modules_filters(run, params, available_filters, params["test-modules-filter"]),
@@ -734,8 +765,10 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp test_cases_filters(run, params, available_filters, search) do
+    scope_filter = scope_filter(run, :test_run_id)
+
     base_filters =
-      [%{field: :test_run_id, op: :==, value: run.id}] ++
+      [scope_filter] ++
         (params
          |> Filter.Operations.decode_filters_from_query(available_filters)
          |> Filter.Operations.convert_filters_to_flop()
@@ -781,6 +814,16 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
+  defp scope_filter(run, _field) do
+    case Map.get(run, :shard_session) do
+      %{id: shard_id} when shard_id != nil ->
+        %{field: :shard_id, op: :==, value: shard_id}
+
+      _ ->
+        %{field: :test_run_id, op: :==, value: run.id}
+    end
+  end
+
   defp map_filter_status_value(filters) do
     Enum.map(filters, fn filter ->
       if filter.field == :status do
@@ -793,6 +836,7 @@ defmodule TuistWeb.TestRunLive do
 
   defp remap_test_case_filter_fields(%{field: :test_case_duration} = filter), do: %{filter | field: :duration}
   defp remap_test_case_filter_fields(%{field: :test_case_status} = filter), do: %{filter | field: :status}
+  defp remap_test_case_filter_fields(%{field: :test_case_shard} = filter), do: %{filter | field: :shard_index}
 
   defp remap_test_case_filter_fields(%{field: :test_case_trait, value: :new} = filter),
     do: %{filter | field: :is_new, value: true}
@@ -810,6 +854,7 @@ defmodule TuistWeb.TestRunLive do
 
   defp remap_test_suite_filter_fields(%{field: :test_suite_duration} = filter), do: %{filter | field: :duration}
   defp remap_test_suite_filter_fields(%{field: :test_suite_status} = filter), do: %{filter | field: :status}
+  defp remap_test_suite_filter_fields(%{field: :test_suite_shard} = filter), do: %{filter | field: :shard_index}
   defp remap_test_suite_filter_fields(filter), do: filter
 
   defp remap_test_module_filter_fields(%{field: :test_module_test_suite_count} = filter),
@@ -823,10 +868,11 @@ defmodule TuistWeb.TestRunLive do
 
   defp remap_test_module_filter_fields(%{field: :test_module_duration} = filter), do: %{filter | field: :duration}
   defp remap_test_module_filter_fields(%{field: :test_module_status} = filter), do: %{filter | field: :status}
+  defp remap_test_module_filter_fields(%{field: :test_module_shard} = filter), do: %{filter | field: :shard_index}
   defp remap_test_module_filter_fields(filter), do: filter
 
-  defp define_test_cases_filters do
-    [
+  defp define_test_cases_filters(run, is_sharded) do
+    base = [
       %Filter.Filter{
         id: "test_case_duration",
         field: :test_case_duration,
@@ -863,10 +909,16 @@ defmodule TuistWeb.TestRunLive do
         value: nil
       }
     ]
+
+    if is_sharded do
+      base ++ [shard_filter("test_case_shard", :test_case_shard, run)]
+    else
+      base
+    end
   end
 
-  defp define_test_suites_filters do
-    [
+  defp define_test_suites_filters(run, is_sharded) do
+    base = [
       %Filter.Filter{
         id: "test_suite_test_case_count",
         field: :test_suite_test_case_count,
@@ -906,10 +958,16 @@ defmodule TuistWeb.TestRunLive do
         value: nil
       }
     ]
+
+    if is_sharded do
+      base ++ [shard_filter("test_suite_shard", :test_suite_shard, run)]
+    else
+      base
+    end
   end
 
-  defp define_test_modules_filters(project) do
-    [
+  defp define_test_modules_filters(project, run, is_sharded, shard_granularity) do
+    base = [
       %Filter.Filter{
         id: "test_module_test_suite_count",
         field: :test_module_test_suite_count,
@@ -956,6 +1014,38 @@ defmodule TuistWeb.TestRunLive do
         value: nil
       }
     ]
+
+    if is_sharded and shard_granularity == "module" do
+      base ++ [shard_filter("test_module_shard", :test_module_shard, run)]
+    else
+      base
+    end
+  end
+
+  defp shard_filter(id, field, run) do
+    shard_count =
+      case Map.get(run, :shard_session) do
+        %{shard_count: count} when count > 0 -> count
+        _ -> 0
+      end
+
+    options = Enum.to_list(0..(max(shard_count, 1) - 1))
+
+    display_names =
+      Map.new(options, fn i ->
+        {i, dgettext("dashboard_tests", "Shard %{index}", index: i)}
+      end)
+
+    %Filter.Filter{
+      id: id,
+      field: field,
+      display_name: dgettext("dashboard_tests", "Shard"),
+      type: :option,
+      options: options,
+      options_display_names: display_names,
+      operator: :==,
+      value: nil
+    }
   end
 
   defp define_binary_cache_filters do
@@ -1192,5 +1282,93 @@ defmodule TuistWeb.TestRunLive do
       |> Map.new()
 
     assign(socket, :text_attachment_urls, urls)
+  end
+
+  defp assign_shard_rows(socket, run) do
+    shard_balance = Tests.Analytics.shard_balance_metrics(run.shard_session_id)
+
+    shard_session = Map.get(run, :shard_session)
+
+    expected_shard_count =
+      case shard_session do
+        %{shard_count: count} -> count
+        _ -> 0
+      end
+
+    assignments = ShardSession.decode_shard_assignments(shard_session)
+
+    target_counts =
+      Map.new(assignments, fn assignment ->
+        {Map.get(assignment, "index"), length(Map.get(assignment, "test_targets", []))}
+      end)
+
+    reported_indices = MapSet.new(shard_balance, & &1.shard_index)
+
+    pending_rows =
+      if expected_shard_count > 0 do
+        0..(expected_shard_count - 1)
+        |> Enum.reject(&MapSet.member?(reported_indices, &1))
+        |> Enum.map(fn index ->
+          %{shard_index: index, actual_duration_ms: nil, status: "pending"}
+        end)
+      else
+        []
+      end
+
+    all_shards =
+      (shard_balance ++ pending_rows)
+      |> Enum.sort_by(& &1.shard_index)
+      |> Enum.map(fn shard ->
+        Map.put(shard, :target_count, Map.get(target_counts, shard.shard_index, 0))
+      end)
+      |> Enum.with_index(fn shard, idx -> Map.put(shard, :id, idx) end)
+
+    has_pending = Enum.any?(all_shards, fn s -> s.status == "pending" end)
+    has_failure = Enum.any?(all_shards, fn s -> s.status == "failure" end)
+
+    display_status =
+      cond do
+        expected_shard_count == 0 -> run.status
+        has_pending -> "in_progress"
+        has_failure -> "failure"
+        true -> "success"
+      end
+
+    display_duration = shard_wall_clock_duration(shard_balance, run.duration)
+
+    socket
+    |> assign(:shard_rows, all_shards)
+    |> assign(:expected_shard_count, expected_shard_count)
+    |> assign(:display_status, display_status)
+    |> assign(:display_duration, display_duration)
+  end
+
+  defp shard_wall_clock_duration([], run_duration), do: run_duration
+
+  defp shard_wall_clock_duration(shard_balance, _run_duration) do
+    timestamps =
+      Enum.flat_map(shard_balance, fn shard ->
+        case shard do
+          %{ran_at: ran_at, actual_duration_ms: duration_ms}
+          when not is_nil(ran_at) and not is_nil(duration_ms) ->
+            start_ms =
+              ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(:millisecond)
+
+            [{start_ms, start_ms + duration_ms}]
+
+          _ ->
+            []
+        end
+      end)
+
+    case timestamps do
+      [] ->
+        0
+
+      pairs ->
+        earliest_start = pairs |> Enum.map(&elem(&1, 0)) |> Enum.min()
+        latest_end = pairs |> Enum.map(&elem(&1, 1)) |> Enum.max()
+        latest_end - earliest_start
+    end
   end
 end

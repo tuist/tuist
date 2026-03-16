@@ -11,6 +11,7 @@ import TuistLoader
 import TuistLogging
 import TuistServer
 import TuistSupport
+import TuistCI
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
 
@@ -66,13 +67,14 @@ struct XcodeBuildTestCommandService {
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
 
+        var shardSessionId: String?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
-            let currentDir = try await Environment.current.currentWorkingDirectory()
-            let outputPath = currentDir.appending(components: ".tuist", "shard-output")
+            let outputPath = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
+                .appending(component: "shard-output")
             try await fileSystem.makeDirectory(at: outputPath)
-            let result = try await shardExecuteService.execute(
+            let shardResult = try await shardExecuteService.execute(
                 shardIndex: shardIndex,
                 scheme: schemeName,
                 fullHandle: fullHandle,
@@ -82,10 +84,11 @@ struct XcodeBuildTestCommandService {
             passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
-            passthroughXcodebuildArguments += ["-testProductsPath", result.testProductsPath.pathString]
-            for target in result.testTargets {
+            passthroughXcodebuildArguments += ["-testProductsPath", shardResult.testProductsPath.pathString]
+            for target in shardResult.testTargets {
                 passthroughXcodebuildArguments += ["-only-testing", target]
             }
+            shardSessionId = CIController().ciInfo()?.shardSessionId
         }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
@@ -107,7 +110,9 @@ struct XcodeBuildTestCommandService {
             await inspectResultBundleIfNeeded(
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: derivedDataPath,
-                config: config
+                config: config,
+                shardSessionId: shardSessionId,
+                shardIndex: shardIndex
             )
             throw error
         }
@@ -118,7 +123,9 @@ struct XcodeBuildTestCommandService {
         await inspectResultBundleIfNeeded(
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
-            config: config
+            config: config,
+            shardSessionId: shardSessionId,
+            shardIndex: shardIndex
         )
     }
 
@@ -220,7 +227,9 @@ struct XcodeBuildTestCommandService {
     private func inspectResultBundleIfNeeded(
         resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        shardSessionId: String? = nil,
+        shardIndex: Int? = nil
     ) async {
         guard let resultBundlePath,
               let projectDerivedDataDirectory,
@@ -232,7 +241,9 @@ struct XcodeBuildTestCommandService {
             _ = try await inspectResultBundleService.inspectResultBundle(
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
-                config: config
+                config: config,
+                shardSessionId: shardSessionId,
+                shardIndex: shardIndex
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

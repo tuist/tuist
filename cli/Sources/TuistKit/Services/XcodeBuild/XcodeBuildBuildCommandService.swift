@@ -60,8 +60,8 @@ struct XcodeBuildBuildCommandService {
         var shardTestProductsPath: AbsolutePath?
         if shardConfiguration != nil {
             let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
-            let currentDir = try await Environment.current.currentWorkingDirectory()
-            let testProductsDir = currentDir.appending(components: ".tuist", "test-products")
+            let testProductsDir = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
+                .appending(component: "shard-test-products")
             try await fileSystem.makeDirectory(at: testProductsDir)
             let productsPath = testProductsDir.appending(component: "\(schemeName).xctestproducts")
             shardTestProductsPath = productsPath

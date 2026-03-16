@@ -765,6 +765,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-cases/runs/:test_case_run_id", TestCaseRunLive
       live "/tests/flaky-tests", FlakyTestsLive
       live "/tests/quarantined-tests", QuarantinedTestsLive
+      live "/tests/shards", ShardsLive
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive

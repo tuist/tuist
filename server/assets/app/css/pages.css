@@ -36,6 +36,7 @@
 @import "./pages/test_case_run.css";
 @import "./pages/flaky_tests.css";
 @import "./pages/quarantined_tests.css";
+@import "./pages/shards.css";
 @import "./pages/sso_settings.css";
 @import "./pages/machine_metrics.css";
 @import "./pages/xcode_cache.css";

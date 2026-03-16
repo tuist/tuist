@@ -1233,7 +1233,8 @@ defmodule Tuist.Tests.Analytics do
         select: %{
           shard_index: t.shard_index,
           duration: t.duration,
-          status: t.status
+          status: t.status,
+          ran_at: t.ran_at
         }
 
     results = ClickHouseRepo.all(query)
@@ -1242,7 +1243,8 @@ defmodule Tuist.Tests.Analytics do
       %{
         shard_index: row.shard_index,
         actual_duration_ms: row.duration,
-        status: row.status
+        status: row.status,
+        ran_at: row.ran_at
       }
     end)
   end
