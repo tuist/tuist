@@ -30,7 +30,8 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       project: project
     } do
       # Given
-      create_flaky_test_case(project, "testFlakyExample")
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testFlakyExample", ran_at: recent)
       RunsFixtures.optimize_test_case_runs()
 
       # When
@@ -47,8 +48,9 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       project: project
     } do
       # Given
-      create_flaky_test_case(project, "testFirstFlaky")
-      create_flaky_test_case(project, "testSecondFlaky")
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testFirstFlaky", ran_at: recent)
+      create_flaky_test_case(project, "testSecondFlaky", ran_at: recent)
       RunsFixtures.optimize_test_case_runs()
 
       # When
@@ -92,8 +94,9 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       project: project
     } do
       # Given
-      create_flaky_test_case(project, "testCIFlaky", is_ci: true)
-      create_flaky_test_case(project, "testLocalFlaky", is_ci: false)
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testCIFlaky", is_ci: true, ran_at: recent)
+      create_flaky_test_case(project, "testLocalFlaky", is_ci: false, ran_at: recent)
       RunsFixtures.optimize_test_case_runs()
 
       # When - filter by CI environment
@@ -111,7 +114,8 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       project: project
     } do
       # Given
-      create_flaky_test_case(project, "testRecentFlaky")
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testRecentFlaky", ran_at: recent)
 
       old_datetime = NaiveDateTime.add(NaiveDateTime.utc_now(), -60 * 24 * 60 * 60)
       create_flaky_test_case(project, "testOldFlaky", ran_at: old_datetime)
