@@ -44,18 +44,7 @@ defmodule Processor.BuildProcessor do
     xcactivitylog_path = find_xcactivitylog(temp_dir)
     cas_path = Path.join(temp_dir, "cas_metadata")
 
-    with {:ok, parsed_data} <-
-           :telemetry.span([:processor, :build, :parse], %{}, fn ->
-             result =
-               Processor.XCActivityLogNIF.parse(
-                 xcactivitylog_path,
-                 cas_path,
-                 xcode_cache_upload_enabled
-               )
-
-             status = if match?({:ok, _}, result), do: :ok, else: :error
-             {result, %{status: status}}
-           end) do
+    with {:ok, parsed_data} <- parse_build(xcactivitylog_path, cas_path, xcode_cache_upload_enabled) do
       machine_metrics =
         read_machine_metrics(
           Path.join(temp_dir, "machine_metrics.jsonl"),
@@ -70,6 +59,20 @@ defmodule Processor.BuildProcessor do
 
       {:ok, parsed_data}
     end
+  end
+
+  defp parse_build(xcactivitylog_path, cas_path, xcode_cache_upload_enabled) do
+    :telemetry.span([:processor, :build, :parse], %{}, fn ->
+      result =
+        Processor.XCActivityLogNIF.parse(
+          xcactivitylog_path,
+          cas_path,
+          xcode_cache_upload_enabled
+        )
+
+      status = if match?({:ok, _}, result), do: :ok, else: :error
+      {result, %{status: status}}
+    end)
   end
 
   defp make_temp_dir do

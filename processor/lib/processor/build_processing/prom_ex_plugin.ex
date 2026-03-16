@@ -1,4 +1,5 @@
 defmodule Processor.BuildProcessing.PromExPlugin do
+  @moduledoc false
   use PromEx.Plugin
 
   @impl true

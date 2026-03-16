@@ -1,4 +1,5 @@
 defmodule Processor.PromEx do
+  @moduledoc false
   use PromEx, otp_app: :processor
 
   @impl true
