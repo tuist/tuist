@@ -180,10 +180,11 @@ services:
     repo: https://github.com/tuist/tuist
     dockerfilePath: server/Dockerfile
     dockerCommand: /app/bin/start-preview
-    plan: standard
+    plan: starter
     numInstances: 1
     previews:
       generation: manual
+      expireAfterDays: 1
     buildFilter:
       paths:
         - server/**
