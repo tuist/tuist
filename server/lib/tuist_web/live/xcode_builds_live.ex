@@ -44,13 +44,15 @@ defmodule TuistWeb.XcodeBuildsLive do
     |> assign_recent_builds()
   end
 
-  def handle_info_build_created(socket) do
+  def handle_info({:xcode_build_created, _build}, socket) do
     if Query.has_pagination_params?(socket.assigns.uri.query) do
-      socket
+      {:noreply, socket}
     else
-      socket |> assign_analytics(socket.assigns.current_params) |> assign_recent_builds()
+      {:noreply, socket |> assign_analytics(socket.assigns.current_params) |> assign_recent_builds()}
     end
   end
+
+  def handle_info(_event, socket), do: {:noreply, socket}
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)

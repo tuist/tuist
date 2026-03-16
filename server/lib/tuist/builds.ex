@@ -92,7 +92,7 @@ defmodule Tuist.Builds do
         Tuist.PubSub.broadcast(
           build,
           "#{project.account.name}/#{project.name}",
-          :build_created
+          :xcode_build_created
         )
       end
 
