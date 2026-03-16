@@ -89,6 +89,12 @@ defmodule TuistWeb.Endpoint do
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 
+  plug WebhookPlug,
+    at: "/webhooks/flaky-fix-runner",
+    handler: TuistWeb.Webhooks.FlakyFixRunnerController,
+    secret: {Tuist.Environment, :flaky_fix_runner_webhook_secret, []},
+    signature_header: "x-webhook-signature"
+
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
   # for projects with thousands of files. 50MB should accommodate most projects.
   # TODO: Consider streaming large arrays instead of loading everything into memory.

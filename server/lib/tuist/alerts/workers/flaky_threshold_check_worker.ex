@@ -13,6 +13,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
   alias Tuist.Alerts.Workers.FlakyTestAlertWorker
   alias Tuist.Projects
   alias Tuist.Tests
+  alias Tuist.Tests.Workers.EnqueueFlakyFixWorker
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"project_id" => project_id, "test_case_ids" => test_case_ids}}) do
@@ -51,11 +52,12 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
           %{is_flaky: true, is_quarantined: true}
         else
           %{is_flaky: true}
-        end
+       end
 
       {:ok, _updated_test_case} = Tests.update_test_case(test_case_id, update_attrs)
 
       enqueue_alert(project_id, test_case_id, flaky_count, auto_quarantine)
+      enqueue_flaky_fix(project_id, test_case_id)
     else
       _ -> :ok
     end
@@ -69,6 +71,15 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
       flaky_runs_count: flaky_count
     }
     |> FlakyTestAlertWorker.new()
+    |> Oban.insert!()
+  end
+
+  defp enqueue_flaky_fix(project_id, test_case_id) do
+    %{
+      project_id: project_id,
+      test_case_id: test_case_id
+    }
+    |> EnqueueFlakyFixWorker.new()
     |> Oban.insert!()
   end
 end
