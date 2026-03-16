@@ -23,6 +23,20 @@ defmodule TuistWeb.GradleBuildsLive do
     |> assign_recent_builds()
   end
 
+  def handle_info({:gradle_build_created, _build}, socket) do
+    if Query.has_pagination_params?(socket.assigns.uri.query) do
+      {:noreply, socket}
+    else
+      {:noreply,
+       socket
+       |> assign_handle_params(socket.assigns.current_params)
+       |> assign_configuration_insights_options(socket.assigns.current_params)
+       |> assign_initial_configuration_insights()}
+    end
+  end
+
+  def handle_info(_event, socket), do: {:noreply, socket}
+
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
     uri = URI.new!("?" <> query)
