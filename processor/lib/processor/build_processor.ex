@@ -44,7 +44,8 @@ defmodule Processor.BuildProcessor do
     xcactivitylog_path = find_xcactivitylog(temp_dir)
     cas_path = Path.join(temp_dir, "cas_metadata")
 
-    with {:ok, parsed_data} <- parse_build(xcactivitylog_path, cas_path, xcode_cache_upload_enabled) do
+    with {:ok, parsed_data} <-
+           parse_build(xcactivitylog_path, cas_path, xcode_cache_upload_enabled) do
       machine_metrics =
         read_machine_metrics(
           Path.join(temp_dir, "machine_metrics.jsonl"),
