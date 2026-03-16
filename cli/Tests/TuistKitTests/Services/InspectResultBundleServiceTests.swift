@@ -611,6 +611,29 @@ struct InspectResultBundleServiceTests {
             )
             .willReturn()
 
+        // Warm up mock invocation tracking to avoid lazy var race conditions
+        // when the mock is first accessed from concurrent tasks.
+        verify(createTestCaseRunAttachmentService)
+            .createAttachment(
+                fullHandle: .any,
+                serverURL: .any,
+                testCaseRunId: .any,
+                fileName: .any,
+                filePath: .any,
+                repetitionNumber: .any
+            )
+            .called(0)
+
+        verify(createCrashReportService)
+            .createCrashReport(
+                fullHandle: .any,
+                serverURL: .any,
+                crashReport: .any,
+                testCaseRunId: .any,
+                testCaseRunAttachmentId: .any
+            )
+            .called(0)
+
         // When
         _ = try await subject.inspectResultBundle(
             resultBundlePath: resultBundlePath,
