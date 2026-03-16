@@ -134,7 +134,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
     end
   end
 
-  defp create_flaky_test_case(project, name, opts \\ []) do
+  defp create_flaky_test_case(project, name, opts) do
     test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: name, is_flaky: true)
 
     IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
