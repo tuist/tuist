@@ -18,7 +18,7 @@
           <.toggle
             id="sso-enabled-toggle"
             checked={@sso_enabled}
-            phx-click="toggle_sso"
+            data-on-checked-change="toggle_sso"
           />
           <div data-part="label-text">
             <span data-part="title">
@@ -211,7 +211,7 @@
           <.toggle
             id="sso-enforced-toggle"
             checked={@sso_enforced}
-            phx-click="toggle_sso_enforced"
+            data-on-checked-change="toggle_sso_enforced"
           />
           <div data-part="label-text">
             <span data-part="title">
