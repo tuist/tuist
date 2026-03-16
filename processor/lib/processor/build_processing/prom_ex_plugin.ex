@@ -36,22 +36,6 @@ defmodule Processor.BuildProcessing.PromExPlugin do
           unit: {:native, :millisecond}
         ),
         distribution(
-          [:processor, :s3, :download, :size, :bytes],
-          event_name: [:processor, :s3, :download, :stop],
-          measurement: :file_size,
-          description: "S3 downloaded file size in bytes.",
-          reporter_options: [
-            buckets: [
-              1_000_000,
-              10_000_000,
-              50_000_000,
-              100_000_000,
-              500_000_000,
-              1_000_000_000
-            ]
-          ]
-        ),
-        distribution(
           [:processor, :nif, :parse, :duration, :milliseconds],
           event_name: [:processor, :nif, :parse, :stop],
           measurement: :duration,
