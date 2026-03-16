@@ -6,6 +6,7 @@ defmodule Cache.KeyValueStoreTest do
   import Ecto.Query
   import ExUnit.CaptureLog
 
+  alias Cache.Config
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
@@ -18,8 +19,8 @@ defmodule Cache.KeyValueStoreTest do
 
   setup context do
     :ok = Sandbox.checkout(KeyValueRepo)
-    Application.put_env(:cache, :key_value_mode, :local)
-    on_exit(fn -> Application.put_env(:cache, :key_value_mode, :local) end)
+    stub(Config, :key_value_mode, fn -> :local end)
+    stub(Config, :distributed_kv_enabled?, fn -> false end)
 
     context = Cache.BufferTestHelpers.setup_key_value_buffer(context)
     suffix = context.unique_suffix

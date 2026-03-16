@@ -14,8 +14,8 @@ defmodule Cache.CleanProjectWorkerTest do
   setup :set_mimic_from_context
 
   setup do
-    Application.put_env(:cache, :key_value_mode, :local)
-    on_exit(fn -> Application.put_env(:cache, :key_value_mode, :local) end)
+    stub(Config, :key_value_mode, fn -> :local end)
+    stub(Config, :distributed_kv_enabled?, fn -> false end)
     :ok
   end
 
@@ -43,7 +43,8 @@ defmodule Cache.CleanProjectWorkerTest do
     end
 
     test "distributed cleanup uses cutoff-aware helpers and tombstones" do
-      Application.put_env(:cache, :key_value_mode, :distributed)
+      stub(Config, :key_value_mode, fn -> :distributed end)
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
 
       account_handle = "test_account"
       project_handle = "test_project"
@@ -88,7 +89,8 @@ defmodule Cache.CleanProjectWorkerTest do
     end
 
     test "distributed cleanup retries when it loses the cleanup lease" do
-      Application.put_env(:cache, :key_value_mode, :distributed)
+      stub(Config, :key_value_mode, fn -> :distributed end)
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
 
       account_handle = "test_account"
       project_handle = "test_project"
@@ -120,7 +122,8 @@ defmodule Cache.CleanProjectWorkerTest do
     end
 
     test "distributed cleanup uses the safe second-wide cutoff for all cleanup phases" do
-      Application.put_env(:cache, :key_value_mode, :distributed)
+      stub(Config, :key_value_mode, fn -> :distributed end)
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
 
       account_handle = "test_account"
       project_handle = "test_project"
@@ -157,7 +160,8 @@ defmodule Cache.CleanProjectWorkerTest do
     end
 
     test "distributed cleanup fails and skips tombstoning when S3 deletion fails" do
-      Application.put_env(:cache, :key_value_mode, :distributed)
+      stub(Config, :key_value_mode, fn -> :distributed end)
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
 
       parent = self()
       account_handle = "test_account"

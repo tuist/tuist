@@ -2,6 +2,7 @@ defmodule Cache.DistributedKV.CleanupTest do
   use ExUnit.Case, async: false
   use Mimic
 
+  alias Cache.Config
   alias Cache.DistributedKV.Cleanup
   alias Cache.DistributedKV.ProjectCleanup
   alias Cache.DistributedKV.Repo
@@ -9,13 +10,7 @@ defmodule Cache.DistributedKV.CleanupTest do
   setup :set_mimic_from_context
 
   setup do
-    original_lease_ms = Application.get_env(:cache, :distributed_kv_cleanup_lease_ms)
-    Application.put_env(:cache, :distributed_kv_cleanup_lease_ms, 60_000)
-
-    on_exit(fn ->
-      Application.put_env(:cache, :distributed_kv_cleanup_lease_ms, original_lease_ms)
-    end)
-
+    stub(Config, :distributed_kv_cleanup_lease_ms, fn -> 60_000 end)
     :ok
   end
 

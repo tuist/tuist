@@ -2,6 +2,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
   use ExUnit.Case, async: false
   use Mimic
 
+  alias Cache.Config
   alias Cache.DistributedKV.Entry
   alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
@@ -11,9 +12,9 @@ defmodule Cache.KeyValueReplicationPollerTest do
   setup :set_mimic_from_context
 
   setup do
-    Application.put_env(:cache, :key_value_mode, :distributed)
-    Application.put_env(:cache, :distributed_kv_node_name, "test-node")
-    on_exit(fn -> Application.put_env(:cache, :key_value_mode, :local) end)
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
+    stub(Config, :distributed_kv_node_name, fn -> "test-node" end)
     :ok
   end
 
@@ -159,13 +160,8 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
   test "throttles local store size measurement across repeated polls" do
     parent = self()
-    original_interval = Application.get_env(:cache, :distributed_kv_sync_interval_ms)
 
-    Application.put_env(:cache, :distributed_kv_sync_interval_ms, 60_000)
-
-    on_exit(fn ->
-      Application.put_env(:cache, :distributed_kv_sync_interval_ms, original_interval)
-    end)
+    stub(Config, :distributed_kv_sync_interval_ms, fn -> 60_000 end)
 
     stub(KeyValueEntries, :distributed_watermark, fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
 

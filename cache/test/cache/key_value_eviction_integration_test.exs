@@ -6,6 +6,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
   import Ecto.Query
   import ExUnit.CaptureLog
 
+  alias Cache.Config
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
   alias Cache.KeyValueRepo
@@ -16,7 +17,8 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
   setup do
     :ok = Sandbox.checkout(Cache.Repo)
     :ok = Sandbox.checkout(KeyValueRepo)
-    Application.put_env(:cache, :key_value_mode, :local)
+    stub(Config, :key_value_mode, fn -> :local end)
+    stub(Config, :distributed_kv_enabled?, fn -> false end)
     :ok
   end
 

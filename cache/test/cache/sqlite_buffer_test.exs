@@ -6,6 +6,7 @@ defmodule Cache.SQLiteBufferTest do
 
   alias Cache.CacheArtifact
   alias Cache.CacheArtifactsBuffer
+  alias Cache.Config
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
@@ -20,8 +21,8 @@ defmodule Cache.SQLiteBufferTest do
   setup context do
     :ok = Sandbox.checkout(Repo)
     :ok = Sandbox.checkout(KeyValueRepo)
-    Application.put_env(:cache, :key_value_mode, :local)
-    on_exit(fn -> Application.put_env(:cache, :key_value_mode, :local) end)
+    stub(Config, :key_value_mode, fn -> :local end)
+    stub(Config, :distributed_kv_enabled?, fn -> false end)
 
     context =
       context
@@ -58,7 +59,8 @@ defmodule Cache.SQLiteBufferTest do
   end
 
   test "distributed writes mark source_updated_at and replication token" do
-    Application.put_env(:cache, :key_value_mode, :distributed)
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
 
     key = "keyvalue:account:project:distributed"
     payload = Jason.encode!(%{entries: [%{"value" => "value"}]})
@@ -69,8 +71,6 @@ defmodule Cache.SQLiteBufferTest do
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.source_updated_at
     assert record.replication_enqueued_at
-
-    Application.put_env(:cache, :key_value_mode, :local)
   end
 
   test "access-only entry updates last_accessed_at without changing payload" do
@@ -97,7 +97,8 @@ defmodule Cache.SQLiteBufferTest do
   end
 
   test "distributed access updates replication token only for shared-lineage rows" do
-    Application.put_env(:cache, :key_value_mode, :distributed)
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
 
     legacy_key = "keyvalue:legacy:account:project"
     shared_key = "keyvalue:shared:account:project"
@@ -130,8 +131,6 @@ defmodule Cache.SQLiteBufferTest do
 
     assert is_nil(legacy_record.replication_enqueued_at)
     assert shared_record.replication_enqueued_at
-
-    Application.put_env(:cache, :key_value_mode, :local)
   end
 
   test "flush handles access batches at sqlite parameter limits" do

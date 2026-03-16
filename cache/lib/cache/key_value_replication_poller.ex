@@ -177,26 +177,28 @@ defmodule Cache.KeyValueReplicationPoller do
 
       _ ->
         size_after_page =
-          Enum.reduce_while(rows, current_size, fn row, size_acc ->
-            if size_acc >= budget do
-              {:halt, size_acc}
-            else
-              status =
-                KeyValueEntries.materialize_remote_entry(%{
-                  key: row.key,
-                  json_payload: row.json_payload,
-                  last_accessed_at: row.last_accessed_at,
-                  source_updated_at: row.source_updated_at,
-                  source_node: row.source_node
-                })
-
-              if status in [:inserted, :payload_updated], do: KeyValueAccessTracker.mark_shared_lineage(row.key)
-              {:cont, size_acc + byte_size(row.json_payload)}
-            end
-          end)
+          Enum.reduce_while(rows, current_size, &materialize_bootstrap_row(&1, &2, budget))
 
         last_row = List.last(rows)
         bootstrap_rows(size_after_page, budget, {last_row.last_accessed_at, last_row.key})
+    end
+  end
+
+  defp materialize_bootstrap_row(row, size_acc, budget) do
+    if size_acc >= budget do
+      {:halt, size_acc}
+    else
+      status =
+        KeyValueEntries.materialize_remote_entry(%{
+          key: row.key,
+          json_payload: row.json_payload,
+          last_accessed_at: row.last_accessed_at,
+          source_updated_at: row.source_updated_at,
+          source_node: row.source_node
+        })
+
+      if status in [:inserted, :payload_updated], do: KeyValueAccessTracker.mark_shared_lineage(row.key)
+      {:cont, size_acc + byte_size(row.json_payload)}
     end
   end
 

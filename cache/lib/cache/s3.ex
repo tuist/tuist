@@ -322,28 +322,17 @@ defmodule Cache.S3 do
   end
 
   defp delete_object_if_before(bucket, key, cutoff) do
-    case head_object_response(bucket, key) do
-      {:ok, response} ->
-        case last_modified_from_response(response) do
-          {:ok, last_modified} ->
-            if DateTime.before?(last_modified, cutoff) do
-              case bucket |> ExAws.S3.delete_object(key) |> ExAws.request() do
-                {:ok, _} -> :deleted
-                {:error, reason} -> {:error, reason}
-              end
-            else
-              :skipped
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      {:error, {:http_error, 404, _}} ->
-        :skipped
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, response} <- head_object_response(bucket, key),
+         {:ok, last_modified} <- last_modified_from_response(response),
+         true <- DateTime.before?(last_modified, cutoff) do
+      case bucket |> ExAws.S3.delete_object(key) |> ExAws.request() do
+        {:ok, _} -> :deleted
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      {:error, {:http_error, 404, _}} -> :skipped
+      {:error, reason} -> {:error, reason}
+      false -> :skipped
     end
   end
 

@@ -1,17 +1,21 @@
 defmodule Cache.KeyValueEntriesTest do
   use ExUnit.Case, async: false
+  use Mimic
 
   import Ecto.Query
 
+  alias Cache.Config
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
   alias Ecto.Adapters.SQL.Sandbox
 
+  setup :set_mimic_from_context
+
   setup do
     :ok = Sandbox.checkout(KeyValueRepo)
-    Application.put_env(:cache, :key_value_mode, :local)
-    on_exit(fn -> Application.put_env(:cache, :key_value_mode, :local) end)
+    stub(Config, :key_value_mode, fn -> :local end)
+    stub(Config, :distributed_kv_enabled?, fn -> false end)
     :ok
   end
 
@@ -34,7 +38,8 @@ defmodule Cache.KeyValueEntriesTest do
   end
 
   test "distributed eviction skips pending replication rows" do
-    Application.put_env(:cache, :key_value_mode, :distributed)
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
 
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 

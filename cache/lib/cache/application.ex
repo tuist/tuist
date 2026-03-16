@@ -6,6 +6,7 @@ defmodule Cache.Application do
   alias Cache.DBConnection.TelemetryListener
   alias Cache.DistributedKV.Repo
   alias TuistCommon.HTTP.TransportLogger
+
   require Logger
 
   @impl true

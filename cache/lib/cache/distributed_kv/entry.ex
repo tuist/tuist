@@ -16,7 +16,7 @@ defmodule Cache.DistributedKV.Entry do
     field :last_accessed_at, :utc_datetime_usec
     field :deleted_at, :utc_datetime_usec
 
-    timestamps(type: :utc_datetime_usec, updated_at: :updated_at, inserted_at: false)
+    timestamps(type: :utc_datetime, updated_at: :updated_at, inserted_at: false)
   end
 
   def changeset(entry, attrs) do

@@ -2,6 +2,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
   use ExUnit.Case, async: false
   use Mimic
 
+  alias Cache.Config
   alias Cache.DistributedKV.Cleanup
   alias Cache.DistributedKV.Entry
   alias Cache.DistributedKV.Repo
@@ -13,9 +14,9 @@ defmodule Cache.KeyValueReplicationShipperTest do
   setup :set_mimic_from_context
 
   setup do
-    Application.put_env(:cache, :key_value_mode, :distributed)
-    Application.put_env(:cache, :distributed_kv_node_name, "test-node")
-    on_exit(fn -> Application.put_env(:cache, :key_value_mode, :local) end)
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
+    stub(Config, :distributed_kv_node_name, fn -> "test-node" end)
     :ok
   end
 
@@ -124,13 +125,8 @@ defmodule Cache.KeyValueReplicationShipperTest do
   test "reloads cleanup cutoffs on each flush" do
     parent = self()
     token = DateTime.utc_now()
-    original_interval = Application.get_env(:cache, :distributed_kv_ship_interval_ms)
 
-    Application.put_env(:cache, :distributed_kv_ship_interval_ms, 60_000)
-
-    on_exit(fn ->
-      Application.put_env(:cache, :distributed_kv_ship_interval_ms, original_interval)
-    end)
+    stub(Config, :distributed_kv_ship_interval_ms, fn -> 60_000 end)
 
     pending_entry = %KeyValueEntry{
       key: "keyvalue:acme:ios:cas",

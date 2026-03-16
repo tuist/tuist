@@ -5,6 +5,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
 
   import ExUnit.CaptureLog
 
+  alias Cache.Config
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
@@ -16,7 +17,8 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   setup do
     :ok = Sandbox.checkout(Cache.Repo)
     :ok = Sandbox.checkout(KeyValueRepo)
-    Application.put_env(:cache, :key_value_mode, :local)
+    stub(Config, :key_value_mode, fn -> :local end)
+    stub(Config, :distributed_kv_enabled?, fn -> false end)
     :ok
   end
 
@@ -46,7 +48,8 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   end
 
   test "distributed eviction skips rows pending replication" do
-    Application.put_env(:cache, :key_value_mode, :distributed)
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
 
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
