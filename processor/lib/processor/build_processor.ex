@@ -46,7 +46,13 @@ defmodule Processor.BuildProcessor do
 
     with {:ok, parsed_data} <-
            :telemetry.span([:processor, :build, :parse], %{}, fn ->
-             result = Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, xcode_cache_upload_enabled)
+             result =
+               Processor.XCActivityLogNIF.parse(
+                 xcactivitylog_path,
+                 cas_path,
+                 xcode_cache_upload_enabled
+               )
+
              status = if match?({:ok, _}, result), do: :ok, else: :error
              {result, %{status: status}}
            end) do

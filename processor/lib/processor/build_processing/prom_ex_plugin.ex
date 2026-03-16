@@ -46,5 +46,4 @@ defmodule Processor.BuildProcessing.PromExPlugin do
       ]
     )
   end
-
 end
