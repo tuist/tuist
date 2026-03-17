@@ -127,7 +127,7 @@ defmodule TuistWeb.DocsLive do
                     phx-click={JS.exec("event.stopPropagation()", to: "window")}
                   >
                     <span data-part="copy-icon"><.copy /></span>
-                    <span data-part="copy-check-icon"><%= raw(@copy_check_icon) %></span>
+                    <span data-part="copy-check-icon">{raw(@copy_check_icon)}</span>
                   </button>
                 </div>
                 <div data-part="terminal-body">
@@ -211,7 +211,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link patch={docs_path("/en/guides/features/insights")} data-part="feature-card">
+            <.link patch={docs_path("/en/guides/features/build-insights")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.search /></span>
                 <span data-part="feature-card-title">Insights</span>
@@ -292,7 +292,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link patch={docs_path("/en/guides/features/qa")} data-part="feature-card">
+            <div data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.checkup_list /></span>
                 <span data-part="feature-card-title">Agentic QA</span>
@@ -302,7 +302,7 @@ defmodule TuistWeb.DocsLive do
                   Mention @tuist on your PR and an AI agent tests your app for you, exploring edge cases and reporting issues with screenshots and logs.
                 </p>
               </div>
-            </.link>
+            </div>
           </div>
         </section>
 

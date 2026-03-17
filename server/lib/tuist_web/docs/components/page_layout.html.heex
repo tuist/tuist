@@ -60,6 +60,6 @@
     <div id="docs-content">
       {render_slot(@inner_block)}
     </div>
-    <.toc :if={@headings != []} headings={@headings} />
+    <.toc :if={@headings != []} headings={@headings} current_slug={@current_slug} />
   </div>
 </main>

@@ -16,6 +16,24 @@
     display: flex;
     flex-shrink: 0;
     align-items: center;
+
+    & #docs-copy-dropdown {
+      width: fit-content;
+
+      & .noora-dropdown-content {
+        width: 280px;
+        box-shadow: var(--noora-border-light-default);
+      }
+
+      & > [data-state="open"] ~ [data-part="positioner"] {
+        right: auto;
+        left: 0;
+        justify-content: flex-start;
+        margin-top: var(--noora-spacing-1);
+        width: 280px;
+        min-width: 280px;
+      }
+    }
   }
 
   & > [data-part="toc-header"] {

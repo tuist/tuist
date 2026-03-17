@@ -333,6 +333,7 @@ defmodule TuistWeb.Router do
     get "/docs/", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: %{type: :docs}
 
     live_session :docs_en, on_mount: Localization do
       live "/en/docs", DocsLive, :overview, metadata: %{type: :docs}, private: %{locale: "en"}

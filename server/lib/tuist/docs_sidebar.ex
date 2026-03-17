@@ -76,10 +76,10 @@ defmodule Tuist.Docs.Sidebar do
           },
           %Item{
             label: "Build insights",
-            slug: "/en/guides/features/insights",
+            slug: "/en/guides/features/build-insights",
             items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/insights/xcode-cache", icon: "xcode"},
-              %Item{label: "Gradle", slug: "/en/guides/features/insights/gradle-cache", icon: "gradle"}
+              %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode", icon: "xcode"},
+              %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle", icon: "gradle"}
             ]
           }
         ]
@@ -120,7 +120,6 @@ defmodule Tuist.Docs.Sidebar do
         weight: :medium,
         items: [
           %Item{label: "Previews", slug: "/en/guides/features/previews"},
-          %Item{label: "QA", slug: "/en/guides/features/qa"},
           %Item{label: "Bundle size", slug: "/en/guides/features/bundle-size"}
         ]
       },

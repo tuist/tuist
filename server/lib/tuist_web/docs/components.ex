@@ -44,6 +44,13 @@ defmodule TuistWeb.Docs.Components do
 
   defp docs_path(slug), do: Paths.public_path_from_slug(slug)
 
+  defp docs_markdown_path("/" <> _ = slug) do
+    case String.split(slug, "/", trim: true) do
+      [locale | path_segments] -> "/#{locale}/docs-markdown/#{Enum.join(path_segments, "/")}"
+      [] -> "/en/docs-markdown"
+    end
+  end
+
   defp slugify(label) do
     label
     |> String.downcase()

@@ -110,7 +110,7 @@ defmodule TuistWeb.DocsOverviewLive do
                     phx-click={JS.exec("event.stopPropagation()", to: "window")}
                   >
                     <span data-part="copy-icon"><.copy /></span>
-                    <span data-part="copy-check-icon"><%= raw(@copy_check_icon) %></span>
+                    <span data-part="copy-check-icon">{raw(@copy_check_icon)}</span>
                   </button>
                 </div>
                 <div data-part="terminal-body">
@@ -246,7 +246,7 @@ defmodule TuistWeb.DocsOverviewLive do
                 </p>
               </div>
             </.link>
-            <.link patch={docs_path("/en/guides/features/tests/insights")} data-part="feature-card">
+            <.link patch={docs_path("/en/guides/features/test-insights")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.search /></span>
                 <span data-part="feature-card-title">Insights</span>
@@ -267,7 +267,7 @@ defmodule TuistWeb.DocsOverviewLive do
             From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating.
           </p>
           <div data-part="feature-cards">
-            <.link patch={docs_path("/en/guides/features/qa/previews")} data-part="feature-card">
+            <.link patch={docs_path("/en/guides/features/previews")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.devices /></span>
                 <span data-part="feature-card-title">Previews</span>
@@ -278,7 +278,7 @@ defmodule TuistWeb.DocsOverviewLive do
                 </p>
               </div>
             </.link>
-            <.link patch={docs_path("/en/guides/features/qa/agentic-qa")} data-part="feature-card">
+            <div data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.checkup_list /></span>
                 <span data-part="feature-card-title">Agentic QA</span>
@@ -288,7 +288,7 @@ defmodule TuistWeb.DocsOverviewLive do
                   Mention @tuist on your PR and an AI agent tests your app for you, exploring edge cases and reporting issues with screenshots and logs.
                 </p>
               </div>
-            </.link>
+            </div>
           </div>
         </section>
 
