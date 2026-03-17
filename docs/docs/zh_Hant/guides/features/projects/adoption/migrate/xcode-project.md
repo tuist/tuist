@@ -7,19 +7,21 @@
 ---
 # 遷移 Xcode 專案{#migrate-an-xcode-project}
 
-除非您<LocalizedLink href="/guides/features/projects/adoption/new-project">使用Tuist建立新專案</LocalizedLink>（此時所有設定將自動完成），否則必須透過Tuist的原始元件來定義Xcode專案。此過程的繁瑣程度取決於專案的複雜性。
+除非您 <LocalizedLink href="/guides/features/projects/adoption/new-project">使用
+Tuist 建立新專案</LocalizedLink>（此情況下所有設定將自動完成），否則您必須使用 Tuist 的基礎元件來定義您的 Xcode
+專案。此過程的繁瑣程度，取決於您的專案複雜度。
 
-您可能已知曉，Xcode
-專案隨時間推移可能變得雜亂複雜：群組結構與目錄架構不符、檔案在不同目標間重複存在、或檔案參照指向不存在的檔案（僅舉數例）。這些累積的複雜性使我們難以提供可靠的專案遷移指令。
+您可能已經知道，Xcode
+專案隨著時間推移可能會變得雜亂且複雜：例如與目錄結構不符的群組、在不同目標間共享的檔案，或是指向不存在的檔案的檔案參照（僅舉幾例）。所有這些累積的複雜性，使得我們難以提供一個能可靠地遷移專案的命令。
 
-此外，手動遷移是清理與簡化專案的絕佳練習。不僅專案開發者會因此感激，Xcode 的處理與索引速度也將因此提升。當您全面採用 Tuist
-後，它將確保專案定義保持一致且結構簡潔。
+此外，手動遷移是整理並簡化專案的絕佳練習。這不僅會讓專案中的開發人員感激不盡，Xcode 也能因此更快地處理和索引這些檔案。一旦您完全採用
+Tuist，它將確保專案定義的一致性，並使其保持簡潔。
 
-為減輕此項工作負擔，我們根據使用者回饋提供以下指引：
+為了減輕您的工作負擔，我們根據使用者提供的回饋，為您提供以下指引。
 
 ## 建立專案骨架{#create-project-scaffold}
 
-首先，請使用以下 Tuist 檔案為專案建立骨架：
+首先，請使用以下 Tuist 檔案為您的專案建立基礎架構：
 
 ::: code-group
 
@@ -67,18 +69,18 @@ let package = Package(
 <!-- -->
 :::
 
-`Project.swift` 是用於定義專案的清單檔案，而`Package.swift` 則是用於定義依賴項的清單檔案。`Tuist.swift`
-檔案則可定義專案層級的 Tuist 設定。
+`Project.swift` 是您用來定義專案的清單檔案，而`Package.swift` 則是您用來定義依賴項的清單檔案。`Tuist.swift`
+檔案則可讓您為專案定義專案範圍內的 Tuist 設定。
 
 ::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
-為避免與現有 Xcode 專案衝突，建議在專案名稱後添加`-Tuist` 後綴。待專案完整遷移至 Tuist 後即可移除此後綴。
+為避免與現有 Xcode 專案產生衝突，建議在專案名稱後方加上「`-Tuist` 」的後綴。待專案完全遷移至 Tuist 後，即可移除此後綴。
 <!-- -->
 :::
 
-## 在持續整合環境中建置並測試 Tuist 專案{#build-and-test-the-tuist-project-in-ci}
+## 在 CI 中建置並測試 Tuist 專案{#build-and-test-the-tuist-project-in-ci}
 
-為確保每次變更遷移的有效性，建議您擴充持續整合流程，以從您的清單檔案由 Tuist 生成的專案進行建置與測試：
+為確保每次變更的遷移有效，我們建議擴展您的持續整合流程，以建置並測試由 Tuist 根據您的設定檔所生成的專案：
 
 ```bash
 tuist install
@@ -86,9 +88,9 @@ tuist generate
 xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
-## 將專案建置設定提取至`.xcconfig` 檔案{#extract-the-project-build-settings-into-xcconfig-files}
+## 將專案建置設定匯出至`.xcconfig` 檔案{#extract-the-project-build-settings-into-xcconfig-files}
 
-`` 將專案的建置設定提取至獨立的 ``.xcconfig` 檔案，使專案更精簡且易於遷移。可使用以下指令將建置設定提取至 ``.xcconfig` 檔案：
+將專案中的建置設定擷取至`.xcconfig` 檔案，以使專案更精簡且更易於遷移。您可以使用以下指令，將專案中的建置設定擷取至`.xcconfig` 檔案：
 
 
 ```bash
@@ -96,7 +98,7 @@ mkdir -p xcconfigs/
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -x xcconfigs/MyApp-Project.xcconfig
 ```
 
-接著更新您的`Project.swift 檔案，並將` 設定為指向您剛建立的`.xcconfig 檔案：`
+接著，請更新您的`Project.swift` 檔案，使其指向您剛建立的`.xcconfig` 檔案：
 
 ```swift
 import ProjectDescription
@@ -113,15 +115,15 @@ let project = Project(
 )
 ```
 
-接著擴充您的持續整合管線，執行下列指令以確保建置設定變更會直接套用至` 的 .xcconfig 檔案：`
+接著，請擴展您的持續整合管道，以執行以下指令，確保對建置設定的變更會直接套用至` 中的 .xcconfig 及` 檔案：
 
 ```bash
 tuist migration check-empty-settings -p Project.xcodeproj
 ```
 
-## 提取套件依賴關係{#extract-package-dependencies}
+## 提取套件依賴項{#extract-package-dependencies}
 
-`將專案所有依賴項提取至 Tuist/Package.swift 檔案中的` 區塊：
+將專案的所有依賴項提取至`Tuist/Package.swift` 檔案中：
 
 ```swift
 // swift-tools-version: 5.9
@@ -151,39 +153,39 @@ let package = Package(
 
 ::: tip PRODUCT TYPES
 <!-- -->
-您可透過在`的 PackageSettings 結構體中，於` 字典的`欄位新增產品類型，來覆寫特定套件的預設類型。` 預設情況下，Tuist
-會將所有套件視為靜態框架。
+您可以透過將特定套件新增至`PackageSettings` 結構中的`productTypes` 字典，來覆寫該套件的產品類型。預設情況下，Tuist
+會假設所有套件皆為靜態框架。
 <!-- -->
 :::
 
 
 ## 確定遷移順序{#determine-the-migration-order}
 
-建議依賴程度由高至低遷移目標。可使用下列指令列出專案目標清單，並依依賴數量排序：
+我們建議將目標依賴關係從最高到最低的順序進行遷移。您可以使用以下指令列出專案的目標，並按依賴關係數量排序：
 
 ```bash
 tuist migration list-targets -p Project.xcodeproj
 ```
 
-請從清單頂端開始遷移目標，因這些項目具有最高依賴性。
+請從清單頂端開始遷移目標，因為這些是依賴性最高的項目。
 
 
 ## 遷移目標{#migrate-targets}
 
-請逐一遷移目標語言。建議為每個目標語言提交拉取請求，以確保合併前完成變更審查與測試。
+請逐一遷移各目標。我們建議針對每個目標提交拉取請求，以確保在合併前，相關變更已通過審查與測試。
 
-### 將目標建置設定提取至`.xcconfig` 檔案中{#extract-the-target-build-settings-into-xcconfig-files}
+### 將目標建置設定提取至`.xcconfig 及` 檔案中{#extract-the-target-build-settings-into-xcconfig-files}
 
-` 如同您處理專案建置設定的方式，請將目標建置設定提取至獨立的 ``.xcconfig`
-檔案，以使目標更精簡且易於遷移。您可使用以下指令將目標建置設定提取至獨立檔案：`.xcconfig`
+如同處理專案建置設定時一樣，將目標的建置設定提取至`.xcconfig`
+檔案中，以使目標更精簡且更易於遷移。您可以使用以下指令，將建置設定從目標提取至`.xcconfig` 檔案中：
 
 ```bash
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
 ```
 
-### 在`專案的 Project.swift 檔案中定義目標：` {#define-the-target-in-the-projectswift-file}
+### 在`Project.swift` 檔案中定義目標{#define-the-target-in-the-projectswift-file}
 
-於`中的 Project.targets 定義目標：` ：
+在`Project.targets 中定義目標：`:
 
 ```swift
 import ProjectDescription
@@ -217,24 +219,24 @@ let project = Project(
 
 ::: info TEST TARGETS
 <!-- -->
-若目標存在關聯測試目標，應在`Project.swift 及` 檔案中重複相同步驟進行定義。
+若目標具有關聯的測試目標，您應在`Project.swift` 檔案中定義該測試目標，並重複相同的步驟。
 <!-- -->
 :::
 
 ### 驗證目標遷移{#validate-the-target-migration}
 
-執行`tuist generate` 接著執行`xcodebuild build` 以確保專案能成功編譯，並執行`tuist test`
-確認測試通過。此外，可使用 [xcdiff](https://github.com/bloomberg/xcdiff) 比較生成的 Xcode
-專案與現有版本，以驗證變更正確無誤。
+執行`tuist generate` ，接著執行`xcodebuild build` 以確保專案能成功建置，並執行`tuist test`
+以確保測試通過。此外，您可以使用 [xcdiff](https://github.com/bloomberg/xcdiff) 比較生成的 Xcode
+專案與現有專案，以確保變更內容正確無誤。
 
 ### 重複{#repeat}
 
-重複上述步驟直至所有目標完全遷移。完成後，建議更新您的持續整合與持續交付管道，使用以下指令建置並測試專案：`tuist generate`
-接著執行：`xcodebuild build` 以及：`tuist test`
+重複此步驟，直到所有目標完全遷移完成。完成後，建議更新您的 CI 和 CD 管道，使用`tuist generate`
+來建置和測試專案，接著執行`xcodebuild build` 以及`tuist test` 。
 
 ## 疑難排解{#troubleshooting}
 
-### 因檔案遺失導致的編譯錯誤。{#compilation-errors-due-to-missing-files}
+### 因檔案遺失而導致的編譯錯誤。{#compilation-errors-due-to-missing-files}
 
-若 Xcode 專案目標的相關檔案未全數存放於代表該目標的檔案系統目錄中，可能導致專案無法編譯。請確認使用 Tuist 生成專案後的檔案清單與 Xcode
-專案中的檔案清單相符，並藉此機會將檔案結構與目標結構對齊。
+若您 Xcode 專案目標相關的檔案並未全數存放於代表該目標的檔案系統目錄中，最終可能導致專案無法編譯。請確保使用 Tuist 生成專案後的檔案清單與
+Xcode 專案中的檔案清單相符，並藉此機會將檔案結構與目標結構對齊。
