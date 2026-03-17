@@ -484,13 +484,18 @@ defmodule TuistWeb.API.BuildsControllerTest do
       build_id = UUIDv7.generate()
 
       stub(Builds, :get_build, fn _id -> nil end)
-      stub(Builds, :create_build, fn _attrs -> {:ok, %Tuist.Builds.Build{
-        id: build_id,
-        status: "success",
-        duration: 1000,
-        project_id: project.id,
-        project: %{project | account: user.account}
-      }} end)
+
+      stub(Builds, :create_build, fn _attrs ->
+        {:ok,
+         %Tuist.Builds.Build{
+           id: build_id,
+           status: "success",
+           duration: 1000,
+           project_id: project.id,
+           project: %{project | account: user.account}
+         }}
+      end)
+
       stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _params -> :ok end)
 
       conn =
