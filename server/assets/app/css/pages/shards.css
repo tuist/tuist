@@ -69,4 +69,8 @@
   & .noora-pagination-group {
     margin-top: var(--noora-spacing-7);
   }
+
+  & .tuist-pagination {
+    margin-top: var(--noora-spacing-7);
+  }
 }
