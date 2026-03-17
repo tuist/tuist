@@ -46,7 +46,7 @@ defmodule Noora.Toggle do
       data-disabled={@disabled}
       {@rest}
     >
-      <label data-part="root">
+      <label phx-update="ignore" id={@id <> "label"} data-part="root">
         <input data-peer data-part="hidden-input" tabindex={@tabindex} />
         <div
           class="noora-toggle-control"

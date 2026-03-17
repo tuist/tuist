@@ -356,6 +356,14 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadParts
       x-validate:
+    GradleTasksIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: GradleTasksIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     CommandEvent:
       description: A command event.
       example:
@@ -2882,6 +2890,24 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Builds.Build
       x-validate:
+    GradleBuildStatus:
+      enum:
+        - success
+        - failure
+        - cancelled
+      title: GradleBuildStatus
+      type: string
+      x-struct:
+      x-validate:
+    GradleBuildsIndexPageSize:
+      default: 20
+      description: The maximum number of builds to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: GradleBuildsIndexPageSize
+      type: integer
+      x-struct:
+      x-validate:
     ProjectToken:
       description: A token to authenticate API requests as a project.
       properties:
@@ -3360,6 +3386,19 @@ components:
       type: integer
       x-struct:
       x-validate:
+    GradleTaskOutcome:
+      enum:
+        - local_hit
+        - remote_hit
+        - up_to_date
+        - executed
+        - failed
+        - skipped
+        - no_source
+      title: GradleTaskOutcome
+      type: string
+      x-struct:
+      x-validate:
     TestCaseRunsList:
       description: A paginated list of test case runs.
       properties:
@@ -3440,6 +3479,14 @@ components:
           x-validate:
       title: AbsentCacheArtifact
       type: object
+      x-struct:
+      x-validate:
+    GradleBuildsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: GradleBuildsIndexPage
+      type: integer
       x-struct:
       x-validate:
     BuildIssueType:
@@ -4907,6 +4954,15 @@ components:
       maximum: 500
       minimum: 1
       title: TestCaseRunsByTestRunPageSize
+      type: integer
+      x-struct:
+      x-validate:
+    GradleTasksIndexPageSize:
+      default: 20
+      description: The maximum number of tasks to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: GradleTasksIndexPageSize
       type: integer
       x-struct:
       x-validate:
@@ -9407,24 +9463,49 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Maximum number of builds to return.
+        - description: Filter by git branch.
           in: query
-          name: limit
+          name: git_branch
           required: false
           schema:
-            default: 50
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by build status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - cancelled
+            title: GradleBuildStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of builds to return in a single page.
             maximum: 100
             minimum: 1
+            title: GradleBuildsIndexPageSize
             type: integer
             x-struct:
             x-validate:
-        - description: Number of builds to skip.
+        - description: ''
           in: query
-          name: offset
+          name: page
           required: false
           schema:
-            default: 0
-            minimum: 0
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: GradleBuildsIndexPage
             type: integer
             x-struct:
             x-validate:
@@ -9451,6 +9532,11 @@ paths:
                           x-struct:
                           x-validate:
                         git_branch:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
                           nullable: true
                           type: string
                           x-struct:
@@ -9522,8 +9608,11 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
                 required:
                   - builds
+                  - pagination_metadata
                 type: object
                 x-struct:
                 x-validate:
@@ -10200,6 +10289,189 @@ paths:
       summary: Cleans cache for a given project
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks:
+    get:
+      callbacks: {}
+      operationId: listGradleBuildTasks
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the Gradle build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by task outcome.
+          in: query
+          name: outcome
+          required: false
+          schema:
+            enum:
+              - local_hit
+              - remote_hit
+              - up_to_date
+              - executed
+              - failed
+              - skipped
+              - no_source
+            title: GradleTaskOutcome
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by whether the task is cacheable.
+          in: query
+          name: cacheable
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of tasks to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: GradleTasksIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: GradleTasksIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  tasks:
+                    items:
+                      properties:
+                        cache_artifact_size:
+                          description: Size of cache artifact in bytes.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        cache_key:
+                          description: Cache key for cacheable tasks.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        cacheable:
+                          description: Whether the task is cacheable.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          description: Task duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The task ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        outcome:
+                          description: Task outcome.
+                          enum:
+                            - local_hit
+                            - remote_hit
+                            - up_to_date
+                            - executed
+                            - failed
+                            - skipped
+                            - no_source
+                          type: string
+                          x-struct:
+                          x-validate:
+                        started_at:
+                          description: When the task started executing.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task_path:
+                          description: Task path (e.g., :app:compileKotlin).
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task_type:
+                          description: Task type class name.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - task_path
+                        - outcome
+                        - cacheable
+                        - duration_ms
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - tasks
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of Gradle build tasks
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: List tasks for a Gradle build.
+      tags:
+        - Gradle
   /api/accounts/{account_handle}/tokens/{token_name}:
     delete:
       callbacks: {}

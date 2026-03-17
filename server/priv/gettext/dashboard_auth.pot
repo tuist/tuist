@@ -127,7 +127,7 @@ msgstr ""
 msgid "Discover how selective testing is reducing your test time."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:190
+#: lib/tuist_web/live/user_login_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr ""
@@ -286,7 +286,7 @@ msgstr ""
 msgid "Selective testing"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:195
+#: lib/tuist_web/live/user_login_live.ex:205
 #: lib/tuist_web/live/user_registration_live.ex:181
 #: lib/tuist_web/live/user_registration_live.ex:264
 #, elixir-autogen, elixir-format
@@ -451,7 +451,7 @@ msgstr ""
 msgid "and"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:185
+#: lib/tuist_web/live/user_login_live.ex:195
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
 msgstr ""

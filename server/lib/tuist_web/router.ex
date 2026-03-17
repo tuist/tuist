@@ -35,7 +35,6 @@ defmodule TuistWeb.Router do
       style_src_attr: "'unsafe-inline'",
       style_src_elem:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
-      # wasm-unsafe-eval is necssary for the Shiki code highlighting
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
         "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
@@ -442,9 +441,16 @@ defmodule TuistWeb.Router do
         end
 
         scope "/builds" do
+          get "/", BuildsController, :index
+          get "/:build_id", BuildsController, :show
+          post "/", BuildsController, :create
           post "/upload/start", BuildsController, :multipart_start
           post "/upload/generate-url", BuildsController, :multipart_generate_url
           post "/upload/complete", BuildsController, :multipart_complete
+
+          scope "/gradle" do
+            get "/:build_id/tasks", GradleTasksController, :index
+          end
         end
 
         scope "/xcode" do
