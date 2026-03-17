@@ -10,20 +10,64 @@
         func findXCTestRunPath(in xctestproductsPath: AbsolutePath) throws -> AbsolutePath
     }
 
-    public enum XCTestRunParserError: LocalizedError {
+    public enum XCTestRunParserError: LocalizedError, Equatable {
         case cannotReadFile(AbsolutePath)
-        case invalidFormat
+        case invalidFormat(String)
         case xctestrunNotFound(AbsolutePath)
 
         public var errorDescription: String? {
             switch self {
             case let .cannotReadFile(path):
                 return "Cannot read .xctestrun file at \(path.pathString)"
-            case .invalidFormat:
-                return "The .xctestrun file has an invalid format."
+            case let .invalidFormat(message):
+                return "The .xctestrun file has an invalid format: \(message)"
             case let .xctestrunNotFound(path):
                 return "No .xctestrun file found in \(path.pathString)"
             }
+        }
+    }
+
+    private struct XCTestRunPlist: Decodable {
+        let testConfigurations: [TestConfiguration]?
+        let legacyModuleNames: [String]
+
+        struct TestConfiguration: Decodable {
+            let testTargets: [TestTarget]?
+
+            enum CodingKeys: String, CodingKey {
+                case testTargets = "TestTargets"
+            }
+        }
+
+        struct TestTarget: Decodable {
+            let blueprintName: String
+            let onlyTestIdentifiers: [String]?
+
+            enum CodingKeys: String, CodingKey {
+                case blueprintName = "BlueprintName"
+                case onlyTestIdentifiers = "OnlyTestIdentifiers"
+            }
+        }
+
+        private struct DynamicCodingKey: CodingKey {
+            var stringValue: String
+            init?(stringValue: String) { self.stringValue = stringValue }
+            var intValue: Int? { nil }
+            init?(intValue _: Int) { nil }
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case testConfigurations = "TestConfigurations"
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            testConfigurations = try container.decodeIfPresent([TestConfiguration].self, forKey: .testConfigurations)
+
+            let dynamicContainer = try decoder.container(keyedBy: DynamicCodingKey.self)
+            legacyModuleNames = dynamicContainer.allKeys
+                .map(\.stringValue)
+                .filter { $0 != "__xctestrun_metadata__" && $0 != "TestConfigurations" }
         }
     }
 
@@ -31,13 +75,31 @@
         public init() {}
 
         public func parseTestModules(xctestrunPath: AbsolutePath) throws -> [String] {
-            let plist = try loadPlist(at: xctestrunPath)
-            return extractTestModules(from: plist)
+            let plist = try decodePlist(at: xctestrunPath)
+
+            if let configurations = plist.testConfigurations {
+                return configurations
+                    .flatMap { $0.testTargets ?? [] }
+                    .map(\.blueprintName)
+            }
+
+            return plist.legacyModuleNames
         }
 
         public func parseTestSuites(xctestrunPath: AbsolutePath) throws -> [String: [String]] {
-            let plist = try loadPlist(at: xctestrunPath)
-            return extractTestTargetIdentifiers(from: plist)
+            let plist = try decodePlist(at: xctestrunPath)
+
+            guard let configurations = plist.testConfigurations else {
+                return [:]
+            }
+
+            return configurations
+                .flatMap { $0.testTargets ?? [] }
+                .reduce(into: [String: [String]]()) { result, target in
+                    if let identifiers = target.onlyTestIdentifiers {
+                        result[target.blueprintName] = identifiers
+                    }
+                }
         }
 
         public func findXCTestRunPath(in xctestproductsPath: AbsolutePath) throws -> AbsolutePath {
@@ -57,49 +119,18 @@
             throw XCTestRunParserError.xctestrunNotFound(xctestproductsPath)
         }
 
-        private func loadPlist(at path: AbsolutePath) throws -> [String: Any] {
-            let data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
-            guard let plist = try PropertyListSerialization.propertyList(
-                from: data, format: nil
-            ) as? [String: Any] else {
-                throw XCTestRunParserError.invalidFormat
+        private func decodePlist(at path: AbsolutePath) throws -> XCTestRunPlist {
+            let data: Data
+            do {
+                data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
+            } catch {
+                throw XCTestRunParserError.cannotReadFile(path)
             }
-            return plist
-        }
-
-        private func extractTestModules(from plist: [String: Any]) -> [String] {
-            guard let configurations = plist["TestConfigurations"] as? [[String: Any]] else {
-                return Array(plist.keys.filter { $0 != "__xctestrun_metadata__" })
+            do {
+                return try PropertyListDecoder().decode(XCTestRunPlist.self, from: data)
+            } catch {
+                throw XCTestRunParserError.invalidFormat(error.localizedDescription)
             }
-
-            var modules: [String] = []
-            for config in configurations {
-                guard let targets = config["TestTargets"] as? [[String: Any]] else { continue }
-                for target in targets {
-                    if let name = target["BlueprintName"] as? String {
-                        modules.append(name)
-                    }
-                }
-            }
-            return modules
-        }
-
-        private func extractTestTargetIdentifiers(from plist: [String: Any]) -> [String: [String]] {
-            guard let configurations = plist["TestConfigurations"] as? [[String: Any]] else {
-                return [:]
-            }
-
-            var result: [String: [String]] = [:]
-            for config in configurations {
-                guard let targets = config["TestTargets"] as? [[String: Any]] else { continue }
-                for target in targets {
-                    guard let name = target["BlueprintName"] as? String else { continue }
-                    if let identifiers = target["OnlyTestIdentifiers"] as? [String] {
-                        result[name] = identifiers
-                    }
-                }
-            }
-            return result
         }
     }
 #endif
