@@ -172,10 +172,10 @@ defmodule Tuist.Application do
         ],
         else: []
     )
-    # Marketing.Stats polls ClickHouse on init. Skip it in test where
-    # ClickHouse tables may not exist when the app boots for migrations.
+    # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
+    # may not exist) and dev (noisy debug logs every 5 s).
     |> Kernel.++(
-      if Environment.test?(),
+      if Environment.test?() or Environment.dev?(),
         do: [],
         else: [Tuist.Marketing.Stats]
     )
