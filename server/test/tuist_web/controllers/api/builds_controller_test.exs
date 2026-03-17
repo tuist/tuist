@@ -9,7 +9,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
 
-  describe "GET /api/projects/:account_handle/:project_handle/builds" do
+  describe "GET /api/projects/:account_handle/:project_handle/xcode/builds" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -32,7 +32,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds")
 
       assert %{
                "builds" => [],
@@ -70,7 +70,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds")
 
       response = json_response(conn, 200)
       assert length(response["builds"]) == 1
@@ -109,7 +109,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?status=failure")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?status=failure")
 
       response = json_response(conn, 200)
       assert length(response["builds"]) == 1
@@ -138,7 +138,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?page=2&page_size=10")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?page=2&page_size=10")
 
       response = json_response(conn, 200)
       assert length(response["builds"]) == 1
@@ -152,7 +152,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
       other_user = AccountsFixtures.user_fixture(preload: [:account])
       conn = Authentication.put_current_user(conn, other_user)
 
-      conn = get(conn, "/api/projects/#{project.account.name}/#{project.name}/builds")
+      conn = get(conn, "/api/projects/#{project.account.name}/#{project.name}/xcode/builds")
 
       assert json_response(conn, :forbidden)
     end
@@ -178,7 +178,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds")
 
       response = json_response(conn, 200)
       first_build = hd(response["builds"])
@@ -208,7 +208,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?tags[]=nightly")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?tags[]=nightly")
 
       response = json_response(conn, 200)
       assert length(response["builds"]) == 1
@@ -237,7 +237,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?tags[]=nightly&tags[]=release")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?tags[]=nightly&tags[]=release")
 
       response = json_response(conn, 200)
       assert length(response["builds"]) == 1
@@ -265,7 +265,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?values[]=ticket:PROJ-1234")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?values[]=ticket:PROJ-1234")
 
       response = json_response(conn, 200)
       assert length(response["builds"]) == 1
@@ -296,7 +296,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/builds?values[]=ticket:PROJ-1234&values[]=runner:macos-14"
+          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?values[]=ticket:PROJ-1234&values[]=runner:macos-14"
         )
 
       response = json_response(conn, 200)
@@ -304,7 +304,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
     end
   end
 
-  describe "GET /api/projects/:account_handle/:project_handle/builds/:build_id" do
+  describe "GET /api/projects/:account_handle/:project_handle/xcode/builds/:build_id" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -334,7 +334,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         build
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
 
       response = json_response(conn, 200)
       assert response["id"] == build.id
@@ -354,7 +354,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         nil
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{UUIDv7.generate()}")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{UUIDv7.generate()}")
 
       assert %{"message" => "Build not found."} = json_response(conn, 404)
     end
@@ -372,7 +372,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         build
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
 
       assert %{"message" => "Build not found."} = json_response(conn, 404)
     end
@@ -381,7 +381,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
       other_user = AccountsFixtures.user_fixture(preload: [:account])
       conn = Authentication.put_current_user(conn, other_user)
 
-      conn = get(conn, "/api/projects/#{project.account.name}/#{project.name}/builds/#{UUIDv7.generate()}")
+      conn = get(conn, "/api/projects/#{project.account.name}/#{project.name}/xcode/builds/#{UUIDv7.generate()}")
 
       assert json_response(conn, :forbidden)
     end
@@ -399,7 +399,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         build
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
 
       response = json_response(conn, 200)
       assert response["custom_metadata"]["tags"] == ["nightly", "staging"]
@@ -408,6 +408,106 @@ defmodule TuistWeb.API.BuildsControllerTest do
                "runner" => "macos-14",
                "jira" => "https://jira.example.com/PROJ-123"
              }
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/builds (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns builds using the deprecated route", %{conn: conn, user: user, project: project} do
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds")
+
+      assert %{"builds" => []} = json_response(conn, 200)
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/builds/:build_id (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns a build by ID using the deprecated route", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          status: "success",
+          duration: 5000
+        )
+
+      stub(Builds, :get_build, fn _id ->
+        build
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}")
+
+      response = json_response(conn, 200)
+      assert response["id"] == build.id
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/builds (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "creates a build using the deprecated route", %{conn: conn, user: user, project: project} do
+      build_id = UUIDv7.generate()
+
+      stub(Builds, :get_build, fn _id -> nil end)
+
+      stub(Builds, :create_build, fn _attrs ->
+        {:ok,
+         %Tuist.Builds.Build{
+           id: build_id,
+           status: "success",
+           duration: 1000,
+           project_id: project.id,
+           project: %{project | account: user.account}
+         }}
+      end)
+
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _params -> :ok end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds", %{
+          id: build_id,
+          is_ci: false
+        })
+
+      response = json_response(conn, 200)
+      assert response["id"] == build_id
     end
   end
 

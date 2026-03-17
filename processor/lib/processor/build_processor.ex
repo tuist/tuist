@@ -99,7 +99,9 @@ defmodule Processor.BuildProcessor do
       |> File.stream!()
       |> Stream.map(&String.trim/1)
       |> Stream.reject(&(&1 == ""))
-      |> Stream.map(fn line -> line |> JSON.decode!() end)
+      |> Stream.map(fn line -> JSON.decode(line) end)
+      |> Stream.filter(&match?({:ok, _}, &1))
+      |> Stream.map(fn {:ok, decoded} -> decoded end)
       |> Stream.filter(fn sample ->
         ts = sample["timestamp"]
         ts >= start_unix and ts <= end_unix
