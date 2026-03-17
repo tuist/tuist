@@ -98,11 +98,16 @@ defmodule Processor.BuildProcessorTest do
 
       valid_metric = %{"timestamp" => 150 + 978_307_200, "cpu" => 75}
 
-      zip_path =
-        write_test_zip(tmp_dir,
-          machine_metrics_raw:
-            "{invalid json}\n#{JSON.encode!(valid_metric)}\n{\"truncated\n"
-        )
+      raw_content = "{invalid json}\n#{JSON.encode!(valid_metric)}\n{\"truncated\n"
+
+      files = [
+        {~c"xcactivitylog/test.xcactivitylog", "fake log data"},
+        {~c"machine_metrics.jsonl", raw_content}
+      ]
+
+      {:ok, {_, zip_bytes}} = :zip.create(~c"build.zip", files, [:memory])
+      zip_path = Path.join(tmp_dir, "malformed_metrics.zip")
+      File.write!(zip_path, zip_bytes)
 
       expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
         {:ok,
@@ -129,7 +134,6 @@ defmodule Processor.BuildProcessorTest do
     include_xcactivitylog = Keyword.get(opts, :include_xcactivitylog, true)
     manifest = Keyword.get(opts, :manifest, nil)
     machine_metrics = Keyword.get(opts, :machine_metrics, nil)
-    machine_metrics_raw = Keyword.get(opts, :machine_metrics_raw, nil)
 
     files =
       if include_xcactivitylog do
@@ -146,16 +150,11 @@ defmodule Processor.BuildProcessorTest do
       end
 
     files =
-      cond do
-        machine_metrics_raw ->
-          [{~c"machine_metrics.jsonl", machine_metrics_raw} | files]
-
-        machine_metrics ->
-          content = machine_metrics |> Enum.map_join("\n", &JSON.encode!/1)
-          [{~c"machine_metrics.jsonl", content} | files]
-
-        true ->
-          files
+      if machine_metrics do
+        content = machine_metrics |> Enum.map_join("\n", &JSON.encode!/1)
+        [{~c"machine_metrics.jsonl", content} | files]
+      else
+        files
       end
 
     {:ok, {_filename, zip_bytes}} = :zip.create(~c"build.zip", files, [:memory])
