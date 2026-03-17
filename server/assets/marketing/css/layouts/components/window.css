@@ -49,8 +49,10 @@
     overflow-x: auto;
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
 
-    & shiki-highlight {
-      display: block;
+    & pre {
+      margin: 0;
+      padding: 0;
+      background: transparent !important;
     }
 
     & code {

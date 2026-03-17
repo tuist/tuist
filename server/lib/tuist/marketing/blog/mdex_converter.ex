@@ -27,7 +27,7 @@ defmodule Tuist.Marketing.Blog.MDExConverter do
       unsafe: true
     ],
     syntax_highlight: [
-      formatter: {:html_inline, theme: "onedark"}
+      formatter: {:html_inline, theme: "github_light"}
     ]
   ]
 
