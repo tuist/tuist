@@ -5,19 +5,19 @@
   "description": "Learn how to migrate an Xcode project to a Tuist project."
 }
 ---
-# Xcodeプロジェクトを移行する{#migrate-an-xcode-project}
+# Xcodeプロジェクトの移行{#migrate-an-xcode-project}
 
-Tuistを使用して新しいプロジェクトを作成しない限り<LocalizedLink href="/guides/features/projects/adoption/new-project">、すべての設定が自動的に行われます。Tuistのプリミティブを使用してXcodeプロジェクトを定義する必要があります。このプロセスの煩雑さは、プロジェクトの複雑さに依存します。
+Tuist</LocalizedLink>を使用して新しいプロジェクトを<LocalizedLink href="/guides/features/projects/adoption/new-project">作成</LocalizedLink>する場合を除き、その場合はすべてが自動的に設定されますが、それ以外の場合はTuistのプリミティブを使用してXcodeプロジェクトを定義する必要があります。この作業がどれほど面倒かは、プロジェクトの複雑さによって異なります。
 
-ご存知かもしれませんが、Xcodeプロジェクトは時間の経過とともに複雑で混乱しがちです：ディレクトリ構造と一致しないグループ、複数のターゲット間で共有されるファイル、存在しないファイルを参照するファイル参照（一部を挙げると）などです。こうした複雑さの蓄積により、プロジェクトを確実に移行するコマンドを提供することが困難になっています。
+ご存知の通り、Xcodeプロジェクトは時間の経過とともに複雑で整理しづらくなることがあります。ディレクトリ構造と一致しないグループ、複数のターゲット間で共有されているファイル、存在しないファイルを指すファイル参照などがその一例です。こうした複雑さが蓄積されることで、プロジェクトを確実に移行できるコマンドを提供することが難しくなっています。
 
-さらに、手動での移行はプロジェクトを整理し簡素化する優れた練習となります。プロジェクトの開発者だけでなく、処理やインデックス作成が高速化するXcodeも感謝するでしょう。Tuistを完全に導入すれば、プロジェクトが一貫して定義され、シンプルに保たれることが保証されます。
+さらに、手動での移行作業は、プロジェクトを整理し、簡素化する絶好の機会となります。プロジェクトの開発者たちが感謝するだけでなく、Xcodeも処理やインデックス作成が高速化されます。Tuistを完全に導入すれば、プロジェクトが常に一貫した定義で維持され、シンプルさが保たれるようになります。
 
-この作業を容易にするため、ユーザーから寄せられたフィードバックに基づき、いくつかのガイドラインを提供します。
+その作業を円滑に進めるため、ユーザーから寄せられたフィードバックをもとに、いくつかのガイドラインをご案内します。
 
-## プロジェクトの骨組みを作成する{#create-project-scaffold}
+## プロジェクトのスケルトンを作成する{#create-project-scaffold}
 
-まず、以下のTuistファイルでプロジェクトの骨組みを作成してください：
+まず、以下のTuistファイルを使用して、プロジェクトの骨組みを作成してください：
 
 コードグループ
 
@@ -65,19 +65,19 @@ let package = Package(
 <!-- -->
 :::
 
-`Project.swift` はプロジェクトを定義するマニフェストファイルです。`Package.swift`
-は依存関係を定義するマニフェストファイルです。`Tuist.swift` ファイルでは、プロジェクト全体のTuist設定を定義できます。
+`Project.swift` はプロジェクトを定義するマニフェストファイルであり、`Package.swift`
+は依存関係を定義するマニフェストファイルです。`Tuist.swift` ファイルでは、プロジェクト固有の Tuist 設定を定義できます。
 
 ::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
 既存のXcodeプロジェクトとの競合を防ぐため、プロジェクト名に「`-Tuist`
-」のサフィックスを追加することを推奨します。プロジェクトをTuistへ完全に移行した後は、このサフィックスを削除できます。
+」という接尾辞を追加することを推奨します。プロジェクトのTuistへの移行が完了したら、この接尾辞を削除しても構いません。
 <!-- -->
 :::
 
 ## CIでTuistプロジェクトをビルドおよびテストする{#build-and-test-the-tuist-project-in-ci}
 
-各変更の移行が有効であることを確認するため、マニフェストファイルからTuistが生成したプロジェクトをビルドおよびテストする継続的インテグレーションの拡張を推奨します：
+各変更の移行が正しく行われるようにするため、マニフェストファイルからTuistによって生成されたプロジェクトをビルドおよびテストするように、継続的インテグレーションを拡張することをお勧めします：
 
 ```bash
 tuist install
@@ -85,11 +85,11 @@ tuist generate
 xcodebuild build {xcodebuild flags} # or tuist test
 ```
 
-## プロジェクトのビルド設定を`.xcconfig、` ファイルに抽出する{#extract-the-project-build-settings-into-xcconfig-files}
+## プロジェクトのビルド設定を、` 、.xcconfig、` ファイルに抽出してください{#extract-the-project-build-settings-into-xcconfig-files}
 
-プロジェクトからビルド設定を抽出して、`.xcconfig`
-ファイルに保存すると、プロジェクトがスリム化され移行が容易になります。プロジェクトからビルド設定を抽出して`.xcconfig`
-ファイルに保存するには、次のコマンドを使用できます：
+プロジェクトからビルド設定を`.xcconfig`
+ファイルに抽出することで、プロジェクトを軽量化し、移行を容易にします。以下のコマンドを使用して、プロジェクトからビルド設定を`.xcconfig`
+ファイルに抽出できます：
 
 
 ```bash
@@ -97,7 +97,7 @@ mkdir -p xcconfigs/
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -x xcconfigs/MyApp-Project.xcconfig
 ```
 
-次に、`プロジェクトのProject.swiftファイルと` ファイルを更新し、先ほど作成した`.xcconfigファイルと` ファイルを指すように設定します：
+次に、`のProject.swift` ファイルを更新し、先ほど作成した` の.xcconfig` ファイルを参照するように設定します：
 
 ```swift
 import ProjectDescription
@@ -114,16 +114,16 @@ let project = Project(
 )
 ```
 
-次に、継続的インテグレーションパイプラインを拡張し、以下のコマンドを実行してビルド設定の変更が直接 ``.xcconfig` および `` `
-ファイルに反映されるようにします：
+次に、継続的インテグレーションパイプラインを拡張し、以下のコマンドを実行して、ビルド設定の変更が` の.xcconfigおよび`
+ファイルに直接反映されるようにします：
 
 ```bash
 tuist migration check-empty-settings -p Project.xcodeproj
 ```
 
-## パッケージ依存関係を抽出する{#extract-package-dependencies}
+## パッケージの依存関係を抽出する{#extract-package-dependencies}
 
-`プロジェクトの依存関係をすべて、`Tuist/Package.swift` ファイル（`` `）に抽出してください：
+プロジェクトの依存関係をすべて、`にあるTuist/Package.swift` ファイルに抽出してください：
 
 ```swift
 // swift-tools-version: 5.9
@@ -153,37 +153,38 @@ let package = Package(
 
 ::: tip PRODUCT TYPES
 <!-- -->
-` 特定のパッケージの製品タイプを上書きするには、`の PackageSettings 構造体内の` 辞書に、`の productTypes
-を追加します。デフォルトでは、Tuist はすべてのパッケージが静的フレームワークであると想定します。
+特定のパッケージの製品タイプを上書きするには、`のPackageSettings` 構造体内の`productTypes`
+辞書にそのパッケージを追加します。デフォルトでは、Tuistはすべてのパッケージを静的フレームワークとみなします。
 <!-- -->
 :::
 
 
 ## 移行順序を決定する{#determine-the-migration-order}
 
-依存関係が最も強いターゲットから弱い順に移行することを推奨します。プロジェクトのターゲットを依存関係の数で並べ替えて一覧表示するには、次のコマンドを使用できます：
+ターゲットは、依存関係が最も多いものから少ないものへと移行することを推奨します。以下のコマンドを使用すると、依存関係の数順に並べ替えてプロジェクトのターゲット一覧を表示できます：
 
 ```bash
 tuist migration list-targets -p Project.xcodeproj
 ```
 
-リストの上部からターゲットの移行を開始してください。これらは最も依存度の高いものだからです。
+リストの上からターゲットの移行を開始してください。上にあるものほど依存度が高いためです。
 
 
 ## 移行対象{#migrate-targets}
 
-各ターゲットを順次移行してください。変更内容をマージする前にレビューとテストが行われるよう、各ターゲットごとにプルリクエストを提出することを推奨します。
+ターゲットは1つずつ移行してください。変更内容をマージする前にレビューとテストが行われるよう、ターゲットごとにプルリクエストを作成することを推奨します。
 
-### ターゲットビルド設定を抽出する`.xcconfig` ファイル{#extract-the-target-build-settings-into-xcconfig-files}
+### ターゲットのビルド設定を、` 、.xcconfig、` ファイルに抽出してください{#extract-the-target-build-settings-into-xcconfig-files}
 
 プロジェクトのビルド設定と同様に、ターゲットのビルド設定を`.xcconfig`
-ファイルに抽出することで、ターゲットをスリム化し移行を容易にします。以下のコマンドでターゲットからビルド設定を`.xcconfig` ファイルに抽出できます：
+ファイルに抽出することで、ターゲットを軽量化し、移行を容易にします。以下のコマンドを使用して、ターゲットからビルド設定を`.xcconfig`
+ファイルに抽出できます:
 
 ```bash
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
 ```
 
-### `プロジェクトのProject.swiftファイルでターゲットを定義してください。` {#define-the-target-in-the-projectswift-file}
+### `プロジェクトのProject.swift` ファイルでターゲットを定義してください{#define-the-target-in-the-projectswift-file}
 
 `のProject.targetsでターゲットを定義します。`:
 
@@ -219,23 +220,23 @@ let project = Project(
 
 ::: info TEST TARGETS
 <!-- -->
-ターゲットに関連付けられたテストターゲットがある場合、同じ手順を繰り返して、`/Project.swift/` ファイルにも定義する必要があります。
+ターゲットに関連付けられたテストターゲットがある場合は、`Project.swift` ファイルでも、同様の手順を繰り返して定義する必要があります。
 <!-- -->
 :::
 
 ### 移行先の検証{#validate-the-target-migration}
 
-`tuist generate` を実行し、続いて`xcodebuild build` を実行してプロジェクトがビルドされることを確認し、`tuist
-test` を実行してテストがパスすることを確認してください。さらに、[xcdiff](https://github.com/bloomberg/xcdiff)
-を使用して生成された Xcode プロジェクトと既存のプロジェクトを比較し、変更が正しいことを確認できます。
+`、tuist generate` 、`、xcodebuild build` の順に実行してプロジェクトがビルドされることを確認し、`、tuist test`
+を実行してテストが成功することを確認してください。さらに、[xcdiff](https://github.com/bloomberg/xcdiff)
+を使用して生成された Xcode プロジェクトと既存のプロジェクトを比較し、変更内容が正しいことを確認することもできます。
 
-### Repeat{#repeat}
+### 繰り返し{#repeat}
 
-すべてのターゲットが完全に移行されるまで繰り返してください。完了後、CI/CDパイプラインを更新し、`tuist generate`
-を実行してプロジェクトをビルド・テストし、続いて`xcodebuild build` および`tuist test` を実行することを推奨します。
+すべてのターゲットが完全に移行されるまで、この手順を繰り返してください。完了したら、CIおよびCDパイプラインを更新し、`tuist generate`
+、続いて`xcodebuild build` 、そして`tuist test` を使用してプロジェクトをビルドおよびテストすることをお勧めします。
 
 ## トラブルシューティング{#troubleshooting}
 
-### ファイル不足によるコンパイルエラー。{#compilation-errors-due-to-missing-files}
+### ファイルが見つからないことによるコンパイルエラー。{#compilation-errors-due-to-missing-files}
 
-Xcodeプロジェクトのターゲットに関連付けられたファイルが、ターゲットを表すファイルシステムディレクトリ内にすべて含まれていない場合、コンパイルできないプロジェクトになる可能性があります。Tuistでプロジェクトを生成した後のファイルリストがXcodeプロジェクト内のファイルリストと一致していることを確認し、この機会にファイル構造をターゲット構造に合わせてください。
+Xcodeプロジェクトのターゲットに関連付けられたファイルが、そのターゲットを表すファイルシステム上のディレクトリにすべて含まれていない場合、プロジェクトがコンパイルできなくなる可能性があります。Tuistでプロジェクトを生成した後のファイル一覧が、Xcodeプロジェクト内のファイル一覧と一致していることを確認し、この機会にファイル構造をターゲット構造に合わせて整えてください。
