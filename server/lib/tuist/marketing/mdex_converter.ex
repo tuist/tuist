@@ -8,8 +8,10 @@ defmodule Tuist.Marketing.MDExConverter do
   and copy button, matching the design used across the marketing site.
   """
 
-  @copy_icon Noora.Icon.copy(%{__changed__: nil}) |> Phoenix.HTML.Safe.to_iodata() |> IO.iodata_to_binary()
-  @copy_check_icon Noora.Icon.copy_check(%{__changed__: nil}) |> Phoenix.HTML.Safe.to_iodata() |> IO.iodata_to_binary()
+  alias Phoenix.HTML.Safe
+
+  @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
+  @copy_check_icon %{__changed__: nil} |> Noora.Icon.copy_check() |> Safe.to_iodata() |> IO.iodata_to_binary()
 
   @mdex_options [
     extension: [
@@ -33,7 +35,8 @@ defmodule Tuist.Marketing.MDExConverter do
   ]
 
   def convert(_path, body, _attrs, _opts) do
-    MDEx.new(markdown: body)
+    [markdown: body]
+    |> MDEx.new()
     |> MDEx.Document.put_options(@mdex_options)
     |> MDEx.Document.append_steps(wrap_code_blocks: &wrap_code_blocks/1)
     |> MDEx.to_html!()
