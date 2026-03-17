@@ -56,7 +56,6 @@ struct XcodeBuildTestCommandService {
 
     func run(
         passthroughXcodebuildArguments: [String],
-        shardConfiguration: ShardConfiguration? = nil,
         shardIndex: Int? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
