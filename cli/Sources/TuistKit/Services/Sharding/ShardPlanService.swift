@@ -40,7 +40,6 @@
     }
 
     public struct ShardPlanService: ShardPlanServicing {
-        private let xcTestRunParser: XCTestRunParsing
         private let xcTestEnumerator: XCTestEnumerating
         private let createShardSessionService: CreateShardSessionServicing
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
@@ -52,7 +51,6 @@
         private let fileArchiver: FileArchivingFactorying
 
         public init(
-            xcTestRunParser: XCTestRunParsing = XCTestRunParser(),
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
             createShardSessionService: CreateShardSessionServicing = CreateShardSessionService(),
             multipartUploadArtifactService: MultipartUploadArtifactServicing = MultipartUploadArtifactService(),
@@ -66,7 +64,6 @@
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory()
         ) {
-            self.xcTestRunParser = xcTestRunParser
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardSessionService = createShardSessionService
             self.multipartUploadArtifactService = multipartUploadArtifactService
@@ -96,7 +93,8 @@
             else {
                 throw ShardPlanServiceError.xctestrunNotFound(xctestproductsPath)
             }
-            let modules = try await xcTestRunParser.parseTestModules(xctestrunPath: xctestrunPath)
+            let xctestrun: XCTestRun = try await fileSystem.readPlistFile(at: xctestrunPath)
+            let modules = xctestrun.testModules
 
             guard !modules.isEmpty else {
                 throw ShardPlanServiceError.noTestModulesFound
