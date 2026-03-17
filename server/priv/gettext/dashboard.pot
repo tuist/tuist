@@ -317,7 +317,7 @@ msgstr ""
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:23
+#: lib/tuist_web/controllers/auth_controller.ex:25
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
 msgstr ""
@@ -498,17 +498,17 @@ msgstr ""
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:282
+#: lib/tuist_web/controllers/auth_controller.ex:289
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:63
-#: lib/tuist_web/controllers/auth_controller.ex:73
-#: lib/tuist_web/controllers/auth_controller.ex:83
-#: lib/tuist_web/controllers/auth_controller.ex:200
-#: lib/tuist_web/controllers/auth_controller.ex:210
-#: lib/tuist_web/controllers/auth_controller.ex:220
+#: lib/tuist_web/controllers/auth_controller.ex:65
+#: lib/tuist_web/controllers/auth_controller.ex:75
+#: lib/tuist_web/controllers/auth_controller.ex:85
+#: lib/tuist_web/controllers/auth_controller.ex:204
+#: lib/tuist_web/controllers/auth_controller.ex:214
+#: lib/tuist_web/controllers/auth_controller.ex:224
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with Okta."
 msgstr ""
@@ -518,7 +518,7 @@ msgstr ""
 msgid "Authentication failed"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:273
+#: lib/tuist_web/controllers/auth_controller.ex:280
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""

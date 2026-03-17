@@ -81,7 +81,7 @@ msgid "Build not found."
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:248
-#: lib/tuist_web/live/gradle_builds_live.ex:163
+#: lib/tuist_web/live/gradle_builds_live.ex:177
 #: lib/tuist_web/live/gradle_builds_live.html.heex:31
 #: lib/tuist_web/live/gradle_cache_live.ex:213
 #: lib/tuist_web/live/gradle_cache_live.html.heex:59
@@ -427,35 +427,35 @@ msgstr ""
 msgid "p99 cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_builds_live.ex:169
+#: lib/tuist_web/live/gradle_builds_live.ex:183
 #: lib/tuist_web/live/gradle_cache_live.ex:219
 #: lib/tuist_web/live/gradle_overview_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_builds_live.ex:168
+#: lib/tuist_web/live/gradle_builds_live.ex:182
 #: lib/tuist_web/live/gradle_cache_live.ex:218
 #: lib/tuist_web/live/gradle_overview_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_builds_live.ex:166
+#: lib/tuist_web/live/gradle_builds_live.ex:180
 #: lib/tuist_web/live/gradle_cache_live.ex:216
 #: lib/tuist_web/live/gradle_overview_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_builds_live.ex:167
+#: lib/tuist_web/live/gradle_builds_live.ex:181
 #: lib/tuist_web/live/gradle_cache_live.ex:217
 #: lib/tuist_web/live/gradle_overview_live.ex:152
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_builds_live.ex:165
+#: lib/tuist_web/live/gradle_builds_live.ex:179
 #: lib/tuist_web/live/gradle_cache_live.ex:215
 #: lib/tuist_web/live/gradle_overview_live.ex:150
 #, elixir-autogen, elixir-format
@@ -486,7 +486,7 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_live.html.heex:439
 #: lib/tuist_web/live/gradle_build_live.html.heex:596
 #: lib/tuist_web/live/gradle_build_runs_live.ex:249
-#: lib/tuist_web/live/gradle_builds_live.ex:162
+#: lib/tuist_web/live/gradle_builds_live.ex:176
 #: lib/tuist_web/live/gradle_builds_live.html.heex:23
 #: lib/tuist_web/live/gradle_cache_live.ex:212
 #: lib/tuist_web/live/gradle_cache_live.html.heex:51
@@ -505,7 +505,7 @@ msgstr ""
 msgid "Remote"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_builds_live.ex:161
+#: lib/tuist_web/live/gradle_builds_live.ex:175
 #: lib/tuist_web/live/gradle_builds_live.html.heex:15
 #: lib/tuist_web/live/gradle_cache_live.ex:211
 #: lib/tuist_web/live/gradle_cache_live.html.heex:43
@@ -719,13 +719,13 @@ msgstr ""
 msgid "Build duration"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_builds_live.ex:156
+#: lib/tuist_web/live/gradle_builds_live.ex:170
 #: lib/tuist_web/live/gradle_builds_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Build success rate"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_builds_live.ex:128
+#: lib/tuist_web/live/gradle_builds_live.ex:142
 #: lib/tuist_web/live/gradle_builds_live.html.heex:3
 #: lib/tuist_web/live/gradle_overview_live.html.heex:387
 #, elixir-autogen, elixir-format
@@ -747,7 +747,7 @@ msgstr ""
 msgid "Environment"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_builds_live.ex:142
+#: lib/tuist_web/live/gradle_builds_live.ex:156
 #: lib/tuist_web/live/gradle_builds_live.html.heex:130
 #: lib/tuist_web/live/gradle_builds_live.html.heex:648
 #: lib/tuist_web/live/gradle_overview_live.html.heex:489
@@ -756,14 +756,14 @@ msgid "Failed builds"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:257
-#: lib/tuist_web/live/gradle_builds_live.ex:225
+#: lib/tuist_web/live/gradle_builds_live.ex:239
 #: lib/tuist_web/live/gradle_builds_live.html.heex:470
 #, elixir-autogen, elixir-format
 msgid "Gradle version"
 msgstr ""
 
 #: lib/tuist_web/live/gradle_build_runs_live.ex:265
-#: lib/tuist_web/live/gradle_builds_live.ex:224
+#: lib/tuist_web/live/gradle_builds_live.ex:238
 #: lib/tuist_web/live/gradle_builds_live.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Java version"

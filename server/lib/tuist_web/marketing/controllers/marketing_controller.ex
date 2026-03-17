@@ -513,8 +513,6 @@ defmodule TuistWeb.Marketing.MarketingController do
       related_posts = Enum.take_random(Blog.get_posts(), 3)
       author = Blog.get_authors()[post.author]
 
-      processed_content = Blog.process_content(post.body)
-
       conn
       |> assign(:head_title, post.title)
       |> assign(:head_description, post.excerpt)
@@ -546,7 +544,6 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:post, post)
       |> assign(:author, author)
       |> assign(:related_posts, related_posts)
-      |> assign(:processed_content, processed_content)
       |> render(:blog_post, layout: false)
     end
   end

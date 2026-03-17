@@ -32,7 +32,6 @@ msgstr ""
 msgid "All tests passed!"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:2
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:2
 #: lib/tuist_web/live/test_cases_live.html.heex:2
 #: lib/tuist_web/live/test_runs_live.html.heex:2
@@ -41,8 +40,8 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.ex:235
-#: lib/tuist_web/live/flaky_tests_live.html.heex:11
+#: lib/tuist_web/live/flaky_tests_live.ex:249
+#: lib/tuist_web/live/flaky_tests_live.html.heex:15
 #: lib/tuist_web/live/test_cases_live.ex:366
 #: lib/tuist_web/live/test_cases_live.html.heex:11
 #: lib/tuist_web/live/test_runs_live.ex:373
@@ -55,7 +54,7 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:76
+#: lib/tuist_web/live/flaky_tests_live.html.heex:80
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:46
 #: lib/tuist_web/live/test_cases_live.html.heex:74
 #: lib/tuist_web/live/test_runs_live.html.heex:74
@@ -156,8 +155,8 @@ msgstr ""
 msgid "Build: %{scheme}"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.ex:237
-#: lib/tuist_web/live/flaky_tests_live.html.heex:27
+#: lib/tuist_web/live/flaky_tests_live.ex:251
+#: lib/tuist_web/live/flaky_tests_live.html.heex:31
 #: lib/tuist_web/live/test_case_live.ex:107
 #: lib/tuist_web/live/test_cases_live.ex:368
 #: lib/tuist_web/live/test_cases_live.html.heex:27
@@ -174,7 +173,7 @@ msgstr ""
 msgid "CI Run"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:67
+#: lib/tuist_web/live/flaky_tests_live.html.heex:71
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:37
 #: lib/tuist_web/live/test_cases_live.html.heex:67
 #: lib/tuist_web/live/test_runs_live.html.heex:67
@@ -233,7 +232,7 @@ msgstr ""
 msgid "Crash Report"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:58
+#: lib/tuist_web/live/flaky_tests_live.html.heex:62
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:28
 #: lib/tuist_web/live/test_cases_live.html.heex:58
 #: lib/tuist_web/live/test_runs_live.html.heex:58
@@ -272,7 +271,7 @@ msgstr ""
 msgid "Duration"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:7
+#: lib/tuist_web/live/flaky_tests_live.html.heex:11
 #: lib/tuist_web/live/test_cases_live.html.heex:7
 #: lib/tuist_web/live/test_runs_live.html.heex:7
 #: lib/tuist_web/live/tests_live.html.heex:30
@@ -406,7 +405,7 @@ msgstr ""
 msgid "File"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:237
+#: lib/tuist_web/live/flaky_tests_live.html.heex:234
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:206
 #: lib/tuist_web/live/test_case_live.html.heex:504
 #: lib/tuist_web/live/test_cases_live.html.heex:491
@@ -442,7 +441,7 @@ msgstr ""
 msgid "Flaky"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:101
+#: lib/tuist_web/live/flaky_tests_live.html.heex:105
 #: lib/tuist_web/live/test_case_live.html.heex:130
 #: lib/tuist_web/live/test_case_live.html.heex:323
 #: lib/tuist_web/live/test_case_run_live.html.heex:454
@@ -456,15 +455,15 @@ msgid "Flaky Runs"
 msgstr ""
 
 #: lib/tuist_web/live/flaky_tests_live.ex:23
-#: lib/tuist_web/live/flaky_tests_live.html.heex:182
+#: lib/tuist_web/live/flaky_tests_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:161
-#: lib/tuist_web/live/flaky_tests_live.html.heex:205
-#: lib/tuist_web/live/flaky_tests_live.html.heex:212
-#: lib/tuist_web/live/flaky_tests_live.html.heex:288
+#: lib/tuist_web/live/flaky_tests_live.html.heex:165
+#: lib/tuist_web/live/flaky_tests_live.html.heex:202
+#: lib/tuist_web/live/flaky_tests_live.html.heex:209
+#: lib/tuist_web/live/flaky_tests_live.html.heex:285
 #, elixir-autogen, elixir-format
 msgid "Flaky runs"
 msgstr ""
@@ -515,7 +514,7 @@ msgstr ""
 msgid "Issue recorded: %{message}"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:55
+#: lib/tuist_web/live/flaky_tests_live.html.heex:59
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:25
 #: lib/tuist_web/live/test_cases_live.html.heex:55
 #: lib/tuist_web/live/test_runs_live.html.heex:55
@@ -525,7 +524,7 @@ msgstr ""
 msgid "Last 12 months"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:40
+#: lib/tuist_web/live/flaky_tests_live.html.heex:44
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:10
 #: lib/tuist_web/live/test_cases_live.html.heex:40
 #: lib/tuist_web/live/test_runs_live.html.heex:40
@@ -535,7 +534,7 @@ msgstr ""
 msgid "Last 24 hours"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:50
+#: lib/tuist_web/live/flaky_tests_live.html.heex:54
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:20
 #: lib/tuist_web/live/test_cases_live.html.heex:50
 #: lib/tuist_web/live/test_runs_live.html.heex:50
@@ -545,7 +544,7 @@ msgstr ""
 msgid "Last 30 days"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:45
+#: lib/tuist_web/live/flaky_tests_live.html.heex:49
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:15
 #: lib/tuist_web/live/test_cases_live.html.heex:45
 #: lib/tuist_web/live/test_runs_live.html.heex:45
@@ -561,9 +560,9 @@ msgstr ""
 msgid "Last Status"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:204
-#: lib/tuist_web/live/flaky_tests_live.html.heex:228
-#: lib/tuist_web/live/flaky_tests_live.html.heex:302
+#: lib/tuist_web/live/flaky_tests_live.html.heex:201
+#: lib/tuist_web/live/flaky_tests_live.html.heex:225
+#: lib/tuist_web/live/flaky_tests_live.html.heex:299
 #, elixir-autogen, elixir-format
 msgid "Last flaky run"
 msgstr ""
@@ -604,8 +603,8 @@ msgstr ""
 msgid "Loading..."
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.ex:236
-#: lib/tuist_web/live/flaky_tests_live.html.heex:19
+#: lib/tuist_web/live/flaky_tests_live.ex:250
+#: lib/tuist_web/live/flaky_tests_live.html.heex:23
 #: lib/tuist_web/live/test_cases_live.ex:367
 #: lib/tuist_web/live/test_cases_live.html.heex:19
 #: lib/tuist_web/live/test_run_live.html.heex:1435
@@ -693,7 +692,7 @@ msgstr ""
 msgid "No data"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:172
+#: lib/tuist_web/live/flaky_tests_live.html.heex:176
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:150
 #: lib/tuist_web/live/test_cases_live.html.heex:430
 #: lib/tuist_web/live/test_cases_live.html.heex:637
@@ -711,7 +710,7 @@ msgstr ""
 msgid "No failures detected"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:342
+#: lib/tuist_web/live/flaky_tests_live.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "No flaky tests"
 msgstr ""
@@ -913,7 +912,7 @@ msgstr ""
 msgid "Scheme:"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:193
+#: lib/tuist_web/live/flaky_tests_live.html.heex:190
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:171
 #: lib/tuist_web/live/test_case_live.html.heex:469
 #: lib/tuist_web/live/test_cases_live.html.heex:447
@@ -992,7 +991,7 @@ msgstr ""
 msgid "Slowest test cases"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:208
+#: lib/tuist_web/live/flaky_tests_live.html.heex:205
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:185
 #: lib/tuist_web/live/test_case_live.html.heex:483
 #: lib/tuist_web/live/test_cases_live.html.heex:462
@@ -1039,9 +1038,9 @@ msgstr ""
 msgid "Summary"
 msgstr ""
 
-#: lib/tuist_web/live/flaky_tests_live.html.heex:203
-#: lib/tuist_web/live/flaky_tests_live.html.heex:220
-#: lib/tuist_web/live/flaky_tests_live.html.heex:260
+#: lib/tuist_web/live/flaky_tests_live.html.heex:200
+#: lib/tuist_web/live/flaky_tests_live.html.heex:217
+#: lib/tuist_web/live/flaky_tests_live.html.heex:257
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:181
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:197
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:229
