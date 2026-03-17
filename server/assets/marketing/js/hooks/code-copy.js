@@ -20,10 +20,12 @@ const CodeCopy = {
 
               copyIcon.style.display = "none";
               checkIcon.style.display = "";
+              button.setAttribute("data-copied", "");
 
               setTimeout(() => {
                 checkIcon.style.display = "none";
                 copyIcon.style.display = "";
+                button.removeAttribute("data-copied");
               }, 2000);
             })
             .catch((err) => {
