@@ -145,4 +145,181 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert response["message"] =~ "out of range"
     end
   end
+
+  describe "POST /api/projects/:account/:project/tests/shards/generate-url" do
+    test "returns signed upload URL for existing session", %{conn: conn, user: user, project: project} do
+      session = %ShardSession{
+        id: Ecto.UUID.generate(),
+        session_id: "session-1",
+        project_id: project.id,
+        shard_count: 2,
+        granularity: "module",
+        shard_assignments:
+          Jason.encode!([%{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100}]),
+        bundle_object_key: "bundle.zip",
+        xctestrun_object_key: "original.xctestrun",
+        upload_completed: 0,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      stub(Tuist.IngestRepo, :one, fn _query -> session end)
+
+      stub(Tuist.Storage, :multipart_generate_url, fn _key, _upload_id, _part, _account ->
+        "https://upload.example.com/part"
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/generate-url",
+          %{session_id: "session-1", upload_id: "upload-id", part_number: 1}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["data"]["url"] == "https://upload.example.com/part"
+    end
+
+    test "returns not found for nonexistent session", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/generate-url",
+          %{session_id: "nonexistent", upload_id: "upload-id", part_number: 1}
+        )
+
+      response = json_response(conn, :not_found)
+      assert response["message"] =~ "not found"
+    end
+  end
+
+  describe "POST /api/projects/:account/:project/tests/shards/generate-xctestrun-url" do
+    test "returns signed upload URL for existing session", %{conn: conn, user: user, project: project} do
+      session = %ShardSession{
+        id: Ecto.UUID.generate(),
+        session_id: "session-1",
+        project_id: project.id,
+        shard_count: 2,
+        granularity: "module",
+        shard_assignments:
+          Jason.encode!([%{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100}]),
+        bundle_object_key: "bundle.zip",
+        xctestrun_object_key: "original.xctestrun",
+        upload_completed: 0,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      stub(Tuist.IngestRepo, :one, fn _query -> session end)
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _account -> "https://upload.example.com/xctestrun" end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/generate-xctestrun-url",
+          %{session_id: "session-1"}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["data"]["url"] == "https://upload.example.com/xctestrun"
+    end
+
+    test "returns not found for nonexistent session", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/generate-xctestrun-url",
+          %{session_id: "nonexistent"}
+        )
+
+      response = json_response(conn, :not_found)
+      assert response["message"] =~ "not found"
+    end
+  end
+
+  describe "POST /api/projects/:account/:project/tests/shards/complete" do
+    test "completes upload successfully", %{conn: conn, user: user, project: project} do
+      session = %ShardSession{
+        id: Ecto.UUID.generate(),
+        session_id: "session-1",
+        project_id: project.id,
+        shard_count: 2,
+        granularity: "module",
+        shard_assignments:
+          Jason.encode!([
+            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100},
+            %{"index" => 1, "test_targets" => ["CoreTests"], "estimated_duration_ms" => 80}
+          ]),
+        bundle_object_key: "bundle.zip",
+        xctestrun_object_key: "original.xctestrun",
+        upload_completed: 0,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      sample_xctestrun = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+        <key>TestConfigurations</key>
+        <array>
+          <dict>
+            <key>Name</key>
+            <string>Default</string>
+            <key>TestTargets</key>
+            <array>
+              <dict>
+                <key>BlueprintName</key>
+                <string>AppTests</string>
+              </dict>
+              <dict>
+                <key>BlueprintName</key>
+                <string>CoreTests</string>
+              </dict>
+            </array>
+          </dict>
+        </array>
+      </dict>
+      </plist>
+      """
+
+      stub(Tuist.IngestRepo, :one, fn _query -> session end)
+      stub(Tuist.Storage, :multipart_complete_upload, fn _key, _upload_id, _parts, _account -> :ok end)
+      stub(Tuist.Storage, :get_object_as_string, fn _key, _account -> sample_xctestrun end)
+      stub(Tuist.Storage, :put_object, fn _key, _content, _account -> :ok end)
+      stub(Tuist.IngestRepo, :insert_all, fn _schema, _data -> {1, nil} end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/complete",
+          %{session_id: "session-1", upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}]}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+    end
+
+    test "returns not found for nonexistent session", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/complete",
+          %{session_id: "nonexistent", upload_id: "upload-id", parts: []}
+        )
+
+      response = json_response(conn, :not_found)
+      assert response["message"] =~ "not found"
+    end
+  end
 end

@@ -156,6 +156,90 @@ defmodule Tuist.ShardsTest do
     end
   end
 
+  describe "generate_upload_url/5" do
+    test "returns upload URL for existing session" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      session = %ShardSession{
+        id: Ecto.UUID.generate(),
+        session_id: "session-1",
+        project_id: project.id,
+        shard_count: 2,
+        granularity: "module",
+        shard_assignments:
+          Jason.encode!([
+            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100}
+          ]),
+        bundle_object_key: "bundle.zip",
+        xctestrun_object_key: "original.xctestrun",
+        upload_completed: 0,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      stub(Tuist.IngestRepo, :one, fn _query -> session end)
+
+      stub(Tuist.Storage, :multipart_generate_url, fn _key, _upload_id, _part_number, _account ->
+        "https://upload.example.com/part"
+      end)
+
+      assert {:ok, url} = Shards.generate_upload_url(project, account, "session-1", "upload-id", 1)
+      assert url == "https://upload.example.com/part"
+    end
+
+    test "returns error for nonexistent session" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      stub(Tuist.IngestRepo, :one, fn _query -> nil end)
+
+      assert {:error, :not_found} =
+               Shards.generate_upload_url(project, account, "nonexistent", "upload-id", 1)
+    end
+  end
+
+  describe "generate_xctestrun_upload_url/3" do
+    test "returns upload URL for existing session" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      session = %ShardSession{
+        id: Ecto.UUID.generate(),
+        session_id: "session-1",
+        project_id: project.id,
+        shard_count: 2,
+        granularity: "module",
+        shard_assignments:
+          Jason.encode!([
+            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100}
+          ]),
+        bundle_object_key: "bundle.zip",
+        xctestrun_object_key: "original.xctestrun",
+        upload_completed: 0,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      stub(Tuist.IngestRepo, :one, fn _query -> session end)
+
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _account ->
+        "https://upload.example.com/xctestrun"
+      end)
+
+      assert {:ok, url} = Shards.generate_xctestrun_upload_url(project, account, "session-1")
+      assert url == "https://upload.example.com/xctestrun"
+    end
+
+    test "returns error for nonexistent session" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      stub(Tuist.IngestRepo, :one, fn _query -> nil end)
+
+      assert {:error, :not_found} =
+               Shards.generate_xctestrun_upload_url(project, account, "nonexistent")
+    end
+  end
+
   describe "complete_upload/5" do
     test "marks session as completed and creates per-shard xctestrun files" do
       project = ProjectsFixtures.project_fixture()
