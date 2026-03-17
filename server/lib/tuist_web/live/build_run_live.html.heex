@@ -92,6 +92,17 @@
           <:icon_left><.download /></:icon_left>
         </.button>
         <.button
+          :if={@has_session.ok? && @has_session.result && @command_event}
+          href={
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download_session"
+          }
+          label={dgettext("dashboard_builds", "Download session")}
+          variant="secondary"
+          size="medium"
+        >
+          <:icon_left><.download /></:icon_left>
+        </.button>
+        <.button
           :if={
             @run.status != "processing" && @has_build_download.ok? && @has_build_download.result
           }
