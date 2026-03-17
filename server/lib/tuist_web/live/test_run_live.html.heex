@@ -337,6 +337,15 @@
       data-part="shards-card"
     >
       <.card_section :if={length(@shard_rows) > 0} data-part="shard-balance-section">
+        <div :if={@display_status == "in_progress"} data-part="shards-in-progress-section">
+          <div data-part="image">
+            <img src="/images/shards_in_progress_light.png" data-theme="light" />
+            <img src="/images/shards_in_progress_dark.png" data-theme="dark" />
+          </div>
+          <span data-part="title">
+            {dgettext("dashboard_tests", "The shards are in progress...")}
+          </span>
+        </div>
         <.table id="shard-balance-table" rows={@shard_rows}>
           <:col :let={shard} label={dgettext("dashboard_tests", "Shard")}>
             <.text_cell label={
