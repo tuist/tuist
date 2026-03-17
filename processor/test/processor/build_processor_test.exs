@@ -63,6 +63,59 @@ defmodule Processor.BuildProcessorTest do
 
       assert {:ok, _} = BuildProcessor.process_build(zip_path, true)
     end
+
+    test "includes machine metrics within time range", %{tmp_dir: tmp_dir} do
+      start_time = 100.0
+      end_time = 200.0
+
+      metrics = [
+        %{"timestamp" => 100 + 978_307_200, "cpu" => 50},
+        %{"timestamp" => 150 + 978_307_200, "cpu" => 75},
+        %{"timestamp" => 300 + 978_307_200, "cpu" => 90}
+      ]
+
+      zip_path = write_test_zip(tmp_dir, machine_metrics: metrics)
+
+      expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
+        {:ok,
+         %{
+           "status" => "success",
+           "time_started_recording" => start_time,
+           "time_stopped_recording" => end_time
+         }}
+      end)
+
+      assert {:ok, result} = BuildProcessor.process_build(zip_path, true)
+      assert length(result["machine_metrics"]) == 2
+      assert Enum.all?(result["machine_metrics"], &(&1["cpu"] in [50, 75]))
+      refute Map.has_key?(result, "time_started_recording")
+      refute Map.has_key?(result, "time_stopped_recording")
+    end
+
+    test "skips malformed lines in machine_metrics.jsonl", %{tmp_dir: tmp_dir} do
+      start_time = 100.0
+      end_time = 200.0
+
+      valid_metric = %{"timestamp" => 150 + 978_307_200, "cpu" => 75}
+
+      zip_path =
+        write_test_zip(tmp_dir,
+          machine_metrics_raw:
+            "{invalid json}\n#{JSON.encode!(valid_metric)}\n{\"truncated\n"
+        )
+
+      expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
+        {:ok,
+         %{
+           "status" => "success",
+           "time_started_recording" => start_time,
+           "time_stopped_recording" => end_time
+         }}
+      end)
+
+      assert {:ok, result} = BuildProcessor.process_build(zip_path, true)
+      assert result["machine_metrics"] == [valid_metric]
+    end
   end
 
   defp write_test_zip(tmp_dir, opts \\ []) do
@@ -75,6 +128,8 @@ defmodule Processor.BuildProcessorTest do
   defp build_test_zip(opts \\ []) do
     include_xcactivitylog = Keyword.get(opts, :include_xcactivitylog, true)
     manifest = Keyword.get(opts, :manifest, nil)
+    machine_metrics = Keyword.get(opts, :machine_metrics, nil)
+    machine_metrics_raw = Keyword.get(opts, :machine_metrics_raw, nil)
 
     files =
       if include_xcactivitylog do
@@ -88,6 +143,19 @@ defmodule Processor.BuildProcessorTest do
         [{~c"manifest.json", JSON.encode!(manifest)} | files]
       else
         files
+      end
+
+    files =
+      cond do
+        machine_metrics_raw ->
+          [{~c"machine_metrics.jsonl", machine_metrics_raw} | files]
+
+        machine_metrics ->
+          content = machine_metrics |> Enum.map_join("\n", &JSON.encode!/1)
+          [{~c"machine_metrics.jsonl", content} | files]
+
+        true ->
+          files
       end
 
     {:ok, {_filename, zip_bytes}} = :zip.create(~c"build.zip", files, [:memory])
