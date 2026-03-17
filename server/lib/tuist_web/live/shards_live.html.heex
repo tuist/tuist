@@ -78,7 +78,12 @@
               "p50" -> dgettext("dashboard_tests", "p50 shard count")
             end
           }
-          description={dgettext("dashboard_tests", "Number of shards used per sharded run during a given period.")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Number of shards used per sharded run during a given period."
+            )
+          }
           value={
             if @shard_count_analytics.ok? do
               to_string(
@@ -121,9 +126,7 @@
           phx_click="select_widget"
           phx_value_widget="avg_shard_count"
           selected={@analytics_selected_widget == "avg_shard_count"}
-          empty={
-            @shard_count_analytics.ok? && @shard_count_analytics.result.total_average == 0
-          }
+          empty={@shard_count_analytics.ok? && @shard_count_analytics.result.total_average == 0}
           empty_label={dgettext("dashboard_tests", "No data")}
         />
         <.percentile_dropdown_widget
@@ -137,7 +140,12 @@
               "p50" -> dgettext("dashboard_tests", "p50 shard balance")
             end
           }
-          description={dgettext("dashboard_tests", "How evenly test duration is distributed across shards. 100% means perfectly balanced.")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "How evenly test duration is distributed across shards. 100% means perfectly balanced."
+            )
+          }
           value={
             if @shard_balance_analytics.ok? do
               case @selected_balance_type do
@@ -518,33 +526,6 @@
             value={@shard_sessions_search}
           />
         </.form>
-        <.dropdown
-          id="shard-sessions-sort-by"
-          label={
-            case @shard_sessions_sort_by do
-              "shard_count" -> dgettext("dashboard_tests", "Shards")
-              _ -> dgettext("dashboard_tests", "Ran at")
-            end
-          }
-          secondary_text={dgettext("dashboard_tests", "Sort by:")}
-        >
-          <.dropdown_item
-            value="ran_at"
-            label={dgettext("dashboard_tests", "Ran at")}
-            patch={sort_by_patch(@uri, "ran_at")}
-            data-selected={@shard_sessions_sort_by == "ran_at"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="shard_count"
-            label={dgettext("dashboard_tests", "Shards")}
-            patch={sort_by_patch(@uri, "shard_count")}
-            data-selected={@shard_sessions_sort_by == "shard_count"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
         <.filter_dropdown
           id="shard-sessions-filter-dropdown"
           label={dgettext("dashboard_tests", "Filter")}
@@ -560,68 +541,77 @@
           id="shard-sessions-table"
           rows={@shard_sessions}
           row_navigate={
-            fn session ->
-              if session.first_test_run_id do
-                url(
-                  ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{session.first_test_run_id}"
-                )
-              end
+            fn test_run ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_run.id}"
+              )
             end
           }
         >
-          <:col :let={session} label={dgettext("dashboard_tests", "Scheme")}>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
             <.text_cell label={
-              if session.scheme != "" and not is_nil(session.scheme),
-                do: session.scheme,
+              if test_run.scheme != "" and not is_nil(test_run.scheme),
+                do: test_run.scheme,
                 else: dgettext("dashboard_tests", "Unknown")
             } />
           </:col>
-          <:col :let={session} label={dgettext("dashboard_tests", "Granularity")}>
-            <.text_cell label={String.capitalize(session.granularity)} />
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Granularity")}>
+            <.text_cell label={
+              if test_run.shard_session,
+                do: String.capitalize(test_run.shard_session.granularity),
+                else: dgettext("dashboard_tests", "Unknown")
+            } />
           </:col>
-          <:col :let={session} label={dgettext("dashboard_tests", "Status")}>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Status")}>
             <.status_badge_cell
-              :if={session.status == "success"}
+              :if={test_run.status == "success"}
               label={dgettext("dashboard_tests", "Passed")}
               status="success"
             />
             <.status_badge_cell
-              :if={session.status == "failure"}
+              :if={test_run.status == "failure"}
               label={dgettext("dashboard_tests", "Failed")}
               status="error"
             />
             <.status_badge_cell
-              :if={session.status == "in_progress"}
+              :if={test_run.status == "in_progress"}
               label={dgettext("dashboard_tests", "In Progress")}
               status="in_progress"
             />
           </:col>
-          <:col :let={session} label={dgettext("dashboard_tests", "Shards")}>
-            <.text_cell label={to_string(session.shard_count)} />
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Shards")}>
+            <.text_cell label={
+              if test_run.shard_session,
+                do: to_string(test_run.shard_session.shard_count),
+                else: "—"
+            } />
           </:col>
-          <:col :let={session} label={dgettext("dashboard_tests", "Duration")}>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Duration")}>
             <.text_cell
+              :if={test_run.status != "in_progress"}
               label={
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  session.wall_clock_duration || 0
+                  test_run.duration || 0
                 )
               }
               icon="history"
             />
+            <.status_badge_cell
+              :if={test_run.status == "in_progress"}
+              label={dgettext("dashboard_tests", "In Progress")}
+              status="in_progress"
+            />
           </:col>
-          <:col :let={session} label={dgettext("dashboard_tests", "Ran at")}>
-            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(session.inserted_at)} />
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Ran at")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />
           </:col>
         </.table>
-        <.pagination_group
-          :if={@shard_sessions_meta.total_pages > 1}
-          current_page={@shard_sessions_page}
-          number_of_pages={@shard_sessions_meta.total_pages}
-          page_patch={
-            fn page ->
-              "?#{Query.put(@uri.query, "page", page)}"
-            end
-          }
+        <.pagination
+          uri={@uri}
+          has_previous_page={@shard_sessions_meta.has_previous_page?}
+          has_next_page={@shard_sessions_meta.has_next_page?}
+          start_cursor={@shard_sessions_meta.start_cursor}
+          end_cursor={@shard_sessions_meta.end_cursor}
         />
       </div>
 

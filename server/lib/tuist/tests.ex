@@ -199,6 +199,22 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
+  def list_sharded_test_runs(attrs) do
+    import Ecto.Query, only: [from: 2]
+
+    base_query = from(t in Test, where: t.shard_session_id != "")
+
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: Test)
+
+    results =
+      Enum.map(results, fn test ->
+        shard_session = load_shard_session(test)
+        Map.put(test, :shard_session, shard_session)
+      end)
+
+    {results, meta}
+  end
+
   def get_test_run_failures_count(test_run_id) do
     query =
       from tcr in TestCaseRun,

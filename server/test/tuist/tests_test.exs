@@ -385,6 +385,100 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "list_sharded_test_runs/1" do
+    test "lists only sharded test runs" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _non_sharded} =
+        RunsFixtures.test_fixture(project_id: project.id, shard_session_id: "")
+
+      {:ok, sharded} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          shard_session_id: "session-123",
+          shard_index: 0
+        )
+
+      stub(IngestRepo, :one, fn _query -> nil end)
+
+      {tests, _meta} =
+        Tests.list_sharded_test_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id}
+          ]
+        })
+
+      assert length(tests) == 1
+      assert hd(tests).id == sharded.id
+    end
+
+    test "filters sharded test runs by status" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _success} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          shard_session_id: "session-1",
+          shard_index: 0,
+          status: "success"
+        )
+
+      {:ok, in_progress} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          shard_session_id: "session-2",
+          shard_index: 0,
+          status: "in_progress"
+        )
+
+      stub(IngestRepo, :one, fn _query -> nil end)
+
+      {tests, _meta} =
+        Tests.list_sharded_test_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :status, op: :==, value: "in_progress"}
+          ]
+        })
+
+      assert length(tests) == 1
+      assert hd(tests).id == in_progress.id
+    end
+
+    test "searches sharded test runs by scheme" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, app_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          shard_session_id: "session-1",
+          shard_index: 0,
+          scheme: "AppScheme"
+        )
+
+      {:ok, _other} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          shard_session_id: "session-2",
+          shard_index: 0,
+          scheme: "OtherScheme"
+        )
+
+      stub(IngestRepo, :one, fn _query -> nil end)
+
+      {tests, _meta} =
+        Tests.list_sharded_test_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :scheme, op: :ilike_and, value: "App"}
+          ]
+        })
+
+      assert length(tests) == 1
+      assert hd(tests).id == app_test.id
+    end
+  end
+
   describe "list_test_case_runs/1" do
     test "lists test case runs with pagination" do
       # Given

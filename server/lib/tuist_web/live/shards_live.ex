@@ -10,6 +10,7 @@ defmodule TuistWeb.ShardsLive do
 
   alias Noora.Filter
   alias Tuist.Shards.Analytics
+  alias Tuist.Tests
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -30,19 +31,6 @@ defmodule TuistWeb.ShardsLive do
             "success" => dgettext("dashboard_tests", "Passed"),
             "failure" => dgettext("dashboard_tests", "Failed"),
             "in_progress" => dgettext("dashboard_tests", "In Progress")
-          },
-          operator: :==,
-          value: nil
-        },
-        %Filter.Filter{
-          id: "granularity",
-          field: :granularity,
-          display_name: dgettext("dashboard_tests", "Granularity"),
-          type: :option,
-          options: ["module", "suite"],
-          options_display_names: %{
-            "module" => dgettext("dashboard_tests", "Module"),
-            "suite" => dgettext("dashboard_tests", "Suite")
           },
           operator: :==,
           value: nil
@@ -70,7 +58,7 @@ defmodule TuistWeb.ShardsLive do
     updated_params =
       filter_id
       |> Filter.Operations.add_filter_to_query(socket)
-      |> Map.delete("page")
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -86,7 +74,7 @@ defmodule TuistWeb.ShardsLive do
     updated_query_params =
       params
       |> Filter.Operations.update_filters_in_query(socket)
-      |> Map.delete("page")
+      |> Query.clear_cursors()
 
     {:noreply,
      socket
@@ -106,7 +94,8 @@ defmodule TuistWeb.ShardsLive do
     query =
       uri.query
       |> Query.put("search", search)
-      |> Query.drop("page")
+      |> Query.drop("before")
+      |> Query.drop("after")
 
     {:noreply,
      push_patch(
@@ -344,52 +333,53 @@ defmodule TuistWeb.ShardsLive do
   defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
   defp assign_shard_sessions(%{assigns: %{selected_project: project}} = socket, params) do
-    page = parse_page(params["page"])
-    sort_by = params["sort-by"] || "ran_at"
-    sort_order = params["sort-order"] || "desc"
     search = params["search"] || ""
 
     filters =
       Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
 
-    status_filter =
-      Enum.find_value(filters, fn
-        %{id: "status", value: value} when not is_nil(value) -> value
-        _ -> nil
-      end)
+    flop_filters = [
+      %{field: :project_id, op: :==, value: project.id}
+      | build_shard_session_flop_filters(filters, search)
+    ]
 
-    granularity_filter =
-      Enum.find_value(filters, fn
-        %{id: "granularity", value: value} when not is_nil(value) -> value
-        _ -> nil
-      end)
+    options = %{
+      filters: flop_filters,
+      order_by: [:ran_at],
+      order_directions: [:desc]
+    }
 
-    {sessions, meta} =
-      Analytics.list_shard_sessions(project.id,
-        page: page,
-        page_size: 20,
-        sort_by: sort_by,
-        sort_order: sort_order,
-        status: status_filter,
-        granularity: granularity_filter,
-        search: search
-      )
+    options =
+      cond do
+        not is_nil(Map.get(params, "before")) ->
+          options |> Map.put(:last, 20) |> Map.put(:before, Map.get(params, "before"))
+
+        not is_nil(Map.get(params, "after")) ->
+          options |> Map.put(:first, 20) |> Map.put(:after, Map.get(params, "after"))
+
+        true ->
+          Map.put(options, :first, 20)
+      end
+
+    {test_runs, meta} = Tests.list_sharded_test_runs(options)
 
     socket
     |> assign(:active_filters, filters)
-    |> assign(:shard_sessions, sessions)
+    |> assign(:shard_sessions, test_runs)
     |> assign(:shard_sessions_meta, meta)
-    |> assign(:shard_sessions_page, page)
-    |> assign(:shard_sessions_sort_by, sort_by)
-    |> assign(:shard_sessions_sort_order, sort_order)
     |> assign(:shard_sessions_search, search)
   end
 
-  defp sort_by_patch(uri, sort_by) do
-    "?#{uri.query |> Query.put("sort-by", sort_by) |> Query.drop("page")}"
-  end
+  defp build_shard_session_flop_filters(filters, search) do
+    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
 
-  defp parse_page(nil), do: 1
-  defp parse_page(page) when is_binary(page), do: String.to_integer(page)
-  defp parse_page(page) when is_integer(page), do: page
+    search_filters =
+      if search == "" do
+        []
+      else
+        [%{field: :scheme, op: :ilike_and, value: search}]
+      end
+
+    flop_filters ++ search_filters
+  end
 end
