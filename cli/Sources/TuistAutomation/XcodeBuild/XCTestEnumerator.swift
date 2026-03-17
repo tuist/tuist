@@ -13,7 +13,7 @@
         ) async throws -> [String: [String]]
     }
 
-    public enum XCTestEnumeratorError: LocalizedError {
+    public enum XCTestEnumeratorError: LocalizedError, Equatable {
         case enumerationFailed(String)
         case invalidOutput
 
@@ -24,6 +24,23 @@
             case .invalidOutput:
                 return "Could not parse test enumeration output."
             }
+        }
+    }
+
+    private struct EnumeratedTests: Decodable {
+        let values: [Entry]
+
+        struct Entry: Decodable {
+            var subtests: [Target]?
+        }
+
+        struct Target: Decodable {
+            let name: String
+            var subtests: [Suite]?
+        }
+
+        struct Suite: Decodable {
+            let name: String
         }
     }
 
@@ -53,37 +70,22 @@
                 throw XCTestEnumeratorError.enumerationFailed(error.localizedDescription)
             }
 
-            return try parseEnumerationOutput(result.standardOutput)
-        }
-
-        private func parseEnumerationOutput(_ output: String) throws -> [String: [String]] {
-            guard let data = output.data(using: .utf8),
-                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let values = json["values"] as? [[String: Any]]
-            else {
+            guard let data = result.standardOutput.data(using: .utf8) else {
                 throw XCTestEnumeratorError.invalidOutput
             }
 
-            var result: [String: [String]] = [:]
-
-            for entry in values {
-                guard let subtests = entry["subtests"] as? [[String: Any]] else { continue }
-                for target in subtests {
-                    guard let targetName = target["name"] as? String,
-                          let targetSubtests = target["subtests"] as? [[String: Any]]
-                    else { continue }
-
-                    var suites: [String] = []
-                    for suite in targetSubtests {
-                        if let suiteName = suite["name"] as? String {
-                            suites.append(suiteName)
-                        }
-                    }
-                    result[targetName] = suites
-                }
+            let enumerated: EnumeratedTests
+            do {
+                enumerated = try JSONDecoder().decode(EnumeratedTests.self, from: data)
+            } catch {
+                throw XCTestEnumeratorError.invalidOutput
             }
 
-            return result
+            return enumerated.values
+                .flatMap { $0.subtests ?? [] }
+                .reduce(into: [String: [String]]()) { result, target in
+                    result[target.name] = target.subtests?.map(\.name) ?? []
+                }
         }
     }
 #endif
