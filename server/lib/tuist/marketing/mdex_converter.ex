@@ -8,9 +8,8 @@ defmodule Tuist.Marketing.MDExConverter do
   and copy button, matching the design used across the marketing site.
   """
 
-  @icons_path Path.join(File.cwd!(), "../noora/lib/noora/icons")
-  @copy_icon File.read!(Path.join(@icons_path, "copy.svg"))
-  @copy_check_icon File.read!(Path.join(@icons_path, "copy-check.svg"))
+  @copy_icon Noora.Icon.copy(%{__changed__: nil}) |> Phoenix.HTML.Safe.to_iodata() |> IO.iodata_to_binary()
+  @copy_check_icon Noora.Icon.copy_check(%{__changed__: nil}) |> Phoenix.HTML.Safe.to_iodata() |> IO.iodata_to_binary()
 
   @mdex_options [
     extension: [
