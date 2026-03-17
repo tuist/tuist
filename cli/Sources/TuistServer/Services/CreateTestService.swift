@@ -26,7 +26,7 @@ import TuistHTTP
             ciProjectHandle: String?,
             ciHost: String?,
             ciProvider: CIProvider?,
-            shardSessionId: String?,
+            shardPlanId: String?,
             shardIndex: Int?
         ) async throws -> Components.Schemas.RunsTest
     }
@@ -81,7 +81,7 @@ import TuistHTTP
             ciProjectHandle: String?,
             ciHost: String?,
             ciProvider: CIProvider?,
-            shardSessionId: String?,
+            shardPlanId: String?,
             shardIndex: Int?
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
@@ -205,7 +205,7 @@ import TuistHTTP
                             model_identifier: modelIdentifier,
                             scheme: testSummary.testPlanName,
                             shard_index: shardIndex,
-                            shard_session_id: shardSessionId,
+                            shard_plan_id: shardPlanId,
                             status: status,
                             test_modules: testModules,
                             xcode_version: xcodeVersion

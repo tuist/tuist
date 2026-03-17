@@ -16,7 +16,7 @@ public struct ServerShardAssignment: Equatable, Sendable {
     }
 }
 
-public struct ServerShardSession: Equatable, Sendable {
+public struct ServerShardPlan: Equatable, Sendable {
     public let sessionId: String
     public let shardCount: Int
     public let shards: [ServerShardAssignment]

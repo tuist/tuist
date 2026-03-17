@@ -2,7 +2,7 @@ package dev.tuist.gradle.api.model
 
 import com.google.gson.annotations.SerializedName
 
-data class CreateShardSessionBody(
+data class CreateShardPlanBody(
     @SerializedName("session_id")
     val sessionId: String,
     @SerializedName("test_suites")
@@ -17,7 +17,7 @@ data class CreateShardSessionBody(
     val granularity: String = "suite"
 )
 
-data class ShardSessionResponse(
+data class ShardPlanResponse(
     @SerializedName("session_id")
     val sessionId: String,
     @SerializedName("shard_count")

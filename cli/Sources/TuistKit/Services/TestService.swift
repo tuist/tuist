@@ -497,7 +497,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let effectiveSchemeName = schemeName ?? "Test"
-        let shardSessionId = ciController.ciInfo()?.shardSessionId
+        let shardPlanId = ciController.ciInfo()?.shardPlanId
         let outputPath = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
             .appending(component: "shard-output")
         try await fileSystem.makeDirectory(at: outputPath)
@@ -598,7 +598,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
                 action: .testWithoutBuilding,
-                shardSessionId: shardSessionId,
+                shardPlanId: shardPlanId,
                 shardIndex: shardIndex
             )
 
@@ -622,7 +622,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
-            shardSessionId: shardSessionId,
+            shardPlanId: shardPlanId,
             shardIndex: shardIndex
         )
 
@@ -649,7 +649,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?
     ) -> SelectiveTestingGraph {
         guard let initialGraph = mapperEnvironment.initialGraph else {
-            return SelectiveTestingGraph(targetHashClosures: [:], selectiveTestingCacheItems: [:])
+            return SelectiveTestingGraph(testTargetHashes: [:], selectiveTestingCacheItems: [:])
         }
 
         let graphTraverser = GraphTraverser(graph: initialGraph)
@@ -667,33 +667,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return GraphTarget(path: ref.projectPath, target: target, project: project)
         }
 
-        var targetHashClosures: [String: SelectiveTestingGraph.TargetHashClosure] = [:]
-        for testTarget in allTestTargets {
-            let deps = graphTraverser.allTargetDependencies(traversingFromTargets: [testTarget])
-            let allTargets = deps.union([testTarget])
-
-            var hashes: [String: String] = [:]
-            var cachedTargetNames: Set<String> = []
-
-            for graphTarget in allTargets {
-                if let hash = mapperEnvironment.targetTestHashes[graphTarget.path]?[graphTarget.target.name] {
-                    hashes[graphTarget.target.name] = hash
-                }
-                if mapperEnvironment.targetTestCacheItems[graphTarget.path]?[graphTarget.target.name] != nil {
-                    cachedTargetNames.insert(graphTarget.target.name)
-                }
-            }
-
-            targetHashClosures[testTarget.target.name] = SelectiveTestingGraph.TargetHashClosure(
-                hashes: hashes,
-                cachedTargetNames: cachedTargetNames
-            )
-        }
-
+        var testTargetHashes: [String: String] = [:]
         var selectiveTestingCacheItems: [String: CacheItem] = [:]
+
         for testTarget in allTestTargets {
             guard let hash = mapperEnvironment.targetTestHashes[testTarget.path]?[testTarget.target.name]
             else { continue }
+
+            testTargetHashes[testTarget.target.name] = hash
+
             let cacheItem =
                 mapperEnvironment.targetTestCacheItems[testTarget.path]?[testTarget.target.name]
                     ?? CacheItem(
@@ -706,7 +688,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return SelectiveTestingGraph(
-            targetHashClosures: targetHashClosures,
+            testTargetHashes: testTargetHashes,
             selectiveTestingCacheItems: selectiveTestingCacheItems
         )
     }
@@ -727,14 +709,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passingTargetNames: Set<String>,
         cacheStorage: CacheStoring
     ) async throws {
-        var cacheableItems: [CacheStorableItem: [AbsolutePath]] = [:]
-
-        for targetName in passingTargetNames {
-            guard let closure = selectiveTestingGraph.targetHashClosures[targetName] else { continue }
-            for (name, hash) in closure.hashes where !closure.cachedTargetNames.contains(name) {
-                cacheableItems[CacheStorableItem(name: name, hash: hash)] = []
+        let cacheableItems: [CacheStorableItem: [AbsolutePath]] = passingTargetNames
+            .compactMap { name -> (CacheStorableItem, [AbsolutePath])? in
+                guard let hash = selectiveTestingGraph.testTargetHashes[name] else { return nil }
+                return (CacheStorableItem(name: name, hash: hash), [])
             }
-        }
+            .reduce(into: [:]) { $0[$1.0] = $1.1 }
 
         guard !cacheableItems.isEmpty else { return }
         try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
@@ -1254,7 +1234,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction,
-        shardSessionId: String? = nil,
+        shardPlanId: String? = nil,
         shardIndex: Int? = nil
     ) async {
         guard let resultBundlePath, config.fullHandle != nil, action != .build,
@@ -1266,7 +1246,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
-                shardSessionId: shardSessionId,
+                shardPlanId: shardPlanId,
                 shardIndex: shardIndex
             )
         } catch {
@@ -1359,7 +1339,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
-            shardSessionId: nil,
+            shardPlanId: nil,
             shardIndex: nil
         )
 

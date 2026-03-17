@@ -44,7 +44,7 @@ struct InspectTestCommandServiceTests {
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
         given(inspectResultBundleService)
-            .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any, shardSessionId: .any, shardIndex: .any)
+            .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any, shardPlanId: .any, shardIndex: .any)
             .willReturn(
                 Components.Schemas.RunsTest(
                     duration: 1000,
@@ -83,7 +83,7 @@ struct InspectTestCommandServiceTests {
                 resultBundlePath: .value(resultBundlePath),
                 projectDerivedDataDirectory: .value(nil),
                 config: .any,
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .called(1)
@@ -121,7 +121,7 @@ struct InspectTestCommandServiceTests {
                 resultBundlePath: .value(resultBundlePath),
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .called(1)
@@ -162,7 +162,7 @@ struct InspectTestCommandServiceTests {
                 resultBundlePath: .value(resultBundlePath),
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .called(1)
@@ -229,7 +229,7 @@ struct InspectTestCommandServiceTests {
                 resultBundlePath: .value(resultBundlePath),
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .called(1)

@@ -41,7 +41,7 @@
     overflow-x: hidden;
   }
 
-  & [data-part="shard-sessions-section"] {
+  & [data-part="sharded-runs-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-8);
@@ -57,7 +57,7 @@
     }
   }
 
-  & [data-part="empty-shard-sessions-table-card-section"] {
+  & [data-part="empty-sharded-runs-table-card-section"] {
     & > [data-part="title"] {
       padding-top: var(--noora-spacing-5);
     }

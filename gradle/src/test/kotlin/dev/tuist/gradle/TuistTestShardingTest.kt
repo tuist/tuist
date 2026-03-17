@@ -3,7 +3,7 @@ package dev.tuist.gradle
 import com.google.gson.Gson
 import dev.tuist.gradle.api.model.ShardAssignment
 import dev.tuist.gradle.api.model.ShardAssignmentResponse
-import dev.tuist.gradle.api.model.ShardSessionResponse
+import dev.tuist.gradle.api.model.ShardPlanResponse
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
@@ -47,11 +47,11 @@ class TuistTestShardingTest {
     }
 
     @Test
-    fun `createShardSession sends correct request and parses response`() {
+    fun `createShardPlan sends correct request and parses response`() {
         val service = createService()
 
         val responseBody = Gson().toJson(
-            ShardSessionResponse(
+            ShardPlanResponse(
                 sessionId = "github-123-1",
                 shardCount = 3,
                 shards = listOf(
@@ -64,7 +64,7 @@ class TuistTestShardingTest {
         )
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        val result = service.createShardSession(
+        val result = service.createShardPlan(
             sessionId = "github-123-1",
             testSuites = listOf("com.example.LoginTest", "com.example.LogoutTest", "com.example.PaymentTest", "com.example.ProfileTest", "com.example.SettingsTest"),
             shardMax = 3,
@@ -83,11 +83,11 @@ class TuistTestShardingTest {
     }
 
     @Test
-    fun `createShardSession returns null on server error`() {
+    fun `createShardPlan returns null on server error`() {
         val service = createService()
         mockWebServer.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
-        val result = service.createShardSession(
+        val result = service.createShardPlan(
             sessionId = "github-456-1",
             testSuites = listOf("com.example.Test"),
             shardMax = 2,
@@ -99,11 +99,11 @@ class TuistTestShardingTest {
     }
 
     @Test
-    fun `createShardSession sends correct JSON body`() {
+    fun `createShardPlan sends correct JSON body`() {
         val service = createService()
 
         val responseBody = Gson().toJson(
-            ShardSessionResponse(
+            ShardPlanResponse(
                 sessionId = "test-session",
                 shardCount = 2,
                 shards = listOf(
@@ -115,7 +115,7 @@ class TuistTestShardingTest {
         )
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        service.createShardSession(
+        service.createShardPlan(
             sessionId = "test-session",
             testSuites = listOf("com.example.Test1", "com.example.Test2"),
             shardMax = 2,

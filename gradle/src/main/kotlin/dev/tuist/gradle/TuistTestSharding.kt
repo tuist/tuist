@@ -1,9 +1,9 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
-import dev.tuist.gradle.api.model.CreateShardSessionBody
+import dev.tuist.gradle.api.model.CreateShardPlanBody
 import dev.tuist.gradle.api.model.ShardAssignmentResponse
-import dev.tuist.gradle.api.model.ShardSessionResponse
+import dev.tuist.gradle.api.model.ShardPlanResponse
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -24,14 +24,14 @@ class TuistTestShardingService(
 ) {
     private val logger = Logging.getLogger(TuistTestShardingService::class.java)
 
-    fun createShardSession(
+    fun createShardPlan(
         sessionId: String,
         testSuites: List<String>,
         shardMax: Int,
         shardMin: Int?,
         shardMaxDuration: Int?
-    ): ShardSessionResponse? {
-        val body = CreateShardSessionBody(
+    ): ShardPlanResponse? {
+        val body = CreateShardPlanBody(
             sessionId = sessionId,
             testSuites = testSuites,
             shardMin = shardMin,
@@ -58,7 +58,7 @@ class TuistTestShardingService(
                     when (connection.responseCode) {
                         HttpURLConnection.HTTP_OK -> {
                             BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                                Gson().fromJson(reader, ShardSessionResponse::class.java)
+                                Gson().fromJson(reader, ShardPlanResponse::class.java)
                             }
                         }
                         HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
@@ -66,7 +66,7 @@ class TuistTestShardingService(
                             val errorBody = try {
                                 connection.errorStream?.bufferedReader()?.use { it.readText() }
                             } catch (_: Exception) { null }
-                            logger.warn("Tuist: Shard session creation failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
+                            logger.warn("Tuist: Shard plan creation failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
                             null
                         }
                     }
@@ -75,7 +75,7 @@ class TuistTestShardingService(
                 }
             }
         } catch (e: Exception) {
-            logger.warn("Tuist: Failed to create shard session: ${e.message}")
+            logger.warn("Tuist: Failed to create shard plan: ${e.message}")
             null
         }
     }
@@ -188,7 +188,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         val sessionId = sessionIdOverride
             ?: shardingService.deriveSessionId()
             ?: throw org.gradle.api.GradleException(
-                "Could not derive shard session ID. Set TUIST_SHARD_SESSION_ID or run in a supported CI environment."
+                "Could not derive shard plan ID. Set TUIST_SHARD_PLAN_ID or run in a supported CI environment."
             )
 
         val testSuites = discoverTestSuites(project)
@@ -198,34 +198,41 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
 
         logger.lifecycle("Tuist: Discovered ${testSuites.size} test suite(s): ${testSuites.joinToString(", ")}")
 
-        val response = shardingService.createShardSession(
+        val response = shardingService.createShardPlan(
             sessionId = sessionId,
             testSuites = testSuites,
             shardMax = shardMax,
             shardMin = shardMin,
             shardMaxDuration = shardMaxDuration
-        ) ?: throw org.gradle.api.GradleException("Failed to create shard session on the server.")
+        ) ?: throw org.gradle.api.GradleException("Failed to create shard plan on the server.")
 
-        logger.lifecycle("Tuist: Shard session created — session=$sessionId, shards=${response.shardCount}")
+        logger.lifecycle("Tuist: Shard plan created — session=$sessionId, shards=${response.shardCount}")
         for (shard in response.shards) {
             logger.lifecycle("Tuist:   Shard ${shard.index}: ${shard.testTargets.joinToString(", ")} (est. ${shard.estimatedDurationMs}ms)")
         }
 
-        val outputFile = project.layout.buildDirectory.file("tuist/shard-matrix.json").get().asFile
-        outputFile.parentFile.mkdirs()
-        val matrix = mapOf(
-            "session_id" to sessionId,
-            "shard_count" to response.shardCount,
-            "shards" to response.shards.map { shard ->
-                mapOf(
-                    "index" to shard.index,
-                    "test_targets" to shard.testTargets,
-                    "estimated_duration_ms" to shard.estimatedDurationMs
-                )
-            }
-        )
-        outputFile.writeText(Gson().toJson(matrix))
-        logger.lifecycle("Tuist: Shard matrix written to ${outputFile.path}")
+        val indices = (0 until response.shardCount).toList()
+        val githubOutputPath = System.getenv("GITHUB_OUTPUT")
+        if (githubOutputPath != null) {
+            val matrixJSON = """{"shard":$indices}"""
+            java.io.File(githubOutputPath).appendText("matrix=$matrixJSON\n")
+            logger.lifecycle("Tuist: GitHub Actions matrix output written.")
+        } else {
+            val matrix = mapOf(
+                "session_id" to sessionId,
+                "shard_count" to response.shardCount,
+                "shards" to response.shards.map { shard ->
+                    mapOf(
+                        "index" to shard.index,
+                        "test_targets" to shard.testTargets,
+                        "estimated_duration_ms" to shard.estimatedDurationMs
+                    )
+                }
+            )
+            val outputFile = project.projectDir.resolve(".tuist-shard-matrix.json")
+            outputFile.writeText(Gson().toJson(matrix))
+            logger.lifecycle("Tuist: Shard matrix written to ${outputFile.path}")
+        }
     }
 
     private fun createShardingService(): TuistTestShardingService {
@@ -254,7 +261,7 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
 
         project.tasks.register("tuistPrepareTestShards", TuistPrepareTestShardsTask::class.java).configure {
             group = "tuist"
-            description = "Discover test suites and create a shard session on the Tuist server"
+            description = "Discover test suites and create a shard plan on the Tuist server"
             serverUrl = config.url
             tuistProject = config.project
 
@@ -262,7 +269,7 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
             project.findProperty("tuistShardMin")?.toString()?.toIntOrNull()?.let { shardMin = it }
             project.findProperty("tuistShardMaxDuration")?.toString()?.toIntOrNull()?.let { shardMaxDuration = it }
 
-            System.getenv("TUIST_SHARD_SESSION_ID")?.let { sessionIdOverride = it }
+            System.getenv("TUIST_SHARD_PLAN_ID")?.let { sessionIdOverride = it }
         }
 
         val shardIndexStr = System.getenv("TUIST_SHARD_INDEX") ?: return
@@ -284,9 +291,9 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
         )
         val shardingService = TuistTestShardingService(httpClient = httpClient, baseUrl = config.url)
 
-        val sessionId = System.getenv("TUIST_SHARD_SESSION_ID") ?: shardingService.deriveSessionId()
+        val sessionId = System.getenv("TUIST_SHARD_PLAN_ID") ?: shardingService.deriveSessionId()
         if (sessionId == null) {
-            logger.warn("Tuist: Could not derive shard session ID, skipping test sharding")
+            logger.warn("Tuist: Could not derive shard plan ID, skipping test sharding")
             return
         }
 

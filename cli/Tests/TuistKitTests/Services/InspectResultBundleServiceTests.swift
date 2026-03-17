@@ -104,7 +104,7 @@ struct InspectResultBundleServiceTests {
                 ciProjectHandle: .any,
                 ciHost: .any,
                 ciProvider: .any,
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .willReturn(
@@ -183,7 +183,7 @@ struct InspectResultBundleServiceTests {
                 ciProjectHandle: .any,
                 ciHost: .any,
                 ciProvider: .any,
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .called(1)
@@ -345,7 +345,7 @@ struct InspectResultBundleServiceTests {
                 ciProjectHandle: .any,
                 ciHost: .any,
                 ciProvider: .any,
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .called(1)
@@ -420,7 +420,7 @@ struct InspectResultBundleServiceTests {
                 ciProjectHandle: .value("tuist/tuist"),
                 ciHost: .value("github.com"),
                 ciProvider: .value(.github),
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .called(1)
@@ -481,7 +481,7 @@ struct InspectResultBundleServiceTests {
                 ciProjectHandle: .value(nil),
                 ciHost: .value(nil),
                 ciProvider: .value(nil),
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .called(1)
@@ -570,7 +570,7 @@ struct InspectResultBundleServiceTests {
                 ciProjectHandle: .any,
                 ciHost: .any,
                 ciProvider: .any,
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .willReturn(
@@ -731,7 +731,7 @@ struct InspectResultBundleServiceTests {
                 ciProjectHandle: .any,
                 ciHost: .any,
                 ciProvider: .any,
-                shardSessionId: .any,
+                shardPlanId: .any,
                 shardIndex: .any
             )
             .willReturn(

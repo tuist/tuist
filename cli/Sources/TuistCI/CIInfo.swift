@@ -21,7 +21,7 @@ public struct CIInfo: Equatable {
         self.host = host
     }
 
-    public var shardSessionId: String? {
+    public var shardPlanId: String? {
         guard let runId else { return nil }
         if let attemptNumber {
             return "\(provider)-\(runId)-\(attemptNumber)"

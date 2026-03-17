@@ -46,7 +46,7 @@ defmodule Tuist.Tests.Test do
     field :ci_host, Ch, type: "String", default: ""
     field :ci_provider, Ch, type: "LowCardinality(Nullable(String))"
     field :build_system, Ch, type: "LowCardinality(String)", default: "xcode"
-    field :shard_session_id, Ch, type: "String", default: ""
+    field :shard_plan_id, Ch, type: "String", default: ""
     field :shard_index, Ch, type: "Nullable(Int32)"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
@@ -83,7 +83,7 @@ defmodule Tuist.Tests.Test do
       :ci_host,
       :ci_provider,
       :build_system,
-      :shard_session_id,
+      :shard_plan_id,
       :shard_index
     ])
     |> validate_required([

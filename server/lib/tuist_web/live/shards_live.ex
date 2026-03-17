@@ -50,7 +50,7 @@ defmodule TuistWeb.ShardsLive do
       |> assign(:current_params, params)
       |> assign(:uri, uri)
       |> assign_analytics(params)
-      |> assign_shard_sessions(params)
+      |> assign_sharded_runs(params)
     }
   end
 
@@ -87,7 +87,7 @@ defmodule TuistWeb.ShardsLive do
   end
 
   def handle_event(
-        "search-shard-sessions",
+        "search-sharded-runs",
         %{"search" => search},
         %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
       ) do
@@ -237,7 +237,7 @@ defmodule TuistWeb.ShardsLive do
     |> assign_async(
       [:shard_runs_analytics, :shard_count_analytics, :shard_balance_analytics, :analytics_chart_data],
       fn ->
-        shard_runs_analytics = Analytics.shard_session_analytics(project.id, opts)
+        shard_runs_analytics = Analytics.sharded_run_analytics(project.id, opts)
         shard_count_analytics = Analytics.shard_count_analytics(project.id, opts)
         shard_balance_analytics = Analytics.shard_balance_analytics(project.id, opts)
 
@@ -332,7 +332,7 @@ defmodule TuistWeb.ShardsLive do
   defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
-  defp assign_shard_sessions(%{assigns: %{selected_project: project}} = socket, params) do
+  defp assign_sharded_runs(%{assigns: %{selected_project: project}} = socket, params) do
     search = params["search"] || ""
 
     filters =
@@ -340,7 +340,7 @@ defmodule TuistWeb.ShardsLive do
 
     flop_filters = [
       %{field: :project_id, op: :==, value: project.id}
-      | build_shard_session_flop_filters(filters, search)
+      | build_sharded_run_flop_filters(filters, search)
     ]
 
     options = %{
@@ -365,12 +365,12 @@ defmodule TuistWeb.ShardsLive do
 
     socket
     |> assign(:active_filters, filters)
-    |> assign(:shard_sessions, test_runs)
-    |> assign(:shard_sessions_meta, meta)
-    |> assign(:shard_sessions_search, search)
+    |> assign(:sharded_runs, test_runs)
+    |> assign(:sharded_runs_meta, meta)
+    |> assign(:sharded_runs_search, search)
   end
 
-  defp build_shard_session_flop_filters(filters, search) do
+  defp build_sharded_run_flop_filters(filters, search) do
     flop_filters = Filter.Operations.convert_filters_to_flop(filters)
 
     search_filters =

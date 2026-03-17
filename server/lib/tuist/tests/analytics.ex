@@ -1226,10 +1226,10 @@ defmodule Tuist.Tests.Analytics do
   defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
 
-  def shard_balance_metrics(shard_session_id) when is_binary(shard_session_id) and shard_session_id != "" do
+  def shard_balance_metrics(shard_plan_id) when is_binary(shard_plan_id) and shard_plan_id != "" do
     query =
       from t in Test,
-        where: t.shard_session_id == ^shard_session_id and not is_nil(t.shard_index),
+        where: t.shard_plan_id == ^shard_plan_id and not is_nil(t.shard_index),
         select: %{
           shard_index: t.shard_index,
           duration: t.duration,

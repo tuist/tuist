@@ -3,11 +3,11 @@ defmodule Tuist.ShardsTest do
   use Mimic
 
   alias Tuist.Shards
-  alias Tuist.Shards.ShardSession
+  alias Tuist.Shards.ShardPlan
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  describe "create_shard_session/3" do
-    test "creates a shard session with module-level granularity" do
+  describe "create_shard_plan/3" do
+    test "creates a shard plan with module-level granularity" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
@@ -24,7 +24,7 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
-      assert {:ok, result} = Shards.create_shard_session(project, account, params)
+      assert {:ok, result} = Shards.create_shard_plan(project, account, params)
       assert result.shard_count == 2
       assert result.upload_id == "upload-id-123"
       assert length(result.shard_assignments) == 2
@@ -60,11 +60,11 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
-      assert {:ok, result} = Shards.create_shard_session(project, account, params)
+      assert {:ok, result} = Shards.create_shard_plan(project, account, params)
       assert result.shard_count == 2
     end
 
-    test "creates a shard session with suite-level granularity" do
+    test "creates a shard plan with suite-level granularity" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
@@ -82,7 +82,7 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
-      assert {:ok, result} = Shards.create_shard_session(project, account, params)
+      assert {:ok, result} = Shards.create_shard_plan(project, account, params)
       assert result.shard_count == 2
     end
   end
@@ -92,7 +92,7 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      session = %ShardSession{
+      session = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,
@@ -135,7 +135,7 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      session = %ShardSession{
+      session = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,
@@ -161,7 +161,7 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      session = %ShardSession{
+      session = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,
@@ -203,7 +203,7 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      session = %ShardSession{
+      session = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,
@@ -245,7 +245,7 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      session = %ShardSession{
+      session = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,

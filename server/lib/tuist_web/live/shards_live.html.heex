@@ -513,21 +513,21 @@
         </div>
       </.card_section>
     </div>
-    <.card_section data-part="shard-sessions-section">
+    <.card_section data-part="sharded-runs-section">
       <div data-part="filters">
-        <.form for={%{}} phx-change="search-shard-sessions" phx-debounce="200">
+        <.form for={%{}} phx-change="search-sharded-runs" phx-debounce="200">
           <.text_input
             type="search"
-            id="search-shard-sessions"
+            id="search-sharded-runs"
             name="search"
             placeholder={dgettext("dashboard_tests", "Search...")}
             show_suffix={false}
             data-part="search"
-            value={@shard_sessions_search}
+            value={@sharded_runs_search}
           />
         </.form>
         <.filter_dropdown
-          id="shard-sessions-filter-dropdown"
+          id="sharded-runs-filter-dropdown"
           label={dgettext("dashboard_tests", "Filter")}
           available_filters={@available_filters}
           active_filters={@active_filters}
@@ -536,10 +536,10 @@
       <div :if={Enum.any?(@active_filters)} data-part="active-filters">
         <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
-      <div :if={not Enum.empty?(@shard_sessions)} data-part="shard-sessions-table">
+      <div :if={not Enum.empty?(@sharded_runs)} data-part="sharded-runs-table">
         <.table
-          id="shard-sessions-table"
-          rows={@shard_sessions}
+          id="sharded-runs-table"
+          rows={@sharded_runs}
           row_navigate={
             fn test_run ->
               url(
@@ -557,8 +557,8 @@
           </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Granularity")}>
             <.text_cell label={
-              if test_run.shard_session,
-                do: String.capitalize(test_run.shard_session.granularity),
+              if test_run.shard_plan,
+                do: String.capitalize(test_run.shard_plan.granularity),
                 else: dgettext("dashboard_tests", "Unknown")
             } />
           </:col>
@@ -586,8 +586,8 @@
           </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Shards")}>
             <.text_cell label={
-              if test_run.shard_session,
-                do: to_string(test_run.shard_session.shard_count),
+              if test_run.shard_plan,
+                do: to_string(test_run.shard_plan.shard_count),
                 else: "—"
             } />
           </:col>
@@ -613,18 +613,18 @@
         </.table>
         <.pagination
           uri={@uri}
-          has_previous_page={@shard_sessions_meta.has_previous_page?}
-          has_next_page={@shard_sessions_meta.has_next_page?}
-          start_cursor={@shard_sessions_meta.start_cursor}
-          end_cursor={@shard_sessions_meta.end_cursor}
+          has_previous_page={@sharded_runs_meta.has_previous_page?}
+          has_next_page={@sharded_runs_meta.has_next_page?}
+          start_cursor={@sharded_runs_meta.start_cursor}
+          end_cursor={@sharded_runs_meta.end_cursor}
         />
       </div>
 
-      <div :if={Enum.empty?(@shard_sessions)} data-part="empty-shard-sessions">
+      <div :if={Enum.empty?(@sharded_runs)} data-part="empty-sharded-runs">
         <.empty_card_section
           title={dgettext("dashboard_tests", "No sharded runs")}
           get_started_href="https://docs.tuist.dev/en/guides/features/sharding"
-          data-part="empty-shard-sessions-table-card-section"
+          data-part="empty-sharded-runs-table-card-section"
         >
           <:image>
             <img src="/images/empty_table_light.png" data-theme="light" />

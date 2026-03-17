@@ -1,13 +1,13 @@
-defmodule TuistWeb.API.Schemas.Shards.ShardSession do
+defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
   @moduledoc false
   alias OpenApiSpex.Schema
 
   require OpenApiSpex
 
   OpenApiSpex.schema(%{
-    title: "ShardSession",
+    title: "ShardPlan",
     type: :object,
-    description: "A shard session with assignment details.",
+    description: "A shard plan with assignment details.",
     properties: %{
       session_id: %Schema{
         type: :string,

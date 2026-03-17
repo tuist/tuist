@@ -5,10 +5,10 @@ defmodule Tuist.Shards.Analytics do
 
   alias Postgrex.Interval
   alias Tuist.ClickHouseRepo
-  alias Tuist.Shards.ShardSession
+  alias Tuist.Shards.ShardPlan
   alias Tuist.Tests.Test
 
-  def shard_session_analytics(project_id, opts \\ []) do
+  def sharded_run_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
@@ -17,13 +17,13 @@ defmodule Tuist.Shards.Analytics do
     time_bucket = time_bucket_for_date_period(date_period)
     clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
 
-    current_data = shard_session_count_by_period(project_id, start_datetime, end_datetime, clickhouse_time_bucket)
+    current_data = sharded_run_count_by_period(project_id, start_datetime, end_datetime, clickhouse_time_bucket)
     current_runs = process_runs_count_data(current_data, start_datetime, end_datetime, date_period)
 
     previous_count =
-      shard_session_total_count(project_id, DateTime.add(start_datetime, -days_delta, :day), start_datetime)
+      sharded_run_total_count(project_id, DateTime.add(start_datetime, -days_delta, :day), start_datetime)
 
-    current_count = shard_session_total_count(project_id, start_datetime, end_datetime)
+    current_count = sharded_run_total_count(project_id, start_datetime, end_datetime)
 
     %{
       trend: trend(previous_value: previous_count, current_value: current_count),
@@ -133,7 +133,7 @@ defmodule Tuist.Shards.Analytics do
   defp shard_count_percentiles(project_id, start_datetime, end_datetime) do
     result =
       ClickHouseRepo.one(
-        from(s in ShardSession,
+        from(s in ShardPlan,
           hints: ["FINAL"],
           where: s.project_id == ^project_id,
           where: s.upload_completed == 1,
@@ -157,7 +157,7 @@ defmodule Tuist.Shards.Analytics do
     date_format = get_clickhouse_date_format(time_bucket)
 
     ClickHouseRepo.all(
-      from(s in ShardSession,
+      from(s in ShardPlan,
         hints: ["FINAL"],
         where: s.project_id == ^project_id,
         where: s.upload_completed == 1,
@@ -180,13 +180,13 @@ defmodule Tuist.Shards.Analytics do
       from(t in Test,
         hints: ["FINAL"],
         where: t.project_id == ^project_id,
-        where: t.shard_session_id != "",
+        where: t.shard_plan_id != "",
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
-        group_by: t.shard_session_id,
+        group_by: t.shard_plan_id,
         having: count() > 1,
         select: %{
-          session_id: t.shard_session_id,
+          plan_id: t.shard_plan_id,
           balance:
             fragment(
               "if(avg(?) > 0, greatest(0, 1 - (stddevPop(?) / avg(?))), 1)",
@@ -253,11 +253,11 @@ defmodule Tuist.Shards.Analytics do
     end)
   end
 
-  defp shard_session_count_by_period(project_id, start_datetime, end_datetime, time_bucket) do
+  defp sharded_run_count_by_period(project_id, start_datetime, end_datetime, time_bucket) do
     date_format = get_clickhouse_date_format(time_bucket)
 
     ClickHouseRepo.all(
-      from(s in ShardSession,
+      from(s in ShardPlan,
         hints: ["FINAL"],
         where: s.project_id == ^project_id,
         where: s.upload_completed == 1,
@@ -273,9 +273,9 @@ defmodule Tuist.Shards.Analytics do
     )
   end
 
-  defp shard_session_total_count(project_id, start_datetime, end_datetime) do
+  defp sharded_run_total_count(project_id, start_datetime, end_datetime) do
     ClickHouseRepo.one(
-      from(s in ShardSession,
+      from(s in ShardPlan,
         hints: ["FINAL"],
         where: s.project_id == ^project_id,
         where: s.upload_completed == 1,
@@ -290,7 +290,7 @@ defmodule Tuist.Shards.Analytics do
     date_format = get_clickhouse_date_format(time_bucket)
 
     ClickHouseRepo.all(
-      from(s in ShardSession,
+      from(s in ShardPlan,
         hints: ["FINAL"],
         where: s.project_id == ^project_id,
         where: s.upload_completed == 1,
@@ -308,7 +308,7 @@ defmodule Tuist.Shards.Analytics do
 
   defp avg_shard_count_in_range(project_id, start_datetime, end_datetime) do
     ClickHouseRepo.one(
-      from(s in ShardSession,
+      from(s in ShardPlan,
         hints: ["FINAL"],
         where: s.project_id == ^project_id,
         where: s.upload_completed == 1,

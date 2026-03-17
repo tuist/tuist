@@ -66,7 +66,7 @@ struct XcodeBuildTestCommandService {
         let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         let config = try await configLoader.loadConfig(path: path)
 
-        var shardSessionId: String?
+        var shardPlanId: String?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
@@ -87,7 +87,7 @@ struct XcodeBuildTestCommandService {
             for target in shardResult.testTargets {
                 passthroughXcodebuildArguments += ["-only-testing", target]
             }
-            shardSessionId = CIController().ciInfo()?.shardSessionId
+            shardPlanId = CIController().ciInfo()?.shardPlanId
         }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
@@ -110,7 +110,7 @@ struct XcodeBuildTestCommandService {
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
-                shardSessionId: shardSessionId,
+                shardPlanId: shardPlanId,
                 shardIndex: shardIndex
             )
             throw error
@@ -123,7 +123,7 @@ struct XcodeBuildTestCommandService {
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
-            shardSessionId: shardSessionId,
+            shardPlanId: shardPlanId,
             shardIndex: shardIndex
         )
     }
@@ -227,7 +227,7 @@ struct XcodeBuildTestCommandService {
         resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
-        shardSessionId: String? = nil,
+        shardPlanId: String? = nil,
         shardIndex: Int? = nil
     ) async {
         guard let resultBundlePath,
@@ -241,7 +241,7 @@ struct XcodeBuildTestCommandService {
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
-                shardSessionId: shardSessionId,
+                shardPlanId: shardPlanId,
                 shardIndex: shardIndex
             )
         } catch {

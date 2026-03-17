@@ -38,7 +38,7 @@ public protocol InspectResultBundleServicing {
         resultBundlePath: AbsolutePath,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
-        shardSessionId: String?,
+        shardPlanId: String?,
         shardIndex: Int?
     ) async throws -> Components.Schemas.RunsTest
 }
@@ -92,7 +92,7 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         resultBundlePath: AbsolutePath,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
-        shardSessionId: String? = nil,
+        shardPlanId: String? = nil,
         shardIndex: Int? = nil
     ) async throws -> Components.Schemas.RunsTest {
         let rootDirectory = try await rootDirectory()
@@ -137,7 +137,7 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
-            shardSessionId: shardSessionId ?? ciInfo?.shardSessionId,
+            shardPlanId: shardPlanId ?? ciInfo?.shardPlanId,
             shardIndex: shardIndex
         )
 

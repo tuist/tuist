@@ -2,7 +2,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  alias Tuist.Shards.ShardSession
+  alias Tuist.Shards.ShardPlan
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
@@ -20,7 +20,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
   end
 
   describe "POST /api/projects/:account/:project/tests/shards" do
-    test "creates shard session with valid params", %{conn: conn, user: user, project: project} do
+    test "creates shard plan with valid params", %{conn: conn, user: user, project: project} do
       conn =
         conn
         |> Authentication.put_current_user(user)
@@ -78,7 +78,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   describe "GET /api/projects/:account/:project/tests/shards/:session_id/:shard_index" do
     test "returns shard assignment for valid params", %{conn: conn, user: user, project: project} do
-      session = %ShardSession{
+      session = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,
@@ -120,7 +120,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
 
     test "returns not found for out-of-range shard index", %{conn: conn, user: user, project: project} do
-      session = %ShardSession{
+      session = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,
@@ -148,7 +148,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   describe "POST /api/projects/:account/:project/tests/shards/generate-url" do
     test "returns signed upload URL for existing session", %{conn: conn, user: user, project: project} do
-      session = %ShardSession{
+      session = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,
@@ -198,7 +198,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   describe "POST /api/projects/:account/:project/tests/shards/generate-xctestrun-url" do
     test "returns signed upload URL for existing session", %{conn: conn, user: user, project: project} do
-      session = %ShardSession{
+      session = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,
@@ -245,7 +245,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   describe "POST /api/projects/:account/:project/tests/shards/complete" do
     test "completes upload successfully", %{conn: conn, user: user, project: project} do
-      session = %ShardSession{
+      session = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,

@@ -97,7 +97,7 @@
                 resultBundlePath: resolvedResultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
-                shardSessionId: nil,
+                shardPlanId: nil,
                 shardIndex: nil
             )
 

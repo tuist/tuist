@@ -19,7 +19,7 @@
             shardConfiguration: ShardConfiguration,
             fullHandle: String,
             serverURL: URL
-        ) async throws -> ServerShardSession
+        ) async throws -> ServerShardPlan
     }
 
     public enum ShardPlanServiceError: LocalizedError, Equatable {
@@ -41,7 +41,7 @@
 
     public struct ShardPlanService: ShardPlanServicing {
         private let xcTestEnumerator: XCTestEnumerating
-        private let createShardSessionService: CreateShardSessionServicing
+        private let createShardPlanService: CreateShardPlanServicing
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
         private let multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing
         private let multipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing
@@ -52,7 +52,7 @@
 
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
-            createShardSessionService: CreateShardSessionServicing = CreateShardSessionService(),
+            createShardPlanService: CreateShardPlanServicing = CreateShardPlanService(),
             multipartUploadArtifactService: MultipartUploadArtifactServicing = MultipartUploadArtifactService(),
             multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing =
                 MultipartUploadGenerateURLShardsService(),
@@ -65,7 +65,7 @@
             fileArchiver: FileArchivingFactorying = FileArchivingFactory()
         ) {
             self.xcTestEnumerator = xcTestEnumerator
-            self.createShardSessionService = createShardSessionService
+            self.createShardPlanService = createShardPlanService
             self.multipartUploadArtifactService = multipartUploadArtifactService
             self.multipartUploadGenerateURLShardsService = multipartUploadGenerateURLShardsService
             self.multipartUploadCompleteShardsService = multipartUploadCompleteShardsService
@@ -81,8 +81,8 @@
             shardConfiguration: ShardConfiguration,
             fullHandle: String,
             serverURL: URL
-        ) async throws -> ServerShardSession {
-            guard let sessionId = ciController.ciInfo()?.shardSessionId else {
+        ) async throws -> ServerShardPlan {
+            guard let sessionId = ciController.ciInfo()?.shardPlanId else {
                 throw ShardPlanServiceError.cannotDeriveSessionId
             }
 
@@ -112,7 +112,7 @@
 
             Logger.current.info("Creating shard session '\(sessionId)' with \(modules.count) test modules...")
 
-            let session = try await createShardSessionService.createShardSession(
+            let session = try await createShardPlanService.createShardPlan(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 sessionId: sessionId,
@@ -177,7 +177,7 @@
             return session
         }
 
-        private func outputShardMatrix(session: ServerShardSession) {
+        private func outputShardMatrix(session: ServerShardPlan) {
             for shard in session.shards {
                 Logger.current
                     .info(

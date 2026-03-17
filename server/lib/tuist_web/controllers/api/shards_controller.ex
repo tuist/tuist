@@ -6,7 +6,7 @@ defmodule TuistWeb.API.ShardsController do
   alias Tuist.Shards
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Shards.ShardAssignment
-  alias TuistWeb.API.Schemas.Shards.ShardSession
+  alias TuistWeb.API.Schemas.Shards.ShardPlan
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -19,9 +19,9 @@ defmodule TuistWeb.API.ShardsController do
   tags(["Shards"])
 
   operation(:create,
-    summary: "Create a shard session.",
+    summary: "Create a shard plan.",
     description: "Creates a new test sharding session that distributes test targets across multiple CI runners.",
-    operation_id: "createShardSession",
+    operation_id: "createShardPlan",
     parameters: [
       account_handle: [
         in: :path,
@@ -37,9 +37,9 @@ defmodule TuistWeb.API.ShardsController do
       ]
     ],
     request_body:
-      {"Shard session params", "application/json",
+      {"Shard plan params", "application/json",
        %Schema{
-         title: "CreateShardSessionParams",
+         title: "CreateShardPlanParams",
          type: :object,
          properties: %{
            session_id: %Schema{type: :string, description: "A unique session identifier."},
@@ -69,7 +69,7 @@ defmodule TuistWeb.API.ShardsController do
          required: [:session_id]
        }},
     responses: %{
-      ok: {"The shard session", "application/json", ShardSession},
+      ok: {"The shard plan", "application/json", ShardPlan},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
@@ -89,7 +89,7 @@ defmodule TuistWeb.API.ShardsController do
       granularity: Map.get(body_params, :granularity, "module")
     }
 
-    case Shards.create_shard_session(selected_project, selected_project.account, params) do
+    case Shards.create_shard_plan(selected_project, selected_project.account, params) do
       {:ok, result} ->
         json(conn, %{
           session_id: result.session.session_id,
@@ -126,7 +126,7 @@ defmodule TuistWeb.API.ShardsController do
         in: :path,
         type: :string,
         required: true,
-        description: "The shard session identifier."
+        description: "The shard plan identifier."
       ],
       shard_index: [
         in: :path,
@@ -168,7 +168,7 @@ defmodule TuistWeb.API.ShardsController do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
-        |> json(%{message: "The shard session was not found."})
+        |> json(%{message: "The shard plan was not found."})
 
       {:error, :invalid_shard_index} ->
         conn
@@ -200,7 +200,7 @@ defmodule TuistWeb.API.ShardsController do
          title: "GenerateShardUploadURLParams",
          type: :object,
          properties: %{
-           session_id: %Schema{type: :string, description: "The shard session identifier."},
+           session_id: %Schema{type: :string, description: "The shard plan identifier."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
            part_number: %Schema{type: :integer, description: "The part number."}
          },
@@ -244,7 +244,7 @@ defmodule TuistWeb.API.ShardsController do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
-        |> json(%{message: "The shard session was not found."})
+        |> json(%{message: "The shard plan was not found."})
     end
   end
 
@@ -271,7 +271,7 @@ defmodule TuistWeb.API.ShardsController do
          title: "GenerateShardXctestrunUploadURLParams",
          type: :object,
          properties: %{
-           session_id: %Schema{type: :string, description: "The shard session identifier."}
+           session_id: %Schema{type: :string, description: "The shard plan identifier."}
          },
          required: [:session_id]
        }},
@@ -308,7 +308,7 @@ defmodule TuistWeb.API.ShardsController do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
-        |> json(%{message: "The shard session was not found."})
+        |> json(%{message: "The shard plan was not found."})
     end
   end
 
@@ -335,7 +335,7 @@ defmodule TuistWeb.API.ShardsController do
          title: "CompleteShardUploadParams",
          type: :object,
          properties: %{
-           session_id: %Schema{type: :string, description: "The shard session identifier."},
+           session_id: %Schema{type: :string, description: "The shard plan identifier."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
            parts: %Schema{
              type: :array,
@@ -390,7 +390,7 @@ defmodule TuistWeb.API.ShardsController do
       {:error, :not_found} ->
         conn
         |> put_status(:not_found)
-        |> json(%{message: "The shard session was not found."})
+        |> json(%{message: "The shard plan was not found."})
     end
   end
 end

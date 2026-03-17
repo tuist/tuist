@@ -2,7 +2,7 @@ defmodule Tuist.Shards do
   @moduledoc """
   Context module for test sharding.
 
-  Handles creating shard sessions, computing shard assignments using
+  Handles creating shard plans, computing shard assignments using
   historical timing data, and managing the upload/download of test bundles.
   """
 
@@ -13,7 +13,7 @@ defmodule Tuist.Shards do
   alias Tuist.Projects.Project
   alias Tuist.Shards.BinPacker
   alias Tuist.Shards.PlistFilter
-  alias Tuist.Shards.ShardSession
+  alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestModuleRun
@@ -23,7 +23,7 @@ defmodule Tuist.Shards do
   @default_suite_duration_ms 5_000
   @timing_lookback_days 30
 
-  def create_shard_session(%Project{} = project, %Account{} = account, params) do
+  def create_shard_plan(%Project{} = project, %Account{} = account, params) do
     granularity = Map.get(params, :granularity, "module")
     session_id = Map.fetch!(params, :session_id)
 
@@ -65,14 +65,14 @@ defmodule Tuist.Shards do
       project_id: project.id,
       shard_count: shard_count,
       granularity: granularity,
-      shard_assignments: ShardSession.encode_shard_assignments(shard_assignments),
+      shard_assignments: ShardPlan.encode_shard_assignments(shard_assignments),
       upload_completed: 0,
       bundle_object_key: bundle_object_key,
       xctestrun_object_key: xctestrun_object_key,
       inserted_at: NaiveDateTime.utc_now()
     }
 
-    case %ShardSession{} |> ShardSession.create_changeset(attrs) |> IngestRepo.insert() do
+    case %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert() do
       {:ok, session} ->
         {:ok,
          %{
@@ -93,7 +93,7 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       session ->
-        assignments = ShardSession.decode_shard_assignments(session)
+        assignments = ShardPlan.decode_shard_assignments(session)
 
         case Enum.find(assignments, fn a -> a["index"] == shard_index end) do
           nil ->
@@ -124,7 +124,7 @@ defmodule Tuist.Shards do
       session ->
         Storage.multipart_complete_upload(session.bundle_object_key, upload_id, parts, account)
 
-        assignments = ShardSession.decode_shard_assignments(session)
+        assignments = ShardPlan.decode_shard_assignments(session)
         xctestrun_xml = Storage.get_object_as_string(session.xctestrun_object_key, account)
         granularity = String.to_existing_atom(session.granularity)
 
@@ -146,7 +146,7 @@ defmodule Tuist.Shards do
           |> Map.put(:upload_completed, 1)
           |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
-        IngestRepo.insert_all(ShardSession, [updated_attrs])
+        IngestRepo.insert_all(ShardPlan, [updated_attrs])
 
         {:ok, session}
     end
@@ -183,7 +183,7 @@ defmodule Tuist.Shards do
 
   defp get_session(project_id, session_id) do
     IngestRepo.one(
-      from(s in ShardSession,
+      from(s in ShardPlan,
         where: s.project_id == ^project_id,
         where: s.session_id == ^session_id,
         order_by: [desc: s.inserted_at],

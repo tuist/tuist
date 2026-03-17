@@ -16,7 +16,7 @@ public struct ShardAssignment: Equatable, Sendable {
     }
 }
 
-public struct ShardSession: Equatable, Sendable {
+public struct ShardPlan: Equatable, Sendable {
     public let sessionId: String
     public let shardCount: Int
     public let shards: [ShardAssignment]
@@ -50,7 +50,7 @@ public struct ShardSession: Equatable, Sendable {
         }
     }
 
-    extension ShardSession {
+    extension ShardPlan {
         public static func test(
             sessionId: String = "test-session-1",
             shardCount: Int = 2,
@@ -59,8 +59,8 @@ public struct ShardSession: Equatable, Sendable {
                 .test(index: 1, testTargets: ["CoreTests"]),
             ],
             uploadId: String = "upload-id-123"
-        ) -> ShardSession {
-            ShardSession(
+        ) -> ShardPlan {
+            ShardPlan(
                 sessionId: sessionId,
                 shardCount: shardCount,
                 shards: shards,

@@ -14,7 +14,7 @@ defmodule TuistWeb.TestRunLive do
   alias Noora.Filter
   alias Tuist.CommandEvents
   alias Tuist.Projects
-  alias Tuist.Shards.ShardSession
+  alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Xcode
@@ -27,7 +27,7 @@ defmodule TuistWeb.TestRunLive do
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
       case Tests.get_test(params["test_run_id"],
-             preload: [:ran_by_account, :build_run, :gradle_build, :shard_session]
+             preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan]
            ) do
         {:ok, test} ->
           test
@@ -63,10 +63,10 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
-      |> assign(:is_sharded, run.shard_session_id != "" && run.shard_session_id != nil)
+      |> assign(:is_sharded, run.shard_plan_id != "" && run.shard_plan_id != nil)
       |> assign(
         :shard_granularity,
-        case Map.get(run, :shard_session) do
+        case Map.get(run, :shard_plan) do
           %{granularity: g} when g in ["module", "suite"] -> g
           _ -> "module"
         end
@@ -565,7 +565,7 @@ defmodule TuistWeb.TestRunLive do
   defp ensure_allowed_params("selective-testing-sort-by", _value), do: :name
 
   defp load_test_cases_data(run, params, available_filters \\ nil) do
-    is_sharded = run.shard_session_id != "" && run.shard_session_id != nil
+    is_sharded = run.shard_plan_id != "" && run.shard_plan_id != nil
     available_filters = available_filters || define_test_cases_filters(run, is_sharded)
 
     flop_params = %{
@@ -580,7 +580,7 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp load_test_suites_data(run, params, available_filters \\ nil) do
-    is_sharded = run.shard_session_id != "" && run.shard_session_id != nil
+    is_sharded = run.shard_plan_id != "" && run.shard_plan_id != nil
     available_filters = available_filters || define_test_suites_filters(run, is_sharded)
 
     flop_params = %{
@@ -595,10 +595,10 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp load_test_modules_data(run, params, available_filters \\ nil) do
-    is_sharded = run.shard_session_id != "" && run.shard_session_id != nil
+    is_sharded = run.shard_plan_id != "" && run.shard_plan_id != nil
 
     granularity =
-      case Map.get(run, :shard_session) do
+      case Map.get(run, :shard_plan) do
         %{granularity: g} when g in ["module", "suite"] -> g
         _ -> "module"
       end
@@ -815,7 +815,7 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp scope_filter(run, _field) do
-    case Map.get(run, :shard_session) do
+    case Map.get(run, :shard_plan) do
       %{id: shard_id} when shard_id != nil ->
         %{field: :shard_id, op: :==, value: shard_id}
 
@@ -1024,7 +1024,7 @@ defmodule TuistWeb.TestRunLive do
 
   defp shard_filter(id, field, run) do
     shard_count =
-      case Map.get(run, :shard_session) do
+      case Map.get(run, :shard_plan) do
         %{shard_count: count} when count > 0 -> count
         _ -> 0
       end
@@ -1285,17 +1285,17 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_shard_rows(socket, run) do
-    shard_balance = Tests.Analytics.shard_balance_metrics(run.shard_session_id)
+    shard_balance = Tests.Analytics.shard_balance_metrics(run.shard_plan_id)
 
-    shard_session = Map.get(run, :shard_session)
+    shard_plan = Map.get(run, :shard_plan)
 
     expected_shard_count =
-      case shard_session do
+      case shard_plan do
         %{shard_count: count} -> count
         _ -> 0
       end
 
-    assignments = ShardSession.decode_shard_assignments(shard_session)
+    assignments = ShardPlan.decode_shard_assignments(shard_plan)
 
     target_counts =
       Map.new(assignments, fn assignment ->

@@ -3,7 +3,7 @@ defmodule Tuist.TestsTest do
   use Mimic
 
   alias Tuist.IngestRepo
-  alias Tuist.Shards.ShardSession
+  alias Tuist.Shards.ShardPlan
   alias Tuist.Tests
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -391,12 +391,12 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, _non_sharded} =
-        RunsFixtures.test_fixture(project_id: project.id, shard_session_id: "")
+        RunsFixtures.test_fixture(project_id: project.id, shard_plan_id: "")
 
       {:ok, sharded} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          shard_session_id: "session-123",
+          shard_plan_id: "session-123",
           shard_index: 0
         )
 
@@ -419,7 +419,7 @@ defmodule Tuist.TestsTest do
       {:ok, _success} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          shard_session_id: "session-1",
+          shard_plan_id: "session-1",
           shard_index: 0,
           status: "success"
         )
@@ -427,7 +427,7 @@ defmodule Tuist.TestsTest do
       {:ok, in_progress} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          shard_session_id: "session-2",
+          shard_plan_id: "session-2",
           shard_index: 0,
           status: "in_progress"
         )
@@ -452,7 +452,7 @@ defmodule Tuist.TestsTest do
       {:ok, app_test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          shard_session_id: "session-1",
+          shard_plan_id: "session-1",
           shard_index: 0,
           scheme: "AppScheme"
         )
@@ -460,7 +460,7 @@ defmodule Tuist.TestsTest do
       {:ok, _other} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          shard_session_id: "session-2",
+          shard_plan_id: "session-2",
           shard_index: 0,
           scheme: "OtherScheme"
         )
@@ -1284,7 +1284,7 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
-      shard_session = %ShardSession{
+      shard_plan = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-1",
         project_id: project.id,
@@ -1297,7 +1297,7 @@ defmodule Tuist.TestsTest do
         inserted_at: NaiveDateTime.utc_now()
       }
 
-      stub(IngestRepo, :one, fn _query -> shard_session end)
+      stub(IngestRepo, :one, fn _query -> shard_plan end)
 
       {:ok, test} =
         Tests.create_test(%{
@@ -1313,19 +1313,19 @@ defmodule Tuist.TestsTest do
           git_commit_sha: "abc123",
           ran_at: NaiveDateTime.utc_now(),
           is_ci: true,
-          shard_session_id: "session-1",
+          shard_plan_id: "session-1",
           shard_index: 0
         })
 
       assert test.status == "in_progress"
-      assert test.shard_session_id == "session-1"
+      assert test.shard_plan_id == "session-1"
     end
 
     test "second shard updates existing test and sets final status" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
-      shard_session = %ShardSession{
+      shard_plan = %ShardPlan{
         id: Ecto.UUID.generate(),
         session_id: "session-2",
         project_id: project.id,
@@ -1338,7 +1338,7 @@ defmodule Tuist.TestsTest do
         inserted_at: NaiveDateTime.utc_now()
       }
 
-      stub(IngestRepo, :one, fn _query -> shard_session end)
+      stub(IngestRepo, :one, fn _query -> shard_plan end)
 
       {:ok, first_test} =
         Tests.create_test(%{
@@ -1354,7 +1354,7 @@ defmodule Tuist.TestsTest do
           git_commit_sha: "abc123",
           ran_at: NaiveDateTime.utc_now(),
           is_ci: true,
-          shard_session_id: "session-2",
+          shard_plan_id: "session-2",
           shard_index: 0,
           test_modules: [
             %{
@@ -1384,7 +1384,7 @@ defmodule Tuist.TestsTest do
           git_commit_sha: "abc123",
           ran_at: NaiveDateTime.utc_now(),
           is_ci: true,
-          shard_session_id: "session-2",
+          shard_plan_id: "session-2",
           shard_index: 1,
           test_modules: [
             %{

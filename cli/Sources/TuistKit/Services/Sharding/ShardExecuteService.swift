@@ -65,7 +65,7 @@
             serverURL: URL,
             outputPath: AbsolutePath
         ) async throws -> ShardExecuteResult {
-            guard let sessionId = ciController.ciInfo()?.shardSessionId else {
+            guard let sessionId = ciController.ciInfo()?.shardPlanId else {
                 throw ShardExecuteServiceError.cannotDeriveSessionId
             }
 

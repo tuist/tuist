@@ -1,6 +1,6 @@
-defmodule Tuist.Shards.ShardSession do
+defmodule Tuist.Shards.ShardPlan do
   @moduledoc """
-  A shard session represents a test sharding plan for distributing tests
+  A shard plan represents a test sharding plan for distributing tests
   across multiple CI runners. This is a ClickHouse entity.
   """
   use Ecto.Schema
@@ -8,7 +8,7 @@ defmodule Tuist.Shards.ShardSession do
   import Ecto.Changeset
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
-  schema "shard_sessions" do
+  schema "shard_plans" do
     field :session_id, Ch, type: "String"
     field :project_id, Ch, type: "Int64"
     field :shard_count, Ch, type: "Int32"
@@ -20,8 +20,8 @@ defmodule Tuist.Shards.ShardSession do
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
-  def create_changeset(shard_session \\ %__MODULE__{}, attrs) do
-    shard_session
+  def create_changeset(shard_plan \\ %__MODULE__{}, attrs) do
+    shard_plan
     |> cast(attrs, [
       :id,
       :session_id,
