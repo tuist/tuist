@@ -265,6 +265,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments/get(listTestCaseRunAttachments)`.
     func listTestCaseRunAttachments(_ input: Operations.listTestCaseRunAttachments.Input) async throws -> Operations.listTestCaseRunAttachments.Output
+    /// Complete a multipart upload for a build archive.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)`.
+    func completeBuildsMultipartUpload(_ input: Operations.completeBuildsMultipartUpload.Input) async throws -> Operations.completeBuildsMultipartUpload.Output
     /// Get a single bundle by ID
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}`.
@@ -333,6 +340,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/get(listTestCases)`.
     func listTestCases(_ input: Operations.listTestCases.Input) async throws -> Operations.listTestCases.Output
+    /// Start a multipart upload for a build archive.
+    ///
+    /// Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)`.
+    func startBuildsMultipartUpload(_ input: Operations.startBuildsMultipartUpload.Input) async throws -> Operations.startBuildsMultipartUpload.Output
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -545,6 +559,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/crash-reports`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)`.
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
+    /// Generate a signed URL for uploading a build archive part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)`.
+    func generateBuildsMultipartUploadURL(_ input: Operations.generateBuildsMultipartUploadURL.Input) async throws -> Operations.generateBuildsMultipartUploadURL.Output
     /// List test runs for a project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests`.
@@ -1184,6 +1205,23 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Complete a multipart upload for a build archive.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)`.
+    public func completeBuildsMultipartUpload(
+        path: Operations.completeBuildsMultipartUpload.Input.Path,
+        headers: Operations.completeBuildsMultipartUpload.Input.Headers = .init(),
+        body: Operations.completeBuildsMultipartUpload.Input.Body? = nil
+    ) async throws -> Operations.completeBuildsMultipartUpload.Output {
+        try await completeBuildsMultipartUpload(Operations.completeBuildsMultipartUpload.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Get a single bundle by ID
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}`.
@@ -1354,6 +1392,23 @@ extension APIProtocol {
             path: path,
             query: query,
             headers: headers
+        ))
+    }
+    /// Start a multipart upload for a build archive.
+    ///
+    /// Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)`.
+    public func startBuildsMultipartUpload(
+        path: Operations.startBuildsMultipartUpload.Input.Path,
+        headers: Operations.startBuildsMultipartUpload.Input.Headers = .init(),
+        body: Operations.startBuildsMultipartUpload.Input.Body? = nil
+    ) async throws -> Operations.startBuildsMultipartUpload.Output {
+        try await startBuildsMultipartUpload(Operations.startBuildsMultipartUpload.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// List previews.
@@ -1880,6 +1935,23 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Generate a signed URL for uploading a build archive part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)`.
+    public func generateBuildsMultipartUploadURL(
+        path: Operations.generateBuildsMultipartUploadURL.Input.Path,
+        headers: Operations.generateBuildsMultipartUploadURL.Input.Headers = .init(),
+        body: Operations.generateBuildsMultipartUploadURL.Input.Body? = nil
+    ) async throws -> Operations.generateBuildsMultipartUploadURL.Output {
+        try await generateBuildsMultipartUploadURL(Operations.generateBuildsMultipartUploadURL.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// List test runs for a project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests`.
@@ -2324,6 +2396,33 @@ public enum Components {
                 case status
             }
         }
+        /// Parameters to complete a multipart upload for a build.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BuildMultipartUploadCompletionParams`.
+        public struct BuildMultipartUploadCompletionParams: Codable, Hashable, Sendable {
+            /// The build ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildMultipartUploadCompletionParams/build_id`.
+            public var build_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BuildMultipartUploadCompletionParams/multipart_upload_parts`.
+            public var multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
+            /// Creates a new `BuildMultipartUploadCompletionParams`.
+            ///
+            /// - Parameters:
+            ///   - build_id: The build ID.
+            ///   - multipart_upload_parts:
+            public init(
+                build_id: Swift.String,
+                multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
+            ) {
+                self.build_id = build_id
+                self.multipart_upload_parts = multipart_upload_parts
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build_id
+                case multipart_upload_parts
+            }
+        }
         /// The page number to return.
         ///
         /// - Remark: Generated from `#/components/schemas/ModuleCacheTargetsPage`.
@@ -2478,6 +2577,33 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case hash
+            }
+        }
+        /// Parameters to generate a signed URL for a build multipart upload part.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BuildMultipartUploadURLGenerationParams`.
+        public struct BuildMultipartUploadURLGenerationParams: Codable, Hashable, Sendable {
+            /// The build ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildMultipartUploadURLGenerationParams/build_id`.
+            public var build_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BuildMultipartUploadURLGenerationParams/multipart_upload_part`.
+            public var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+            /// Creates a new `BuildMultipartUploadURLGenerationParams`.
+            ///
+            /// - Parameters:
+            ///   - build_id: The build ID.
+            ///   - multipart_upload_part:
+            public init(
+                build_id: Swift.String,
+                multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+            ) {
+                self.build_id = build_id
+                self.multipart_upload_part = multipart_upload_part
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build_id
+                case multipart_upload_part
             }
         }
         /// The page number to return.
@@ -2878,7 +3004,7 @@ public enum Components {
             /// Duration of the build in milliseconds.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/duration`.
-            public var duration: Swift.Int
+            public var duration: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/BuildParams/filesPayload`.
             public struct filesPayloadPayload: Codable, Hashable, Sendable {
                 /// The duration of the compilation for the file in milliseconds.
@@ -3215,6 +3341,7 @@ public enum Components {
             @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case success = "success"
                 case failure = "failure"
+                case processing = "processing"
             }
             /// The status of the build run.
             ///
@@ -3286,6 +3413,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/targets`.
             public var targets: Components.Schemas.BuildParams.targetsPayload?
+            /// Whether Xcode cache upload was enabled for this build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildParams/xcode_cache_upload_enabled`.
+            public var xcode_cache_upload_enabled: Swift.Bool?
             /// The version of Xcode used during the build.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/xcode_version`.
@@ -3317,6 +3448,7 @@ public enum Components {
             ///   - scheme: The scheme used for the build.
             ///   - status: The status of the build run.
             ///   - targets: Targets with build metadata associated with the build run.
+            ///   - xcode_cache_upload_enabled: Whether Xcode cache upload was enabled for this build.
             ///   - xcode_version: The version of Xcode used during the build.
             public init(
                 cacheable_tasks: Components.Schemas.BuildParams.cacheable_tasksPayload? = nil,
@@ -3328,7 +3460,7 @@ public enum Components {
                 ci_run_id: Swift.String? = nil,
                 configuration: Swift.String? = nil,
                 custom_metadata: Components.Schemas.BuildParams.custom_metadataPayload? = nil,
-                duration: Swift.Int,
+                duration: Swift.Int? = nil,
                 files: Components.Schemas.BuildParams.filesPayload? = nil,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -3343,6 +3475,7 @@ public enum Components {
                 scheme: Swift.String? = nil,
                 status: Components.Schemas.BuildParams.statusPayload? = nil,
                 targets: Components.Schemas.BuildParams.targetsPayload? = nil,
+                xcode_cache_upload_enabled: Swift.Bool? = nil,
                 xcode_version: Swift.String? = nil
             ) {
                 self.cacheable_tasks = cacheable_tasks
@@ -3369,6 +3502,7 @@ public enum Components {
                 self.scheme = scheme
                 self.status = status
                 self.targets = targets
+                self.xcode_cache_upload_enabled = xcode_cache_upload_enabled
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
@@ -3396,6 +3530,7 @@ public enum Components {
                 case scheme
                 case status
                 case targets
+                case xcode_cache_upload_enabled
                 case xcode_version
             }
         }
@@ -3617,6 +3752,35 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexPage`.
         public typealias GenerationsIndexPage = Swift.Int
+        /// This response confirms that the upload has been completed successfully.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadCompletion`.
+        public struct ArtifactMultipartUploadCompletion: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadCompletion/data`.
+            public var data: OpenAPIRuntime.OpenAPIObjectContainer?
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadCompletion/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+            }
+            /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadCompletion/status`.
+            public var status: Components.Schemas.ArtifactMultipartUploadCompletion.statusPayload?
+            /// Creates a new `ArtifactMultipartUploadCompletion`.
+            ///
+            /// - Parameters:
+            ///   - data:
+            ///   - status:
+            public init(
+                data: OpenAPIRuntime.OpenAPIObjectContainer? = nil,
+                status: Components.Schemas.ArtifactMultipartUploadCompletion.statusPayload? = nil
+            ) {
+                self.data = data
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case data
+                case status
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/Account`.
         public struct Account: Codable, Hashable, Sendable {
             /// The handle of the account
@@ -3734,6 +3898,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/plan`.
             public var plan: Components.Schemas.Organization.planPayload
+            /// Whether SSO is enforced for the organization
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/sso_enforced`.
+            public var sso_enforced: Swift.Bool?
             /// The organization ID associated with the SSO provider
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/sso_organization_id`.
@@ -3757,6 +3925,7 @@ public enum Components {
             ///   - members: A list of organization members
             ///   - name: The organization's name
             ///   - plan: The plan associated with the organization
+            ///   - sso_enforced: Whether SSO is enforced for the organization
             ///   - sso_organization_id: The organization ID associated with the SSO provider
             ///   - sso_provider: The SSO provider set up for the organization
             public init(
@@ -3765,6 +3934,7 @@ public enum Components {
                 members: [Components.Schemas.OrganizationMember],
                 name: Swift.String,
                 plan: Components.Schemas.Organization.planPayload,
+                sso_enforced: Swift.Bool? = nil,
                 sso_organization_id: Swift.String? = nil,
                 sso_provider: Components.Schemas.Organization.sso_providerPayload? = nil
             ) {
@@ -3773,6 +3943,7 @@ public enum Components {
                 self.members = members
                 self.name = name
                 self.plan = plan
+                self.sso_enforced = sso_enforced
                 self.sso_organization_id = sso_organization_id
                 self.sso_provider = sso_provider
             }
@@ -3782,6 +3953,7 @@ public enum Components {
                 case members
                 case name
                 case plan
+                case sso_enforced
                 case sso_organization_id
                 case sso_provider
             }
@@ -5780,6 +5952,25 @@ public enum Components {
                 case version
             }
         }
+        /// Parameters to start a multipart upload for a build archive.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BuildMultipartUploadStartParams`.
+        public struct BuildMultipartUploadStartParams: Codable, Hashable, Sendable {
+            /// The build ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildMultipartUploadStartParams/build_id`.
+            public var build_id: Swift.String
+            /// Creates a new `BuildMultipartUploadStartParams`.
+            ///
+            /// - Parameters:
+            ///   - build_id: The build ID.
+            public init(build_id: Swift.String) {
+                self.build_id = build_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build_id
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/BuildFileSortBy`.
         @frozen public enum BuildFileSortBy: String, Codable, Hashable, Sendable, CaseIterable {
             case compilation_duration = "compilation_duration"
@@ -5973,6 +6164,19 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/project_id`.
             public var project_id: Swift.Int
+            /// The status of the build run
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsBuild/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+                case failure = "failure"
+                case processing = "processing"
+                case failed_processing = "failed_processing"
+            }
+            /// The status of the build run
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsBuild/status`.
+            public var status: Components.Schemas.RunsBuild.statusPayload?
             /// The type of the run, which is 'build' in this case
             ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/type`.
@@ -5993,18 +6197,21 @@ public enum Components {
             ///   - duration: The duration of the build run in milliseconds
             ///   - id: The unique identifier of the build run
             ///   - project_id: The ID of the Tuist project associated with this build run
+            ///   - status: The status of the build run
             ///   - _type: The type of the run, which is 'build' in this case
             ///   - url: The URL to access the build run
             public init(
                 duration: Swift.Int,
                 id: Swift.String,
                 project_id: Swift.Int,
+                status: Components.Schemas.RunsBuild.statusPayload? = nil,
                 _type: Components.Schemas.RunsBuild._typePayload,
                 url: Swift.String
             ) {
                 self.duration = duration
                 self.id = id
                 self.project_id = project_id
+                self.status = status
                 self._type = _type
                 self.url = url
             }
@@ -6012,6 +6219,7 @@ public enum Components {
                 case duration
                 case id
                 case project_id
+                case status
                 case _type = "type"
                 case url
             }
@@ -13648,28 +13856,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -20790,6 +20998,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// When true, organization members must use SSO and cannot log in with email and password
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_enforced`.
+                    public var sso_enforced: Swift.Bool?
                     /// The SSO organization ID to be associated with the SSO provider
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_organization_id`.
@@ -20809,16 +21021,20 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - sso_enforced: When true, organization members must use SSO and cannot log in with email and password
                     ///   - sso_organization_id: The SSO organization ID to be associated with the SSO provider
                     ///   - sso_provider: The SSO provider to set up for the organization
                     public init(
+                        sso_enforced: Swift.Bool? = nil,
                         sso_organization_id: Swift.String? = nil,
                         sso_provider: Operations.updateOrganization_space__lpar_2_rpar_.Input.Body.jsonPayload.sso_providerPayload? = nil
                     ) {
+                        self.sso_enforced = sso_enforced
                         self.sso_organization_id = sso_organization_id
                         self.sso_provider = sso_provider
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case sso_enforced
                         case sso_organization_id
                         case sso_provider
                     }
@@ -21170,6 +21386,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// When true, organization members must use SSO and cannot log in with email and password
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_enforced`.
+                    public var sso_enforced: Swift.Bool?
                     /// The SSO organization ID to be associated with the SSO provider
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_organization_id`.
@@ -21189,16 +21409,20 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - sso_enforced: When true, organization members must use SSO and cannot log in with email and password
                     ///   - sso_organization_id: The SSO organization ID to be associated with the SSO provider
                     ///   - sso_provider: The SSO provider to set up for the organization
                     public init(
+                        sso_enforced: Swift.Bool? = nil,
                         sso_organization_id: Swift.String? = nil,
                         sso_provider: Operations.updateOrganization.Input.Body.jsonPayload.sso_providerPayload? = nil
                     ) {
+                        self.sso_enforced = sso_enforced
                         self.sso_organization_id = sso_organization_id
                         self.sso_provider = sso_provider
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case sso_enforced
                         case sso_organization_id
                         case sso_provider
                     }
@@ -23481,6 +23705,336 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.listTestCaseRunAttachments.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Complete a multipart upload for a build archive.
+    ///
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)`.
+    public enum completeBuildsMultipartUpload {
+        public static let id: Swift.String = "completeBuildsMultipartUpload"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.completeBuildsMultipartUpload.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeBuildsMultipartUpload.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeBuildsMultipartUpload.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.completeBuildsMultipartUpload.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// Parameters to complete a multipart upload for a build.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The build ID.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/requestBody/json/build_id`.
+                    public var build_id: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/requestBody/json/multipart_upload_parts`.
+                    public var multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - build_id: The build ID.
+                    ///   - multipart_upload_parts:
+                    public init(
+                        build_id: Swift.String,
+                        multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
+                    ) {
+                        self.build_id = build_id
+                        self.multipart_upload_parts = multipart_upload_parts
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case build_id
+                        case multipart_upload_parts
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/requestBody/content/application\/json`.
+                case json(Operations.completeBuildsMultipartUpload.Input.Body.jsonPayload)
+            }
+            public var body: Operations.completeBuildsMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.completeBuildsMultipartUpload.Input.Path,
+                headers: Operations.completeBuildsMultipartUpload.Input.Headers = .init(),
+                body: Operations.completeBuildsMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ArtifactMultipartUploadCompletion)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ArtifactMultipartUploadCompletion {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeBuildsMultipartUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeBuildsMultipartUpload.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The upload has been completed
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.completeBuildsMultipartUpload.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.completeBuildsMultipartUpload.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeBuildsMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeBuildsMultipartUpload.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeBuildsMultipartUpload.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.completeBuildsMultipartUpload.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeBuildsMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeBuildsMultipartUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completeBuildsMultipartUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.completeBuildsMultipartUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/complete/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeBuildsMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeBuildsMultipartUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.completeBuildsMultipartUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.completeBuildsMultipartUpload.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -27439,6 +27993,328 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Start a multipart upload for a build archive.
+    ///
+    /// Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)`.
+    public enum startBuildsMultipartUpload {
+        public static let id: Swift.String = "startBuildsMultipartUpload"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.startBuildsMultipartUpload.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startBuildsMultipartUpload.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startBuildsMultipartUpload.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.startBuildsMultipartUpload.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// Parameters to start a multipart upload for a build archive.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The build ID.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/requestBody/json/build_id`.
+                    public var build_id: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - build_id: The build ID.
+                    public init(build_id: Swift.String) {
+                        self.build_id = build_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case build_id
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/requestBody/content/application\/json`.
+                case json(Operations.startBuildsMultipartUpload.Input.Body.jsonPayload)
+            }
+            public var body: Operations.startBuildsMultipartUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.startBuildsMultipartUpload.Input.Path,
+                headers: Operations.startBuildsMultipartUpload.Input.Headers = .init(),
+                body: Operations.startBuildsMultipartUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ArtifactUploadID)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ArtifactUploadID {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startBuildsMultipartUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startBuildsMultipartUpload.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The multipart upload has been started
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.startBuildsMultipartUpload.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.startBuildsMultipartUpload.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startBuildsMultipartUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startBuildsMultipartUpload.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startBuildsMultipartUpload.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.startBuildsMultipartUpload.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startBuildsMultipartUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startBuildsMultipartUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.startBuildsMultipartUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.startBuildsMultipartUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startBuildsMultipartUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startBuildsMultipartUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startBuildsMultipartUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.startBuildsMultipartUpload.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -37972,6 +38848,8 @@ public enum Operations {
                             @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case success = "success"
                                 case failure = "failure"
+                                case processing = "processing"
+                                case failed_processing = "failed_processing"
                             }
                             /// Build status.
                             ///
@@ -38605,7 +39483,7 @@ public enum Operations {
                     /// Duration of the build in milliseconds.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/duration`.
-                    public var duration: Swift.Int
+                    public var duration: Swift.Int?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/filesPayload`.
                     public struct filesPayloadPayload: Codable, Hashable, Sendable {
                         /// The duration of the compilation for the file in milliseconds.
@@ -38942,6 +39820,7 @@ public enum Operations {
                     @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case success = "success"
                         case failure = "failure"
+                        case processing = "processing"
                     }
                     /// The status of the build run.
                     ///
@@ -39013,6 +39892,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/targets`.
                     public var targets: Operations.createBuild.Input.Body.jsonPayload.targetsPayload?
+                    /// Whether Xcode cache upload was enabled for this build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/xcode_cache_upload_enabled`.
+                    public var xcode_cache_upload_enabled: Swift.Bool?
                     /// The version of Xcode used during the build.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/xcode/builds/POST/requestBody/json/xcode_version`.
@@ -39044,6 +39927,7 @@ public enum Operations {
                     ///   - scheme: The scheme used for the build.
                     ///   - status: The status of the build run.
                     ///   - targets: Targets with build metadata associated with the build run.
+                    ///   - xcode_cache_upload_enabled: Whether Xcode cache upload was enabled for this build.
                     ///   - xcode_version: The version of Xcode used during the build.
                     public init(
                         cacheable_tasks: Operations.createBuild.Input.Body.jsonPayload.cacheable_tasksPayload? = nil,
@@ -39055,7 +39939,7 @@ public enum Operations {
                         ci_run_id: Swift.String? = nil,
                         configuration: Swift.String? = nil,
                         custom_metadata: Operations.createBuild.Input.Body.jsonPayload.custom_metadataPayload? = nil,
-                        duration: Swift.Int,
+                        duration: Swift.Int? = nil,
                         files: Operations.createBuild.Input.Body.jsonPayload.filesPayload? = nil,
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
@@ -39070,6 +39954,7 @@ public enum Operations {
                         scheme: Swift.String? = nil,
                         status: Operations.createBuild.Input.Body.jsonPayload.statusPayload? = nil,
                         targets: Operations.createBuild.Input.Body.jsonPayload.targetsPayload? = nil,
+                        xcode_cache_upload_enabled: Swift.Bool? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
                         self.cacheable_tasks = cacheable_tasks
@@ -39096,6 +39981,7 @@ public enum Operations {
                         self.scheme = scheme
                         self.status = status
                         self.targets = targets
+                        self.xcode_cache_upload_enabled = xcode_cache_upload_enabled
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -39123,6 +40009,7 @@ public enum Operations {
                         case scheme
                         case status
                         case targets
+                        case xcode_cache_upload_enabled
                         case xcode_version
                     }
                 }
@@ -41863,6 +42750,336 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.createCrashReport.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Generate a signed URL for uploading a build archive part.
+    ///
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)`.
+    public enum generateBuildsMultipartUploadURL {
+        public static let id: Swift.String = "generateBuildsMultipartUploadURL"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.generateBuildsMultipartUploadURL.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generateBuildsMultipartUploadURL.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generateBuildsMultipartUploadURL.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.generateBuildsMultipartUploadURL.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// Parameters to generate a signed URL for a build multipart upload part.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The build ID.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/requestBody/json/build_id`.
+                    public var build_id: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/requestBody/json/multipart_upload_part`.
+                    public var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - build_id: The build ID.
+                    ///   - multipart_upload_part:
+                    public init(
+                        build_id: Swift.String,
+                        multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+                    ) {
+                        self.build_id = build_id
+                        self.multipart_upload_part = multipart_upload_part
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case build_id
+                        case multipart_upload_part
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/requestBody/content/application\/json`.
+                case json(Operations.generateBuildsMultipartUploadURL.Input.Body.jsonPayload)
+            }
+            public var body: Operations.generateBuildsMultipartUploadURL.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.generateBuildsMultipartUploadURL.Input.Path,
+                headers: Operations.generateBuildsMultipartUploadURL.Input.Headers = .init(),
+                body: Operations.generateBuildsMultipartUploadURL.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ArtifactMultipartUploadURL)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ArtifactMultipartUploadURL {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateBuildsMultipartUploadURL.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.generateBuildsMultipartUploadURL.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The URL has been generated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.generateBuildsMultipartUploadURL.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.generateBuildsMultipartUploadURL.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateBuildsMultipartUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.generateBuildsMultipartUploadURL.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.generateBuildsMultipartUploadURL.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.generateBuildsMultipartUploadURL.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateBuildsMultipartUploadURL.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.generateBuildsMultipartUploadURL.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.generateBuildsMultipartUploadURL.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.generateBuildsMultipartUploadURL.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateBuildsMultipartUploadURL.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.generateBuildsMultipartUploadURL.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.generateBuildsMultipartUploadURL.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.generateBuildsMultipartUploadURL.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

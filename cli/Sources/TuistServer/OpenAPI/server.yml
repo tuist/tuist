@@ -278,6 +278,24 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheArtifactDownloadURL
       x-validate:
+    BuildMultipartUploadCompletionParams:
+      description: Parameters to complete a multipart upload for a build.
+      properties:
+        build_id:
+          description: The build ID.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        multipart_upload_parts:
+          $ref: '#/components/schemas/ArtifactMultipartUploadParts'
+      required:
+        - build_id
+        - multipart_upload_parts
+      title: BuildMultipartUploadCompletionParams
+      type: object
+      x-struct:
+      x-validate:
     ModuleCacheTargetsPage:
       default: 1
       description: The page number to return.
@@ -407,6 +425,24 @@ components:
           x-struct:
           x-validate:
       title: CacheActionItemUploadParams
+      type: object
+      x-struct:
+      x-validate:
+    BuildMultipartUploadURLGenerationParams:
+      description: Parameters to generate a signed URL for a build multipart upload part.
+      properties:
+        build_id:
+          description: The build ID.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        multipart_upload_part:
+          $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+      required:
+        - build_id
+        - multipart_upload_part
+      title: BuildMultipartUploadURLGenerationParams
       type: object
       x-struct:
       x-validate:
@@ -967,6 +1003,7 @@ components:
           enum:
             - success
             - failure
+            - processing
           type: string
           x-struct:
           x-validate:
@@ -1014,6 +1051,11 @@ components:
           type: array
           x-struct:
           x-validate:
+        xcode_cache_upload_enabled:
+          description: Whether Xcode cache upload was enabled for this build.
+          type: boolean
+          x-struct:
+          x-validate:
         xcode_version:
           description: The version of Xcode used during the build.
           type: string
@@ -1021,7 +1063,6 @@ components:
           x-validate:
       required:
         - id
-        - duration
         - is_ci
       title: BuildParams
       type: object
@@ -1193,6 +1234,25 @@ components:
       type: integer
       x-struct:
       x-validate:
+    ArtifactMultipartUploadCompletion:
+      description: This response confirms that the upload has been completed successfully.
+      properties:
+        data:
+          properties: {}
+          type: object
+          x-struct:
+          x-validate:
+        status:
+          default: success
+          enum:
+            - success
+          type: string
+          x-struct:
+          x-validate:
+      title: ArtifactMultipartUploadCompletion
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadCompletion
+      x-validate:
     Account:
       properties:
         handle:
@@ -1290,6 +1350,11 @@ components:
             - enterprise
             - none
           type: string
+          x-struct:
+          x-validate:
+        sso_enforced:
+          description: Whether SSO is enforced for the organization
+          type: boolean
           x-struct:
           x-validate:
         sso_organization_id:
@@ -2669,6 +2734,21 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Bundle
       x-validate:
+    BuildMultipartUploadStartParams:
+      description: Parameters to start a multipart upload for a build archive.
+      properties:
+        build_id:
+          description: The build ID.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - build_id
+      title: BuildMultipartUploadStartParams
+      type: object
+      x-struct:
+      x-validate:
     BuildFileSortBy:
       default: compilation_duration
       enum:
@@ -2766,6 +2846,16 @@ components:
         project_id:
           description: The ID of the Tuist project associated with this build run
           type: integer
+          x-struct:
+          x-validate:
+        status:
+          description: The status of the build run
+          enum:
+            - success
+            - failure
+            - processing
+            - failed_processing
+          type: string
           x-struct:
           x-validate:
         type:
@@ -6699,6 +6789,14 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -6713,14 +6811,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -8439,6 +8529,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_enforced:
+                  description: When true, organization members must use SSO and cannot log in with email and password
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_organization_id:
                   description: The SSO organization ID to be associated with the SSO provider
                   nullable: true
@@ -8511,6 +8607,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_enforced:
+                  description: When true, organization members must use SSO and cannot log in with email and password
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_organization_id:
                   description: The SSO organization ID to be associated with the SSO provider
                   nullable: true
@@ -9145,6 +9247,79 @@ paths:
       summary: List attachments for a test case run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/builds/upload/complete:
+    post:
+      callbacks: {}
+      description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
+      operationId: completeBuildsMultipartUpload
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: Parameters to complete a multipart upload for a build.
+              properties:
+                build_id:
+                  description: The build ID.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                multipart_upload_parts:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadParts'
+              required:
+                - build_id
+                - multipart_upload_parts
+              title: BuildMultipartUploadCompletionParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Build multipart upload completion params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactMultipartUploadCompletion'
+          description: The upload has been completed
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: Complete a multipart upload for a build archive.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}:
     get:
       callbacks: {}
@@ -10304,6 +10479,76 @@ paths:
       summary: List test cases associated with a given project.
       tags:
         - Test Cases
+  /api/projects/{account_handle}/{project_handle}/builds/upload/start:
+    post:
+      callbacks: {}
+      description: Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.
+      operationId: startBuildsMultipartUpload
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: Parameters to start a multipart upload for a build archive.
+              properties:
+                build_id:
+                  description: The build ID.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - build_id
+              title: BuildMultipartUploadStartParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Build multipart upload start params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactUploadID'
+          description: The multipart upload has been started
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: Start a multipart upload for a build archive.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/previews:
     get:
       callbacks: {}
@@ -14049,6 +14294,8 @@ paths:
                           enum:
                             - success
                             - failure
+                            - processing
+                            - failed_processing
                           type: string
                           x-struct:
                           x-validate:
@@ -14622,6 +14869,7 @@ paths:
                   enum:
                     - success
                     - failure
+                    - processing
                   type: string
                   x-struct:
                   x-validate:
@@ -14669,6 +14917,11 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
+                xcode_cache_upload_enabled:
+                  description: Whether Xcode cache upload was enabled for this build.
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 xcode_version:
                   description: The version of Xcode used during the build.
                   type: string
@@ -14676,7 +14929,6 @@ paths:
                   x-validate:
               required:
                 - id
-                - duration
                 - is_ci
               title: BuildParams
               type: object
@@ -15408,6 +15660,79 @@ paths:
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url:
+    post:
+      callbacks: {}
+      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
+      operationId: generateBuildsMultipartUploadURL
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: Parameters to generate a signed URL for a build multipart upload part.
+              properties:
+                build_id:
+                  description: The build ID.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                multipart_upload_part:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+              required:
+                - build_id
+                - multipart_upload_part
+              title: BuildMultipartUploadURLGenerationParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Build multipart upload URL generation params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+          description: The URL has been generated
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: Generate a signed URL for uploading a build archive part.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/tests:
     get:
       callbacks: {}
