@@ -1285,6 +1285,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        sso_enforced:
+          description: Whether SSO is enforced for the organization
+          type: boolean
+          x-struct:
+          x-validate:
         sso_organization_id:
           description: The organization ID associated with the SSO provider
           type: string
@@ -1448,10 +1453,12 @@ components:
             - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
             - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            - session: A zipped CLI session directory containing logs and network recordings.
           enum:
             - result_bundle
             - invocation_record
             - result_bundle_object
+            - session
           type: string
           x-struct:
           x-validate:
@@ -2604,7 +2611,7 @@ components:
       x-struct: Elixir.TuistWeb.API.Schemas.Bundle
       x-validate:
     BuildMultipartUploadStartParams:
-      description: Parameters to start a multipart upload for a build.
+      description: Parameters to start a multipart upload for a build archive.
       properties:
         build_id:
           description: The build ID.
@@ -6179,6 +6186,14 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -6193,14 +6208,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -7722,6 +7729,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_enforced:
+                  description: When true, organization members must use SSO and cannot log in with email and password
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_organization_id:
                   description: The SSO organization ID to be associated with the SSO provider
                   nullable: true
@@ -7794,6 +7807,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_enforced:
+                  description: When true, organization members must use SSO and cannot log in with email and password
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_organization_id:
                   description: The SSO organization ID to be associated with the SSO provider
                   nullable: true
@@ -9026,7 +9045,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/builds/upload/complete:
     post:
       callbacks: {}
-      description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+      description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
       operationId: completeBuildsMultipartUpload
       parameters:
         - description: The handle of the account.
@@ -9253,6 +9272,14 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        requested_tasks:
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
                         root_project_name:
                           nullable: true
                           type: string
@@ -9436,6 +9463,16 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                requested_tasks:
+                  description: The tasks requested by the user (e.g., assembleRelease).
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  nullable: true
                   type: array
                   x-struct:
                   x-validate:
@@ -10240,6 +10277,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/builds/upload/start:
     post:
       callbacks: {}
+      description: Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.
       operationId: startBuildsMultipartUpload
       parameters:
         - description: The handle of the account.
@@ -10262,7 +10300,7 @@ paths:
         content:
           application/json:
             schema:
-              description: Parameters to start a multipart upload for a build.
+              description: Parameters to start a multipart upload for a build archive.
               properties:
                 build_id:
                   description: The build ID.
@@ -11409,6 +11447,14 @@ paths:
                   java_version:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  requested_tasks:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   root_project_name:
@@ -13728,7 +13774,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url:
     post:
       callbacks: {}
-      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload.
+      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
       operationId: generateBuildsMultipartUploadURL
       parameters:
         - description: The handle of the account.
@@ -14384,6 +14430,6 @@ security:
   - authorization: []
   - cookie: []
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:4002
     variables: {}
 tags: []

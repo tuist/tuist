@@ -43,6 +43,7 @@ public class TrackableCommand {
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let uploadAnalyticsService: UploadAnalyticsServicing
     private let fileSystem: FileSysteming
+    private let sessionDirectory: AbsolutePath
 
     public init(
         command: ParsableCommand,
@@ -52,7 +53,8 @@ public class TrackableCommand {
         fileHandler: FileHandling = FileHandler.shared,
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        sessionDirectory: AbsolutePath
     ) {
         self.command = command
         self.commandArguments = commandArguments
@@ -62,6 +64,7 @@ public class TrackableCommand {
         self.backgroundProcessRunner = backgroundProcessRunner
         self.uploadAnalyticsService = uploadAnalyticsService
         self.fileSystem = fileSystem
+        self.sessionDirectory = sessionDirectory
     }
 
     public func run(
@@ -156,7 +159,8 @@ public class TrackableCommand {
                 let serverCommandEvent = try await uploadAnalyticsService.upload(
                     commandEvent: commandEvent,
                     fullHandle: fullHandle,
-                    serverURL: serverURL
+                    serverURL: serverURL,
+                    sessionDirectory: sessionDirectory
                 )
                 if let testRunURL = serverCommandEvent.testRunURL {
                     Logger.current
@@ -185,6 +189,7 @@ public class TrackableCommand {
                     commandEventPath.pathString,
                     fullHandle,
                     serverURL.absoluteString,
+                    sessionDirectory.pathString,
                 ],
                 environment: ProcessInfo.processInfo.environment
             )

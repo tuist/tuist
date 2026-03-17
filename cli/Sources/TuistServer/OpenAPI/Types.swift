@@ -247,7 +247,7 @@ public protocol APIProtocol: Sendable {
     func createBuild(_ input: Operations.createBuild.Input) async throws -> Operations.createBuild.Output
     /// Complete a multipart upload for a build archive.
     ///
-    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)`.
@@ -321,6 +321,8 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/get(listTestCases)`.
     func listTestCases(_ input: Operations.listTestCases.Input) async throws -> Operations.listTestCases.Output
     /// Start a multipart upload for a build archive.
+    ///
+    /// Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/start`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)`.
@@ -509,7 +511,7 @@ public protocol APIProtocol: Sendable {
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
     /// Generate a signed URL for uploading a build archive part.
     ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload.
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)`.
@@ -1094,7 +1096,7 @@ extension APIProtocol {
     }
     /// Complete a multipart upload for a build archive.
     ///
-    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)`.
@@ -1282,6 +1284,8 @@ extension APIProtocol {
         ))
     }
     /// Start a multipart upload for a build archive.
+    ///
+    /// Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/start`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)`.
@@ -1732,7 +1736,7 @@ extension APIProtocol {
     }
     /// Generate a signed URL for uploading a build archive part.
     ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload.
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)`.
@@ -1818,7 +1822,7 @@ public enum Servers {
     public enum Server1 {
         public static func url() throws -> Foundation.URL {
             try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:8080",
+                validatingOpenAPIServerURL: "http://localhost:4002",
                 variables: []
             )
         }
@@ -1826,7 +1830,7 @@ public enum Servers {
     @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:8080",
+            validatingOpenAPIServerURL: "http://localhost:4002",
             variables: []
         )
     }
@@ -3642,6 +3646,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/plan`.
             public var plan: Components.Schemas.Organization.planPayload
+            /// Whether SSO is enforced for the organization
+            ///
+            /// - Remark: Generated from `#/components/schemas/Organization/sso_enforced`.
+            public var sso_enforced: Swift.Bool?
             /// The organization ID associated with the SSO provider
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/sso_organization_id`.
@@ -3665,6 +3673,7 @@ public enum Components {
             ///   - members: A list of organization members
             ///   - name: The organization's name
             ///   - plan: The plan associated with the organization
+            ///   - sso_enforced: Whether SSO is enforced for the organization
             ///   - sso_organization_id: The organization ID associated with the SSO provider
             ///   - sso_provider: The SSO provider set up for the organization
             public init(
@@ -3673,6 +3682,7 @@ public enum Components {
                 members: [Components.Schemas.OrganizationMember],
                 name: Swift.String,
                 plan: Components.Schemas.Organization.planPayload,
+                sso_enforced: Swift.Bool? = nil,
                 sso_organization_id: Swift.String? = nil,
                 sso_provider: Components.Schemas.Organization.sso_providerPayload? = nil
             ) {
@@ -3681,6 +3691,7 @@ public enum Components {
                 self.members = members
                 self.name = name
                 self.plan = plan
+                self.sso_enforced = sso_enforced
                 self.sso_organization_id = sso_organization_id
                 self.sso_provider = sso_provider
             }
@@ -3690,6 +3701,7 @@ public enum Components {
                 case members
                 case name
                 case plan
+                case sso_enforced
                 case sso_organization_id
                 case sso_provider
             }
@@ -3857,6 +3869,7 @@ public enum Components {
             /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
             /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            /// - session: A zipped CLI session directory containing logs and network recordings.
             ///
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
@@ -3864,11 +3877,13 @@ public enum Components {
                 case result_bundle = "result_bundle"
                 case invocation_record = "invocation_record"
                 case result_bundle_object = "result_bundle_object"
+                case session = "session"
             }
             /// The command event artifact type. It can be:
             /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
             /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            /// - session: A zipped CLI session directory containing logs and network recordings.
             ///
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
@@ -5658,7 +5673,7 @@ public enum Components {
                 case version
             }
         }
-        /// Parameters to start a multipart upload for a build.
+        /// Parameters to start a multipart upload for a build archive.
         ///
         /// - Remark: Generated from `#/components/schemas/BuildMultipartUploadStartParams`.
         public struct BuildMultipartUploadStartParams: Codable, Hashable, Sendable {
@@ -12681,28 +12696,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -19383,6 +19398,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// When true, organization members must use SSO and cannot log in with email and password
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_enforced`.
+                    public var sso_enforced: Swift.Bool?
                     /// The SSO organization ID to be associated with the SSO provider
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_organization_id`.
@@ -19402,16 +19421,20 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - sso_enforced: When true, organization members must use SSO and cannot log in with email and password
                     ///   - sso_organization_id: The SSO organization ID to be associated with the SSO provider
                     ///   - sso_provider: The SSO provider to set up for the organization
                     public init(
+                        sso_enforced: Swift.Bool? = nil,
                         sso_organization_id: Swift.String? = nil,
                         sso_provider: Operations.updateOrganization_space__lpar_2_rpar_.Input.Body.jsonPayload.sso_providerPayload? = nil
                     ) {
+                        self.sso_enforced = sso_enforced
                         self.sso_organization_id = sso_organization_id
                         self.sso_provider = sso_provider
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case sso_enforced
                         case sso_organization_id
                         case sso_provider
                     }
@@ -19763,6 +19786,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// When true, organization members must use SSO and cannot log in with email and password
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_enforced`.
+                    public var sso_enforced: Swift.Bool?
                     /// The SSO organization ID to be associated with the SSO provider
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_organization_id`.
@@ -19782,16 +19809,20 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - sso_enforced: When true, organization members must use SSO and cannot log in with email and password
                     ///   - sso_organization_id: The SSO organization ID to be associated with the SSO provider
                     ///   - sso_provider: The SSO provider to set up for the organization
                     public init(
+                        sso_enforced: Swift.Bool? = nil,
                         sso_organization_id: Swift.String? = nil,
                         sso_provider: Operations.updateOrganization.Input.Body.jsonPayload.sso_providerPayload? = nil
                     ) {
+                        self.sso_enforced = sso_enforced
                         self.sso_organization_id = sso_organization_id
                         self.sso_provider = sso_provider
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case sso_enforced
                         case sso_organization_id
                         case sso_provider
                     }
@@ -22870,7 +22901,7 @@ public enum Operations {
     }
     /// Complete a multipart upload for a build archive.
     ///
-    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+    /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/complete/post(completeBuildsMultipartUpload)`.
@@ -23657,6 +23688,8 @@ public enum Operations {
                             public var is_ci: Swift.Bool?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/java_version`.
                             public var java_version: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/requested_tasks`.
+                            public var requested_tasks: [Swift.String]?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/root_project_name`.
                             public var root_project_name: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/status`.
@@ -23687,6 +23720,7 @@ public enum Operations {
                             ///   - inserted_at:
                             ///   - is_ci:
                             ///   - java_version:
+                            ///   - requested_tasks:
                             ///   - root_project_name:
                             ///   - status:
                             ///   - tasks_executed_count:
@@ -23703,6 +23737,7 @@ public enum Operations {
                                 inserted_at: Foundation.Date? = nil,
                                 is_ci: Swift.Bool? = nil,
                                 java_version: Swift.String? = nil,
+                                requested_tasks: [Swift.String]? = nil,
                                 root_project_name: Swift.String? = nil,
                                 status: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload? = nil,
                                 tasks_executed_count: Swift.Int? = nil,
@@ -23719,6 +23754,7 @@ public enum Operations {
                                 self.inserted_at = inserted_at
                                 self.is_ci = is_ci
                                 self.java_version = java_version
+                                self.requested_tasks = requested_tasks
                                 self.root_project_name = root_project_name
                                 self.status = status
                                 self.tasks_executed_count = tasks_executed_count
@@ -23736,6 +23772,7 @@ public enum Operations {
                                 case inserted_at
                                 case is_ci
                                 case java_version
+                                case requested_tasks
                                 case root_project_name
                                 case status
                                 case tasks_executed_count
@@ -24055,6 +24092,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metrics`.
                     public var machine_metrics: Operations.createGradleBuild.Input.Body.jsonPayload.machine_metricsPayload?
+                    /// The tasks requested by the user (e.g., assembleRelease).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/requested_tasks`.
+                    public var requested_tasks: [Swift.String]?
                     /// Root project name.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/root_project_name`.
@@ -24175,6 +24216,7 @@ public enum Operations {
                     ///   - is_ci: Whether the build ran on CI.
                     ///   - java_version: Java version.
                     ///   - machine_metrics: Machine performance metrics collected during the build.
+                    ///   - requested_tasks: The tasks requested by the user (e.g., assembleRelease).
                     ///   - root_project_name: Root project name.
                     ///   - status: Build status.
                     ///   - tasks:
@@ -24189,6 +24231,7 @@ public enum Operations {
                         is_ci: Swift.Bool? = nil,
                         java_version: Swift.String? = nil,
                         machine_metrics: Operations.createGradleBuild.Input.Body.jsonPayload.machine_metricsPayload? = nil,
+                        requested_tasks: [Swift.String]? = nil,
                         root_project_name: Swift.String? = nil,
                         status: Operations.createGradleBuild.Input.Body.jsonPayload.statusPayload,
                         tasks: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayload
@@ -24203,6 +24246,7 @@ public enum Operations {
                         self.is_ci = is_ci
                         self.java_version = java_version
                         self.machine_metrics = machine_metrics
+                        self.requested_tasks = requested_tasks
                         self.root_project_name = root_project_name
                         self.status = status
                         self.tasks = tasks
@@ -24218,6 +24262,7 @@ public enum Operations {
                         case is_ci
                         case java_version
                         case machine_metrics
+                        case requested_tasks
                         case root_project_name
                         case status
                         case tasks
@@ -27137,6 +27182,8 @@ public enum Operations {
     }
     /// Start a multipart upload for a build archive.
     ///
+    /// Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.
+    ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/start`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/start/post(startBuildsMultipartUpload)`.
     public enum startBuildsMultipartUpload {
@@ -27180,7 +27227,7 @@ public enum Operations {
             public var headers: Operations.startBuildsMultipartUpload.Input.Headers
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/requestBody`.
             @frozen public enum Body: Sendable, Hashable {
-                /// Parameters to start a multipart upload for a build.
+                /// Parameters to start a multipart upload for a build archive.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/upload/start/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
@@ -31518,6 +31565,8 @@ public enum Operations {
                         public var is_ci: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/java_version`.
                         public var java_version: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/requested_tasks`.
+                        public var requested_tasks: [Swift.String]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/root_project_name`.
                         public var root_project_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
@@ -31619,6 +31668,7 @@ public enum Operations {
                         ///   - inserted_at:
                         ///   - is_ci:
                         ///   - java_version:
+                        ///   - requested_tasks:
                         ///   - root_project_name:
                         ///   - status:
                         ///   - tasks:
@@ -31641,6 +31691,7 @@ public enum Operations {
                             inserted_at: Foundation.Date? = nil,
                             is_ci: Swift.Bool? = nil,
                             java_version: Swift.String? = nil,
+                            requested_tasks: [Swift.String]? = nil,
                             root_project_name: Swift.String? = nil,
                             status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload? = nil,
                             tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload? = nil,
@@ -31663,6 +31714,7 @@ public enum Operations {
                             self.inserted_at = inserted_at
                             self.is_ci = is_ci
                             self.java_version = java_version
+                            self.requested_tasks = requested_tasks
                             self.root_project_name = root_project_name
                             self.status = status
                             self.tasks = tasks
@@ -31686,6 +31738,7 @@ public enum Operations {
                             case inserted_at
                             case is_ci
                             case java_version
+                            case requested_tasks
                             case root_project_name
                             case status
                             case tasks
@@ -38417,7 +38470,7 @@ public enum Operations {
     }
     /// Generate a signed URL for uploading a build archive part.
     ///
-    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload.
+    /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/upload/generate-url/post(generateBuildsMultipartUploadURL)`.
