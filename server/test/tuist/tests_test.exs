@@ -3,6 +3,7 @@ defmodule Tuist.TestsTest do
   use Mimic
 
   alias Tuist.IngestRepo
+  alias Tuist.Shards.ShardSession
   alias Tuist.Tests
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -1275,6 +1276,131 @@ defmodule Tuist.TestsTest do
       assert failure.path == "/path/to/test.swift"
       assert failure.line_number == 42
       assert failure.issue_type == "assertion"
+    end
+  end
+
+  describe "create_test/1 with sharding" do
+    test "first shard creates test with in_progress status" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      shard_session = %ShardSession{
+        id: Ecto.UUID.generate(),
+        session_id: "session-1",
+        project_id: project.id,
+        shard_count: 2,
+        granularity: "module",
+        shard_assignments: "[]",
+        bundle_object_key: "bundle.zip",
+        xctestrun_object_key: "original.xctestrun",
+        upload_completed: 1,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      stub(IngestRepo, :one, fn _query -> shard_session end)
+
+      {:ok, test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_session_id: "session-1",
+          shard_index: 0
+        })
+
+      assert test.status == "in_progress"
+      assert test.shard_session_id == "session-1"
+    end
+
+    test "second shard updates existing test and sets final status" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      shard_session = %ShardSession{
+        id: Ecto.UUID.generate(),
+        session_id: "session-2",
+        project_id: project.id,
+        shard_count: 2,
+        granularity: "module",
+        shard_assignments: "[]",
+        bundle_object_key: "bundle.zip",
+        xctestrun_object_key: "original.xctestrun",
+        upload_completed: 1,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      stub(IngestRepo, :one, fn _query -> shard_session end)
+
+      {:ok, first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_session_id: "session-2",
+          shard_index: 0,
+          test_modules: [
+            %{
+              name: "ModuleA",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{name: "testA", status: "success", duration: 500}
+              ]
+            }
+          ]
+        })
+
+      assert first_test.status == "in_progress"
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 800,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_session_id: "session-2",
+          shard_index: 1,
+          test_modules: [
+            %{
+              name: "ModuleB",
+              status: "success",
+              duration: 800,
+              test_cases: [
+                %{name: "testB", status: "success", duration: 800}
+              ]
+            }
+          ]
+        })
+
+      assert updated_test.id == first_test.id
+      assert updated_test.status == "success"
+      assert updated_test.duration == 800
     end
   end
 

@@ -257,6 +257,16 @@ defmodule Tuist.Tests do
   defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
 
   def create_test(attrs) do
+    shard_session_id = Map.get(attrs, :shard_session_id)
+
+    if is_binary(shard_session_id) and shard_session_id != "" do
+      create_or_update_sharded_test(attrs)
+    else
+      create_new_test(attrs)
+    end
+  end
+
+  defp create_new_test(attrs) do
     test_modules = Map.get(attrs, :test_modules, [])
     is_ci = Map.get(attrs, :is_ci, false)
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
@@ -290,6 +300,103 @@ defmodule Tuist.Tests do
 
       {:error, changeset} ->
         {:error, changeset}
+    end
+  end
+
+  defp create_or_update_sharded_test(attrs) do
+    shard_session_id = Map.fetch!(attrs, :shard_session_id)
+    project_id = Map.fetch!(attrs, :project_id)
+    test_modules = Map.get(attrs, :test_modules, [])
+
+    existing =
+      ClickHouseRepo.one(
+        from(t in Test,
+          hints: ["FINAL"],
+          where: t.shard_session_id == ^shard_session_id,
+          where: t.project_id == ^project_id,
+          order_by: [desc: t.inserted_at],
+          limit: 1
+        )
+      )
+
+    shard_session = load_shard_session(%{shard_session_id: shard_session_id, project_id: project_id})
+    expected_shard_count = if shard_session, do: shard_session.shard_count, else: 1
+
+    case existing do
+      nil ->
+        shard_status = if expected_shard_count > 1, do: "in_progress", else: Map.get(attrs, :status, "success")
+        attrs = Map.put(attrs, :status, shard_status)
+        create_new_test(attrs)
+
+      existing_test ->
+        {test_case_ids_with_flaky_run, test_case_runs} =
+          create_test_modules(%{existing_test | shard_index: Map.get(attrs, :shard_index)}, test_modules)
+
+        reported_count = count_reported_shards(existing_test.id) + 1
+        shard_status = Map.get(attrs, :status, "success")
+
+        merged_status =
+          if reported_count >= expected_shard_count do
+            compute_final_shard_status(existing_test, shard_status)
+          else
+            "in_progress"
+          end
+
+        shard_duration = Map.get(attrs, :duration, 0)
+        merged_duration = max(existing_test.duration, shard_duration)
+
+        updated_test = %{existing_test | status: merged_status, duration: merged_duration}
+
+        update_attrs =
+          updated_test
+          |> Map.from_struct()
+          |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_session])
+          |> Map.put(:inserted_at, NaiveDateTime.utc_now())
+
+        IngestRepo.insert_all(Test, [update_attrs])
+
+        updated_test = mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
+        schedule_flaky_threshold_check(updated_test.project_id, test_case_ids_with_flaky_run)
+
+        project = Tuist.Projects.get_project_by_id(updated_test.project_id)
+
+        Tuist.PubSub.broadcast(
+          updated_test,
+          "#{project.account.name}/#{project.name}",
+          :test_created
+        )
+
+        {:ok, %{updated_test | test_case_runs: test_case_runs}}
+    end
+  end
+
+  defp count_reported_shards(test_run_id) do
+    ClickHouseRepo.one(
+      from(tcr in TestCaseRun,
+        hints: ["FINAL"],
+        where: tcr.test_run_id == ^test_run_id,
+        where: not is_nil(tcr.shard_index),
+        select: fragment("count(DISTINCT ?)", tcr.shard_index)
+      )
+    ) || 0
+  end
+
+  defp compute_final_shard_status(existing_test, current_shard_status) do
+    has_existing_failure =
+      ClickHouseRepo.one(
+        from(tcr in TestCaseRun,
+          hints: ["FINAL"],
+          where: tcr.test_run_id == ^existing_test.id,
+          where: tcr.status == "failure",
+          select: count(tcr.id),
+          limit: 1
+        )
+      ) || 0
+
+    cond do
+      current_shard_status == "failure" -> "failure"
+      has_existing_failure > 0 -> "failure"
+      true -> "success"
     end
   end
 
