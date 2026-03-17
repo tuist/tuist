@@ -151,7 +151,7 @@ defmodule TuistWeb.ShardsLive do
           socket.assigns.selected_shard_count_type,
           socket.assigns.selected_balance_type,
           socket.assigns.shard_runs_analytics.result,
-          socket.assigns.avg_shard_count_analytics.result,
+          socket.assigns.shard_count_analytics.result,
           socket.assigns.shard_balance_analytics.result
         )
 
@@ -183,7 +183,7 @@ defmodule TuistWeb.ShardsLive do
           type,
           socket.assigns.selected_balance_type,
           socket.assigns.shard_runs_analytics.result,
-          socket.assigns.avg_shard_count_analytics.result,
+          socket.assigns.shard_count_analytics.result,
           socket.assigns.shard_balance_analytics.result
         )
 
@@ -215,7 +215,7 @@ defmodule TuistWeb.ShardsLive do
           socket.assigns.selected_shard_count_type,
           type,
           socket.assigns.shard_runs_analytics.result,
-          socket.assigns.avg_shard_count_analytics.result,
+          socket.assigns.shard_count_analytics.result,
           socket.assigns.shard_balance_analytics.result
         )
 
@@ -246,16 +246,16 @@ defmodule TuistWeb.ShardsLive do
     |> assign(:selected_shard_count_type, selected_shard_count_type)
     |> assign(:selected_balance_type, selected_balance_type)
     |> assign_async(
-      [:shard_runs_analytics, :avg_shard_count_analytics, :shard_balance_analytics, :analytics_chart_data],
+      [:shard_runs_analytics, :shard_count_analytics, :shard_balance_analytics, :analytics_chart_data],
       fn ->
         shard_runs_analytics = Analytics.shard_session_analytics(project.id, opts)
-        avg_shard_count_analytics = Analytics.average_shard_count_analytics(project.id, opts)
+        shard_count_analytics = Analytics.shard_count_analytics(project.id, opts)
         shard_balance_analytics = Analytics.shard_balance_analytics(project.id, opts)
 
         {:ok,
          %{
            shard_runs_analytics: shard_runs_analytics,
-           avg_shard_count_analytics: avg_shard_count_analytics,
+           shard_count_analytics: shard_count_analytics,
            shard_balance_analytics: shard_balance_analytics,
            analytics_chart_data:
              analytics_chart_data(
@@ -263,7 +263,7 @@ defmodule TuistWeb.ShardsLive do
                selected_shard_count_type,
                selected_balance_type,
                shard_runs_analytics,
-               avg_shard_count_analytics,
+               shard_count_analytics,
                shard_balance_analytics
              )
          }}
@@ -277,7 +277,7 @@ defmodule TuistWeb.ShardsLive do
          selected_shard_count_type,
          selected_balance_type,
          shard_runs_analytics,
-         avg_shard_count_analytics,
+         shard_count_analytics,
          shard_balance_analytics
        ) do
     case analytics_selected_widget do
@@ -293,20 +293,20 @@ defmodule TuistWeb.ShardsLive do
         {values, name} =
           case selected_shard_count_type do
             "p99" ->
-              {avg_shard_count_analytics.p99_values, dgettext("dashboard_tests", "p99 shard count")}
+              {shard_count_analytics.p99_values, dgettext("dashboard_tests", "p99 shard count")}
 
             "p90" ->
-              {avg_shard_count_analytics.p90_values, dgettext("dashboard_tests", "p90 shard count")}
+              {shard_count_analytics.p90_values, dgettext("dashboard_tests", "p90 shard count")}
 
             "p50" ->
-              {avg_shard_count_analytics.p50_values, dgettext("dashboard_tests", "p50 shard count")}
+              {shard_count_analytics.p50_values, dgettext("dashboard_tests", "p50 shard count")}
 
             _ ->
-              {avg_shard_count_analytics.values, dgettext("dashboard_tests", "Avg. shard count")}
+              {shard_count_analytics.values, dgettext("dashboard_tests", "Avg. shard count")}
           end
 
         %{
-          dates: avg_shard_count_analytics.dates,
+          dates: shard_count_analytics.dates,
           values: values,
           name: name,
           value_formatter: "{value}"

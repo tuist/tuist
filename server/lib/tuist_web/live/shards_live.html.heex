@@ -69,7 +69,7 @@
         />
         <.percentile_dropdown_widget
           id="widget-avg-shard-count"
-          loading={!@avg_shard_count_analytics.ok?}
+          loading={!@shard_count_analytics.ok?}
           title={
             case @selected_shard_count_type do
               "avg" -> dgettext("dashboard_tests", "Avg. shard count")
@@ -78,26 +78,26 @@
               "p50" -> dgettext("dashboard_tests", "p50 shard count")
             end
           }
-          description={dgettext("dashboard_tests", "Shard count during a given period.")}
+          description={dgettext("dashboard_tests", "Number of shards used per sharded run during a given period.")}
           value={
-            if @avg_shard_count_analytics.ok? do
+            if @shard_count_analytics.ok? do
               to_string(
                 case @selected_shard_count_type do
-                  "avg" -> @avg_shard_count_analytics.result.total_average
-                  "p99" -> @avg_shard_count_analytics.result.p99
-                  "p90" -> @avg_shard_count_analytics.result.p90
-                  "p50" -> @avg_shard_count_analytics.result.p50
+                  "avg" -> @shard_count_analytics.result.total_average
+                  "p99" -> @shard_count_analytics.result.p99
+                  "p90" -> @shard_count_analytics.result.p90
+                  "p50" -> @shard_count_analytics.result.p50
                 end
               )
             end
           }
           metrics={
-            if @avg_shard_count_analytics.ok? do
+            if @shard_count_analytics.ok? do
               %{
-                avg: to_string(@avg_shard_count_analytics.result.total_average),
-                p99: to_string(@avg_shard_count_analytics.result.p99),
-                p90: to_string(@avg_shard_count_analytics.result.p90),
-                p50: to_string(@avg_shard_count_analytics.result.p50)
+                avg: to_string(@shard_count_analytics.result.total_average),
+                p99: to_string(@shard_count_analytics.result.p99),
+                p90: to_string(@shard_count_analytics.result.p90),
+                p50: to_string(@shard_count_analytics.result.p50)
               }
             end
           }
@@ -112,8 +112,8 @@
             end
           }
           trend_value={
-            if @avg_shard_count_analytics.ok?,
-              do: @avg_shard_count_analytics.result.trend,
+            if @shard_count_analytics.ok?,
+              do: @shard_count_analytics.result.trend,
               else: nil
           }
           trend_type={:neutral}
@@ -122,7 +122,7 @@
           phx_value_widget="avg_shard_count"
           selected={@analytics_selected_widget == "avg_shard_count"}
           empty={
-            @avg_shard_count_analytics.ok? && @avg_shard_count_analytics.result.total_average == 0
+            @shard_count_analytics.ok? && @shard_count_analytics.result.total_average == 0
           }
           empty_label={dgettext("dashboard_tests", "No data")}
         />
@@ -137,7 +137,7 @@
               "p50" -> dgettext("dashboard_tests", "p50 shard balance")
             end
           }
-          description={dgettext("dashboard_tests", "Shard balance during a given period.")}
+          description={dgettext("dashboard_tests", "How evenly test duration is distributed across shards. 100% means perfectly balanced.")}
           value={
             if @shard_balance_analytics.ok? do
               case @selected_balance_type do
@@ -194,7 +194,7 @@
           ((@analytics_selected_widget == "shard_run_count" and
               @shard_runs_analytics.result.count != 0) or
              (@analytics_selected_widget == "avg_shard_count" and
-                @avg_shard_count_analytics.result.total_average != 0) or
+                @shard_count_analytics.result.total_average != 0) or
              (@analytics_selected_widget == "avg_shard_balance" and
                 @shard_balance_analytics.result.total_average != 0))
       }>
@@ -302,8 +302,8 @@
                     color: "var:noora-surface-label-secondary",
                     formatter: "fn:toLocaleDate",
                     customValues: [
-                      @avg_shard_count_analytics.result.dates |> List.first(),
-                      @avg_shard_count_analytics.result.dates |> List.last()
+                      @shard_count_analytics.result.dates |> List.first(),
+                      @shard_count_analytics.result.dates |> List.last()
                     ],
                     padding: [10, 0, 0, 0]
                   }
@@ -333,8 +333,8 @@
                 color: "var:noora-chart-secondary",
                 data:
                   Enum.zip(
-                    @avg_shard_count_analytics.result.dates,
-                    @avg_shard_count_analytics.result.values
+                    @shard_count_analytics.result.dates,
+                    @shard_count_analytics.result.values
                   )
                   |> Enum.map(&Tuple.to_list/1),
                 name: dgettext("dashboard_tests", "Average"),
@@ -346,8 +346,8 @@
                 color: "var:noora-chart-p99",
                 data:
                   Enum.zip(
-                    @avg_shard_count_analytics.result.dates,
-                    @avg_shard_count_analytics.result.p99_values
+                    @shard_count_analytics.result.dates,
+                    @shard_count_analytics.result.p99_values
                   )
                   |> Enum.map(&Tuple.to_list/1),
                 name: dgettext("dashboard_tests", "p99"),
@@ -359,8 +359,8 @@
                 color: "var:noora-chart-p90",
                 data:
                   Enum.zip(
-                    @avg_shard_count_analytics.result.dates,
-                    @avg_shard_count_analytics.result.p90_values
+                    @shard_count_analytics.result.dates,
+                    @shard_count_analytics.result.p90_values
                   )
                   |> Enum.map(&Tuple.to_list/1),
                 name: dgettext("dashboard_tests", "p90"),
@@ -372,8 +372,8 @@
                 color: "var:noora-chart-p50",
                 data:
                   Enum.zip(
-                    @avg_shard_count_analytics.result.dates,
-                    @avg_shard_count_analytics.result.p50_values
+                    @shard_count_analytics.result.dates,
+                    @shard_count_analytics.result.p50_values
                   )
                   |> Enum.map(&Tuple.to_list/1),
                 name: dgettext("dashboard_tests", "p50"),

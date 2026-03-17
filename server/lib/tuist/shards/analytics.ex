@@ -33,7 +33,7 @@ defmodule Tuist.Shards.Analytics do
     }
   end
 
-  def average_shard_count_analytics(project_id, opts \\ []) do
+  def shard_count_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
