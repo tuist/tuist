@@ -202,7 +202,10 @@
                 )}
               </span>
               <span :if={@display_status == "in_progress"} data-part="value">
-                <.status_badge_cell label={dgettext("dashboard_tests", "In Progress")} status="in_progress" />
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "In Progress")}
+                  status="in_progress"
+                />
               </span>
             </div>
             <div data-part="metadata">
@@ -373,7 +376,11 @@
               }
               icon="history"
             />
-            <.status_badge_cell :if={!shard.actual_duration_ms} label={dgettext("dashboard_tests", "In Progress")} status="in_progress" />
+            <.status_badge_cell
+              :if={!shard.actual_duration_ms}
+              label={dgettext("dashboard_tests", "In Progress")}
+              status="in_progress"
+            />
           </:col>
           <:col :let={shard} label={dgettext("dashboard_tests", "Status")}>
             <.status_badge_cell
