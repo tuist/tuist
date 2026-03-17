@@ -449,15 +449,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
            let shardTestProductsPath,
            let fullHandle = config.fullHandle
         {
-            let hashData = computeShardHashData(
+            let selectiveTestingGraph = computeSelectiveTestingGraph(
                 graph: graph,
                 mapperEnvironment: mapperEnvironment,
                 schemes: schemes,
                 testPlanConfiguration: testPlanConfiguration
             )
-            let hashDataPath = shardTestProductsPath.appending(component: ShardHashData.fileName)
-            let encodedData = try JSONEncoder().encode(hashData)
-            try encodedData.write(to: URL(fileURLWithPath: hashDataPath.pathString))
+            let selectiveTestingGraphPath = shardTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
+            let encodedData = try JSONEncoder().encode(selectiveTestingGraph)
+            try encodedData.write(to: URL(fileURLWithPath: selectiveTestingGraphPath.pathString))
 
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             _ = try await shardPlanService.plan(
@@ -512,8 +512,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
-        if let hashData = shardResult.hashData {
-            await updateShardTestServiceAnalytics(hashData: hashData)
+        if let selectiveTestingGraph = shardResult.selectiveTestingGraph {
+            await updateShardTestServiceAnalytics(selectiveTestingGraph: selectiveTestingGraph)
         }
 
         var xcodebuildArguments = ["test-without-building"]
@@ -602,9 +602,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 shardIndex: shardIndex
             )
 
-            if let hashData = shardResult.hashData {
+            if let selectiveTestingGraph = shardResult.selectiveTestingGraph {
                 try await storeSuccessfulShardTestHashes(
-                    hashData: hashData,
+                    selectiveTestingGraph: selectiveTestingGraph,
                     passingTargetNames: await passingTargetNames(resultBundlePath: effectiveResultBundlePath),
                     cacheStorage: cacheStorage
                 )
@@ -626,9 +626,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             shardIndex: shardIndex
         )
 
-        if let hashData = shardResult.hashData {
+        if let selectiveTestingGraph = shardResult.selectiveTestingGraph {
             try await storeSuccessfulShardTestHashes(
-                hashData: hashData,
+                selectiveTestingGraph: selectiveTestingGraph,
                 passingTargetNames: Set(shardResult.testTargets),
                 cacheStorage: cacheStorage
             )
@@ -642,14 +642,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
         AlertController.current.success(.alert("The project tests ran successfully"))
     }
 
-    private func computeShardHashData(
+    private func computeSelectiveTestingGraph(
         graph: Graph,
         mapperEnvironment: MapperEnvironment,
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?
-    ) -> ShardHashData {
+    ) -> SelectiveTestingGraph {
         guard let initialGraph = mapperEnvironment.initialGraph else {
-            return ShardHashData(targetHashClosures: [:], selectiveTestingCacheItems: [:])
+            return SelectiveTestingGraph(targetHashClosures: [:], selectiveTestingCacheItems: [:])
         }
 
         let graphTraverser = GraphTraverser(graph: initialGraph)
@@ -667,7 +667,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return GraphTarget(path: ref.projectPath, target: target, project: project)
         }
 
-        var targetHashClosures: [String: ShardHashData.TargetHashClosure] = [:]
+        var targetHashClosures: [String: SelectiveTestingGraph.TargetHashClosure] = [:]
         for testTarget in allTestTargets {
             let deps = graphTraverser.allTargetDependencies(traversingFromTargets: [testTarget])
             let allTargets = deps.union([testTarget])
@@ -684,7 +684,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 }
             }
 
-            targetHashClosures[testTarget.target.name] = ShardHashData.TargetHashClosure(
+            targetHashClosures[testTarget.target.name] = SelectiveTestingGraph.TargetHashClosure(
                 hashes: hashes,
                 cachedTargetNames: cachedTargetNames
             )
@@ -705,16 +705,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
             selectiveTestingCacheItems[testTarget.target.name] = cacheItem
         }
 
-        return ShardHashData(
+        return SelectiveTestingGraph(
             targetHashClosures: targetHashClosures,
             selectiveTestingCacheItems: selectiveTestingCacheItems
         )
     }
 
-    private func updateShardTestServiceAnalytics(hashData: ShardHashData) async {
+    private func updateShardTestServiceAnalytics(selectiveTestingGraph: SelectiveTestingGraph) async {
         let path = AbsolutePath("/shard")
         await RunMetadataStorage.current.update(
-            selectiveTestingCacheItems: hashData.selectiveTestingCacheItems.reduce(
+            selectiveTestingCacheItems: selectiveTestingGraph.selectiveTestingCacheItems.reduce(
                 into: [AbsolutePath: [String: CacheItem]]()
             ) { result, element in
                 result[path, default: [:]][element.key] = element.value
@@ -723,14 +723,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
     }
 
     private func storeSuccessfulShardTestHashes(
-        hashData: ShardHashData,
+        selectiveTestingGraph: SelectiveTestingGraph,
         passingTargetNames: Set<String>,
         cacheStorage: CacheStoring
     ) async throws {
         var cacheableItems: [CacheStorableItem: [AbsolutePath]] = [:]
 
         for targetName in passingTargetNames {
-            guard let closure = hashData.targetHashClosures[targetName] else { continue }
+            guard let closure = selectiveTestingGraph.targetHashClosures[targetName] else { continue }
             for (name, hash) in closure.hashes where !closure.cachedTargetNames.contains(name) {
                 cacheableItems[CacheStorableItem(name: name, hash: hash)] = []
             }

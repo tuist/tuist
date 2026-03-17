@@ -1,9 +1,9 @@
 import Foundation
 
-/// Pre-computed hash data that is persisted during the shard plan phase
+/// Pre-computed selective testing graph that is persisted during the shard plan phase
 /// and restored during the shard execute phase to avoid regenerating
 /// the project and rehashing targets.
-public struct ShardHashData: Codable {
+public struct SelectiveTestingGraph: Codable {
     /// For each test target, the full set of (targetName, hash) pairs
     /// including transitive dependencies that should be stored on success.
     public struct TargetHashClosure: Codable {
@@ -32,5 +32,5 @@ public struct ShardHashData: Codable {
         self.selectiveTestingCacheItems = selectiveTestingCacheItems
     }
 
-    public static let fileName = "shard-hash-data.json"
+    public static let fileName = "selective-testing-graph.json"
 }

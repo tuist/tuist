@@ -12,7 +12,7 @@
     public struct ShardExecuteResult {
         public let testProductsPath: AbsolutePath
         public let testTargets: [String]
-        public let hashData: ShardHashData?
+        public let selectiveTestingGraph: SelectiveTestingGraph?
     }
 
     @Mockable
@@ -120,11 +120,11 @@
                 toPath: targetXctestrunPath.pathString
             )
 
-            let hashDataPath = bundlePath.appending(component: ShardHashData.fileName)
-            var hashData: ShardHashData?
-            if let data = try? Data(contentsOf: URL(fileURLWithPath: hashDataPath.pathString)) {
-                hashData = try? JSONDecoder().decode(ShardHashData.self, from: data)
-                if hashData != nil {
+            let selectiveTestingGraphPath = bundlePath.appending(component: SelectiveTestingGraph.fileName)
+            var selectiveTestingGraph: SelectiveTestingGraph?
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: selectiveTestingGraphPath.pathString)) {
+                selectiveTestingGraph = try? JSONDecoder().decode(SelectiveTestingGraph.self, from: data)
+                if selectiveTestingGraph != nil {
                     Logger.current.info("Loaded shard hash data from test products bundle.")
                 }
             }
@@ -132,7 +132,7 @@
             return ShardExecuteResult(
                 testProductsPath: bundlePath,
                 testTargets: assignment.testTargets,
-                hashData: hashData
+                selectiveTestingGraph: selectiveTestingGraph
             )
         }
 
