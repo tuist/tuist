@@ -411,6 +411,101 @@ defmodule TuistWeb.API.BuildsControllerTest do
     end
   end
 
+  describe "GET /api/projects/:account_handle/:project_handle/builds (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns builds using the deprecated route", %{conn: conn, user: user, project: project} do
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds")
+
+      assert %{"builds" => []} = json_response(conn, 200)
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/builds/:build_id (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns a build by ID using the deprecated route", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          status: "success",
+          duration: 5000
+        )
+
+      stub(Builds, :get_build, fn _id ->
+        build
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}")
+
+      response = json_response(conn, 200)
+      assert response["id"] == build.id
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/builds (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "creates a build using the deprecated route", %{conn: conn, user: user, project: project} do
+      build_id = UUIDv7.generate()
+
+      stub(Builds, :get_build, fn _id -> nil end)
+      stub(Builds, :create_build, fn _attrs -> {:ok, %Tuist.Builds.Build{
+        id: build_id,
+        status: "success",
+        duration: 1000,
+        project_id: project.id,
+        project: %{project | account: user.account}
+      }} end)
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _params -> :ok end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds", %{
+          id: build_id,
+          is_ci: false
+        })
+
+      response = json_response(conn, 200)
+      assert response["id"] == build_id
+    end
+  end
+
   describe "POST /api/projects/:account_handle/:project_handle/builds/upload/start" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
