@@ -86,8 +86,8 @@
                 throw ShardPlanServiceError.cannotDeriveSessionId
             }
 
-            let xctestrunPath = try xcTestRunParser.findXCTestRunPath(in: xctestproductsPath)
-            let modules = try xcTestRunParser.parseTestModules(xctestrunPath: xctestrunPath)
+            let xctestrunPath = try await xcTestRunParser.findXCTestRunPath(in: xctestproductsPath)
+            let modules = try await xcTestRunParser.parseTestModules(xctestrunPath: xctestrunPath)
 
             guard !modules.isEmpty else {
                 throw ShardPlanServiceError.noTestModulesFound
@@ -171,6 +171,13 @@
         }
 
         private func outputShardMatrix(session: ServerShardSession) {
+            for shard in session.shards {
+                Logger.current
+                    .info(
+                        "  Shard \(shard.index): \(shard.testTargets.joined(separator: ", ")) (~\(shard.estimatedDurationMs)ms)"
+                    )
+            }
+
             let indices = (0 ..< session.shardCount).map { $0 }
 
             if let githubOutputPath = Environment.current.variables["GITHUB_OUTPUT"],
@@ -181,13 +188,27 @@
                 handle.write(Data("matrix=\(matrixJSON)\n".utf8))
                 handle.closeFile()
                 Logger.current.info("GitHub Actions matrix output written.")
-            }
-
-            for shard in session.shards {
-                Logger.current
-                    .info(
-                        "  Shard \(shard.index): \(shard.testTargets.joined(separator: ", ")) (~\(shard.estimatedDurationMs)ms)"
-                    )
+            } else {
+                let matrixData: [String: Any] = [
+                    "session_id": session.sessionId,
+                    "shard_count": session.shardCount,
+                    "shards": session.shards.map { shard in
+                        [
+                            "index": shard.index,
+                            "test_targets": shard.testTargets,
+                            "estimated_duration_ms": shard.estimatedDurationMs,
+                        ] as [String: Any]
+                    },
+                ]
+                let jsonData = try? JSONSerialization.data(
+                    withJSONObject: matrixData,
+                    options: [.prettyPrinted, .sortedKeys]
+                )
+                let outputPath = ".tuist-shard-matrix.json"
+                if let jsonData {
+                    FileManager.default.createFile(atPath: outputPath, contents: jsonData)
+                    Logger.current.info("Shard matrix written to \(outputPath)")
+                }
             }
         }
     }

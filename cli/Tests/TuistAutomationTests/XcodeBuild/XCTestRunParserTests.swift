@@ -29,7 +29,7 @@
             ])
 
             // When
-            let modules = try subject.parseTestModules(xctestrunPath: path)
+            let modules = try await subject.parseTestModules(xctestrunPath: path)
 
             // Then
             #expect(modules == ["AppTests", "CoreTests"])
@@ -54,7 +54,7 @@
             ])
 
             // When
-            let modules = try subject.parseTestModules(xctestrunPath: path)
+            let modules = try await subject.parseTestModules(xctestrunPath: path)
 
             // Then
             #expect(modules == ["UnitTests", "UITests"])
@@ -83,7 +83,7 @@
             ])
 
             // When
-            let suites = try subject.parseTestSuites(xctestrunPath: path)
+            let suites = try await subject.parseTestSuites(xctestrunPath: path)
 
             // Then
             #expect(suites["AppTests"] == ["LoginTests/testLogin", "LoginTests/testLogout"])
@@ -104,7 +104,7 @@
             ])
 
             // When
-            let suites = try subject.parseTestSuites(xctestrunPath: path)
+            let suites = try await subject.parseTestSuites(xctestrunPath: path)
 
             // Then
             #expect(suites.isEmpty)
@@ -122,7 +122,7 @@
             try await fileSystem.writeText("", at: xctestrunFile)
 
             // When
-            let result = try subject.findXCTestRunPath(in: temporaryDirectory)
+            let result = try await subject.findXCTestRunPath(in: temporaryDirectory)
 
             // Then
             #expect(result == xctestrunFile)
@@ -134,8 +134,8 @@
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
             // When / Then
-            #expect(throws: XCTestRunParserError.self) {
-                try subject.findXCTestRunPath(in: temporaryDirectory)
+            await #expect(throws: XCTestRunParserError.self) {
+                try await subject.findXCTestRunPath(in: temporaryDirectory)
             }
         }
 
@@ -149,8 +149,8 @@
             try Data("not a plist".utf8).write(to: URL(fileURLWithPath: path.pathString))
 
             // When / Then
-            #expect(throws: XCTestRunParserError.self) {
-                try subject.parseTestModules(xctestrunPath: path)
+            await #expect(throws: XCTestRunParserError.self) {
+                try await subject.parseTestModules(xctestrunPath: path)
             }
         }
 
@@ -161,8 +161,8 @@
             let path = temporaryDirectory.appending(component: "Missing.xctestrun")
 
             // When / Then
-            #expect(throws: XCTestRunParserError.self) {
-                try subject.parseTestModules(xctestrunPath: path)
+            await #expect(throws: XCTestRunParserError.self) {
+                try await subject.parseTestModules(xctestrunPath: path)
             }
         }
 

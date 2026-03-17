@@ -1,24 +1,22 @@
 #if os(macOS)
+    import FileSystem
     import Foundation
     import Mockable
     import Path
 
     @Mockable
     public protocol XCTestRunParsing {
-        func parseTestModules(xctestrunPath: AbsolutePath) throws -> [String]
-        func parseTestSuites(xctestrunPath: AbsolutePath) throws -> [String: [String]]
-        func findXCTestRunPath(in xctestproductsPath: AbsolutePath) throws -> AbsolutePath
+        func parseTestModules(xctestrunPath: AbsolutePath) async throws -> [String]
+        func parseTestSuites(xctestrunPath: AbsolutePath) async throws -> [String: [String]]
+        func findXCTestRunPath(in xctestproductsPath: AbsolutePath) async throws -> AbsolutePath
     }
 
     public enum XCTestRunParserError: LocalizedError, Equatable {
-        case cannotReadFile(AbsolutePath)
         case invalidFormat(String)
         case xctestrunNotFound(AbsolutePath)
 
         public var errorDescription: String? {
             switch self {
-            case let .cannotReadFile(path):
-                return "Cannot read .xctestrun file at \(path.pathString)"
             case let .invalidFormat(message):
                 return "The .xctestrun file has an invalid format: \(message)"
             case let .xctestrunNotFound(path):
@@ -54,17 +52,21 @@
     }
 
     public struct XCTestRunParser: XCTestRunParsing {
-        public init() {}
+        private let fileSystem: FileSysteming
 
-        public func parseTestModules(xctestrunPath: AbsolutePath) throws -> [String] {
-            let plist = try decodePlist(at: xctestrunPath)
+        public init(fileSystem: FileSysteming = FileSystem()) {
+            self.fileSystem = fileSystem
+        }
+
+        public func parseTestModules(xctestrunPath: AbsolutePath) async throws -> [String] {
+            let plist: XCTestRunPlist = try await readPlist(at: xctestrunPath)
             return plist.testConfigurations
                 .flatMap { $0.testTargets ?? [] }
                 .map(\.blueprintName)
         }
 
-        public func parseTestSuites(xctestrunPath: AbsolutePath) throws -> [String: [String]] {
-            let plist = try decodePlist(at: xctestrunPath)
+        public func parseTestSuites(xctestrunPath: AbsolutePath) async throws -> [String: [String]] {
+            let plist: XCTestRunPlist = try await readPlist(at: xctestrunPath)
             return plist.testConfigurations
                 .flatMap { $0.testTargets ?? [] }
                 .reduce(into: [String: [String]]()) { result, target in
@@ -74,32 +76,17 @@
                 }
         }
 
-        public func findXCTestRunPath(in xctestproductsPath: AbsolutePath) throws -> AbsolutePath {
-            let fileManager = FileManager.default
-            let basePath = xctestproductsPath.pathString
-
-            guard let enumerator = fileManager.enumerator(atPath: basePath) else {
+        public func findXCTestRunPath(in xctestproductsPath: AbsolutePath) async throws -> AbsolutePath {
+            let matches = try await fileSystem.glob(directory: xctestproductsPath, include: ["**/*.xctestrun"]).collect()
+            guard let first = matches.first else {
                 throw XCTestRunParserError.xctestrunNotFound(xctestproductsPath)
             }
-
-            while let relativePath = enumerator.nextObject() as? String {
-                if relativePath.hasSuffix(".xctestrun") {
-                    return try AbsolutePath(validating: "\(basePath)/\(relativePath)")
-                }
-            }
-
-            throw XCTestRunParserError.xctestrunNotFound(xctestproductsPath)
+            return first
         }
 
-        private func decodePlist(at path: AbsolutePath) throws -> XCTestRunPlist {
-            let data: Data
+        private func readPlist<T: Decodable>(at path: AbsolutePath) async throws -> T {
             do {
-                data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
-            } catch {
-                throw XCTestRunParserError.cannotReadFile(path)
-            }
-            do {
-                return try PropertyListDecoder().decode(XCTestRunPlist.self, from: data)
+                return try await fileSystem.readPlistFile(at: path)
             } catch {
                 throw XCTestRunParserError.invalidFormat(error.localizedDescription)
             }
