@@ -106,6 +106,6 @@ backend = "aqua:realm/SwiftLint"
 "platforms.macos-x64" = { url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"}
 
 [[tools.tuist]]
-version = "4.159.0"
+version = "4.159.1"
 backend = "aqua:tuist/tuist"
-"platforms.linux-x64" = { checksum = "sha256:3df4b23fd23b8e7823f2625130ef5929130c28ed86936d956252e0b1cbc64ed8", url = "https://github.com/tuist/tuist/releases/download/4.159.0/tuist-linux-x86_64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:ad13ab413ccd54c04f8b842868aea7bee188f477a41bdfd24a84d9f5e28ed870", url = "https://github.com/tuist/tuist/releases/download/4.159.1/tuist-linux-x86_64.tar.gz"}

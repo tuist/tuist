@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.159.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* allow iOS bundle targets to have dependencies by [@fortmarek](https://github.com/fortmarek) in [#9883](https://github.com/tuist/tuist/pull/9883)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.159.0...4.159.1
+
 ## What's Changed in 4.159.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
