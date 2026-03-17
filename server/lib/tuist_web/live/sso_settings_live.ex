@@ -39,9 +39,7 @@ defmodule TuistWeb.SSOSettingsLive do
   end
 
   @impl true
-  def handle_event("toggle_sso", _params, socket) do
-    sso_enabled = not socket.assigns.sso_enabled
-
+  def handle_event("toggle_sso", %{"checked" => sso_enabled}, socket) do
     socket
     |> assign(sso_enabled: sso_enabled, sso_enforced: sso_enabled and socket.assigns.sso_enforced, flash_message: nil)
     |> compute_form_valid()
@@ -49,9 +47,9 @@ defmodule TuistWeb.SSOSettingsLive do
     |> then(&{:noreply, &1})
   end
 
-  def handle_event("toggle_sso_enforced", _params, socket) do
+  def handle_event("toggle_sso_enforced", %{"checked" => sso_enforced}, socket) do
     socket
-    |> assign(sso_enforced: not socket.assigns.sso_enforced, flash_message: nil)
+    |> assign(sso_enforced: sso_enforced, flash_message: nil)
     |> compute_has_changes()
     |> then(&{:noreply, &1})
   end
