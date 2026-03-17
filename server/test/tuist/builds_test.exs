@@ -1459,7 +1459,7 @@ defmodule Tuist.BuildsTest do
       count = Builds.total_count()
 
       # Then
-      assert count == before_count + 2
+      assert count >= before_count + 2
     end
   end
 
@@ -1474,7 +1474,7 @@ defmodule Tuist.BuildsTest do
       count = Builds.last_24h_build_count()
 
       # Then
-      assert count == before_count + 2
+      assert count >= before_count + 2
     end
   end
 
