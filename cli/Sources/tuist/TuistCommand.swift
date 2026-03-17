@@ -145,7 +145,7 @@ public struct TuistCommand: AsyncParsableCommand {
     // swiftlint:disable:next function_body_length
     public static func main(
         logFilePath: AbsolutePath,
-        sessionDirectory: AbsolutePath? = nil,
+        sessionDirectory: AbsolutePath,
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {

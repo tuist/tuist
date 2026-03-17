@@ -43,7 +43,7 @@ public class TrackableCommand {
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let uploadAnalyticsService: UploadAnalyticsServicing
     private let fileSystem: FileSysteming
-    private let sessionDirectory: AbsolutePath?
+    private let sessionDirectory: AbsolutePath
 
     public init(
         command: ParsableCommand,
@@ -54,7 +54,7 @@ public class TrackableCommand {
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
         fileSystem: FileSysteming = FileSystem(),
-        sessionDirectory: AbsolutePath? = nil
+        sessionDirectory: AbsolutePath
     ) {
         self.command = command
         self.commandArguments = commandArguments
@@ -183,17 +183,14 @@ public class TrackableCommand {
             let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
             let commandEventPath = tempDirectory.appending(component: "command-event.json")
             try await fileSystem.writeAsJSON(commandEvent, at: commandEventPath)
-            var backgroundArguments = [
-                "analytics-upload",
-                commandEventPath.pathString,
-                fullHandle,
-                serverURL.absoluteString,
-            ]
-            if let sessionDirectory {
-                backgroundArguments.append(sessionDirectory.pathString)
-            }
             try backgroundProcessRunner.runInBackground(
-                [Environment.current.currentExecutablePath()?.pathString ?? "tuist"] + backgroundArguments,
+                [Environment.current.currentExecutablePath()?.pathString ?? "tuist"] + [
+                    "analytics-upload",
+                    commandEventPath.pathString,
+                    fullHandle,
+                    serverURL.absoluteString,
+                    sessionDirectory.pathString,
+                ],
                 environment: ProcessInfo.processInfo.environment
             )
         }
