@@ -66,7 +66,7 @@ When releasable changes are detected:
 1. **Version calculation**: The pipeline determines the next version number
 2. **Changelog generation**: git cliff creates a changelog from commit messages
 3. **Build process**: The component is built and tested
-4. **Artifact generation**: Release-specific assets are produced, such as the CLI bundles, checksums, and the `tuist.usage.kdl` usage-spec artifact generated from `tuist --experimental-dump-help`
+4. **Artifact generation**: Release-specific assets are produced, such as the CLI bundles, checksums, and the `tuist.usage.json` usage artifact generated from `tuist --experimental-dump-help`
 5. **Release creation**: A GitHub release is created with artifacts
 6. **Distribution**: Updates are pushed to package managers (e.g., Homebrew for CLI)
 
@@ -108,7 +108,7 @@ Users need to clear their cache after updating.
 
 The release workflow is defined in `.github/workflows/release.yml`.
 
-It coordinates the component-specific jobs for the CLI, app, server, cache, Gradle plugin, skills, and Noora releases. For the CLI, it also generates and publishes a `tuist.usage.kdl` artifact so downstream tooling can consume the command interface in [usage-spec](https://usage.jdx.dev/) format.
+It coordinates the component-specific jobs for the CLI, app, server, cache, Gradle plugin, skills, and Noora releases. For the CLI, it also generates and publishes a `tuist.usage.json` artifact so downstream tooling can consume the command interface.
 
 The workflow:
 - Runs on pushes to main
