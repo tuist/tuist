@@ -22,17 +22,6 @@ export default {
   mounted() {
     this.toggle = new Toggle(this.el, this.context());
     this.toggle.init();
-
-    // Stop change/input events from the hidden input from bubbling to parent
-    // forms. Without this, the hidden input triggers phx-change on the parent
-    // form, causing the server to re-render with stale toggle state.
-    this._stopFormEvent = (e) => {
-      if (e.target.matches("[data-part='hidden-input']")) {
-        e.stopPropagation();
-      }
-    };
-    this.el.addEventListener("change", this._stopFormEvent);
-    this.el.addEventListener("input", this._stopFormEvent);
   },
 
   updated() {
@@ -40,8 +29,6 @@ export default {
   },
 
   beforeDestroy() {
-    this.el.removeEventListener("change", this._stopFormEvent);
-    this.el.removeEventListener("input", this._stopFormEvent);
     this.toggle.destroy();
   },
 
