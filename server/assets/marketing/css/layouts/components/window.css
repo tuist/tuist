@@ -24,14 +24,14 @@
 
     & > [data-part="copy"] {
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
+      transition: background-color 0.15s ease;
       cursor: pointer;
-      color: var(--noora-button-neutral-label);
+      border-radius: 6px;
       width: 24px;
       height: 24px;
-      border-radius: 6px;
-      transition: background-color 0.15s ease;
+      color: var(--noora-button-neutral-label);
 
       & svg {
         width: 12px;
@@ -66,8 +66,8 @@
 
     & pre {
       margin: 0;
-      padding: 0;
       background: transparent !important;
+      padding: 0;
     }
 
     & code {
