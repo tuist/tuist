@@ -1010,14 +1010,30 @@ public struct TestService { // swiftlint:disable:this type_body_length
         skipQuarantine: Bool,
         config: Tuist
     ) async -> [TestIdentifier] {
+        Logger.current.log(
+            level: .debug,
+            "Quarantine check: skipQuarantine=\(skipQuarantine), fullHandle=\(config.fullHandle ?? "nil")"
+        )
         guard !skipQuarantine, let fullHandle = config.fullHandle else {
+            Logger.current.log(
+                level: .debug,
+                "Quarantine skipping disabled: \(skipQuarantine ? "skipQuarantine flag is set" : "fullHandle is nil")"
+            )
             return []
         }
         do {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            Logger.current.log(
+                level: .debug,
+                "Fetching quarantined tests for \(fullHandle) from \(serverURL)"
+            )
             let quarantinedTests = try await fetchQuarantinedTests(
                 fullHandle: fullHandle,
                 serverURL: serverURL
+            )
+            Logger.current.log(
+                level: .debug,
+                "Fetched \(quarantinedTests.count) quarantined test(s)"
             )
             if !quarantinedTests.isEmpty {
                 Logger.current.notice(
@@ -1027,6 +1043,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
             return quarantinedTests
         } catch {
+            Logger.current.log(
+                level: .warning,
+                "Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests."
+            )
             AlertController.current.warning(
                 .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
             )
