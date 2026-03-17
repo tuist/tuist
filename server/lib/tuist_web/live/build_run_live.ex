@@ -120,9 +120,6 @@ defmodule TuistWeb.BuildRunLive do
       storage_key = Builds.build_storage_key(project.account.name, project.name, run_id)
       {:ok, %{has_build_download: Tuist.Storage.object_exists?(storage_key, project.account)}}
     end)
-    |> assign_async(:has_session, fn ->
-      {:ok, %{has_session: (command_event && CommandEvents.has_session?(command_event)) || false}}
-    end)
   end
 
   @impl true
