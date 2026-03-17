@@ -15,7 +15,7 @@
         // MARK: - parseTestModules
 
         @Test(.inTemporaryDirectory)
-        func parseTestModules_modernFormat() async throws {
+        func parseTestModules_parsesTargets() async throws {
             // Given
             let path = try writePlist([
                 "TestConfigurations": [
@@ -33,22 +33,6 @@
 
             // Then
             #expect(modules == ["AppTests", "CoreTests"])
-        }
-
-        @Test(.inTemporaryDirectory)
-        func parseTestModules_legacyFormat() async throws {
-            // Given
-            let path = try writePlist([
-                "__xctestrun_metadata__": ["FormatVersion": 1],
-                "AppTests": ["TestHostPath": "/path"],
-                "CoreTests": ["TestHostPath": "/path"],
-            ])
-
-            // When
-            let modules = try subject.parseTestModules(xctestrunPath: path)
-
-            // Then
-            #expect(Set(modules) == Set(["AppTests", "CoreTests"]))
         }
 
         @Test(.inTemporaryDirectory)
@@ -117,21 +101,6 @@
                         ],
                     ],
                 ],
-            ])
-
-            // When
-            let suites = try subject.parseTestSuites(xctestrunPath: path)
-
-            // Then
-            #expect(suites.isEmpty)
-        }
-
-        @Test(.inTemporaryDirectory)
-        func parseTestSuites_legacyFormat_returnsEmpty() async throws {
-            // Given
-            let path = try writePlist([
-                "__xctestrun_metadata__": ["FormatVersion": 1],
-                "AppTests": ["TestHostPath": "/path"],
             ])
 
             // When

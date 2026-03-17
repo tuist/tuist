@@ -28,8 +28,11 @@
     }
 
     private struct XCTestRunPlist: Decodable {
-        let testConfigurations: [TestConfiguration]?
-        let legacyModuleNames: [String]
+        let testConfigurations: [TestConfiguration]
+
+        enum CodingKeys: String, CodingKey {
+            case testConfigurations = "TestConfigurations"
+        }
 
         struct TestConfiguration: Decodable {
             let testTargets: [TestTarget]?
@@ -48,27 +51,6 @@
                 case onlyTestIdentifiers = "OnlyTestIdentifiers"
             }
         }
-
-        private struct DynamicCodingKey: CodingKey {
-            var stringValue: String
-            init?(stringValue: String) { self.stringValue = stringValue }
-            var intValue: Int? { nil }
-            init?(intValue _: Int) { nil }
-        }
-
-        enum CodingKeys: String, CodingKey {
-            case testConfigurations = "TestConfigurations"
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            testConfigurations = try container.decodeIfPresent([TestConfiguration].self, forKey: .testConfigurations)
-
-            let dynamicContainer = try decoder.container(keyedBy: DynamicCodingKey.self)
-            legacyModuleNames = dynamicContainer.allKeys
-                .map(\.stringValue)
-                .filter { $0 != "__xctestrun_metadata__" && $0 != "TestConfigurations" }
-        }
     }
 
     public struct XCTestRunParser: XCTestRunParsing {
@@ -76,24 +58,14 @@
 
         public func parseTestModules(xctestrunPath: AbsolutePath) throws -> [String] {
             let plist = try decodePlist(at: xctestrunPath)
-
-            if let configurations = plist.testConfigurations {
-                return configurations
-                    .flatMap { $0.testTargets ?? [] }
-                    .map(\.blueprintName)
-            }
-
-            return plist.legacyModuleNames
+            return plist.testConfigurations
+                .flatMap { $0.testTargets ?? [] }
+                .map(\.blueprintName)
         }
 
         public func parseTestSuites(xctestrunPath: AbsolutePath) throws -> [String: [String]] {
             let plist = try decodePlist(at: xctestrunPath)
-
-            guard let configurations = plist.testConfigurations else {
-                return [:]
-            }
-
-            return configurations
+            return plist.testConfigurations
                 .flatMap { $0.testTargets ?? [] }
                 .reduce(into: [String: [String]]()) { result, target in
                     if let identifiers = target.onlyTestIdentifiers {
