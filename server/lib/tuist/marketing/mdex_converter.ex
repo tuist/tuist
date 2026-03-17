@@ -1,4 +1,4 @@
-defmodule Tuist.Marketing.Blog.MDExConverter do
+defmodule Tuist.Marketing.MDExConverter do
   @moduledoc """
   Custom NimblePublisher HTML converter that uses MDEx instead of Earmark.
   Converts markdown to HTML at compile time with server-side syntax highlighting

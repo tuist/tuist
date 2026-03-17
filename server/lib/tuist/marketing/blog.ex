@@ -9,7 +9,7 @@ defmodule Tuist.Marketing.Blog do
     as: :posts,
     parser: Tuist.Marketing.Blog.PostParser,
     highlighters: [],
-    html_converter: Tuist.Marketing.Blog.MDExConverter
+    html_converter: Tuist.Marketing.MDExConverter
 
   @posts Enum.reverse(@posts)
   @categories @posts |> Enum.map(& &1.category) |> Enum.uniq()
