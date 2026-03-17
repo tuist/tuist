@@ -208,8 +208,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         do {
             parsed = try await XCActivityLogParser().parse(
                 xcactivitylogURL: path.url,
-                casMetadataPath: casMetadataPath,
-                cacheUploadEnabled: true
+                casMetadataPath: casMetadataPath
             )
         } catch {
             throw XCActivityLogControllerError.wrap(error, path: path)

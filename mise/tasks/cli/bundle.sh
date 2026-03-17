@@ -153,6 +153,11 @@ echo "$(format_section "Bundling")"
     xcodebuild -create-xcframework -framework ProjectDescription.framework -output ProjectDescription.xcframework
     zip -q -r --symlinks ProjectDescription.xcframework.zip ProjectDescription.xcframework
 
+    echo "$(format_subsection "Generating tuist.spec.json")"
+    SPEC_TMP_DIR=$(mktemp -d)
+    ./tuist --experimental-dump-help --path "$SPEC_TMP_DIR" > tuist.spec.json
+    rm -rf "$SPEC_TMP_DIR"
+
     rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor
 
     : > SHASUMS256.txt

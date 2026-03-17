@@ -4,10 +4,10 @@ defmodule CacheWeb.RegistryController do
   alias Cache.CacheArtifacts
   alias Cache.Config
   alias Cache.Registry
+  alias Cache.Registry.EventsPipeline
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Metadata
   alias Cache.Registry.RepositoryURL
-  alias Cache.RegistryDownloadEventsPipeline
   alias Cache.S3
   alias Cache.S3Transfers
 
@@ -169,7 +169,7 @@ defmodule CacheWeb.RegistryController do
       :ok = CacheArtifacts.track_artifact_access(key)
 
       if Config.analytics_enabled?() do
-        RegistryDownloadEventsPipeline.async_push(%{
+        EventsPipeline.async_push(%{
           scope: scope,
           name: name,
           version: normalized_version
@@ -190,7 +190,7 @@ defmodule CacheWeb.RegistryController do
         :ok = CacheArtifacts.track_artifact_access(key)
 
         if Config.analytics_enabled?() do
-          RegistryDownloadEventsPipeline.async_push(%{
+          EventsPipeline.async_push(%{
             scope: scope,
             name: name,
             version: normalized_version

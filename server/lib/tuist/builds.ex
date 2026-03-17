@@ -92,7 +92,7 @@ defmodule Tuist.Builds do
         Tuist.PubSub.broadcast(
           build,
           "#{project.account.name}/#{project.name}",
-          :build_created
+          :xcode_build_created
         )
       end
 
@@ -264,6 +264,10 @@ defmodule Tuist.Builds do
 
   def list_build_issues(build_run_id) do
     ClickHouseRepo.all(from(i in BuildIssue, where: i.build_run_id == ^build_run_id))
+  end
+
+  def list_build_issues_paginated(attrs) do
+    ClickHouseFlop.validate_and_run!(BuildIssue, attrs, for: BuildIssue)
   end
 
   def list_build_files(attrs) do

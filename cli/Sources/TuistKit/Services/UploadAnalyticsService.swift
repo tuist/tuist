@@ -11,7 +11,12 @@ import TuistSupport
 @Mockable
 public protocol UploadAnalyticsServicing {
     @discardableResult
-    func upload(commandEvent: CommandEvent, fullHandle: String, serverURL: URL) async throws -> ServerCommandEvent
+    func upload(
+        commandEvent: CommandEvent,
+        fullHandle: String,
+        serverURL: URL,
+        sessionDirectory: AbsolutePath?
+    ) async throws -> ServerCommandEvent
 }
 
 public struct UploadAnalyticsService: UploadAnalyticsServicing {
@@ -39,7 +44,8 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
     public func upload(
         commandEvent: CommandEvent,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        sessionDirectory: AbsolutePath? = nil
     ) async throws -> ServerCommandEvent {
         let runsDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
         let runDirectory = runsDirectory.appending(component: commandEvent.runId)
@@ -68,6 +74,16 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
            try await fileSystem.exists(resultBundlePath)
         {
             try await fileSystem.remove(resultBundlePath)
+        }
+
+        if let sessionDirectory, try await fileSystem.exists(sessionDirectory) {
+            try await analyticsArtifactUploadService.uploadSession(
+                sessionDirectory,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                commandEventId: serverCommandEvent.id,
+                serverURL: serverURL
+            )
         }
 
         return serverCommandEvent

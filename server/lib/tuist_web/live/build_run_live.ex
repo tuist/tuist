@@ -123,7 +123,7 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   @impl true
-  def handle_info({:build_created, build}, socket) do
+  def handle_info({:xcode_build_created, build}, socket) do
     if build.id == socket.assigns.run.id do
       run =
         build.id

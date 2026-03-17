@@ -1,5 +1,8 @@
 version: "1"
 
+previews:
+  expireAfterDays: 1
+
 services:
   - &server-base
     type: web
@@ -180,7 +183,7 @@ services:
     repo: https://github.com/tuist/tuist
     dockerfilePath: server/Dockerfile
     dockerCommand: /app/bin/start-preview
-    plan: standard
+    plan: starter
     numInstances: 1
     previews:
       generation: manual

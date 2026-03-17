@@ -22,6 +22,11 @@
       background: none;
       font: var(--noora-font-body-medium);
 
+      /* iOS Safari auto-zooms on focus when font-size < 16px */
+      @media (max-width: 768px) {
+        font-size: 1rem;
+      }
+
       &:disabled {
         cursor: not-allowed;
       }

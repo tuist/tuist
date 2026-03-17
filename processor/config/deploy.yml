@@ -8,6 +8,7 @@ servers:
       publish: 4002:4002
       health-cmd: "curl -f http://localhost:4002/health || exit 1"
       health-interval: 10s
+      ulimit: "nofile=65536:65536"
 
 ssh:
   user: github-actions
@@ -26,6 +27,8 @@ builder:
 env:
   clear:
     PORT: "4002"
+    LOKI_URL: http://host.docker.internal:3100
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
 
   secret:
     - SECRET_KEY_BASE
