@@ -1546,7 +1546,7 @@ msgstr ""
 msgid "See how leading tech companies are scaling their development with Tuist."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:34
+#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:35
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "AI moves fast. So should your builds."
