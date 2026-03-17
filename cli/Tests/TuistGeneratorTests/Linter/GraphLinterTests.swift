@@ -1775,6 +1775,36 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func lint_ios_bundle_allows_ios_dependencies() async throws {
+        let path: AbsolutePath = "/project"
+
+        let bundle = Target.test(name: "Bundle", platform: .iOS, product: .bundle)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let staticLibrary = Target.test(name: "StaticLibrary", platform: .iOS, product: .staticLibrary)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: bundle.name, path: path): Set([
+                .target(name: framework.name, path: path),
+                .target(name: staticLibrary.name, path: path),
+            ]),
+        ]
+
+        let project = Project.test(path: path, targets: [bundle, framework, staticLibrary])
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            dependencies: dependencies
+        )
+
+        // When
+        let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(got.isEmpty == true)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func lintDifferentBundleIdentifiers() async throws {
         // Given
         let path: AbsolutePath = "/project"
