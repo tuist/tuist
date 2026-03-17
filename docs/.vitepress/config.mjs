@@ -11,6 +11,12 @@ import {
 } from "./bars.mjs";
 import { cliSidebar } from "./data/cli.js";
 import { localizedString } from "./i18n.mjs";
+import {
+  localizedDocsPath,
+  rewriteDocsPublicPath,
+  rewriteDocsRedirectRules,
+  stripDocsPathPrefix,
+} from "./paths.mjs";
 import llmstxtPlugin from "vitepress-plugin-llmstxt";
 import postcssRtlcss from "postcss-rtlcss";
 import { validateAdmonitions } from "./validate-admonitions.mjs";
@@ -22,12 +28,12 @@ const vitepressDir = path.dirname(fileURLToPath(import.meta.url));
 
 async function themeConfig(locale) {
   const sidebar = {};
-  sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
-  sidebar[`/${locale}/tutorials/`] = await guidesSidebar(locale);
-  sidebar[`/${locale}/guides/`] = await guidesSidebar(locale);
-  sidebar[`/${locale}/cli/`] = await cliSidebar(locale);
-  sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
-  sidebar[`/${locale}/`] = await guidesSidebar(locale);
+  sidebar[localizedDocsPath(locale, "/contributors")] = contributorsSidebar(locale);
+  sidebar[localizedDocsPath(locale, "/tutorials/")] = await guidesSidebar(locale);
+  sidebar[localizedDocsPath(locale, "/guides/")] = await guidesSidebar(locale);
+  sidebar[localizedDocsPath(locale, "/cli/")] = await cliSidebar(locale);
+  sidebar[localizedDocsPath(locale, "/references/")] = await referencesSidebar(locale);
+  sidebar[localizedDocsPath(locale)] = await guidesSidebar(locale);
   return {
     nav: navBar(locale),
     sidebar,
@@ -177,6 +183,7 @@ function redirectToEnglishForGeneratedDocs(req, res) {
   if (!match) return false;
   const [, locale, rest] = match;
   if (locale === "en") return false;
+  const normalizedRest = stripDocsPathPrefix(rest);
 
   const redirect = (path) => {
     res.statusCode = 302;
@@ -184,9 +191,9 @@ function redirectToEnglishForGeneratedDocs(req, res) {
     res.end();
   };
 
-  if (rest.startsWith("/cli/")) {
-    if (localizedCliPassthrough.has(rest)) return false;
-    redirect(`/en${rest}`);
+  if (normalizedRest.startsWith("/cli/")) {
+    if (localizedCliPassthrough.has(normalizedRest)) return false;
+    redirect(localizedDocsPath("en", normalizedRest));
     return true;
   }
 
@@ -204,10 +211,23 @@ const devLocaleRedirectPlugin = () => ({
         req.url?.startsWith("/?")
       ) {
         res.statusCode = 302;
-        res.setHeader("Location", "/en/");
+        res.setHeader("Location", localizedDocsPath("en"));
         res.end();
         return;
       }
+
+      const legacyLocalePath = req.url?.match(/^\/([^/]+)(\/.+)$/);
+      if (legacyLocalePath) {
+        const [, locale, rest] = legacyLocalePath;
+
+        if (localeDirs.includes(locale) && !rest.startsWith("/docs")) {
+          res.statusCode = 302;
+          res.setHeader("Location", localizedDocsPath(locale, rest));
+          res.end();
+          return;
+        }
+      }
+
       if (redirectToEnglishForGeneratedDocs(req, res)) return;
       next();
     });
@@ -259,6 +279,7 @@ export default withMermaid(
       },
     },
     mpa: false,
+    rewrites: (id) => rewriteDocsPublicPath(id, localeDirs),
     locales: Object.fromEntries(
       await Promise.all(
         enabledLocales.map(async (locale) => {
@@ -278,6 +299,7 @@ export default withMermaid(
             locale,
             {
               ...localeConfig,
+              link: localizedDocsPath(locale),
               themeConfig: await themeConfig(locale),
             },
           ];
@@ -384,9 +406,12 @@ export default withMermaid(
         ),
         `/reference/project-description/* https://projectdescription.tuist.dev/documentation/projectdescription 301`,
       ].join("\n");
-      const redirects = `
+      const redirects = rewriteDocsRedirectRules(
+        `
 / /en/ 301
 /index /en/index 301
+/docs/:locale /:locale/docs/ 301
+/docs/:locale/* /:locale/docs/:splat 301
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -506,8 +531,15 @@ ${projectDescriptionRedirects}
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
-    `;
+        `,
+        localeDirs,
+      );
       await fs.writeFile(redirectsPath, redirects);
+    },
+    transformPageData(pageData) {
+      return {
+        relativePath: rewriteDocsPublicPath(pageData.relativePath, localeDirs),
+      };
     },
     themeConfig: {
       logo: "/logo.png",

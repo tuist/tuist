@@ -2,6 +2,11 @@ defmodule Tuist.Builds.BuildIssue do
   @moduledoc false
   use Ecto.Schema
 
+  @derive {
+    Flop.Schema,
+    filterable: [:build_run_id, :type, :target, :step_type], sortable: [:inserted_at]
+  }
+
   @primary_key false
   schema "build_issues" do
     field :type, Ch, type: "Enum8('warning' = 0, 'error' = 1)"

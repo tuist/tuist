@@ -15,6 +15,14 @@
             commandEventId: String,
             serverURL: URL
         ) async throws
+
+        func uploadSession(
+            _ sessionDirectory: AbsolutePath,
+            accountHandle: String,
+            projectHandle: String,
+            commandEventId: String,
+            serverURL: URL
+        ) async throws
     }
 
     public struct AnalyticsArtifactUploadService: AnalyticsArtifactUploadServicing {
@@ -140,6 +148,25 @@
             }
         }
 
+        public func uploadSession(
+            _ sessionDirectory: AbsolutePath,
+            accountHandle: String,
+            projectHandle: String,
+            commandEventId: String,
+            serverURL: URL
+        ) async throws {
+            try await uploadAnalyticsArtifact(
+                ServerCommandEvent.Artifact(
+                    type: .session
+                ),
+                artifactPath: sessionDirectory,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                commandEventId: commandEventId,
+                serverURL: serverURL
+            )
+        }
+
         private func uploadAnalyticsArtifact(
             _ artifact: ServerCommandEvent.Artifact,
             artifactPath: AbsolutePath,
@@ -156,6 +183,9 @@
             case .resultBundle:
                 artifactPath = try await fileArchiver.makeFileArchiver(for: [passedArtifactPath])
                     .zip(name: passedArtifactPath.basenameWithoutExt)
+            case .session:
+                artifactPath = try await fileArchiver.makeFileArchiver(for: [passedArtifactPath])
+                    .zip(name: "session")
             case .invocationRecord, .resultBundleObject:
                 artifactPath = passedArtifactPath
             }
