@@ -12,7 +12,7 @@
     <%= for entry <- @entries do %>
       <item>
         <title><![CDATA[ <%= Tuist.Marketing.Content.get_entry_title(entry) %> ]]></title>
-        <description><![CDATA[ <%= Tuist.Marketing.Content.get_entry_html(entry) %> ]]></description>
+        <description><![CDATA[ <%= Tuist.Marketing.Content.get_entry_body(entry) %> ]]></description>
         <link><%= Tuist.Environment.app_url(path: Tuist.Marketing.Content.get_entry_slug(entry)) %></link>
         <guid isPermaLink="false"><%= Tuist.Marketing.Content.get_entry_slug(entry) %></guid>
         <pubDate><%= entry |> Tuist.Marketing.Content.get_entry_date() |> Timex.format!("{RFC1123}")  %></pubDate>

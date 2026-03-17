@@ -38,32 +38,6 @@ defmodule Tuist.Marketing.Blog do
     end
   end
 
-  @doc """
-  Renders blog post markdown content to HTML using MDEx with server-side syntax highlighting.
-  """
-  def render_content(markdown) do
-    MDEx.to_html!(markdown,
-      extension: [
-        strikethrough: true,
-        table: true,
-        autolink: true,
-        tasklist: true,
-        header_ids: "",
-        phoenix_heex: true
-      ],
-      parse: [
-        smart: false,
-        relaxed_autolinks: true
-      ],
-      render: [
-        unsafe: true
-      ],
-      syntax_highlight: [
-        formatter: {:html_inline, theme: "onedark"}
-      ]
-    )
-  end
-
   def get_authors do
     %{
       "silvia" => %{

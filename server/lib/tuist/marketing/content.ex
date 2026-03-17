@@ -22,10 +22,6 @@ defmodule Tuist.Marketing.Content do
   def get_entry_title(entry), do: entry_data(entry).title
   def get_entry_excerpt(entry), do: entry_data(entry).excerpt
   def get_entry_body(entry), do: entry_data(entry).body
-
-  def get_entry_html({:post, post}), do: Blog.render_content(post.body)
-  def get_entry_html({:case_study, case_study}), do: case_study.body
-
   def get_entry_slug(entry), do: entry_data(entry).slug
   def get_entry_image_url(entry), do: entry_data(entry).image_url
   def get_entry_date(entry), do: entry_data(entry).date
