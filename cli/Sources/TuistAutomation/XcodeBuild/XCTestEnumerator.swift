@@ -21,14 +21,14 @@
 
     public enum XCTestEnumeratorError: LocalizedError, Equatable {
         case enumerationFailed(String)
-        case invalidOutput
+        case invalidOutput(String)
 
         public var errorDescription: String? {
             switch self {
             case let .enumerationFailed(message):
                 return "Test enumeration failed: \(message)"
-            case .invalidOutput:
-                return "Could not parse test enumeration output."
+            case let .invalidOutput(message):
+                return "Could not parse test enumeration output: \(message)"
             }
         }
     }
@@ -77,14 +77,14 @@
             }
 
             guard let data = result.standardOutput.data(using: .utf8) else {
-                throw XCTestEnumeratorError.invalidOutput
+                throw XCTestEnumeratorError.invalidOutput("Output is not valid UTF-8")
             }
 
             let enumerated: EnumeratedTests
             do {
                 enumerated = try JSONDecoder().decode(EnumeratedTests.self, from: data)
             } catch {
-                throw XCTestEnumeratorError.invalidOutput
+                throw XCTestEnumeratorError.invalidOutput(error.localizedDescription)
             }
 
             return enumerated.values

@@ -187,7 +187,7 @@
             )
 
             // When / Then
-            await #expect(throws: XCTestEnumeratorError.invalidOutput) {
+            await #expect(throws: XCTestEnumeratorError.self) {
                 try await subject.enumerateTests(
                     testProductsPath: testProductsPath,
                     scheme: "App",
