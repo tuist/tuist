@@ -110,35 +110,6 @@
             #expect(suites.isEmpty)
         }
 
-        // MARK: - findXCTestRunPath
-
-        @Test(.inTemporaryDirectory)
-        func findXCTestRunPath_findsFile() async throws {
-            // Given
-            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-            let xctestrunFile = temporaryDirectory.appending(components: ["Products", "Test.xctestrun"])
-            let fileSystem = FileSystem()
-            try await fileSystem.makeDirectory(at: xctestrunFile.parentDirectory)
-            try await fileSystem.writeText("", at: xctestrunFile)
-
-            // When
-            let result = try await subject.findXCTestRunPath(in: temporaryDirectory)
-
-            // Then
-            #expect(result == xctestrunFile)
-        }
-
-        @Test(.inTemporaryDirectory)
-        func findXCTestRunPath_throwsWhenNotFound() async throws {
-            // Given
-            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-
-            // When / Then
-            await #expect(throws: XCTestRunParserError.self) {
-                try await subject.findXCTestRunPath(in: temporaryDirectory)
-            }
-        }
-
         // MARK: - Error cases
 
         @Test(.inTemporaryDirectory)

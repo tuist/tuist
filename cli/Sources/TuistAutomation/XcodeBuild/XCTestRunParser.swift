@@ -8,19 +8,15 @@
     public protocol XCTestRunParsing {
         func parseTestModules(xctestrunPath: AbsolutePath) async throws -> [String]
         func parseTestSuites(xctestrunPath: AbsolutePath) async throws -> [String: [String]]
-        func findXCTestRunPath(in xctestproductsPath: AbsolutePath) async throws -> AbsolutePath
     }
 
     public enum XCTestRunParserError: LocalizedError, Equatable {
         case invalidFormat(String)
-        case xctestrunNotFound(AbsolutePath)
 
         public var errorDescription: String? {
             switch self {
             case let .invalidFormat(message):
                 return "The .xctestrun file has an invalid format: \(message)"
-            case let .xctestrunNotFound(path):
-                return "No .xctestrun file found in \(path.pathString)"
             }
         }
     }
@@ -74,14 +70,6 @@
                         result[target.blueprintName] = identifiers
                     }
                 }
-        }
-
-        public func findXCTestRunPath(in xctestproductsPath: AbsolutePath) async throws -> AbsolutePath {
-            let matches = try await fileSystem.glob(directory: xctestproductsPath, include: ["**/*.xctestrun"]).collect()
-            guard let first = matches.first else {
-                throw XCTestRunParserError.xctestrunNotFound(xctestproductsPath)
-            }
-            return first
         }
 
         private func readPlist<T: Decodable>(at path: AbsolutePath) async throws -> T {

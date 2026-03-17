@@ -25,6 +25,7 @@
     public enum ShardPlanServiceError: LocalizedError, Equatable {
         case noTestModulesFound
         case cannotDeriveSessionId
+        case xctestrunNotFound(AbsolutePath)
 
         public var errorDescription: String? {
             switch self {
@@ -32,6 +33,8 @@
                 return "No test modules found in the .xctestproducts bundle."
             case .cannotDeriveSessionId:
                 return "Cannot derive a shard session ID. Make sure you are running in a supported CI environment."
+            case let .xctestrunNotFound(path):
+                return "No .xctestrun file found in \(path.pathString)"
             }
         }
     }
@@ -86,7 +89,13 @@
                 throw ShardPlanServiceError.cannotDeriveSessionId
             }
 
-            let xctestrunPath = try await xcTestRunParser.findXCTestRunPath(in: xctestproductsPath)
+            guard let xctestrunPath = try await fileSystem
+                .glob(directory: xctestproductsPath, include: ["**/*.xctestrun"])
+                .collect()
+                .first
+            else {
+                throw ShardPlanServiceError.xctestrunNotFound(xctestproductsPath)
+            }
             let modules = try await xcTestRunParser.parseTestModules(xctestrunPath: xctestrunPath)
 
             guard !modules.isEmpty else {
