@@ -24,7 +24,7 @@
       <link href="<%= Tuist.Environment.app_url(path: Tuist.Marketing.Content.get_entry_slug(entry)) %>"/>
       <id><%= Tuist.Environment.app_url(path: Tuist.Marketing.Content.get_entry_slug(entry)) %></id>
       <updated><%= entry |> Tuist.Marketing.Content.get_entry_date() |> Timex.format!("{RFC1123}") %></updated>
-      <content type="html"><![CDATA[ <%= Tuist.Marketing.Content.get_entry_body(entry) %> ]]></content>
+      <content type="html"><![CDATA[ <%= Tuist.Marketing.Content.get_entry_html(entry) %> ]]></content>
     </entry>
   <% end %>
 </feed>

@@ -9,10 +9,7 @@ defmodule Tuist.Marketing.Blog do
     as: :posts,
     parser: Tuist.Marketing.Blog.PostParser,
     highlighters: [],
-    earmark_options: [
-      smartypants: false,
-      postprocessor: &Tuist.Earmark.ASTProcessor.process/1
-    ]
+    html_converter: Tuist.Marketing.Blog.MDExConverter
 
   @posts Enum.reverse(@posts)
   @categories @posts |> Enum.map(& &1.category) |> Enum.uniq()
@@ -42,10 +39,29 @@ defmodule Tuist.Marketing.Blog do
   end
 
   @doc """
-  Processes blog post content to extract components and HTML chunks.
+  Renders blog post markdown content to HTML using MDEx with server-side syntax highlighting.
   """
-  def process_content(content) do
-    Tuist.Marketing.BlogContentProcessor.process_content(content)
+  def render_content(markdown) do
+    MDEx.to_html!(markdown,
+      extension: [
+        strikethrough: true,
+        table: true,
+        autolink: true,
+        tasklist: true,
+        header_ids: "",
+        phoenix_heex: true
+      ],
+      parse: [
+        smart: false,
+        relaxed_autolinks: true
+      ],
+      render: [
+        unsafe: true
+      ],
+      syntax_highlight: [
+        formatter: {:html_inline, theme: "onedark"}
+      ]
+    )
   end
 
   def get_authors do
