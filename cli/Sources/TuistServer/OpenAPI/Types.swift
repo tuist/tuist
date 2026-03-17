@@ -4138,6 +4138,7 @@ public enum Components {
             /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
             /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            /// - session: A zipped CLI session directory containing logs and network recordings.
             ///
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
@@ -4145,11 +4146,13 @@ public enum Components {
                 case result_bundle = "result_bundle"
                 case invocation_record = "invocation_record"
                 case result_bundle_object = "result_bundle_object"
+                case session = "session"
             }
             /// The command event artifact type. It can be:
             /// - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
             /// - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
             /// - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+            /// - session: A zipped CLI session directory containing logs and network recordings.
             ///
             ///
             /// - Remark: Generated from `#/components/schemas/CommandEventArtifact/type`.
