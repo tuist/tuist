@@ -58,7 +58,8 @@ final class TrackableCommandTests: TuistTestCase {
             commandEventFactory: CommandEventFactory(
                 gitController: gitController
             ),
-            backgroundProcessRunner: backgroundProcessRunner
+            backgroundProcessRunner: backgroundProcessRunner,
+            sessionDirectory: fileHandler.currentPath
         )
     }
 
