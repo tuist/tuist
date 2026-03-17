@@ -6,6 +6,12 @@
 
     @Mockable
     public protocol XCTestEnumerating {
+        /// Enumerates tests in the given test products using `xcodebuild -enumerate-tests`.
+        /// - Parameters:
+        ///   - testProductsPath: Path to the `.xctestproducts` bundle.
+        ///   - scheme: The Xcode scheme whose tests should be enumerated.
+        ///   - destination: An optional xcodebuild destination string (e.g. `"platform=iOS Simulator,name=iPhone 16"`).
+        /// - Returns: A dictionary mapping each test target name to its list of test suite names.
         func enumerateTests(
             testProductsPath: AbsolutePath,
             scheme: String,
