@@ -63,7 +63,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
   test "shows provider options when SSO is enabled via toggle", %{conn: conn, account: account} do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-    html = render_hook(lv, "toggle_sso")
+    html = render_hook(lv, "toggle_sso", %{"checked" => true})
 
     assert html =~ "SSO provider"
   end
@@ -72,7 +72,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     test "disables save button when domain is empty", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => true})
       html = render_hook(lv, "select_provider", %{"value" => ["google"]})
 
       assert html =~ "disabled"
@@ -81,7 +81,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     test "shows error when user has no Google OAuth identity", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => true})
       render_hook(lv, "select_provider", %{"value" => ["google"]})
 
       html =
@@ -105,7 +105,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => true})
       render_hook(lv, "select_provider", %{"value" => ["google"]})
 
       html =
@@ -122,7 +122,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     test "disables save button when required fields are empty", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => true})
       html = render_hook(lv, "select_provider", %{"value" => ["okta"]})
 
       assert html =~ "disabled"
@@ -134,7 +134,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => true})
       render_hook(lv, "select_provider", %{"value" => ["okta"]})
 
       html =
@@ -152,7 +152,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     test "configures Okta SSO with all fields", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => true})
       render_hook(lv, "select_provider", %{"value" => ["okta"]})
 
       html =
@@ -173,7 +173,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     test "displays Okta setup instructions when okta is selected", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => true})
       html = render_hook(lv, "select_provider", %{"value" => ["okta"]})
 
       assert html =~ "Create App Integration"
@@ -185,7 +185,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     test "shows enforce SSO toggle when SSO is enabled", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-      html = render_hook(lv, "toggle_sso")
+      html = render_hook(lv, "toggle_sso", %{"checked" => true})
 
       assert html =~ "Enforce SSO"
     end
@@ -202,9 +202,9 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => true})
       render_hook(lv, "select_provider", %{"value" => ["google"]})
-      render_hook(lv, "toggle_sso_enforced")
+      render_hook(lv, "toggle_sso_enforced", %{"checked" => true})
 
       render_hook(lv, "validate_sso", %{
         "sso" => %{"google_domain" => "example.com"}
@@ -231,9 +231,9 @@ defmodule TuistWeb.SSOSettingsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => true})
       render_hook(lv, "select_provider", %{"value" => ["google"]})
-      render_hook(lv, "toggle_sso_enforced")
+      render_hook(lv, "toggle_sso_enforced", %{"checked" => true})
 
       render_hook(lv, "validate_sso", %{
         "sso" => %{"google_domain" => "example.com"}
@@ -275,7 +275,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
       assert html =~ "Enforce SSO"
 
       # Disable SSO entirely
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => false})
 
       html =
         lv
@@ -298,7 +298,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
   test "handles select_provider event with empty value", %{conn: conn, account: account} do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
-    render_hook(lv, "toggle_sso")
+    render_hook(lv, "toggle_sso", %{"checked" => true})
     html = render_hook(lv, "select_provider", %{"value" => []})
 
     assert html =~ "Single Sign-On"
@@ -317,7 +317,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{google_account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => false})
 
       html =
         lv
@@ -342,7 +342,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{okta_account.name}/sso")
 
-      render_hook(lv, "toggle_sso")
+      render_hook(lv, "toggle_sso", %{"checked" => false})
 
       html =
         lv
