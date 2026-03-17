@@ -57,6 +57,7 @@ extension XcodeGraph.BuildableFolder {
                 compilerFlags: compilerFlagsByPath[filePath]
             )
         }
+        .sorted { $0.path < $1.path }
 
         return XcodeGraph.BuildableFolder(
             path: path,
