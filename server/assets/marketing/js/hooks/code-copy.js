@@ -1,8 +1,6 @@
 const CodeCopy = {
   mounted() {
-    const copyButtons = this.el.querySelectorAll(
-      '#marketing-window [data-part="copy"]',
-    );
+    const copyButtons = this.el.querySelectorAll('[data-part="copy"]');
 
     copyButtons.forEach((button) => {
       button.addEventListener("click", () => {
