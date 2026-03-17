@@ -4,6 +4,7 @@ category: "vision"
 tags: ["xcode", "gradle", "build-systems", "cache", "infrastructure"]
 excerpt: "We plugged our infrastructure into Gradle in three weeks. Here is what we learned about the differences between Xcode and Gradle, and what it means for anyone building tools that sit between developers and their build systems."
 og_image_path: /marketing/images/blog/2026/03/16/xcode-and-gradle-two-worlds-one-infrastructure/og.jpg
+cta_title: "One platform for Xcode and Gradle."
 author: pepicrft
 ---
 
@@ -120,7 +121,7 @@ Three weeks from first line of Kotlin to a working plugin with remote caching, b
 
 It is empowering to see coding agents lowering the cost of expanding our value to new ecosystems. The work that used to take weeks of reverse engineering now takes days with the right agent and the right context. That changes the calculus of which ecosystems are worth investing in.
 
-It was also a great exercise in learning how another build system thinks. Understanding Gradle's design decisions, its plugin model, its approach to caching, puts us in a position to cross-pollinate ideas between ecosystems. Some patterns from Gradle inform how we approach Xcode tooling, and some of the depth we have built in the Apple ecosystem gives us perspective that Gradle-only teams might lack. **Being in both worlds makes us better at each one.**
+It was also a great exercise in learning how another build system thinks. Understanding Gradle's design decisions, its plugin model, its approach to caching, puts us in a position to cross-pollinate 🐝 ideas between ecosystems. Some patterns from Gradle inform how we approach Xcode tooling, and some of the depth we have built in the Apple ecosystem gives us perspective that Gradle-only teams might lack. **Being in both worlds makes us better at each one.**
 
 The Gradle builds and Xcode builds land in the same analytics pipeline. The dashboard shows the same kinds of insights. The flaky test detection uses the same algorithms. That said, we deliberately chose not to unify all data structures or force a common denominator. The data that build toolchains work with is heterogeneous, and trying to flatten Gradle tasks and Xcode compilation units into the same model would lose the nuance that makes the insights useful. But the patterns, the pipelines, the algorithms, those are shared. The toolchain layer is where the ecosystem-specific work happens, and once you get past it, the problems become universal.
 

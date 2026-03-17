@@ -21,7 +21,8 @@ defmodule Tuist.Marketing.Blog.Post do
     :tags,
     :category,
     :highlighted,
-    :og_image_path
+    :og_image_path,
+    :cta_title
   ]
 
   def build(_filename, attrs, body) do
@@ -44,7 +45,8 @@ defmodule Tuist.Marketing.Blog.Post do
       category: attrs["category"],
       tags: attrs["tags"] || [],
       highlighted: attrs["highlighted"] || false,
-      og_image_path: attrs["og_image_path"]
+      og_image_path: attrs["og_image_path"],
+      cta_title: attrs["cta_title"]
     )
   end
 end
