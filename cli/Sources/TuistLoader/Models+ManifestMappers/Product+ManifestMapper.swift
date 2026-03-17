@@ -47,6 +47,8 @@ extension XcodeGraph.Product {
             return .extensionKitExtension
         case .macro:
             return .macro
+        case .plugin:
+            return .commandLineTool
         }
     }
 }
