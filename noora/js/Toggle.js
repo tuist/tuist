@@ -36,7 +36,12 @@ export default {
   },
 
   updated() {
-    this.toggle.render();
+    const serverChecked = getBooleanOption(this.el, "checked");
+    if (this.toggle.api.checked !== serverChecked) {
+      this.toggle.api.setChecked(serverChecked);
+    } else {
+      this.toggle.render();
+    }
   },
 
   beforeDestroy() {
