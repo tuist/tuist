@@ -23,6 +23,9 @@
     }
 
     & > [data-part="copy"] {
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       color: var(--noora-button-neutral-label);
       padding: 6px;
