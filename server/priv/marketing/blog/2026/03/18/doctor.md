@@ -4,7 +4,7 @@ category: "vision"
 tags: ["vision", "productivity", "mcp", "agentic", "toolchain"]
 excerpt: "What if AI agents could diagnose your project like a doctor, using Tuist's data as their medical records?"
 author: pepicrft
-og_image_path: /marketing/images/blog/2026/03/20/mcp/og.jpg
+og_image_path: /marketing/images/blog/2026/03/18/mcp/og.jpg
 ---
 
 It's 8 am and the alarm goes off like every morning for David. He takes a shower, makes himself a quick coffee, and rushes to catch the public transport to his company's office in Berlin's Kreuzberg district.
