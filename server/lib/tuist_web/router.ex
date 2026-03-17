@@ -442,6 +442,9 @@ defmodule TuistWeb.Router do
         end
 
         scope "/builds" do
+          get "/", BuildsController, :index
+          get "/:build_id", BuildsController, :show
+          post "/", BuildsController, :create
           post "/upload/start", BuildsController, :multipart_start
           post "/upload/generate-url", BuildsController, :multipart_generate_url
           post "/upload/complete", BuildsController, :multipart_complete
