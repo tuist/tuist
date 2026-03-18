@@ -3,6 +3,7 @@ import Path
 import TuistCore
 import TuistLogging
 import TuistSupport
+import TuistXcodeBuildProducts
 import XcodeGraph
 
 public protocol TargetBuilding {

@@ -11,6 +11,7 @@ import TuistGit
 import TuistLogging
 import TuistServer
 import TuistSupport
+import TuistXcodeBuildProducts
 import XcodeGraph
 
 #if os(macOS)
@@ -60,7 +61,7 @@ public struct InspectBundleCommandService {
     #if os(macOS)
         private let fileSystem: FileSysteming
         private let fileHandler: FileHandling
-        private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
+        private let builtAppBundleLocator: BuiltAppBundleLocating
         private let manifestLoader: ManifestLoading
         private let manifestGraphLoader: ManifestGraphLoading
         private let userInputReader: UserInputReading
@@ -84,7 +85,7 @@ public struct InspectBundleCommandService {
             let manifestLoader = ManifestLoader.current
             self.fileSystem = FileSystem()
             self.fileHandler = FileHandler.shared
-            self.xcodeProjectBuildDirectoryLocator = XcodeProjectBuildDirectoryLocator()
+            self.builtAppBundleLocator = BuiltAppBundleLocator()
             self.manifestLoader = manifestLoader
             self.manifestGraphLoader = ManifestGraphLoader(
                 manifestLoader: manifestLoader,
@@ -118,7 +119,10 @@ public struct InspectBundleCommandService {
             self.serverEnvironmentService = serverEnvironmentService
             self.gitController = gitController
             self.fileHandler = fileHandler
-            self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
+            self.builtAppBundleLocator = BuiltAppBundleLocator(
+                fileSystem: fileSystem,
+                xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator
+            )
             self.manifestLoader = manifestLoader
             self.manifestGraphLoader = manifestGraphLoader
             self.userInputReader = userInputReader
@@ -335,28 +339,14 @@ public struct InspectBundleCommandService {
             platforms: [Platform],
             derivedDataPath: AbsolutePath?
         ) async throws -> AbsolutePath {
-            let appPaths = try await platforms
-                .concurrentFlatMap { platform -> [DestinationType] in
-                    switch platform {
-                    case .iOS, .tvOS, .visionOS, .watchOS:
-                        return [
-                            .simulator(platform),
-                            .device(platform),
-                        ]
-                    case .macOS:
-                        return [.device(platform)]
-                    }
-                }
-                .concurrentCompactMap { destinationType in
-                    let buildDirectory = try await xcodeProjectBuildDirectoryLocator.locate(
-                        destinationType: destinationType,
-                        projectPath: workspacePath,
-                        derivedDataPath: derivedDataPath,
-                        configuration: configuration
-                    )
-                    let appPath = buildDirectory.appending(component: "\(app).app")
-                    return try await fileSystem.exists(appPath) ? appPath : nil
-                }
+            let appPaths = try await builtAppBundleLocator.locateBuiltAppBundles(
+                app: app,
+                projectPath: workspacePath,
+                derivedDataPath: derivedDataPath,
+                configuration: configuration,
+                platforms: platforms
+            )
+            .map(\.path)
 
             guard !appPaths.isEmpty else {
                 throw InspectBundleCommandServiceError.noAppsFound(app: app, configuration: configuration)

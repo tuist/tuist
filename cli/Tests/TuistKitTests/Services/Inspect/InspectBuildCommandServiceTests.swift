@@ -13,6 +13,7 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import TuistXcodeProjectOrWorkspacePathLocator
 import XcodeGraph
 

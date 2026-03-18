@@ -12,6 +12,7 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistUniqueIDGenerator
+import TuistXcodeBuildProducts
 import TuistXCActivityLog
 
 @testable import TuistKit

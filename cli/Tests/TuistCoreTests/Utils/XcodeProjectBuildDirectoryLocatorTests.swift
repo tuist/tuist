@@ -1,9 +1,10 @@
 import Foundation
 import Path
 import TuistTesting
+import TuistXcodeBuildProducts
 import XCTest
 
-@testable import TuistCore
+@testable import TuistXcodeBuildProducts
 
 final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
     private var derivedDataLocator: MockDerivedDataLocator!

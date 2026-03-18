@@ -18,6 +18,7 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistUserInputReader
+import TuistXcodeBuildProducts
 import XcodeGraph
 
 import TuistKit

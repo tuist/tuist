@@ -2,19 +2,9 @@ import Foundation
 import Mockable
 import Path
 import TuistSimulator
-import TuistSupport
 
 @Mockable
 public protocol XcodeProjectBuildDirectoryLocating {
-    /// Locates the build output directory for `xcodebuild` command.
-    ///
-    /// For example: `~/Library/Developer/Xcode/DerivedData/PROJECT_NAME/Build/Products/CONFIG_NAME`
-    ///
-    /// - Parameters:
-    ///   - destinationType: The destination platform for the built scheme.
-    ///   - projectPath: The path of the Xcode project or workspace.
-    ///   - derivedDataPath: The path of the derived data
-    ///   - configuration: The configuration name, i.e. `Release`, `Debug`, or something custom.
     func locate(
         destinationType: DestinationType,
         projectPath: AbsolutePath,
@@ -39,18 +29,14 @@ public struct XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocat
         let derivedDataDirectory = if let derivedDataPath {
             derivedDataPath
         } else {
-            try await derivedDataLocator.locate(
-                for: projectPath
-            )
+            try await derivedDataLocator.locate(for: projectPath)
         }
 
         return derivedDataDirectory
             .appending(component: "Build")
             .appending(component: "Products")
             .appending(
-                component: destinationType.buildProductDestinationPathComponent(
-                    for: configuration
-                )
+                component: destinationType.buildProductDestinationPathComponent(for: configuration)
             )
     }
 }
