@@ -160,8 +160,9 @@ defmodule TuistWeb.API.ShardsController do
          ) do
       {:ok, result} ->
         json(conn, %{
-          test_targets: result.test_targets,
-          bundle_download_url: result.bundle_download_url
+          modules: result.modules,
+          suites: result.suites,
+          download_url: result.download_url
         })
 
       {:error, :not_found} ->

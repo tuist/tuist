@@ -92,19 +92,20 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        targets = fetch_shard_targets(plan, plan_id, project.id, shard_index)
+        case fetch_shard_data(plan, plan_id, project.id, shard_index) do
+          nil ->
+            {:error, :invalid_shard_index}
 
-        if targets == nil do
-          {:error, :invalid_shard_index}
-        else
-          bundle_download_url =
-            Storage.generate_download_url(bundle_object_key(account, project, plan_id), account)
+          %{modules: modules, suites: suites} ->
+            download_url =
+              Storage.generate_download_url(bundle_object_key(account, project, plan_id), account)
 
-          {:ok,
-           %{
-             test_targets: targets,
-             bundle_download_url: bundle_download_url
-           }}
+            {:ok,
+             %{
+               modules: modules,
+               suites: suites,
+               download_url: download_url
+             }}
         end
     end
   end
@@ -189,8 +190,8 @@ defmodule Tuist.Shards do
     if rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, rows)
   end
 
-  defp fetch_shard_targets(%ShardPlan{granularity: "module"}, plan_id, project_id, shard_index) do
-    results =
+  defp fetch_shard_data(%ShardPlan{granularity: "module"}, plan_id, project_id, shard_index) do
+    modules =
       ClickHouseRepo.all(
         from(m in ShardPlanModule,
           where: m.plan_id == ^plan_id,
@@ -200,10 +201,10 @@ defmodule Tuist.Shards do
         )
       )
 
-    if results == [], do: nil, else: results
+    if modules == [], do: nil, else: %{modules: modules, suites: %{}}
   end
 
-  defp fetch_shard_targets(%ShardPlan{granularity: "suite"}, plan_id, project_id, shard_index) do
+  defp fetch_shard_data(%ShardPlan{granularity: "suite"}, plan_id, project_id, shard_index) do
     results =
       ClickHouseRepo.all(
         from(s in ShardPlanTestSuite,
@@ -217,7 +218,9 @@ defmodule Tuist.Shards do
     if results == [] do
       nil
     else
-      Enum.group_by(results, fn {mod, _} -> mod end, fn {_, suite} -> suite end)
+      suites = Enum.group_by(results, fn {mod, _} -> mod end, fn {_, suite} -> suite end)
+      modules = Map.keys(suites)
+      %{modules: modules, suites: suites}
     end
   end
 

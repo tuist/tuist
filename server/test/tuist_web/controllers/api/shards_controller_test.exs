@@ -79,7 +79,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
   describe "GET /api/projects/:account/:project/tests/shards/:plan_id/:shard_index" do
     test "returns shard assignment for valid params", %{conn: conn, user: user, project: project} do
       stub(Tuist.Shards, :get_shard, fn _project, _account, _plan_id, _shard_index ->
-        {:ok, %{test_targets: ["AppTests"], bundle_download_url: "https://download.example.com"}}
+        {:ok, %{modules: ["AppTests"], suites: %{}, download_url: "https://download.example.com"}}
       end)
 
       conn =
@@ -88,8 +88,9 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/0")
 
       response = json_response(conn, :ok)
-      assert response["test_targets"] == ["AppTests"]
-      assert response["bundle_download_url"] == "https://download.example.com"
+      assert response["modules"] == ["AppTests"]
+      assert response["suites"] == %{}
+      assert response["download_url"] == "https://download.example.com"
     end
 
     test "returns not found for nonexistent session", %{conn: conn, user: user, project: project} do

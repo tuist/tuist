@@ -3,22 +3,16 @@ defmodule Tuist.ShardsTest do
   use Mimic
 
   alias Tuist.Shards
-  alias Tuist.Shards.ShardPlan
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
 
   describe "create_shard_plan/3" do
     test "creates a shard plan with module-level granularity" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      stub(Tuist.IngestRepo, :all, fn _query -> [] end)
+      stub(Tuist.ClickHouseRepo, :all, fn _query -> [] end)
       stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id-123" end)
-
-      stub(Tuist.IngestRepo, :insert, fn changeset ->
-        {:ok, Ecto.Changeset.apply_changes(changeset)}
-      end)
-
-      stub(Tuist.IngestRepo, :insert_all, fn _schema, _data -> {1, nil} end)
 
       params = %{
         plan_id: "github-123-1",
@@ -43,7 +37,7 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      stub(Tuist.IngestRepo, :all, fn _query ->
+      stub(Tuist.ClickHouseRepo, :all, fn _query ->
         [
           %{name: "SlowTests", avg_duration: 100_000.0},
           %{name: "FastTests", avg_duration: 10_000.0}
@@ -51,12 +45,6 @@ defmodule Tuist.ShardsTest do
       end)
 
       stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id" end)
-
-      stub(Tuist.IngestRepo, :insert, fn changeset ->
-        {:ok, Ecto.Changeset.apply_changes(changeset)}
-      end)
-
-      stub(Tuist.IngestRepo, :insert_all, fn _schema, _data -> {1, nil} end)
 
       params = %{
         plan_id: "session-1",
@@ -72,14 +60,8 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      stub(Tuist.IngestRepo, :all, fn _query -> [] end)
+      stub(Tuist.ClickHouseRepo, :all, fn _query -> [] end)
       stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id" end)
-
-      stub(Tuist.IngestRepo, :insert, fn changeset ->
-        {:ok, Ecto.Changeset.apply_changes(changeset)}
-      end)
-
-      stub(Tuist.IngestRepo, :insert_all, fn _schema, _data -> {1, nil} end)
 
       params = %{
         plan_id: "session-2",
@@ -94,36 +76,80 @@ defmodule Tuist.ShardsTest do
   end
 
   describe "get_shard/4" do
-    test "returns assignment for valid shard index with module granularity" do
+    test "returns modules for module granularity" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      plan = %ShardPlan{
-        id: Ecto.UUID.generate(),
-        plan_id: "session-1",
-        project_id: project.id,
-        shard_count: 2,
-        granularity: "module",
-        inserted_at: NaiveDateTime.utc_now()
-      }
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, plan_id: "plan-1", granularity: "module")
 
-      stub(Tuist.IngestRepo, :one, fn _query -> plan end)
-      stub(Tuist.IngestRepo, :all, fn _query -> ["AppTests"] end)
+      ShardsFixtures.shard_plan_module_fixture(
+        plan_id: plan.plan_id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "AppTests"
+      )
+
+      ShardsFixtures.shard_plan_module_fixture(
+        plan_id: plan.plan_id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "CoreTests"
+      )
+
+      ShardsFixtures.optimize_shard_plans()
+      ShardsFixtures.optimize_shard_plan_modules()
 
       stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
         "https://download.example.com"
       end)
 
-      assert {:ok, result} = Shards.get_shard(project, account, "session-1", 0)
-      assert result.test_targets == ["AppTests"]
-      assert result.bundle_download_url == "https://download.example.com"
+      assert {:ok, result} = Shards.get_shard(project, account, "plan-1", 0)
+      assert Enum.sort(result.modules) == ["AppTests", "CoreTests"]
+      assert result.suites == %{}
+      assert result.download_url == "https://download.example.com"
     end
 
-    test "returns error for nonexistent session" do
+    test "returns suites grouped by module for suite granularity" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      stub(Tuist.IngestRepo, :one, fn _query -> nil end)
+      plan =
+        ShardsFixtures.shard_plan_fixture(project_id: project.id, plan_id: "plan-2", granularity: "suite")
+
+      ShardsFixtures.shard_plan_test_suite_fixture(
+        plan_id: plan.plan_id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "AppTests",
+        test_suite_name: "LoginTests"
+      )
+
+      ShardsFixtures.shard_plan_test_suite_fixture(
+        plan_id: plan.plan_id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "AppTests",
+        test_suite_name: "SignupTests"
+      )
+
+      ShardsFixtures.optimize_shard_plans()
+      ShardsFixtures.optimize_shard_plan_test_suites()
+
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
+        "https://download.example.com"
+      end)
+
+      assert {:ok, result} = Shards.get_shard(project, account, "plan-2", 0)
+      assert result.modules == ["AppTests"]
+      assert result.suites == %{"AppTests" => ["LoginTests", "SignupTests"]}
+      assert result.download_url == "https://download.example.com"
+    end
+
+    test "returns error for nonexistent plan" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      ShardsFixtures.optimize_shard_plans()
 
       assert {:error, :not_found} =
                Shards.get_shard(project, account, "nonexistent", 0)
@@ -133,20 +159,12 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      plan = %ShardPlan{
-        id: Ecto.UUID.generate(),
-        plan_id: "session-1",
-        project_id: project.id,
-        shard_count: 2,
-        granularity: "module",
-        inserted_at: NaiveDateTime.utc_now()
-      }
-
-      stub(Tuist.IngestRepo, :one, fn _query -> plan end)
-      stub(Tuist.IngestRepo, :all, fn _query -> [] end)
+      ShardsFixtures.shard_plan_fixture(project_id: project.id, plan_id: "plan-3", granularity: "module")
+      ShardsFixtures.optimize_shard_plans()
+      ShardsFixtures.optimize_shard_plan_modules()
 
       assert {:error, :invalid_shard_index} =
-               Shards.get_shard(project, account, "session-1", 5)
+               Shards.get_shard(project, account, "plan-3", 5)
     end
   end
 
