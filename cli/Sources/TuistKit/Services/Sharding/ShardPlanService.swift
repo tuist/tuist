@@ -15,7 +15,7 @@
     public protocol ShardPlanServicing {
         func plan(
             xctestproductsPath: AbsolutePath,
-            scheme: String,
+            schemes: [String],
             planId: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -82,7 +82,7 @@
 
         public func plan(
             xctestproductsPath: AbsolutePath,
-            scheme: String,
+            schemes: [String],
             planId: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -112,12 +112,16 @@
 
             var testSuites: [String]?
             if shardGranularity == .suite {
-                let suitesMap = try await xcTestEnumerator.enumerateTests(
-                    testProductsPath: xctestproductsPath,
-                    scheme: scheme,
-                    destination: nil
-                )
-                testSuites = suitesMap.flatMap { $0.value }
+                var allSuites: [String] = []
+                for scheme in schemes {
+                    let suitesMap = try await xcTestEnumerator.enumerateTests(
+                        testProductsPath: xctestproductsPath,
+                        scheme: scheme,
+                        destination: nil
+                    )
+                    allSuites += suitesMap.flatMap { $0.value }
+                }
+                testSuites = allSuites
             }
 
             Logger.current.debug("Creating shard plan '\(planId)' with \(modules.count) test modules...")

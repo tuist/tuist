@@ -28,6 +28,7 @@ public enum TestServiceError: FatalError, Equatable {
     case duplicatedTestTargets(Set<TestIdentifier>)
     case nothingToSkip(skipped: [TestIdentifier], included: [TestIdentifier])
     case actionInvalid
+    case testProductsNotFound
     case unspecifiedPlatform(target: String, platforms: [String])
 
     // Error description
@@ -67,6 +68,8 @@ public enum TestServiceError: FatalError, Equatable {
                 "Some of the targets specified in --skip-test-targets (\(skippedTargets.map(\.description).joined(separator: ", "))) will always be skipped as they are not included in the targets specified (\(includedTargets.map(\.description).joined(separator: ", ")))"
         case .actionInvalid:
             return "Cannot specify both --build-only and --without-building"
+        case .testProductsNotFound:
+            return "Could not find .xctestproducts bundle. Pass -derivedDataPath explicitly."
         case let .unspecifiedPlatform(target, platforms):
             return
                 "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
@@ -391,17 +394,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         var passthroughXcodeBuildArguments = passthroughXcodeBuildArguments
-        var shardTestProductsPath: AbsolutePath?
-        let effectiveSchemeName = schemeName ?? schemes.first?.name ?? "Test"
-
-        if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build {
-            let testProductsDir = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
-                .appending(component: "shard-test-products")
-            try await fileSystem.makeDirectory(at: testProductsDir)
-            let productsPath = testProductsDir.appending(component: "\(effectiveSchemeName).xctestproducts")
-            shardTestProductsPath = productsPath
-            passthroughXcodeBuildArguments += ["-testProductsPath", productsPath.pathString]
-        }
 
         let schemeTestTargetNames = Set(
             schemes.flatMap {
@@ -451,21 +443,22 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
-           let shardTestProductsPath,
            let fullHandle = config.fullHandle
         {
+            let testProductsPath = try await resolveTestProductsPath(derivedDataPath: derivedDataPath)
+
             let selectiveTestingGraph = computeSelectiveTestingGraph(
                 mapperEnvironment: mapperEnvironment,
                 schemes: schemes,
                 testPlanConfiguration: testPlanConfiguration
             )
-            let selectiveTestingGraphPath = shardTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
+            let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
             try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             _ = try await shardPlanService.plan(
-                xctestproductsPath: shardTestProductsPath,
-                scheme: effectiveSchemeName,
+                xctestproductsPath: testProductsPath,
+                schemes: schemes.map(\.name),
                 planId: shardPlanId,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
@@ -641,6 +634,27 @@ public struct TestService { // swiftlint:disable:this type_body_length
         try? await fileSystem.remove(shard.testProductsPath)
 
         AlertController.current.success(.alert("The project tests ran successfully"))
+    }
+
+    private func resolveTestProductsPath(derivedDataPath: AbsolutePath?) async throws -> AbsolutePath {
+        guard let derivedDataPath else {
+            throw TestServiceError.testProductsNotFound
+        }
+        let buildProductsPath = derivedDataPath.appending(components: "Build", "Products")
+        let matches = try await fileSystem
+            .glob(directory: buildProductsPath, include: ["*.xctestproducts"])
+            .collect()
+        guard let match = try await matches
+            .concurrentCompactMap { path -> (path: AbsolutePath, date: Date)? in
+                guard let metadata = try? await fileSystem.fileMetadata(at: path) else { return nil }
+                return (path, metadata.lastModificationDate)
+            }
+            .sorted(by: { $0.date > $1.date })
+            .first?.path
+        else {
+            throw TestServiceError.testProductsNotFound
+        }
+        return match
     }
 
     private func computeSelectiveTestingGraph(
