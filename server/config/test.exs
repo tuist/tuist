@@ -68,3 +68,9 @@ config :tuist,
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
   api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
+
+# Prevent ExAws.Config.AuthCache from trying to fetch credentials from AWS instance metadata
+config :ex_aws,
+  access_key_id: "test",
+  secret_access_key: "test",
+  region: "us-east-1"
