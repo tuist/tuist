@@ -126,7 +126,7 @@
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 planId: planId,
-                modules: shardGranularity == .module ? modules : nil,
+                modules: modules,
                 testSuites: testSuites,
                 shardMin: shardMin,
                 shardMax: shardMax,
