@@ -185,18 +185,14 @@ struct XcodeBuildBuildCommandService {
             .glob(directory: buildProductsPath, include: ["*.xctestproducts"])
             .collect()
 
-        var mostRecent: AbsolutePath?
-        var mostRecentDate: Date = .distantPast
-        for path in matches {
-            if let metadata = try? await fileSystem.fileMetadata(at: path),
-               metadata.lastModificationDate > mostRecentDate
-            {
-                mostRecent = path
-                mostRecentDate = metadata.lastModificationDate
+        guard let match = try await matches
+            .concurrentCompactMap { path -> (path: AbsolutePath, date: Date)? in
+                guard let metadata = try? await fileSystem.fileMetadata(at: path) else { return nil }
+                return (path, metadata.lastModificationDate)
             }
-        }
-
-        guard let match = mostRecent else {
+            .sorted(by: { $0.date > $1.date })
+            .first?.path
+        else {
             throw XcodeBuildBuildCommandServiceError.testProductsNotFound
         }
 
