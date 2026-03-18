@@ -931,6 +931,7 @@ defmodule Tuist.TestsTest do
 
       # When
       {:ok, test} = Tests.create_test(test_attrs)
+      Oban.drain_queue(queue: :default)
 
       # Then
       assert test.id == test_attrs.id
@@ -1005,6 +1006,7 @@ defmodule Tuist.TestsTest do
 
       # When
       {:ok, test} = Tests.create_test(test_attrs)
+      Oban.drain_queue(queue: :default)
 
       # Then
       # Verify test suites were created
@@ -1154,6 +1156,7 @@ defmodule Tuist.TestsTest do
 
       # When
       {:ok, test} = Tests.create_test(test_attrs)
+      Oban.drain_queue(queue: :default)
 
       # Then
       # Verify test was created with failure status
@@ -1662,6 +1665,7 @@ defmodule Tuist.TestsTest do
 
       # When
       {:ok, test} = Tests.create_test(test_attrs)
+      Oban.drain_queue(queue: :default)
 
       # Then - test run should be marked as flaky with original status preserved
       assert test.status == "success"
@@ -1735,6 +1739,7 @@ defmodule Tuist.TestsTest do
 
       # When
       {:ok, test} = Tests.create_test(test_attrs)
+      Oban.drain_queue(queue: :default)
 
       # Then - test run should NOT be marked as flaky for non-CI
       assert test.status == "success"
@@ -1796,6 +1801,7 @@ defmodule Tuist.TestsTest do
       }
 
       {:ok, ci_test} = Tests.create_test(ci_test_attrs)
+      Oban.drain_queue(queue: :default)
 
       # Get the test case ID from the CI run
       {ci_test_case_runs, _meta} =
@@ -1844,6 +1850,7 @@ defmodule Tuist.TestsTest do
       }
 
       {:ok, _non_ci_test} = Tests.create_test(non_ci_test_attrs)
+      Oban.drain_queue(queue: :default)
 
       # TestCase should STILL be marked as flaky (non-CI run should not clear it)
       {:ok, test_case_after_non_ci} = Tests.get_test_case_by_id(test_case_id)
@@ -2490,10 +2497,9 @@ defmodule Tuist.TestsTest do
           ]
         })
 
-      # Second test run should be marked as flaky (cross-run detection)
-      assert second_test.is_flaky == true
+      Oban.drain_queue(queue: :default)
 
-      # Verify the ClickHouse record is also updated
+      # Second test run should be marked as flaky (cross-run detection)
       RunsFixtures.optimize_test_runs()
       {:ok, refetched_second_test} = Tests.get_test(second_test.id)
       assert refetched_second_test.is_flaky == true
@@ -4926,6 +4932,7 @@ defmodule Tuist.TestsTest do
       }
 
       {:ok, test} = Tests.create_test(test_attrs)
+      Oban.drain_queue(queue: :default)
 
       # Then - the test case run should be marked as new
       {test_case_runs, _meta} =
@@ -5086,6 +5093,7 @@ defmodule Tuist.TestsTest do
       }
 
       {:ok, ci_test} = Tests.create_test(ci_feature_attrs)
+      Oban.drain_queue(queue: :default)
 
       # Then - the test case run should still be marked as new (non-CI runs don't count)
       {test_case_runs, _meta} =
@@ -5171,6 +5179,7 @@ defmodule Tuist.TestsTest do
       }
 
       {:ok, feature_test} = Tests.create_test(feature_test_attrs)
+      Oban.drain_queue(queue: :default)
 
       # Then - one should be new, one should not
       {test_case_runs, _meta} =
@@ -5239,6 +5248,8 @@ defmodule Tuist.TestsTest do
           is_ci: true,
           test_modules: [test_module]
         })
+
+      Oban.drain_queue(queue: :default)
 
       # Then - there should be exactly one first_run event
       {test_case_runs, _meta} =

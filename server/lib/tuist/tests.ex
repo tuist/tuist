@@ -24,6 +24,7 @@ defmodule Tuist.Tests do
   alias Tuist.Accounts.Account
   alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.ClickHouseRepo
+  alias Tuist.Tests.Workers.ProcessTestRunWorker
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -178,6 +179,7 @@ defmodule Tuist.Tests do
   def get_test_run_failures_count(test_run_id) do
     query =
       from tcr in TestCaseRun,
+        hints: ["FINAL"],
         where: tcr.test_run_id == ^test_run_id and tcr.status == "failure",
         select: count(tcr.id)
 
@@ -232,26 +234,361 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        {test_case_ids_with_flaky_run, test_case_runs} = create_test_modules(test, test_modules)
+        {minimal_test_case_runs, module_ids, suite_ids_by_module, test_case_run_ids_by_module} =
+          build_minimal_test_case_runs(test, test_modules)
 
-        test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
+        IngestRepo.insert_all(TestCaseRun, minimal_test_case_runs)
 
-        schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
+        schedule_process_test_run(test, test_modules, module_ids, suite_ids_by_module, test_case_run_ids_by_module)
 
-        project = Tuist.Projects.get_project_by_id(test.project_id)
-
-        Tuist.PubSub.broadcast(
-          test,
-          "#{project.account.name}/#{project.name}",
-          :test_created
-        )
-
-        {:ok, %{test | test_case_runs: test_case_runs}}
+        {:ok, %{test | test_case_runs: minimal_test_case_runs}}
 
       {:error, changeset} ->
         {:error, changeset}
     end
   end
+
+  @doc """
+  Processes the deferred parts of a test run asynchronously (called by ProcessTestRunWorker).
+
+  Inserts module/suite aggregates, runs flaky and new-test-case detection, creates full
+  TestCase records, re-inserts TestCaseRun rows with correct is_flaky/is_new flags, inserts
+  failures and repetitions, fires PubSub, and schedules FlakyThresholdCheckWorker.
+  """
+  def process_test_run_deferred(%{
+        "test_id" => test_id,
+        "test_modules" => serialized_modules,
+        "module_ids" => module_ids,
+        "suite_ids_by_module" => suite_ids_by_module,
+        "test_case_run_ids_by_module" => test_case_run_ids_by_module
+      }) do
+    {:ok, test} = get_test(test_id)
+    test_modules = atomize_test_module_keys(serialized_modules)
+
+    test_case_run_data = get_test_case_run_data(test, test_modules)
+
+    {test_case_ids_with_flaky_run, _test_case_runs} =
+      [test_modules, module_ids, suite_ids_by_module, test_case_run_ids_by_module]
+      |> Enum.zip()
+      |> Enum.flat_map_reduce([], fn {module_attrs, module_id, suite_name_to_id, case_run_ids}, acc_test_case_runs ->
+        module_name = Map.get(module_attrs, :name)
+        test_suites = Map.get(module_attrs, :test_suites, [])
+        test_cases = Map.get(module_attrs, :test_cases, [])
+
+        module_test_case_run_data =
+          test_case_run_data
+          |> Enum.filter(fn {{_name, mod_name, _suite}, _data} -> mod_name == module_name end)
+          |> Map.new()
+
+        module_is_flaky = any_test_case_run_flaky?(Map.values(module_test_case_run_data))
+
+        {:ok, _} =
+          %TestModuleRun{}
+          |> TestModuleRun.create_changeset(%{
+            id: module_id,
+            name: module_name,
+            test_run_id: test.id,
+            status: Map.get(module_attrs, :status),
+            is_flaky: module_is_flaky,
+            duration: Map.get(module_attrs, :duration, 0),
+            test_suite_count: length(test_suites),
+            test_case_count: length(test_cases),
+            avg_test_case_duration: calculate_avg_test_case_duration(test_cases),
+            inserted_at: NaiveDateTime.utc_now()
+          })
+          |> IngestRepo.insert()
+
+        test_cases_by_suite =
+          Enum.group_by(test_cases, &(Map.get(&1, :test_suite_name, "") || ""))
+
+        suite_runs =
+          Enum.map(test_suites, fn suite_attrs ->
+            suite_name = Map.get(suite_attrs, :name)
+            suite_id = Map.get(suite_name_to_id, suite_name)
+            suite_test_cases = Map.get(test_cases_by_suite, suite_name, [])
+
+            suite_data =
+              module_test_case_run_data
+              |> Enum.filter(fn {{_name, _module, suite}, _data} -> suite == suite_name end)
+              |> Enum.map(fn {_key, data} -> data end)
+
+            %{
+              id: suite_id,
+              name: suite_name,
+              test_run_id: test.id,
+              test_module_run_id: module_id,
+              status: Map.get(suite_attrs, :status),
+              is_flaky: any_test_case_run_flaky?(suite_data),
+              duration: Map.get(suite_attrs, :duration, 0),
+              test_case_count: length(suite_test_cases),
+              avg_test_case_duration: calculate_avg_test_case_duration(suite_test_cases),
+              inserted_at: NaiveDateTime.utc_now()
+            }
+          end)
+
+        IngestRepo.insert_all(TestSuiteRun, suite_runs)
+
+        {flaky_ids, test_case_runs} =
+          create_deferred_test_cases_for_module(
+            test,
+            module_id,
+            test_cases,
+            suite_name_to_id,
+            module_name,
+            module_test_case_run_data,
+            case_run_ids
+          )
+
+        {flaky_ids, acc_test_case_runs ++ test_case_runs}
+      end)
+
+    test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
+
+    schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
+
+    project = Tuist.Projects.get_project_by_id(test.project_id)
+
+    Tuist.PubSub.broadcast(
+      test,
+      "#{project.account.name}/#{project.name}",
+      :test_created
+    )
+
+    :ok
+  end
+
+  defp build_minimal_test_case_runs(test, test_modules) do
+    now = NaiveDateTime.utc_now()
+
+    Enum.reduce(test_modules, {[], [], [], []}, fn module_attrs, {runs_acc, mod_ids_acc, suite_ids_acc, case_run_ids_acc} ->
+      module_id = UUIDv7.generate()
+      module_name = Map.get(module_attrs, :name)
+      test_suites = Map.get(module_attrs, :test_suites, [])
+      test_cases = Map.get(module_attrs, :test_cases, [])
+
+      suite_name_to_id =
+        Map.new(test_suites, fn suite_attrs ->
+          {Map.get(suite_attrs, :name), UUIDv7.generate()}
+        end)
+
+      {module_test_case_runs, case_run_ids} =
+        Enum.map_reduce(test_cases, [], fn case_attrs, ids_acc ->
+          test_case_run_id = UUIDv7.generate()
+          case_name = Map.get(case_attrs, :name)
+          suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+          test_suite_run_id = Map.get(suite_name_to_id, suite_name)
+          test_case_id = generate_test_case_id(test.project_id, case_name, module_name, suite_name)
+
+          test_case_run = %{
+            id: test_case_run_id,
+            name: case_name,
+            test_run_id: test.id,
+            test_module_run_id: module_id,
+            test_suite_run_id: test_suite_run_id,
+            test_case_id: test_case_id,
+            project_id: test.project_id,
+            is_ci: test.is_ci,
+            scheme: test.scheme,
+            account_id: test.account_id,
+            ran_at: test.ran_at,
+            git_branch: test.git_branch,
+            git_commit_sha: test.git_commit_sha || "",
+            status: Map.get(case_attrs, :status),
+            is_flaky: test_case_is_flaky?(case_attrs),
+            is_new: false,
+            duration: Map.get(case_attrs, :duration, 0),
+            inserted_at: now,
+            module_name: module_name,
+            suite_name: suite_name
+          }
+
+          {test_case_run, ids_acc ++ [test_case_run_id]}
+        end)
+
+      {
+        runs_acc ++ module_test_case_runs,
+        mod_ids_acc ++ [module_id],
+        suite_ids_acc ++ [suite_name_to_id],
+        case_run_ids_acc ++ [case_run_ids]
+      }
+    end)
+  end
+
+  defp schedule_process_test_run(test, test_modules, module_ids, suite_ids_by_module, test_case_run_ids_by_module) do
+    %{
+      test_id: test.id,
+      test_modules: test_modules,
+      module_ids: module_ids,
+      suite_ids_by_module: suite_ids_by_module,
+      test_case_run_ids_by_module: test_case_run_ids_by_module
+    }
+    |> ProcessTestRunWorker.new()
+    |> Oban.insert!()
+
+    :ok
+  end
+
+  defp create_deferred_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name, test_case_run_data, case_run_ids) do
+    test_case_data_list =
+      test_cases
+      |> Enum.map(fn case_attrs ->
+        case_name = Map.get(case_attrs, :name)
+        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+        identity_key = {case_name, module_name, suite_name}
+        %{status: status, is_flaky: is_flaky} = Map.get(test_case_run_data, identity_key)
+
+        %{
+          name: case_name,
+          module_name: module_name,
+          suite_name: suite_name,
+          status: status,
+          is_flaky: is_flaky and test.is_ci,
+          duration: Map.get(case_attrs, :duration, 0),
+          ran_at: test.ran_at
+        }
+      end)
+      |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
+
+    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
+      create_test_cases(test.project_id, test_case_data_list)
+
+    {updated_tcrs, all_failures, all_repetitions} =
+      Enum.zip(test_cases, case_run_ids)
+      |> Enum.reduce({[], [], []}, fn {case_attrs, test_case_run_id}, {tcrs_acc, failures_acc, reps_acc} ->
+        case_name = Map.get(case_attrs, :name)
+        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+        identity_key = {case_name, module_name, suite_name}
+        %{status: status, is_flaky: is_flaky, is_new: is_new} = Map.get(test_case_run_data, identity_key)
+
+        initial_is_flaky = test_case_is_flaky?(case_attrs)
+
+        tcrs_acc =
+          if is_flaky != initial_is_flaky or is_new do
+            test_suite_run_id = Map.get(suite_name_to_id, suite_name)
+            test_case_id = Map.get(test_case_id_map, identity_key)
+
+            updated_tcr = %{
+              id: test_case_run_id,
+              name: case_name,
+              test_run_id: test.id,
+              test_module_run_id: module_id,
+              test_suite_run_id: test_suite_run_id,
+              test_case_id: test_case_id,
+              project_id: test.project_id,
+              is_ci: test.is_ci,
+              scheme: test.scheme,
+              account_id: test.account_id,
+              ran_at: test.ran_at,
+              git_branch: test.git_branch,
+              git_commit_sha: test.git_commit_sha || "",
+              status: status,
+              is_flaky: is_flaky,
+              is_new: is_new,
+              duration: Map.get(case_attrs, :duration, 0),
+              inserted_at: NaiveDateTime.utc_now(),
+              module_name: module_name,
+              suite_name: suite_name
+            }
+
+            [updated_tcr | tcrs_acc]
+          else
+            tcrs_acc
+          end
+
+        failures = Map.get(case_attrs, :failures, [])
+
+        test_case_failures =
+          Enum.map(failures, fn failure_attrs ->
+            %{
+              id: UUIDv7.generate(),
+              test_case_run_id: test_case_run_id,
+              message: Map.get(failure_attrs, :message),
+              path: Map.get(failure_attrs, :path),
+              line_number: Map.get(failure_attrs, :line_number),
+              issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
+              inserted_at: NaiveDateTime.utc_now()
+            }
+          end)
+
+        repetitions = Map.get(case_attrs, :repetitions, [])
+
+        test_case_repetitions =
+          Enum.map(repetitions, fn rep_attrs ->
+            %{
+              id: UUIDv7.generate(),
+              test_case_run_id: test_case_run_id,
+              repetition_number: Map.get(rep_attrs, :repetition_number),
+              name: Map.get(rep_attrs, :name),
+              status: Map.get(rep_attrs, :status),
+              duration: Map.get(rep_attrs, :duration, 0),
+              inserted_at: NaiveDateTime.utc_now()
+            }
+          end)
+
+        {tcrs_acc, test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc}
+      end)
+
+    IngestRepo.insert_all(TestCaseRun, updated_tcrs)
+    IngestRepo.insert_all(TestCaseFailure, all_failures)
+
+    if Enum.any?(all_repetitions) do
+      IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
+    end
+
+    create_first_run_events_for_new_cases(test_case_id_map, test_case_run_data, test_cases, module_name, new_test_case_ids)
+
+    {test_case_ids_with_flaky_run, updated_tcrs}
+  end
+
+  defp create_first_run_events_for_new_cases(test_case_id_map, test_case_run_data, test_cases, module_name, new_test_case_ids) do
+    events =
+      test_cases
+      |> Enum.uniq_by(fn case_attrs ->
+        case_name = Map.get(case_attrs, :name)
+        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+        {case_name, module_name, suite_name}
+      end)
+      |> Enum.flat_map(fn case_attrs ->
+        case_name = Map.get(case_attrs, :name)
+        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+        identity_key = {case_name, module_name, suite_name}
+        %{is_new: is_new} = Map.get(test_case_run_data, identity_key)
+        test_case_id = Map.get(test_case_id_map, identity_key)
+
+        if is_new and test_case_id in new_test_case_ids do
+          [
+            %{
+              id: TestCaseEvent.first_run_id(test_case_id),
+              test_case_id: test_case_id,
+              event_type: "first_run",
+              actor_id: nil,
+              inserted_at: NaiveDateTime.utc_now()
+            }
+          ]
+        else
+          []
+        end
+      end)
+
+    if Enum.any?(events) do
+      IngestRepo.insert_all(TestCaseEvent, events)
+    end
+  end
+
+  defp atomize_test_module_keys(test_modules) when is_list(test_modules) do
+    Enum.map(test_modules, &deep_atomize_keys/1)
+  end
+
+  defp deep_atomize_keys(map) when is_map(map) do
+    Map.new(map, fn {k, v} ->
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, deep_atomize_value(v)}
+    end)
+  end
+
+  defp deep_atomize_value(list) when is_list(list), do: Enum.map(list, &deep_atomize_keys/1)
+  defp deep_atomize_value(map) when is_map(map), do: deep_atomize_keys(map)
+  defp deep_atomize_value(value), do: value
 
   defp schedule_flaky_threshold_check(_project_id, []), do: :ok
 
@@ -509,7 +846,7 @@ defmodule Tuist.Tests do
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
   def list_test_case_runs(attrs, opts \\ []) do
-    base_query = from(tcr in TestCaseRun)
+    base_query = from(tcr in TestCaseRun, hints: ["FINAL"])
     preloads = Keyword.get(opts, :preload, [])
 
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
@@ -569,62 +906,6 @@ defmodule Tuist.Tests do
     end
   rescue
     _ -> :error
-  end
-
-  defp create_test_modules(test, test_modules) do
-    test_case_run_data = get_test_case_run_data(test, test_modules)
-
-    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
-      module_id = UUIDv7.generate()
-      module_name = Map.get(module_attrs, :name)
-
-      test_suites = Map.get(module_attrs, :test_suites, [])
-      test_cases = Map.get(module_attrs, :test_cases, [])
-
-      test_suite_count = length(test_suites)
-      test_case_count = length(test_cases)
-
-      avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
-
-      module_test_case_run_data =
-        test_case_run_data
-        |> Enum.filter(fn {{_name, mod_name, _suite}, _data} -> mod_name == module_name end)
-        |> Map.new()
-
-      module_is_flaky = any_test_case_run_flaky?(Map.values(module_test_case_run_data))
-
-      module_run_attrs = %{
-        id: module_id,
-        name: module_name,
-        test_run_id: test.id,
-        status: Map.get(module_attrs, :status),
-        is_flaky: module_is_flaky,
-        duration: Map.get(module_attrs, :duration, 0),
-        test_suite_count: test_suite_count,
-        test_case_count: test_case_count,
-        avg_test_case_duration: avg_test_case_duration,
-        inserted_at: NaiveDateTime.utc_now()
-      }
-
-      {:ok, _module_run} =
-        %TestModuleRun{}
-        |> TestModuleRun.create_changeset(module_run_attrs)
-        |> IngestRepo.insert()
-
-      suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
-
-      {flaky_ids, test_case_runs} =
-        create_test_cases_for_module(
-          test,
-          module_id,
-          test_cases,
-          suite_name_to_id,
-          module_name,
-          module_test_case_run_data
-        )
-
-      {flaky_ids, acc_test_case_runs ++ test_case_runs}
-    end)
   end
 
   defp get_test_case_run_data(test, test_modules) do
@@ -741,180 +1022,6 @@ defmodule Tuist.Tests do
     )
     |> ClickHouseRepo.all()
     |> MapSet.new()
-  end
-
-  defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data) do
-    test_cases_by_suite =
-      Enum.group_by(test_cases, fn case_attrs ->
-        Map.get(case_attrs, :test_suite_name, "")
-      end)
-
-    {test_suite_runs, suite_name_to_id} =
-      Enum.map_reduce(test_suites, %{}, fn suite_attrs, acc ->
-        suite_id = UUIDv7.generate()
-        suite_name = Map.get(suite_attrs, :name)
-
-        suite_test_cases = Map.get(test_cases_by_suite, suite_name, [])
-        test_case_count = length(suite_test_cases)
-
-        avg_test_case_duration = calculate_avg_test_case_duration(suite_test_cases)
-
-        suite_data =
-          test_case_run_data
-          |> Enum.filter(fn {{_name, _module, suite}, _data} -> suite == suite_name end)
-          |> Enum.map(fn {_key, data} -> data end)
-
-        suite_is_flaky = any_test_case_run_flaky?(suite_data)
-
-        suite_run = %{
-          id: suite_id,
-          name: suite_name,
-          test_run_id: test.id,
-          test_module_run_id: module_id,
-          status: Map.get(suite_attrs, :status),
-          is_flaky: suite_is_flaky,
-          duration: Map.get(suite_attrs, :duration, 0),
-          test_case_count: test_case_count,
-          avg_test_case_duration: avg_test_case_duration,
-          inserted_at: NaiveDateTime.utc_now()
-        }
-
-        updated_mapping = Map.put(acc, suite_name, suite_id)
-        {suite_run, updated_mapping}
-      end)
-
-    IngestRepo.insert_all(TestSuiteRun, test_suite_runs)
-    suite_name_to_id
-  end
-
-  defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name, test_case_run_data) do
-    test_case_data_list =
-      test_cases
-      |> Enum.map(fn case_attrs ->
-        case_name = Map.get(case_attrs, :name)
-        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
-        identity_key = {case_name, module_name, suite_name}
-        %{status: status, is_flaky: is_flaky} = Map.get(test_case_run_data, identity_key)
-
-        %{
-          name: case_name,
-          module_name: module_name,
-          suite_name: suite_name,
-          status: status,
-          is_flaky: is_flaky and test.is_ci,
-          duration: Map.get(case_attrs, :duration, 0),
-          ran_at: test.ran_at
-        }
-      end)
-      |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
-
-    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
-      create_test_cases(test.project_id, test_case_data_list)
-
-    {test_case_runs, all_failures, all_repetitions} =
-      Enum.reduce(test_cases, {[], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc} ->
-        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
-
-        test_suite_run_id = Map.get(suite_name_to_id, suite_name)
-
-        test_case_run_id = UUIDv7.generate()
-
-        case_name = Map.get(case_attrs, :name)
-        identity_key = {case_name, module_name, suite_name}
-        test_case_id = Map.get(test_case_id_map, identity_key)
-
-        repetitions = Map.get(case_attrs, :repetitions, [])
-
-        %{status: status, is_flaky: is_flaky, is_new: is_new} = Map.get(test_case_run_data, identity_key)
-
-        test_case_run = %{
-          id: test_case_run_id,
-          name: case_name,
-          test_run_id: test.id,
-          test_module_run_id: module_id,
-          test_suite_run_id: test_suite_run_id,
-          test_case_id: test_case_id,
-          project_id: test.project_id,
-          is_ci: test.is_ci,
-          scheme: test.scheme,
-          account_id: test.account_id,
-          ran_at: test.ran_at,
-          git_branch: test.git_branch,
-          git_commit_sha: test.git_commit_sha || "",
-          status: status,
-          is_flaky: is_flaky,
-          is_new: is_new,
-          duration: Map.get(case_attrs, :duration, 0),
-          inserted_at: NaiveDateTime.utc_now(),
-          module_name: module_name,
-          suite_name: suite_name || ""
-        }
-
-        failures = Map.get(case_attrs, :failures, [])
-
-        test_case_failures =
-          Enum.map(failures, fn failure_attrs ->
-            %{
-              id: UUIDv7.generate(),
-              test_case_run_id: test_case_run_id,
-              message: Map.get(failure_attrs, :message),
-              path: Map.get(failure_attrs, :path),
-              line_number: Map.get(failure_attrs, :line_number),
-              issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
-              inserted_at: NaiveDateTime.utc_now()
-            }
-          end)
-
-        test_case_repetitions =
-          Enum.map(repetitions, fn rep_attrs ->
-            %{
-              id: UUIDv7.generate(),
-              test_case_run_id: test_case_run_id,
-              repetition_number: Map.get(rep_attrs, :repetition_number),
-              name: Map.get(rep_attrs, :name),
-              status: Map.get(rep_attrs, :status),
-              duration: Map.get(rep_attrs, :duration, 0),
-              inserted_at: NaiveDateTime.utc_now()
-            }
-          end)
-
-        {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc}
-      end)
-
-    IngestRepo.insert_all(TestCaseRun, test_case_runs)
-    IngestRepo.insert_all(TestCaseFailure, all_failures)
-
-    if Enum.any?(all_repetitions) do
-      IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
-    end
-
-    create_first_run_events(test_case_runs, new_test_case_ids)
-
-    {test_case_ids_with_flaky_run, test_case_runs}
-  end
-
-  defp create_first_run_events(test_case_runs, new_test_case_ids) do
-    new_test_case_runs =
-      Enum.filter(test_case_runs, fn run ->
-        run.is_new and run.test_case_id in new_test_case_ids
-      end)
-
-    if Enum.any?(new_test_case_runs) do
-      now = NaiveDateTime.utc_now()
-
-      events =
-        Enum.map(new_test_case_runs, fn run ->
-          %{
-            id: TestCaseEvent.first_run_id(run.test_case_id),
-            test_case_id: run.test_case_id,
-            event_type: "first_run",
-            actor_id: nil,
-            inserted_at: now
-          }
-        end)
-
-      IngestRepo.insert_all(TestCaseEvent, events)
-    end
   end
 
   defp calculate_avg_test_case_duration(test_cases) do

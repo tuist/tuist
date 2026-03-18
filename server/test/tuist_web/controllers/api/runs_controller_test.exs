@@ -1216,6 +1216,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
+      Oban.drain_queue(queue: :default)
       {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 10_000

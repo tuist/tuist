@@ -454,6 +454,7 @@ defmodule Tuist.Tests.Analytics do
     test_case_counts =
       ClickHouseRepo.all(
         from(t in TestCaseRun,
+          hints: ["FINAL"],
           where: t.test_run_id in ^test_run_ids,
           group_by: t.test_run_id,
           select: %{

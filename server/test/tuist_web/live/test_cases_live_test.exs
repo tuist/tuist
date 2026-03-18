@@ -127,7 +127,7 @@ defmodule TuistWeb.TestCasesLiveTest do
   end
 
   defp create_test_run_with_cases(project, account) do
-    Tuist.Tests.create_test(%{
+    result = Tuist.Tests.create_test(%{
       id: UUIDv7.generate(),
       project_id: project.id,
       account_id: account.id,
@@ -154,5 +154,8 @@ defmodule TuistWeb.TestCasesLiveTest do
         }
       ]
     })
+
+    Oban.drain_queue(queue: :default)
+    result
   end
 end
