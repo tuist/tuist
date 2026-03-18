@@ -6,11 +6,14 @@ import Path
 import Rosalind
 import Testing
 import TuistConfigLoader
+import TuistCore
 import TuistGit
 import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistTesting
+import TuistUserInputReader
+import XcodeGraph
 
 @testable import TuistInspectCommand
 
@@ -21,6 +24,12 @@ struct InspectBundleCommandServiceTests {
     private let configLoader = MockConfigLoading()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController = MockGitControlling()
+    private let fileHandler = FileHandler.shared
+    private let xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocating()
+    private let manifestLoader = MockManifestLoading()
+    private let manifestGraphLoader = MockManifestGraphLoading()
+    private let userInputReader = MockUserInputReading()
+    private let defaultConfigurationFetcher = MockDefaultConfigurationFetching()
     private let subject: InspectBundleCommandService
 
     init() {
@@ -30,12 +39,22 @@ struct InspectBundleCommandServiceTests {
             createBundleService: createBundleService,
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
-            gitController: gitController
+            gitController: gitController,
+            fileHandler: fileHandler,
+            xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: manifestGraphLoader,
+            userInputReader: userInputReader,
+            defaultConfigurationFetcher: defaultConfigurationFetcher
         )
 
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(manifestLoader)
+            .hasRootManifest(at: .any)
+            .willReturn(false)
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
@@ -109,6 +128,53 @@ struct InspectBundleCommandServiceTests {
 
             verify(gitController)
                 .gitInfo(workingDirectory: .value(temporaryDirectory))
+                .called(1)
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func analyzeAppBundle_resolving_app_name_from_built_products() async throws {
+        try await withMockedDependencies {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+            let buildProductsPath = temporaryDirectory.appending(component: "Debug-iphonesimulator")
+            let bundlePath = buildProductsPath.appending(component: "App.app")
+
+            try await fileSystem.makeDirectory(at: workspacePath)
+            try await fileSystem.makeDirectory(at: buildProductsPath)
+            try await fileSystem.makeDirectory(at: bundlePath)
+
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.simulator(.iOS)),
+                    projectPath: .value(workspacePath),
+                    derivedDataPath: .any,
+                    configuration: .value("Debug")
+                )
+                .willReturn(buildProductsPath)
+
+            given(xcodeProjectBuildDirectoryLocator)
+                .locate(
+                    destinationType: .value(.device(.iOS)),
+                    projectPath: .value(workspacePath),
+                    derivedDataPath: .any,
+                    configuration: .value("Debug")
+                )
+                .willReturn(temporaryDirectory.appending(component: "Debug-iphoneos"))
+
+            // When
+            try await subject.run(
+                path: temporaryDirectory.pathString,
+                bundle: "App",
+                configuration: "Debug",
+                platforms: [.iOS],
+                derivedDataPath: nil,
+                json: false
+            )
+
+            // Then
+            verify(rosalind)
+                .analyzeAppBundle(at: .value(bundlePath))
                 .called(1)
         }
     }
