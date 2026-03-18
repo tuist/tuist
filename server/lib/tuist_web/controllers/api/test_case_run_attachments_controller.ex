@@ -69,7 +69,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
   )
 
   def index(%{assigns: %{selected_project: project}, params: %{test_case_run_id: test_case_run_id}} = conn, _params) do
-    case Tests.get_test_case_run_by_id(test_case_run_id, preload: [:attachments]) do
+    case Tests.get_test_case_run_by_id(test_case_run_id, project_id: project.id, preload: [:attachments]) do
       {:ok, %{project_id: project_id} = run} when project_id == project.id ->
         attachments =
           Enum.map(run.attachments, fn attachment ->
@@ -178,7 +178,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
   )
 
   def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
-    with {:ok, run} <- Tests.get_test_case_run_by_id(body_params.test_case_run_id),
+    with {:ok, run} <- Tests.get_test_case_run_by_id(body_params.test_case_run_id, project_id: project.id),
          true <- run.project_id == project.id do
       attachment_id = UUIDv7.generate()
 
