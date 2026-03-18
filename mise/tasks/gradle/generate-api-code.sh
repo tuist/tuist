@@ -43,18 +43,26 @@ cp "$AUTH_MODEL/AuthenticationTokens.kt" "$TARGET_DIR/model/"
 cp "$AUTH_MODEL/RefreshTokenBody.kt" "$TARGET_DIR/model/"
 cp "$AUTH_MODEL/CacheEndpoints.kt" "$TARGET_DIR/model/"
 
-# Shard models
+# Shard models (all models referenced by ShardsApi)
 cp "$SHARDS_MODEL/Shard.kt" "$TARGET_DIR/model/"
 cp "$SHARDS_MODEL/ShardPlan.kt" "$TARGET_DIR/model/"
 cp "$SHARDS_MODEL/ShardPlanShardsInner.kt" "$TARGET_DIR/model/"
 cp "$SHARDS_MODEL/CreateShardPlanParams1.kt" "$TARGET_DIR/model/"
+cp "$SHARDS_MODEL/CompleteShardUpload200Response.kt" "$TARGET_DIR/model/"
+cp "$SHARDS_MODEL/CompleteShardUploadParams1.kt" "$TARGET_DIR/model/"
+cp "$SHARDS_MODEL/CompleteShardUploadParams1PartsInner.kt" "$TARGET_DIR/model/"
+cp "$SHARDS_MODEL/GenerateShardUploadURL200Response.kt" "$TARGET_DIR/model/"
+cp "$SHARDS_MODEL/GenerateShardUploadURL200ResponseData.kt" "$TARGET_DIR/model/"
+cp "$SHARDS_MODEL/GenerateShardUploadURLParams1.kt" "$TARGET_DIR/model/"
+cp "$SHARDS_MODEL/Error.kt" "$TARGET_DIR/model/"
 
-# NOTE: ShardsApi.kt is hand-maintained because the generated version includes
-# endpoints not used by the Gradle plugin (multipart upload, URL generation)
-# which pull in models we don't need. Only createShardPlan and getShard are used.
+# Shards API interface (generated)
+cp "$SHARDS_API/ShardsApi.kt" "$TARGET_DIR/"
+# Strip the unused openapitools infrastructure import
+sed -i '' '/org\.openapitools/d' "$TARGET_DIR/ShardsApi.kt"
 
 echo ""
 echo "Updated generated files in $TARGET_DIR/"
 echo ""
-echo "NOTE: AuthenticationApi.kt, CacheApi.kt, and ShardsApi.kt are hand-maintained."
-echo "Model files are generated — do not edit manually."
+echo "NOTE: AuthenticationApi.kt and CacheApi.kt are hand-maintained."
+echo "ShardsApi.kt and model files are generated — do not edit manually."
