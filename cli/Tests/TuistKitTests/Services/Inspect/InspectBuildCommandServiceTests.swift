@@ -948,6 +948,7 @@ struct InspectBuildCommandServiceRemoteBuildTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = projectPath
+        mockedEnvironment.variables["TUIST_INSPECT_BUILD_WAIT"] = "YES"
         mockedEnvironment.variables["TUIST_INSPECT_BUILD_MODE"] = "remote"
 
         given(xcodeProjectOrWorkspacePathLocator)
