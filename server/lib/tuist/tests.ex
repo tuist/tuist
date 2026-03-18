@@ -126,21 +126,12 @@ defmodule Tuist.Tests do
             {:error, :not_found}
 
           test ->
-            {manual_preloads, preload} = Enum.split_with(preload, &(&1 == :shard_plan))
-            {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 in [:build_run, :gradle_build]))
+            {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 in [:build_run, :gradle_build, :shard_plan]))
 
             test =
               test
               |> Repo.preload(pg_preloads)
               |> ClickHouseRepo.preload(ch_preloads)
-
-            test =
-              if :shard_plan in manual_preloads do
-                shard_plan = load_shard_plan(test)
-                Map.put(test, :shard_plan, shard_plan)
-              else
-                test
-              end
 
             {:ok, test}
         end
@@ -149,19 +140,6 @@ defmodule Tuist.Tests do
         {:error, :not_found}
     end
   end
-
-  defp load_shard_plan(%{shard_plan_id: plan_id, project_id: project_id}) when is_binary(plan_id) and plan_id != "" do
-    ClickHouseRepo.one(
-      from(s in ShardPlan,
-        hints: ["FINAL"],
-        where: s.project_id == ^project_id,
-        where: s.plan_id == ^plan_id,
-        limit: 1
-      )
-    )
-  end
-
-  defp load_shard_plan(_test), do: nil
 
   def get_latest_test_by_build_run_id(build_run_id) do
     query =
@@ -202,15 +180,11 @@ defmodule Tuist.Tests do
   def list_sharded_test_runs(attrs) do
     import Ecto.Query, only: [from: 2]
 
-    base_query = from(t in Test, where: t.shard_plan_id != "")
+    base_query = from(t in Test, where: not is_nil(t.shard_plan_id))
 
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: Test)
 
-    results =
-      Enum.map(results, fn test ->
-        shard_plan = load_shard_plan(test)
-        Map.put(test, :shard_plan, shard_plan)
-      end)
+    results = ClickHouseRepo.preload(results, [:shard_plan])
 
     {results, meta}
   end
@@ -259,10 +233,10 @@ defmodule Tuist.Tests do
   def create_test(attrs) do
     shard_plan_id = Map.get(attrs, :shard_plan_id)
 
-    if is_binary(shard_plan_id) and shard_plan_id != "" do
-      create_or_update_sharded_test(attrs)
-    else
+    if is_nil(shard_plan_id) do
       create_new_test(attrs)
+    else
+      create_or_update_sharded_test(attrs)
     end
   end
 
@@ -319,7 +293,9 @@ defmodule Tuist.Tests do
         )
       )
 
-    shard_plan = load_shard_plan(%{shard_plan_id: shard_plan_id, project_id: project_id})
+    shard_plan =
+      ClickHouseRepo.one(from(s in ShardPlan, where: s.id == ^shard_plan_id, limit: 1))
+
     expected_shard_count = if shard_plan, do: shard_plan.shard_count, else: 1
 
     shard_index = Map.get(attrs, :shard_index)
@@ -745,7 +721,9 @@ defmodule Tuist.Tests do
 
   defp create_test_modules(test, test_modules) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
-    shard_plan = load_shard_plan(test)
+
+    shard_plan =
+      if test.shard_plan_id, do: ClickHouseRepo.one(from(s in ShardPlan, where: s.id == ^test.shard_plan_id, limit: 1))
 
     Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()

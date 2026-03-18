@@ -66,7 +66,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
-      |> assign(:is_sharded, run.shard_plan_id != "" && run.shard_plan_id != nil)
+      |> assign(:is_sharded, not is_nil(run.shard_plan_id))
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
       |> assign_initial_failures_state()
@@ -560,7 +560,7 @@ defmodule TuistWeb.TestRunLive do
   defp ensure_allowed_params("selective-testing-sort-by", _value), do: :name
 
   defp load_test_cases_data(run, params, available_filters \\ nil) do
-    is_sharded = run.shard_plan_id != "" && run.shard_plan_id != nil
+    is_sharded = not is_nil(run.shard_plan_id)
     available_filters = available_filters || define_test_cases_filters(run, is_sharded)
 
     flop_params = %{
@@ -575,7 +575,7 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp load_test_suites_data(run, params, available_filters \\ nil) do
-    is_sharded = run.shard_plan_id != "" && run.shard_plan_id != nil
+    is_sharded = not is_nil(run.shard_plan_id)
     available_filters = available_filters || define_test_suites_filters(run, is_sharded)
 
     flop_params = %{
@@ -590,7 +590,7 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp load_test_modules_data(run, params, available_filters \\ nil) do
-    is_sharded = run.shard_plan_id != "" && run.shard_plan_id != nil
+    is_sharded = not is_nil(run.shard_plan_id)
 
     available_filters =
       available_filters || define_test_modules_filters(run.project, run, is_sharded)

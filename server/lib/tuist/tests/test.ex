@@ -46,12 +46,13 @@ defmodule Tuist.Tests.Test do
     field :ci_host, Ch, type: "String", default: ""
     field :ci_provider, Ch, type: "LowCardinality(Nullable(String))"
     field :build_system, Ch, type: "LowCardinality(String)", default: "xcode"
-    field :shard_plan_id, Ch, type: "String", default: ""
+    field :shard_plan_id, Ch, type: "Nullable(UUID)"
     field :shard_index, Ch, type: "Nullable(Int32)"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
     belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false
+    belongs_to :shard_plan, Tuist.Shards.ShardPlan, foreign_key: :shard_plan_id, define_field: false
     has_many :test_case_runs, Tuist.Tests.TestCaseRun, foreign_key: :test_run_id
 
     field :inserted_at, Ch, type: "DateTime64(6)"

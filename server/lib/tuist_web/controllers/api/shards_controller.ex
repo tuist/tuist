@@ -92,6 +92,7 @@ defmodule TuistWeb.API.ShardsController do
     case Shards.create_shard_plan(selected_project, selected_project.account, params) do
       {:ok, result} ->
         json(conn, %{
+          id: result.plan.id,
           plan_id: result.plan.plan_id,
           shard_count: result.shard_count,
           shards: result.shard_assignments,

@@ -7941,6 +7941,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/ShardPlan`.
         public struct ShardPlan: Codable, Hashable, Sendable {
+            /// The shard plan UUID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ShardPlan/id`.
+            public var id: Swift.String
             /// The plan identifier.
             ///
             /// - Remark: Generated from `#/components/schemas/ShardPlan/plan_id`.
@@ -7999,22 +8003,26 @@ public enum Components {
             /// Creates a new `ShardPlan`.
             ///
             /// - Parameters:
+            ///   - id: The shard plan UUID.
             ///   - plan_id: The plan identifier.
             ///   - shard_count: The number of shards.
             ///   - shards: The shard assignments.
             ///   - upload_id: The multipart upload ID for the test products bundle.
             public init(
+                id: Swift.String,
                 plan_id: Swift.String,
                 shard_count: Swift.Int,
                 shards: Components.Schemas.ShardPlan.shardsPayload,
                 upload_id: Swift.String
             ) {
+                self.id = id
                 self.plan_id = plan_id
                 self.shard_count = shard_count
                 self.shards = shards
                 self.upload_id = upload_id
             }
             public enum CodingKeys: String, CodingKey {
+                case id
                 case plan_id
                 case shard_count
                 case shards

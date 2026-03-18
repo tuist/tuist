@@ -179,7 +179,7 @@ defmodule Tuist.Shards.Analytics do
       from(t in Test,
         hints: ["FINAL"],
         where: t.project_id == ^project_id,
-        where: t.shard_plan_id != "",
+        where: not is_nil(t.shard_plan_id),
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
         group_by: t.shard_plan_id,
