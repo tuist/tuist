@@ -60,13 +60,10 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
     public var passthroughXcodebuildArguments: [String] = []
 
     public func run() async throws {
-        let granularity = shardGranularity ?? (shardMax != nil || shardMin != nil || shardTotal != nil
-            || shardMaxDuration != nil ? .module : nil)
-
         try await XcodeBuildBuildCommandService()
             .run(
                 passthroughXcodebuildArguments: ["build-for-testing"] + passthroughXcodebuildArguments,
-                shardGranularity: granularity,
+                shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,

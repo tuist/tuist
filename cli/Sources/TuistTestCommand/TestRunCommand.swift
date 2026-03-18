@@ -344,9 +344,6 @@
                     .test
                 }
 
-            let granularity = shardGranularity ?? (shardMax != nil || shardMin != nil || shardTotal != nil
-                || shardMaxDuration != nil ? .module : nil)
-
             try await TestService(
                 generatorFactory: Extension.generatorFactory,
                 cacheStorageFactory: Extension.cacheStorageFactory
@@ -387,7 +384,7 @@
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
-                shardGranularity: granularity,
+                shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,
