@@ -811,19 +811,6 @@ public struct PackageInfoMapper: PackageInfoMapping {
     }
 }
 
-extension ProjectDescription.XCFrameworkSignature {
-    fileprivate static func from(_ signature: XcodeGraph.XCFrameworkSignature) -> Self {
-        switch signature {
-        case .unsigned:
-            return .unsigned
-        case let .signedWithAppleCertificate(teamIdentifier, teamName):
-            return .signedWithAppleCertificate(teamIdentifier: teamIdentifier, teamName: teamName)
-        case let .selfSigned(fingerprint):
-            return .selfSigned(fingerprint: fingerprint)
-        }
-    }
-}
-
 extension ProjectDescription.DeploymentTargets {
     /// A dictionary that contains the oldest supported version of each platform
     public static func oldestVersions(for swiftVersion: TSCUtility.Version) -> ProjectDescription.DeploymentTargets {

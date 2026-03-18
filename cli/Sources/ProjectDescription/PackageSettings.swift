@@ -54,6 +54,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
     ///     - productDestinations: Custom destinations to be used for SPM products.
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - binaryTargetSignatures: Expected signatures keyed by package name and binary target name.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     public init(
@@ -78,6 +79,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
     ///     - productDestinations: Custom destinations to be used for SPM products.
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    ///     - binaryTargetSignatures: Expected signatures keyed by package name and binary target name.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     @available(
