@@ -913,9 +913,12 @@ struct InspectBuildCommandServiceTests {
             .locate(for: .any)
             .willReturn(derivedDataPath)
         let activityLogUUID = "5D058318-CD9C-46C5-8D15-7A0330AF73F2"
-        let activityLogPath = derivedDataPath.appending(
-            components: "Logs", "Build", "\(activityLogUUID).xcactivitylog"
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            component: "\(activityLogUUID).xcactivitylog"
         )
+        try await fileSystem.makeDirectory(at: buildLogsPath)
+        try await fileSystem.writeText("fake", at: activityLogPath)
 
         given(xcActivityLogController).mostRecentActivityLogFile(
             projectDerivedDataDirectory: .value(derivedDataPath),
