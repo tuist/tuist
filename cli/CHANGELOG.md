@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 * log test targets that will be tested by [@pepicrft](https://github.com/pepicrft) in [#9731](https://github.com/tuist/tuist/pull/9731)
 ### 🐛 Bug Fixes
 
+* use xcactivitylog UUID as build ID for remote processing by [@fortmarek](https://github.com/fortmarek) in [#9897](https://github.com/tuist/tuist/pull/9897)
 * allow iOS bundle targets to have dependencies by [@fortmarek](https://github.com/fortmarek) in [#9883](https://github.com/tuist/tuist/pull/9883)
 
 
