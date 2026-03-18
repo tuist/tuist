@@ -150,13 +150,12 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp load_shard_plan(%{shard_plan_id: session_id, project_id: project_id})
-       when is_binary(session_id) and session_id != "" do
-    IngestRepo.one(
+  defp load_shard_plan(%{shard_plan_id: plan_id, project_id: project_id}) when is_binary(plan_id) and plan_id != "" do
+    ClickHouseRepo.one(
       from(s in ShardPlan,
+        hints: ["FINAL"],
         where: s.project_id == ^project_id,
-        where: s.session_id == ^session_id,
-        order_by: [desc: s.inserted_at],
+        where: s.plan_id == ^plan_id,
         limit: 1
       )
     )
