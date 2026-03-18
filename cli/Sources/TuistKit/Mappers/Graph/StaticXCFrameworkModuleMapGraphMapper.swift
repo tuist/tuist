@@ -84,8 +84,8 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     }
                 }
 
-                for (sdkCondition, paths) in pathsBySDKCondition {
-                    settings["FRAMEWORK_SEARCH_PATHS[\(sdkCondition)]"] = .array(paths)
+                for sdkCondition in pathsBySDKCondition.keys.sorted() {
+                    settings["FRAMEWORK_SEARCH_PATHS[\(sdkCondition)]"] = .array(pathsBySDKCondition[sdkCondition]!)
                 }
             }
 
@@ -353,7 +353,7 @@ extension XCFrameworkInfoPlist.Library {
             }
             return "sdk=\(graphPlatform.xcodeSdkRoot)*"
         case .maccatalyst:
-            return "sdk=macosx*"
+            return "sdk=iphoneos*"
         case nil:
             return "sdk=\(graphPlatform.xcodeSdkRoot)*"
         }
