@@ -57,19 +57,6 @@ struct XcodeBuildBuildCommandService {
             contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         )
 
-        var shardTestProductsPath: AbsolutePath?
-        if shardConfiguration != nil {
-            let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
-            let testProductsDir = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
-                .appending(component: "shard-test-products")
-            try await fileSystem.makeDirectory(at: testProductsDir)
-            let productsPath = testProductsDir.appending(component: "\(schemeName).xctestproducts")
-            shardTestProductsPath = productsPath
-            if passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) == nil {
-                passthroughXcodebuildArguments += ["-testProductsPath", productsPath.pathString]
-            }
-        }
-
         try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
@@ -85,9 +72,11 @@ struct XcodeBuildBuildCommandService {
             await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
         }
 
-        if let shardConfiguration,
-           let shardTestProductsPath
-        {
+        if let shardConfiguration {
+            let testProductsPath = try await resolveTestProductsPath(
+                passthroughXcodebuildArguments: passthroughXcodebuildArguments,
+                derivedDataPath: derivedDataPath
+            )
             let buildPath = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
             let config = try await configLoader.loadConfig(path: buildPath)
             guard let fullHandle = config.fullHandle else {
@@ -97,7 +86,7 @@ struct XcodeBuildBuildCommandService {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
             _ = try await shardPlanService.plan(
-                xctestproductsPath: shardTestProductsPath,
+                xctestproductsPath: testProductsPath,
                 scheme: schemeName,
                 shardConfiguration: shardConfiguration,
                 fullHandle: fullHandle,
@@ -168,6 +157,42 @@ struct XcodeBuildBuildCommandService {
         }
     }
 
+    private func resolveTestProductsPath(
+        passthroughXcodebuildArguments: [String],
+        derivedDataPath: AbsolutePath?
+    ) async throws -> AbsolutePath {
+        if let explicitPath = passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) {
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            return try AbsolutePath(validating: explicitPath, relativeTo: currentWorkingDirectory)
+        }
+
+        guard let derivedDataPath else {
+            throw XcodeBuildBuildCommandServiceError.testProductsNotFound
+        }
+
+        let buildProductsPath = derivedDataPath.appending(components: "Build", "Products")
+        let matches = try await fileSystem
+            .glob(directory: buildProductsPath, include: ["*.xctestproducts"])
+            .collect()
+
+        var mostRecent: AbsolutePath?
+        var mostRecentDate: Date = .distantPast
+        for path in matches {
+            if let metadata = try? await fileSystem.fileMetadata(at: path),
+               metadata.lastModificationDate > mostRecentDate
+            {
+                mostRecent = path
+                mostRecentDate = metadata.lastModificationDate
+            }
+        }
+
+        guard let match = mostRecent else {
+            throw XcodeBuildBuildCommandServiceError.testProductsNotFound
+        }
+
+        return match
+    }
+
     private func passedValue(
         for option: String,
         arguments: [String]
@@ -176,5 +201,16 @@ struct XcodeBuildBuildCommandService {
         let valueIndex = arguments.index(after: optionIndex)
         guard arguments.endIndex > valueIndex else { return nil }
         return arguments[valueIndex]
+    }
+}
+
+enum XcodeBuildBuildCommandServiceError: LocalizedError {
+    case testProductsNotFound
+
+    var errorDescription: String? {
+        switch self {
+        case .testProductsNotFound:
+            return "Could not find .xctestproducts bundle. Pass -testProductsPath or -derivedDataPath explicitly."
+        }
     }
 }
