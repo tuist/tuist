@@ -505,7 +505,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let effectiveSchemeName = schemeName ?? "Test"
-        let shardPlanId = ciController.ciInfo()?.shardPlanId
 
         let shard = try await shardService.shard(
             shardIndex: shardIndex,
@@ -600,7 +599,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
                 action: .testWithoutBuilding,
-                shardPlanId: shardPlanId,
+                shardPlanId: shard.planId,
                 shardIndex: shardIndex,
                 selectiveTestingHashes: selectiveTestingHashes
             )
@@ -626,7 +625,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
-            shardPlanId: shardPlanId,
+            shardPlanId: shard.planId,
             shardIndex: shardIndex,
             selectiveTestingHashes: selectiveTestingHashes
         )

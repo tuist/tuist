@@ -83,7 +83,7 @@ struct XcodeBuildTestCommandService {
             for target in shard.testIdentifiers {
                 passthroughXcodebuildArguments += ["-only-testing", target]
             }
-            shardPlanId = CIController().ciInfo()?.shardPlanId
+            shardPlanId = shard.planId
             selectiveTestingHashes = shard.selectiveTestingGraph?.testTargetHashes
         }
 

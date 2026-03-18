@@ -10,6 +10,7 @@ import TuistServer
 import TuistSupport
 
 public struct Shard {
+    public let planId: String
     public let testProductsPath: AbsolutePath
     public let modules: [String]
     public let suites: [String: [String]]
@@ -121,6 +122,7 @@ public struct ShardService: ShardServicing {
         }
 
         return Shard(
+            planId: planId,
             testProductsPath: testProductsPath,
             modules: shard.modules,
             suites: shard.suites.additionalProperties,
