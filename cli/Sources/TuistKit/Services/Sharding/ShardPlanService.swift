@@ -50,7 +50,6 @@
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
         private let multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing
         private let multipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing
-        private let uploadShardXCTestRunService: UploadShardXCTestRunServicing
         private let ciController: CIControlling
         private let fileSystem: FileSysteming
         private let fileArchiver: FileArchivingFactorying
@@ -63,8 +62,6 @@
                 MultipartUploadGenerateURLShardsService(),
             multipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing =
                 MultipartUploadCompleteShardsService(),
-            uploadShardXCTestRunService: UploadShardXCTestRunServicing =
-                UploadShardXCTestRunService(),
             ciController: CIControlling = CIController(),
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory()
@@ -74,7 +71,6 @@
             self.multipartUploadArtifactService = multipartUploadArtifactService
             self.multipartUploadGenerateURLShardsService = multipartUploadGenerateURLShardsService
             self.multipartUploadCompleteShardsService = multipartUploadCompleteShardsService
-            self.uploadShardXCTestRunService = uploadShardXCTestRunService
             self.ciController = ciController
             self.fileSystem = fileSystem
             self.fileArchiver = fileArchiver
@@ -140,13 +136,6 @@
             )
 
             Logger.current.info("Shard plan created: \(shardPlan.shard_count) shards")
-
-            try await uploadShardXCTestRunService.uploadXCTestRun(
-                xcTestRunPath: xcTestRunPath,
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                planId: planId
-            )
 
             Logger.current.debug("Uploading test products bundle...")
             let archivePath = try await fileArchiver
