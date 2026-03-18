@@ -876,7 +876,6 @@ struct InspectBuildCommandServiceTests {
             )
             .called(1)
     }
-
 }
 
 struct InspectBuildCommandServiceRemoteBuildTests {
