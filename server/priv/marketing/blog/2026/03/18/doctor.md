@@ -53,9 +53,7 @@ What follows are some use cases showing how agents can become doctors of your pr
 
 Flakiness is one of those chronic conditions that slowly erodes developer trust in a test suite. It requires analyzing test data across many runs, spotting patterns, and understanding the root causes. Tuist does that work. We know which tests are flaky, and we expose that information through our read interfaces. What that means is that you can start your agentic coding session and simply tell your agent:
 
-```txt
-Can you fix the most flaky tests in this project?
-```
+<.agent_prompt id="agent-prompt-flaky" prompt="Can you fix the most flaky tests in this project?" response="I found 3 flaky tests via Tuist. The most flaky is LoginViewModelTests.test_login_success (42% failure rate, 18 runs). The failures correlate with async token refresh timing. I've added an explicit await on the token refresh before asserting, and the test now passes consistently across 10 local runs." />
 
 The coding agent will use the CLI or MCP to pull flakiness data, then leverage a skill or prompt that provides guidelines on how to fix those flaky tests. It's like handing a doctor the patient's full medical history and asking them to prescribe a treatment. Long-term, we would like to do that proactive work for you so that flaky tests get fixed automatically, but one thing at a time.
 
@@ -63,9 +61,7 @@ The coding agent will use the CLI or MCP to pull flakiness data, then leverage a
 
 When things fail, whether it's a build or a test suite run, developers typically go to the logs and try to understand the errors themselves. This can get tricky, especially if you are not very familiar with the codebase, its internals, or the underlying toolchain like Gradle or Xcode's build system. All the diagnostics data necessary for that analysis is collected by Tuist through our insights feature. So all you need to do is hand the agent the URL:
 
-```txt
-Why did this build fail https://tuist.dev/tuist/tuist/builds/build-runs?
-```
+<.agent_prompt id="agent-prompt-build" prompt="Why did this build fail?" response="The build failed due to 2 Swift compilation errors in the AuthModule target. The first is a missing conformance to Sendable in TokenManager.swift:42. The second is an ambiguous use of 'decode' in UserSession.swift:87 after the Swift 6 migration. The AuthModule target took 34s before failing, which is 2x slower than the baseline on main. I recommend fixing the Sendable conformance first since it is blocking 3 downstream targets." />
 
 The coding agent can pull information from that build (warnings, build errors, tasks, timings) and diagnose what the issue might have been. While the information for diagnosing might technically be in the logs, structured build data often provides additional signals that help diagnose issues more effectively and suggest a better set of next steps. In practice, this means that teams don't need to walk over to the platform engineer and treat them as a doctor. They can be doctors of their own work. The agent reads the X-rays so the developer doesn't have to.
 
@@ -73,15 +69,11 @@ The coding agent can pull information from that build (warnings, build errors, t
 
 Our bundle insights feature allows teams to understand how size is distributed across their app bundle. Sometimes the size is larger than it should be because resources are duplicated, or optimizations that could have been applied were missed. Through the dashboard, people can traverse the bundle structure and try to diagnose issues themselves. We do too, but there are scenarios we haven't codified deterministically yet. So what if agents could do that job for you?
 
-```txt
-Can I optimize anything in this bundle https://tuist.dev/tuist/tuist/bundles/019ce77a-29cf-77bb-9cfc-4f4f500c41e4?
-```
+<.agent_prompt id="agent-prompt-bundle" prompt="Can I optimize anything in this bundle?" response="Your app bundle is 142 MB. I found 3 optimization opportunities: (1) The Assets.car file contains 847 unused image assets totaling 18 MB. (2) There are duplicate copies of libswiftCore.dylib in both the main bundle and the AnalyticsFramework, adding 12 MB. (3) The ML model in Resources/prediction.mlmodelc could be compressed, saving roughly 8 MB. Total potential savings: ~38 MB (27%)." />
 
 Or you can also compare bundles to understand what changed:
 
-```txt
-How do these bundles compare https://tuist.dev/tuist/tuist/bundles/019ce77a-29cf-77bb-9cfc-4f4f500c41e4 and https://tuist.dev/tuist/tuist/bundles/019ce735-0efc-7288-87a5-bae99397554f?
-```
+<.agent_prompt id="agent-prompt-compare" prompt="How do these two bundles compare?" response="The bundle grew by 11 MB between these two versions (131 MB to 142 MB). The biggest contributor is a new VideoPlayer framework (+8.4 MB) added in the latest build. Additionally, three localization files were duplicated across two targets, adding 1.8 MB. The remaining 0.8 MB comes from new image assets in the onboarding flow. I suggest deduplicating the localization bundles and verifying the VideoPlayer framework is stripped of debug symbols." />
 
 Think of it as getting a second opinion. The agent can traverse the bundle tree, identify the heaviest nodes, flag duplicated resources, and suggest concrete actions. The interfaces are designed so that coding agents can go as deep and broad as needed without exhausting the context window.
 
@@ -89,9 +81,7 @@ Think of it as getting a second opinion. The agent can traverse the bundle tree,
 
 Something we keep telling our customers about the cache is that part of the responsibility for making it effective is on us. We ensure low latency and high-bandwidth access from any environment. But the second part is on you, since you need to ensure your project's graph is designed so that tasks with side effects are minimal and tasks are not a parallelization bottleneck. Since Tuist collects cache data from your builds, you can also use that data to optimize your cache usage:
 
-```txt
-Why did the cache hit rate drop here https://tuist.dev/tuist/tuist/runs/019ce7bb-fdc6-7f15-afa4-09249b083f21?
-```
+<.agent_prompt id="agent-prompt-cache" prompt="Why did the cache hit rate drop?" response="The cache hit rate dropped from 87% to 31% compared to the main branch baseline. The root cause is a change to SharedModels/Package.swift that added a new dependency on CryptoKit. This invalidated the hash for SharedModels and all 14 targets that depend on it. Since SharedModels sits at the base of your dependency graph, almost every target needed to rebuild. Consider isolating the CryptoKit dependency into a separate leaf module to limit the cache invalidation blast radius." />
 
 Notice we didn't specify a baseline. The skills and prompts instruct the coding agent to use the project's repository main branch as the baseline to compare against, so it can pinpoint what might have caused any issues or even a regression in the project's configuration. It's like a doctor comparing your latest blood work to your historical results, looking for anything that deviated from the norm.
 
