@@ -390,7 +390,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        var effectivePassthroughArgs = passthroughXcodeBuildArguments
+        var passthroughXcodeBuildArguments = passthroughXcodeBuildArguments
         var shardTestProductsPath: AbsolutePath?
         let effectiveSchemeName = schemeName ?? schemes.first?.name ?? "Test"
 
@@ -400,7 +400,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             try await fileSystem.makeDirectory(at: testProductsDir)
             let productsPath = testProductsDir.appending(component: "\(effectiveSchemeName).xctestproducts")
             shardTestProductsPath = productsPath
-            effectivePassthroughArgs += ["-testProductsPath", productsPath.pathString]
+            passthroughXcodeBuildArguments += ["-testProductsPath", productsPath.pathString]
         }
 
         let schemeTestTargetNames = Set(
@@ -434,7 +434,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
-                passthroughXcodeBuildArguments: effectivePassthroughArgs,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 config: config
             )
         } catch {

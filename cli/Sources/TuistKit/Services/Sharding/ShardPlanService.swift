@@ -132,7 +132,7 @@
                 shardMax: shardMax,
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
-                granularity: shardGranularity.rawValue
+                shardGranularity: shardGranularity
             )
 
             Logger.current.info("Shard plan created: \(shardPlan.shard_count) shards")
