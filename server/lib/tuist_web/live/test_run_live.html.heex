@@ -358,7 +358,7 @@
           <:col
             :let={shard}
             label={
-              if(@shard_granularity == "suite",
+              if(@run.shard_plan && @run.shard_plan.granularity == "suite",
                 do: dgettext("dashboard_tests", "Test Suites"),
                 else: dgettext("dashboard_tests", "Modules")
               )
@@ -1349,7 +1349,7 @@
           </:col>
           <:col
             :let={test_module}
-            :if={@is_sharded and @shard_granularity == "module"}
+            :if={(@is_sharded and @run.shard_plan) && @run.shard_plan.granularity == "module"}
             label={dgettext("dashboard_tests", "Shard")}
           >
             <.text_cell label={

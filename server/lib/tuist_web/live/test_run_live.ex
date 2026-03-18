@@ -67,13 +67,6 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
       |> assign(:is_sharded, run.shard_plan_id != "" && run.shard_plan_id != nil)
-      |> assign(
-        :shard_granularity,
-        case Map.get(run, :shard_plan) do
-          %{granularity: g} when g in ["module", "suite"] -> g
-          _ -> "module"
-        end
-      )
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
       |> assign_initial_failures_state()
@@ -269,8 +262,7 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_initial_test_cases_state(
-         %{assigns: %{selected_project: project, run: run, is_sharded: is_sharded, shard_granularity: shard_granularity}} =
-           socket
+         %{assigns: %{selected_project: project, run: run, is_sharded: is_sharded}} = socket
        ) do
     socket
     |> assign(:selected_test_tab, "test-cases")
@@ -298,7 +290,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_modules_sort_order, "asc")
     |> assign(
       :test_modules_available_filters,
-      define_test_modules_filters(project, run, is_sharded, shard_granularity)
+      define_test_modules_filters(project, run, is_sharded)
     )
     |> assign(:test_modules_active_filters, [])
   end
@@ -600,14 +592,8 @@ defmodule TuistWeb.TestRunLive do
   defp load_test_modules_data(run, params, available_filters \\ nil) do
     is_sharded = run.shard_plan_id != "" && run.shard_plan_id != nil
 
-    granularity =
-      case Map.get(run, :shard_plan) do
-        %{granularity: g} when g in ["module", "suite"] -> g
-        _ -> "module"
-      end
-
     available_filters =
-      available_filters || define_test_modules_filters(run.project, run, is_sharded, granularity)
+      available_filters || define_test_modules_filters(run.project, run, is_sharded)
 
     flop_params = %{
       filters: test_modules_filters(run, params, available_filters, params["test-modules-filter"]),
@@ -969,7 +955,7 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
-  defp define_test_modules_filters(project, run, is_sharded, shard_granularity) do
+  defp define_test_modules_filters(project, run, is_sharded) do
     base = [
       %Filter.Filter{
         id: "test_module_test_suite_count",
@@ -1018,7 +1004,9 @@ defmodule TuistWeb.TestRunLive do
       }
     ]
 
-    if is_sharded and shard_granularity == "module" do
+    shard_plan = Map.get(run, :shard_plan)
+
+    if is_sharded and match?(%{granularity: "module"}, shard_plan) do
       base ++ [shard_filter("test_module_shard", :test_module_shard, run)]
     else
       base
