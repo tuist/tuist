@@ -541,6 +541,58 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
+    test "does not carry over stale cacheable task counts from existing build", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      parsed_data_with_cache =
+        Map.put(parsed_data(), "cacheable_tasks", [
+          %{
+            "type" => "swift",
+            "status" => "hit_remote",
+            "key" => "cache-key-1",
+            "description" => "Compiling Module",
+            "read_duration" => 15.0,
+            "write_duration" => nil,
+            "cas_output_node_ids" => []
+          },
+          %{
+            "type" => "swift",
+            "status" => "hit_local",
+            "key" => "cache-key-2",
+            "description" => "Compiling OtherModule",
+            "read_duration" => 10.0,
+            "write_duration" => nil,
+            "cas_output_node_ids" => []
+          },
+          %{
+            "type" => "clang",
+            "status" => "miss",
+            "key" => "cache-key-3",
+            "description" => "Compiling CModule",
+            "read_duration" => nil,
+            "write_duration" => 20.0,
+            "cas_output_node_ids" => []
+          }
+        ])
+
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: parsed_data_with_cache}}
+      end)
+
+      expect(Tuist.Builds, :create_build, fn attrs ->
+        refute Map.has_key?(attrs, :cacheable_tasks_count)
+        refute Map.has_key?(attrs, :cacheable_task_local_hits_count)
+        refute Map.has_key?(attrs, :cacheable_task_remote_hits_count)
+        assert length(attrs.cacheable_tasks) == 3
+        {:ok, %{id: build.id}}
+      end)
+
+      assert :ok ==
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+
     test "handles missing machine_metrics in parsed data gracefully", %{
       account: account,
       project: project,
