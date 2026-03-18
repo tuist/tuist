@@ -50,7 +50,7 @@ public struct GetShardService: GetShardServicing {
             path: .init(
                 account_handle: handles.accountHandle,
                 project_handle: handles.projectHandle,
-                session_id: planId,
+                plan_id: planId,
                 shard_index: shardIndex
             )
         )

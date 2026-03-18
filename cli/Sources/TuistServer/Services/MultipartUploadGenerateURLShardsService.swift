@@ -56,7 +56,7 @@ public struct MultipartUploadGenerateURLShardsService: MultipartUploadGenerateUR
             body: .json(
                 .init(
                     part_number: partNumber,
-                    session_id: planId,
+                    plan_id: planId,
                     upload_id: uploadId
                 )
             )

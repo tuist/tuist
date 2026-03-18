@@ -69,7 +69,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
                 .init(
                     granularity: shardGranularity,
                     modules: modules,
-                    session_id: planId,
+                    plan_id: planId,
                     shard_max: shardMax,
                     shard_max_duration: shardMaxDuration,
                     shard_min: shardMin,

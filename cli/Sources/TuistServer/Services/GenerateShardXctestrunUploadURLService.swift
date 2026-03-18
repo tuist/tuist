@@ -50,7 +50,7 @@ public struct GenerateShardXCTestRunUploadURLService: GenerateShardXCTestRunUplo
                 project_handle: handles.projectHandle
             ),
             body: .json(
-                .init(session_id: planId)
+                .init(plan_id: planId)
             )
         )
 
