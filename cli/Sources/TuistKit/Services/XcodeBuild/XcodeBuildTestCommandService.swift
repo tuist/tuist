@@ -77,7 +77,7 @@ struct XcodeBuildTestCommandService {
             )
             shardTestProductsPath = shard.testProductsPath
             passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
-            shardPlanId = shard.planId
+            shardPlanId = shard.shardPlanId
         }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)

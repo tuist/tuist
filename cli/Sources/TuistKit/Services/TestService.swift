@@ -550,7 +550,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
-            shardPlanId: shard.planId,
+            shardPlanId: shard.shardPlanId,
             shardIndex: shardIndex
         )
 

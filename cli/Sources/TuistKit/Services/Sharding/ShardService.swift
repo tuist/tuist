@@ -11,6 +11,7 @@ import TuistSupport
 
 public struct Shard {
     public let planId: String
+    public let shardPlanId: String
     public let testProductsPath: AbsolutePath
     public let modules: [String]
     public let selectiveTestingGraph: SelectiveTestingGraph?
@@ -127,6 +128,7 @@ public struct ShardService: ShardServicing {
 
         return Shard(
             planId: planId,
+            shardPlanId: shard.shard_plan_id,
             testProductsPath: testProductsPath,
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph
