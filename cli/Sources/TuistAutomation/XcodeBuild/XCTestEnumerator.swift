@@ -51,7 +51,11 @@
     }
 
     public struct XCTestEnumerator: XCTestEnumerating {
-        public init() {}
+        private let system: Systeming
+
+        public init(system: Systeming = System.shared) {
+            self.system = system
+        }
 
         public func enumerateTests(
             testProductsPath: AbsolutePath,
@@ -71,7 +75,7 @@
 
             let result: SystemCollectedOutput
             do {
-                result = try await System.shared.runAndCollectOutput(arguments)
+                result = try await system.runAndCollectOutput(arguments)
             } catch {
                 throw XCTestEnumeratorError.enumerationFailed(error.localizedDescription)
             }

@@ -7,7 +7,6 @@
     import TuistSupport
 
     @testable import TuistAutomation
-    @testable import TuistTesting
 
     struct XCTestEnumeratorTests {
         let subject: XCTestEnumerator
@@ -15,8 +14,7 @@
 
         init() {
             system = MockSystem()
-            System._shared.mutate { $0 = system }
-            subject = XCTestEnumerator()
+            subject = XCTestEnumerator(system: system)
         }
 
         @Test(.inTemporaryDirectory)
