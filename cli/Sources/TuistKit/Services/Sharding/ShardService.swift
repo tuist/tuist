@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TuistCI
 import TuistCore
+import TuistHTTP
 import TuistLogging
 import TuistServer
 import TuistSupport
@@ -36,15 +37,15 @@ public protocol ShardServicing {
 
 public enum ShardServiceError: LocalizedError, Equatable {
     case cannotDeriveSessionId
-    case downloadFailed(String)
+    case invalidDownloadURL(String)
     case testProductsNotFound
 
     public var errorDescription: String? {
         switch self {
         case .cannotDeriveSessionId:
             return "Cannot derive a shard plan ID. Make sure you are running in a supported CI environment."
-        case let .downloadFailed(message):
-            return "Failed to download shard artifacts: \(message)"
+        case let .invalidDownloadURL(url):
+            return "Invalid shard download URL: \(url)"
         case .testProductsNotFound:
             return "No .xctestproducts bundle found in the downloaded shard archive."
         }
@@ -54,17 +55,20 @@ public enum ShardServiceError: LocalizedError, Equatable {
 public struct ShardService: ShardServicing {
     private let getShardService: GetShardServicing
     private let ciController: CIControlling
+    private let fileClient: FileClienting
     private let fileSystem: FileSysteming
     private let fileUnarchiver: FileArchivingFactorying
 
     public init(
         getShardService: GetShardServicing = GetShardService(),
         ciController: CIControlling = CIController(),
+        fileClient: FileClienting = FileClient(),
         fileSystem: FileSysteming = FileSystem(),
         fileUnarchiver: FileArchivingFactorying = FileArchivingFactory()
     ) {
         self.getShardService = getShardService
         self.ciController = ciController
+        self.fileClient = fileClient
         self.fileSystem = fileSystem
         self.fileUnarchiver = fileUnarchiver
     }
@@ -90,9 +94,10 @@ public struct ShardService: ShardServicing {
 
         Logger.current.info("Shard \(shardIndex) assigned modules: \(shard.modules.joined(separator: ", "))")
 
-        let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard")
-        let shardZipPath = tempDirectory.appending(component: "shard.zip")
-        try await downloadFile(from: shard.download_url, to: shardZipPath)
+        guard let downloadURL = URL(string: shard.download_url) else {
+            throw ShardServiceError.invalidDownloadURL(shard.download_url)
+        }
+        let shardZipPath = try await fileClient.download(url: downloadURL)
         Logger.current.debug("Downloaded test products bundle.")
 
         let unarchiver = try fileUnarchiver.makeFileUnarchiver(for: shardZipPath)
@@ -121,18 +126,5 @@ public struct ShardService: ShardServicing {
             suites: shard.suites.additionalProperties,
             selectiveTestingGraph: selectiveTestingGraph
         )
-    }
-
-    private func downloadFile(from urlString: String, to path: AbsolutePath) async throws {
-        guard let url = URL(string: urlString) else {
-            throw ShardServiceError.downloadFailed("Invalid URL: \(urlString)")
-        }
-
-        let (data, response) = try await URLSession.shared.data(from: url)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw ShardServiceError.downloadFailed("HTTP error downloading \(urlString)")
-        }
-
-        try data.write(to: URL(fileURLWithPath: path.pathString))
     }
 }
