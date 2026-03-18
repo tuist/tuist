@@ -536,13 +536,8 @@ defmodule Tuist.Tests do
     query =
       case Keyword.get(opts, :project_id) do
         nil ->
-          case uuidv7_to_yyyymm(id) do
-            {:ok, month} ->
-              where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
-
-            :error ->
-              query
-          end
+          month = uuidv7_to_yyyymm(id)
+          where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
 
         project_id ->
           where(query, [tcr], tcr.project_id == ^project_id)
@@ -568,13 +563,8 @@ defmodule Tuist.Tests do
   defp uuidv7_to_yyyymm(uuid_string) do
     hex = uuid_string |> String.replace("-", "") |> String.slice(0, 12)
     timestamp_ms = String.to_integer(hex, 16)
-
-    case DateTime.from_unix(timestamp_ms, :millisecond) do
-      {:ok, datetime} -> {:ok, datetime.year * 100 + datetime.month}
-      _ -> :error
-    end
-  rescue
-    _ -> :error
+    {:ok, datetime} = DateTime.from_unix(timestamp_ms, :millisecond)
+    datetime.year * 100 + datetime.month
   end
 
   defp create_test_modules(test, test_modules) do
