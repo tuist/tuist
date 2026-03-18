@@ -14,7 +14,7 @@ version = "1.2.1"
 backend = "aqua:FiloSottile/age"
 "platforms.linux-arm64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-arm64.tar.gz"}
 "platforms.linux-arm64-musl" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-arm64.tar.gz"}
-"platforms.linux-x64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz"}
+"platforms.linux-x64" = { checksum = "blake3:8441277927f75428a6d22897a5cc05e8cdc03562d7a203b2bb9a7c6cd1d0c3bd", url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz"}
 "platforms.linux-x64-musl" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz"}
 "platforms.macos-arm64" = { checksum = "blake3:5c7e92baa305e64738b31e6ed9725d6cecdb8915af6e1b6c59bb4d7890efaaca", url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-darwin-arm64.tar.gz"}
 "platforms.macos-x64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-darwin-amd64.tar.gz"}
@@ -97,17 +97,17 @@ backend = "github:nicklockwood/SwiftFormat"
 [[tools.swiftlint]]
 version = "0.59.1"
 backend = "aqua:realm/SwiftLint"
-"platforms.linux-x64" = { url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/swiftlint_linux.zip"}
+"platforms.linux-x64" = { checksum = "blake3:a0bd5d2a234208b230a33cfe0bbaeb151764635b7ec26ebb7ad99a724c27cbf0", url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/swiftlint_linux.zip"}
 "platforms.linux-x64-musl" = { url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/swiftlint_linux.zip"}
 "platforms.macos-arm64" = { checksum = "blake3:6164196a72866dbd8b324acd6fc73099e2d128d1a996b6807b8bae28f18176f1", url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"}
 "platforms.macos-x64" = { url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"}
 
 [[tools.tuist]]
-version = "4.160.1"
+version = "4.160.2"
 backend = "aqua:tuist/tuist"
-"platforms.linux-arm64" = { checksum = "sha256:2038889ed37c0b231e285a8cc42d06c89b68f577c7144e63f3c8b9f18c7c2a28", url = "https://github.com/tuist/tuist/releases/download/4.160.1/tuist-linux-aarch64.tar.gz"}
-"platforms.linux-arm64-musl" = { checksum = "sha256:2038889ed37c0b231e285a8cc42d06c89b68f577c7144e63f3c8b9f18c7c2a28", url = "https://github.com/tuist/tuist/releases/download/4.160.1/tuist-linux-aarch64.tar.gz"}
-"platforms.linux-x64" = { checksum = "sha256:58c3cbefc060adb5b2a6db7ba2643c112d2807dd277f44d06ba0fbff327e8655", url = "https://github.com/tuist/tuist/releases/download/4.160.1/tuist-linux-x86_64.tar.gz"}
-"platforms.linux-x64-musl" = { checksum = "sha256:58c3cbefc060adb5b2a6db7ba2643c112d2807dd277f44d06ba0fbff327e8655", url = "https://github.com/tuist/tuist/releases/download/4.160.1/tuist-linux-x86_64.tar.gz"}
-"platforms.macos-arm64" = { checksum = "sha256:fb7af9dcaf208f217697d86de800047b6aaeaaea174e0ea3d456bfd024c52513", url = "https://github.com/tuist/tuist/releases/download/4.160.1/tuist.zip"}
-"platforms.macos-x64" = { checksum = "sha256:fb7af9dcaf208f217697d86de800047b6aaeaaea174e0ea3d456bfd024c52513", url = "https://github.com/tuist/tuist/releases/download/4.160.1/tuist.zip"}
+"platforms.linux-arm64" = { checksum = "sha256:2031d196a0809fd8d074bd56f6affbca86e1812f65e1c091a6b36f9eb1fc7d9d", url = "https://github.com/tuist/tuist/releases/download/4.160.2/tuist-linux-aarch64.tar.gz"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:2031d196a0809fd8d074bd56f6affbca86e1812f65e1c091a6b36f9eb1fc7d9d", url = "https://github.com/tuist/tuist/releases/download/4.160.2/tuist-linux-aarch64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:b00c8681ec3fee85d7c80482e4161a4df76b6aed6b8ba893930fbac4627731ba", url = "https://github.com/tuist/tuist/releases/download/4.160.2/tuist-linux-x86_64.tar.gz"}
+"platforms.linux-x64-musl" = { checksum = "sha256:b00c8681ec3fee85d7c80482e4161a4df76b6aed6b8ba893930fbac4627731ba", url = "https://github.com/tuist/tuist/releases/download/4.160.2/tuist-linux-x86_64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:ab7b513bb31b9a9c30e94ce76aa3b7a6fbbe9f0eaf2082613d8b31bf9933eea8", url = "https://github.com/tuist/tuist/releases/download/4.160.2/tuist.zip"}
+"platforms.macos-x64" = { checksum = "sha256:ab7b513bb31b9a9c30e94ce76aa3b7a6fbbe9f0eaf2082613d8b31bf9933eea8", url = "https://github.com/tuist/tuist/releases/download/4.160.2/tuist.zip"}
