@@ -117,8 +117,7 @@ struct XcodeBuildTestCommandService {
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             shardPlanId: shardPlanId,
-            shardIndex: shardIndex,
-            selectiveTestingHashes: selectiveTestingHashes
+            shardIndex: shardIndex
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
@@ -211,8 +210,7 @@ struct XcodeBuildTestCommandService {
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         shardPlanId: String? = nil,
-        shardIndex: Int? = nil,
-        selectiveTestingHashes: [String: String]? = nil
+        shardIndex: Int? = nil
     ) async {
         guard let resultBundlePath,
               let projectDerivedDataDirectory,

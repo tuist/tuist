@@ -7469,10 +7469,6 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/name`.
                 public var name: Swift.String
-                /// The selective testing hash for this module, if available.
-                ///
-                /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/selective_testing_hash`.
-                public var selective_testing_hash: Swift.String?
                 /// The status of the test module.
                 ///
                 /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/status`.
@@ -7724,21 +7720,18 @@ public enum Components {
                 /// - Parameters:
                 ///   - duration: The duration of the test module in milliseconds.
                 ///   - name: The name of the test module/target.
-                ///   - selective_testing_hash: The selective testing hash for this module, if available.
                 ///   - status: The status of the test module.
                 ///   - test_cases: The test cases within this module.
                 ///   - test_suites: The test suites within this module.
                 public init(
                     duration: Swift.Int,
                     name: Swift.String,
-                    selective_testing_hash: Swift.String? = nil,
                     status: Components.Schemas.TestParams.test_modulesPayloadPayload.statusPayload,
                     test_cases: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayload? = nil,
                     test_suites: Components.Schemas.TestParams.test_modulesPayloadPayload.test_suitesPayload? = nil
                 ) {
                     self.duration = duration
                     self.name = name
-                    self.selective_testing_hash = selective_testing_hash
                     self.status = status
                     self.test_cases = test_cases
                     self.test_suites = test_suites
@@ -7746,7 +7739,6 @@ public enum Components {
                 public enum CodingKeys: String, CodingKey {
                     case duration
                     case name
-                    case selective_testing_hash
                     case status
                     case test_cases
                     case test_suites
@@ -48283,10 +48275,6 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/name`.
                         public var name: Swift.String
-                        /// The selective testing hash for this module, if available.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/selective_testing_hash`.
-                        public var selective_testing_hash: Swift.String?
                         /// The status of the test module.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/status`.
@@ -48538,21 +48526,18 @@ public enum Operations {
                         /// - Parameters:
                         ///   - duration: The duration of the test module in milliseconds.
                         ///   - name: The name of the test module/target.
-                        ///   - selective_testing_hash: The selective testing hash for this module, if available.
                         ///   - status: The status of the test module.
                         ///   - test_cases: The test cases within this module.
                         ///   - test_suites: The test suites within this module.
                         public init(
                             duration: Swift.Int,
                             name: Swift.String,
-                            selective_testing_hash: Swift.String? = nil,
                             status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.statusPayload,
                             test_cases: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayload? = nil,
                             test_suites: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_suitesPayload? = nil
                         ) {
                             self.duration = duration
                             self.name = name
-                            self.selective_testing_hash = selective_testing_hash
                             self.status = status
                             self.test_cases = test_cases
                             self.test_suites = test_suites
@@ -48560,7 +48545,6 @@ public enum Operations {
                         public enum CodingKeys: String, CodingKey {
                             case duration
                             case name
-                            case selective_testing_hash
                             case status
                             case test_cases
                             case test_suites

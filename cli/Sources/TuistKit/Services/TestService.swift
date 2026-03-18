@@ -537,7 +537,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
 
-        let selectiveTestingHashes = shard.selectiveTestingGraph?.testTargetHashes
         var testError: Error?
 
         do {
@@ -552,8 +551,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             shardPlanId: shard.planId,
-            shardIndex: shardIndex,
-            selectiveTestingHashes: selectiveTestingHashes
+            shardIndex: shardIndex
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -1232,8 +1230,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         config: Tuist,
         action: XcodeBuildTestAction,
         shardPlanId: String? = nil,
-        shardIndex: Int? = nil,
-        selectiveTestingHashes: [String: String]? = nil
+        shardIndex: Int? = nil
     ) async {
         guard let resultBundlePath, config.fullHandle != nil, action != .build,
               (try? await fileSystem.exists(resultBundlePath)) == true
@@ -1245,8 +1242,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 shardPlanId: shardPlanId,
-                shardIndex: shardIndex,
-                selectiveTestingHashes: selectiveTestingHashes
+                shardIndex: shardIndex
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

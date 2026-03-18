@@ -27,8 +27,7 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             shardPlanId: String?,
-            shardIndex: Int?,
-            selectiveTestingHashes: [String: String]?
+            shardIndex: Int?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -83,8 +82,7 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             shardPlanId: String?,
-            shardIndex: Int?,
-            selectiveTestingHashes: [String: String]? = nil
+            shardIndex: Int?
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -159,7 +157,6 @@ import TuistHTTP
                     .test_modulesPayloadPayload(
                         duration: module.duration,
                         name: module.name,
-                        selective_testing_hash: selectiveTestingHashes?[module.name],
                         status: mapModuleStatus(module.status),
                         test_cases: moduleTestCases,
                         test_suites: testSuites

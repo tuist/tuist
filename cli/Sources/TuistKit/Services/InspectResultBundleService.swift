@@ -39,8 +39,7 @@ public protocol InspectResultBundleServicing {
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         shardPlanId: String?,
-        shardIndex: Int?,
-        selectiveTestingHashes: [String: String]?
+        shardIndex: Int?
     ) async throws -> Components.Schemas.RunsTest
 }
 
@@ -94,8 +93,7 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         shardPlanId: String? = nil,
-        shardIndex: Int? = nil,
-        selectiveTestingHashes: [String: String]? = nil
+        shardIndex: Int? = nil
     ) async throws -> Components.Schemas.RunsTest {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
@@ -140,8 +138,7 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             shardPlanId: shardPlanId ?? ciInfo?.shardPlanId,
-            shardIndex: shardIndex,
-            selectiveTestingHashes: selectiveTestingHashes
+            shardIndex: shardIndex
         )
 
         let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)
