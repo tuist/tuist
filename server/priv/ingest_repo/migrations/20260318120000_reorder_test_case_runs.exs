@@ -30,11 +30,6 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
         Logger.info("test_case_runs already has the new ORDER BY, skipping")
 
       _ ->
-        IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_inserted_at")
-        IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_daily_stats")
-
-        IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_new")
-
         columns = get_column_definitions("test_case_runs")
 
         indexes = """
@@ -62,8 +57,15 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
         IngestRepo.query!("RENAME TABLE test_case_runs TO test_case_runs_old")
         IngestRepo.query!("RENAME TABLE test_case_runs_new TO test_case_runs")
 
+        # MVs reference the source table by internal UUID, so after the rename
+        # the old MVs still point at test_case_runs_old. Drop and recreate them
+        # to point at the new table. This is done after the swap so that if the
+        # data copy fails, the MVs remain intact on the original table.
+        IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_inserted_at")
+        IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_daily_stats")
+
         IngestRepo.query!("""
-        CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_inserted_at
+        CREATE MATERIALIZED VIEW test_case_runs_by_inserted_at
         ENGINE = MergeTree
         ORDER BY (project_id, inserted_at)
         POPULATE
@@ -71,7 +73,7 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
         """)
 
         IngestRepo.query!("""
-        CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_daily_stats
+        CREATE MATERIALIZED VIEW test_case_runs_daily_stats
         ENGINE = AggregatingMergeTree
         ORDER BY (project_id, date, status, is_ci, is_flaky)
         POPULATE
