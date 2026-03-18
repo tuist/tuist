@@ -547,8 +547,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       build: build
     } do
       parsed_data_with_cache =
-        parsed_data()
-        |> Map.put("cacheable_tasks", [
+        Map.put(parsed_data(), "cacheable_tasks", [
           %{
             "type" => "swift",
             "status" => "hit_remote",
