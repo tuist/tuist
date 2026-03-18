@@ -273,7 +273,6 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "mno345\n"
         )
-        system.errorCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"])
         system.succeedCommand(
             ["git", "-C", path.pathString, "branch", "--show-current"],
             output: "local-branch\n"
@@ -338,7 +337,6 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "pqr678\n"
         )
-        system.errorCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"])
         system.succeedCommand(
             ["git", "-C", path.pathString, "branch", "--show-current"],
             output: ""
@@ -367,7 +365,6 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "stu901\n"
         )
-        system.errorCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"])
         system.succeedCommand(["git", "-C", path.pathString, "remote"], output: "none")
 
         // When
@@ -392,7 +389,6 @@ struct GitControllerTests {
             ["git", "-C", path.pathString, "rev-parse", "HEAD"],
             output: "vwx234\n"
         )
-        system.errorCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"])
         system.succeedCommand(
             ["git", "-C", path.pathString, "branch", "--show-current"],
             output: "local-branch\n"

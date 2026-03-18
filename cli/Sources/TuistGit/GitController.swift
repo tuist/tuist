@@ -239,14 +239,17 @@ public struct GitController: GitControlling {
             )
         }
 
-        // SHA — if HEAD is a merge commit (e.g. GitHub Actions PR checkout),
-        // use the second parent which is the actual PR branch tip
+        // SHA — if CI checked out a PR merge ref (e.g. refs/pull/N/merge),
+        // HEAD is an ephemeral merge commit. Use the second parent (the actual
+        // PR branch tip) instead, since the merge commit doesn't exist on the remote.
         let commitSHA: String?
         if hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-            if let secondParent = try? capture(
-                command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
-            ).trimmingCharacters(in: .whitespacesAndNewlines),
-                !secondParent.isEmpty
+            let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true
+            if isPullRequestMergeRef,
+               let secondParent = try? capture(
+                   command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
+               ).trimmingCharacters(in: .whitespacesAndNewlines),
+               !secondParent.isEmpty
             {
                 commitSHA = secondParent
             } else {
