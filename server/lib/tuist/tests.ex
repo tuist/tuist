@@ -36,7 +36,6 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunAttachment
-  alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
@@ -50,13 +49,15 @@ defmodule Tuist.Tests do
   end
 
   def total_test_case_run_count do
-    ClickHouseRepo.one(from(d in TestCaseRunDashboardCount, select: fragment("countMerge(count)"))) || 0
+    TestCaseRun
+    |> from(hints: ["FINAL"], select: count())
+    |> ClickHouseRepo.one() || 0
   end
 
   def flaky_test_case_run_count do
-    ClickHouseRepo.one(
-      from(d in TestCaseRunDashboardCount, where: d.is_flaky == true, select: fragment("countMerge(count)"))
-    ) || 0
+    TestCaseRun
+    |> from(hints: ["FINAL"], where: [is_flaky: true], select: count())
+    |> ClickHouseRepo.one() || 0
   end
 
   def last_24h_test_run_count do
@@ -67,23 +68,21 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_test_case_run_count do
-    yesterday = Date.add(Date.utc_today(), -1)
+    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
     ClickHouseRepo.one(
-      from(d in TestCaseRunDashboardCount,
-        where: d.day >= ^yesterday,
-        select: fragment("countMerge(count)")
-      )
+      from(t in TestCaseRun, hints: ["FINAL"], where: t.inserted_at >= ^twenty_four_hours_ago, select: count())
     ) || 0
   end
 
   def last_24h_flaky_test_case_run_count do
-    yesterday = Date.add(Date.utc_today(), -1)
+    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
     ClickHouseRepo.one(
-      from(d in TestCaseRunDashboardCount,
-        where: d.is_flaky == true and d.day >= ^yesterday,
-        select: fragment("countMerge(count)")
+      from(t in TestCaseRun,
+        hints: ["FINAL"],
+        where: t.is_flaky == true and t.inserted_at >= ^twenty_four_hours_ago,
+        select: count()
       )
     ) || 0
   end
