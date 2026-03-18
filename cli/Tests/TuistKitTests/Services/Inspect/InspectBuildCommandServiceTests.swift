@@ -37,6 +37,7 @@ struct InspectBuildCommandServiceTests {
     private let gitController: MockGitControlling
     private let ciController = MockCIControlling()
     private let xcodeProjectOrWorkspacePathLocator = MockXcodeProjectOrWorkspacePathLocating()
+    private let uploadBuildService = MockUploadBuildServicing()
 
     init() throws {
         gitController = MockGitControlling()
@@ -47,6 +48,7 @@ struct InspectBuildCommandServiceTests {
             machineEnvironment: machineEnvironment,
             xcodeBuildController: xcodeBuildController,
             createBuildService: createBuildService,
+            uploadBuildService: uploadBuildService,
             configLoader: configLoader,
             xcActivityLogController: xcActivityLogController,
             backgroundProcessRunner: backgroundProcessRunner,
@@ -873,6 +875,95 @@ struct InspectBuildCommandServiceTests {
                 cacheableTasks: .any,
                 casOutputs: .any,
                 machineMetrics: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func remoteBuild_uses_activityLog_uuid_as_buildId() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+        mockedEnvironment.variables["TUIST_INSPECT_BUILD_MODE"] = "remote"
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogUUID = "5D058318-CD9C-46C5-8D15-7A0330AF73F2"
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(activityLogUUID).xcactivitylog"
+        )
+
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
+        ).willReturn(
+            .test(
+                path: activityLogPath,
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
+            )
+        )
+
+        given(uploadBuildService)
+            .uploadBuild(
+                buildId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                filePath: .any
+            )
+            .willReturn(())
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then — build ID must be the xcactivitylog UUID, not a random UUID
+        verify(createBuildService)
+            .createBuild(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .value(activityLogUUID),
+                category: .any,
+                configuration: .any,
+                customMetadata: .any,
+                duration: .any,
+                files: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                issues: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                scheme: .any,
+                targets: .any,
+                xcodeCacheUploadEnabled: .any,
+                xcodeVersion: .any,
+                status: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                cacheableTasks: .any,
+                casOutputs: .any,
+                machineMetrics: .any
+            )
+            .called(1)
+
+        verify(uploadBuildService)
+            .uploadBuild(
+                buildId: .value(activityLogUUID),
+                fullHandle: .any,
+                serverURL: .any,
+                filePath: .any
             )
             .called(1)
     }
