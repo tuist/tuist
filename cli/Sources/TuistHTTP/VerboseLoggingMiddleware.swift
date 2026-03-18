@@ -8,6 +8,19 @@ import TuistLogging
 public struct VerboseLoggingMiddleware: ClientMiddleware {
     private let serviceName: String
 
+    private static let sensitiveHeaders: Set<String> = [
+        "authorization",
+        "cookie",
+        "set-cookie",
+        "x-api-key",
+        "x-auth-token",
+        "x-access-token",
+        "proxy-authorization",
+        "www-authenticate",
+        "x-amz-security-token",
+        "x-amz-credential",
+    ]
+
     public init(serviceName: String = "Tuist") {
         self.serviceName = serviceName
     }
@@ -26,7 +39,7 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
           - URL: \(baseURL.absoluteString)
           - Path: \(request.path ?? "")
           - Body: \(requestBodyToLog)
-          - Headers: \(request.headerFields)
+          - Headers: \(Self.redactSensitiveHeaders(request.headerFields))
         """)
 
         let (response, responseBody) = try await next(request, requestBodyForNext, baseURL)
@@ -38,7 +51,7 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
           - Path: \(request.path ?? "")
           - Status: \(response.status.code)
           - Body: \(responseBodyToLog)
-          - Headers: \(response.headerFields)
+          - Headers: \(Self.redactSensitiveHeaders(response.headerFields))
         """)
 
         return (response, responseBodyForNext)
@@ -67,6 +80,16 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
                 return String(describing: data)
             }
         }
+    }
+
+    static func redactSensitiveHeaders(_ headers: HTTPFields) -> String {
+        let redacted = headers.map { field in
+            if sensitiveHeaders.contains(field.name.rawName.lowercased()) {
+                return "\(field.name.rawName): [REDACTED]"
+            }
+            return "\(field.name.rawName): \(field.value)"
+        }
+        return "[\(redacted.joined(separator: ", "))]"
     }
 
     public func process(_ body: HTTPBody?) async throws -> (bodyToLog: BodyLog, bodyForNext: HTTPBody?) {
