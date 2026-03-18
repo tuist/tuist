@@ -39,6 +39,10 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// The base settings to be used for targets generated from SwiftPackageManager
     public var baseSettings: Settings
 
+    /// Expected signatures for Swift Package Manager binary targets.
+    /// The first-level key is the package name and the second-level key is the binary target name.
+    public var binaryTargetSignatures: [String: [String: XCFrameworkSignature]]
+
     /// Additional settings to be added to targets generated from SwiftPackageManager.
     public var targetSettings: [String: Settings]
 
@@ -56,12 +60,14 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
+        binaryTargetSignatures: [String: [String: XCFrameworkSignature]] = [:],
         targetSettings: [String: Settings] = [:],
         projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
+        self.binaryTargetSignatures = binaryTargetSignatures
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
         dumpIfNeeded(self)
@@ -86,12 +92,14 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
+        binaryTargetSignatures: [String: [String: XCFrameworkSignature]] = [:],
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
+        self.binaryTargetSignatures = binaryTargetSignatures
         self.targetSettings = targetSettings.mapValues { .settings(base: $0) }
         self.projectOptions = projectOptions
         dumpIfNeeded(self)

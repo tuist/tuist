@@ -91,7 +91,8 @@ public protocol PackageInfoMapping {
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        packageSettings: TuistCore.PackageSettings
     ) async throws -> [String: [ProjectDescription.TargetDependency]]
 
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
@@ -140,7 +141,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
         packageInfos: [String: PackageInfo],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        packageSettings: TuistCore.PackageSettings
     ) async throws -> [String: [ProjectDescription.TargetDependency]] {
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
@@ -185,7 +187,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         .map {
                             switch $0 {
                             case let .xcframework(path, condition):
-                                return .xcframework(path: path, expectedSignature: nil, condition: condition)
+                                return .xcframework(
+                                    path: path,
+                                    expectedSignature: packageSettings.binaryTargetSignatures[packageInfo.key]?[target]
+                                        .map(ProjectDescription.XCFrameworkSignature.from),
+                                    condition: condition
+                                )
                             case let .target(name, condition):
                                 let name = moduleAliases?[name] ?? name
                                 return .project(
@@ -217,7 +224,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
             let xcframeworkPath = Path
                 .relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
-            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: nil)]
+            let signature = packageInfos.keys
+                .compactMap { packageSettings.binaryTargetSignatures[$0]?[dependencyName] }
+                .map(ProjectDescription.XCFrameworkSignature.from)
+                .first
+            externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: signature)]
         }
         return externalDependencies
     }
@@ -622,6 +633,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         name: name,
                         packageInfo: packageInfo,
                         packageType: packageType,
+                        packageSettings: packageSettings,
                         condition: condition,
                         moduleAliases: moduleAliases,
                         dependencyModuleAliases: &dependencyModuleAliases,
@@ -636,6 +648,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         name: name,
                         packageInfo: packageInfo,
                         packageType: packageType,
+                        packageSettings: packageSettings,
                         condition: condition,
                         moduleAliases: packageModuleAliases[packageInfo.name],
                         dependencyModuleAliases: &dependencyModuleAliases,
@@ -688,6 +701,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         name: String,
         packageInfo: PackageInfo,
         packageType: PackageType,
+        packageSettings: TuistCore.PackageSettings,
         condition: PackageInfo.PackageConditionDescription?,
         moduleAliases: [String: String]?,
         dependencyModuleAliases: inout [String: String],
@@ -713,7 +727,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             {
                 return .xcframework(
                     path: .path(artifactPath.pathString),
-                    expectedSignature: nil,
+                    expectedSignature: packageSettings.binaryTargetSignatures[packageInfo.name]?[target.name]
+                        .map(ProjectDescription.XCFrameworkSignature.from),
                     status: .required,
                     condition: platformCondition
                 )
@@ -790,6 +805,19 @@ public struct PackageInfoMapper: PackageInfoMapping {
             } catch {
                 return []
             }
+        }
+    }
+}
+
+extension ProjectDescription.XCFrameworkSignature {
+    fileprivate static func from(_ signature: XcodeGraph.XCFrameworkSignature) -> Self {
+        switch signature {
+        case .unsigned:
+            return .unsigned
+        case let .signedWithAppleCertificate(teamIdentifier, teamName):
+            return .signedWithAppleCertificate(teamIdentifier: teamIdentifier, teamName: teamName)
+        case let .selfSigned(fingerprint):
+            return .selfSigned(fingerprint: fingerprint)
         }
     }
 }

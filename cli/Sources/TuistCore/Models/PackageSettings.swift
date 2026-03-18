@@ -12,6 +12,10 @@ public struct PackageSettings: Equatable, Codable {
     /// The base settings to be used for targets generated from SwiftPackageManager.
     public let baseSettings: Settings
 
+    /// Expected signatures for Swift Package Manager binary targets.
+    /// The first-level key is the package name and the second-level key is the binary target name.
+    public let binaryTargetSignatures: [String: [String: XCFrameworkSignature]]
+
     /// The custom `Settings` to be applied to SPM targets.
     public let targetSettings: [String: Settings]
 
@@ -28,12 +32,14 @@ public struct PackageSettings: Equatable, Codable {
         productTypes: [String: Product],
         productDestinations: [String: Destinations],
         baseSettings: Settings,
+        binaryTargetSignatures: [String: [String: XCFrameworkSignature]],
         targetSettings: [String: Settings],
         projectOptions: [String: XcodeGraph.Project.Options] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
+        self.binaryTargetSignatures = binaryTargetSignatures
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
     }
@@ -43,6 +49,7 @@ public struct PackageSettings: Equatable, Codable {
             productTypes: [String: Product] = [:],
             productDestinations: [String: Destinations] = [:],
             baseSettings: Settings = Settings.default,
+            binaryTargetSignatures: [String: [String: XCFrameworkSignature]] = [:],
             targetSettings: [String: Settings] = [:],
             projectOptions: [String: XcodeGraph.Project.Options] = [:]
         ) -> PackageSettings {
@@ -50,6 +57,7 @@ public struct PackageSettings: Equatable, Codable {
                 productTypes: productTypes,
                 productDestinations: productDestinations,
                 baseSettings: baseSettings,
+                binaryTargetSignatures: binaryTargetSignatures,
                 targetSettings: targetSettings,
                 projectOptions: projectOptions
             )
