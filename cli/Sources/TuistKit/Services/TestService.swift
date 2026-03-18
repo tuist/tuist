@@ -497,8 +497,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-        let effectiveSchemeName = schemeName ?? "Test"
-
         let shard = try await shardService.shard(
             shardIndex: shardIndex,
             fullHandle: fullHandle,
