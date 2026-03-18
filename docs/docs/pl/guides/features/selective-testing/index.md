@@ -5,7 +5,7 @@
   "description": "Learn how to leverage selective testing to run only the tests that have changed."
 }
 ---
-# Testowanie wybiórcze {#selective-testing}
+# Testy selektywne {#selective-testing}
 
 ::: ostrzeżenie WYMAGANIA
 <!-- -->
@@ -18,7 +18,7 @@
 
 Aby uruchomić testy selektywnie z wygenerowanym projektem, użyj polecenia `tuist
 test`. Polecenie to
-<LocalizedLink href="/guides/features/projects/hashing">haszuje</LocalizedLink>
+<LocalizedLink href="/guides/features/projects/hashing">hasuje</LocalizedLink>
 projekt Xcode w taki sam sposób, jak
 <LocalizedLink href="/guides/features/cache#cache-warming">rozgrzewanie pamięci
 podręcznej</LocalizedLink>, a po pomyślnym zakończeniu zachowuje skróty, aby
@@ -30,7 +30,7 @@ ostatniego pomyślnego uruchomienia testów.
 
 Na przykład, zakładając następujący wykres zależności:
 
-- `Funkcja „` ” ma testy `Funkcja „ATests”` i zależy od `Core`
+- `Funkcja` ma testy `FunkcjaATests` i zależy od `Core`
 - `FunkcjaB` zawiera testy `FunkcjaBTesty` i zależy od `Core`
 - `Core` zawiera testy `CoreTests`
 
