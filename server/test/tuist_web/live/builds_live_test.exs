@@ -37,6 +37,7 @@ defmodule TuistWeb.BuildsLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{project.account.name}/#{project.name}/builds")
+    render_async(lv)
 
     # Then
     assert has_element?(lv, "span", "AppOne")
