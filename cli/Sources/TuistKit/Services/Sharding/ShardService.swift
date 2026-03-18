@@ -13,24 +13,13 @@ public struct Shard {
     public let planId: String
     public let testProductsPath: AbsolutePath
     public let modules: [String]
-    public let suites: [String: [String]]
     public let selectiveTestingGraph: SelectiveTestingGraph?
-
-    public var testIdentifiers: [String] {
-        if suites.isEmpty {
-            return modules
-        }
-        return suites.flatMap { module, suiteNames in
-            suiteNames.map { "\(module)/\($0)" }
-        }
-    }
 }
 
 @Mockable
 public protocol ShardServicing {
     func shard(
         shardIndex: Int,
-        scheme: String,
         fullHandle: String,
         serverURL: URL
     ) async throws -> Shard
@@ -76,7 +65,6 @@ public struct ShardService: ShardServicing {
 
     public func shard(
         shardIndex: Int,
-        scheme: String,
         fullHandle: String,
         serverURL: URL
     ) async throws -> Shard {
@@ -112,6 +100,19 @@ public struct ShardService: ShardServicing {
         }
         Logger.current.debug("Unzipped test products to \(testProductsPath.pathString)")
 
+        let xcTestRunPaths = try await fileSystem
+            .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
+            .collect()
+        for xcTestRunPath in xcTestRunPaths {
+            let plistData = try await fileSystem.readFile(at: xcTestRunPath)
+            let filteredData = try filterXCTestRun(
+                plistData: plistData,
+                modules: shard.modules,
+                suites: shard.suites.additionalProperties
+            )
+            try filteredData.write(to: URL(fileURLWithPath: xcTestRunPath.pathString))
+        }
+
         let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         var selectiveTestingGraph: SelectiveTestingGraph?
         if try await fileSystem.exists(selectiveTestingGraphPath) {
@@ -125,8 +126,49 @@ public struct ShardService: ShardServicing {
             planId: planId,
             testProductsPath: testProductsPath,
             modules: shard.modules,
-            suites: shard.suites.additionalProperties,
             selectiveTestingGraph: selectiveTestingGraph
         )
+    }
+
+    func filterXCTestRun(
+        plistData data: Data,
+        modules: [String],
+        suites: [String: [String]]
+    ) throws -> Data {
+        guard var plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              var configurations = plist["TestConfigurations"] as? [[String: Any]]
+        else {
+            return data
+        }
+
+        let moduleSet = Set(modules)
+
+        configurations = configurations.map { config in
+            var config = config
+            guard var targets = config["TestTargets"] as? [[String: Any]] else { return config }
+
+            targets = targets.filter { target in
+                guard let name = target["BlueprintName"] as? String else { return false }
+                return moduleSet.contains(name)
+            }
+
+            if !suites.isEmpty {
+                targets = targets.map { target in
+                    var target = target
+                    if let name = target["BlueprintName"] as? String,
+                       let suiteNames = suites[name]
+                    {
+                        target["OnlyTestIdentifiers"] = suiteNames
+                    }
+                    return target
+                }
+            }
+
+            config["TestTargets"] = targets
+            return config
+        }
+
+        plist["TestConfigurations"] = configurations
+        return try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
     }
 }

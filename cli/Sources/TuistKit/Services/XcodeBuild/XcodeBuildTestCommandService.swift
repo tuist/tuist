@@ -71,18 +71,13 @@ struct XcodeBuildTestCommandService {
         var shardTestProductsPath: AbsolutePath?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
             let shard = try await shardService.shard(
                 shardIndex: shardIndex,
-                scheme: schemeName,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
             shardTestProductsPath = shard.testProductsPath
             passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
-            for target in shard.testIdentifiers {
-                passthroughXcodebuildArguments += ["-only-testing", target]
-            }
             shardPlanId = shard.planId
             selectiveTestingHashes = shard.selectiveTestingGraph?.testTargetHashes
         }
