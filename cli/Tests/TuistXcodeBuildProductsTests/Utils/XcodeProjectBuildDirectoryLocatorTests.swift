@@ -23,13 +23,11 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
     }
 
     func test_locate_WHEN_destination_platform_IS_device_macOS() async throws {
-        // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
         derivedDataLocator.locateStub = { _ in try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)") }
         let configuration = "Release"
 
-        // WHEN
         let path = try await subject.locate(
             destinationType: .device(.macOS),
             projectPath: projectPath,
@@ -37,20 +35,17 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
             configuration: configuration
         )
 
-        // THEN
         let expectedPath = try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)")
         XCTAssertEqual(path, expectedPath)
     }
 
     func test_locate_WHEN_destination_platform_IS_simulator_iOS() async throws {
-        // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
         derivedDataLocator.locateStub = { _ in try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)") }
         let configuration = "Release"
         let sdk = "iphonesimulator"
 
-        // WHEN
         let path = try await subject.locate(
             destinationType: .simulator(.iOS),
             projectPath: projectPath,
@@ -58,21 +53,18 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
             configuration: configuration
         )
 
-        // THEN
         let expectedPath =
             try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)")
         XCTAssertEqual(path, expectedPath)
     }
 
     func test_locate_WHEN_destination_platform_IS_device_iOS() async throws {
-        // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
         derivedDataLocator.locateStub = { _ in try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)") }
         let configuration = "Release"
         let sdk = "iphoneos"
 
-        // WHEN
         let path = try await subject.locate(
             destinationType: .device(.iOS),
             projectPath: projectPath,
@@ -80,7 +72,6 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
             configuration: configuration
         )
 
-        // THEN
         let expectedPath =
             try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)")
         XCTAssertEqual(path, expectedPath)
