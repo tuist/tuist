@@ -51,7 +51,7 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
         help: "Sharding granularity level: module (default) or suite.",
         envKey: .testShardGranularity
     )
-    var shardGranularity: ShardGranularity?
+    var shardGranularity: ShardGranularity = .module
 
     @Argument(
         parsing: .captureForPassthrough,

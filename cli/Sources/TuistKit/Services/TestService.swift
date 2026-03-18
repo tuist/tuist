@@ -209,7 +209,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         generateOnly: Bool,
         passthroughXcodeBuildArguments: [String],
         skipQuarantine: Bool = false,
-        shardGranularity: ShardGranularity? = nil,
+        shardGranularity: ShardGranularity = .module,
         shardMin: Int? = nil,
         shardMax: Int? = nil,
         shardTotal: Int? = nil,
@@ -393,7 +393,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         var shardTestProductsPath: AbsolutePath?
         let effectiveSchemeName = schemeName ?? schemes.first?.name ?? "Test"
 
-        if shardGranularity != nil, action == .build {
+        if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build {
             let testProductsDir = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
                 .appending(component: "shard-test-products")
             try await fileSystem.makeDirectory(at: testProductsDir)
@@ -449,7 +449,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             resultBundlePath: resultBundlePath
         )
 
-        if let shardGranularity, action == .build,
+        if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
            let shardTestProductsPath,
            let fullHandle = config.fullHandle
         {
