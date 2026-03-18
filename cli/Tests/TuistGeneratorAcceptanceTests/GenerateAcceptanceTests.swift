@@ -1207,6 +1207,42 @@ struct GeneratediOSStaticLibraryWithStringResources {
     }
 }
 
+struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
+    @Test(.withFixture("generated_ios_app_with_static_framework_with_xcstrings"), .inTemporaryDirectory)
+    func ios_app_with_static_framework_with_xcstrings() async throws {
+        let fixturePath = try fixtureDirectory()
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            resource: "StaticFramework_StaticFramework.bundle"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "StaticFramework_StaticFramework.bundle",
+            destination: "Debug-iphonesimulator",
+            resource: "Localizable.strings"
+        )
+
+        let staticFrameworkProjectPath = fixturePath.appending(
+            components: "StaticFramework", "StaticFramework.xcodeproj"
+        )
+        let xcodeproj = try XcodeProj(pathString: staticFrameworkProjectPath.pathString)
+        let mainTarget = try #require(
+            xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == "StaticFramework" })
+        )
+        let sourceFiles = try mainTarget.sourcesBuildPhase()?.files?
+            .compactMap(\.file)
+            .map(\.nameOrPath) ?? []
+        let resourceFiles = try mainTarget.resourcesBuildPhase()?.files?
+            .compactMap(\.file)
+            .map(\.nameOrPath) ?? []
+        #expect(!sourceFiles.contains("Localizable.xcstrings"))
+        #expect(resourceFiles.contains("Localizable.xcstrings"))
+    }
+}
+
 struct GenerateAcceptanceTestsAppWithMetalOptions {
     @Test(.withFixture("generated_app_with_metal_options"), .inTemporaryDirectory)
     func app_with_metal_options() async throws {
