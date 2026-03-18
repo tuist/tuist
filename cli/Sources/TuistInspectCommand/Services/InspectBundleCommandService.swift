@@ -11,17 +11,18 @@ import TuistGit
 import TuistLogging
 import TuistServer
 import TuistSupport
+import XcodeGraph
 
 #if os(macOS)
     import TuistCore
     import TuistLoader
     import TuistSimulator
     import TuistUserInputReader
-    import XcodeGraph
 #endif
 
 public enum InspectBundleCommandServiceError: LocalizedError {
     case missingFullHandle
+    case appleAppNameResolutionNotSupported
     #if os(macOS)
         case projectOrWorkspaceNotFound(path: String)
         case noAppsFound(app: String, configuration: String)
@@ -33,6 +34,8 @@ public enum InspectBundleCommandServiceError: LocalizedError {
         switch self {
         case .missingFullHandle:
             "To analyze the app bundle, run 'tuist init' to connect to the Tuist server."
+        case .appleAppNameResolutionNotSupported:
+            "Resolving an app name for Apple platforms from Xcode build products is only supported on macOS. Pass an explicit bundle path instead."
         #if os(macOS)
             case let .projectOrWorkspaceNotFound(path):
                 "Workspace or project not found at \(path)"
@@ -123,42 +126,47 @@ public struct InspectBundleCommandService {
         }
     #endif
 
-    #if os(macOS)
-        public func run(
-            path: String?,
-            bundle: String,
-            configuration: String?,
-            platforms: [Platform],
-            derivedDataPath: String?,
-            json: Bool
-        ) async throws {
-            let path = try await self.path(path)
-            let bundlePath = try await resolveBundlePath(
+    public func run(
+        path: String?,
+        bundle: String,
+        configuration: String?,
+        platforms: [Platform],
+        derivedDataPath: String?,
+        json: Bool
+    ) async throws {
+        let path = try await self.path(path)
+        let bundlePath: AbsolutePath
+
+        #if os(macOS)
+            bundlePath = try await resolveBundlePath(
                 bundle,
                 path: path,
                 configuration: configuration,
                 platforms: platforms,
                 derivedDataPath: derivedDataPath
             )
-
-            try await inspect(
-                path: path,
-                bundlePath: bundlePath,
-                json: json
+        #else
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            let explicitPath = try AbsolutePath(
+                validating: bundle,
+                relativeTo: currentWorkingDirectory
             )
-        }
-    #endif
 
-    public func run(
-        path: String?,
-        bundle: String,
-        json: Bool
-    ) async throws {
-        let bundlePath = try AbsolutePath(
-            validating: bundle,
-            relativeTo: try await Environment.current.currentWorkingDirectory()
-        )
-        let path = try await self.path(path)
+            let bundleExtensions = ["app", "xcarchive", "ipa", "aab", "apk"]
+            let looksLikeBundlePath = if try await FileSystem().exists(explicitPath) {
+                true
+            } else if let fileExtension = explicitPath.extension, bundleExtensions.contains(fileExtension) {
+                true
+            } else {
+                false
+            }
+
+            if looksLikeBundlePath {
+                bundlePath = explicitPath
+            } else {
+                throw InspectBundleCommandServiceError.appleAppNameResolutionNotSupported
+            }
+        #endif
 
         try await inspect(
             path: path,

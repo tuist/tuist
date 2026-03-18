@@ -111,6 +111,9 @@ struct InspectBundleCommandServiceTests {
             try await subject.run(
                 path: temporaryDirectory.pathString,
                 bundle: bundlePath.pathString,
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
                 json: false
             )
 
