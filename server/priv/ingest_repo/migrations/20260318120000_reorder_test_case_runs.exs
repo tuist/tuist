@@ -54,13 +54,12 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
 
         copy_data_by_partition("test_case_runs", "test_case_runs_new")
 
-        IngestRepo.query!("RENAME TABLE test_case_runs TO test_case_runs_old")
-        IngestRepo.query!("RENAME TABLE test_case_runs_new TO test_case_runs")
+        IngestRepo.query!("EXCHANGE TABLES test_case_runs AND test_case_runs_new")
 
-        # MVs reference the source table by internal UUID, so after the rename
-        # the old MVs still point at test_case_runs_old. Drop and recreate them
-        # to point at the new table. This is done after the swap so that if the
-        # data copy fails, the MVs remain intact on the original table.
+        # MVs reference the source table by internal UUID, so after the exchange
+        # the old MVs still point at test_case_runs_new (which now holds the old
+        # data). Drop and recreate them to point at the new table. This is done
+        # after the swap so that if the data copy fails, the MVs remain intact.
         IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_inserted_at")
         IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_daily_stats")
 
