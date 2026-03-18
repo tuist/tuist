@@ -271,7 +271,7 @@
             help: "Sharding granularity level: module (default) or suite.",
             envKey: .testShardGranularity
         )
-        var shardGranularity: String?
+        var shardGranularity: ShardGranularity?
 
         @Argument(
             parsing: .postTerminator,
@@ -344,13 +344,8 @@
                     .test
                 }
 
-            let granularity: ShardGranularity? = if shardMax != nil || shardMin != nil || shardTotal != nil
-                || shardMaxDuration != nil
-            {
-                shardGranularity == "suite" ? .suite : .module
-            } else {
-                nil
-            }
+            let granularity = shardGranularity ?? (shardMax != nil || shardMin != nil || shardTotal != nil
+                || shardMaxDuration != nil ? .module : nil)
 
             try await TestService(
                 generatorFactory: Extension.generatorFactory,

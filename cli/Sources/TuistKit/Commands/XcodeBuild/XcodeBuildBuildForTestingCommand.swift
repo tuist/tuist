@@ -51,7 +51,7 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
         help: "Sharding granularity level: module (default) or suite.",
         envKey: .testShardGranularity
     )
-    var shardGranularity: String?
+    var shardGranularity: ShardGranularity?
 
     @Argument(
         parsing: .captureForPassthrough,
@@ -60,13 +60,8 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
     public var passthroughXcodebuildArguments: [String] = []
 
     public func run() async throws {
-        let granularity: ShardGranularity? = if shardMax != nil || shardMin != nil || shardTotal != nil
-            || shardMaxDuration != nil
-        {
-            shardGranularity == "suite" ? .suite : .module
-        } else {
-            nil
-        }
+        let granularity = shardGranularity ?? (shardMax != nil || shardMin != nil || shardTotal != nil
+            || shardMaxDuration != nil ? .module : nil)
 
         try await XcodeBuildBuildCommandService()
             .run(
