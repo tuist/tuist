@@ -15,9 +15,9 @@
 :::
 
 生成したプロジェクトでテストを選択的に実行するには、`tuist test`
-コマンドを使用します。このコマンドは、<LocalizedLink href="/guides/features/cache#cache-warming">キャッシュのウォームアップ</LocalizedLink>と同様の方法でXcodeプロジェクトを<LocalizedLink href="/guides/features/projects/hashing">ハッシュ化</LocalizedLink>し、成功時にはハッシュを保存して、今後の実行時に変更箇所を特定します。
+コマンドを使用します。このコマンドは、<LocalizedLink href="/guides/features/cache#cache-warming">キャッシュのウォームアップ</LocalizedLink>と同様の方法でXcodeプロジェクトを<LocalizedLink href="/guides/features/projects/hashing">ハッシュ化</LocalizedLink>し、成功時にはハッシュを保持して、今後の実行時に変更箇所を特定します。
 
-今後の実行では、`tuist test` はハッシュを透過的に使用し、前回の正常なテスト実行以降に変更されたテストのみを実行対象に絞り込みます。
+今後の実行では、`tuist test` はハッシュを透過的に使用し、前回の正常なテスト実行以降に変更されたテストのみを実行するようにフィルタリングします。
 
 例として、以下の依存関係グラフを想定します：
 
@@ -40,8 +40,8 @@
 
 ## UIテスト{#ui-tests}
 
-TuistはUIテストの選択的実行をサポートしています。ただし、Tuistは事前に実行先を知る必要があります。`の`
-パラメータで実行先を指定した場合のみ、TuistはUIテストを選択的に実行します。例：
+TuistはUIテストの選択的テストをサポートしています。ただし、Tuistは事前にデスティネーションを知る必要があります。`のデスティネーション`
+パラメータを指定した場合のみ、TuistはUIテストを選択的に実行します。例：
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or
