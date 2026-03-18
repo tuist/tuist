@@ -6,6 +6,7 @@ defmodule Tuist.Shards.Analytics do
   alias Postgrex.Interval
   alias Tuist.ClickHouseRepo
   alias Tuist.Shards.ShardPlan
+  alias Tuist.Shards.ShardRun
   alias Tuist.Tests.Test
 
   def sharded_run_analytics(project_id, opts \\ []) do
@@ -478,4 +479,21 @@ defmodule Tuist.Shards.Analytics do
   defp get_clickhouse_date_format("1 day"), do: "%Y-%m-%d"
   defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
+
+  def shard_metrics(test_run_id) when is_binary(test_run_id) do
+    ClickHouseRepo.all(
+      from(sr in ShardRun,
+        hints: ["FINAL"],
+        where: sr.test_run_id == ^test_run_id,
+        select: %{
+          shard_index: sr.shard_index,
+          actual_duration_ms: sr.duration,
+          status: sr.status,
+          ran_at: sr.ran_at
+        }
+      )
+    )
+  end
+
+  def shard_metrics(_), do: []
 end

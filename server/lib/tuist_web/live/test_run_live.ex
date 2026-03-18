@@ -1288,7 +1288,7 @@ defmodule TuistWeb.TestRunLive do
 
     target_counts = fetch_target_counts(shard_plan, run.shard_plan_id, run.project_id)
 
-    reported_shards = Tests.Analytics.shard_metrics(run.id)
+    reported_shards = Tuist.Shards.Analytics.shard_metrics(run.id)
 
     reported_indices = MapSet.new(reported_shards, & &1.shard_index)
 

@@ -17,7 +17,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateShardRuns do
       `project_id` Int64,
       `test_run_id` String,
       `shard_index` UInt16,
-      `status` LowCardinality(String) DEFAULT 'in_progress',
+      `status` LowCardinality(String),
       `duration` UInt64 DEFAULT 0,
       `ran_at` DateTime64(6),
       `inserted_at` DateTime64(6)
