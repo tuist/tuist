@@ -3,7 +3,7 @@ import Testing
 
 @testable import TuistKit
 
-struct ShardServiceFilterXCTestRunTests {
+struct ShardServiceTests {
     let subject = ShardService()
 
     @Test
