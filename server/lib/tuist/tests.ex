@@ -28,6 +28,7 @@ defmodule Tuist.Tests do
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards.ShardPlan
+  alias Tuist.Shards.ShardRun
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.QuarantinedTestCase
@@ -322,51 +323,59 @@ defmodule Tuist.Tests do
     shard_plan = load_shard_plan(%{shard_plan_id: shard_plan_id, project_id: project_id})
     expected_shard_count = if shard_plan, do: shard_plan.shard_count, else: 1
 
-    case existing do
-      nil ->
-        shard_status = if expected_shard_count > 1, do: "in_progress", else: Map.get(attrs, :status, "success")
-        attrs = Map.put(attrs, :status, shard_status)
-        create_new_test(attrs)
+    shard_index = Map.get(attrs, :shard_index)
+    shard_status = Map.get(attrs, :status, "success")
+    shard_duration = Map.get(attrs, :duration, 0)
 
-      existing_test ->
-        {test_case_ids_with_flaky_run, test_case_runs} =
-          create_test_modules(%{existing_test | shard_index: Map.get(attrs, :shard_index)}, test_modules)
+    result =
+      case existing do
+        nil ->
+          test_status = if expected_shard_count > 1, do: "in_progress", else: shard_status
+          attrs = Map.put(attrs, :status, test_status)
+          create_new_test(attrs)
 
-        reported_count = count_reported_shards(existing_test.id) + 1
-        shard_status = Map.get(attrs, :status, "success")
+        existing_test ->
+          {test_case_ids_with_flaky_run, test_case_runs} =
+            create_test_modules(%{existing_test | shard_index: shard_index}, test_modules)
 
-        merged_status =
-          if reported_count >= expected_shard_count do
-            compute_final_shard_status(existing_test, shard_status)
-          else
-            "in_progress"
-          end
+          reported_count = count_reported_shards(existing_test.id) + 1
 
-        shard_duration = Map.get(attrs, :duration, 0)
-        merged_duration = max(existing_test.duration, shard_duration)
+          merged_status =
+            if reported_count >= expected_shard_count do
+              compute_final_shard_status(existing_test, shard_status)
+            else
+              "in_progress"
+            end
 
-        updated_test = %{existing_test | status: merged_status, duration: merged_duration}
+          merged_duration = max(existing_test.duration, shard_duration)
 
-        update_attrs =
-          updated_test
-          |> Map.from_struct()
-          |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
-          |> Map.put(:inserted_at, NaiveDateTime.utc_now())
+          updated_test = %{existing_test | status: merged_status, duration: merged_duration}
 
-        IngestRepo.insert_all(Test, [update_attrs])
+          update_attrs =
+            updated_test
+            |> Map.from_struct()
+            |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+            |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
-        updated_test = mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
-        schedule_flaky_threshold_check(updated_test.project_id, test_case_ids_with_flaky_run)
+          IngestRepo.insert_all(Test, [update_attrs])
 
-        project = Tuist.Projects.get_project_by_id(updated_test.project_id)
+          updated_test = mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
+          schedule_flaky_threshold_check(updated_test.project_id, test_case_ids_with_flaky_run)
 
-        Tuist.PubSub.broadcast(
-          updated_test,
-          "#{project.account.name}/#{project.name}",
-          :test_created
-        )
+          project = Tuist.Projects.get_project_by_id(updated_test.project_id)
 
-        {:ok, %{updated_test | test_case_runs: test_case_runs}}
+          Tuist.PubSub.broadcast(
+            updated_test,
+            "#{project.account.name}/#{project.name}",
+            :test_created
+          )
+
+          {:ok, %{updated_test | test_case_runs: test_case_runs}}
+      end
+
+    with {:ok, test} <- result do
+      insert_shard_run(shard_plan_id, project_id, test.id, shard_index, shard_status, shard_duration, attrs)
+      {:ok, test}
     end
   end
 
@@ -398,6 +407,23 @@ defmodule Tuist.Tests do
       has_existing_failure > 0 -> "failure"
       true -> "success"
     end
+  end
+
+  defp insert_shard_run(plan_id, project_id, test_run_id, shard_index, status, duration, attrs) do
+    now = NaiveDateTime.utc_now()
+
+    IngestRepo.insert_all(ShardRun, [
+      %{
+        plan_id: plan_id,
+        project_id: project_id,
+        test_run_id: test_run_id,
+        shard_index: shard_index || 0,
+        status: status,
+        duration: duration || 0,
+        ran_at: Map.get(attrs, :ran_at, now),
+        inserted_at: now
+      }
+    ])
   end
 
   defp schedule_flaky_threshold_check(_project_id, []), do: :ok

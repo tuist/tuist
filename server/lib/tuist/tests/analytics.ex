@@ -7,6 +7,7 @@ defmodule Tuist.Tests.Analytics do
   alias Postgrex.Interval
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
+  alias Tuist.Shards.ShardRun
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -1228,15 +1229,14 @@ defmodule Tuist.Tests.Analytics do
 
   def shard_metrics(test_run_id) when is_binary(test_run_id) do
     ClickHouseRepo.all(
-      from(tcr in TestCaseRun,
-        where: tcr.test_run_id == ^test_run_id,
-        where: not is_nil(tcr.shard_index),
-        group_by: tcr.shard_index,
+      from(sr in ShardRun,
+        hints: ["FINAL"],
+        where: sr.test_run_id == ^test_run_id,
         select: %{
-          shard_index: tcr.shard_index,
-          actual_duration_ms: sum(tcr.duration),
-          status: fragment("if(countIf(? = 'failure') > 0, 'failure', 'success')", tcr.status),
-          ran_at: min(tcr.ran_at)
+          shard_index: sr.shard_index,
+          actual_duration_ms: sr.duration,
+          status: sr.status,
+          ran_at: sr.ran_at
         }
       )
     )
