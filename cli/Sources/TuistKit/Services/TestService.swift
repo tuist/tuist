@@ -510,7 +510,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 .cacheDirectory(for: .runs)
                 .appending(components: runId, Constants.resultBundleName)
 
-        let effectiveResultBundlePath = try await self.resultBundlePath(
+        let resultBundlePath = try await self.resultBundlePath(
             runResultBundlePath: runResultBundlePath,
             passedResultBundlePath: resultBundlePath,
             config: config
@@ -532,7 +532,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             platform: platform,
             osVersion: osVersion,
             rosetta: rosetta,
-            resultBundlePath: effectiveResultBundlePath,
+            resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
@@ -547,7 +547,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         await inspectResultBundleIfNeeded(
-            resultBundlePath: effectiveResultBundlePath,
+            resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
@@ -557,19 +557,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
-            let passingTargets = testError == nil
-                ? Set(shard.modules)
-                : await passingTargetNames(resultBundlePath: effectiveResultBundlePath)
             try await storeSuccessfulShardTestHashes(
                 selectiveTestingGraph: selectiveTestingGraph,
-                passingTargetNames: passingTargets,
+                passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
                 cacheStorage: cacheStorage
             )
         }
 
         try await copyResultBundlePathIfNeeded(
             runResultBundlePath: runResultBundlePath,
-            resultBundlePath: effectiveResultBundlePath
+            resultBundlePath: resultBundlePath
         )
         try? await fileSystem.remove(shard.testProductsPath)
 
