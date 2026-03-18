@@ -17,7 +17,7 @@
             xctestproductsPath: AbsolutePath,
             scheme: String,
             planId: String?,
-            granularity: ShardGranularity,
+            shardGranularity: ShardGranularity,
             shardMin: Int?,
             shardMax: Int?,
             shardTotal: Int?,
@@ -84,7 +84,7 @@
             xctestproductsPath: AbsolutePath,
             scheme: String,
             planId: String?,
-            granularity: ShardGranularity,
+            shardGranularity: ShardGranularity,
             shardMin: Int?,
             shardMax: Int?,
             shardTotal: Int?,
@@ -111,7 +111,7 @@
             }
 
             var testSuites: [String]?
-            if granularity == .suite {
+            if shardGranularity == .suite {
                 let suitesMap = try await xcTestEnumerator.enumerateTests(
                     testProductsPath: xctestproductsPath,
                     scheme: scheme,
@@ -126,13 +126,13 @@
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 planId: planId,
-                modules: granularity == .module ? modules : nil,
+                modules: shardGranularity == .module ? modules : nil,
                 testSuites: testSuites,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
-                granularity: granularity.rawValue
+                granularity: shardGranularity.rawValue
             )
 
             Logger.current.info("Shard plan created: \(shardPlan.shard_count) shards")

@@ -468,7 +468,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 xctestproductsPath: shardTestProductsPath,
                 scheme: effectiveSchemeName,
                 planId: shardPlanId,
-                granularity: shardGranularity,
+                shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,

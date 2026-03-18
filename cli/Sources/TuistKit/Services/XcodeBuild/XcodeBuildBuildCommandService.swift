@@ -94,7 +94,7 @@ struct XcodeBuildBuildCommandService {
                 xctestproductsPath: testProductsPath,
                 scheme: schemeName,
                 planId: shardPlanId,
-                granularity: shardGranularity,
+                shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,
