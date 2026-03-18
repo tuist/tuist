@@ -205,8 +205,7 @@ defmodule Tuist.Shards.Analytics do
     sessions
     |> Enum.map(& &1.balance)
     |> Enum.sum()
-    |> Kernel./(length(sessions))
-    |> Kernel.*(100)
+    |> then(&(&1 / length(sessions) * 100))
     |> round()
   end
 
