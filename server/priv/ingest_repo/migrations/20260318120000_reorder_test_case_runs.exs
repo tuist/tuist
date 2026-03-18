@@ -57,11 +57,7 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
         SETTINGS allow_nullable_key = 1
         """)
 
-        IngestRepo.query!(
-          "INSERT INTO test_case_runs_new SELECT * FROM test_case_runs",
-          [],
-          timeout: 1_200_000
-        )
+        copy_data_by_partition("test_case_runs", "test_case_runs_new")
 
         IngestRepo.query!("RENAME TABLE test_case_runs TO test_case_runs_old")
         IngestRepo.query!("RENAME TABLE test_case_runs_new TO test_case_runs")
@@ -102,6 +98,29 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
 
   def down do
     :ok
+  end
+
+  defp copy_data_by_partition(source, destination) do
+    {:ok, %{rows: partitions}} =
+      IngestRepo.query(
+        """
+        SELECT DISTINCT partition
+        FROM system.parts
+        WHERE database = currentDatabase() AND table = {table:String} AND active
+        ORDER BY partition
+        """,
+        %{table: source}
+      )
+
+    for [partition] <- partitions do
+      Logger.info("Copying partition #{partition} from #{source} to #{destination}")
+
+      IngestRepo.query!(
+        "INSERT INTO #{destination} SELECT * FROM #{source} WHERE toYYYYMM(inserted_at) = {partition:UInt32}",
+        %{partition: String.to_integer(partition)},
+        timeout: 1_200_000
+      )
+    end
   end
 
   defp get_column_definitions(table_name) do
