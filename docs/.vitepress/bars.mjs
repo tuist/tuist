@@ -24,7 +24,6 @@ import {
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { localizedString } from "./i18n.mjs";
-import { localizedDocsPath } from "./paths.mjs";
 
 const CLI_CONTENT_LOCALE = "en";
 
@@ -42,7 +41,7 @@ export async function referencesSidebar(locale) {
             locale,
             "sidebars.references.items.configuration.items.tuist-toml.text",
           ),
-          link: localizedDocsPath(locale, "/references/tuist-toml"),
+          link: `/${locale}/references/tuist-toml`,
         },
       ],
     },
@@ -69,15 +68,12 @@ export async function referencesSidebar(locale) {
                 locale,
                 "sidebars.references.items.examples.text",
               ),
-              link: localizedDocsPath(locale, "/references/examples/generated-projects"),
+              link: `/${locale}/references/examples/generated-projects`,
               collapsed: true,
               items: (await loadExamplesData()).map((item) => {
                 return {
                   text: item.title,
-                  link: localizedDocsPath(
-                    locale,
-                    `/references/examples/generated-projects/${item.name}`,
-                  ),
+                  link: `/${locale}/references/examples/generated-projects/${item.name}`,
                 };
               }),
             },
@@ -93,7 +89,7 @@ export async function referencesSidebar(locale) {
                     locale,
                     "sidebars.references.items.migrations.items.from-v3-to-v4.text",
                   ),
-                  link: localizedDocsPath(locale, "/references/migrations/from-v3-to-v4"),
+                  link: `/${locale}/references/migrations/from-v3-to-v4`,
                 },
               ],
             },
@@ -108,11 +104,11 @@ export function navBar(locale) {
   return [
     {
       text: localizedString(locale, "navbar.guides.text"),
-      link: localizedDocsPath(locale, "/"),
+      link: `/${locale}/`,
     },
     {
       text: localizedString(locale, "navbar.cli.text"),
-      link: localizedDocsPath(CLI_CONTENT_LOCALE, "/cli/auth"),
+      link: `/${CLI_CONTENT_LOCALE}/cli/auth`,
     },
     {
       text: localizedString(locale, "navbar.resources.text"),
@@ -122,14 +118,14 @@ export function navBar(locale) {
             locale,
             "navbar.resources.items.references.text",
           ),
-          link: localizedDocsPath(locale, "/references/tuist-toml"),
+          link: `/${locale}/references/tuist-toml`,
         },
         {
           text: localizedString(
             locale,
             "navbar.resources.items.contributors.text",
           ),
-          link: localizedDocsPath(locale, "/contributors/code"),
+          link: `/${locale}/contributors/code`,
         },
         {
           text: localizedString(
@@ -171,7 +167,7 @@ export function contributorsSidebar(locale) {
             locale,
             "sidebars.contributors.items.code.text",
           ),
-          link: localizedDocsPath(locale, "/contributors/code"),
+          link: `/${locale}/contributors/code`,
           collapsed: true,
           items: [
             {
@@ -179,28 +175,28 @@ export function contributorsSidebar(locale) {
                 locale,
                 "sidebars.contributors.items.code.items.cli.text",
               ),
-              link: localizedDocsPath(locale, "/contributors/code/cli"),
+              link: `/${locale}/contributors/code/cli`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.contributors.items.code.items.server.text",
               ),
-              link: localizedDocsPath(locale, "/contributors/code/server"),
+              link: `/${locale}/contributors/code/server`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.contributors.items.code.items.handbook.text",
               ),
-              link: localizedDocsPath(locale, "/contributors/code/handbook"),
+              link: `/${locale}/contributors/code/handbook`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.contributors.items.code.items.docs.text",
               ),
-              link: localizedDocsPath(locale, "/contributors/code/docs"),
+              link: `/${locale}/contributors/code/docs`,
             },
           ],
         },
@@ -209,42 +205,42 @@ export function contributorsSidebar(locale) {
             locale,
             "sidebars.contributors.items.issue-reporting.text",
           ),
-          link: localizedDocsPath(locale, "/contributors/issue-reporting"),
+          link: `/${locale}/contributors/issue-reporting`,
         },
         {
           text: localizedString(
             locale,
             "sidebars.contributors.items.code-reviews.text",
           ),
-          link: localizedDocsPath(locale, "/contributors/code-reviews"),
+          link: `/${locale}/contributors/code-reviews`,
         },
         {
           text: localizedString(
             locale,
             "sidebars.contributors.items.principles.text",
           ),
-          link: localizedDocsPath(locale, "/contributors/principles"),
+          link: `/${locale}/contributors/principles`,
         },
         {
           text: localizedString(
             locale,
             "sidebars.contributors.items.debugging.text",
           ),
-          link: localizedDocsPath(locale, "/contributors/debugging"),
+          link: `/${locale}/contributors/debugging`,
         },
         {
           text: localizedString(
             locale,
             "sidebars.contributors.items.translate.text",
           ),
-          link: localizedDocsPath(locale, "/contributors/translate"),
+          link: `/${locale}/contributors/translate`,
         },
         {
           text: localizedString(
             locale,
             "sidebars.contributors.items.releases.text",
           ),
-          link: localizedDocsPath(locale, "/contributors/releases"),
+          link: `/${locale}/contributors/releases`,
         },
         {
           text: localizedString(locale, "sidebars.contributors.items.cli.text"),
@@ -255,7 +251,7 @@ export function contributorsSidebar(locale) {
                 locale,
                 "sidebars.contributors.items.cli.items.logging.text",
               ),
-              link: localizedDocsPath(locale, "/contributors/cli/logging"),
+              link: `/${locale}/contributors/cli/logging`,
             },
           ],
         },
@@ -274,11 +270,11 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.install-tuist.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/install-tuist"),
+          link: `/${locale}/guides/install-tuist`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" style="display:block;" /> Install the Gradle plugin</span>`,
-          link: localizedDocsPath(locale, "/guides/install-gradle-plugin"),
+          link: `/${locale}/guides/install-gradle-plugin`,
         },
       ],
     },
@@ -296,7 +292,7 @@ export async function guidesSidebar(locale) {
                 locale,
                 "sidebars.tutorials.items.xcode.items.create-a-generated-project.text",
               ),
-              link: localizedDocsPath(locale, "/tutorials/xcode/create-a-generated-project"),
+              link: `/${locale}/tutorials/xcode/create-a-generated-project`,
             },
           ],
         },
@@ -311,7 +307,7 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.generated-projects.text",
           )}</span>`,
           collapsed: true,
-          link: localizedDocsPath(locale, "/guides/features/projects"),
+          link: `/${locale}/guides/features/projects`,
           items: [
             {
               text: localizedString(
@@ -325,14 +321,14 @@ export async function guidesSidebar(locale) {
                     locale,
                     "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.new-project.text",
                   ),
-                  link: localizedDocsPath(locale, "/guides/features/projects/adoption/new-project"),
+                  link: `/${locale}/guides/features/projects/adoption/new-project`,
                 },
                 {
                   text: localizedString(
                     locale,
                     "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.swift-package.text",
                   ),
-                  link: localizedDocsPath(locale, "/guides/features/projects/adoption/swift-package"),
+                  link: `/${locale}/guides/features/projects/adoption/swift-package`,
                 },
                 {
                   text: localizedString(
@@ -346,28 +342,28 @@ export async function guidesSidebar(locale) {
                         locale,
                         "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.migrate.items.xcode-project.text",
                       ),
-                      link: localizedDocsPath(locale, "/guides/features/projects/adoption/migrate/xcode-project"),
+                      link: `/${locale}/guides/features/projects/adoption/migrate/xcode-project`,
                     },
                     {
                       text: localizedString(
                         locale,
                         "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.migrate.items.swift-package.text",
                       ),
-                      link: localizedDocsPath(locale, "/guides/features/projects/adoption/migrate/swift-package"),
+                      link: `/${locale}/guides/features/projects/adoption/migrate/swift-package`,
                     },
                     {
                       text: localizedString(
                         locale,
                         "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.migrate.items.xcodegen-project.text",
                       ),
-                      link: localizedDocsPath(locale, "/guides/features/projects/adoption/migrate/xcodegen-project"),
+                      link: `/${locale}/guides/features/projects/adoption/migrate/xcodegen-project`,
                     },
                     {
                       text: localizedString(
                         locale,
                         "sidebars.guides.items.develop.items.generated-projects.items.adoption.items.migrate.items.bazel-project.text",
                       ),
-                      link: localizedDocsPath(locale, "/guides/features/projects/adoption/migrate/bazel-project"),
+                      link: `/${locale}/guides/features/projects/adoption/migrate/bazel-project`,
                     },
                   ],
                 },
@@ -378,70 +374,70 @@ export async function guidesSidebar(locale) {
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.manifests.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/manifests"),
+              link: `/${locale}/guides/features/projects/manifests`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.directory-structure.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/directory-structure"),
+              link: `/${locale}/guides/features/projects/directory-structure`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.editing.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/editing"),
+              link: `/${locale}/guides/features/projects/editing`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.dependencies.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/dependencies"),
+              link: `/${locale}/guides/features/projects/dependencies`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.code-sharing.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/code-sharing"),
+              link: `/${locale}/guides/features/projects/code-sharing`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.synthesized-files.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/synthesized-files"),
+              link: `/${locale}/guides/features/projects/synthesized-files`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.dynamic-configuration.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/dynamic-configuration"),
+              link: `/${locale}/guides/features/projects/dynamic-configuration`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.templates.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/templates"),
+              link: `/${locale}/guides/features/projects/templates`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.plugins.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/plugins"),
+              link: `/${locale}/guides/features/projects/plugins`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.hashing.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/hashing"),
+              link: `/${locale}/guides/features/projects/hashing`,
             },
             {
               text: localizedString(
@@ -455,7 +451,7 @@ export async function guidesSidebar(locale) {
                     locale,
                     "sidebars.guides.items.develop.items.generated-projects.items.inspect.items.implicit-imports.text",
                   ),
-                  link: localizedDocsPath(locale, "/guides/features/projects/inspect/implicit-dependencies"),
+                  link: `/${locale}/guides/features/projects/inspect/implicit-dependencies`,
                 },
               ],
             },
@@ -464,28 +460,28 @@ export async function guidesSidebar(locale) {
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.the-cost-of-convenience.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/cost-of-convenience"),
+              link: `/${locale}/guides/features/projects/cost-of-convenience`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.tma-architecture.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/tma-architecture"),
+              link: `/${locale}/guides/features/projects/tma-architecture`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.metadata-tags.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/metadata-tags"),
+              link: `/${locale}/guides/features/projects/metadata-tags`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.best-practices.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/projects/best-practices"),
+              link: `/${locale}/guides/features/projects/best-practices`,
             },
           ],
         },
@@ -494,7 +490,7 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.develop.items.cache.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/features/cache"),
+          link: `/${locale}/guides/features/cache`,
           collapsed: true,
           items: [
             {
@@ -509,14 +505,14 @@ export async function guidesSidebar(locale) {
                     locale,
                     "sidebars.guides.items.develop.items.cache.items.xcode.items.xcode-cache.text",
                   ),
-                  link: localizedDocsPath(locale, "/guides/features/cache/xcode-cache"),
+                  link: `/${locale}/guides/features/cache/xcode-cache`,
                 },
                 {
                   text: localizedString(
                     locale,
                     "sidebars.guides.items.develop.items.cache.items.xcode.items.module-cache.text",
                   ),
-                  link: localizedDocsPath(locale, "/guides/features/cache/module-cache"),
+                  link: `/${locale}/guides/features/cache/module-cache`,
                 },
               ],
             },
@@ -525,7 +521,7 @@ export async function guidesSidebar(locale) {
                 locale,
                 "sidebars.guides.items.develop.items.cache.items.gradle-cache.text",
               )}</span>`,
-              link: localizedDocsPath(locale, "/guides/features/cache/gradle-cache"),
+              link: `/${locale}/guides/features/cache/gradle-cache`,
             },
           ],
         },
@@ -534,14 +530,14 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.develop.items.selective-testing.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/features/selective-testing"),
+          link: `/${locale}/guides/features/selective-testing`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${registryIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.develop.items.registry.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/features/registry"),
+          link: `/${locale}/guides/features/registry`,
           collapsed: true,
           items: [
             {
@@ -549,35 +545,35 @@ export async function guidesSidebar(locale) {
                 locale,
                 "sidebars.guides.items.develop.items.registry.items.xcode-project.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/registry/xcode-project"),
+              link: `/${locale}/guides/features/registry/xcode-project`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.registry.items.generated-project.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/registry/generated-project"),
+              link: `/${locale}/guides/features/registry/generated-project`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.registry.items.xcodeproj-integration.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/registry/xcodeproj-integration"),
+              link: `/${locale}/guides/features/registry/xcodeproj-integration`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.registry.items.swift-package.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/registry/swift-package"),
+              link: `/${locale}/guides/features/registry/swift-package`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.registry.items.continuous-integration.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/registry/continuous-integration"),
+              link: `/${locale}/guides/features/registry/continuous-integration`,
             },
           ],
         },
@@ -586,16 +582,16 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.develop.items.insights.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/features/build-insights"),
+          link: `/${locale}/guides/features/build-insights`,
           collapsed: true,
           items: [
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/xcode-icon.png" alt="Xcode" width="16" height="16" />Xcode</span>`,
-              link: localizedDocsPath(locale, "/guides/features/build-insights/xcode"),
+              link: `/${locale}/guides/features/build-insights/xcode`,
             },
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" />Gradle</span>`,
-              link: localizedDocsPath(locale, "/guides/features/build-insights/gradle"),
+              link: `/${locale}/guides/features/build-insights/gradle`,
             },
           ],
         },
@@ -604,16 +600,16 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.develop.items.test-insights.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/features/test-insights"),
+          link: `/${locale}/guides/features/test-insights`,
           collapsed: true,
           items: [
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/xcode-icon.png" alt="Xcode" width="16" height="16" />Xcode</span>`,
-              link: localizedDocsPath(locale, "/guides/features/test-insights/xcode"),
+              link: `/${locale}/guides/features/test-insights/xcode`,
             },
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" />Gradle</span>`,
-              link: localizedDocsPath(locale, "/guides/features/test-insights/gradle"),
+              link: `/${locale}/guides/features/test-insights/gradle`,
             },
           ],
         },
@@ -622,16 +618,16 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.develop.items.test-insights.items.flaky-tests.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/features/test-insights/flaky-tests"),
+          link: `/${locale}/guides/features/test-insights/flaky-tests`,
           collapsed: true,
           items: [
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/xcode-icon.png" alt="Xcode" width="16" height="16" />Xcode</span>`,
-              link: localizedDocsPath(locale, "/guides/features/test-insights/flaky-tests/xcode"),
+              link: `/${locale}/guides/features/test-insights/flaky-tests/xcode`,
             },
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" />Gradle</span>`,
-              link: localizedDocsPath(locale, "/guides/features/test-insights/flaky-tests/gradle"),
+              link: `/${locale}/guides/features/test-insights/flaky-tests/gradle`,
             },
           ],
         },
@@ -640,14 +636,14 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.develop.items.bundle-size.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/features/bundle-size"),
+          link: `/${locale}/guides/features/bundle-size`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${previewsIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.share.items.previews.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/features/previews"),
+          link: `/${locale}/guides/features/previews`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${agenticBuildingIcon()} ${localizedString(
@@ -661,14 +657,14 @@ export async function guidesSidebar(locale) {
                 locale,
                 "sidebars.guides.items.agentic-coding.items.mcp.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/agentic-coding/mcp"),
+              link: `/${locale}/guides/features/agentic-coding/mcp`,
             },
             {
               text: localizedString(
                 locale,
                 "sidebars.guides.items.agentic-coding.items.skills.text",
               ),
-              link: localizedDocsPath(locale, "/guides/features/agentic-coding/skills"),
+              link: `/${locale}/guides/features/agentic-coding/skills`,
             },
           ],
         },
@@ -682,21 +678,21 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.integrations.items.continuous-integration.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/integrations/continuous-integration"),
+          link: `/${locale}/guides/integrations/continuous-integration`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${ssoIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.integrations.items.sso.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/integrations/sso"),
+          link: `/${locale}/guides/integrations/sso`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${slackIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.integrations.items.slack.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/integrations/slack"),
+          link: `/${locale}/guides/integrations/slack`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${gitForgesIcon()} ${localizedString(
@@ -710,7 +706,7 @@ export async function guidesSidebar(locale) {
                 locale,
                 "sidebars.guides.items.integrations.items.git-forges.items.github.text",
               )}</span>`,
-              link: localizedDocsPath(locale, "/guides/integrations/gitforge/github"),
+              link: `/${locale}/guides/integrations/gitforge/github`,
             },
           ],
         },
@@ -724,21 +720,21 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.server.items.accounts-and-projects.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/server/accounts-and-projects"),
+          link: `/${locale}/guides/server/accounts-and-projects`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${authIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.server.items.authentication.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/server/authentication"),
+          link: `/${locale}/guides/server/authentication`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${networkIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.server.items.network.text",
           )}</span>`,
-          link: localizedDocsPath(locale, "/guides/server/network"),
+          link: `/${locale}/guides/server/network`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${selfHostingIcon()} ${localizedString(
@@ -752,22 +748,22 @@ export async function guidesSidebar(locale) {
                 locale,
                 "sidebars.guides.items.server.items.self-hosting.items.installation.text",
               )}</span>`,
-              link: localizedDocsPath(locale, "/guides/server/self-host/install"),
+              link: `/${locale}/guides/server/self-host/install`,
             },
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Cache nodes</span>`,
-              link: localizedDocsPath(locale, "/guides/cache/self-host"),
+              link: `/${locale}/guides/cache/self-host`,
             },
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Cache architecture</span>`,
-              link: localizedDocsPath(locale, "/guides/cache/architecture"),
+              link: `/${locale}/guides/cache/architecture`,
             },
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${telemetryIcon()} ${localizedString(
                 locale,
                 "sidebars.guides.items.server.items.self-hosting.items.telemetry.text",
               )}</span>`,
-              link: localizedDocsPath(locale, "/guides/server/self-host/telemetry"),
+              link: `/${locale}/guides/server/self-host/telemetry`,
             },
           ],
         },
