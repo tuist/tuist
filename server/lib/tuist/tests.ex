@@ -21,6 +21,8 @@ defmodule Tuist.Tests do
 
   import Ecto.Query
 
+  require OpenTelemetry.Tracer
+
   alias Tuist.Accounts.Account
   alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.ClickHouseRepo
@@ -220,6 +222,10 @@ defmodule Tuist.Tests do
     test_modules = Map.get(attrs, :test_modules, [])
     is_ci = Map.get(attrs, :is_ci, false)
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
+    test_case_count = Enum.sum(Enum.map(test_modules, fn m -> length(Map.get(m, :test_cases, [])) end))
+
+    OpenTelemetry.Tracer.set_attribute("test.module_count", length(test_modules))
+    OpenTelemetry.Tracer.set_attribute("test.case_count", test_case_count)
 
     attrs =
       if has_flaky_tests and is_ci do
@@ -232,7 +238,10 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        {test_case_ids_with_flaky_run, test_case_runs} = create_test_modules(test, test_modules)
+        {test_case_ids_with_flaky_run, test_case_runs} =
+          OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
+            create_test_modules(test, test_modules)
+          end
 
         test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
 
