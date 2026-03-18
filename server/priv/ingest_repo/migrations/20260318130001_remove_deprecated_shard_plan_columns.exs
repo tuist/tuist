@@ -24,6 +24,12 @@ defmodule Tuist.IngestRepo.Migrations.RemoveDeprecatedShardPlanColumns do
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute("ALTER TABLE shard_plans DROP COLUMN IF EXISTS `bundle_object_key`")
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute("ALTER TABLE shard_plans ADD COLUMN IF NOT EXISTS `modules_count` UInt32 DEFAULT 0")
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute("ALTER TABLE shard_plans ADD COLUMN IF NOT EXISTS `suites_count` UInt32 DEFAULT 0")
   end
 
   def down do
@@ -44,5 +50,11 @@ defmodule Tuist.IngestRepo.Migrations.RemoveDeprecatedShardPlanColumns do
     execute(
       "ALTER TABLE shard_plans ADD COLUMN IF NOT EXISTS `bundle_object_key` String DEFAULT ''"
     )
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute("ALTER TABLE shard_plans DROP COLUMN IF EXISTS `modules_count`")
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute("ALTER TABLE shard_plans DROP COLUMN IF EXISTS `suites_count`")
   end
 end

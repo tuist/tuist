@@ -12,9 +12,12 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
+  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Shards.ShardPlan
+  alias Tuist.Shards.ShardPlanModule
+  alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Xcode
@@ -1295,12 +1298,7 @@ defmodule TuistWeb.TestRunLive do
         _ -> 0
       end
 
-    assignments = ShardPlan.decode_shard_assignments(shard_plan)
-
-    target_counts =
-      Map.new(assignments, fn assignment ->
-        {Map.get(assignment, "index"), length(Map.get(assignment, "test_targets", []))}
-      end)
+    target_counts = fetch_target_counts(shard_plan, run.shard_plan_id, run.project_id)
 
     reported_indices = MapSet.new(shard_balance, & &1.shard_index)
 
@@ -1342,6 +1340,34 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:display_status, display_status)
     |> assign(:display_duration, display_duration)
   end
+
+  defp fetch_target_counts(%ShardPlan{granularity: "suite"}, plan_id, project_id) do
+    import Ecto.Query
+
+    from(s in ShardPlanTestSuite,
+      where: s.plan_id == ^plan_id,
+      where: s.project_id == ^project_id,
+      group_by: s.shard_index,
+      select: {s.shard_index, count()}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  defp fetch_target_counts(%ShardPlan{}, plan_id, project_id) do
+    import Ecto.Query
+
+    from(m in ShardPlanModule,
+      where: m.plan_id == ^plan_id,
+      where: m.project_id == ^project_id,
+      group_by: m.shard_index,
+      select: {m.shard_index, count()}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  defp fetch_target_counts(_, _, _), do: %{}
 
   defp shard_wall_clock_duration([], run_duration), do: run_duration
 

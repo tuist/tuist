@@ -9,6 +9,7 @@ defmodule Tuist.Shards do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Shards.BinPacker
@@ -53,12 +54,16 @@ defmodule Tuist.Shards do
         }
       end)
 
+    {modules_count, suites_count} = count_targets(units, granularity)
+
     attrs = %{
       id: Ecto.UUID.generate(),
       plan_id: plan_id,
       project_id: project.id,
       shard_count: shard_count,
       granularity: granularity,
+      modules_count: modules_count,
+      suites_count: suites_count,
       inserted_at: now
     }
 
@@ -125,6 +130,22 @@ defmodule Tuist.Shards do
     "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
   end
 
+  defp count_targets(units, "module"), do: {length(units), 0}
+
+  defp count_targets(units, "suite") do
+    modules =
+      units
+      |> Enum.map(fn name ->
+        case String.split(name, "/", parts: 2) do
+          [mod, _] -> mod
+          [mod] -> mod
+        end
+      end)
+      |> Enum.uniq()
+
+    {length(modules), length(units)}
+  end
+
   defp insert_shard_targets(plan_id, project_id, shards, "module", now) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
@@ -170,7 +191,7 @@ defmodule Tuist.Shards do
 
   defp fetch_shard_targets(%ShardPlan{granularity: "module"}, plan_id, project_id, shard_index) do
     results =
-      IngestRepo.all(
+      ClickHouseRepo.all(
         from(m in ShardPlanModule,
           where: m.plan_id == ^plan_id,
           where: m.project_id == ^project_id,
@@ -184,7 +205,7 @@ defmodule Tuist.Shards do
 
   defp fetch_shard_targets(%ShardPlan{granularity: "suite"}, plan_id, project_id, shard_index) do
     results =
-      IngestRepo.all(
+      ClickHouseRepo.all(
         from(s in ShardPlanTestSuite,
           where: s.plan_id == ^plan_id,
           where: s.project_id == ^project_id,
@@ -201,7 +222,7 @@ defmodule Tuist.Shards do
   end
 
   defp get_plan(project_id, plan_id) do
-    IngestRepo.one(
+    ClickHouseRepo.one(
       from(s in ShardPlan,
         where: s.project_id == ^project_id,
         where: s.plan_id == ^plan_id,
@@ -227,7 +248,7 @@ defmodule Tuist.Shards do
       group_by: mr.name,
       select: %{name: mr.name, avg_duration: fragment("avg(?)", mr.duration)}
     )
-    |> IngestRepo.all()
+    |> ClickHouseRepo.all()
     |> Map.new(fn %{name: name, avg_duration: avg} -> {name, round(avg)} end)
   end
 
@@ -244,7 +265,7 @@ defmodule Tuist.Shards do
       group_by: sr.name,
       select: %{name: sr.name, avg_duration: fragment("avg(?)", sr.duration)}
     )
-    |> IngestRepo.all()
+    |> ClickHouseRepo.all()
     |> Map.new(fn %{name: name, avg_duration: avg} -> {name, round(avg)} end)
   end
 
