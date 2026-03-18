@@ -354,58 +354,20 @@ defmodule TuistWeb.API.CacheController do
         %{assigns: %{selected_project: selected_project}, body_params: %{hash: hash}} = conn,
         _params
       ) do
-    cache_action_item =
-      Tuist.KeyValueStore.get_or_update(
-        [
-          Atom.to_string(__MODULE__),
-          "upload_cache_action_item",
-          selected_project.id,
-          hash
-        ],
-        [
-          ttl: Map.get(conn.assigns, :cache_ttl, to_timeout(minute: 1)),
-          cache: Map.get(conn.assigns, :cache, :tuist),
-          locking: true
-        ],
-        fn ->
-          CacheActionItems.get_cache_action_item(%{
-            project: selected_project,
-            hash: hash
-          })
-        end
+    :ok =
+      Pipeline.async_push(
+        {:create_cache_action_item,
+         %{
+           project_id: selected_project.id,
+           hash: hash,
+           inserted_at: DateTime.utc_now(:second),
+           updated_at: DateTime.utc_now(:second)
+         }}
       )
 
-    cond do
-      is_nil(cache_action_item) ->
-        :ok =
-          Pipeline.async_push(
-            {:create_cache_action_item,
-             %{
-               project_id: selected_project.id,
-               hash: hash,
-               inserted_at: DateTime.utc_now(:second),
-               updated_at: DateTime.utc_now(:second)
-             }}
-          )
-
-        conn
-        |> put_status(:created)
-        |> json(%{
-          hash: hash
-        })
-
-      conn |> get_req_header("x-tuist-cli-version") |> List.first() == "4.28.0" ->
-        conn
-        |> put_status(:created)
-        |> json(%{
-          hash: hash
-        })
-
-      true ->
-        conn
-        |> put_status(:ok)
-        |> json(%{hash: cache_action_item.hash})
-    end
+    conn
+    |> put_status(:created)
+    |> json(%{hash: hash})
   end
 
   operation(:multipart_start,
