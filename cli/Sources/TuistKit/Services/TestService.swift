@@ -965,6 +965,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
         }
 
+        let testedTargetNames = testActionTargets.map(\.name).sorted()
+        if !testedTargetNames.isEmpty {
+            Logger.current
+                .notice(
+                    "Testing the following targets: \(testedTargetNames.joined(separator: ", "))"
+                )
+        }
+
         return true
     }
 
@@ -1045,7 +1053,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         cacheStorage: CacheStoring
     ) async throws {
         guard let initialGraph = mapperEnvironment.initialGraph else { return }
-        let graphTraverser = GraphTraverser(graph: initialGraph)
 
         let testedGraphTargets: [GraphTarget] = targets.compactMap {
             guard let project = initialGraph.projects[$0.path],
@@ -1054,13 +1061,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return GraphTarget(path: $0.path, target: target, project: project)
         }
         try await fileSystem.runInTemporaryDirectory(prefix: "test") { _ in
-            let allTestedTargets: Set<GraphTarget> = Set(
-                graphTraverser.allTargetDependencies(traversingFromTargets: testedGraphTargets)
-                    .union(testedGraphTargets)
-            )
-
             let hashes =
-                allTestedTargets
+                testedGraphTargets
                     .filter {
                         return mapperEnvironment.targetTestCacheItems[$0.path]?[$0.target.name] == nil
                     }

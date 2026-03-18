@@ -153,6 +153,7 @@
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     text-align: left;
+    white-space: nowrap;
 
     & > [data-part="sort-link"] {
       color: unset;

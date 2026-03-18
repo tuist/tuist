@@ -24,6 +24,10 @@ export default {
     this.toggle.init();
   },
 
+  updated() {
+    this.toggle.render();
+  },
+
   beforeDestroy() {
     this.toggle.destroy();
   },
@@ -31,7 +35,7 @@ export default {
   context() {
     return {
       id: this.el.id,
-      checked: getBooleanOption(this.el, "checked"),
+      defaultChecked: getBooleanOption(this.el, "checked"),
       disabled: getBooleanOption(this.el, "disabled"),
       onCheckedChange: (details) => {
         if (this.el.dataset.onCheckedChange) {
