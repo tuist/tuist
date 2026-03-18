@@ -644,14 +644,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let matches = try await fileSystem
             .glob(directory: buildProductsPath, include: ["*.xctestproducts"])
             .collect()
-        guard let match = try await matches
+        let pathsWithDates = try await matches
             .concurrentCompactMap { path -> (path: AbsolutePath, date: Date)? in
                 guard let metadata = try? await fileSystem.fileMetadata(at: path) else { return nil }
                 return (path, metadata.lastModificationDate)
             }
-            .sorted(by: { $0.date > $1.date })
-            .first?.path
-        else {
+        guard let match = pathsWithDates.sorted(by: { $0.date > $1.date }).first?.path else {
             throw TestServiceError.testProductsNotFound
         }
         return match
