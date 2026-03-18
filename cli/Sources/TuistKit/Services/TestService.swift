@@ -507,50 +507,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
-        var xcodebuildArguments = ["test-without-building"]
-        xcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
-        for testTarget in testTargets {
-            xcodebuildArguments += ["-only-testing", testTarget.description]
-        }
-        for skipTarget in skipTestTargets {
-            xcodebuildArguments += ["-skip-testing", skipTarget.description]
-        }
-        if let testPlanConfiguration {
-            xcodebuildArguments += ["-testPlan", testPlanConfiguration.testPlan]
-        }
-
-        if !passthroughXcodeBuildArguments.contains("-destination") {
-            let destination = try await destination(
-                arguments: passthroughXcodeBuildArguments,
-                deviceName: deviceName,
-                osVersion: osVersion
-            )
-            if let destination {
-                xcodebuildArguments += [
-                    "-destination",
-                    "platform=iOS Simulator,id=\(destination.device.udid)",
-                ]
-            } else if let platform {
-                let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
-                switch buildPlatform {
-                case .iOS:
-                    xcodebuildArguments += ["-destination", "platform=iOS Simulator,name=iPhone"]
-                case .macOS:
-                    xcodebuildArguments += ["-destination", "platform=macOS"]
-                case .tvOS:
-                    xcodebuildArguments += ["-destination", "platform=tvOS Simulator,name=Apple TV"]
-                case .watchOS:
-                    xcodebuildArguments += ["-destination", "platform=watchOS Simulator,name=Apple Watch"]
-                case .visionOS:
-                    xcodebuildArguments += ["-destination", "platform=visionOS Simulator,name=Apple Vision Pro"]
-                }
-            }
-        }
-
-        if rosetta {
-            xcodebuildArguments += ["-arch", "x86_64"]
-        }
-
         let runResultBundlePath =
             try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
@@ -562,51 +518,34 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
-        if let effectiveResultBundlePath {
-            xcodebuildArguments += ["-resultBundlePath", effectiveResultBundlePath.pathString]
-        }
-
         let derivedDataPath = try derivedDataPath.map {
             try AbsolutePath(
                 validating: $0,
                 relativeTo: FileHandler.shared.currentPath
             )
         }
-        if let derivedDataPath {
-            xcodebuildArguments += ["-derivedDataPath", derivedDataPath.pathString]
-        }
 
-        xcodebuildArguments += passthroughXcodeBuildArguments
+        let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
+            testProductsPath: shard.testProductsPath,
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets,
+            testPlanConfiguration: testPlanConfiguration,
+            deviceName: deviceName,
+            platform: platform,
+            osVersion: osVersion,
+            rosetta: rosetta,
+            resultBundlePath: effectiveResultBundlePath,
+            derivedDataPath: derivedDataPath,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+        )
 
         let selectiveTestingHashes = shard.selectiveTestingGraph?.testTargetHashes
+        var testError: Error?
 
         do {
             try await xcodebuildController.run(arguments: xcodebuildArguments)
         } catch {
-            await inspectResultBundleIfNeeded(
-                resultBundlePath: effectiveResultBundlePath,
-                projectDerivedDataDirectory: derivedDataPath,
-                config: config,
-                action: .testWithoutBuilding,
-                shardPlanId: shard.planId,
-                shardIndex: shardIndex,
-                selectiveTestingHashes: selectiveTestingHashes
-            )
-
-            if let selectiveTestingGraph = shard.selectiveTestingGraph {
-                try await storeSuccessfulShardTestHashes(
-                    selectiveTestingGraph: selectiveTestingGraph,
-                    passingTargetNames: await passingTargetNames(resultBundlePath: effectiveResultBundlePath),
-                    cacheStorage: cacheStorage
-                )
-            }
-
-            try await copyResultBundlePathIfNeeded(
-                runResultBundlePath: runResultBundlePath,
-                resultBundlePath: effectiveResultBundlePath
-            )
-            try? await fileSystem.remove(shard.testProductsPath)
-            throw error
+            testError = error
         }
 
         await inspectResultBundleIfNeeded(
@@ -620,9 +559,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
+            let passingTargets = testError == nil
+                ? Set(shard.modules)
+                : await passingTargetNames(resultBundlePath: effectiveResultBundlePath)
             try await storeSuccessfulShardTestHashes(
                 selectiveTestingGraph: selectiveTestingGraph,
-                passingTargetNames: Set(shard.modules),
+                passingTargetNames: passingTargets,
                 cacheStorage: cacheStorage
             )
         }
@@ -633,7 +575,81 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
         try? await fileSystem.remove(shard.testProductsPath)
 
+        if let testError {
+            throw testError
+        }
+
         AlertController.current.success(.alert("The project tests ran successfully"))
+    }
+
+    private func buildTestWithoutBuildingArguments(
+        testProductsPath: AbsolutePath,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testPlanConfiguration: TestPlanConfiguration?,
+        deviceName: String?,
+        platform: String?,
+        osVersion: String?,
+        rosetta: Bool,
+        resultBundlePath: AbsolutePath?,
+        derivedDataPath: AbsolutePath?,
+        passthroughXcodeBuildArguments: [String]
+    ) async throws -> [String] {
+        var arguments = ["test-without-building"]
+        arguments += ["-testProductsPath", testProductsPath.pathString]
+
+        for testTarget in testTargets {
+            arguments += ["-only-testing", testTarget.description]
+        }
+        for skipTarget in skipTestTargets {
+            arguments += ["-skip-testing", skipTarget.description]
+        }
+        if let testPlanConfiguration {
+            arguments += ["-testPlan", testPlanConfiguration.testPlan]
+        }
+
+        if !passthroughXcodeBuildArguments.contains("-destination") {
+            let destination = try await destination(
+                arguments: passthroughXcodeBuildArguments,
+                deviceName: deviceName,
+                osVersion: osVersion
+            )
+            if let destination {
+                arguments += [
+                    "-destination",
+                    "platform=iOS Simulator,id=\(destination.device.udid)",
+                ]
+            } else if let platform {
+                let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
+                switch buildPlatform {
+                case .iOS:
+                    arguments += ["-destination", "platform=iOS Simulator,name=iPhone"]
+                case .macOS:
+                    arguments += ["-destination", "platform=macOS"]
+                case .tvOS:
+                    arguments += ["-destination", "platform=tvOS Simulator,name=Apple TV"]
+                case .watchOS:
+                    arguments += ["-destination", "platform=watchOS Simulator,name=Apple Watch"]
+                case .visionOS:
+                    arguments += ["-destination", "platform=visionOS Simulator,name=Apple Vision Pro"]
+                }
+            }
+        }
+
+        if rosetta {
+            arguments += ["-arch", "x86_64"]
+        }
+
+        if let resultBundlePath {
+            arguments += ["-resultBundlePath", resultBundlePath.pathString]
+        }
+
+        if let derivedDataPath {
+            arguments += ["-derivedDataPath", derivedDataPath.pathString]
+        }
+
+        arguments += passthroughXcodeBuildArguments
+        return arguments
     }
 
     private func resolveTestProductsPath(derivedDataPath: AbsolutePath?) async throws -> AbsolutePath {
