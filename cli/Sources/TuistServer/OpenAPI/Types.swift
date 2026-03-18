@@ -4712,6 +4712,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/modules`.
             public var modules: [Swift.String]
+            /// The UUID of the shard plan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/shard_plan_id`.
+            public var shard_plan_id: Swift.String
             /// The test suites assigned to this shard, grouped by module name.
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/suites`.
@@ -4741,19 +4745,23 @@ public enum Components {
             /// - Parameters:
             ///   - download_url: Presigned URL to download the shared test products bundle.
             ///   - modules: The test modules assigned to this shard.
+            ///   - shard_plan_id: The UUID of the shard plan.
             ///   - suites: The test suites assigned to this shard, grouped by module name.
             public init(
                 download_url: Swift.String,
                 modules: [Swift.String],
+                shard_plan_id: Swift.String,
                 suites: Components.Schemas.Shard.suitesPayload
             ) {
                 self.download_url = download_url
                 self.modules = modules
+                self.shard_plan_id = shard_plan_id
                 self.suites = suites
             }
             public enum CodingKeys: String, CodingKey {
                 case download_url
                 case modules
+                case shard_plan_id
                 case suites
             }
         }

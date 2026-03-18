@@ -161,6 +161,7 @@ defmodule TuistWeb.API.ShardsController do
          ) do
       {:ok, result} ->
         json(conn, %{
+          shard_plan_id: result.shard_plan_id,
           modules: result.modules,
           suites: result.suites,
           download_url: result.download_url

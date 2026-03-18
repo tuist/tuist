@@ -9,6 +9,11 @@ defmodule TuistWeb.API.Schemas.Shards.Shard do
     type: :object,
     description: "A shard with its assigned modules, suites, and download URLs.",
     properties: %{
+      shard_plan_id: %Schema{
+        type: :string,
+        format: :uuid,
+        description: "The UUID of the shard plan."
+      },
       modules: %Schema{
         type: :array,
         items: %Schema{type: :string},
@@ -27,6 +32,6 @@ defmodule TuistWeb.API.Schemas.Shards.Shard do
         description: "Presigned URL to download the shared test products bundle."
       }
     },
-    required: [:modules, :suites, :download_url]
+    required: [:shard_plan_id, :modules, :suites, :download_url]
   })
 end

@@ -102,6 +102,7 @@ defmodule Tuist.Shards do
 
             {:ok,
              %{
+               shard_plan_id: plan.id,
                modules: modules,
                suites: suites,
                download_url: download_url
