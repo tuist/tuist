@@ -67,6 +67,7 @@ struct XcodeBuildTestCommandService {
         let config = try await configLoader.loadConfig(path: path)
 
         var shardPlanId: String?
+        var selectiveTestingHashes: [String: String]?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
@@ -88,6 +89,7 @@ struct XcodeBuildTestCommandService {
                 passthroughXcodebuildArguments += ["-only-testing", target]
             }
             shardPlanId = CIController().ciInfo()?.shardPlanId
+            selectiveTestingHashes = shardResult.selectiveTestingGraph?.testTargetHashes
         }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
@@ -111,7 +113,8 @@ struct XcodeBuildTestCommandService {
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
                 shardPlanId: shardPlanId,
-                shardIndex: shardIndex
+                shardIndex: shardIndex,
+                selectiveTestingHashes: selectiveTestingHashes
             )
             throw error
         }
@@ -124,7 +127,8 @@ struct XcodeBuildTestCommandService {
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             shardPlanId: shardPlanId,
-            shardIndex: shardIndex
+            shardIndex: shardIndex,
+            selectiveTestingHashes: selectiveTestingHashes
         )
     }
 
@@ -228,7 +232,8 @@ struct XcodeBuildTestCommandService {
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         shardPlanId: String? = nil,
-        shardIndex: Int? = nil
+        shardIndex: Int? = nil,
+        selectiveTestingHashes: [String: String]? = nil
     ) async {
         guard let resultBundlePath,
               let projectDerivedDataDirectory,
@@ -242,7 +247,8 @@ struct XcodeBuildTestCommandService {
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 shardPlanId: shardPlanId,
-                shardIndex: shardIndex
+                shardIndex: shardIndex,
+                selectiveTestingHashes: selectiveTestingHashes
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

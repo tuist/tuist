@@ -450,7 +450,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
            let fullHandle = config.fullHandle
         {
             let selectiveTestingGraph = computeSelectiveTestingGraph(
-                graph: graph,
                 mapperEnvironment: mapperEnvironment,
                 schemes: schemes,
                 testPlanConfiguration: testPlanConfiguration
@@ -511,10 +510,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
-
-        if let selectiveTestingGraph = shardResult.selectiveTestingGraph {
-            await updateShardTestServiceAnalytics(selectiveTestingGraph: selectiveTestingGraph)
-        }
 
         var xcodebuildArguments = ["test-without-building"]
         xcodebuildArguments += ["-testProductsPath", shardResult.testProductsPath.pathString]
@@ -590,6 +585,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         xcodebuildArguments += passthroughXcodeBuildArguments
 
+        let selectiveTestingHashes = shardResult.selectiveTestingGraph?.testTargetHashes
+
         do {
             try await xcodebuildController.run(arguments: xcodebuildArguments)
         } catch {
@@ -599,7 +596,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 config: config,
                 action: .testWithoutBuilding,
                 shardPlanId: shardPlanId,
-                shardIndex: shardIndex
+                shardIndex: shardIndex,
+                selectiveTestingHashes: selectiveTestingHashes
             )
 
             if let selectiveTestingGraph = shardResult.selectiveTestingGraph {
@@ -623,7 +621,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             action: .testWithoutBuilding,
             shardPlanId: shardPlanId,
-            shardIndex: shardIndex
+            shardIndex: shardIndex,
+            selectiveTestingHashes: selectiveTestingHashes
         )
 
         if let selectiveTestingGraph = shardResult.selectiveTestingGraph {
@@ -643,13 +642,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
     }
 
     private func computeSelectiveTestingGraph(
-        graph: Graph,
         mapperEnvironment: MapperEnvironment,
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?
     ) -> SelectiveTestingGraph {
         guard let initialGraph = mapperEnvironment.initialGraph else {
-            return SelectiveTestingGraph(testTargetHashes: [:], selectiveTestingCacheItems: [:])
+            return SelectiveTestingGraph(testTargetHashes: [:])
         }
 
         let graphTraverser = GraphTraverser(graph: initialGraph)
@@ -667,41 +665,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return GraphTarget(path: ref.projectPath, target: target, project: project)
         }
 
-        var testTargetHashes: [String: String] = [:]
-        var selectiveTestingCacheItems: [String: CacheItem] = [:]
-
-        for testTarget in allTestTargets {
-            guard let hash = mapperEnvironment.targetTestHashes[testTarget.path]?[testTarget.target.name]
-            else { continue }
-
-            testTargetHashes[testTarget.target.name] = hash
-
-            let cacheItem =
-                mapperEnvironment.targetTestCacheItems[testTarget.path]?[testTarget.target.name]
-                    ?? CacheItem(
-                        name: testTarget.target.name,
-                        hash: hash,
-                        source: .miss,
-                        cacheCategory: .selectiveTests
-                    )
-            selectiveTestingCacheItems[testTarget.target.name] = cacheItem
+        let testTargetHashes: [String: String] = allTestTargets.reduce(into: [:]) { result, testTarget in
+            if let hash = mapperEnvironment.targetTestHashes[testTarget.path]?[testTarget.target.name] {
+                result[testTarget.target.name] = hash
+            }
         }
 
-        return SelectiveTestingGraph(
-            testTargetHashes: testTargetHashes,
-            selectiveTestingCacheItems: selectiveTestingCacheItems
-        )
-    }
-
-    private func updateShardTestServiceAnalytics(selectiveTestingGraph: SelectiveTestingGraph) async {
-        let path = AbsolutePath("/shard")
-        await RunMetadataStorage.current.update(
-            selectiveTestingCacheItems: selectiveTestingGraph.selectiveTestingCacheItems.reduce(
-                into: [AbsolutePath: [String: CacheItem]]()
-            ) { result, element in
-                result[path, default: [:]][element.key] = element.value
-            }
-        )
+        return SelectiveTestingGraph(testTargetHashes: testTargetHashes)
     }
 
     private func storeSuccessfulShardTestHashes(
@@ -1235,7 +1205,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         config: Tuist,
         action: XcodeBuildTestAction,
         shardPlanId: String? = nil,
-        shardIndex: Int? = nil
+        shardIndex: Int? = nil,
+        selectiveTestingHashes: [String: String]? = nil
     ) async {
         guard let resultBundlePath, config.fullHandle != nil, action != .build,
               (try? await fileSystem.exists(resultBundlePath)) == true
@@ -1247,7 +1218,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 shardPlanId: shardPlanId,
-                shardIndex: shardIndex
+                shardIndex: shardIndex,
+                selectiveTestingHashes: selectiveTestingHashes
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

@@ -35,6 +35,7 @@ defmodule Tuist.Tests.TestModuleRun do
     field :avg_test_case_duration, Ch, type: "Int32"
     field :shard_id, Ch, type: "Nullable(UUID)"
     field :shard_index, Ch, type: "Nullable(Int32)"
+    field :selective_testing_hash, Ch, type: "Nullable(String)"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
@@ -52,6 +53,7 @@ defmodule Tuist.Tests.TestModuleRun do
       :avg_test_case_duration,
       :shard_id,
       :shard_index,
+      :selective_testing_hash,
       :inserted_at
     ])
     |> validate_required([
