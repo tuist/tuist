@@ -87,7 +87,7 @@ defmodule Tuist.ShardsTest do
     end
   end
 
-  describe "get_shard_assignment/4" do
+  describe "get_shard/4" do
     test "returns assignment for valid shard index" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
@@ -115,7 +115,7 @@ defmodule Tuist.ShardsTest do
         "https://download.example.com"
       end)
 
-      assert {:ok, result} = Shards.get_shard_assignment(project, account, "session-1", 0)
+      assert {:ok, result} = Shards.get_shard(project, account, "session-1", 0)
       assert result.test_targets == ["AppTests"]
       assert result.xctestrun_download_url == "https://download.example.com"
       assert result.bundle_download_url == "https://download.example.com"
@@ -128,7 +128,7 @@ defmodule Tuist.ShardsTest do
       stub(Tuist.IngestRepo, :one, fn _query -> nil end)
 
       assert {:error, :not_found} =
-               Shards.get_shard_assignment(project, account, "nonexistent", 0)
+               Shards.get_shard(project, account, "nonexistent", 0)
     end
 
     test "returns error for out-of-range shard index" do
@@ -152,7 +152,7 @@ defmodule Tuist.ShardsTest do
       stub(Tuist.IngestRepo, :one, fn _query -> session end)
 
       assert {:error, :invalid_shard_index} =
-               Shards.get_shard_assignment(project, account, "session-1", 5)
+               Shards.get_shard(project, account, "session-1", 5)
     end
   end
 

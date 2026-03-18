@@ -1,13 +1,13 @@
-defmodule TuistWeb.API.Schemas.Shards.ShardAssignment do
+defmodule TuistWeb.API.Schemas.Shards.Shard do
   @moduledoc false
   alias OpenApiSpex.Schema
 
   require OpenApiSpex
 
   OpenApiSpex.schema(%{
-    title: "ShardAssignment",
+    title: "Shard",
     type: :object,
-    description: "The assignment for a specific shard.",
+    description: "A shard with its assigned test targets and download URLs.",
     properties: %{
       test_targets: %Schema{
         type: :array,

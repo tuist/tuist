@@ -364,36 +364,6 @@ components:
       type: integer
       x-struct:
       x-validate:
-    ShardAssignment:
-      description: The assignment for a specific shard.
-      properties:
-        bundle_download_url:
-          description: Presigned URL to download the shared test products bundle.
-          type: string
-          x-struct:
-          x-validate:
-        test_targets:
-          description: The test targets assigned to this shard.
-          items:
-            type: string
-            x-struct:
-            x-validate:
-          type: array
-          x-struct:
-          x-validate:
-        xctestrun_download_url:
-          description: Presigned URL to download the filtered .xctestrun for this shard.
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - test_targets
-        - xctestrun_download_url
-        - bundle_download_url
-      title: ShardAssignment
-      type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.Shards.ShardAssignment
-      x-validate:
     CommandEvent:
       description: A command event.
       example:
@@ -1274,8 +1244,8 @@ components:
           type: array
           x-struct:
           x-validate:
-        session_id:
-          description: A unique session identifier.
+        plan_id:
+          description: A unique plan identifier.
           type: string
           x-struct:
           x-validate:
@@ -1309,7 +1279,7 @@ components:
           x-struct:
           x-validate:
       required:
-        - session_id
+        - plan_id
       title: CreateShardPlanParams
       type: object
       x-struct:
@@ -1762,13 +1732,13 @@ components:
       x-validate:
     GenerateShardXctestrunUploadURLParams:
       properties:
-        session_id:
+        plan_id:
           description: The shard plan identifier.
           type: string
           x-struct:
           x-validate:
       required:
-        - session_id
+        - plan_id
       title: GenerateShardXctestrunUploadURLParams
       type: object
       x-struct:
@@ -1877,6 +1847,36 @@ components:
       title: TestCaseRunsIndexPageSize
       type: integer
       x-struct:
+      x-validate:
+    Shard:
+      description: A shard with its assigned test targets and download URLs.
+      properties:
+        bundle_download_url:
+          description: Presigned URL to download the shared test products bundle.
+          type: string
+          x-struct:
+          x-validate:
+        test_targets:
+          description: The test targets assigned to this shard.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        xctestrun_download_url:
+          description: Presigned URL to download the filtered .xctestrun for this shard.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - test_targets
+        - xctestrun_download_url
+        - bundle_download_url
+      title: Shard
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Shards.Shard
       x-validate:
     TestCaseRunAttachmentParams:
       properties:
@@ -3990,8 +3990,8 @@ components:
     ShardPlan:
       description: A shard plan with assignment details.
       properties:
-        session_id:
-          description: The session identifier.
+        plan_id:
+          description: The plan identifier.
           type: string
           x-struct:
           x-validate:
@@ -4039,7 +4039,7 @@ components:
           x-struct:
           x-validate:
       required:
-        - session_id
+        - plan_id
         - shard_count
         - shards
         - upload_id
@@ -4096,7 +4096,7 @@ components:
           type: array
           x-struct:
           x-validate:
-        session_id:
+        plan_id:
           description: The shard plan identifier.
           type: string
           x-struct:
@@ -4107,7 +4107,7 @@ components:
           x-struct:
           x-validate:
       required:
-        - session_id
+        - plan_id
         - upload_id
         - parts
       title: CompleteShardUploadParams
@@ -5284,7 +5284,7 @@ components:
           type: integer
           x-struct:
           x-validate:
-        session_id:
+        plan_id:
           description: The shard plan identifier.
           type: string
           x-struct:
@@ -5295,7 +5295,7 @@ components:
           x-struct:
           x-validate:
       required:
-        - session_id
+        - plan_id
         - upload_id
         - part_number
       title: GenerateShardUploadURLParams
@@ -7517,13 +7517,13 @@ paths:
           application/json:
             schema:
               properties:
-                session_id:
+                plan_id:
                   description: The shard plan identifier.
                   type: string
                   x-struct:
                   x-validate:
               required:
-                - session_id
+                - plan_id
               title: GenerateShardXctestrunUploadURLParams
               type: object
               x-struct:
@@ -7566,7 +7566,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: The session was not found
+          description: The plan was not found
       summary: Generate a signed URL for uploading the .xctestrun file.
       tags:
         - Shards
@@ -8630,7 +8630,7 @@ paths:
                   type: integer
                   x-struct:
                   x-validate:
-                session_id:
+                plan_id:
                   description: The shard plan identifier.
                   type: string
                   x-struct:
@@ -8641,7 +8641,7 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - session_id
+                - plan_id
                 - upload_id
                 - part_number
               title: GenerateShardUploadURLParams
@@ -12060,7 +12060,7 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
-                session_id:
+                plan_id:
                   description: The shard plan identifier.
                   type: string
                   x-struct:
@@ -12071,7 +12071,7 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - session_id
+                - plan_id
                 - upload_id
                 - parts
               title: CompleteShardUploadParams
@@ -12588,72 +12588,6 @@ paths:
       summary: List previews.
       tags:
         - Previews
-  /api/projects/{account_handle}/{project_handle}/tests/shards/{session_id}/{shard_index}:
-    get:
-      callbacks: {}
-      description: Returns the test targets and download URLs for a specific shard.
-      operationId: getShardAssignment
-      parameters:
-        - description: The handle of the project's account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The shard plan identifier.
-          in: path
-          name: session_id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The zero-based shard index.
-          in: path
-          name: shard_index
-          required: true
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ShardAssignment'
-          description: The shard assignment
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The session or shard was not found
-      summary: Get a shard assignment.
-      tags:
-        - Shards
   /api/cache:
     get:
       callbacks: {}
@@ -13733,6 +13667,72 @@ paths:
       summary: List cacheable tasks for a given build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/shards/{plan_id}/{shard_index}:
+    get:
+      callbacks: {}
+      description: Returns the test targets and download URLs for a specific shard.
+      operationId: getShard
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The shard plan identifier.
+          in: path
+          name: plan_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The zero-based shard index.
+          in: path
+          name: shard_index
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shard'
+          description: The shard
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The session or shard was not found
+      summary: Get a shard.
+      tags:
+        - Shards
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs:
     get:
       callbacks: {}
@@ -17687,8 +17687,8 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
-                session_id:
-                  description: A unique session identifier.
+                plan_id:
+                  description: A unique plan identifier.
                   type: string
                   x-struct:
                   x-validate:
@@ -17722,7 +17722,7 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - session_id
+                - plan_id
               title: CreateShardPlanParams
               type: object
               x-struct:

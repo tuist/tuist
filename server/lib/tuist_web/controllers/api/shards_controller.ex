@@ -5,7 +5,7 @@ defmodule TuistWeb.API.ShardsController do
   alias OpenApiSpex.Schema
   alias Tuist.Shards
   alias TuistWeb.API.Schemas.Error
-  alias TuistWeb.API.Schemas.Shards.ShardAssignment
+  alias TuistWeb.API.Schemas.Shards.Shard
   alias TuistWeb.API.Schemas.Shards.ShardPlan
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -106,9 +106,9 @@ defmodule TuistWeb.API.ShardsController do
   end
 
   operation(:show,
-    summary: "Get a shard assignment.",
+    summary: "Get a shard.",
     description: "Returns the test targets and download URLs for a specific shard.",
-    operation_id: "getShardAssignment",
+    operation_id: "getShard",
     parameters: [
       account_handle: [
         in: :path,
@@ -136,7 +136,7 @@ defmodule TuistWeb.API.ShardsController do
       ]
     ],
     responses: %{
-      ok: {"The shard assignment", "application/json", ShardAssignment},
+      ok: {"The shard", "application/json", Shard},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
       not_found: {"The session or shard was not found", "application/json", Error}
@@ -152,7 +152,7 @@ defmodule TuistWeb.API.ShardsController do
       ) do
     shard_index = if is_binary(shard_index), do: String.to_integer(shard_index), else: shard_index
 
-    case Shards.get_shard_assignment(
+    case Shards.get_shard(
            selected_project,
            selected_project.account,
            plan_id,

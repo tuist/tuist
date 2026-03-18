@@ -107,7 +107,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let clock: Clock
     private let listTestCasesService: ListTestCasesServicing
     private let shardPlanService: ShardPlanServicing
-    private let shardExecuteService: ShardExecuteServicing
+    private let shardService: ShardServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -145,7 +145,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         clock: Clock = WallClock(),
         listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
-        shardExecuteService: ShardExecuteServicing = ShardExecuteService()
+        shardService: ShardServicing = ShardService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -168,7 +168,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.clock = clock
         self.listTestCasesService = listTestCasesService
         self.shardPlanService = shardPlanService
-        self.shardExecuteService = shardExecuteService
+        self.shardService = shardService
     }
 
     public static func validateParameters(
@@ -231,7 +231,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
 
         if let shardIndex, action == .testWithoutBuilding {
-            try await runShardExecute(
+            try await runShard(
                 shardIndex: shardIndex,
                 schemeName: schemeName,
                 path: path,
@@ -460,8 +460,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration
             )
             let selectiveTestingGraphPath = shardTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
-            let encodedData = try JSONEncoder().encode(selectiveTestingGraph)
-            try encodedData.write(to: URL(fileURLWithPath: selectiveTestingGraphPath.pathString))
+            try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             _ = try await shardPlanService.plan(
@@ -482,7 +481,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     // MARK: - Shard Execute
 
     // swiftlint:disable:next function_body_length function_parameter_count
-    private func runShardExecute(
+    private func runShard(
         shardIndex: Int,
         schemeName: String?,
         path: AbsolutePath,
@@ -511,7 +510,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             .appending(component: "shard-output")
         try await fileSystem.makeDirectory(at: outputPath)
 
-        let shardResult = try await shardExecuteService.execute(
+        let shard = try await shardService.shard(
             shardIndex: shardIndex,
             scheme: effectiveSchemeName,
             fullHandle: fullHandle,
@@ -522,8 +521,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
         var xcodebuildArguments = ["test-without-building"]
-        xcodebuildArguments += ["-testProductsPath", shardResult.testProductsPath.pathString]
-        for target in shardResult.testTargets {
+        xcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
+        for target in shard.testTargets {
             xcodebuildArguments += ["-only-testing", target]
         }
         for testTarget in testTargets {
@@ -595,7 +594,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         xcodebuildArguments += passthroughXcodeBuildArguments
 
-        let selectiveTestingHashes = shardResult.selectiveTestingGraph?.testTargetHashes
+        let selectiveTestingHashes = shard.selectiveTestingGraph?.testTargetHashes
 
         do {
             try await xcodebuildController.run(arguments: xcodebuildArguments)
@@ -610,7 +609,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 selectiveTestingHashes: selectiveTestingHashes
             )
 
-            if let selectiveTestingGraph = shardResult.selectiveTestingGraph {
+            if let selectiveTestingGraph = shard.selectiveTestingGraph {
                 try await storeSuccessfulShardTestHashes(
                     selectiveTestingGraph: selectiveTestingGraph,
                     passingTargetNames: await passingTargetNames(resultBundlePath: effectiveResultBundlePath),
@@ -635,10 +634,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             selectiveTestingHashes: selectiveTestingHashes
         )
 
-        if let selectiveTestingGraph = shardResult.selectiveTestingGraph {
+        if let selectiveTestingGraph = shard.selectiveTestingGraph {
             try await storeSuccessfulShardTestHashes(
                 selectiveTestingGraph: selectiveTestingGraph,
-                passingTargetNames: Set(shardResult.testTargets),
+                passingTargetNames: Set(shard.testTargets),
                 cacheStorage: cacheStorage
             )
         }

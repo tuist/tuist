@@ -87,7 +87,7 @@ defmodule Tuist.Shards do
     end
   end
 
-  def get_shard_assignment(%Project{} = project, %Account{} = account, plan_id, shard_index) do
+  def get_shard(%Project{} = project, %Account{} = account, plan_id, shard_index) do
     case get_plan(project.id, plan_id) do
       nil ->
         {:error, :not_found}

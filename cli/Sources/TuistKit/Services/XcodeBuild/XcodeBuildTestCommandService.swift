@@ -25,7 +25,7 @@ struct XcodeBuildTestCommandService {
     private let derivedDataLocator: DerivedDataLocating
     private let xcActivityLogController: XCActivityLogControlling
     private let inspectResultBundleService: InspectResultBundleServicing
-    private let shardExecuteService: ShardExecuteServicing
+    private let shardService: ShardServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
 
     init(
@@ -38,7 +38,7 @@ struct XcodeBuildTestCommandService {
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
-        shardExecuteService: ShardExecuteServicing = ShardExecuteService(),
+        shardService: ShardServicing = ShardService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
     ) {
         self.fileSystem = fileSystem
@@ -50,7 +50,7 @@ struct XcodeBuildTestCommandService {
         self.derivedDataLocator = derivedDataLocator
         self.xcActivityLogController = xcActivityLogController
         self.inspectResultBundleService = inspectResultBundleService
-        self.shardExecuteService = shardExecuteService
+        self.shardService = shardService
         self.serverEnvironmentService = serverEnvironmentService
     }
 
@@ -74,7 +74,7 @@ struct XcodeBuildTestCommandService {
             let outputPath = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
                 .appending(component: "shard-output")
             try await fileSystem.makeDirectory(at: outputPath)
-            let shardResult = try await shardExecuteService.execute(
+            let shard = try await shardService.shard(
                 shardIndex: shardIndex,
                 scheme: schemeName,
                 fullHandle: fullHandle,
@@ -84,12 +84,12 @@ struct XcodeBuildTestCommandService {
             passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
-            passthroughXcodebuildArguments += ["-testProductsPath", shardResult.testProductsPath.pathString]
-            for target in shardResult.testTargets {
+            passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
+            for target in shard.testTargets {
                 passthroughXcodebuildArguments += ["-only-testing", target]
             }
             shardPlanId = CIController().ciInfo()?.shardPlanId
-            selectiveTestingHashes = shardResult.selectiveTestingGraph?.testTargetHashes
+            selectiveTestingHashes = shard.selectiveTestingGraph?.testTargetHashes
         }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
