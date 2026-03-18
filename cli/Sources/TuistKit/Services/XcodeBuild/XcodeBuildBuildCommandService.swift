@@ -50,7 +50,11 @@ struct XcodeBuildBuildCommandService {
 
     func run(
         passthroughXcodebuildArguments: [String],
-        shardConfiguration: ShardConfiguration? = nil
+        shardGranularity: ShardGranularity? = nil,
+        shardMin: Int? = nil,
+        shardMax: Int? = nil,
+        shardTotal: Int? = nil,
+        shardMaxDuration: Int? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
@@ -72,7 +76,7 @@ struct XcodeBuildBuildCommandService {
             await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
         }
 
-        if let shardConfiguration {
+        if let shardGranularity {
             let testProductsPath = try await resolveTestProductsPath(
                 passthroughXcodebuildArguments: passthroughXcodebuildArguments,
                 derivedDataPath: derivedDataPath
@@ -88,7 +92,11 @@ struct XcodeBuildBuildCommandService {
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
                 scheme: schemeName,
-                shardConfiguration: shardConfiguration,
+                granularity: shardGranularity,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )

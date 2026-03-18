@@ -16,7 +16,11 @@
         func plan(
             xctestproductsPath: AbsolutePath,
             scheme: String,
-            shardConfiguration: ShardConfiguration,
+            granularity: ShardGranularity,
+            shardMin: Int?,
+            shardMax: Int?,
+            shardTotal: Int?,
+            shardMaxDuration: Int?,
             fullHandle: String,
             serverURL: URL
         ) async throws -> ServerShardPlan
@@ -78,7 +82,11 @@
         public func plan(
             xctestproductsPath: AbsolutePath,
             scheme: String,
-            shardConfiguration: ShardConfiguration,
+            granularity: ShardGranularity,
+            shardMin: Int?,
+            shardMax: Int?,
+            shardTotal: Int?,
+            shardMaxDuration: Int?,
             fullHandle: String,
             serverURL: URL
         ) async throws -> ServerShardPlan {
@@ -101,7 +109,7 @@
             }
 
             var testSuites: [String]?
-            if shardConfiguration.granularity == .suite {
+            if granularity == .suite {
                 let suitesMap = try await xcTestEnumerator.enumerateTests(
                     testProductsPath: xctestproductsPath,
                     scheme: scheme,
@@ -116,13 +124,13 @@
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 sessionId: sessionId,
-                modules: shardConfiguration.granularity == .module ? modules : nil,
+                modules: granularity == .module ? modules : nil,
                 testSuites: testSuites,
-                shardMin: shardConfiguration.shardMin,
-                shardMax: shardConfiguration.shardMax,
-                shardTotal: shardConfiguration.shardTotal,
-                shardMaxDuration: shardConfiguration.shardMaxDuration,
-                granularity: shardConfiguration.granularity.rawValue
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
+                granularity: granularity.rawValue
             )
 
             Logger.current.info("Shard session created: \(session.shardCount) shards")

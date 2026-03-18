@@ -209,7 +209,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         generateOnly: Bool,
         passthroughXcodeBuildArguments: [String],
         skipQuarantine: Bool = false,
-        shardConfiguration: ShardConfiguration? = nil,
+        shardGranularity: ShardGranularity? = nil,
+        shardMin: Int? = nil,
+        shardMax: Int? = nil,
+        shardTotal: Int? = nil,
+        shardMaxDuration: Int? = nil,
         shardIndex: Int? = nil
     ) async throws {
         if validateTestTargetsParameters {
@@ -389,7 +393,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         var shardTestProductsPath: AbsolutePath?
         let effectiveSchemeName = schemeName ?? schemes.first?.name ?? "Test"
 
-        if shardConfiguration != nil, action == .build {
+        if shardGranularity != nil, action == .build {
             let testProductsDir = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
                 .appending(component: "shard-test-products")
             try await fileSystem.makeDirectory(at: testProductsDir)
@@ -445,7 +449,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             resultBundlePath: resultBundlePath
         )
 
-        if let shardConfiguration, action == .build,
+        if let shardGranularity, action == .build,
            let shardTestProductsPath,
            let fullHandle = config.fullHandle
         {
@@ -462,7 +466,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             _ = try await shardPlanService.plan(
                 xctestproductsPath: shardTestProductsPath,
                 scheme: effectiveSchemeName,
-                shardConfiguration: shardConfiguration,
+                granularity: shardGranularity,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )

@@ -344,16 +344,10 @@
                     .test
                 }
 
-            let shardConfig: ShardConfiguration? = if shardMax != nil || shardMin != nil || shardTotal != nil
+            let granularity: ShardGranularity? = if shardMax != nil || shardMin != nil || shardTotal != nil
                 || shardMaxDuration != nil
             {
-                ShardConfiguration(
-                    shardMin: shardMin,
-                    shardMax: shardMax,
-                    shardTotal: shardTotal,
-                    shardMaxDuration: shardMaxDuration,
-                    granularity: shardGranularity == "suite" ? .suite : .module
-                )
+                shardGranularity == "suite" ? .suite : .module
             } else {
                 nil
             }
@@ -398,7 +392,11 @@
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
-                shardConfiguration: shardConfig,
+                shardGranularity: granularity,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
                 shardIndex: EnvKey.testShardIndex.envValue()
             )
         }
