@@ -239,10 +239,19 @@ public struct GitController: GitControlling {
             )
         }
 
-        // SHA
+        // SHA — if HEAD is a merge commit (e.g. GitHub Actions PR checkout),
+        // use the second parent which is the actual PR branch tip
         let commitSHA: String?
         if hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-            commitSHA = try? currentCommitSHA(workingDirectory: workingDirectory)
+            if let secondParent = try? capture(
+                command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
+            ).trimmingCharacters(in: .whitespacesAndNewlines),
+                !secondParent.isEmpty
+            {
+                commitSHA = secondParent
+            } else {
+                commitSHA = try? currentCommitSHA(workingDirectory: workingDirectory)
+            }
         } else {
             commitSHA = nil
         }
