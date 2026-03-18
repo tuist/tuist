@@ -1212,7 +1212,19 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
     func ios_app_with_static_framework_with_xcstrings() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
+
+        let xcstringsPath = fixturePath.appending(
+            components: "StaticFramework", "Resources", "Localizable.xcstrings"
+        )
+        let contentBeforeBuild = try Data(contentsOf: URL(fileURLWithPath: xcstringsPath.pathString))
+
         try await run(BuildCommand.self)
+
+        let contentAfterBuild = try Data(contentsOf: URL(fileURLWithPath: xcstringsPath.pathString))
+        #expect(
+            contentBeforeBuild == contentAfterBuild,
+            "Localizable.xcstrings was modified during build — Xcode likely added stale extraction state"
+        )
 
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
@@ -1224,22 +1236,6 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
             destination: "Debug-iphonesimulator",
             resource: "Localizable.strings"
         )
-
-        let staticFrameworkProjectPath = fixturePath.appending(
-            components: "StaticFramework", "StaticFramework.xcodeproj"
-        )
-        let xcodeproj = try XcodeProj(pathString: staticFrameworkProjectPath.pathString)
-        let mainTarget = try #require(
-            xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == "StaticFramework" })
-        )
-        let sourceFiles = try mainTarget.sourcesBuildPhase()?.files?
-            .compactMap(\.file)
-            .map(\.nameOrPath) ?? []
-        let resourceFiles = try mainTarget.resourcesBuildPhase()?.files?
-            .compactMap(\.file)
-            .map(\.nameOrPath) ?? []
-        #expect(!sourceFiles.contains("Localizable.xcstrings"))
-        #expect(resourceFiles.contains("Localizable.xcstrings"))
     }
 }
 
