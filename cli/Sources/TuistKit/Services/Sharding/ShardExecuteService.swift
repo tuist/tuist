@@ -69,7 +69,7 @@
                 throw ShardExecuteServiceError.cannotDeriveSessionId
             }
 
-            Logger.current.info("Fetching shard assignment for shard \(shardIndex) in plan '\(planId)'...")
+            Logger.current.debug("Fetching shard assignment for shard \(shardIndex) in plan '\(planId)'...")
 
             let assignment = try await getShardAssignmentService.getShardAssignment(
                 fullHandle: fullHandle,
@@ -82,14 +82,13 @@
 
             let bundleZipPath = outputPath.appending(component: "\(scheme).xctestproducts.zip")
             try await downloadFile(from: assignment.bundleDownloadURL, to: bundleZipPath)
-            Logger.current.info("Downloaded test products bundle.")
+            Logger.current.debug("Downloaded test products bundle.")
 
             let unzippedPath = outputPath.appending(component: "unzipped")
-            try? FileManager.default.removeItem(atPath: unzippedPath.pathString)
-            try FileManager.default.createDirectory(
-                atPath: unzippedPath.pathString,
-                withIntermediateDirectories: true
-            )
+            if try await fileSystem.exists(unzippedPath) {
+                try await fileSystem.remove(unzippedPath)
+            }
+            try await fileSystem.makeDirectory(at: unzippedPath)
             let dittoProcess = Process()
             dittoProcess.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
             dittoProcess.arguments = ["-x", "-k", bundleZipPath.pathString, unzippedPath.pathString]
@@ -107,25 +106,24 @@
             } else {
                 bundlePath = unzippedPath
             }
-            Logger.current.info("Unzipped test products to \(bundlePath.pathString)")
+            Logger.current.debug("Unzipped test products to \(bundlePath.pathString)")
 
             let xctestrunPath = outputPath.appending(component: "\(scheme).xctestrun")
             try await downloadFile(from: assignment.xctestrunDownloadURL, to: xctestrunPath)
-            Logger.current.info("Downloaded filtered .xctestrun file.")
+            Logger.current.debug("Downloaded filtered .xctestrun file.")
 
             let targetXctestrunPath = bundlePath.appending(component: "\(scheme).xctestrun")
-            try? FileManager.default.removeItem(atPath: targetXctestrunPath.pathString)
-            try FileManager.default.copyItem(
-                atPath: xctestrunPath.pathString,
-                toPath: targetXctestrunPath.pathString
-            )
+            if try await fileSystem.exists(targetXctestrunPath) {
+                try await fileSystem.remove(targetXctestrunPath)
+            }
+            try await fileSystem.copy(xctestrunPath, to: targetXctestrunPath)
 
             let selectiveTestingGraphPath = bundlePath.appending(component: SelectiveTestingGraph.fileName)
             var selectiveTestingGraph: SelectiveTestingGraph?
             if let data = try? Data(contentsOf: URL(fileURLWithPath: selectiveTestingGraphPath.pathString)) {
                 selectiveTestingGraph = try? JSONDecoder().decode(SelectiveTestingGraph.self, from: data)
                 if selectiveTestingGraph != nil {
-                    Logger.current.info("Loaded shard hash data from test products bundle.")
+                    Logger.current.debug("Loaded selective testing graph from test products bundle.")
                 }
             }
 

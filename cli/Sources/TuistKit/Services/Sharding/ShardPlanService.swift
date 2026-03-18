@@ -50,7 +50,7 @@
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
         private let multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing
         private let multipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing
-        private let generateShardXctestrunUploadURLService: GenerateShardXctestrunUploadURLServicing
+        private let uploadShardXctestrunService: UploadShardXctestrunServicing
         private let ciController: CIControlling
         private let fileSystem: FileSysteming
         private let fileArchiver: FileArchivingFactorying
@@ -63,8 +63,8 @@
                 MultipartUploadGenerateURLShardsService(),
             multipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing =
                 MultipartUploadCompleteShardsService(),
-            generateShardXctestrunUploadURLService: GenerateShardXctestrunUploadURLServicing =
-                GenerateShardXctestrunUploadURLService(),
+            uploadShardXctestrunService: UploadShardXctestrunServicing =
+                UploadShardXctestrunService(),
             ciController: CIControlling = CIController(),
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory()
@@ -74,7 +74,7 @@
             self.multipartUploadArtifactService = multipartUploadArtifactService
             self.multipartUploadGenerateURLShardsService = multipartUploadGenerateURLShardsService
             self.multipartUploadCompleteShardsService = multipartUploadCompleteShardsService
-            self.generateShardXctestrunUploadURLService = generateShardXctestrunUploadURLService
+            self.uploadShardXctestrunService = uploadShardXctestrunService
             self.ciController = ciController
             self.fileSystem = fileSystem
             self.fileArchiver = fileArchiver
@@ -120,7 +120,7 @@
                 testSuites = suitesMap.flatMap { $0.value }
             }
 
-            Logger.current.info("Creating shard plan '\(planId)' with \(modules.count) test modules...")
+            Logger.current.debug("Creating shard plan '\(planId)' with \(modules.count) test modules...")
 
             let shardPlan = try await createShardPlanService.createShardPlan(
                 fullHandle: fullHandle,
@@ -137,23 +137,14 @@
 
             Logger.current.info("Shard plan created: \(shardPlan.shard_count) shards")
 
-            let xctestrunUploadURL = try await generateShardXctestrunUploadURLService.generateURL(
+            try await uploadShardXctestrunService.uploadXctestrun(
+                xctestrunPath: xctestrunPath,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 planId: planId
             )
 
-            let xctestrunData = try Data(contentsOf: URL(fileURLWithPath: xctestrunPath.pathString))
-            var request = URLRequest(url: URL(string: xctestrunUploadURL)!)
-            request.httpMethod = "PUT"
-            request.httpBody = xctestrunData
-            request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-            let (_, xctestrunResponse) = try await URLSession.shared.data(for: request)
-            if let httpResponse = xctestrunResponse as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                Logger.current.warning("Failed to upload .xctestrun file (status: \(httpResponse.statusCode))")
-            }
-
-            Logger.current.info("Uploading test products bundle...")
+            Logger.current.debug("Uploading test products bundle...")
             let archivePath = try await fileArchiver
                 .makeFileArchiver(for: [xctestproductsPath])
                 .zip(name: "bundle.xctestproducts")
@@ -181,13 +172,13 @@
                 parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
             )
 
-            Logger.current.info("Upload complete. Shard matrix ready.")
-            outputShardMatrix(shardPlan)
+            Logger.current.debug("Upload complete. Shard matrix ready.")
+            try await outputShardMatrix(shardPlan)
 
             return shardPlan
         }
 
-        private func outputShardMatrix(_ shardPlan: Components.Schemas.ShardPlan) {
+        private func outputShardMatrix(_ shardPlan: Components.Schemas.ShardPlan) async throws {
             for shard in shardPlan.shards {
                 Logger.current
                     .info(
@@ -197,35 +188,23 @@
 
             let indices = (0 ..< shardPlan.shard_count).map { $0 }
 
-            if let githubOutputPath = Environment.current.variables["GITHUB_OUTPUT"],
-               let handle = FileHandle(forWritingAtPath: githubOutputPath)
-            {
+            if let githubOutputPath = Environment.current.variables["GITHUB_OUTPUT"] {
+                let outputPath = try AbsolutePath(validating: githubOutputPath)
                 let matrixJSON = "{\"shard\":\(indices)}"
-                handle.seekToEndOfFile()
-                handle.write(Data("matrix=\(matrixJSON)\n".utf8))
-                handle.closeFile()
-                Logger.current.info("GitHub Actions matrix output written.")
-            } else {
-                let matrixData: [String: Any] = [
-                    "plan_id": shardPlan.session_id,
-                    "shard_count": shardPlan.shard_count,
-                    "shards": shardPlan.shards.map { shard in
-                        [
-                            "index": shard.index,
-                            "test_targets": shard.test_targets,
-                            "estimated_duration_ms": shard.estimated_duration_ms,
-                        ] as [String: Any]
-                    },
-                ]
-                let jsonData = try? JSONSerialization.data(
-                    withJSONObject: matrixData,
-                    options: [.prettyPrinted, .sortedKeys]
+                let existing = (try? await fileSystem.readTextFile(at: outputPath)) ?? ""
+                try await fileSystem.writeText(
+                    existing + "matrix=\(matrixJSON)\n",
+                    at: outputPath,
+                    options: [.overwrite]
                 )
-                let outputPath = ".tuist-shard-matrix.json"
-                if let jsonData {
-                    FileManager.default.createFile(atPath: outputPath, contents: jsonData)
-                    Logger.current.info("Shard matrix written to \(outputPath)")
-                }
+                Logger.current.debug("GitHub Actions matrix output written.")
+            } else {
+                let currentDirectory = try await Environment.current.currentWorkingDirectory()
+                let outputPath = currentDirectory.appending(component: ".tuist-shard-matrix.json")
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                try await fileSystem.writeAsJSON(shardPlan, at: outputPath, encoder: encoder)
+                Logger.current.debug("Shard matrix written to \(outputPath.pathString)")
             }
         }
     }
