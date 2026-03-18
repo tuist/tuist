@@ -1,9 +1,9 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
-import dev.tuist.gradle.api.model.ShardAssignment
-import dev.tuist.gradle.api.model.ShardAssignmentResponse
-import dev.tuist.gradle.api.model.ShardPlanResponse
+import dev.tuist.gradle.api.model.Shard
+import dev.tuist.gradle.api.model.ShardPlan
+import dev.tuist.gradle.api.model.ShardPlanShardsInner
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
@@ -51,13 +51,13 @@ class TuistTestShardingTest {
         val service = createService()
 
         val responseBody = Gson().toJson(
-            ShardPlanResponse(
+            ShardPlan(
                 planId = "github-123-1",
                 shardCount = 3,
                 shards = listOf(
-                    ShardAssignment(index = 0, testTargets = listOf("com.example.LoginTest", "com.example.LogoutTest"), estimatedDurationMs = 5000),
-                    ShardAssignment(index = 1, testTargets = listOf("com.example.PaymentTest"), estimatedDurationMs = 4500),
-                    ShardAssignment(index = 2, testTargets = listOf("com.example.ProfileTest", "com.example.SettingsTest"), estimatedDurationMs = 4800)
+                    ShardPlanShardsInner(index = 0, testTargets = listOf("com.example.LoginTest", "com.example.LogoutTest"), estimatedDurationMs = 5000),
+                    ShardPlanShardsInner(index = 1, testTargets = listOf("com.example.PaymentTest"), estimatedDurationMs = 4500),
+                    ShardPlanShardsInner(index = 2, testTargets = listOf("com.example.ProfileTest", "com.example.SettingsTest"), estimatedDurationMs = 4800)
                 ),
                 uploadId = "upload-abc"
             )
@@ -103,12 +103,12 @@ class TuistTestShardingTest {
         val service = createService()
 
         val responseBody = Gson().toJson(
-            ShardPlanResponse(
+            ShardPlan(
                 planId = "test-plan",
                 shardCount = 2,
                 shards = listOf(
-                    ShardAssignment(index = 0, testTargets = listOf("com.example.Test1"), estimatedDurationMs = 3000),
-                    ShardAssignment(index = 1, testTargets = listOf("com.example.Test2"), estimatedDurationMs = 3000)
+                    ShardPlanShardsInner(index = 0, testTargets = listOf("com.example.Test1"), estimatedDurationMs = 3000),
+                    ShardPlanShardsInner(index = 1, testTargets = listOf("com.example.Test2"), estimatedDurationMs = 3000)
                 ),
                 uploadId = "upload-xyz"
             )
@@ -133,23 +133,23 @@ class TuistTestShardingTest {
     }
 
     @Test
-    fun `getShardAssignment parses response correctly`() {
+    fun `getShard parses response correctly`() {
         val service = createService()
 
         val responseBody = Gson().toJson(
-            ShardAssignmentResponse(
-                testTargets = listOf("com.example.LoginTest", "com.example.LogoutTest"),
-                xctestrunDownloadUrl = null,
-                bundleDownloadUrl = null
+            Shard(
+                modules = listOf("AppModule"),
+                suites = mapOf("AppModule" to listOf("com.example.LoginTest", "com.example.LogoutTest")),
+                downloadUrl = "https://download.example.com/bundle.zip"
             )
         )
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        val result = service.getShardAssignment("github-123-1", 0)
+        val result = service.getShard("github-123-1", 0)
 
         assertNotNull(result)
-        assertEquals(2, result.testTargets.size)
-        assertEquals("com.example.LoginTest", result.testTargets[0])
+        assertEquals(listOf("AppModule"), result.modules)
+        assertEquals(listOf("com.example.LoginTest", "com.example.LogoutTest"), result.suites["AppModule"])
 
         val request = mockWebServer.takeRequest()
         assertEquals("GET", request.method)
@@ -157,17 +157,17 @@ class TuistTestShardingTest {
     }
 
     @Test
-    fun `getShardAssignment returns null on server error`() {
+    fun `getShard returns null on server error`() {
         val service = createService()
         mockWebServer.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
 
-        val result = service.getShardAssignment("nonexistent-plan", 0)
+        val result = service.getShard("nonexistent-plan", 0)
 
         assertNull(result)
     }
 
     @Test
-    fun `getShardAssignment returns null on network error`() {
+    fun `getShard returns null on network error`() {
         val baseUrl = "http://localhost:1"
         val httpClient = TuistHttpClient(
             configurationProvider = object : ConfigurationProvider {
@@ -183,7 +183,7 @@ class TuistTestShardingTest {
         )
         val service = TuistTestShardingService(httpClient = httpClient, baseUrl = baseUrl)
 
-        val result = service.getShardAssignment("plan-123", 0)
+        val result = service.getShard("plan-123", 0)
 
         assertNull(result)
     }

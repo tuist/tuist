@@ -779,7 +779,6 @@ defmodule Tuist.Tests do
         avg_test_case_duration: avg_test_case_duration,
         shard_id: if(shard_plan, do: shard_plan.id),
         shard_index: test.shard_index,
-        selective_testing_hash: Map.get(module_attrs, :selective_testing_hash),
         inserted_at: NaiveDateTime.utc_now()
       }
 

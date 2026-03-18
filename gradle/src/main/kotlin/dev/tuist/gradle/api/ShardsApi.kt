@@ -1,8 +1,8 @@
 package dev.tuist.gradle.api
 
-import dev.tuist.gradle.api.model.CreateShardPlanBody
-import dev.tuist.gradle.api.model.ShardAssignmentResponse
-import dev.tuist.gradle.api.model.ShardPlanResponse
+import dev.tuist.gradle.api.model.CreateShardPlanParams1
+import dev.tuist.gradle.api.model.Shard
+import dev.tuist.gradle.api.model.ShardPlan
 import retrofit2.Call
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -14,14 +14,14 @@ interface ShardsApi {
     fun createShardPlan(
         @Path("account_handle") accountHandle: String,
         @Path("project_handle") projectHandle: String,
-        @Body body: CreateShardPlanBody
-    ): Call<ShardPlanResponse>
+        @Body body: CreateShardPlanParams1
+    ): Call<ShardPlan>
 
     @GET("api/projects/{account_handle}/{project_handle}/tests/shards/{plan_id}/{shard_index}")
-    fun getShardAssignment(
+    fun getShard(
         @Path("account_handle") accountHandle: String,
         @Path("project_handle") projectHandle: String,
         @Path("plan_id") planId: String,
         @Path("shard_index") shardIndex: Int
-    ): Call<ShardAssignmentResponse>
+    ): Call<Shard>
 }

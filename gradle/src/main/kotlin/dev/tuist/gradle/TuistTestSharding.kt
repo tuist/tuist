@@ -1,9 +1,9 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
-import dev.tuist.gradle.api.model.CreateShardPlanBody
-import dev.tuist.gradle.api.model.ShardAssignmentResponse
-import dev.tuist.gradle.api.model.ShardPlanResponse
+import dev.tuist.gradle.api.model.CreateShardPlanParams1
+import dev.tuist.gradle.api.model.Shard
+import dev.tuist.gradle.api.model.ShardPlan
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -30,14 +30,14 @@ class TuistTestShardingService(
         shardMax: Int,
         shardMin: Int?,
         shardMaxDuration: Int?
-    ): ShardPlanResponse? {
-        val body = CreateShardPlanBody(
+    ): ShardPlan? {
+        val body = CreateShardPlanParams1(
             planId = planId,
             testSuites = testSuites,
             shardMin = shardMin,
             shardMax = shardMax,
             shardMaxDuration = shardMaxDuration,
-            granularity = "suite"
+            granularity = CreateShardPlanParams1.Granularity.suite
         )
 
         return try {
@@ -58,7 +58,7 @@ class TuistTestShardingService(
                     when (connection.responseCode) {
                         HttpURLConnection.HTTP_OK -> {
                             BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                                Gson().fromJson(reader, ShardPlanResponse::class.java)
+                                Gson().fromJson(reader, ShardPlan::class.java)
                             }
                         }
                         HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
@@ -80,7 +80,7 @@ class TuistTestShardingService(
         }
     }
 
-    fun getShardAssignment(planId: String, shardIndex: Int): ShardAssignmentResponse? {
+    fun getShard(planId: String, shardIndex: Int): Shard? {
         return try {
             httpClient.execute { config ->
                 val url = URI(baseUrl.trimEnd('/')).resolve(
@@ -94,7 +94,7 @@ class TuistTestShardingService(
                     when (connection.responseCode) {
                         HttpURLConnection.HTTP_OK -> {
                             BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                                Gson().fromJson(reader, ShardAssignmentResponse::class.java)
+                                Gson().fromJson(reader, Shard::class.java)
                             }
                         }
                         HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
@@ -299,13 +299,13 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
 
         logger.lifecycle("Tuist: Test sharding active — shard index $shardIndex, plan $planId")
 
-        val assignment = shardingService.getShardAssignment(planId, shardIndex)
-        if (assignment == null) {
-            logger.warn("Tuist: Failed to get shard assignment, running all tests")
+        val shard = shardingService.getShard(planId, shardIndex)
+        if (shard == null) {
+            logger.warn("Tuist: Failed to get shard, running all tests")
             return
         }
 
-        val assignedTargets = assignment.testTargets
+        val assignedTargets = shard.suites.values.flatten()
         logger.lifecycle("Tuist: Shard $shardIndex assigned ${assignedTargets.size} test suite(s)")
 
         project.allprojects {

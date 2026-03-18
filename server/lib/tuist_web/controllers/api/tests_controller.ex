@@ -309,11 +309,6 @@ defmodule TuistWeb.API.TestsController do
                    type: :integer,
                    description: "The duration of the test module in milliseconds."
                  },
-                 selective_testing_hash: %Schema{
-                   type: :string,
-                   description: "The selective testing hash for this module, if available.",
-                   nullable: true
-                 },
                  test_suites: %Schema{
                    type: :array,
                    description: "The test suites within this module.",
