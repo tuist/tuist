@@ -242,7 +242,7 @@ defmodule TuistWeb.TestCaseLive do
     {:noreply,
      socket
      |> assign(:test_case_detail, %{test_case_detail | is_flaky: updated_test_case.is_flaky})
-     |> assign(:flaky_runs_grouped, [])
+     |> assign(:flaky_runs_grouped, Phoenix.LiveView.AsyncResult.ok([]))
      |> refresh_history_events()}
   end
 
