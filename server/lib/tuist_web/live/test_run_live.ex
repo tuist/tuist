@@ -1321,23 +1321,11 @@ defmodule TuistWeb.TestRunLive do
       end)
       |> Enum.with_index(fn shard, idx -> Map.put(shard, :id, idx) end)
 
-    has_pending = Enum.any?(all_shards, fn s -> s.status == "pending" end)
-    has_failure = Enum.any?(all_shards, fn s -> s.status == "failure" end)
-
-    display_status =
-      cond do
-        expected_shard_count == 0 -> run.status
-        has_pending -> "in_progress"
-        has_failure -> "failure"
-        true -> "success"
-      end
-
     display_duration = shard_wall_clock_duration(shard_balance, run.duration)
 
     socket
     |> assign(:shard_rows, all_shards)
     |> assign(:expected_shard_count, expected_shard_count)
-    |> assign(:display_status, display_status)
     |> assign(:display_duration, display_duration)
   end
 

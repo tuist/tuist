@@ -14,22 +14,22 @@
   <div data-part="header">
     <div data-part="title-group">
       <div data-part="title">
-        <div :if={@display_status == "success"} data-part="badge-success">
+        <div :if={@run.status == "success"} data-part="badge-success">
           <div data-part="icon">
             <.circle_check />
           </div>
         </div>
-        <div :if={@display_status == "failure"} data-part="badge-failure">
+        <div :if={@run.status == "failure"} data-part="badge-failure">
           <div data-part="icon">
             <.alert_circle />
           </div>
         </div>
-        <div :if={@display_status == "in_progress"} data-part="badge-processing">
+        <div :if={@run.status == "in_progress"} data-part="badge-processing">
           <div data-part="icon">
             <.circle_dashed />
           </div>
         </div>
-        <div :if={@display_status == "skipped"} data-part="badge-warning">
+        <div :if={@run.status == "skipped"} data-part="badge-warning">
           <div data-part="icon">
             <.alert_hexagon />
           </div>
@@ -158,28 +158,28 @@
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Status")}</div>
               <.badge
-                :if={@display_status == "success"}
+                :if={@run.status == "success"}
                 label={dgettext("dashboard_tests", "Passed")}
                 color="success"
                 style="fill"
                 size="large"
               />
               <.badge
-                :if={@display_status == "failure"}
+                :if={@run.status == "failure"}
                 label={dgettext("dashboard_tests", "Failed")}
                 color="destructive"
                 style="fill"
                 size="large"
               />
               <.badge
-                :if={@display_status == "in_progress"}
+                :if={@run.status == "in_progress"}
                 label={dgettext("dashboard_tests", "In progress")}
                 color="neutral"
                 style="fill"
                 size="large"
               />
               <.badge
-                :if={@display_status == "skipped"}
+                :if={@run.status == "skipped"}
                 label={dgettext("dashboard_tests", "Skipped")}
                 color="warning"
                 style="fill"
@@ -194,14 +194,14 @@
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Duration")}</div>
-              <span :if={@display_status != "in_progress"} data-part="value">
+              <span :if={@run.status != "in_progress"} data-part="value">
                 <.history />
                 {dgettext("dashboard_tests", "%{run_duration}s",
                   run_duration:
                     (@display_duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
                 )}
               </span>
-              <span :if={@display_status == "in_progress"} data-part="value">
+              <span :if={@run.status == "in_progress"} data-part="value">
                 <.status_badge_cell
                   label={dgettext("dashboard_tests", "In Progress")}
                   status="in_progress"
@@ -340,7 +340,7 @@
       data-part="shards-card"
     >
       <.card_section :if={length(@shard_rows) > 0} data-part="shard-balance-section">
-        <div :if={@display_status == "in_progress"} data-part="shards-in-progress-section">
+        <div :if={@run.status == "in_progress"} data-part="shards-in-progress-section">
           <div data-part="image">
             <img src="/images/shards_in_progress_light.png" data-theme="light" />
             <img src="/images/shards_in_progress_dark.png" data-theme="dark" />
