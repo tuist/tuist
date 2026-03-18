@@ -273,7 +273,7 @@
                 throw InspectBuildCommandServiceError.missingFullHandle
             }
 
-            let buildId = UUID().uuidString
+            let buildId = mostRecentActivityLogPath.basenameWithoutExt
 
             let build: ServerBuild = try await fileSystem.runInTemporaryDirectory(prefix: "build") { tempDirectory in
                 let archivePath = try await bundleBuild(

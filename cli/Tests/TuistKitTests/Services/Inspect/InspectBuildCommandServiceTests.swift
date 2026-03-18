@@ -876,4 +876,87 @@ struct InspectBuildCommandServiceTests {
             )
             .called(1)
     }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func remoteBuild_uses_activityLog_uuid_as_buildId() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+        mockedEnvironment.variables["TUIST_INSPECT_BUILD_WAIT"] = "YES"
+        mockedEnvironment.variables["TUIST_INSPECT_BUILD_MODE"] = "remote"
+
+        let localUploadBuildService = MockUploadBuildServicing()
+        let localSubject = InspectBuildCommandService(
+            derivedDataLocator: derivedDataLocator,
+            fileSystem: fileSystem,
+            machineEnvironment: machineEnvironment,
+            xcodeBuildController: xcodeBuildController,
+            createBuildService: createBuildService,
+            uploadBuildService: localUploadBuildService,
+            configLoader: configLoader,
+            xcActivityLogController: xcActivityLogController,
+            backgroundProcessRunner: backgroundProcessRunner,
+            dateService: dateService,
+            serverEnvironmentService: serverEnvironmentService,
+            gitController: gitController,
+            ciController: ciController,
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
+        )
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let activityLogUUID = "5D058318-CD9C-46C5-8D15-7A0330AF73F2"
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            component: "\(activityLogUUID).xcactivitylog"
+        )
+        try await fileSystem.makeDirectory(at: buildLogsPath)
+        try await fileSystem.writeText("fake", at: activityLogPath)
+
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
+        ).willReturn(
+            .test(
+                path: activityLogPath,
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
+            )
+        )
+
+        given(localUploadBuildService)
+            .uploadBuild(buildId: .any, fullHandle: .any, serverURL: .any, filePath: .any)
+            .willReturn(())
+
+        try await localSubject.run(path: nil)
+
+        verify(createBuildService)
+            .createBuild(
+                fullHandle: .any, serverURL: .any, id: .value(activityLogUUID),
+                category: .any, configuration: .any, customMetadata: .any,
+                duration: .any, files: .any, gitBranch: .any, gitCommitSHA: .any,
+                gitRef: .any, gitRemoteURLOrigin: .any, isCI: .any, issues: .any,
+                modelIdentifier: .any, macOSVersion: .any, scheme: .any,
+                targets: .any, xcodeCacheUploadEnabled: .any, xcodeVersion: .any,
+                status: .any, ciRunId: .any, ciProjectHandle: .any,
+                ciHost: .any, ciProvider: .any, cacheableTasks: .any,
+                casOutputs: .any, machineMetrics: .any
+            )
+            .called(1)
+
+        verify(localUploadBuildService)
+            .uploadBuild(
+                buildId: .value(activityLogUUID),
+                fullHandle: .any,
+                serverURL: .any,
+                filePath: .any
+            )
+            .called(1)
+    }
 }
