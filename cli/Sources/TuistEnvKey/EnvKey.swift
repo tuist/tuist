@@ -187,6 +187,7 @@ public enum EnvKey: String, CaseIterable {
     case testShardMaxDuration = "TUIST_TEST_SHARD_MAX_DURATION"
     case testShardGranularity = "TUIST_TEST_SHARD_GRANULARITY"
     case testShardIndex = "TUIST_SHARD_INDEX"
+    case testShardPlanId = "TUIST_SHARD_PLAN_ID"
 
     // TEST SHOW
 

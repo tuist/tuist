@@ -16,6 +16,7 @@
         func plan(
             xctestproductsPath: AbsolutePath,
             scheme: String,
+            planId: String?,
             granularity: ShardGranularity,
             shardMin: Int?,
             shardMax: Int?,
@@ -82,6 +83,7 @@
         public func plan(
             xctestproductsPath: AbsolutePath,
             scheme: String,
+            planId: String?,
             granularity: ShardGranularity,
             shardMin: Int?,
             shardMax: Int?,
@@ -90,7 +92,7 @@
             fullHandle: String,
             serverURL: URL
         ) async throws -> Components.Schemas.ShardPlan {
-            guard let planId = ciController.ciInfo()?.shardPlanId else {
+            guard let planId = planId ?? ciController.ciInfo()?.shardPlanId else {
                 throw ShardPlanServiceError.cannotDeriveSessionId
             }
 
@@ -120,7 +122,7 @@
 
             Logger.current.info("Creating shard plan '\(planId)' with \(modules.count) test modules...")
 
-            let session = try await createShardPlanService.createShardPlan(
+            let shardPlan = try await createShardPlanService.createShardPlan(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 planId: planId,
@@ -133,7 +135,7 @@
                 granularity: granularity.rawValue
             )
 
-            Logger.current.info("Shard session created: \(session.shard_count) shards")
+            Logger.current.info("Shard plan created: \(shardPlan.shard_count) shards")
 
             let xctestrunUploadURL = try await generateShardXctestrunUploadURLService.generateURL(
                 fullHandle: fullHandle,
@@ -162,7 +164,7 @@
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         planId: planId,
-                        uploadId: session.upload_id,
+                        uploadId: shardPlan.upload_id,
                         partNumber: part.number
                     )
                 },
@@ -175,25 +177,25 @@
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 planId: planId,
-                uploadId: session.upload_id,
+                uploadId: shardPlan.upload_id,
                 parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
             )
 
             Logger.current.info("Upload complete. Shard matrix ready.")
-            outputShardMatrix(session: session)
+            outputShardMatrix(shardPlan)
 
-            return session
+            return shardPlan
         }
 
-        private func outputShardMatrix(session: Components.Schemas.ShardPlan) {
-            for shard in session.shards {
+        private func outputShardMatrix(_ shardPlan: Components.Schemas.ShardPlan) {
+            for shard in shardPlan.shards {
                 Logger.current
                     .info(
                         "  Shard \(shard.index): \(shard.test_targets.joined(separator: ", ")) (~\(shard.estimated_duration_ms)ms)"
                     )
             }
 
-            let indices = (0 ..< session.shard_count).map { $0 }
+            let indices = (0 ..< shardPlan.shard_count).map { $0 }
 
             if let githubOutputPath = Environment.current.variables["GITHUB_OUTPUT"],
                let handle = FileHandle(forWritingAtPath: githubOutputPath)
@@ -205,9 +207,9 @@
                 Logger.current.info("GitHub Actions matrix output written.")
             } else {
                 let matrixData: [String: Any] = [
-                    "plan_id": session.session_id,
-                    "shard_count": session.shard_count,
-                    "shards": session.shards.map { shard in
+                    "plan_id": shardPlan.session_id,
+                    "shard_count": shardPlan.shard_count,
+                    "shards": shardPlan.shards.map { shard in
                         [
                             "index": shard.index,
                             "test_targets": shard.test_targets,

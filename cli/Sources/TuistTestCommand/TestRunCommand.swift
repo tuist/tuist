@@ -273,6 +273,13 @@
         )
         var shardGranularity: ShardGranularity = .module
 
+        @Option(
+            name: .long,
+            help: "Explicit shard plan ID. This ID is derived from environment variables for supported CI providers.",
+            envKey: .testShardPlanId
+        )
+        var shardPlanId: String?
+
         @Argument(
             parsing: .postTerminator,
             help:
@@ -384,6 +391,7 @@
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
+                shardPlanId: shardPlanId,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,

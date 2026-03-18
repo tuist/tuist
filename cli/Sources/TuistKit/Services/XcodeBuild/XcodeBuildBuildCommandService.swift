@@ -50,6 +50,7 @@ struct XcodeBuildBuildCommandService {
 
     func run(
         passthroughXcodebuildArguments: [String],
+        shardPlanId: String? = nil,
         shardGranularity: ShardGranularity = .module,
         shardMin: Int? = nil,
         shardMax: Int? = nil,
@@ -92,6 +93,7 @@ struct XcodeBuildBuildCommandService {
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
                 scheme: schemeName,
+                planId: shardPlanId,
                 granularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,
