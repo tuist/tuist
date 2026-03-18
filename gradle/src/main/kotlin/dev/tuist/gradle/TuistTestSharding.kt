@@ -42,7 +42,7 @@ class TuistTestShardingService(
         shardMax: Int,
         shardMin: Int?,
         shardMaxDuration: Int?
-    ): ShardPlan? {
+    ): ShardPlan {
         val body = CreateShardPlanParams1(
             planId = planId,
             testSuites = testSuites,
@@ -52,33 +52,19 @@ class TuistTestShardingService(
             granularity = CreateShardPlanParams1.Granularity.suite
         )
 
-        return try {
-            val response = shardsApi.createShardPlan(accountHandle, projectHandle, body).execute()
-            if (response.isSuccessful) {
-                response.body()
-            } else {
-                logger.warn("Tuist: Shard plan creation failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
-                null
-            }
-        } catch (e: Exception) {
-            logger.warn("Tuist: Failed to create shard plan: ${e.message}")
-            null
+        val response = shardsApi.createShardPlan(accountHandle, projectHandle, body).execute()
+        if (!response.isSuccessful) {
+            throw RuntimeException("Shard plan creation failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
         }
+        return response.body() ?: throw RuntimeException("Shard plan creation returned empty response.")
     }
 
-    fun getShard(planId: String, shardIndex: Int): Shard? {
-        return try {
-            val response = shardsApi.getShard(accountHandle, projectHandle, planId, shardIndex).execute()
-            if (response.isSuccessful) {
-                response.body()
-            } else {
-                logger.warn("Tuist: Get shard failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
-                null
-            }
-        } catch (e: Exception) {
-            logger.warn("Tuist: Failed to get shard: ${e.message}")
-            null
+    fun getShard(planId: String, shardIndex: Int): Shard {
+        val response = shardsApi.getShard(accountHandle, projectHandle, planId, shardIndex).execute()
+        if (!response.isSuccessful) {
+            throw RuntimeException("Get shard failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
         }
+        return response.body() ?: throw RuntimeException("Get shard returned empty response.")
     }
 
     internal fun derivePlanId(): String? {
@@ -189,7 +175,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
             shardMax = shardMax,
             shardMin = shardMin,
             shardMaxDuration = shardMaxDuration
-        ) ?: throw org.gradle.api.GradleException("Failed to create shard plan on the server.")
+        )
 
         logger.lifecycle("Tuist: Shard plan created — plan=$planId, shards=${response.shardCount}")
         for (shard in response.shards) {
@@ -279,18 +265,13 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
         )
 
         val planId = System.getenv("TUIST_SHARD_PLAN_ID") ?: shardingService.derivePlanId()
-        if (planId == null) {
-            logger.warn("Tuist: Could not derive shard plan ID, skipping test sharding")
-            return
-        }
+            ?: throw org.gradle.api.GradleException(
+                "Could not derive shard plan ID. Set TUIST_SHARD_PLAN_ID or run in a supported CI environment."
+            )
 
         logger.lifecycle("Tuist: Test sharding active — shard index $shardIndex, plan $planId")
 
         val shard = shardingService.getShard(planId, shardIndex)
-        if (shard == null) {
-            logger.warn("Tuist: Failed to get shard, running all tests")
-            return
-        }
 
         val assignedTargets = shard.suites.values.flatten()
         logger.lifecycle("Tuist: Shard $shardIndex assigned ${assignedTargets.size} test suite(s)")

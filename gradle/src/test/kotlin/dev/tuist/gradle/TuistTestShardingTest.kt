@@ -9,6 +9,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -76,19 +77,19 @@ class TuistTestShardingTest {
     }
 
     @Test
-    fun `createShardPlan returns null on server error`() {
+    fun `createShardPlan throws on server error`() {
         val service = createService()
         mockWebServer.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
-        val result = service.createShardPlan(
-            planId = "github-456-1",
-            testSuites = listOf("com.example.Test"),
-            shardMax = 2,
-            shardMin = null,
-            shardMaxDuration = null
-        )
-
-        assertNull(result)
+        assertThrows<RuntimeException> {
+            service.createShardPlan(
+                planId = "github-456-1",
+                testSuites = listOf("com.example.Test"),
+                shardMax = 2,
+                shardMin = null,
+                shardMaxDuration = null
+            )
+        }
     }
 
     @Test
@@ -150,17 +151,17 @@ class TuistTestShardingTest {
     }
 
     @Test
-    fun `getShard returns null on server error`() {
+    fun `getShard throws on server error`() {
         val service = createService()
         mockWebServer.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
 
-        val result = service.getShard("nonexistent-plan", 0)
-
-        assertNull(result)
+        assertThrows<RuntimeException> {
+            service.getShard("nonexistent-plan", 0)
+        }
     }
 
     @Test
-    fun `getShard returns null on network error`() {
+    fun `getShard throws on network error`() {
         val service = TuistTestShardingService(
             baseUrl = "http://localhost:1",
             token = "test-token",
@@ -168,9 +169,9 @@ class TuistTestShardingTest {
             projectHandle = "test-project"
         )
 
-        val result = service.getShard("plan-123", 0)
-
-        assertNull(result)
+        assertThrows<Exception> {
+            service.getShard("plan-123", 0)
+        }
     }
 
     @Test
