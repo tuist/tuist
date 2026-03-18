@@ -27,6 +27,7 @@ public protocol ShardServicing {
 public enum ShardServiceError: LocalizedError, Equatable {
     case cannotDeriveSessionId
     case downloadFailed(String)
+    case testProductsNotFound
 
     public var errorDescription: String? {
         switch self {
@@ -34,6 +35,8 @@ public enum ShardServiceError: LocalizedError, Equatable {
             return "Cannot derive a shard plan ID. Make sure you are running in a supported CI environment."
         case let .downloadFailed(message):
             return "Failed to download shard artifacts: \(message)"
+        case .testProductsNotFound:
+            return "No .xctestproducts bundle found in the downloaded shard archive."
         }
     }
 }
@@ -85,13 +88,11 @@ public struct ShardService: ShardServicing {
         let unarchiver = try fileUnarchiver.makeFileUnarchiver(for: bundleZipPath)
         let unzippedPath = try unarchiver.unzip()
 
-        let testProductsPath: AbsolutePath
-        if let found = try await fileSystem.glob(directory: unzippedPath, include: ["*.xctestproducts"])
+        guard let testProductsPath = try await fileSystem
+            .glob(directory: unzippedPath, include: ["*.xctestproducts"])
             .first(where: { _ in true })
-        {
-            testProductsPath = found
-        } else {
-            testProductsPath = unzippedPath
+        else {
+            throw ShardServiceError.testProductsNotFound
         }
         Logger.current.debug("Unzipped test products to \(testProductsPath.pathString)")
 
