@@ -1226,28 +1226,21 @@ defmodule Tuist.Tests.Analytics do
   defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
 
-  def shard_balance_metrics(shard_plan_id) when is_binary(shard_plan_id) and shard_plan_id != "" do
-    query =
-      from t in Test,
-        where: t.shard_plan_id == ^shard_plan_id and not is_nil(t.shard_index),
+  def shard_metrics(test_run_id) when is_binary(test_run_id) do
+    ClickHouseRepo.all(
+      from(tcr in TestCaseRun,
+        where: tcr.test_run_id == ^test_run_id,
+        where: not is_nil(tcr.shard_index),
+        group_by: tcr.shard_index,
         select: %{
-          shard_index: t.shard_index,
-          duration: t.duration,
-          status: t.status,
-          ran_at: t.ran_at
+          shard_index: tcr.shard_index,
+          actual_duration_ms: sum(tcr.duration),
+          status: fragment("if(countIf(? = 'failure') > 0, 'failure', 'success')", tcr.status),
+          ran_at: min(tcr.ran_at)
         }
-
-    results = ClickHouseRepo.all(query)
-
-    Enum.map(results, fn row ->
-      %{
-        shard_index: row.shard_index,
-        actual_duration_ms: row.duration,
-        status: row.status,
-        ran_at: row.ran_at
-      }
-    end)
+      )
+    )
   end
 
-  def shard_balance_metrics(_), do: []
+  def shard_metrics(_), do: []
 end

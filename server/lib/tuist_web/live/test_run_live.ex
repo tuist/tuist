@@ -1276,7 +1276,7 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_shard_rows(socket, run) do
-    shard_balance = Tests.Analytics.shard_balance_metrics(run.shard_plan_id)
+    import Ecto.Query
 
     shard_plan = Map.get(run, :shard_plan)
 
@@ -1288,7 +1288,9 @@ defmodule TuistWeb.TestRunLive do
 
     target_counts = fetch_target_counts(shard_plan, run.shard_plan_id, run.project_id)
 
-    reported_indices = MapSet.new(shard_balance, & &1.shard_index)
+    reported_shards = Tests.Analytics.shard_metrics(run.id)
+
+    reported_indices = MapSet.new(reported_shards, & &1.shard_index)
 
     pending_rows =
       if expected_shard_count > 0 do
@@ -1302,14 +1304,14 @@ defmodule TuistWeb.TestRunLive do
       end
 
     all_shards =
-      (shard_balance ++ pending_rows)
+      (reported_shards ++ pending_rows)
       |> Enum.sort_by(& &1.shard_index)
       |> Enum.map(fn shard ->
         Map.put(shard, :target_count, Map.get(target_counts, shard.shard_index, 0))
       end)
       |> Enum.with_index(fn shard, idx -> Map.put(shard, :id, idx) end)
 
-    display_duration = shard_wall_clock_duration(shard_balance, run.duration)
+    display_duration = shard_wall_clock_duration(reported_shards, run.duration)
 
     socket
     |> assign(:shard_rows, all_shards)
