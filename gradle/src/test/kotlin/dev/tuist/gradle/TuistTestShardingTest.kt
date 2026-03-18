@@ -31,19 +31,12 @@ class TuistTestShardingTest {
 
     private fun createService(): TuistTestShardingService {
         val baseUrl = mockWebServer.url("/").toString().trimEnd('/')
-        val httpClient = TuistHttpClient(
-            configurationProvider = object : ConfigurationProvider {
-                override fun getConfiguration(forceRefresh: Boolean) = CacheConfiguration(
-                    url = baseUrl,
-                    token = "test-token",
-                    accountHandle = "test-account",
-                    projectHandle = "test-project"
-                )
-            },
-            connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000
+        return TuistTestShardingService(
+            baseUrl = baseUrl,
+            token = "test-token",
+            accountHandle = "test-account",
+            projectHandle = "test-project"
         )
-        return TuistTestShardingService(httpClient = httpClient, baseUrl = baseUrl)
     }
 
     @Test
@@ -168,20 +161,12 @@ class TuistTestShardingTest {
 
     @Test
     fun `getShard returns null on network error`() {
-        val baseUrl = "http://localhost:1"
-        val httpClient = TuistHttpClient(
-            configurationProvider = object : ConfigurationProvider {
-                override fun getConfiguration(forceRefresh: Boolean) = CacheConfiguration(
-                    url = baseUrl,
-                    token = "test-token",
-                    accountHandle = "test-account",
-                    projectHandle = "test-project"
-                )
-            },
-            connectTimeoutMs = 100,
-            readTimeoutMs = 100
+        val service = TuistTestShardingService(
+            baseUrl = "http://localhost:1",
+            token = "test-token",
+            accountHandle = "test-account",
+            projectHandle = "test-project"
         )
-        val service = TuistTestShardingService(httpClient = httpClient, baseUrl = baseUrl)
 
         val result = service.getShard("plan-123", 0)
 

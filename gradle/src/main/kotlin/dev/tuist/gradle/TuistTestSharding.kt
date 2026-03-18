@@ -1,9 +1,11 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
+import dev.tuist.gradle.api.ShardsApi
 import dev.tuist.gradle.api.model.CreateShardPlanParams1
 import dev.tuist.gradle.api.model.Shard
 import dev.tuist.gradle.api.model.ShardPlan
+import okhttp3.OkHttpClient
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -12,17 +14,27 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.testing.Test
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URI
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
 class TuistTestShardingService(
-    private val httpClient: TuistHttpClient,
-    private val baseUrl: String
+    private val shardsApi: ShardsApi,
+    private val accountHandle: String,
+    private val projectHandle: String
 ) {
     private val logger = Logging.getLogger(TuistTestShardingService::class.java)
+
+    constructor(
+        baseUrl: String,
+        token: String,
+        accountHandle: String,
+        projectHandle: String
+    ) : this(
+        shardsApi = createShardsApi(baseUrl, token),
+        accountHandle = accountHandle,
+        projectHandle = projectHandle
+    )
 
     fun createShardPlan(
         planId: String,
@@ -41,38 +53,12 @@ class TuistTestShardingService(
         )
 
         return try {
-            httpClient.execute { config ->
-                val url = URI(baseUrl.trimEnd('/')).resolve(
-                    "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/shards"
-                )
-                val connection = httpClient.openConnection(url, config)
-                try {
-                    connection.requestMethod = "POST"
-                    connection.doOutput = true
-                    connection.setRequestProperty("Content-Type", "application/json")
-
-                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                        Gson().toJson(body, writer)
-                    }
-
-                    when (connection.responseCode) {
-                        HttpURLConnection.HTTP_OK -> {
-                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                                Gson().fromJson(reader, ShardPlan::class.java)
-                            }
-                        }
-                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                        else -> {
-                            val errorBody = try {
-                                connection.errorStream?.bufferedReader()?.use { it.readText() }
-                            } catch (_: Exception) { null }
-                            logger.warn("Tuist: Shard plan creation failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
-                            null
-                        }
-                    }
-                } finally {
-                    connection.disconnect()
-                }
+            val response = shardsApi.createShardPlan(accountHandle, projectHandle, body).execute()
+            if (response.isSuccessful) {
+                response.body()
+            } else {
+                logger.warn("Tuist: Shard plan creation failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
+                null
             }
         } catch (e: Exception) {
             logger.warn("Tuist: Failed to create shard plan: ${e.message}")
@@ -82,36 +68,15 @@ class TuistTestShardingService(
 
     fun getShard(planId: String, shardIndex: Int): Shard? {
         return try {
-            httpClient.execute { config ->
-                val url = URI(baseUrl.trimEnd('/')).resolve(
-                    "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/shards/$planId/$shardIndex"
-                )
-                val connection = httpClient.openConnection(url, config)
-                try {
-                    connection.requestMethod = "GET"
-                    connection.setRequestProperty("Accept", "application/json")
-
-                    when (connection.responseCode) {
-                        HttpURLConnection.HTTP_OK -> {
-                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                                Gson().fromJson(reader, Shard::class.java)
-                            }
-                        }
-                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                        else -> {
-                            val errorBody = try {
-                                connection.errorStream?.bufferedReader()?.use { it.readText() }
-                            } catch (_: Exception) { null }
-                            logger.warn("Tuist: Shard assignment request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
-                            null
-                        }
-                    }
-                } finally {
-                    connection.disconnect()
-                }
+            val response = shardsApi.getShard(accountHandle, projectHandle, planId, shardIndex).execute()
+            if (response.isSuccessful) {
+                response.body()
+            } else {
+                logger.warn("Tuist: Get shard failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
+                null
             }
         } catch (e: Exception) {
-            logger.warn("Tuist: Failed to get shard assignment: ${e.message}")
+            logger.warn("Tuist: Failed to get shard: ${e.message}")
             null
         }
     }
@@ -127,6 +92,26 @@ class TuistTestShardingService(
         System.getenv("CM_BUILD_ID")?.let { return "codemagic-$it" }
         return null
     }
+}
+
+private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
+    val client = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("Authorization", "Bearer $token")
+                .build()
+            chain.proceed(request)
+        }
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
+
+    return Retrofit.Builder()
+        .baseUrl(baseUrl.trimEnd('/') + "/")
+        .client(client)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(ShardsApi::class.java)
 }
 
 private val classPattern = Regex("""^\s*class\s+(\w+)""", RegexOption.MULTILINE)
@@ -241,12 +226,13 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
             serverUrl = serverUrl,
             projectDir = project.rootDir
         )
-        val httpClient = TuistHttpClient(
-            configurationProvider = configProvider,
-            connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000
+        val config = configProvider.getConfiguration()
+        return TuistTestShardingService(
+            baseUrl = serverUrl,
+            token = config.token,
+            accountHandle = config.accountHandle,
+            projectHandle = config.projectHandle
         )
-        return TuistTestShardingService(httpClient = httpClient, baseUrl = serverUrl)
     }
 }
 
@@ -284,12 +270,13 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
             serverUrl = config.url,
             projectDir = java.io.File(System.getProperty("user.dir"))
         )
-        val httpClient = TuistHttpClient(
-            configurationProvider = configProvider,
-            connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000
+        val cacheConfig = configProvider.getConfiguration()
+        val shardingService = TuistTestShardingService(
+            baseUrl = config.url,
+            token = cacheConfig.token,
+            accountHandle = cacheConfig.accountHandle,
+            projectHandle = cacheConfig.projectHandle
         )
-        val shardingService = TuistTestShardingService(httpClient = httpClient, baseUrl = config.url)
 
         val planId = System.getenv("TUIST_SHARD_PLAN_ID") ?: shardingService.derivePlanId()
         if (planId == null) {
