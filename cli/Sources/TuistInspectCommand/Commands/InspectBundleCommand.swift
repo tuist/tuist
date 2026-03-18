@@ -19,7 +19,7 @@ public struct InspectBundleCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The path to the bundle, or on macOS the app name to resolve from Xcode build products.",
+        help: "The path to the bundle, or the name of an app for Apple platforms to resolve from Xcode build products.",
         completion: .directory,
         envKey: .inspectBundle
     )
@@ -28,20 +28,20 @@ public struct InspectBundleCommand: AsyncParsableCommand {
     #if os(macOS)
         @Option(
             name: [.long, .customShort("C")],
-            help: "The configuration of the app to inspect when resolving by app name. Ignored when a bundle path is passed directly.",
+            help: "The configuration of the app to inspect.",
             envKey: .inspectBundleConfiguration
         )
         var configuration: String?
 
         @Option(
-            help: "The platforms (iOS, tvOS, visionOS, watchOS or macOS) to inspect the app for when resolving by app name. Ignored when a bundle path is passed directly.",
+            help: "The platforms (iOS, tvOS, visionOS, watchOS or macOS) to inspect the app for.",
             completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
             envKey: .inspectBundlePlatform
         )
         var platforms: [XcodeGraph.Platform] = []
 
         @Option(
-            help: "The derived data path to find the app in when resolving by app name. When absent, the system-configured one.",
+            help: "The derived data path to find the app in. When absent, the system-configured one.",
             completion: .directory,
             envKey: .inspectBundleDerivedDataPath
         )
