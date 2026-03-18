@@ -82,7 +82,7 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
         }
     }
 
-    private static func redactSensitiveHeaders(_ headers: HTTPFields) -> String {
+    static func redactSensitiveHeaders(_ headers: HTTPFields) -> String {
         let redacted = headers.map { field in
             if sensitiveHeaders.contains(field.name.rawName.lowercased()) {
                 return "\(field.name.rawName): [REDACTED]"
