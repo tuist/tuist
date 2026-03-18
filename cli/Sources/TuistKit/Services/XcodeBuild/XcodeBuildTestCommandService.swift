@@ -79,9 +79,6 @@ struct XcodeBuildTestCommandService {
                 serverURL: serverURL
             )
             shardTestProductsPath = shard.testProductsPath
-            passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
-            passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
-            passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
             for target in shard.testIdentifiers {
                 passthroughXcodebuildArguments += ["-only-testing", target]
