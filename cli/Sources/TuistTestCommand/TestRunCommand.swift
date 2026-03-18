@@ -358,8 +358,6 @@
                 nil
             }
 
-            let shardIndex: Int? = EnvKey.testShardIndex.envValue()
-
             try await TestService(
                 generatorFactory: Extension.generatorFactory,
                 cacheStorageFactory: Extension.cacheStorageFactory
@@ -401,7 +399,7 @@
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardConfiguration: shardConfig,
-                shardIndex: shardIndex
+                shardIndex: EnvKey.testShardIndex.envValue()
             )
         }
     }

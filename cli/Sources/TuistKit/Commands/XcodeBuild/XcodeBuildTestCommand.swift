@@ -23,12 +23,10 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
     public var passthroughXcodebuildArguments: [String] = []
 
     public func run() async throws {
-        let shardIndex: Int? = EnvKey.testShardIndex.envValue()
-
         try await XcodeBuildTestCommandService()
             .run(
                 passthroughXcodebuildArguments: ["test"] + passthroughXcodebuildArguments,
-                shardIndex: shardIndex
+                shardIndex: EnvKey.testShardIndex.envValue()
             )
     }
 }

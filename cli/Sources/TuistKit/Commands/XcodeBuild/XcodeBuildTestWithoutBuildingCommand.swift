@@ -25,12 +25,10 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
     public var passthroughXcodebuildArguments: [String] = []
 
     public func run() async throws {
-        let shardIndex: Int? = EnvKey.testShardIndex.envValue()
-
         try await XcodeBuildTestCommandService()
             .run(
                 passthroughXcodebuildArguments: ["test-without-building"] + passthroughXcodebuildArguments,
-                shardIndex: shardIndex
+                shardIndex: EnvKey.testShardIndex.envValue()
             )
     }
 }
