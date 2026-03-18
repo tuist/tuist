@@ -3,7 +3,7 @@ import Mockable
 import TuistHTTP
 
 @Mockable
-public protocol GenerateShardXctestrunUploadURLServicing {
+public protocol GenerateShardXCTestRunUploadURLServicing {
     func generateURL(
         fullHandle: String,
         serverURL: URL,
@@ -11,7 +11,7 @@ public protocol GenerateShardXctestrunUploadURLServicing {
     ) async throws -> String
 }
 
-public enum GenerateShardXctestrunUploadURLServiceError: LocalizedError, Equatable {
+public enum GenerateShardXCTestRunUploadURLServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
@@ -27,7 +27,7 @@ public enum GenerateShardXctestrunUploadURLServiceError: LocalizedError, Equatab
     }
 }
 
-public struct GenerateShardXctestrunUploadURLService: GenerateShardXctestrunUploadURLServicing {
+public struct GenerateShardXCTestRunUploadURLService: GenerateShardXCTestRunUploadURLServicing {
     private let fullHandleService: FullHandleServicing
 
     public init(
@@ -59,27 +59,27 @@ public struct GenerateShardXctestrunUploadURLService: GenerateShardXctestrunUplo
             switch okResponse.body {
             case let .json(result):
                 guard let url = result.data?.url else {
-                    throw GenerateShardXctestrunUploadURLServiceError.unknownError(200)
+                    throw GenerateShardXCTestRunUploadURLServiceError.unknownError(200)
                 }
                 return url
             }
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {
             case let .json(error):
-                throw GenerateShardXctestrunUploadURLServiceError.forbidden(error.message)
+                throw GenerateShardXCTestRunUploadURLServiceError.forbidden(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw GenerateShardXctestrunUploadURLServiceError.unauthorized(error.message)
+                throw GenerateShardXCTestRunUploadURLServiceError.unauthorized(error.message)
             }
         case let .notFound(notFoundResponse):
             switch notFoundResponse.body {
             case let .json(error):
-                throw GenerateShardXctestrunUploadURLServiceError.notFound(error.message)
+                throw GenerateShardXCTestRunUploadURLServiceError.notFound(error.message)
             }
         case let .undocumented(statusCode, _):
-            throw GenerateShardXctestrunUploadURLServiceError.unknownError(statusCode)
+            throw GenerateShardXCTestRunUploadURLServiceError.unknownError(statusCode)
         }
     }
 }

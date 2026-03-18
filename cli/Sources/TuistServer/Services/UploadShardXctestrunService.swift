@@ -5,16 +5,16 @@ import Path
 import TuistHTTP
 
 @Mockable
-public protocol UploadShardXctestrunServicing {
-    func uploadXctestrun(
-        xctestrunPath: AbsolutePath,
+public protocol UploadShardXCTestRunServicing {
+    func uploadXCTestRun(
+        xcTestRunPath: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
         planId: String
     ) async throws
 }
 
-public enum UploadShardXctestrunServiceError: LocalizedError, Equatable {
+public enum UploadShardXCTestRunServiceError: LocalizedError, Equatable {
     case uploadFailed(Int)
 
     public var errorDescription: String? {
@@ -25,20 +25,20 @@ public enum UploadShardXctestrunServiceError: LocalizedError, Equatable {
     }
 }
 
-public struct UploadShardXctestrunService: UploadShardXctestrunServicing {
-    private let generateUploadURLService: GenerateShardXctestrunUploadURLServicing
+public struct UploadShardXCTestRunService: UploadShardXCTestRunServicing {
+    private let generateUploadURLService: GenerateShardXCTestRunUploadURLServicing
     private let fileSystem: FileSysteming
 
     public init(
-        generateUploadURLService: GenerateShardXctestrunUploadURLServicing = GenerateShardXctestrunUploadURLService(),
+        generateUploadURLService: GenerateShardXCTestRunUploadURLServicing = GenerateShardXCTestRunUploadURLService(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.generateUploadURLService = generateUploadURLService
         self.fileSystem = fileSystem
     }
 
-    public func uploadXctestrun(
-        xctestrunPath: AbsolutePath,
+    public func uploadXCTestRun(
+        xcTestRunPath: AbsolutePath,
         fullHandle: String,
         serverURL: URL,
         planId: String
@@ -49,7 +49,7 @@ public struct UploadShardXctestrunService: UploadShardXctestrunServicing {
             planId: planId
         )
 
-        let data = try await fileSystem.readFile(at: xctestrunPath)
+        let data = try await fileSystem.readFile(at: xcTestRunPath)
         var request = URLRequest(url: URL(string: uploadURL)!)
         request.httpMethod = "PUT"
         request.httpBody = data
@@ -60,7 +60,7 @@ public struct UploadShardXctestrunService: UploadShardXctestrunServicing {
               (200 ..< 300).contains(httpResponse.statusCode)
         else {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-            throw UploadShardXctestrunServiceError.uploadFailed(statusCode)
+            throw UploadShardXCTestRunServiceError.uploadFailed(statusCode)
         }
     }
 }

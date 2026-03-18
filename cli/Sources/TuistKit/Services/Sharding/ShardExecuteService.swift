@@ -108,15 +108,15 @@
             }
             Logger.current.debug("Unzipped test products to \(bundlePath.pathString)")
 
-            let xctestrunPath = outputPath.appending(component: "\(scheme).xctestrun")
-            try await downloadFile(from: assignment.xctestrunDownloadURL, to: xctestrunPath)
+            let xcTestRunPath = outputPath.appending(component: "\(scheme).xctestrun")
+            try await downloadFile(from: assignment.xctestrunDownloadURL, to: xcTestRunPath)
             Logger.current.debug("Downloaded filtered .xctestrun file.")
 
-            let targetXctestrunPath = bundlePath.appending(component: "\(scheme).xctestrun")
-            if try await fileSystem.exists(targetXctestrunPath) {
-                try await fileSystem.remove(targetXctestrunPath)
+            let targetXCTestRunPath = bundlePath.appending(component: "\(scheme).xctestrun")
+            if try await fileSystem.exists(targetXCTestRunPath) {
+                try await fileSystem.remove(targetXCTestRunPath)
             }
-            try await fileSystem.copy(xctestrunPath, to: targetXctestrunPath)
+            try await fileSystem.copy(xcTestRunPath, to: targetXCTestRunPath)
 
             let selectiveTestingGraphPath = bundlePath.appending(component: SelectiveTestingGraph.fileName)
             var selectiveTestingGraph: SelectiveTestingGraph?

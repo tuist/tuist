@@ -30,7 +30,7 @@
     public enum ShardPlanServiceError: LocalizedError, Equatable {
         case noTestModulesFound
         case cannotDeriveSessionId
-        case xctestrunNotFound(AbsolutePath)
+        case xcTestRunNotFound(AbsolutePath)
 
         public var errorDescription: String? {
             switch self {
@@ -38,7 +38,7 @@
                 return "No test modules found in the .xctestproducts bundle."
             case .cannotDeriveSessionId:
                 return "Cannot derive a shard plan ID. Make sure you are running in a supported CI environment."
-            case let .xctestrunNotFound(path):
+            case let .xcTestRunNotFound(path):
                 return "No .xctestrun file found in \(path.pathString)"
             }
         }
@@ -50,7 +50,7 @@
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
         private let multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing
         private let multipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing
-        private let uploadShardXctestrunService: UploadShardXctestrunServicing
+        private let uploadShardXCTestRunService: UploadShardXCTestRunServicing
         private let ciController: CIControlling
         private let fileSystem: FileSysteming
         private let fileArchiver: FileArchivingFactorying
@@ -63,8 +63,8 @@
                 MultipartUploadGenerateURLShardsService(),
             multipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing =
                 MultipartUploadCompleteShardsService(),
-            uploadShardXctestrunService: UploadShardXctestrunServicing =
-                UploadShardXctestrunService(),
+            uploadShardXCTestRunService: UploadShardXCTestRunServicing =
+                UploadShardXCTestRunService(),
             ciController: CIControlling = CIController(),
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory()
@@ -74,7 +74,7 @@
             self.multipartUploadArtifactService = multipartUploadArtifactService
             self.multipartUploadGenerateURLShardsService = multipartUploadGenerateURLShardsService
             self.multipartUploadCompleteShardsService = multipartUploadCompleteShardsService
-            self.uploadShardXctestrunService = uploadShardXctestrunService
+            self.uploadShardXCTestRunService = uploadShardXCTestRunService
             self.ciController = ciController
             self.fileSystem = fileSystem
             self.fileArchiver = fileArchiver
@@ -96,15 +96,15 @@
                 throw ShardPlanServiceError.cannotDeriveSessionId
             }
 
-            guard let xctestrunPath = try await fileSystem
+            guard let xcTestRunPath = try await fileSystem
                 .glob(directory: xctestproductsPath, include: ["**/*.xctestrun"])
                 .collect()
                 .first
             else {
-                throw ShardPlanServiceError.xctestrunNotFound(xctestproductsPath)
+                throw ShardPlanServiceError.xcTestRunNotFound(xctestproductsPath)
             }
-            let xctestrun: XCTestRun = try await fileSystem.readPlistFile(at: xctestrunPath)
-            let modules = xctestrun.testModules
+            let xcTestRun: XCTestRun = try await fileSystem.readPlistFile(at: xcTestRunPath)
+            let modules = xcTestRun.testModules
 
             guard !modules.isEmpty else {
                 throw ShardPlanServiceError.noTestModulesFound
@@ -137,8 +137,8 @@
 
             Logger.current.info("Shard plan created: \(shardPlan.shard_count) shards")
 
-            try await uploadShardXctestrunService.uploadXctestrun(
-                xctestrunPath: xctestrunPath,
+            try await uploadShardXCTestRunService.uploadXCTestRun(
+                xcTestRunPath: xcTestRunPath,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 planId: planId
