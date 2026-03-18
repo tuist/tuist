@@ -26,7 +26,7 @@ ha cambiado en futuras ejecuciones.
 
 En futuras ejecuciones, `tuist test` utiliza de forma transparente los hash para
 filtrar las pruebas y ejecutar solo aquellas que han cambiado desde la última
-ejecución exitosa.
+ejecución satisfactoria.
 
 Por ejemplo, supongamos el siguiente gráfico de dependencias:
 
