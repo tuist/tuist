@@ -67,7 +67,6 @@ struct XcodeBuildTestCommandService {
         let config = try await configLoader.loadConfig(path: path)
 
         var shardPlanId: String?
-        var selectiveTestingHashes: [String: String]?
         var shardTestProductsPath: AbsolutePath?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -79,7 +78,6 @@ struct XcodeBuildTestCommandService {
             shardTestProductsPath = shard.testProductsPath
             passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
             shardPlanId = shard.planId
-            selectiveTestingHashes = shard.selectiveTestingGraph?.testTargetHashes
         }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
@@ -103,8 +101,7 @@ struct XcodeBuildTestCommandService {
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
                 shardPlanId: shardPlanId,
-                shardIndex: shardIndex,
-                selectiveTestingHashes: selectiveTestingHashes
+                shardIndex: shardIndex
             )
             if let shardTestProductsPath {
                 try? await fileSystem.remove(shardTestProductsPath)
@@ -209,20 +206,6 @@ struct XcodeBuildTestCommandService {
         return arguments[valueIndex]
     }
 
-    private func removeOption(
-        _ option: String,
-        from arguments: [String]
-    ) -> [String] {
-        var result = arguments
-        if let index = result.firstIndex(of: option) {
-            result.remove(at: index)
-            if index < result.count {
-                result.remove(at: index)
-            }
-        }
-        return result
-    }
-
     private func inspectResultBundleIfNeeded(
         resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
@@ -243,8 +226,7 @@ struct XcodeBuildTestCommandService {
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 shardPlanId: shardPlanId,
-                shardIndex: shardIndex,
-                selectiveTestingHashes: selectiveTestingHashes
+                shardIndex: shardIndex
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
