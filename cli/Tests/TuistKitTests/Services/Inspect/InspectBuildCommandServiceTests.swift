@@ -876,70 +876,6 @@ struct InspectBuildCommandServiceTests {
             )
             .called(1)
     }
-}
-
-struct InspectBuildCommandServiceRemoteBuildTests {
-    private let subject: InspectBuildCommandService
-    private let configLoader = MockConfigLoading()
-    private let xcActivityLogController = MockXCActivityLogControlling()
-    private let derivedDataLocator = MockDerivedDataLocating()
-    private let fileSystem = FileSystem()
-    private let createBuildService = MockCreateBuildServicing()
-    private let uploadBuildService = MockUploadBuildServicing()
-    private let machineEnvironment = MockMachineEnvironmentRetrieving()
-    private let xcodeBuildController = MockXcodeBuildControlling()
-    private let dateService = MockDateServicing()
-    private let serverEnvironmentService = MockServerEnvironmentServicing()
-    private let gitController = MockGitControlling()
-    private let ciController = MockCIControlling()
-    private let xcodeProjectOrWorkspacePathLocator = MockXcodeProjectOrWorkspacePathLocating()
-
-    init() throws {
-        subject = InspectBuildCommandService(
-            derivedDataLocator: derivedDataLocator,
-            fileSystem: fileSystem,
-            machineEnvironment: machineEnvironment,
-            xcodeBuildController: xcodeBuildController,
-            createBuildService: createBuildService,
-            uploadBuildService: uploadBuildService,
-            configLoader: configLoader,
-            xcActivityLogController: xcActivityLogController,
-            dateService: dateService,
-            serverEnvironmentService: serverEnvironmentService,
-            gitController: gitController,
-            ciController: ciController,
-            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
-        )
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
-        given(serverEnvironmentService)
-            .url(configServerURL: .any)
-            .willReturn(Constants.URLs.production)
-        given(createBuildService)
-            .createBuild(
-                fullHandle: .any, serverURL: .any, id: .any, category: .any,
-                configuration: .any, customMetadata: .any, duration: .any,
-                files: .any, gitBranch: .any, gitCommitSHA: .any, gitRef: .any,
-                gitRemoteURLOrigin: .any, isCI: .any, issues: .any,
-                modelIdentifier: .any, macOSVersion: .any, scheme: .any,
-                targets: .any, xcodeCacheUploadEnabled: .any, xcodeVersion: .any,
-                status: .any, ciRunId: .any, ciProjectHandle: .any,
-                ciHost: .any, ciProvider: .any, cacheableTasks: .any,
-                casOutputs: .any, machineMetrics: .any
-            )
-            .willReturn(.test())
-        given(machineEnvironment).modelIdentifier().willReturn("Mac15,3")
-        given(machineEnvironment).macOSVersion.willReturn("13.2.0")
-        given(xcodeBuildController).version().willReturn(Version(16, 0, 0))
-        given(dateService).now().willReturn(Date(timeIntervalSinceReferenceDate: 20))
-        given(gitController).gitInfo(workingDirectory: .any).willReturn(.test())
-        given(ciController).ciInfo().willReturn(.test())
-        Matcher.register([XCActivityIssue].self)
-        Matcher.register([XCActivityBuildFile].self)
-        Matcher.register([XCActivityTarget].self)
-        Matcher.register([MachineMetricSample].self)
-    }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func remoteBuild_uses_activityLog_uuid_as_buildId() async throws {
@@ -949,6 +885,24 @@ struct InspectBuildCommandServiceRemoteBuildTests {
         mockedEnvironment.workspacePath = projectPath
         mockedEnvironment.variables["TUIST_INSPECT_BUILD_WAIT"] = "YES"
         mockedEnvironment.variables["TUIST_INSPECT_BUILD_MODE"] = "remote"
+
+        let localUploadBuildService = MockUploadBuildServicing()
+        let localSubject = InspectBuildCommandService(
+            derivedDataLocator: derivedDataLocator,
+            fileSystem: fileSystem,
+            machineEnvironment: machineEnvironment,
+            xcodeBuildController: xcodeBuildController,
+            createBuildService: createBuildService,
+            uploadBuildService: localUploadBuildService,
+            configLoader: configLoader,
+            xcActivityLogController: xcActivityLogController,
+            backgroundProcessRunner: backgroundProcessRunner,
+            dateService: dateService,
+            serverEnvironmentService: serverEnvironmentService,
+            gitController: gitController,
+            ciController: ciController,
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
+        )
 
         given(xcodeProjectOrWorkspacePathLocator)
             .locate(from: .any)
@@ -973,11 +927,11 @@ struct InspectBuildCommandServiceRemoteBuildTests {
             )
         )
 
-        given(uploadBuildService)
+        given(localUploadBuildService)
             .uploadBuild(buildId: .any, fullHandle: .any, serverURL: .any, filePath: .any)
             .willReturn(())
 
-        try await subject.run(path: nil)
+        try await localSubject.run(path: nil)
 
         verify(createBuildService)
             .createBuild(
@@ -993,7 +947,7 @@ struct InspectBuildCommandServiceRemoteBuildTests {
             )
             .called(1)
 
-        verify(uploadBuildService)
+        verify(localUploadBuildService)
             .uploadBuild(
                 buildId: .value(activityLogUUID),
                 fullHandle: .any,
