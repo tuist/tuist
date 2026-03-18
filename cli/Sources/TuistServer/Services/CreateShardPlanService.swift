@@ -15,7 +15,7 @@ public protocol CreateShardPlanServicing {
         shardTotal: Int?,
         shardMaxDuration: Int?,
         granularity: String
-    ) async throws -> ServerShardPlan
+    ) async throws -> Components.Schemas.ShardPlan
 }
 
 public enum CreateShardPlanServiceError: LocalizedError, Equatable {
@@ -56,7 +56,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
         shardTotal: Int?,
         shardMaxDuration: Int?,
         granularity: String
-    ) async throws -> ServerShardPlan {
+    ) async throws -> Components.Schemas.ShardPlan {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
@@ -86,18 +86,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(session):
-                return ServerShardPlan(
-                    sessionId: session.session_id,
-                    shardCount: session.shard_count,
-                    shards: session.shards.map { shard in
-                        ServerShardAssignment(
-                            index: shard.index,
-                            testTargets: shard.test_targets,
-                            estimatedDurationMs: shard.estimated_duration_ms
-                        )
-                    },
-                    uploadId: session.upload_id
-                )
+                return session
             }
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {

@@ -23,7 +23,7 @@
             shardMaxDuration: Int?,
             fullHandle: String,
             serverURL: URL
-        ) async throws -> ServerShardPlan
+        ) async throws -> Components.Schemas.ShardPlan
     }
 
     public enum ShardPlanServiceError: LocalizedError, Equatable {
@@ -89,7 +89,7 @@
             shardMaxDuration: Int?,
             fullHandle: String,
             serverURL: URL
-        ) async throws -> ServerShardPlan {
+        ) async throws -> Components.Schemas.ShardPlan {
             guard let sessionId = ciController.ciInfo()?.shardPlanId else {
                 throw ShardPlanServiceError.cannotDeriveSessionId
             }
@@ -133,7 +133,7 @@
                 granularity: granularity.rawValue
             )
 
-            Logger.current.info("Shard session created: \(session.shardCount) shards")
+            Logger.current.info("Shard session created: \(session.shard_count) shards")
 
             let xctestrunUploadURL = try await generateShardXctestrunUploadURLService.generateURL(
                 fullHandle: fullHandle,
@@ -162,7 +162,7 @@
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         sessionId: sessionId,
-                        uploadId: session.uploadId,
+                        uploadId: session.upload_id,
                         partNumber: part.number
                     )
                 },
@@ -175,7 +175,7 @@
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 sessionId: sessionId,
-                uploadId: session.uploadId,
+                uploadId: session.upload_id,
                 parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
             )
 
@@ -185,15 +185,15 @@
             return session
         }
 
-        private func outputShardMatrix(session: ServerShardPlan) {
+        private func outputShardMatrix(session: Components.Schemas.ShardPlan) {
             for shard in session.shards {
                 Logger.current
                     .info(
-                        "  Shard \(shard.index): \(shard.testTargets.joined(separator: ", ")) (~\(shard.estimatedDurationMs)ms)"
+                        "  Shard \(shard.index): \(shard.test_targets.joined(separator: ", ")) (~\(shard.estimated_duration_ms)ms)"
                     )
             }
 
-            let indices = (0 ..< session.shardCount).map { $0 }
+            let indices = (0 ..< session.shard_count).map { $0 }
 
             if let githubOutputPath = Environment.current.variables["GITHUB_OUTPUT"],
                let handle = FileHandle(forWritingAtPath: githubOutputPath)
@@ -205,13 +205,13 @@
                 Logger.current.info("GitHub Actions matrix output written.")
             } else {
                 let matrixData: [String: Any] = [
-                    "session_id": session.sessionId,
-                    "shard_count": session.shardCount,
+                    "session_id": session.session_id,
+                    "shard_count": session.shard_count,
                     "shards": session.shards.map { shard in
                         [
                             "index": shard.index,
-                            "test_targets": shard.testTargets,
-                            "estimated_duration_ms": shard.estimatedDurationMs,
+                            "test_targets": shard.test_targets,
+                            "estimated_duration_ms": shard.estimated_duration_ms,
                         ] as [String: Any]
                     },
                 ]
