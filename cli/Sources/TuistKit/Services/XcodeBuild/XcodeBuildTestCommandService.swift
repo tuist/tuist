@@ -83,7 +83,7 @@ struct XcodeBuildTestCommandService {
             passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
-            for target in shard.testTargets {
+            for target in shard.testIdentifiers {
                 passthroughXcodebuildArguments += ["-only-testing", target]
             }
             shardPlanId = CIController().ciInfo()?.shardPlanId

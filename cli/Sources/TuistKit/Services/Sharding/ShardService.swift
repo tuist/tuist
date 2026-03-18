@@ -10,8 +10,18 @@ import TuistSupport
 
 public struct Shard {
     public let testProductsPath: AbsolutePath
-    public let testTargets: [String]
+    public let modules: [String]
+    public let suites: [String: [String]]
     public let selectiveTestingGraph: SelectiveTestingGraph?
+
+    public var testIdentifiers: [String] {
+        if suites.isEmpty {
+            return modules
+        }
+        return suites.flatMap { module, suiteNames in
+            suiteNames.map { "\(module)/\($0)" }
+        }
+    }
 }
 
 @Mockable
@@ -78,14 +88,14 @@ public struct ShardService: ShardServicing {
             shardIndex: shardIndex
         )
 
-        Logger.current.info("Shard \(shardIndex) assigned targets: \(shard.test_targets.joined(separator: ", "))")
+        Logger.current.info("Shard \(shardIndex) assigned modules: \(shard.modules.joined(separator: ", "))")
 
         let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard")
-        let bundleZipPath = tempDirectory.appending(component: "\(scheme).xctestproducts.zip")
-        try await downloadFile(from: shard.bundle_download_url, to: bundleZipPath)
+        let shardZipPath = tempDirectory.appending(component: "shard.zip")
+        try await downloadFile(from: shard.download_url, to: shardZipPath)
         Logger.current.debug("Downloaded test products bundle.")
 
-        let unarchiver = try fileUnarchiver.makeFileUnarchiver(for: bundleZipPath)
+        let unarchiver = try fileUnarchiver.makeFileUnarchiver(for: shardZipPath)
         let unzippedPath = try unarchiver.unzip()
 
         guard let testProductsPath = try await fileSystem
@@ -95,16 +105,6 @@ public struct ShardService: ShardServicing {
             throw ShardServiceError.testProductsNotFound
         }
         Logger.current.debug("Unzipped test products to \(testProductsPath.pathString)")
-
-        let xcTestRunPath = tempDirectory.appending(component: "\(scheme).xctestrun")
-        try await downloadFile(from: shard.xctestrun_download_url, to: xcTestRunPath)
-        Logger.current.debug("Downloaded filtered .xctestrun file.")
-
-        let targetXCTestRunPath = testProductsPath.appending(component: "\(scheme).xctestrun")
-        if try await fileSystem.exists(targetXCTestRunPath) {
-            try await fileSystem.remove(targetXCTestRunPath)
-        }
-        try await fileSystem.copy(xcTestRunPath, to: targetXCTestRunPath)
 
         let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         var selectiveTestingGraph: SelectiveTestingGraph?
@@ -117,7 +117,8 @@ public struct ShardService: ShardServicing {
 
         return Shard(
             testProductsPath: testProductsPath,
-            testTargets: shard.test_targets,
+            modules: shard.modules,
+            suites: shard.suites.additionalProperties,
             selectiveTestingGraph: selectiveTestingGraph
         )
     }

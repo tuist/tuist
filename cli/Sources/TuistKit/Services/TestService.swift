@@ -518,7 +518,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         var xcodebuildArguments = ["test-without-building"]
         xcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
-        for target in shard.testTargets {
+        for target in shard.testIdentifiers {
             xcodebuildArguments += ["-only-testing", target]
         }
         for testTarget in testTargets {
@@ -634,7 +634,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
             try await storeSuccessfulShardTestHashes(
                 selectiveTestingGraph: selectiveTestingGraph,
-                passingTargetNames: Set(shard.testTargets),
+                passingTargetNames: Set(shard.testIdentifiers),
                 cacheStorage: cacheStorage
             )
         }

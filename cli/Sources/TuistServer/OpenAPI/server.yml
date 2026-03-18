@@ -1730,19 +1730,6 @@ components:
       type: integer
       x-struct:
       x-validate:
-    GenerateShardXctestrunUploadURLParams:
-      properties:
-        plan_id:
-          description: The shard plan identifier.
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - plan_id
-      title: GenerateShardXctestrunUploadURLParams
-      type: object
-      x-struct:
-      x-validate:
     Preview:
       properties:
         builds:
@@ -1849,15 +1836,15 @@ components:
       x-struct:
       x-validate:
     Shard:
-      description: A shard with its assigned test targets and download URLs.
+      description: A shard with its assigned modules, suites, and download URLs.
       properties:
-        bundle_download_url:
+        download_url:
           description: Presigned URL to download the shared test products bundle.
           type: string
           x-struct:
           x-validate:
-        test_targets:
-          description: The test targets assigned to this shard.
+        modules:
+          description: The test modules assigned to this shard.
           items:
             type: string
             x-struct:
@@ -1865,15 +1852,23 @@ components:
           type: array
           x-struct:
           x-validate:
-        xctestrun_download_url:
-          description: Presigned URL to download the filtered .xctestrun for this shard.
-          type: string
+        suites:
+          additionalProperties:
+            items:
+              type: string
+              x-struct:
+              x-validate:
+            type: array
+            x-struct:
+            x-validate:
+          description: The test suites assigned to this shard, grouped by module name.
+          type: object
           x-struct:
           x-validate:
       required:
-        - test_targets
-        - xctestrun_download_url
-        - bundle_download_url
+        - modules
+        - suites
+        - download_url
       title: Shard
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Shards.Shard
@@ -7491,85 +7486,6 @@ paths:
       summary: Create a new bundle with artifacts
       tags:
         - Bundles
-  /api/projects/{account_handle}/{project_handle}/tests/shards/generate-xctestrun-url:
-    post:
-      callbacks: {}
-      operationId: generateShardXctestrunUploadURL
-      parameters:
-        - description: The handle of the project's account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                plan_id:
-                  description: The shard plan identifier.
-                  type: string
-                  x-struct:
-                  x-validate:
-              required:
-                - plan_id
-              title: GenerateShardXctestrunUploadURLParams
-              type: object
-              x-struct:
-              x-validate:
-        description: Upload URL params
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  data:
-                    properties:
-                      url:
-                        type: string
-                        x-struct:
-                        x-validate:
-                    type: object
-                    x-struct:
-                    x-validate:
-                type: object
-                x-struct:
-                x-validate:
-          description: The signed URL
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The plan was not found
-      summary: Generate a signed URL for uploading the .xctestrun file.
-      tags:
-        - Shards
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
@@ -8681,12 +8597,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The session was not found
       summary: Generate a signed URL for uploading a part of the test bundle.
       tags:
         - Shards
@@ -12106,12 +12016,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The session was not found
       summary: Complete the multipart upload and trigger per-shard xctestrun creation.
       tags:
         - Shards
