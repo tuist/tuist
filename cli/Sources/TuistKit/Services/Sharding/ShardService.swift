@@ -29,6 +29,7 @@ public enum ShardServiceError: LocalizedError, Equatable {
     case cannotDeriveSessionId
     case invalidDownloadURL(String)
     case testProductsNotFound
+    case invalidXCTestRun
 
     public var errorDescription: String? {
         switch self {
@@ -38,6 +39,8 @@ public enum ShardServiceError: LocalizedError, Equatable {
             return "Invalid shard download URL: \(url)"
         case .testProductsNotFound:
             return "No .xctestproducts bundle found in the downloaded shard archive."
+        case .invalidXCTestRun:
+            return "The .xctestrun file has an invalid format."
         }
     }
 }
@@ -135,10 +138,11 @@ public struct ShardService: ShardServicing {
         modules: [String],
         suites: [String: [String]]
     ) throws -> Data {
-        guard var plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-              var configurations = plist["TestConfigurations"] as? [[String: Any]]
-        else {
-            return data
+        guard var plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
+            throw ShardServiceError.invalidXCTestRun
+        }
+        guard var configurations = plist["TestConfigurations"] as? [[String: Any]] else {
+            throw ShardServiceError.invalidXCTestRun
         }
 
         let moduleSet = Set(modules)
