@@ -9,7 +9,7 @@ defmodule Tuist.Shards.ShardPlan do
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "shard_plans" do
-    field :session_id, Ch, type: "String"
+    field :plan_id, Ch, type: "String"
     field :project_id, Ch, type: "Int64"
     field :shard_count, Ch, type: "Int32"
     field :granularity, Ch, type: "LowCardinality(String)", default: "module"
@@ -24,7 +24,7 @@ defmodule Tuist.Shards.ShardPlan do
     shard_plan
     |> cast(attrs, [
       :id,
-      :session_id,
+      :plan_id,
       :project_id,
       :shard_count,
       :granularity,
@@ -36,7 +36,7 @@ defmodule Tuist.Shards.ShardPlan do
     ])
     |> validate_required([
       :id,
-      :session_id,
+      :plan_id,
       :project_id,
       :shard_count,
       :inserted_at

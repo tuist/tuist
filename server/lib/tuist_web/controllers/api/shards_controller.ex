@@ -42,7 +42,7 @@ defmodule TuistWeb.API.ShardsController do
          title: "CreateShardPlanParams",
          type: :object,
          properties: %{
-           session_id: %Schema{type: :string, description: "A unique session identifier."},
+           plan_id: %Schema{type: :string, description: "A unique plan identifier."},
            modules: %Schema{
              type: :array,
              items: %Schema{type: :string},
@@ -66,7 +66,7 @@ defmodule TuistWeb.API.ShardsController do
              description: "Sharding granularity level."
            }
          },
-         required: [:session_id]
+         required: [:plan_id]
        }},
     responses: %{
       ok: {"The shard plan", "application/json", ShardPlan},
@@ -79,7 +79,7 @@ defmodule TuistWeb.API.ShardsController do
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
     params = %{
-      session_id: body_params.session_id,
+      plan_id: body_params.plan_id,
       modules: Map.get(body_params, :modules),
       test_suites: Map.get(body_params, :test_suites),
       shard_min: Map.get(body_params, :shard_min),
@@ -92,7 +92,7 @@ defmodule TuistWeb.API.ShardsController do
     case Shards.create_shard_plan(selected_project, selected_project.account, params) do
       {:ok, result} ->
         json(conn, %{
-          session_id: result.session.session_id,
+          plan_id: result.plan.plan_id,
           shard_count: result.shard_count,
           shards: result.shard_assignments,
           upload_id: result.upload_id
@@ -122,7 +122,7 @@ defmodule TuistWeb.API.ShardsController do
         required: true,
         description: "The handle of the project."
       ],
-      session_id: [
+      plan_id: [
         in: :path,
         type: :string,
         required: true,
@@ -146,7 +146,7 @@ defmodule TuistWeb.API.ShardsController do
   def show(
         %{
           assigns: %{selected_project: selected_project},
-          path_params: %{"session_id" => session_id, "shard_index" => shard_index}
+          path_params: %{"plan_id" => plan_id, "shard_index" => shard_index}
         } = conn,
         _params
       ) do
@@ -155,7 +155,7 @@ defmodule TuistWeb.API.ShardsController do
     case Shards.get_shard_assignment(
            selected_project,
            selected_project.account,
-           session_id,
+           plan_id,
            shard_index
          ) do
       {:ok, result} ->
@@ -200,11 +200,11 @@ defmodule TuistWeb.API.ShardsController do
          title: "GenerateShardUploadURLParams",
          type: :object,
          properties: %{
-           session_id: %Schema{type: :string, description: "The shard plan identifier."},
+           plan_id: %Schema{type: :string, description: "The shard plan identifier."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
            part_number: %Schema{type: :integer, description: "The part number."}
          },
-         required: [:session_id, :upload_id, :part_number]
+         required: [:plan_id, :upload_id, :part_number]
        }},
     responses: %{
       ok:
@@ -227,14 +227,14 @@ defmodule TuistWeb.API.ShardsController do
   def generate_url(
         %{
           assigns: %{selected_project: selected_project},
-          body_params: %{session_id: session_id, upload_id: upload_id, part_number: part_number}
+          body_params: %{plan_id: plan_id, upload_id: upload_id, part_number: part_number}
         } = conn,
         _params
       ) do
     case Shards.generate_upload_url(
            selected_project,
            selected_project.account,
-           session_id,
+           plan_id,
            upload_id,
            part_number
          ) do
@@ -271,9 +271,9 @@ defmodule TuistWeb.API.ShardsController do
          title: "GenerateShardXctestrunUploadURLParams",
          type: :object,
          properties: %{
-           session_id: %Schema{type: :string, description: "The shard plan identifier."}
+           plan_id: %Schema{type: :string, description: "The shard plan identifier."}
          },
-         required: [:session_id]
+         required: [:plan_id]
        }},
     responses: %{
       ok:
@@ -289,18 +289,18 @@ defmodule TuistWeb.API.ShardsController do
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
-      not_found: {"The session was not found", "application/json", Error}
+      not_found: {"The plan was not found", "application/json", Error}
     }
   )
 
   def generate_xctestrun_url(
-        %{assigns: %{selected_project: selected_project}, body_params: %{session_id: session_id}} = conn,
+        %{assigns: %{selected_project: selected_project}, body_params: %{plan_id: plan_id}} = conn,
         _params
       ) do
     case Shards.generate_xctestrun_upload_url(
            selected_project,
            selected_project.account,
-           session_id
+           plan_id
          ) do
       {:ok, url} ->
         json(conn, %{data: %{url: url}})
@@ -335,7 +335,7 @@ defmodule TuistWeb.API.ShardsController do
          title: "CompleteShardUploadParams",
          type: :object,
          properties: %{
-           session_id: %Schema{type: :string, description: "The shard plan identifier."},
+           plan_id: %Schema{type: :string, description: "The shard plan identifier."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
            parts: %Schema{
              type: :array,
@@ -350,7 +350,7 @@ defmodule TuistWeb.API.ShardsController do
              }
            }
          },
-         required: [:session_id, :upload_id, :parts]
+         required: [:plan_id, :upload_id, :parts]
        }},
     responses: %{
       ok:
@@ -368,7 +368,7 @@ defmodule TuistWeb.API.ShardsController do
   def complete(
         %{
           assigns: %{selected_project: selected_project},
-          body_params: %{session_id: session_id, upload_id: upload_id, parts: parts}
+          body_params: %{plan_id: plan_id, upload_id: upload_id, parts: parts}
         } = conn,
         _params
       ) do
@@ -380,11 +380,11 @@ defmodule TuistWeb.API.ShardsController do
     case Shards.complete_upload(
            selected_project,
            selected_project.account,
-           session_id,
+           plan_id,
            upload_id,
            parts_list
          ) do
-      {:ok, _session} ->
+      {:ok, _plan} ->
         json(conn, %{status: "success"})
 
       {:error, :not_found} ->

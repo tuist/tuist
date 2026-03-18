@@ -1286,7 +1286,7 @@ defmodule Tuist.TestsTest do
 
       shard_plan = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
@@ -1327,7 +1327,7 @@ defmodule Tuist.TestsTest do
 
       shard_plan = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-2",
+        plan_id: "session-2",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",

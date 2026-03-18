@@ -7,7 +7,7 @@ public protocol CreateShardPlanServicing {
     func createShardPlan(
         fullHandle: String,
         serverURL: URL,
-        sessionId: String,
+        planId: String,
         modules: [String]?,
         testSuites: [String]?,
         shardMin: Int?,
@@ -48,7 +48,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
     public func createShardPlan(
         fullHandle: String,
         serverURL: URL,
-        sessionId: String,
+        planId: String,
         modules: [String]?,
         testSuites: [String]?,
         shardMin: Int?,
@@ -72,7 +72,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
                 .init(
                     granularity: granularityPayload,
                     modules: modules,
-                    session_id: sessionId,
+                    session_id: planId,
                     shard_max: shardMax,
                     shard_max_duration: shardMaxDuration,
                     shard_min: shardMin,

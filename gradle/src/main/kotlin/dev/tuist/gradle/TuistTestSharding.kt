@@ -25,14 +25,14 @@ class TuistTestShardingService(
     private val logger = Logging.getLogger(TuistTestShardingService::class.java)
 
     fun createShardPlan(
-        sessionId: String,
+        planId: String,
         testSuites: List<String>,
         shardMax: Int,
         shardMin: Int?,
         shardMaxDuration: Int?
     ): ShardPlanResponse? {
         val body = CreateShardPlanBody(
-            sessionId = sessionId,
+            planId = planId,
             testSuites = testSuites,
             shardMin = shardMin,
             shardMax = shardMax,
@@ -80,11 +80,11 @@ class TuistTestShardingService(
         }
     }
 
-    fun getShardAssignment(sessionId: String, shardIndex: Int): ShardAssignmentResponse? {
+    fun getShardAssignment(planId: String, shardIndex: Int): ShardAssignmentResponse? {
         return try {
             httpClient.execute { config ->
                 val url = URI(baseUrl.trimEnd('/')).resolve(
-                    "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/shards/$sessionId/$shardIndex"
+                    "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/shards/$planId/$shardIndex"
                 )
                 val connection = httpClient.openConnection(url, config)
                 try {
@@ -116,7 +116,7 @@ class TuistTestShardingService(
         }
     }
 
-    internal fun deriveSessionId(): String? {
+    internal fun derivePlanId(): String? {
         System.getenv("GITHUB_RUN_ID")?.let { runId ->
             val attempt = System.getenv("GITHUB_RUN_ATTEMPT") ?: "1"
             return "github-$runId-$attempt"
@@ -172,7 +172,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
 
     @get:Input
     @get:Optional
-    var sessionIdOverride: String? = null
+    var planIdOverride: String? = null
 
     @get:Input
     var serverUrl: String = "https://tuist.dev"
@@ -185,8 +185,8 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     fun execute() {
         val shardingService = createShardingService()
 
-        val sessionId = sessionIdOverride
-            ?: shardingService.deriveSessionId()
+        val planId = planIdOverride
+            ?: shardingService.derivePlanId()
             ?: throw org.gradle.api.GradleException(
                 "Could not derive shard plan ID. Set TUIST_SHARD_PLAN_ID or run in a supported CI environment."
             )
@@ -199,14 +199,14 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         logger.lifecycle("Tuist: Discovered ${testSuites.size} test suite(s): ${testSuites.joinToString(", ")}")
 
         val response = shardingService.createShardPlan(
-            sessionId = sessionId,
+            planId = planId,
             testSuites = testSuites,
             shardMax = shardMax,
             shardMin = shardMin,
             shardMaxDuration = shardMaxDuration
         ) ?: throw org.gradle.api.GradleException("Failed to create shard plan on the server.")
 
-        logger.lifecycle("Tuist: Shard plan created — session=$sessionId, shards=${response.shardCount}")
+        logger.lifecycle("Tuist: Shard plan created — plan=$planId, shards=${response.shardCount}")
         for (shard in response.shards) {
             logger.lifecycle("Tuist:   Shard ${shard.index}: ${shard.testTargets.joinToString(", ")} (est. ${shard.estimatedDurationMs}ms)")
         }
@@ -219,7 +219,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
             logger.lifecycle("Tuist: GitHub Actions matrix output written.")
         } else {
             val matrix = mapOf(
-                "session_id" to sessionId,
+                "plan_id" to planId,
                 "shard_count" to response.shardCount,
                 "shards" to response.shards.map { shard ->
                     mapOf(
@@ -269,7 +269,7 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
             project.findProperty("tuistShardMin")?.toString()?.toIntOrNull()?.let { shardMin = it }
             project.findProperty("tuistShardMaxDuration")?.toString()?.toIntOrNull()?.let { shardMaxDuration = it }
 
-            System.getenv("TUIST_SHARD_PLAN_ID")?.let { sessionIdOverride = it }
+            System.getenv("TUIST_SHARD_PLAN_ID")?.let { planIdOverride = it }
         }
 
         val shardIndexStr = System.getenv("TUIST_SHARD_INDEX") ?: return
@@ -291,15 +291,15 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
         )
         val shardingService = TuistTestShardingService(httpClient = httpClient, baseUrl = config.url)
 
-        val sessionId = System.getenv("TUIST_SHARD_PLAN_ID") ?: shardingService.deriveSessionId()
-        if (sessionId == null) {
+        val planId = System.getenv("TUIST_SHARD_PLAN_ID") ?: shardingService.derivePlanId()
+        if (planId == null) {
             logger.warn("Tuist: Could not derive shard plan ID, skipping test sharding")
             return
         }
 
-        logger.lifecycle("Tuist: Test sharding active — shard index $shardIndex, session $sessionId")
+        logger.lifecycle("Tuist: Test sharding active — shard index $shardIndex, plan $planId")
 
-        val assignment = shardingService.getShardAssignment(sessionId, shardIndex)
+        val assignment = shardingService.getShardAssignment(planId, shardIndex)
         if (assignment == null) {
             logger.warn("Tuist: Failed to get shard assignment, running all tests")
             return

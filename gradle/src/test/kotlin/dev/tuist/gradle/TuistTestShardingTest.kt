@@ -52,7 +52,7 @@ class TuistTestShardingTest {
 
         val responseBody = Gson().toJson(
             ShardPlanResponse(
-                sessionId = "github-123-1",
+                planId = "github-123-1",
                 shardCount = 3,
                 shards = listOf(
                     ShardAssignment(index = 0, testTargets = listOf("com.example.LoginTest", "com.example.LogoutTest"), estimatedDurationMs = 5000),
@@ -65,7 +65,7 @@ class TuistTestShardingTest {
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
         val result = service.createShardPlan(
-            sessionId = "github-123-1",
+            planId = "github-123-1",
             testSuites = listOf("com.example.LoginTest", "com.example.LogoutTest", "com.example.PaymentTest", "com.example.ProfileTest", "com.example.SettingsTest"),
             shardMax = 3,
             shardMin = 1,
@@ -88,7 +88,7 @@ class TuistTestShardingTest {
         mockWebServer.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
         val result = service.createShardPlan(
-            sessionId = "github-456-1",
+            planId = "github-456-1",
             testSuites = listOf("com.example.Test"),
             shardMax = 2,
             shardMin = null,
@@ -104,7 +104,7 @@ class TuistTestShardingTest {
 
         val responseBody = Gson().toJson(
             ShardPlanResponse(
-                sessionId = "test-session",
+                planId = "test-plan",
                 shardCount = 2,
                 shards = listOf(
                     ShardAssignment(index = 0, testTargets = listOf("com.example.Test1"), estimatedDurationMs = 3000),
@@ -116,7 +116,7 @@ class TuistTestShardingTest {
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
         service.createShardPlan(
-            sessionId = "test-session",
+            planId = "test-plan",
             testSuites = listOf("com.example.Test1", "com.example.Test2"),
             shardMax = 2,
             shardMin = 1,
@@ -125,7 +125,7 @@ class TuistTestShardingTest {
 
         val request = mockWebServer.takeRequest()
         val body = request.body.readUtf8()
-        assertTrue(body.contains("\"session_id\":\"test-session\""))
+        assertTrue(body.contains("\"plan_id\":\"test-plan\""))
         assertTrue(body.contains("\"shard_max\":2"))
         assertTrue(body.contains("\"shard_min\":1"))
         assertTrue(body.contains("\"shard_max_duration\":60"))
@@ -161,7 +161,7 @@ class TuistTestShardingTest {
         val service = createService()
         mockWebServer.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
 
-        val result = service.getShardAssignment("nonexistent-session", 0)
+        val result = service.getShardAssignment("nonexistent-plan", 0)
 
         assertNull(result)
     }
@@ -183,22 +183,22 @@ class TuistTestShardingTest {
         )
         val service = TuistTestShardingService(httpClient = httpClient, baseUrl = baseUrl)
 
-        val result = service.getShardAssignment("session-123", 0)
+        val result = service.getShardAssignment("plan-123", 0)
 
         assertNull(result)
     }
 
     @Test
-    fun `deriveSessionId returns null without CI environment`() {
+    fun `derivePlanId returns null without CI environment`() {
         val service = createService()
-        val sessionId = service.deriveSessionId()
+        val planId = service.derivePlanId()
         if (System.getenv("GITHUB_RUN_ID") == null &&
             System.getenv("CIRCLE_WORKFLOW_ID") == null &&
             System.getenv("BUILDKITE_BUILD_ID") == null &&
             System.getenv("CI_PIPELINE_ID") == null &&
             System.getenv("CM_BUILD_ID") == null
         ) {
-            assertNull(sessionId)
+            assertNull(planId)
         }
     }
 }

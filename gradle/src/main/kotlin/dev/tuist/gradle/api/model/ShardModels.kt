@@ -3,8 +3,8 @@ package dev.tuist.gradle.api.model
 import com.google.gson.annotations.SerializedName
 
 data class CreateShardPlanBody(
-    @SerializedName("session_id")
-    val sessionId: String,
+    @SerializedName("plan_id")
+    val planId: String,
     @SerializedName("test_suites")
     val testSuites: List<String>?,
     @SerializedName("shard_min")
@@ -18,8 +18,8 @@ data class CreateShardPlanBody(
 )
 
 data class ShardPlanResponse(
-    @SerializedName("session_id")
-    val sessionId: String,
+    @SerializedName("plan_id")
+    val planId: String,
     @SerializedName("shard_count")
     val shardCount: Int,
     @SerializedName("shards")

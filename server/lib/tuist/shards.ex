@@ -25,7 +25,7 @@ defmodule Tuist.Shards do
 
   def create_shard_plan(%Project{} = project, %Account{} = account, params) do
     granularity = Map.get(params, :granularity, "module")
-    session_id = Map.fetch!(params, :session_id)
+    plan_id = Map.fetch!(params, :plan_id)
 
     units = extract_units(params, granularity)
     timing_data = fetch_timing_data(project, granularity)
@@ -52,16 +52,16 @@ defmodule Tuist.Shards do
       end)
 
     bundle_object_key =
-      "#{account.id}/#{project.id}/shards/#{session_id}/bundle.xctestproducts.zip"
+      "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.xctestproducts.zip"
 
     xctestrun_object_key =
-      "#{account.id}/#{project.id}/shards/#{session_id}/original.xctestrun"
+      "#{account.id}/#{project.id}/shards/#{plan_id}/original.xctestrun"
 
     upload_id = Storage.multipart_start(bundle_object_key, account)
 
     attrs = %{
       id: Ecto.UUID.generate(),
-      session_id: session_id,
+      plan_id: plan_id,
       project_id: project.id,
       shard_count: shard_count,
       granularity: granularity,
@@ -73,10 +73,10 @@ defmodule Tuist.Shards do
     }
 
     case %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert() do
-      {:ok, session} ->
+      {:ok, plan} ->
         {:ok,
          %{
-           session: session,
+           plan: plan,
            upload_id: upload_id,
            shard_count: shard_count,
            shard_assignments: shard_assignments
@@ -87,13 +87,13 @@ defmodule Tuist.Shards do
     end
   end
 
-  def get_shard_assignment(%Project{} = project, %Account{} = account, session_id, shard_index) do
-    case get_session(project.id, session_id) do
+  def get_shard_assignment(%Project{} = project, %Account{} = account, plan_id, shard_index) do
+    case get_plan(project.id, plan_id) do
       nil ->
         {:error, :not_found}
 
-      session ->
-        assignments = ShardPlan.decode_shard_assignments(session)
+      plan ->
+        assignments = ShardPlan.decode_shard_assignments(plan)
 
         case Enum.find(assignments, fn a -> a["index"] == shard_index end) do
           nil ->
@@ -101,10 +101,10 @@ defmodule Tuist.Shards do
 
           assignment ->
             xctestrun_key =
-              "#{account.id}/#{project.id}/shards/#{session_id}/shard-#{shard_index}.xctestrun"
+              "#{account.id}/#{project.id}/shards/#{plan_id}/shard-#{shard_index}.xctestrun"
 
             xctestrun_download_url = Storage.generate_download_url(xctestrun_key, account)
-            bundle_download_url = Storage.generate_download_url(session.bundle_object_key, account)
+            bundle_download_url = Storage.generate_download_url(plan.bundle_object_key, account)
 
             {:ok,
              %{
@@ -116,17 +116,17 @@ defmodule Tuist.Shards do
     end
   end
 
-  def complete_upload(%Project{} = project, %Account{} = account, session_id, upload_id, parts) do
-    case get_session(project.id, session_id) do
+  def complete_upload(%Project{} = project, %Account{} = account, plan_id, upload_id, parts) do
+    case get_plan(project.id, plan_id) do
       nil ->
         {:error, :not_found}
 
-      session ->
-        Storage.multipart_complete_upload(session.bundle_object_key, upload_id, parts, account)
+      plan ->
+        Storage.multipart_complete_upload(plan.bundle_object_key, upload_id, parts, account)
 
-        assignments = ShardPlan.decode_shard_assignments(session)
-        xctestrun_xml = Storage.get_object_as_string(session.xctestrun_object_key, account)
-        granularity = String.to_existing_atom(session.granularity)
+        assignments = ShardPlan.decode_shard_assignments(plan)
+        xctestrun_xml = Storage.get_object_as_string(plan.xctestrun_object_key, account)
+        granularity = String.to_existing_atom(plan.granularity)
 
         Enum.each(assignments, fn assignment ->
           index = assignment["index"]
@@ -134,13 +134,13 @@ defmodule Tuist.Shards do
           filtered_xml = filter_for_shard(xctestrun_xml, test_targets, granularity)
 
           shard_key =
-            "#{account.id}/#{project.id}/shards/#{session_id}/shard-#{index}.xctestrun"
+            "#{account.id}/#{project.id}/shards/#{plan_id}/shard-#{index}.xctestrun"
 
           Storage.put_object(shard_key, filtered_xml, account)
         end)
 
         updated_attrs =
-          session
+          plan
           |> Map.from_struct()
           |> Map.delete(:__meta__)
           |> Map.put(:upload_completed, 1)
@@ -148,19 +148,19 @@ defmodule Tuist.Shards do
 
         IngestRepo.insert_all(ShardPlan, [updated_attrs])
 
-        {:ok, session}
+        {:ok, plan}
     end
   end
 
-  def generate_upload_url(%Project{} = project, %Account{} = account, session_id, upload_id, part_number) do
-    case get_session(project.id, session_id) do
+  def generate_upload_url(%Project{} = project, %Account{} = account, plan_id, upload_id, part_number) do
+    case get_plan(project.id, plan_id) do
       nil ->
         {:error, :not_found}
 
-      session ->
+      plan ->
         url =
           Storage.multipart_generate_url(
-            session.bundle_object_key,
+            plan.bundle_object_key,
             upload_id,
             part_number,
             account
@@ -170,22 +170,22 @@ defmodule Tuist.Shards do
     end
   end
 
-  def generate_xctestrun_upload_url(%Project{} = project, %Account{} = account, session_id) do
-    case get_session(project.id, session_id) do
+  def generate_xctestrun_upload_url(%Project{} = project, %Account{} = account, plan_id) do
+    case get_plan(project.id, plan_id) do
       nil ->
         {:error, :not_found}
 
-      session ->
-        url = Storage.generate_upload_url(session.xctestrun_object_key, account)
+      plan ->
+        url = Storage.generate_upload_url(plan.xctestrun_object_key, account)
         {:ok, url}
     end
   end
 
-  defp get_session(project_id, session_id) do
+  defp get_plan(project_id, plan_id) do
     IngestRepo.one(
       from(s in ShardPlan,
         where: s.project_id == ^project_id,
-        where: s.session_id == ^session_id,
+        where: s.plan_id == ^plan_id,
         order_by: [desc: s.inserted_at],
         limit: 1
       )

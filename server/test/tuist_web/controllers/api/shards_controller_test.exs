@@ -28,14 +28,14 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
           %{
-            session_id: "github-123-1",
+            plan_id: "github-123-1",
             modules: ["AppTests", "CoreTests"],
             shard_max: 2
           }
         )
 
       response = json_response(conn, :ok)
-      assert response["session_id"] == "github-123-1"
+      assert response["plan_id"] == "github-123-1"
       assert response["shard_count"] == 2
       assert is_list(response["shards"])
       assert response["upload_id"] == "upload-id-123"
@@ -52,7 +52,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> post(
           ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/tests/shards",
           %{
-            session_id: "session-1",
+            plan_id: "session-1",
             modules: ["AppTests"]
           }
         )
@@ -67,7 +67,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
           %{
-            session_id: "session-1",
+            plan_id: "session-1",
             modules: ["AppTests"]
           }
         )
@@ -76,11 +76,11 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
   end
 
-  describe "GET /api/projects/:account/:project/tests/shards/:session_id/:shard_index" do
+  describe "GET /api/projects/:account/:project/tests/shards/:plan_id/:shard_index" do
     test "returns shard assignment for valid params", %{conn: conn, user: user, project: project} do
       session = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
@@ -122,7 +122,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "returns not found for out-of-range shard index", %{conn: conn, user: user, project: project} do
       session = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         shard_assignments:
@@ -150,7 +150,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "returns signed upload URL for existing session", %{conn: conn, user: user, project: project} do
       session = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
@@ -174,7 +174,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/generate-url",
-          %{session_id: "session-1", upload_id: "upload-id", part_number: 1}
+          %{plan_id: "session-1", upload_id: "upload-id", part_number: 1}
         )
 
       response = json_response(conn, :ok)
@@ -188,7 +188,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/generate-url",
-          %{session_id: "nonexistent", upload_id: "upload-id", part_number: 1}
+          %{plan_id: "nonexistent", upload_id: "upload-id", part_number: 1}
         )
 
       response = json_response(conn, :not_found)
@@ -200,7 +200,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "returns signed upload URL for existing session", %{conn: conn, user: user, project: project} do
       session = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
@@ -221,7 +221,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/generate-xctestrun-url",
-          %{session_id: "session-1"}
+          %{plan_id: "session-1"}
         )
 
       response = json_response(conn, :ok)
@@ -235,7 +235,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/generate-xctestrun-url",
-          %{session_id: "nonexistent"}
+          %{plan_id: "nonexistent"}
         )
 
       response = json_response(conn, :not_found)
@@ -247,7 +247,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     test "completes upload successfully", %{conn: conn, user: user, project: project} do
       session = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
@@ -301,7 +301,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/complete",
-          %{session_id: "session-1", upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}]}
+          %{plan_id: "session-1", upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}]}
         )
 
       response = json_response(conn, :ok)
@@ -315,7 +315,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/complete",
-          %{session_id: "nonexistent", upload_id: "upload-id", parts: []}
+          %{plan_id: "nonexistent", upload_id: "upload-id", parts: []}
         )
 
       response = json_response(conn, :not_found)

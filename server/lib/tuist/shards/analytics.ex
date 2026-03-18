@@ -266,7 +266,7 @@ defmodule Tuist.Shards.Analytics do
         group_by: fragment("formatDateTime(?, ?)", s.inserted_at, ^date_format),
         select: %{
           date: fragment("formatDateTime(?, ?)", s.inserted_at, ^date_format),
-          count: count(s.session_id, :distinct)
+          count: count(s.plan_id, :distinct)
         },
         order_by: fragment("formatDateTime(?, ?)", s.inserted_at, ^date_format)
       )
@@ -281,7 +281,7 @@ defmodule Tuist.Shards.Analytics do
         where: s.upload_completed == 1,
         where: s.inserted_at >= ^start_datetime,
         where: s.inserted_at <= ^end_datetime,
-        select: count(s.session_id, :distinct)
+        select: count(s.plan_id, :distinct)
       )
     ) || 0
   end

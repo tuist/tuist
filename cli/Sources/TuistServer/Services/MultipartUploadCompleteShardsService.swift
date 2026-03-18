@@ -7,7 +7,7 @@ public protocol MultipartUploadCompleteShardsServicing {
     func completeUpload(
         fullHandle: String,
         serverURL: URL,
-        sessionId: String,
+        planId: String,
         uploadId: String,
         parts: [(partNumber: Int, etag: String)]
     ) async throws
@@ -41,7 +41,7 @@ public struct MultipartUploadCompleteShardsService: MultipartUploadCompleteShard
     public func completeUpload(
         fullHandle: String,
         serverURL: URL,
-        sessionId: String,
+        planId: String,
         uploadId: String,
         parts: [(partNumber: Int, etag: String)]
     ) async throws {
@@ -63,7 +63,7 @@ public struct MultipartUploadCompleteShardsService: MultipartUploadCompleteShard
             body: .json(
                 .init(
                     parts: partsPayload,
-                    session_id: sessionId,
+                    session_id: planId,
                     upload_id: uploadId
                 )
             )

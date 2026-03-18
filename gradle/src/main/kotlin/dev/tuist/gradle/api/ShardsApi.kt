@@ -17,11 +17,11 @@ interface ShardsApi {
         @Body body: CreateShardPlanBody
     ): Call<ShardPlanResponse>
 
-    @GET("api/projects/{account_handle}/{project_handle}/tests/shards/{session_id}/{shard_index}")
+    @GET("api/projects/{account_handle}/{project_handle}/tests/shards/{plan_id}/{shard_index}")
     fun getShardAssignment(
         @Path("account_handle") accountHandle: String,
         @Path("project_handle") projectHandle: String,
-        @Path("session_id") sessionId: String,
+        @Path("plan_id") planId: String,
         @Path("shard_index") shardIndex: Int
     ): Call<ShardAssignmentResponse>
 }

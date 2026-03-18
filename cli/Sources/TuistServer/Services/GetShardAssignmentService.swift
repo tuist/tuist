@@ -7,7 +7,7 @@ public protocol GetShardAssignmentServicing {
     func getShardAssignment(
         fullHandle: String,
         serverURL: URL,
-        sessionId: String,
+        planId: String,
         shardIndex: Int
     ) async throws -> ShardAssignmentResult
 }
@@ -56,7 +56,7 @@ public struct GetShardAssignmentService: GetShardAssignmentServicing {
     public func getShardAssignment(
         fullHandle: String,
         serverURL: URL,
-        sessionId: String,
+        planId: String,
         shardIndex: Int
     ) async throws -> ShardAssignmentResult {
         let client = Client.authenticated(serverURL: serverURL)
@@ -66,7 +66,7 @@ public struct GetShardAssignmentService: GetShardAssignmentServicing {
             path: .init(
                 account_handle: handles.accountHandle,
                 project_handle: handles.projectHandle,
-                session_id: sessionId,
+                session_id: planId,
                 shard_index: shardIndex
             )
         )

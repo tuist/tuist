@@ -36,7 +36,7 @@
             case .noTestModulesFound:
                 return "No test modules found in the .xctestproducts bundle."
             case .cannotDeriveSessionId:
-                return "Cannot derive a shard session ID. Make sure you are running in a supported CI environment."
+                return "Cannot derive a shard plan ID. Make sure you are running in a supported CI environment."
             case let .xctestrunNotFound(path):
                 return "No .xctestrun file found in \(path.pathString)"
             }
@@ -90,7 +90,7 @@
             fullHandle: String,
             serverURL: URL
         ) async throws -> Components.Schemas.ShardPlan {
-            guard let sessionId = ciController.ciInfo()?.shardPlanId else {
+            guard let planId = ciController.ciInfo()?.shardPlanId else {
                 throw ShardPlanServiceError.cannotDeriveSessionId
             }
 
@@ -118,12 +118,12 @@
                 testSuites = suitesMap.flatMap { $0.value }
             }
 
-            Logger.current.info("Creating shard session '\(sessionId)' with \(modules.count) test modules...")
+            Logger.current.info("Creating shard plan '\(planId)' with \(modules.count) test modules...")
 
             let session = try await createShardPlanService.createShardPlan(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                sessionId: sessionId,
+                planId: planId,
                 modules: granularity == .module ? modules : nil,
                 testSuites: testSuites,
                 shardMin: shardMin,
@@ -138,7 +138,7 @@
             let xctestrunUploadURL = try await generateShardXctestrunUploadURLService.generateURL(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                sessionId: sessionId
+                planId: planId
             )
 
             let xctestrunData = try Data(contentsOf: URL(fileURLWithPath: xctestrunPath.pathString))
@@ -161,7 +161,7 @@
                     try await multipartUploadGenerateURLShardsService.generateUploadURL(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
-                        sessionId: sessionId,
+                        planId: planId,
                         uploadId: session.upload_id,
                         partNumber: part.number
                     )
@@ -174,7 +174,7 @@
             try await multipartUploadCompleteShardsService.completeUpload(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                sessionId: sessionId,
+                planId: planId,
                 uploadId: session.upload_id,
                 parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
             )
@@ -205,7 +205,7 @@
                 Logger.current.info("GitHub Actions matrix output written.")
             } else {
                 let matrixData: [String: Any] = [
-                    "session_id": session.session_id,
+                    "plan_id": session.session_id,
                     "shard_count": session.shard_count,
                     "shards": session.shards.map { shard in
                         [

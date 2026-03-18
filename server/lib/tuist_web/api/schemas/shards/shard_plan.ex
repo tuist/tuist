@@ -9,9 +9,9 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
     type: :object,
     description: "A shard plan with assignment details.",
     properties: %{
-      session_id: %Schema{
+      plan_id: %Schema{
         type: :string,
-        description: "The session identifier."
+        description: "The plan identifier."
       },
       shard_count: %Schema{
         type: :integer,
@@ -42,6 +42,6 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
         description: "The multipart upload ID for the test products bundle."
       }
     },
-    required: [:session_id, :shard_count, :shards, :upload_id]
+    required: [:plan_id, :shard_count, :shards, :upload_id]
   })
 end

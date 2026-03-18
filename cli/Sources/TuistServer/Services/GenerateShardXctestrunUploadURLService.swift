@@ -7,7 +7,7 @@ public protocol GenerateShardXctestrunUploadURLServicing {
     func generateURL(
         fullHandle: String,
         serverURL: URL,
-        sessionId: String
+        planId: String
     ) async throws -> String
 }
 
@@ -39,7 +39,7 @@ public struct GenerateShardXctestrunUploadURLService: GenerateShardXctestrunUplo
     public func generateURL(
         fullHandle: String,
         serverURL: URL,
-        sessionId: String
+        planId: String
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -50,7 +50,7 @@ public struct GenerateShardXctestrunUploadURLService: GenerateShardXctestrunUplo
                 project_handle: handles.projectHandle
             ),
             body: .json(
-                .init(session_id: sessionId)
+                .init(session_id: planId)
             )
         )
 

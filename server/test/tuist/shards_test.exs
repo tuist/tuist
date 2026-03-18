@@ -19,7 +19,7 @@ defmodule Tuist.ShardsTest do
       end)
 
       params = %{
-        session_id: "github-123-1",
+        plan_id: "github-123-1",
         modules: ["AppTests", "CoreTests", "NetworkTests"],
         shard_max: 2
       }
@@ -55,7 +55,7 @@ defmodule Tuist.ShardsTest do
       end)
 
       params = %{
-        session_id: "session-1",
+        plan_id: "session-1",
         modules: ["SlowTests", "FastTests", "MediumTests"],
         shard_max: 2
       }
@@ -76,7 +76,7 @@ defmodule Tuist.ShardsTest do
       end)
 
       params = %{
-        session_id: "session-2",
+        plan_id: "session-2",
         test_suites: ["LoginTest", "SignupTest", "ProfileTest"],
         granularity: "suite",
         shard_max: 2
@@ -94,7 +94,7 @@ defmodule Tuist.ShardsTest do
 
       session = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
@@ -137,7 +137,7 @@ defmodule Tuist.ShardsTest do
 
       session = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         shard_assignments:
@@ -163,7 +163,7 @@ defmodule Tuist.ShardsTest do
 
       session = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
@@ -205,7 +205,7 @@ defmodule Tuist.ShardsTest do
 
       session = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
@@ -247,7 +247,7 @@ defmodule Tuist.ShardsTest do
 
       session = %ShardPlan{
         id: Ecto.UUID.generate(),
-        session_id: "session-1",
+        plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",

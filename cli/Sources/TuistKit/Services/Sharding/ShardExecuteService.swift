@@ -34,7 +34,7 @@
         public var errorDescription: String? {
             switch self {
             case .cannotDeriveSessionId:
-                return "Cannot derive a shard session ID. Make sure you are running in a supported CI environment."
+                return "Cannot derive a shard plan ID. Make sure you are running in a supported CI environment."
             case let .downloadFailed(message):
                 return "Failed to download shard artifacts: \(message)"
             case let .unzipFailed(message):
@@ -65,16 +65,16 @@
             serverURL: URL,
             outputPath: AbsolutePath
         ) async throws -> ShardExecuteResult {
-            guard let sessionId = ciController.ciInfo()?.shardPlanId else {
+            guard let planId = ciController.ciInfo()?.shardPlanId else {
                 throw ShardExecuteServiceError.cannotDeriveSessionId
             }
 
-            Logger.current.info("Fetching shard assignment for shard \(shardIndex) in session '\(sessionId)'...")
+            Logger.current.info("Fetching shard assignment for shard \(shardIndex) in plan '\(planId)'...")
 
             let assignment = try await getShardAssignmentService.getShardAssignment(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                sessionId: sessionId,
+                planId: planId,
                 shardIndex: shardIndex
             )
 
