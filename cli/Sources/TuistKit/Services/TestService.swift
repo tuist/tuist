@@ -506,16 +506,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let effectiveSchemeName = schemeName ?? "Test"
         let shardPlanId = ciController.ciInfo()?.shardPlanId
-        let outputPath = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
-            .appending(component: "shard-output")
-        try await fileSystem.makeDirectory(at: outputPath)
 
         let shard = try await shardService.shard(
             shardIndex: shardIndex,
             scheme: effectiveSchemeName,
             fullHandle: fullHandle,
-            serverURL: serverURL,
-            outputPath: outputPath
+            serverURL: serverURL
         )
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
@@ -621,6 +617,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 runResultBundlePath: runResultBundlePath,
                 resultBundlePath: effectiveResultBundlePath
             )
+            try? await fileSystem.remove(shard.testProductsPath)
             throw error
         }
 
@@ -646,6 +643,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             runResultBundlePath: runResultBundlePath,
             resultBundlePath: effectiveResultBundlePath
         )
+        try? await fileSystem.remove(shard.testProductsPath)
 
         AlertController.current.success(.alert("The project tests ran successfully"))
     }

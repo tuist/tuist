@@ -161,7 +161,6 @@ defmodule TuistWeb.API.ShardsController do
       {:ok, result} ->
         json(conn, %{
           test_targets: result.test_targets,
-          xctestrun_download_url: result.xctestrun_download_url,
           bundle_download_url: result.bundle_download_url
         })
 
@@ -219,8 +218,7 @@ defmodule TuistWeb.API.ShardsController do
            }
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
-      not_found: {"The session was not found", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error}
     }
   )
 
@@ -231,85 +229,16 @@ defmodule TuistWeb.API.ShardsController do
         } = conn,
         _params
       ) do
-    case Shards.generate_upload_url(
-           selected_project,
-           selected_project.account,
-           plan_id,
-           upload_id,
-           part_number
-         ) do
-      {:ok, url} ->
-        json(conn, %{data: %{url: url}})
+    {:ok, url} =
+      Shards.generate_upload_url(
+        selected_project,
+        selected_project.account,
+        plan_id,
+        upload_id,
+        part_number
+      )
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{message: "The shard plan was not found."})
-    end
-  end
-
-  operation(:generate_xctestrun_url,
-    summary: "Generate a signed URL for uploading the .xctestrun file.",
-    operation_id: "generateShardXctestrunUploadURL",
-    parameters: [
-      account_handle: [
-        in: :path,
-        type: :string,
-        required: true,
-        description: "The handle of the project's account."
-      ],
-      project_handle: [
-        in: :path,
-        type: :string,
-        required: true,
-        description: "The handle of the project."
-      ]
-    ],
-    request_body:
-      {"Upload URL params", "application/json",
-       %Schema{
-         title: "GenerateShardXctestrunUploadURLParams",
-         type: :object,
-         properties: %{
-           plan_id: %Schema{type: :string, description: "The shard plan identifier."}
-         },
-         required: [:plan_id]
-       }},
-    responses: %{
-      ok:
-        {"The signed URL", "application/json",
-         %Schema{
-           type: :object,
-           properties: %{
-             data: %Schema{
-               type: :object,
-               properties: %{url: %Schema{type: :string}}
-             }
-           }
-         }},
-      unauthorized: {"You need to be authenticated", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
-      not_found: {"The plan was not found", "application/json", Error}
-    }
-  )
-
-  def generate_xctestrun_url(
-        %{assigns: %{selected_project: selected_project}, body_params: %{plan_id: plan_id}} = conn,
-        _params
-      ) do
-    case Shards.generate_xctestrun_upload_url(
-           selected_project,
-           selected_project.account,
-           plan_id
-         ) do
-      {:ok, url} ->
-        json(conn, %{data: %{url: url}})
-
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{message: "The shard plan was not found."})
-    end
+    json(conn, %{data: %{url: url}})
   end
 
   operation(:complete,
@@ -360,8 +289,7 @@ defmodule TuistWeb.API.ShardsController do
            properties: %{status: %Schema{type: :string}}
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
-      not_found: {"The session was not found", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error}
     }
   )
 
@@ -377,20 +305,15 @@ defmodule TuistWeb.API.ShardsController do
         {part.part_number, part.etag}
       end)
 
-    case Shards.complete_upload(
-           selected_project,
-           selected_project.account,
-           plan_id,
-           upload_id,
-           parts_list
-         ) do
-      {:ok, _plan} ->
-        json(conn, %{status: "success"})
+    :ok =
+      Shards.complete_upload(
+        selected_project,
+        selected_project.account,
+        plan_id,
+        upload_id,
+        parts_list
+      )
 
-      {:error, :not_found} ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{message: "The shard plan was not found."})
-    end
+    json(conn, %{status: "success"})
   end
 end

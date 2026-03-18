@@ -136,7 +136,6 @@ defmodule Tuist.Shards.Analytics do
         from(s in ShardPlan,
           hints: ["FINAL"],
           where: s.project_id == ^project_id,
-          where: s.upload_completed == 1,
           where: s.inserted_at >= ^start_datetime,
           where: s.inserted_at <= ^end_datetime,
           select: %{

@@ -18,6 +18,8 @@ defmodule Tuist.ShardsTest do
         {:ok, Ecto.Changeset.apply_changes(changeset)}
       end)
 
+      stub(Tuist.IngestRepo, :insert_all, fn _schema, _data -> {1, nil} end)
+
       params = %{
         plan_id: "github-123-1",
         modules: ["AppTests", "CoreTests", "NetworkTests"],
@@ -54,6 +56,8 @@ defmodule Tuist.ShardsTest do
         {:ok, Ecto.Changeset.apply_changes(changeset)}
       end)
 
+      stub(Tuist.IngestRepo, :insert_all, fn _schema, _data -> {1, nil} end)
+
       params = %{
         plan_id: "session-1",
         modules: ["SlowTests", "FastTests", "MediumTests"],
@@ -75,6 +79,8 @@ defmodule Tuist.ShardsTest do
         {:ok, Ecto.Changeset.apply_changes(changeset)}
       end)
 
+      stub(Tuist.IngestRepo, :insert_all, fn _schema, _data -> {1, nil} end)
+
       params = %{
         plan_id: "session-2",
         test_suites: ["LoginTest", "SignupTest", "ProfileTest"],
@@ -88,28 +94,21 @@ defmodule Tuist.ShardsTest do
   end
 
   describe "get_shard/4" do
-    test "returns assignment for valid shard index" do
+    test "returns assignment for valid shard index with module granularity" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      session = %ShardPlan{
+      plan = %ShardPlan{
         id: Ecto.UUID.generate(),
         plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
-        shard_assignments:
-          Jason.encode!([
-            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100},
-            %{"index" => 1, "test_targets" => ["CoreTests"], "estimated_duration_ms" => 80}
-          ]),
-        bundle_object_key: "bundle.zip",
-        xctestrun_object_key: "original.xctestrun",
-        upload_completed: 1,
         inserted_at: NaiveDateTime.utc_now()
       }
 
-      stub(Tuist.IngestRepo, :one, fn _query -> session end)
+      stub(Tuist.IngestRepo, :one, fn _query -> plan end)
+      stub(Tuist.IngestRepo, :all, fn _query -> ["AppTests"] end)
 
       stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
         "https://download.example.com"
@@ -117,7 +116,6 @@ defmodule Tuist.ShardsTest do
 
       assert {:ok, result} = Shards.get_shard(project, account, "session-1", 0)
       assert result.test_targets == ["AppTests"]
-      assert result.xctestrun_download_url == "https://download.example.com"
       assert result.bundle_download_url == "https://download.example.com"
     end
 
@@ -135,21 +133,17 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      session = %ShardPlan{
+      plan = %ShardPlan{
         id: Ecto.UUID.generate(),
         plan_id: "session-1",
         project_id: project.id,
         shard_count: 2,
-        shard_assignments:
-          Jason.encode!([
-            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100}
-          ]),
-        bundle_object_key: "bundle.zip",
-        xctestrun_object_key: "original.xctestrun",
+        granularity: "module",
         inserted_at: NaiveDateTime.utc_now()
       }
 
-      stub(Tuist.IngestRepo, :one, fn _query -> session end)
+      stub(Tuist.IngestRepo, :one, fn _query -> plan end)
+      stub(Tuist.IngestRepo, :all, fn _query -> [] end)
 
       assert {:error, :invalid_shard_index} =
                Shards.get_shard(project, account, "session-1", 5)
@@ -157,27 +151,9 @@ defmodule Tuist.ShardsTest do
   end
 
   describe "generate_upload_url/5" do
-    test "returns upload URL for existing session" do
+    test "returns upload URL" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
-
-      session = %ShardPlan{
-        id: Ecto.UUID.generate(),
-        plan_id: "session-1",
-        project_id: project.id,
-        shard_count: 2,
-        granularity: "module",
-        shard_assignments:
-          Jason.encode!([
-            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100}
-          ]),
-        bundle_object_key: "bundle.zip",
-        xctestrun_object_key: "original.xctestrun",
-        upload_completed: 0,
-        inserted_at: NaiveDateTime.utc_now()
-      }
-
-      stub(Tuist.IngestRepo, :one, fn _query -> session end)
 
       stub(Tuist.Storage, :multipart_generate_url, fn _key, _upload_id, _part_number, _account ->
         "https://upload.example.com/part"
@@ -186,140 +162,19 @@ defmodule Tuist.ShardsTest do
       assert {:ok, url} = Shards.generate_upload_url(project, account, "session-1", "upload-id", 1)
       assert url == "https://upload.example.com/part"
     end
-
-    test "returns error for nonexistent session" do
-      project = ProjectsFixtures.project_fixture()
-      account = project.account
-
-      stub(Tuist.IngestRepo, :one, fn _query -> nil end)
-
-      assert {:error, :not_found} =
-               Shards.generate_upload_url(project, account, "nonexistent", "upload-id", 1)
-    end
-  end
-
-  describe "generate_xctestrun_upload_url/3" do
-    test "returns upload URL for existing session" do
-      project = ProjectsFixtures.project_fixture()
-      account = project.account
-
-      session = %ShardPlan{
-        id: Ecto.UUID.generate(),
-        plan_id: "session-1",
-        project_id: project.id,
-        shard_count: 2,
-        granularity: "module",
-        shard_assignments:
-          Jason.encode!([
-            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100}
-          ]),
-        bundle_object_key: "bundle.zip",
-        xctestrun_object_key: "original.xctestrun",
-        upload_completed: 0,
-        inserted_at: NaiveDateTime.utc_now()
-      }
-
-      stub(Tuist.IngestRepo, :one, fn _query -> session end)
-
-      stub(Tuist.Storage, :generate_upload_url, fn _key, _account ->
-        "https://upload.example.com/xctestrun"
-      end)
-
-      assert {:ok, url} = Shards.generate_xctestrun_upload_url(project, account, "session-1")
-      assert url == "https://upload.example.com/xctestrun"
-    end
-
-    test "returns error for nonexistent session" do
-      project = ProjectsFixtures.project_fixture()
-      account = project.account
-
-      stub(Tuist.IngestRepo, :one, fn _query -> nil end)
-
-      assert {:error, :not_found} =
-               Shards.generate_xctestrun_upload_url(project, account, "nonexistent")
-    end
   end
 
   describe "complete_upload/5" do
-    test "marks session as completed and creates per-shard xctestrun files" do
+    test "completes the multipart upload" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
-
-      session = %ShardPlan{
-        id: Ecto.UUID.generate(),
-        plan_id: "session-1",
-        project_id: project.id,
-        shard_count: 2,
-        granularity: "module",
-        shard_assignments:
-          Jason.encode!([
-            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 100},
-            %{"index" => 1, "test_targets" => ["CoreTests"], "estimated_duration_ms" => 80}
-          ]),
-        bundle_object_key: "bundle.zip",
-        xctestrun_object_key: "original.xctestrun",
-        upload_completed: 0,
-        inserted_at: NaiveDateTime.utc_now()
-      }
-
-      sample_xctestrun = """
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
-      <dict>
-        <key>TestConfigurations</key>
-        <array>
-          <dict>
-            <key>Name</key>
-            <string>Default</string>
-            <key>TestTargets</key>
-            <array>
-              <dict>
-                <key>BlueprintName</key>
-                <string>AppTests</string>
-              </dict>
-              <dict>
-                <key>BlueprintName</key>
-                <string>CoreTests</string>
-              </dict>
-            </array>
-          </dict>
-        </array>
-      </dict>
-      </plist>
-      """
-
-      stub(Tuist.IngestRepo, :one, fn _query -> session end)
 
       stub(Tuist.Storage, :multipart_complete_upload, fn _key, _upload_id, _parts, _account ->
         :ok
       end)
 
-      stub(Tuist.Storage, :get_object_as_string, fn _key, _account -> sample_xctestrun end)
-
-      put_object_count = :counters.new(1, [])
-
-      stub(Tuist.Storage, :put_object, fn _key, _content, _account ->
-        :counters.add(put_object_count, 1, 1)
-        :ok
-      end)
-
-      stub(Tuist.IngestRepo, :insert_all, fn _schema, _data -> {1, nil} end)
-
-      assert {:ok, _session} =
+      assert :ok =
                Shards.complete_upload(project, account, "session-1", "upload-id", [])
-
-      assert :counters.get(put_object_count, 1) == 2
-    end
-
-    test "returns error for nonexistent session" do
-      project = ProjectsFixtures.project_fixture()
-      account = project.account
-
-      stub(Tuist.IngestRepo, :one, fn _query -> nil end)
-
-      assert {:error, :not_found} =
-               Shards.complete_upload(project, account, "nonexistent", "upload-id", [])
     end
   end
 end

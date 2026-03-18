@@ -12,8 +12,9 @@ defmodule Tuist.Shards do
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Shards.BinPacker
-  alias Tuist.Shards.PlistFilter
   alias Tuist.Shards.ShardPlan
+  alias Tuist.Shards.ShardPlanModule
+  alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.Storage
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestModuleRun
@@ -41,6 +42,7 @@ defmodule Tuist.Shards do
       )
 
     shards = BinPacker.pack(units_with_durations, shard_count)
+    now = NaiveDateTime.utc_now()
 
     shard_assignments =
       Enum.map(shards, fn {index, shard_units, total} ->
@@ -51,29 +53,21 @@ defmodule Tuist.Shards do
         }
       end)
 
-    bundle_object_key =
-      "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.xctestproducts.zip"
-
-    xctestrun_object_key =
-      "#{account.id}/#{project.id}/shards/#{plan_id}/original.xctestrun"
-
-    upload_id = Storage.multipart_start(bundle_object_key, account)
-
     attrs = %{
       id: Ecto.UUID.generate(),
       plan_id: plan_id,
       project_id: project.id,
       shard_count: shard_count,
       granularity: granularity,
-      shard_assignments: ShardPlan.encode_shard_assignments(shard_assignments),
-      upload_completed: 0,
-      bundle_object_key: bundle_object_key,
-      xctestrun_object_key: xctestrun_object_key,
-      inserted_at: NaiveDateTime.utc_now()
+      inserted_at: now
     }
 
     case %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert() do
       {:ok, plan} ->
+        insert_shard_targets(plan_id, project.id, shards, granularity, now)
+
+        upload_id = Storage.multipart_start(bundle_object_key(account, project, plan_id), account)
+
         {:ok,
          %{
            plan: plan,
@@ -93,91 +87,116 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        assignments = ShardPlan.decode_shard_assignments(plan)
+        targets = fetch_shard_targets(plan, plan_id, project.id, shard_index)
 
-        case Enum.find(assignments, fn a -> a["index"] == shard_index end) do
-          nil ->
-            {:error, :invalid_shard_index}
+        if targets == nil do
+          {:error, :invalid_shard_index}
+        else
+          bundle_download_url =
+            Storage.generate_download_url(bundle_object_key(account, project, plan_id), account)
 
-          assignment ->
-            xctestrun_key =
-              "#{account.id}/#{project.id}/shards/#{plan_id}/shard-#{shard_index}.xctestrun"
-
-            xctestrun_download_url = Storage.generate_download_url(xctestrun_key, account)
-            bundle_download_url = Storage.generate_download_url(plan.bundle_object_key, account)
-
-            {:ok,
-             %{
-               test_targets: assignment["test_targets"],
-               xctestrun_download_url: xctestrun_download_url,
-               bundle_download_url: bundle_download_url
-             }}
+          {:ok,
+           %{
+             test_targets: targets,
+             bundle_download_url: bundle_download_url
+           }}
         end
     end
   end
 
   def complete_upload(%Project{} = project, %Account{} = account, plan_id, upload_id, parts) do
-    case get_plan(project.id, plan_id) do
-      nil ->
-        {:error, :not_found}
-
-      plan ->
-        Storage.multipart_complete_upload(plan.bundle_object_key, upload_id, parts, account)
-
-        assignments = ShardPlan.decode_shard_assignments(plan)
-        xctestrun_xml = Storage.get_object_as_string(plan.xctestrun_object_key, account)
-        granularity = String.to_existing_atom(plan.granularity)
-
-        Enum.each(assignments, fn assignment ->
-          index = assignment["index"]
-          test_targets = assignment["test_targets"]
-          filtered_xml = filter_for_shard(xctestrun_xml, test_targets, granularity)
-
-          shard_key =
-            "#{account.id}/#{project.id}/shards/#{plan_id}/shard-#{index}.xctestrun"
-
-          Storage.put_object(shard_key, filtered_xml, account)
-        end)
-
-        updated_attrs =
-          plan
-          |> Map.from_struct()
-          |> Map.delete(:__meta__)
-          |> Map.put(:upload_completed, 1)
-          |> Map.put(:inserted_at, NaiveDateTime.utc_now())
-
-        IngestRepo.insert_all(ShardPlan, [updated_attrs])
-
-        {:ok, plan}
-    end
+    Storage.multipart_complete_upload(bundle_object_key(account, project, plan_id), upload_id, parts, account)
+    :ok
   end
 
   def generate_upload_url(%Project{} = project, %Account{} = account, plan_id, upload_id, part_number) do
-    case get_plan(project.id, plan_id) do
-      nil ->
-        {:error, :not_found}
+    url =
+      Storage.multipart_generate_url(
+        bundle_object_key(account, project, plan_id),
+        upload_id,
+        part_number,
+        account
+      )
 
-      plan ->
-        url =
-          Storage.multipart_generate_url(
-            plan.bundle_object_key,
-            upload_id,
-            part_number,
-            account
-          )
-
-        {:ok, url}
-    end
+    {:ok, url}
   end
 
-  def generate_xctestrun_upload_url(%Project{} = project, %Account{} = account, plan_id) do
-    case get_plan(project.id, plan_id) do
-      nil ->
-        {:error, :not_found}
+  defp bundle_object_key(account, project, plan_id) do
+    "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
+  end
 
-      plan ->
-        url = Storage.generate_upload_url(plan.xctestrun_object_key, account)
-        {:ok, url}
+  defp insert_shard_targets(plan_id, project_id, shards, "module", now) do
+    rows =
+      Enum.flat_map(shards, fn {index, shard_units, _total} ->
+        Enum.map(shard_units, fn {name, duration} ->
+          %{
+            plan_id: plan_id,
+            project_id: project_id,
+            shard_index: index,
+            module_name: name,
+            estimated_duration_ms: duration,
+            inserted_at: now
+          }
+        end)
+      end)
+
+    if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
+  end
+
+  defp insert_shard_targets(plan_id, project_id, shards, "suite", now) do
+    rows =
+      Enum.flat_map(shards, fn {index, shard_units, _total} ->
+        Enum.map(shard_units, fn {name, duration} ->
+          {module_name, test_suite_name} =
+            case String.split(name, "/", parts: 2) do
+              [mod, suite] -> {mod, suite}
+              [mod] -> {mod, mod}
+            end
+
+          %{
+            plan_id: plan_id,
+            project_id: project_id,
+            shard_index: index,
+            module_name: module_name,
+            test_suite_name: test_suite_name,
+            estimated_duration_ms: duration,
+            inserted_at: now
+          }
+        end)
+      end)
+
+    if rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, rows)
+  end
+
+  defp fetch_shard_targets(%ShardPlan{granularity: "module"}, plan_id, project_id, shard_index) do
+    results =
+      IngestRepo.all(
+        from(m in ShardPlanModule,
+          where: m.plan_id == ^plan_id,
+          where: m.project_id == ^project_id,
+          where: m.shard_index == ^shard_index,
+          select: m.module_name
+        )
+      )
+
+    if results == [], do: nil, else: results
+  end
+
+  defp fetch_shard_targets(%ShardPlan{granularity: "suite"}, plan_id, project_id, shard_index) do
+    results =
+      IngestRepo.all(
+        from(s in ShardPlanTestSuite,
+          where: s.plan_id == ^plan_id,
+          where: s.project_id == ^project_id,
+          where: s.shard_index == ^shard_index,
+          select: {s.module_name, s.test_suite_name}
+        )
+      )
+
+    if results == [] do
+      nil
+    else
+      Enum.group_by(results, fn {mod, _} -> mod end, fn {_, suite} -> suite end)
     end
   end
 
@@ -257,30 +276,5 @@ defmodule Tuist.Shards do
     else
       Enum.at(sorted_list, mid)
     end
-  end
-
-  defp filter_for_shard(xctestrun_xml, test_targets, :module) do
-    PlistFilter.filter_xctestrun(xctestrun_xml, test_targets, :module)
-  end
-
-  defp filter_for_shard(xctestrun_xml, test_targets, :suite) do
-    targets_map =
-      Enum.group_by(
-        test_targets,
-        fn target ->
-          case String.split(target, "/", parts: 2) do
-            [module, _suite] -> module
-            [name] -> name
-          end
-        end,
-        fn target ->
-          case String.split(target, "/", parts: 2) do
-            [_module, suite] -> suite
-            [name] -> name
-          end
-        end
-      )
-
-    PlistFilter.filter_xctestrun(xctestrun_xml, targets_map, :suite)
   end
 end

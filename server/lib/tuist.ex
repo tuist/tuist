@@ -55,6 +55,8 @@ defmodule Tuist do
       Shards,
       Shards.Analytics,
       Shards.ShardPlan,
+      Shards.ShardPlanModule,
+      Shards.ShardPlanTestSuite,
       MCP.Server,
       # App
       # -----

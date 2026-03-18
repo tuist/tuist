@@ -1290,10 +1290,6 @@ defmodule Tuist.TestsTest do
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
-        shard_assignments: "[]",
-        bundle_object_key: "bundle.zip",
-        xctestrun_object_key: "original.xctestrun",
-        upload_completed: 1,
         inserted_at: NaiveDateTime.utc_now()
       }
 
@@ -1331,10 +1327,6 @@ defmodule Tuist.TestsTest do
         project_id: project.id,
         shard_count: 2,
         granularity: "module",
-        shard_assignments: "[]",
-        bundle_object_key: "bundle.zip",
-        xctestrun_object_key: "original.xctestrun",
-        upload_completed: 1,
         inserted_at: NaiveDateTime.utc_now()
       }
 

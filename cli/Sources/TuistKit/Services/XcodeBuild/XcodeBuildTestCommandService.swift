@@ -68,19 +68,17 @@ struct XcodeBuildTestCommandService {
 
         var shardPlanId: String?
         var selectiveTestingHashes: [String: String]?
+        var shardTestProductsPath: AbsolutePath?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
-            let outputPath = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
-                .appending(component: "shard-output")
-            try await fileSystem.makeDirectory(at: outputPath)
             let shard = try await shardService.shard(
                 shardIndex: shardIndex,
                 scheme: schemeName,
                 fullHandle: fullHandle,
-                serverURL: serverURL,
-                outputPath: outputPath
+                serverURL: serverURL
             )
+            shardTestProductsPath = shard.testProductsPath
             passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
@@ -116,6 +114,9 @@ struct XcodeBuildTestCommandService {
                 shardIndex: shardIndex,
                 selectiveTestingHashes: selectiveTestingHashes
             )
+            if let shardTestProductsPath {
+                try? await fileSystem.remove(shardTestProductsPath)
+            }
             throw error
         }
 
@@ -130,6 +131,9 @@ struct XcodeBuildTestCommandService {
             shardIndex: shardIndex,
             selectiveTestingHashes: selectiveTestingHashes
         )
+        if let shardTestProductsPath {
+            try? await fileSystem.remove(shardTestProductsPath)
+        }
     }
 
     private func updateBuildRunId(projectDerivedDataDirectory: AbsolutePath) async {

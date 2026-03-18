@@ -20,8 +20,7 @@ public protocol ShardServicing {
         shardIndex: Int,
         scheme: String,
         fullHandle: String,
-        serverURL: URL,
-        outputPath: AbsolutePath
+        serverURL: URL
     ) async throws -> Shard
 }
 
@@ -61,8 +60,7 @@ public struct ShardService: ShardServicing {
         shardIndex: Int,
         scheme: String,
         fullHandle: String,
-        serverURL: URL,
-        outputPath: AbsolutePath
+        serverURL: URL
     ) async throws -> Shard {
         guard let planId = ciController.ciInfo()?.shardPlanId else {
             throw ShardServiceError.cannotDeriveSessionId
@@ -79,34 +77,35 @@ public struct ShardService: ShardServicing {
 
         Logger.current.info("Shard \(shardIndex) assigned targets: \(shard.test_targets.joined(separator: ", "))")
 
-        let bundleZipPath = outputPath.appending(component: "\(scheme).xctestproducts.zip")
+        let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard")
+        let bundleZipPath = tempDirectory.appending(component: "\(scheme).xctestproducts.zip")
         try await downloadFile(from: shard.bundle_download_url, to: bundleZipPath)
         Logger.current.debug("Downloaded test products bundle.")
 
         let unarchiver = try fileUnarchiver.makeFileUnarchiver(for: bundleZipPath)
         let unzippedPath = try unarchiver.unzip()
 
-        let bundlePath: AbsolutePath
+        let testProductsPath: AbsolutePath
         if let found = try await fileSystem.glob(directory: unzippedPath, include: ["*.xctestproducts"])
             .first(where: { _ in true })
         {
-            bundlePath = found
+            testProductsPath = found
         } else {
-            bundlePath = unzippedPath
+            testProductsPath = unzippedPath
         }
-        Logger.current.debug("Unzipped test products to \(bundlePath.pathString)")
+        Logger.current.debug("Unzipped test products to \(testProductsPath.pathString)")
 
-        let xcTestRunPath = outputPath.appending(component: "\(scheme).xctestrun")
+        let xcTestRunPath = tempDirectory.appending(component: "\(scheme).xctestrun")
         try await downloadFile(from: shard.xctestrun_download_url, to: xcTestRunPath)
         Logger.current.debug("Downloaded filtered .xctestrun file.")
 
-        let targetXCTestRunPath = bundlePath.appending(component: "\(scheme).xctestrun")
+        let targetXCTestRunPath = testProductsPath.appending(component: "\(scheme).xctestrun")
         if try await fileSystem.exists(targetXCTestRunPath) {
             try await fileSystem.remove(targetXCTestRunPath)
         }
         try await fileSystem.copy(xcTestRunPath, to: targetXCTestRunPath)
 
-        let selectiveTestingGraphPath = bundlePath.appending(component: SelectiveTestingGraph.fileName)
+        let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         var selectiveTestingGraph: SelectiveTestingGraph?
         if try await fileSystem.exists(selectiveTestingGraphPath) {
             selectiveTestingGraph = try? await fileSystem.readJSONFile(at: selectiveTestingGraphPath)
@@ -116,7 +115,7 @@ public struct ShardService: ShardServicing {
         }
 
         return Shard(
-            testProductsPath: bundlePath,
+            testProductsPath: testProductsPath,
             testTargets: shard.test_targets,
             selectiveTestingGraph: selectiveTestingGraph
         )
