@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-29 08:29+0000\nPO-Revision-Date: 2026-03-19 15:01+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hant/>\nLanguage: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-29 08:29+0000\n"
+"PO-Revision-Date: 2026-03-19 15:01+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hant/>\n"
+"Language: zh_Hant\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -1460,9 +1472,12 @@ msgstr "您的行動平台團隊，"
 msgid "as a service"
 msgstr "作為一項服務"
 
+msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
+msgstr ""
+
 #, fuzzy
-msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
-msgstr "我們將虛擬加入您的團隊以優化您的設定，讓您能專注於產品發布"
+#~ msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
+#~ msgstr "我們將虛擬加入您的團隊以優化您的設定，讓您能專注於產品發布"
 
 #~ msgid "Make mobile"
 #~ msgstr "讓行動開發成為"

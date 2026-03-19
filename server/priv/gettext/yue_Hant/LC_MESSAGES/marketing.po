@@ -1314,5 +1314,5 @@ msgstr ""
 msgid "as a service"
 msgstr ""
 
-msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
+msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
 msgstr ""
