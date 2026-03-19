@@ -7467,6 +7467,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/scheme`.
             public var scheme: Swift.String?
+            /// The zero-based shard index for this test result.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/shard_index`.
+            public var shard_index: Swift.Int?
             /// The shard plan ID if this test run is part of a sharded execution.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/shard_plan_id`.
@@ -7799,6 +7803,7 @@ public enum Components {
             ///   - macos_version: The version of macOS used during the run.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
             ///   - scheme: The scheme used for the test run.
+            ///   - shard_index: The zero-based shard index for this test result.
             ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
             ///   - status: The status of the test run.
             ///   - test_modules: The test modules associated with the test run.
@@ -7820,6 +7825,7 @@ public enum Components {
                 macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
                 scheme: Swift.String? = nil,
+                shard_index: Swift.Int? = nil,
                 shard_plan_id: Swift.String? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
                 test_modules: Components.Schemas.TestParams.test_modulesPayload,
@@ -7841,6 +7847,7 @@ public enum Components {
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
                 self.scheme = scheme
+                self.shard_index = shard_index
                 self.shard_plan_id = shard_plan_id
                 self.status = status
                 self.test_modules = test_modules
@@ -7863,6 +7870,7 @@ public enum Components {
                 case macos_version
                 case model_identifier
                 case scheme
+                case shard_index
                 case shard_plan_id
                 case status
                 case test_modules
@@ -48579,6 +48587,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/scheme`.
                     public var scheme: Swift.String?
+                    /// The zero-based shard index for this test result.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_index`.
+                    public var shard_index: Swift.Int?
                     /// The shard plan ID if this test run is part of a sharded execution.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_plan_id`.
@@ -48911,6 +48923,7 @@ public enum Operations {
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
                     ///   - scheme: The scheme used for the test run.
+                    ///   - shard_index: The zero-based shard index for this test result.
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
                     ///   - status: The status of the test run.
                     ///   - test_modules: The test modules associated with the test run.
@@ -48932,6 +48945,7 @@ public enum Operations {
                         macos_version: Swift.String? = nil,
                         model_identifier: Swift.String? = nil,
                         scheme: Swift.String? = nil,
+                        shard_index: Swift.Int? = nil,
                         shard_plan_id: Swift.String? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
@@ -48953,6 +48967,7 @@ public enum Operations {
                         self.macos_version = macos_version
                         self.model_identifier = model_identifier
                         self.scheme = scheme
+                        self.shard_index = shard_index
                         self.shard_plan_id = shard_plan_id
                         self.status = status
                         self.test_modules = test_modules
@@ -48975,6 +48990,7 @@ public enum Operations {
                         case macos_version
                         case model_identifier
                         case scheme
+                        case shard_index
                         case shard_plan_id
                         case status
                         case test_modules

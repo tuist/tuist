@@ -92,7 +92,8 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         resultBundlePath: AbsolutePath,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
-        shardPlanId: String? = nil
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil
     ) async throws -> Components.Schemas.RunsTest {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()

@@ -3716,6 +3716,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        shard_index:
+          description: The zero-based shard index for this test result.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
         shard_plan_id:
           description: The shard plan ID if this test run is part of a sharded execution.
           type: string
@@ -18122,6 +18128,12 @@ paths:
                 scheme:
                   description: The scheme used for the test run.
                   type: string
+                  x-struct:
+                  x-validate:
+                shard_index:
+                  description: The zero-based shard index for this test result.
+                  nullable: true
+                  type: integer
                   x-struct:
                   x-validate:
                 shard_plan_id:
