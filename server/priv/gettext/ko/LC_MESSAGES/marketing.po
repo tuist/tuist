@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:58+0000\n"
-"PO-Revision-Date: 2026-03-16 08:22+0000\n"
-"Last-Translator: 이영준 <kofggm@gmail.com>\n"
-"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\n"
-"Language: ko\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-03-19 15:01+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -1311,14 +1299,17 @@ msgstr "선택"
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr "테스트 실행 결과를 추적하고, 느린 테스트를 조기에 발견하며, 로그를 일일이 살펴보지 않고도 CI 실패를 디버깅하세요."
 
+#, fuzzy
 msgid "Your mobile platform team,"
-msgstr ""
+msgstr "모바일 플랫폼 팀 드림,"
 
+#, fuzzy
 msgid "as a service"
-msgstr ""
+msgstr "서비스로서"
 
+#, fuzzy
 msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
-msgstr ""
+msgstr "귀사의 환경을 최적화하기 위해 저희가 가상으로 팀에 합류하므로, 귀사는 제품 출시에만 집중하실 수 있습니다"
 
 #~ msgid "Make mobile"
 #~ msgstr "모바일로"
