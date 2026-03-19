@@ -31,7 +31,7 @@ services:
       - key: TUIST_DATABASE_POOL_SIZE
         value: 40
       - key: TUIST_CLICKHOUSE_POOL_SIZE
-        value: 40
+        value: 80
       - key: TUIST_S3_POOL_COUNT
         value: 1
       - key: TUIST_S3_POOL_SIZE
