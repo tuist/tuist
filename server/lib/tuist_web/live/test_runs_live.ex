@@ -381,7 +381,8 @@ defmodule TuistWeb.TestRunsLive do
     search = params["search"] || ""
 
     flop_filters = [
-      %{field: :project_id, op: :==, value: project.id}
+      %{field: :project_id, op: :==, value: project.id},
+      %{field: :status, op: :!=, value: "in_progress"}
       | build_flop_filters(filters, search)
     ]
 
