@@ -22,7 +22,7 @@ import com.google.gson.annotations.SerializedName
  * 
  *
  * @param partNumber The part number.
- * @param reference The shard plan identifier.
+ * @param reference The shard plan reference.
  * @param uploadId The multipart upload ID.
  */
 
@@ -33,7 +33,7 @@ data class GenerateShardUploadURLParams1 (
     @SerializedName("part_number")
     val partNumber: kotlin.Int,
 
-    /* The shard plan identifier. */
+    /* The shard plan reference. */
     @SerializedName("reference")
     val reference: kotlin.String,
 

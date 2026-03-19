@@ -21,7 +21,7 @@ import com.google.gson.annotations.SerializedName
 /**
  * 
  *
- * @param reference A unique plan identifier.
+ * @param reference A unique shard plan reference, typically derived from CI environment.
  * @param granularity Sharding granularity level.
  * @param modules Test module names (for module-level granularity).
  * @param shardMax Maximum number of shards.
@@ -34,7 +34,7 @@ import com.google.gson.annotations.SerializedName
 
 data class CreateShardPlanParams1 (
 
-    /* A unique plan identifier. */
+    /* A unique shard plan reference, typically derived from CI environment. */
     @SerializedName("reference")
     val reference: kotlin.String,
 

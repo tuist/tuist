@@ -23,7 +23,7 @@ import com.google.gson.annotations.SerializedName
  * A shard plan with assignment details.
  *
  * @param id The shard plan UUID.
- * @param reference The plan identifier.
+ * @param reference A unique shard plan reference, typically derived from CI environment.
  * @param shardCount The number of shards.
  * @param shards The shard assignments.
  * @param uploadId The multipart upload ID for the test products bundle.
@@ -36,7 +36,7 @@ data class ShardPlan (
     @SerializedName("id")
     val id: java.util.UUID,
 
-    /* The plan identifier. */
+    /* A unique shard plan reference, typically derived from CI environment. */
     @SerializedName("reference")
     val reference: kotlin.String,
 

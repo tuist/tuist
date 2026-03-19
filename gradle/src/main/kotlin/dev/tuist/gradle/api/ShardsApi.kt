@@ -80,7 +80,7 @@ interface ShardsApi {
      *
      * @param accountHandle The handle of the project&#39;s account.
      * @param projectHandle The handle of the project.
-     * @param reference The shard plan identifier.
+     * @param reference The shard plan reference.
      * @param shardIndex The zero-based shard index.
      * @return [Call]<[Shard]>
      */
