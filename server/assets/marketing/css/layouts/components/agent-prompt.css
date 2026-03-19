@@ -1,7 +1,6 @@
 [id^="agent_prompt_window-"] {
   --agent-prompt-height: 12lh;
   --agent-prompt-gap: var(--noora-spacing-2);
-  --agent-prompt-prefix-width: 1.25ch;
   --agent-prompt-line-height: 1.45;
   --agent-prompt-response-color: var(--noora-azure-500);
 
@@ -21,7 +20,7 @@
   & [data-part="terminal-line"] {
     display: flex;
     align-items: flex-start;
-    gap: var(--noora-spacing-2);
+    gap: var(--noora-spacing-3);
     min-height: 1lh;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
@@ -31,9 +30,7 @@
   }
 
   & [data-part="shell-prompt"] {
-    display: inline-block;
     flex-shrink: 0;
-    width: var(--agent-prompt-prefix-width);
     color: var(--noora-surface-label-secondary);
   }
 
@@ -44,7 +41,7 @@
   }
 
   & [data-part="response-section"] {
-    padding-left: calc(var(--agent-prompt-prefix-width) + var(--noora-spacing-2));
+    padding-bottom: var(--noora-spacing-4);
     min-height: 1lh;
     color: var(--agent-prompt-response-color);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);

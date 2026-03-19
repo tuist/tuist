@@ -7,12 +7,22 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
   attr :title, :string, default: "bash"
   attr :prompt, :string, required: true
   attr :response, :any, required: true
+  attr :current_user, :any, default: nil
 
   def agent_prompt(assigns) do
-    assigns = assign(assigns, :response_steps_json, Jason.encode!(normalize_response_steps(assigns.response)))
+    shell_prompt = shell_prompt(assigns.current_user)
+
+    assigns =
+      assigns
+      |> assign(:response_steps_json, Jason.encode!(normalize_response_steps(assigns.response)))
+      |> assign(:shell_prompt, shell_prompt)
 
     ~H"""
-    <div id={"agent_prompt_window-" <> @id} phx-hook="AgentPrompt" phx-update="ignore">
+    <div
+      id={"agent_prompt_window-" <> @id}
+      phx-hook="AgentPrompt"
+      phx-update="ignore"
+    >
       <div data-part="bar">
         <div data-part="language">{@title}</div>
         <button
@@ -28,7 +38,7 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
       </div>
       <div data-part="code">
         <div data-part="terminal-line">
-          <span data-part="shell-prompt">$</span>
+          <span data-part="shell-prompt">{@shell_prompt}</span>
           <span data-part="prompt-text" data-value={@prompt}></span><span
             data-part="prompt-cursor"
             style="visibility: hidden;"
@@ -53,4 +63,10 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
   defp normalize_response_step({text, wait_ms}) when is_binary(text) and is_integer(wait_ms) and wait_ms >= 0 do
     %{text: text, wait_ms: wait_ms}
   end
+
+  defp shell_prompt(%{account: %{name: handle}}) when is_binary(handle) and handle != "" do
+    "#{handle}@tuist:~$"
+  end
+
+  defp shell_prompt(_current_user), do: "~$"
 end

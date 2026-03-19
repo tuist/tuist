@@ -27,7 +27,7 @@
     </header>
 
     <section id="blog-post-content" data-part="content" data-prose>
-      {MDEx.to_heex!({:html, @post.body}, assigns: assigns)}
+      {render_post_body(@post, assigns)}
     </section>
 
     <section data-part="cta">

@@ -11,8 +11,6 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Marketing.Localization
 
-  require MDEx
-
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
   def mount(_params, _session, socket) do
@@ -54,5 +52,16 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
       )
 
     {:noreply, socket}
+  end
+
+  def render_post_body(post, assigns) do
+    if post.live do
+      {rendered, _} =
+        Code.eval_quoted(post.body_template, [assigns: assigns], Macro.Env.prune_compile_info(__ENV__))
+
+      rendered
+    else
+      raw(post.body)
+    end
   end
 end
