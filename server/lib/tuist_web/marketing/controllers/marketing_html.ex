@@ -17,7 +17,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   attr(:title, :string, required: true)
   attr(:primary_action_title, :string, required: false)
   attr(:primary_action_href, :string, required: false)
-  attr(:primary_action_target, :string, default: "_blank")
+  attr(:primary_action_target, :string, default: "_self")
   attr(:secondary_action_title, :string, required: false)
   attr(:secondary_action_href, :string, required: false)
   attr(:secondary_action_target, :string, default: "_blank")
