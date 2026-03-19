@@ -238,7 +238,7 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp create_new_test(attrs) do
+  defp create_new_test(attrs, shard_index \\ nil, shard_plan \\ nil) do
     test_modules = Map.get(attrs, :test_modules, [])
     is_ci = Map.get(attrs, :is_ci, false)
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
@@ -254,7 +254,7 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        {test_case_ids_with_flaky_run, test_case_runs} = create_test_modules(test, test_modules)
+        {test_case_ids_with_flaky_run, test_case_runs} = create_test_modules(test, test_modules, shard_index, shard_plan)
 
         test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
 
@@ -291,9 +291,7 @@ defmodule Tuist.Tests do
         )
       )
 
-    shard_plan =
-      ClickHouseRepo.one(from(s in ShardPlan, where: s.id == ^shard_plan_id, limit: 1))
-
+    shard_plan = ClickHouseRepo.one(from(s in ShardPlan, where: s.id == ^shard_plan_id, limit: 1))
     expected_shard_count = if shard_plan, do: shard_plan.shard_count, else: 1
 
     shard_index = Map.get(attrs, :shard_index)
@@ -305,11 +303,11 @@ defmodule Tuist.Tests do
         nil ->
           test_status = if expected_shard_count > 1, do: "in_progress", else: shard_status
           attrs = Map.put(attrs, :status, test_status)
-          create_new_test(attrs)
+          create_new_test(attrs, shard_index, shard_plan)
 
         existing_test ->
           {test_case_ids_with_flaky_run, test_case_runs} =
-            create_test_modules(existing_test, test_modules, shard_index)
+            create_test_modules(existing_test, test_modules, shard_index, shard_plan)
 
           reported_count = count_reported_shards(existing_test.id) + 1
 
@@ -717,11 +715,8 @@ defmodule Tuist.Tests do
     _ -> :error
   end
 
-  defp create_test_modules(test, test_modules, shard_index \\ nil) do
+  defp create_test_modules(test, test_modules, shard_index \\ nil, shard_plan \\ nil) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
-
-    shard_plan =
-      if test.shard_plan_id, do: ClickHouseRepo.one(from(s in ShardPlan, where: s.id == ^test.shard_plan_id, limit: 1))
 
     Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
