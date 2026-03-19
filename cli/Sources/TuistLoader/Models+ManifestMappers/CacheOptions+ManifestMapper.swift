@@ -56,9 +56,12 @@ extension TuistConfig.CacheOptions {
             )
         }
 
+        let storages = manifest.storages.map { TuistConfig.CacheStorageOption.from(manifest: $0) }
+
         return .init(
             keepSourceTargets: manifest.keepSourceTargets,
-            profiles: profiles
+            profiles: profiles,
+            storages: storages
         )
     }
 }
@@ -107,6 +110,17 @@ extension TuistConfig.CacheProfileType {
         case .allPossible: return .allPossible
         case .none: return .none
         case let .custom(name): return .custom(name)
+        }
+    }
+}
+
+extension TuistConfig.CacheStorageOption {
+    static func from(
+        manifest: ProjectDescription.Tuist.CacheStorageOption
+    ) -> Self {
+        switch manifest {
+        case .local: return .local
+        case .remote: return .remote
         }
     }
 }
