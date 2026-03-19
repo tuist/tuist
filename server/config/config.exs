@@ -8,7 +8,7 @@
 import Config
 
 # esbuild
-noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
+noora_source_path = Path.expand("../../noora", __DIR__)
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
@@ -32,8 +32,8 @@ config :esbuild,
       "--outfile=../../priv/static/app/assets/bundle.js",
       "--external:/fonts/*",
       "--external:/images/*",
-      "--alias:noora=#{noora_static_path}/noora.js",
-      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+      "--alias:noora=#{noora_source_path}/js/index.js",
+      "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/app", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
@@ -50,8 +50,8 @@ config :esbuild,
       "--outfile=../../priv/static/marketing/assets/bundle.js",
       "--external:/fonts/*",
       "--external:/images/*",
-      "--alias:noora=#{noora_static_path}/noora.js",
-      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+      "--alias:noora=#{noora_source_path}/js/index.js",
+      "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
