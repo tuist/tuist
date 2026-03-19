@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.161.2<!-- RELEASE NOTES START -->
+## What's Changed in 4.161.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* remove unsupported DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER build setting by [@fortmarek](https://github.com/fortmarek) in [#9940](https://github.com/tuist/tuist/pull/9940)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.161.3...4.161.4
+
+## What's Changed in 4.161.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
@@ -10,7 +20,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.161.1...4.161.2
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.161.1...4.161.3
 
 ## What's Changed in 4.161.1<!-- RELEASE NOTES START -->
 
