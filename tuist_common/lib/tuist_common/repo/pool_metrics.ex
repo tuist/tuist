@@ -27,6 +27,8 @@ defmodule TuistCommon.Repo.PoolMetrics do
   end
 
   defp connection_pool_pid(repo) do
+    # DBConnection does not register the pool under a stable name, so we
+    # introspect the repo supervisor state and extract the pool child pid.
     case :sys.get_state(repo) do
       {_, _, _, {_, children}, _, _, _, _, _, _, _} when is_map(children) ->
         case Map.get(children, DBConnection.ConnectionPool) do
