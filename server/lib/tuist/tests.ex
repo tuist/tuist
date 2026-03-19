@@ -49,9 +49,6 @@ defmodule Tuist.Tests do
     |> ClickHouseRepo.one() || 0
   end
 
-  # The MV counts from raw inserts (before ReplacingMergeTree deduplication),
-  # so totals may slightly over-count vs FINAL. Acceptable trade-off for
-  # dashboard-level numbers (milliseconds vs seconds).
   def total_test_case_run_count do
     ClickHouseRepo.one(from(d in TestCaseRunDashboardCount, select: fragment("countMerge(count)"))) || 0
   end
@@ -70,21 +67,23 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_test_case_run_count do
-    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
+    yesterday = Date.add(Date.utc_today(), -1)
 
     ClickHouseRepo.one(
-      from(t in TestCaseRun, hints: ["FINAL"], where: t.inserted_at >= ^twenty_four_hours_ago, select: count())
+      from(d in TestCaseRunDashboardCount,
+        where: d.day >= ^yesterday,
+        select: fragment("countMerge(count)")
+      )
     ) || 0
   end
 
   def last_24h_flaky_test_case_run_count do
-    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
+    yesterday = Date.add(Date.utc_today(), -1)
 
     ClickHouseRepo.one(
-      from(t in TestCaseRun,
-        hints: ["FINAL"],
-        where: t.is_flaky == true and t.inserted_at >= ^twenty_four_hours_ago,
-        select: count()
+      from(d in TestCaseRunDashboardCount,
+        where: d.is_flaky == true and d.day >= ^yesterday,
+        select: fragment("countMerge(count)")
       )
     ) || 0
   end
