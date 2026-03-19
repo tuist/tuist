@@ -11,6 +11,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.testing.Test
@@ -122,33 +123,36 @@ internal fun discoverTestSuites(project: Project): List<String> {
 
 abstract class TuistPrepareTestShardsTask : DefaultTask() {
 
+    /** Maximum number of shards to distribute tests across. */
     @get:Input
     var shardMax: Int = 2
 
+    /** Minimum number of shards. */
     @get:Input
     @get:Optional
     var shardMin: Int? = null
 
+    /** Target maximum duration per shard in milliseconds. */
     @get:Input
     @get:Optional
     var shardMaxDuration: Int? = null
 
+    /** Explicit shard plan ID. Derived from CI environment variables when not set. */
     @get:Input
     @get:Optional
-    var planIdOverride: String? = null
+    var shardPlanId: String? = null
 
-    @get:Input
+    @get:Internal
     var serverUrl: String = "https://tuist.dev"
 
-    @get:Input
-    @get:Optional
+    @get:Internal
     var tuistProject: String? = null
 
     @TaskAction
     fun execute() {
         val shardingService = createShardingService()
 
-        val planId = planIdOverride
+        val planId = shardPlanId
             ?: shardingService.derivePlanId()
             ?: throw org.gradle.api.GradleException(
                 "Could not derive shard plan ID. Set TUIST_SHARD_PLAN_ID or run in a supported CI environment."
@@ -233,7 +237,7 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
             project.findProperty("tuistShardMin")?.toString()?.toIntOrNull()?.let { shardMin = it }
             project.findProperty("tuistShardMaxDuration")?.toString()?.toIntOrNull()?.let { shardMaxDuration = it }
 
-            System.getenv("TUIST_SHARD_PLAN_ID")?.let { planIdOverride = it }
+            System.getenv("TUIST_SHARD_PLAN_ID")?.let { shardPlanId = it }
 
             dependsOn(project.allprojects.flatMap { it.tasks.matching { task -> task.name == "testClasses" } })
         }
