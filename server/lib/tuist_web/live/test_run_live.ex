@@ -3,7 +3,6 @@ defmodule TuistWeb.TestRunLive do
   use TuistWeb, :live_view
   use Noora
 
-  import Ecto.Query
   import TuistWeb.Helpers.AttachmentHelpers
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.StackFrames
@@ -17,8 +16,6 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Shards.ShardPlan
-  alias Tuist.Shards.ShardPlanModule
-  alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Xcode
@@ -1321,11 +1318,11 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp target_counts_by_shard(%ShardPlan{granularity: "suite"} = plan) do
-    plan.test_suites |> Enum.frequencies_by(& &1.shard_index)
+    Enum.frequencies_by(plan.test_suites, & &1.shard_index)
   end
 
   defp target_counts_by_shard(%ShardPlan{} = plan) do
-    plan.modules |> Enum.frequencies_by(& &1.shard_index)
+    Enum.frequencies_by(plan.modules, & &1.shard_index)
   end
 
   defp target_counts_by_shard(_), do: %{}

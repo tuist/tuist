@@ -96,9 +96,6 @@ defmodule Tuist.ShardsTest do
         module_name: "CoreTests"
       )
 
-      ShardsFixtures.optimize_shard_plans()
-      ShardsFixtures.optimize_shard_plan_modules()
-
       stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
         "https://download.example.com"
       end)
@@ -132,9 +129,6 @@ defmodule Tuist.ShardsTest do
         test_suite_name: "SignupTests"
       )
 
-      ShardsFixtures.optimize_shard_plans()
-      ShardsFixtures.optimize_shard_plan_test_suites()
-
       stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
         "https://download.example.com"
       end)
@@ -149,8 +143,6 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      ShardsFixtures.optimize_shard_plans()
-
       assert {:error, :not_found} =
                Shards.get_shard(project, account, "nonexistent", 0)
     end
@@ -160,8 +152,6 @@ defmodule Tuist.ShardsTest do
       account = project.account
 
       ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "plan-3", granularity: "module")
-      ShardsFixtures.optimize_shard_plans()
-      ShardsFixtures.optimize_shard_plan_modules()
 
       assert {:error, :invalid_shard_index} =
                Shards.get_shard(project, account, "plan-3", 5)

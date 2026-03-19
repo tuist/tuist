@@ -712,7 +712,7 @@ defmodule Tuist.Tests do
     _ -> :error
   end
 
-  defp create_test_modules(test, test_modules, shard_index \\ nil, shard_plan \\ nil) do
+  defp create_test_modules(test, test_modules, shard_index, shard_plan) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
 
     Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
