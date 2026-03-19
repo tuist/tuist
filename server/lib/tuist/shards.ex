@@ -63,20 +63,15 @@ defmodule Tuist.Shards do
       inserted_at: now
     }
 
-    case %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert() do
-      {:ok, plan} ->
-        insert_shard_targets(plan, project.id, shards, granularity, now)
+    {:ok, plan} = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert()
 
-        {:ok,
-         %{
-           plan: plan,
-           shard_count: shard_count,
-           shard_assignments: shard_assignments
-         }}
+    insert_shard_targets(plan, project.id, shards, granularity, now)
 
-      {:error, changeset} ->
-        {:error, changeset}
-    end
+    %{
+      plan: plan,
+      shard_count: shard_count,
+      shard_assignments: shard_assignments
+    }
   end
 
   def start_upload(%Project{} = project, %Account{} = account, reference) do

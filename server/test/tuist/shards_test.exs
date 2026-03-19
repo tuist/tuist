@@ -20,7 +20,7 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
-      assert {:ok, result} = Shards.create_shard_plan(project, params)
+      result = Shards.create_shard_plan(project, params)
       assert result.shard_count == 2
       assert result.upload_id == "upload-id-123"
       assert length(result.shard_assignments) == 2
@@ -52,7 +52,7 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
-      assert {:ok, result} = Shards.create_shard_plan(project, params)
+      result = Shards.create_shard_plan(project, params)
       assert result.shard_count == 2
     end
 
@@ -70,7 +70,7 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
-      assert {:ok, result} = Shards.create_shard_plan(project, params)
+      result = Shards.create_shard_plan(project, params)
       assert result.shard_count == 2
     end
   end

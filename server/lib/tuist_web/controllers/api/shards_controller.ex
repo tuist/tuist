@@ -92,20 +92,14 @@ defmodule TuistWeb.API.ShardsController do
       granularity: Map.get(body_params, :granularity, "module")
     }
 
-    case Shards.create_shard_plan(selected_project, params) do
-      {:ok, result} ->
-        json(conn, %{
-          id: result.plan.id,
-          reference: result.plan.reference,
-          shard_count: result.shard_count,
-          shards: result.shard_assignments
-        })
+    result = Shards.create_shard_plan(selected_project, params)
 
-      {:error, _changeset} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: "Invalid parameters."})
-    end
+    json(conn, %{
+      id: result.plan.id,
+      reference: result.plan.reference,
+      shard_count: result.shard_count,
+      shards: result.shard_assignments
+    })
   end
 
   operation(:start_upload,
