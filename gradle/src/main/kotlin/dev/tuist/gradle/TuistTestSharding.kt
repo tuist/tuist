@@ -102,21 +102,24 @@ private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
 }
 
 internal fun discoverTestSuites(project: Project): List<String> {
+    val classDirs = project.allprojects.flatMap { subproject ->
+        subproject.tasks.withType(Test::class.java).flatMap { it.testClassesDirs.files }
+    }
+    return discoverTestSuitesFromDirs(classDirs)
+}
+
+internal fun discoverTestSuitesFromDirs(classDirs: List<java.io.File>): List<String> {
     val testSuites = mutableSetOf<String>()
-    for (subproject in project.allprojects) {
-        subproject.tasks.withType(Test::class.java).forEach { testTask ->
-            for (dir in testTask.testClassesDirs.files) {
-                if (!dir.exists()) continue
-                dir.walkTopDown()
-                    .filter { it.isFile && it.extension == "class" && !it.name.contains('$') }
-                    .forEach { file ->
-                        val fqcn = file.relativeTo(dir).path
-                            .removeSuffix(".class")
-                            .replace(java.io.File.separatorChar, '.')
-                        testSuites.add(fqcn)
-                    }
+    for (dir in classDirs) {
+        if (!dir.exists()) continue
+        dir.walkTopDown()
+            .filter { it.isFile && it.extension == "class" && !it.name.contains('$') }
+            .forEach { file ->
+                val fqcn = file.relativeTo(dir).path
+                    .removeSuffix(".class")
+                    .replace(java.io.File.separatorChar, '.')
+                testSuites.add(fqcn)
             }
-        }
     }
     return testSuites.sorted()
 }
