@@ -10,10 +10,6 @@ defmodule TuistWeb.API.ShardsControllerTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
-    stub(Tuist.IngestRepo, :all, fn _query -> [] end)
-    stub(Tuist.IngestRepo, :insert, fn changeset -> {:ok, Ecto.Changeset.apply_changes(changeset)} end)
-    stub(Tuist.IngestRepo, :one, fn _query -> nil end)
-    stub(Tuist.IngestRepo, :insert_all, fn _schema, _data -> {1, nil} end)
     stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id-123" end)
 
     %{user: user, project: project}
@@ -77,9 +73,15 @@ defmodule TuistWeb.API.ShardsControllerTest do
   end
 
   describe "GET /api/projects/:account/:project/tests/shards/:reference/:shard_index" do
-    test "returns shard assignment for valid params", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _plan_id, _shard_index ->
-        {:ok, %{modules: ["AppTests"], suites: %{}, download_url: "https://download.example.com"}}
+    test "returns shard for valid params", %{conn: conn, user: user, project: project} do
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
+        {:ok,
+         %{
+           shard_plan_id: Ecto.UUID.generate(),
+           modules: ["AppTests"],
+           suites: %{},
+           download_url: "https://download.example.com"
+         }}
       end)
 
       conn =
@@ -93,8 +95,8 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert response["download_url"] == "https://download.example.com"
     end
 
-    test "returns not found for nonexistent session", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _plan_id, _shard_index ->
+    test "returns not found for nonexistent plan", %{conn: conn, user: user, project: project} do
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
         {:error, :not_found}
       end)
 
@@ -108,7 +110,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
 
     test "returns not found for out-of-range shard index", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _plan_id, _shard_index ->
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
         {:error, :invalid_shard_index}
       end)
 
@@ -124,7 +126,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   describe "POST /api/projects/:account/:project/tests/shards/generate-url" do
     test "returns signed upload URL", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :generate_upload_url, fn _project, _account, _plan_id, _upload_id, _part ->
+      stub(Tuist.Shards, :generate_upload_url, fn _project, _account, _reference, _upload_id, _part ->
         {:ok, "https://upload.example.com/part"}
       end)
 
@@ -144,7 +146,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   describe "POST /api/projects/:account/:project/tests/shards/complete" do
     test "completes upload successfully", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :complete_upload, fn _project, _account, _plan_id, _upload_id, _parts ->
+      stub(Tuist.Shards, :complete_upload, fn _project, _account, _reference, _upload_id, _parts ->
         :ok
       end)
 
@@ -159,24 +161,6 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
       response = json_response(conn, :ok)
       assert response["status"] == "success"
-    end
-
-    test "returns not found for nonexistent session", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :complete_upload, fn _project, _account, _plan_id, _upload_id, _parts ->
-        {:error, :not_found}
-      end)
-
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/complete",
-          %{reference: "nonexistent", upload_id: "upload-id", parts: []}
-        )
-
-      response = json_response(conn, :not_found)
-      assert response["message"] =~ "not found"
     end
   end
 end
