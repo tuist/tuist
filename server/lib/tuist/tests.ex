@@ -178,8 +178,6 @@ defmodule Tuist.Tests do
   end
 
   def list_sharded_test_runs(attrs) do
-    import Ecto.Query, only: [from: 2]
-
     base_query = from(t in Test, where: not is_nil(t.shard_plan_id))
 
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: Test)
