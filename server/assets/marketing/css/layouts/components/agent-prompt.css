@@ -12,8 +12,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--agent-prompt-gap);
-    height: var(--agent-prompt-height);
     padding-bottom: var(--noora-spacing-4);
+    height: var(--agent-prompt-height);
     overflow-y: auto;
     scrollbar-gutter: stable;
   }
@@ -31,10 +31,10 @@
   }
 
   & [data-part="shell-prompt"] {
-    flex-shrink: 0;
     display: inline-block;
-    color: var(--noora-surface-label-secondary);
+    flex-shrink: 0;
     width: var(--agent-prompt-prefix-width);
+    color: var(--noora-surface-label-secondary);
   }
 
   & [data-part="prompt-text"] {
@@ -45,9 +45,9 @@
 
   & [data-part="response-section"] {
     padding-left: calc(var(--agent-prompt-prefix-width) + var(--noora-spacing-2));
+    min-height: 1lh;
     color: var(--agent-prompt-response-color);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
-    min-height: 1lh;
     line-height: var(--agent-prompt-line-height);
   }
 
@@ -71,12 +71,12 @@
   & [data-part="response-cursor"] {
     display: inline-block;
     vertical-align: text-bottom;
+    visibility: hidden;
+    animation: agent-prompt-blink 0.8s step-end infinite;
     margin-left: var(--noora-spacing-1);
+    border-radius: var(--noora-radius-xsmall);
     width: 0.65ch;
     height: 1em;
-    border-radius: var(--noora-radius-xsmall);
-    animation: agent-prompt-blink 0.8s step-end infinite;
-    visibility: hidden;
   }
 
   & [data-part="prompt-cursor"] {

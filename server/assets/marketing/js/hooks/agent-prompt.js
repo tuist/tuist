@@ -90,12 +90,8 @@ const AgentPrompt = {
 
     this.timers = new Set();
     this.prompt = this.elements.prompt.dataset.value || "";
-    this.responseSteps = parseResponseSteps(
-      this.elements.responseSection.dataset.responseSteps
-    );
-    this.prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
+    this.responseSteps = parseResponseSteps(this.elements.responseSection.dataset.responseSteps);
+    this.prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     this.handleClick = (event) => {
       if (!event.target.closest(SELECTORS.trigger)) return;
@@ -120,15 +116,7 @@ const AgentPrompt = {
     this.clearTimers();
     this.started = false;
 
-    const {
-      code,
-      prompt,
-      response,
-      promptCursor,
-      responseCursor,
-      responseSection,
-      trigger,
-    } = this.elements;
+    const { code, prompt, response, promptCursor, responseCursor, responseSection, trigger } = this.elements;
 
     prompt.textContent = "";
     response.textContent = "";
@@ -170,8 +158,7 @@ const AgentPrompt = {
   },
 
   playPrompt() {
-    const { code, prompt, promptCursor, responseCursor, responseSection } =
-      this.elements;
+    const { code, prompt, promptCursor, responseCursor, responseSection } = this.elements;
 
     setCursorVisibility(promptCursor, true);
 
@@ -201,10 +188,7 @@ const AgentPrompt = {
 
     this.typeRichText(response, text, () => {
       this.scrollToBottom(code);
-      this.schedule(
-        () => this.playResponseStep(index + 1),
-        step.waitMs > 0 ? step.waitMs : TIMING.stepPauseMs
-      );
+      this.schedule(() => this.playResponseStep(index + 1), step.waitMs > 0 ? step.waitMs : TIMING.stepPauseMs);
     });
   },
 
@@ -224,18 +208,12 @@ const AgentPrompt = {
     if (segment.type === "link") {
       appendLink(container, segment.value);
       this.scrollToBottom(this.elements.code);
-      this.schedule(
-        () => this.typeSegments(container, segments, index + 1, onComplete),
-        TIMING.responseCharMs
-      );
+      this.schedule(() => this.typeSegments(container, segments, index + 1, onComplete), TIMING.responseCharMs);
       return;
     }
 
-    this.typeCharacters(
-      container,
-      segment.value,
-      TIMING.responseCharMs,
-      () => this.typeSegments(container, segments, index + 1, onComplete)
+    this.typeCharacters(container, segment.value, TIMING.responseCharMs, () =>
+      this.typeSegments(container, segments, index + 1, onComplete),
     );
   },
 
