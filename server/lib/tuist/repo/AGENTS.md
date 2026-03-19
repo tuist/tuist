@@ -1,20 +1,15 @@
-# Repo (Context)
+# Repo Monitoring
 
-This context owns the primary Ecto repository and DB pool utilities.
+This context owns the Tuist Server wrappers around shared repo monitoring.
 
 ## Responsibilities
-- Define the Postgres repo.
-- Surface connection pool metrics for monitoring.
+- Configure shared repo pool metrics for the server repos.
+- Keep repo labels and telemetry prefixes aligned with PromEx wiring.
 
 ## Boundaries
-- HTTP/API and UI code live in `server/lib/tuist_web`.
-- Configuration belongs in `server/config`.
-- Schema changes and migrations live in `server/priv`.
-
-## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Shared repo pool metric implementation belongs in `tuist_common/`.
+- Repo startup and supervision wiring belongs in `server/lib/tuist/application.ex`.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`
-- Web layer: `server/lib/tuist_web/AGENTS.md`
-- Migrations: `server/priv/AGENTS.md`
+- Shared helpers: `tuist_common/AGENTS.md`

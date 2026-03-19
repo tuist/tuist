@@ -27,6 +27,8 @@ defmodule TuistCommon.MixProject do
       {:sentry, "~> 11.0.4"},
       {:bandit, "~> 1.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:db_connection, "~> 2.0"},
+      {:ecto, "~> 3.13"},
       {:ex_aws, "~> 2.0"},
       {:finch, "~> 0.21.0"},
       {:phoenix, "~> 1.7", only: :test},

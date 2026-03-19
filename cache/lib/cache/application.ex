@@ -3,6 +3,8 @@ defmodule Cache.Application do
 
   use Application
 
+  alias Cache.DBConnection.TelemetryListener
+
   require Logger
 
   @impl true
@@ -21,8 +23,9 @@ defmodule Cache.Application do
     start_opentelemetry()
 
     base_children = [
-      Cache.Repo,
-      Cache.KeyValueRepo,
+      {DBConnection.TelemetryListener, name: TelemetryListener},
+      {Cache.Repo, connection_listeners: {[TelemetryListener], :cache}},
+      {Cache.KeyValueRepo, connection_listeners: {[TelemetryListener], :key_value}},
       Cache.KeyValueBuffer,
       Cache.CacheArtifactsBuffer,
       Cache.S3TransfersBuffer,

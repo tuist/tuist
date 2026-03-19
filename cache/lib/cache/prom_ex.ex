@@ -20,6 +20,7 @@ defmodule Cache.PromEx do
       Cache.Xcode.PromExPlugin,
       Cache.KeyValue.PromExPlugin,
       Cache.XcodeModule.PromExPlugin,
+      Cache.Repo.PromExPlugin,
       Cache.Finch.PromExPlugin,
       Cache.SQLiteBuffer.PromExPlugin,
       Cache.S3Transfers.PromExPlugin,
