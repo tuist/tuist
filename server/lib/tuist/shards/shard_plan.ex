@@ -14,6 +14,9 @@ defmodule Tuist.Shards.ShardPlan do
     field :shard_count, Ch, type: "Int32"
     field :granularity, Ch, type: "LowCardinality(String)", default: "module"
     field :inserted_at, Ch, type: "DateTime64(6)"
+
+    has_many :modules, Tuist.Shards.ShardPlanModule, foreign_key: :shard_plan_id
+    has_many :test_suites, Tuist.Shards.ShardPlanTestSuite, foreign_key: :shard_plan_id
   end
 
   def create_changeset(shard_plan \\ %__MODULE__{}, attrs) do

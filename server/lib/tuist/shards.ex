@@ -65,7 +65,7 @@ defmodule Tuist.Shards do
 
     case %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert() do
       {:ok, plan} ->
-        insert_shard_targets(reference, project.id, shards, granularity, now)
+        insert_shard_targets(plan, project.id, shards, granularity, now)
 
         {:ok,
          %{
@@ -90,7 +90,7 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        case fetch_shard_data(plan, reference, project.id, shard_index) do
+        case fetch_shard_data(plan, shard_index) do
           nil ->
             {:error, :invalid_shard_index}
 
@@ -130,12 +130,12 @@ defmodule Tuist.Shards do
     "#{account.id}/#{project.id}/shards/#{reference}/bundle.zip"
   end
 
-  defp insert_shard_targets(reference, project_id, shards, "module", now) do
+  defp insert_shard_targets(plan, project_id, shards, "module", now) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
           %{
-            reference: reference,
+            shard_plan_id: plan.id,
             project_id: project_id,
             shard_index: index,
             module_name: name,
@@ -148,7 +148,7 @@ defmodule Tuist.Shards do
     if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
   end
 
-  defp insert_shard_targets(reference, project_id, shards, "suite", now) do
+  defp insert_shard_targets(plan, project_id, shards, "suite", now) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
@@ -159,7 +159,7 @@ defmodule Tuist.Shards do
             end
 
           %{
-            reference: reference,
+            shard_plan_id: plan.id,
             project_id: project_id,
             shard_index: index,
             module_name: module_name,
@@ -173,30 +173,24 @@ defmodule Tuist.Shards do
     if rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, rows)
   end
 
-  defp fetch_shard_data(%ShardPlan{granularity: "module"}, reference, project_id, shard_index) do
+  defp fetch_shard_data(%ShardPlan{granularity: "module"} = plan, shard_index) do
+    plan = ClickHouseRepo.preload(plan, :modules)
+
     modules =
-      ClickHouseRepo.all(
-        from(m in ShardPlanModule,
-          where: m.reference == ^reference,
-          where: m.project_id == ^project_id,
-          where: m.shard_index == ^shard_index,
-          select: m.module_name
-        )
-      )
+      plan.modules
+      |> Enum.filter(&(&1.shard_index == shard_index))
+      |> Enum.map(& &1.module_name)
 
     if modules == [], do: nil, else: %{modules: modules, suites: %{}}
   end
 
-  defp fetch_shard_data(%ShardPlan{granularity: "suite"}, reference, project_id, shard_index) do
+  defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index) do
+    plan = ClickHouseRepo.preload(plan, :test_suites)
+
     results =
-      ClickHouseRepo.all(
-        from(s in ShardPlanTestSuite,
-          where: s.reference == ^reference,
-          where: s.project_id == ^project_id,
-          where: s.shard_index == ^shard_index,
-          select: {s.module_name, s.test_suite_name}
-        )
-      )
+      plan.test_suites
+      |> Enum.filter(&(&1.shard_index == shard_index))
+      |> Enum.map(&{&1.module_name, &1.test_suite_name})
 
     if results == [] do
       nil

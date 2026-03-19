@@ -83,14 +83,14 @@ defmodule Tuist.ShardsTest do
       plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "plan-1", granularity: "module")
 
       ShardsFixtures.shard_plan_module_fixture(
-        reference: plan.reference,
+        shard_plan_id: plan.id,
         project_id: project.id,
         shard_index: 0,
         module_name: "AppTests"
       )
 
       ShardsFixtures.shard_plan_module_fixture(
-        reference: plan.reference,
+        shard_plan_id: plan.id,
         project_id: project.id,
         shard_index: 0,
         module_name: "CoreTests"
@@ -117,7 +117,7 @@ defmodule Tuist.ShardsTest do
         ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "plan-2", granularity: "suite")
 
       ShardsFixtures.shard_plan_test_suite_fixture(
-        reference: plan.reference,
+        shard_plan_id: plan.id,
         project_id: project.id,
         shard_index: 0,
         module_name: "AppTests",
@@ -125,7 +125,7 @@ defmodule Tuist.ShardsTest do
       )
 
       ShardsFixtures.shard_plan_test_suite_fixture(
-        reference: plan.reference,
+        shard_plan_id: plan.id,
         project_id: project.id,
         shard_index: 0,
         module_name: "AppTests",

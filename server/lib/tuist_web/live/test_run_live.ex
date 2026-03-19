@@ -3,6 +3,7 @@ defmodule TuistWeb.TestRunLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Ecto.Query
   import TuistWeb.Helpers.AttachmentHelpers
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.StackFrames
@@ -1321,7 +1322,7 @@ defmodule TuistWeb.TestRunLive do
     import Ecto.Query
 
     from(s in ShardPlanTestSuite,
-      where: s.reference == ^plan_id,
+      where: s.shard_plan_id == ^plan_id,
       where: s.project_id == ^project_id,
       group_by: s.shard_index,
       select: {s.shard_index, count()}
@@ -1334,7 +1335,7 @@ defmodule TuistWeb.TestRunLive do
     import Ecto.Query
 
     from(m in ShardPlanModule,
-      where: m.reference == ^plan_id,
+      where: m.shard_plan_id == ^plan_id,
       where: m.project_id == ^project_id,
       group_by: m.shard_index,
       select: {m.shard_index, count()}

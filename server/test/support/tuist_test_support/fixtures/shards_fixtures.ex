@@ -52,7 +52,7 @@ defmodule TuistTestSupport.Fixtures.ShardsFixtures do
     now = NaiveDateTime.utc_now()
 
     row = %{
-      reference: Keyword.fetch!(attrs, :plan_id),
+      shard_plan_id: Keyword.fetch!(attrs, :shard_plan_id),
       project_id: Keyword.fetch!(attrs, :project_id),
       shard_index: Keyword.get(attrs, :shard_index, 0),
       module_name: Keyword.fetch!(attrs, :module_name),
@@ -68,7 +68,7 @@ defmodule TuistTestSupport.Fixtures.ShardsFixtures do
     now = NaiveDateTime.utc_now()
 
     row = %{
-      reference: Keyword.fetch!(attrs, :plan_id),
+      shard_plan_id: Keyword.fetch!(attrs, :shard_plan_id),
       project_id: Keyword.fetch!(attrs, :project_id),
       shard_index: Keyword.get(attrs, :shard_index, 0),
       module_name: Keyword.fetch!(attrs, :module_name),
