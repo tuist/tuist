@@ -28,7 +28,7 @@ public enum InspectBundleCommandServiceError: LocalizedError {
         case let .projectOrWorkspaceNotFound(path):
             "Workspace or project not found at \(path)"
         case let .noAppsFound(app, configuration):
-            "\(app) for the \(configuration) configuration was not found. You can build it by running `xcodebuild build -scheme \(app) -configuration \(configuration)`"
+            "\(app) was not found in Xcode build products for the \(configuration) configuration. Build the app first or pass an explicit bundle path."
         case let .multipleBuiltBundlesFound(app, paths):
             "Multiple built bundles were found for \(app): \(paths.joined(separator: ", ")). Pass an explicit bundle path."
         case .platformsNotSpecified:
