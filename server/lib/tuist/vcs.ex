@@ -239,7 +239,7 @@ defmodule Tuist.VCS do
       end
 
     with true <- git_commit_sha != "",
-         true <- git_ref != "",
+         true <- not is_nil(git_ref) and git_ref != "",
          true <- not is_nil(repository_full_handle),
          true <- String.starts_with?(git_ref, "refs/pull/"),
          {:ok, installation_id} <-

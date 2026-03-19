@@ -643,13 +643,6 @@ export async function guidesSidebar(locale) {
           link: localizedDocsPath(locale, "/guides/features/bundle-size"),
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${qaIcon()} ${localizedString(
-            locale,
-            "sidebars.guides.items.develop.items.qa.text",
-          )}</span>`,
-          link: localizedDocsPath(locale, "/guides/features/qa"),
-        },
-        {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${previewsIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.share.items.previews.text",

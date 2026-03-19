@@ -1,15 +1,30 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.159.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.160.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* redact sensitive headers in verbose HTTP logs by [@fortmarek](https://github.com/fortmarek) in [#9906](https://github.com/tuist/tuist/pull/9906)
+* restore TuistCacheEE submodule pointer to include empty graph fix by [@fortmarek](https://github.com/fortmarek) in [#9904](https://github.com/tuist/tuist/pull/9904)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.160.1...4.160.2
+
+## What's Changed in 4.160.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* log test targets that will be tested by [@pepicrft](https://github.com/pepicrft) in [#9731](https://github.com/tuist/tuist/pull/9731)
+### 🐛 Bug Fixes
+
+* use xcactivitylog UUID as build ID for remote processing by [@fortmarek](https://github.com/fortmarek) in [#9897](https://github.com/tuist/tuist/pull/9897)
 * allow iOS bundle targets to have dependencies by [@fortmarek](https://github.com/fortmarek) in [#9883](https://github.com/tuist/tuist/pull/9883)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.159.0...4.159.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.159.0...4.160.1
 
 ## What's Changed in 4.159.0<!-- RELEASE NOTES START -->
 

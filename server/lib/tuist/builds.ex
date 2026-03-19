@@ -21,7 +21,7 @@ defmodule Tuist.Builds do
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def build_storage_key(account_handle, project_handle, build_id) do
-    "#{account_handle}/#{project_handle}/builds/#{build_id}/build.zip"
+    "#{account_handle}/#{project_handle}/builds/#{String.downcase(build_id)}/build.zip"
   end
 
   def total_count do
@@ -38,7 +38,7 @@ defmodule Tuist.Builds do
 
   def get_build(id) do
     Build
-    |> from(where: [id: ^id], order_by: [desc: :inserted_at], limit: 1)
+    |> from(hints: ["FINAL"], where: [id: ^id])
     |> ClickHouseRepo.one()
   end
 
