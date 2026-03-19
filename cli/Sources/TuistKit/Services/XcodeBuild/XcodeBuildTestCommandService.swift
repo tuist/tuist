@@ -213,7 +213,6 @@ struct XcodeBuildTestCommandService {
         shardIndex: Int? = nil
     ) async {
         guard let resultBundlePath,
-              let projectDerivedDataDirectory,
               config.fullHandle != nil,
               (try? await fileSystem.exists(resultBundlePath)) == true
         else { return }
