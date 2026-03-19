@@ -2363,5 +2363,5 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:41
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:23
 #, elixir-autogen, elixir-format
-msgid "We focus on optimizing your setup, so your team can focus on shipping"
+msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
 msgstr ""

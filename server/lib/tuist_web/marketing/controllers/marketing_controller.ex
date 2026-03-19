@@ -40,7 +40,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       dgettext(
         "marketing",
-        "We focus on optimizing your setup, so your team can focus on shipping"
+        "We virtually join your team to optimize your setup, so you can focus on shipping"
       )
     )
     |> assign(
