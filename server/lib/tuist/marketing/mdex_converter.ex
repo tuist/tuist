@@ -55,7 +55,7 @@ defmodule Tuist.Marketing.MDExConverter do
 
         %MDEx.HtmlBlock{
           literal: """
-          <div data-part="marketing-window">\
+          <div class="marketing-window">\
           <div data-part="bar">\
           <div data-part="language">#{language}</div>\
           <div data-part="copy">\

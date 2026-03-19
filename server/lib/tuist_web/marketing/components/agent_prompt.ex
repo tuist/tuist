@@ -12,7 +12,7 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
     assigns = assign(assigns, :response_steps_json, Jason.encode!(normalize_response_steps(assigns.response)))
 
     ~H"""
-    <div id={@id} phx-hook="AgentPrompt" phx-update="ignore">
+    <div id={"agent_prompt_window-" <> @id} phx-hook="AgentPrompt" phx-update="ignore">
       <div data-part="bar">
         <div data-part="language">{@title}</div>
         <button

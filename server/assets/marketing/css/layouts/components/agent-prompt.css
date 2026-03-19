@@ -1,4 +1,4 @@
-[phx-hook="AgentPrompt"] {
+[id^="agent_prompt_window-"] {
   --agent-prompt-height: 12lh;
   --agent-prompt-gap: var(--noora-spacing-2);
   --agent-prompt-line-height: 1.45;
