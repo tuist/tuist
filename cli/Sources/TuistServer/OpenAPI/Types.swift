@@ -3927,7 +3927,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/modules`.
             public var modules: [Swift.String]?
-            /// A unique plan identifier.
+            /// A unique shard plan reference, typically derived from CI environment.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/reference`.
             public var reference: Swift.String
@@ -3956,7 +3956,7 @@ public enum Components {
             /// - Parameters:
             ///   - granularity: Sharding granularity level.
             ///   - modules: Test module names (for module-level granularity).
-            ///   - reference: A unique plan identifier.
+            ///   - reference: A unique shard plan reference, typically derived from CI environment.
             ///   - shard_max: Maximum number of shards.
             ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
             ///   - shard_min: Minimum number of shards.
@@ -7945,7 +7945,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/ShardPlan/id`.
             public var id: Swift.String
-            /// The plan identifier.
+            /// A unique shard plan reference, typically derived from CI environment.
             ///
             /// - Remark: Generated from `#/components/schemas/ShardPlan/reference`.
             public var reference: Swift.String
@@ -8004,7 +8004,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - id: The shard plan UUID.
-            ///   - reference: The plan identifier.
+            ///   - reference: A unique shard plan reference, typically derived from CI environment.
             ///   - shard_count: The number of shards.
             ///   - shards: The shard assignments.
             ///   - upload_id: The multipart upload ID for the test products bundle.
@@ -8085,7 +8085,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/parts`.
             public var parts: Components.Schemas.CompleteShardUploadParams.partsPayload
-            /// The shard plan identifier.
+            /// The shard plan reference.
             ///
             /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/reference`.
             public var reference: Swift.String
@@ -8097,7 +8097,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - parts: The uploaded parts with their ETags.
-            ///   - reference: The shard plan identifier.
+            ///   - reference: The shard plan reference.
             ///   - upload_id: The multipart upload ID.
             public init(
                 parts: Components.Schemas.CompleteShardUploadParams.partsPayload,
@@ -9710,7 +9710,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams/part_number`.
             public var part_number: Swift.Int
-            /// The shard plan identifier.
+            /// The shard plan reference.
             ///
             /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams/reference`.
             public var reference: Swift.String
@@ -9722,7 +9722,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - part_number: The part number.
-            ///   - reference: The shard plan identifier.
+            ///   - reference: The shard plan reference.
             ///   - upload_id: The multipart upload ID.
             public init(
                 part_number: Swift.Int,
@@ -13894,7 +13894,7 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/path/project_handle`.
                 public var project_handle: Swift.String
-                /// The shard plan identifier.
+                /// The shard plan reference.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/path/reference`.
                 public var reference: Swift.String
@@ -13907,7 +13907,7 @@ public enum Operations {
                 /// - Parameters:
                 ///   - account_handle: The handle of the project's account.
                 ///   - project_handle: The handle of the project.
-                ///   - reference: The shard plan identifier.
+                ///   - reference: The shard plan reference.
                 ///   - shard_index: The zero-based shard index.
                 public init(
                     account_handle: Swift.String,
@@ -20119,7 +20119,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/generate-url/POST/requestBody/json/part_number`.
                     public var part_number: Swift.Int
-                    /// The shard plan identifier.
+                    /// The shard plan reference.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/generate-url/POST/requestBody/json/reference`.
                     public var reference: Swift.String
@@ -20131,7 +20131,7 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - part_number: The part number.
-                    ///   - reference: The shard plan identifier.
+                    ///   - reference: The shard plan reference.
                     ///   - upload_id: The multipart upload ID.
                     public init(
                         part_number: Swift.Int,
@@ -30749,7 +30749,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/complete/POST/requestBody/json/parts`.
                     public var parts: Operations.completeShardUpload.Input.Body.jsonPayload.partsPayload
-                    /// The shard plan identifier.
+                    /// The shard plan reference.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/complete/POST/requestBody/json/reference`.
                     public var reference: Swift.String
@@ -30761,7 +30761,7 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - parts: The uploaded parts with their ETags.
-                    ///   - reference: The shard plan identifier.
+                    ///   - reference: The shard plan reference.
                     ///   - upload_id: The multipart upload ID.
                     public init(
                         parts: Operations.completeShardUpload.Input.Body.jsonPayload.partsPayload,
@@ -47036,7 +47036,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/modules`.
                     public var modules: [Swift.String]?
-                    /// A unique plan identifier.
+                    /// A unique shard plan reference, typically derived from CI environment.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/reference`.
                     public var reference: Swift.String
@@ -47065,7 +47065,7 @@ public enum Operations {
                     /// - Parameters:
                     ///   - granularity: Sharding granularity level.
                     ///   - modules: Test module names (for module-level granularity).
-                    ///   - reference: A unique plan identifier.
+                    ///   - reference: A unique shard plan reference, typically derived from CI environment.
                     ///   - shard_max: Maximum number of shards.
                     ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
                     ///   - shard_min: Minimum number of shards.

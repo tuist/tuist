@@ -42,7 +42,10 @@ defmodule TuistWeb.API.ShardsController do
          title: "CreateShardPlanParams",
          type: :object,
          properties: %{
-           reference: %Schema{type: :string, description: "A unique plan identifier."},
+           reference: %Schema{
+             type: :string,
+             description: "A unique shard plan reference, typically derived from CI environment."
+           },
            modules: %Schema{
              type: :array,
              items: %Schema{type: :string},
@@ -127,7 +130,7 @@ defmodule TuistWeb.API.ShardsController do
         in: :path,
         type: :string,
         required: true,
-        description: "The shard plan identifier."
+        description: "The shard plan reference."
       ],
       shard_index: [
         in: :path,
@@ -202,7 +205,7 @@ defmodule TuistWeb.API.ShardsController do
          title: "GenerateShardUploadURLParams",
          type: :object,
          properties: %{
-           reference: %Schema{type: :string, description: "The shard plan identifier."},
+           reference: %Schema{type: :string, description: "The shard plan reference."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
            part_number: %Schema{type: :integer, description: "The part number."}
          },
@@ -267,7 +270,7 @@ defmodule TuistWeb.API.ShardsController do
          title: "CompleteShardUploadParams",
          type: :object,
          properties: %{
-           reference: %Schema{type: :string, description: "The shard plan identifier."},
+           reference: %Schema{type: :string, description: "The shard plan reference."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
            parts: %Schema{
              type: :array,

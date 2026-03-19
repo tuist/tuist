@@ -16,7 +16,7 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
       },
       reference: %Schema{
         type: :string,
-        description: "The plan identifier."
+        description: "A unique shard plan reference, typically derived from CI environment."
       },
       shard_count: %Schema{
         type: :integer,
