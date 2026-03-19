@@ -62,6 +62,19 @@ struct XcodeBuildBuildCommandService {
             contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         )
 
+        // When sharding, ensure -testProductsPath is set so xcodebuild produces
+        // a .xctestproducts bundle (required for shard distribution).
+        if shardMin != nil || shardMax != nil || shardTotal != nil {
+            if passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) == nil {
+                let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
+                let testProductsDir = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
+                    .appending(component: "shard-test-products")
+                try await fileSystem.makeDirectory(at: testProductsDir)
+                let productsPath = testProductsDir.appending(component: "\(schemeName).xctestproducts")
+                passthroughXcodebuildArguments += ["-testProductsPath", productsPath.pathString]
+            }
+        }
+
         try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath

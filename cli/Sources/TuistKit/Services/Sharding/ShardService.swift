@@ -51,20 +51,17 @@ public struct ShardService: ShardServicing {
     private let ciController: CIControlling
     private let fileClient: FileClienting
     private let fileSystem: FileSysteming
-    private let fileUnarchiver: FileArchivingFactorying
 
     public init(
         getShardService: GetShardServicing = GetShardService(),
         ciController: CIControlling = CIController(),
         fileClient: FileClienting = FileClient(),
-        fileSystem: FileSysteming = FileSystem(),
-        fileUnarchiver: FileArchivingFactorying = FileArchivingFactory()
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.getShardService = getShardService
         self.ciController = ciController
         self.fileClient = fileClient
         self.fileSystem = fileSystem
-        self.fileUnarchiver = fileUnarchiver
     }
 
     public func shard(
@@ -93,8 +90,8 @@ public struct ShardService: ShardServicing {
         let shardZipPath = try await fileClient.download(url: downloadURL)
         Logger.current.debug("Downloaded test products bundle.")
 
-        let unarchiver = try fileUnarchiver.makeFileUnarchiver(for: shardZipPath)
-        let unzippedPath = try unarchiver.unzip()
+        let unzippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+        try await System.shared.run(["/usr/bin/ditto", "-x", "-k", shardZipPath.pathString, unzippedPath.pathString])
 
         guard let testProductsPath = try await fileSystem
             .glob(directory: unzippedPath, include: ["*.xctestproducts"])
