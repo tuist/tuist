@@ -395,6 +395,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         var passthroughXcodeBuildArguments = passthroughXcodeBuildArguments
 
+        if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
+           !passthroughXcodeBuildArguments.contains("-testProductsPath")
+        {
+            let testProductsDir = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
+                .appending(component: "shard-test-products")
+            try await fileSystem.makeDirectory(at: testProductsDir)
+            let schemeName = schemeName ?? schemes.first?.name ?? "Test"
+            let productsPath = testProductsDir.appending(component: "\(schemeName).xctestproducts")
+            passthroughXcodeBuildArguments += ["-testProductsPath", productsPath.pathString]
+        }
+
         let schemeTestTargetNames = Set(
             schemes.flatMap {
                 testActionTargetReferences(
@@ -445,7 +456,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
            let fullHandle = config.fullHandle
         {
-            let testProductsPath = try await resolveTestProductsPath(derivedDataPath: derivedDataPath)
+            let testProductsPath = try await resolveTestProductsPath(
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                derivedDataPath: derivedDataPath
+            )
 
             let selectiveTestingGraph = computeSelectiveTestingGraph(
                 mapperEnvironment: mapperEnvironment,
@@ -645,7 +659,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return arguments
     }
 
-    private func resolveTestProductsPath(derivedDataPath: AbsolutePath?) async throws -> AbsolutePath {
+    private func resolveTestProductsPath(
+        passthroughXcodeBuildArguments: [String],
+        derivedDataPath: AbsolutePath?
+    ) async throws -> AbsolutePath {
+        if let index = passthroughXcodeBuildArguments.firstIndex(of: "-testProductsPath"),
+           passthroughXcodeBuildArguments.indices.contains(index + 1)
+        {
+            return try AbsolutePath(validating: passthroughXcodeBuildArguments[index + 1])
+        }
+
         guard let derivedDataPath else {
             throw TestServiceError.testProductsNotFound
         }

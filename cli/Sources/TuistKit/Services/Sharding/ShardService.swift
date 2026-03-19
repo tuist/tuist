@@ -140,38 +140,52 @@ public struct ShardService: ShardServicing {
         guard var plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
             throw ShardServiceError.invalidXCTestRun
         }
-        guard var configurations = plist["TestConfigurations"] as? [[String: Any]] else {
-            throw ShardServiceError.invalidXCTestRun
-        }
 
         let moduleSet = Set(modules)
 
-        configurations = configurations.map { config in
-            var config = config
-            guard var targets = config["TestTargets"] as? [[String: Any]] else { return config }
+        if var configurations = plist["TestConfigurations"] as? [[String: Any]] {
+            configurations = configurations.map { config in
+                var config = config
+                guard var targets = config["TestTargets"] as? [[String: Any]] else { return config }
 
-            targets = targets.filter { target in
-                guard let name = target["BlueprintName"] as? String else { return false }
-                return moduleSet.contains(name)
+                targets = targets.filter { target in
+                    guard let name = target["BlueprintName"] as? String else { return false }
+                    return moduleSet.contains(name)
+                }
+
+                if !suites.isEmpty {
+                    targets = targets.map { target in
+                        var target = target
+                        if let name = target["BlueprintName"] as? String,
+                           let suiteNames = suites[name]
+                        {
+                            target["OnlyTestIdentifiers"] = suiteNames
+                        }
+                        return target
+                    }
+                }
+
+                config["TestTargets"] = targets
+                return config
             }
 
-            if !suites.isEmpty {
-                targets = targets.map { target in
-                    var target = target
-                    if let name = target["BlueprintName"] as? String,
-                       let suiteNames = suites[name]
-                    {
-                        target["OnlyTestIdentifiers"] = suiteNames
-                    }
-                    return target
+            plist["TestConfigurations"] = configurations
+        } else {
+            for key in plist.keys where !key.hasPrefix("__") {
+                guard let entry = plist[key] as? [String: Any],
+                      let name = entry["BlueprintName"] as? String
+                else { continue }
+
+                if !moduleSet.contains(name) {
+                    plist.removeValue(forKey: key)
+                } else if !suites.isEmpty, let suiteNames = suites[name] {
+                    var entry = entry
+                    entry["OnlyTestIdentifiers"] = suiteNames
+                    plist[key] = entry
                 }
             }
-
-            config["TestTargets"] = targets
-            return config
         }
 
-        plist["TestConfigurations"] = configurations
         return try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
     }
 }

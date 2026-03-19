@@ -1,11 +1,7 @@
 import Foundation
 
-public struct XCTestRun: Decodable, Equatable {
+public struct XCTestRun: Equatable {
     public let testConfigurations: [TestConfiguration]
-
-    enum CodingKeys: String, CodingKey {
-        case testConfigurations = "TestConfigurations"
-    }
 
     public struct TestConfiguration: Decodable, Equatable {
         public let testTargets: [TestTarget]?
@@ -29,5 +25,46 @@ public struct XCTestRun: Decodable, Equatable {
         testConfigurations
             .flatMap { $0.testTargets ?? [] }
             .map(\.blueprintName)
+    }
+}
+
+extension XCTestRun: Decodable {
+    private struct NewFormat: Decodable {
+        let testConfigurations: [TestConfiguration]
+
+        enum CodingKeys: String, CodingKey {
+            case testConfigurations = "TestConfigurations"
+        }
+    }
+
+    private struct LegacyEntry: Decodable {
+        let blueprintName: String
+
+        enum CodingKeys: String, CodingKey {
+            case blueprintName = "BlueprintName"
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        if let newFormat = try? NewFormat(from: decoder) {
+            testConfigurations = newFormat.testConfigurations
+            return
+        }
+
+        let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+        var targets: [TestTarget] = []
+        for key in container.allKeys {
+            if key.stringValue.hasPrefix("__") { continue }
+            guard let entry = try? container.decode(LegacyEntry.self, forKey: key) else { continue }
+            targets.append(TestTarget(blueprintName: entry.blueprintName, onlyTestIdentifiers: nil))
+        }
+        testConfigurations = [TestConfiguration(testTargets: targets)]
+    }
+
+    private struct DynamicCodingKey: CodingKey {
+        var stringValue: String
+        var intValue: Int?
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { self.intValue = intValue; self.stringValue = "\(intValue)" }
     }
 }

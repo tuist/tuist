@@ -5,6 +5,7 @@
     import Path
     import Testing
     import TuistSupport
+    import TuistTesting
 
     @testable import TuistAutomation
 
