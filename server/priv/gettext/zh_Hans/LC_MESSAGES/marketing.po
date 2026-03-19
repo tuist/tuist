@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-25 14:36+0000\n"
-"PO-Revision-Date: 2026-03-12 17:34+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>\n"
-"Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\n"
-"Language: zh_Hans\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2026-03-19 15:01+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -1464,14 +1452,17 @@ msgstr "标准"
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr "追踪测试性能，及早发现低效测试，无需翻阅日志即可排查持续集成失败问题。"
 
+#, fuzzy
 msgid "Your mobile platform team,"
-msgstr ""
+msgstr "您的移动平台团队，"
 
+#, fuzzy
 msgid "as a service"
-msgstr ""
+msgstr "作为一项服务"
 
+#, fuzzy
 msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
-msgstr ""
+msgstr "我们将虚拟加入您的团队以优化您的配置，让您能够专注于产品发布"
 
 #~ msgid "Make mobile"
 #~ msgstr "让移动开发成为"
