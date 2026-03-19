@@ -24,7 +24,6 @@ defmodule Tuist.VCS do
   alias Tuist.Tests.Analytics, as: TestsAnalytics
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
-  alias Tuist.VCS
   alias Tuist.VCS.GitHubAppInstallation
   alias Tuist.VCS.Workers.CommentWorker
 
@@ -760,11 +759,13 @@ defmodule Tuist.VCS do
     if Enum.empty?(failed_tests_by_run) do
       nil
     else
-      project = Repo.preload(project, :account)
+      project = Repo.preload(project, [:account, :vcs_connection])
 
       all_failed_tests =
         failed_tests_by_run
-        |> Enum.flat_map(fn {_test_run, failed_tests} -> failed_tests end)
+        |> Enum.flat_map(fn {test_run, failed_tests} ->
+          Enum.map(failed_tests, &Map.put(&1, :git_commit_sha, test_run.git_commit_sha))
+        end)
         |> Enum.uniq_by(& &1.test_case_id)
 
       total_failed_count = length(all_failed_tests)
@@ -790,36 +791,75 @@ defmodule Tuist.VCS do
           ""
         end
 
+      failed_tests_list =
+        Enum.map_join(displayed_failed_tests, "", &format_failed_test_item(&1, project))
+
       """
 
       #### Failed Tests ❌
 
       #{runs_summary}
-      | Test case | Module | Suite | Message |
-      |:-|:-|:-|:-|
-      #{Enum.map_join(displayed_failed_tests, "", fn failed_test ->
-        test_case_url = Environment.app_url(path: "/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}")
-        message = truncate_failure_message(failed_test.failure_message)
-
-        """
-        | [#{failed_test.name}](#{test_case_url}) | #{failed_test.module_name} | #{failed_test.suite_name} | #{message} |
-        """
-      end)}#{more_tests_note}
+      #{failed_tests_list}#{more_tests_note}
       """
     end
   end
 
-  @max_failure_message_length 100
+  defp format_failed_test_item(failed_test, project) do
+    test_case_url =
+      Environment.app_url(path: "/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}")
 
-  defp truncate_failure_message(nil), do: ""
+    subtitle =
+      case {failed_test.module_name, failed_test.suite_name} do
+        {m, s} when m not in [nil, ""] and s not in [nil, ""] -> " · #{m} · #{s}"
+        {m, _} when m not in [nil, ""] -> " · #{m}"
+        _ -> ""
+      end
 
-  defp truncate_failure_message(message) do
-    sanitized = message |> String.replace(~r/[\n\r]+/, " ") |> String.replace("|", "\\|") |> String.trim()
+    failure_detail = format_failure_detail(failed_test.failure, project, failed_test.git_commit_sha)
 
-    if String.length(sanitized) > @max_failure_message_length do
-      "`#{String.slice(sanitized, 0, @max_failure_message_length)}…`"
+    "- [**#{failed_test.name}**](#{test_case_url})#{subtitle}\\\n#{failure_detail}\n"
+  end
+
+  @max_failure_message_length 160
+
+  defp format_failure_detail(nil, _project, _commit_sha), do: ""
+
+  defp format_failure_detail(failure, project, commit_sha) do
+    location = format_failure_location(failure, project, commit_sha)
+    message = sanitize_for_markdown(failure.message)
+
+    case {location, message} do
+      {nil, nil} -> ""
+      {loc, nil} -> loc
+      {nil, msg} -> truncate_message(msg)
+      {loc, msg} -> "#{loc}: #{truncate_message(msg)}"
+    end
+  end
+
+  defp format_failure_location(%{path: path} = failure, project, commit_sha) when path not in [nil, ""] do
+    location_text = "#{path}:#{failure.line_number}"
+    repo_handle = project.vcs_connection && project.vcs_connection.repository_full_handle
+
+    if repo_handle && commit_sha not in [nil, ""] do
+      "[`#{location_text}`](https://github.com/#{repo_handle}/blob/#{commit_sha}/#{path}#L#{failure.line_number})"
     else
-      "`#{sanitized}`"
+      "`#{location_text}`"
+    end
+  end
+
+  defp format_failure_location(_, _, _), do: nil
+
+  defp sanitize_for_markdown(nil), do: nil
+
+  defp sanitize_for_markdown(message) do
+    message |> String.replace(~r/[\n\r]+/, " ") |> String.trim()
+  end
+
+  defp truncate_message(message) do
+    if String.length(message) > @max_failure_message_length do
+      String.slice(message, 0, @max_failure_message_length) <> "…"
+    else
+      message
     end
   end
 

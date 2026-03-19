@@ -1710,7 +1710,7 @@ defmodule Tuist.Tests do
         name: tcr.name,
         module_name: tcr.module_name,
         suite_name: tcr.suite_name,
-        failure_message: first_failure && first_failure.message
+        failure: first_failure
       }
     end)
   end
