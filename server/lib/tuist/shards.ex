@@ -82,8 +82,14 @@ defmodule Tuist.Shards do
   end
 
   def start_upload(%Project{} = project, %Account{} = account, reference) do
-    upload_id = Storage.multipart_start(bundle_object_key(account, project, reference), account)
-    {:ok, upload_id}
+    case get_plan(project.id, reference) do
+      nil ->
+        {:error, :not_found}
+
+      plan ->
+        upload_id = Storage.multipart_start(bundle_object_key(account, project, plan.id), account)
+        {:ok, upload_id}
+    end
   end
 
   def get_shard(%Project{} = project, %Account{} = account, reference, shard_index) do
@@ -98,7 +104,7 @@ defmodule Tuist.Shards do
 
           %{modules: modules, suites: suites} ->
             download_url =
-              Storage.generate_download_url(bundle_object_key(account, project, reference), account)
+              Storage.generate_download_url(bundle_object_key(account, project, plan.id), account)
 
             {:ok,
              %{
@@ -112,24 +118,36 @@ defmodule Tuist.Shards do
   end
 
   def complete_upload(%Project{} = project, %Account{} = account, reference, upload_id, parts) do
-    Storage.multipart_complete_upload(bundle_object_key(account, project, reference), upload_id, parts, account)
-    :ok
+    case get_plan(project.id, reference) do
+      nil ->
+        {:error, :not_found}
+
+      plan ->
+        Storage.multipart_complete_upload(bundle_object_key(account, project, plan.id), upload_id, parts, account)
+        :ok
+    end
   end
 
   def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number) do
-    url =
-      Storage.multipart_generate_url(
-        bundle_object_key(account, project, reference),
-        upload_id,
-        part_number,
-        account
-      )
+    case get_plan(project.id, reference) do
+      nil ->
+        {:error, :not_found}
 
-    {:ok, url}
+      plan ->
+        url =
+          Storage.multipart_generate_url(
+            bundle_object_key(account, project, plan.id),
+            upload_id,
+            part_number,
+            account
+          )
+
+        {:ok, url}
+    end
   end
 
-  defp bundle_object_key(account, project, reference) do
-    "#{account.id}/#{project.id}/shards/#{reference}/bundle.zip"
+  defp bundle_object_key(account, project, plan_id) do
+    "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
   end
 
   defp insert_shard_targets(plan, project_id, shards, "module", now) do
