@@ -1,4 +1,4 @@
-defmodule Tuist.HTTP.TransportPromExPlugin do
+defmodule TuistCommon.HTTP.TransportPromExPlugin do
   @moduledoc """
   PromEx transport metrics for Bandit and Thousand Island.
 
@@ -69,14 +69,18 @@ defmodule Tuist.HTTP.TransportPromExPlugin do
           counter(
             [:tuist, :http, :connection, :error, :count],
             event_name: [:thousand_island, :connection, :recv_error],
-            tag_values: fn _metadata -> Telemetry.thousand_island_connection_error_metadata(:recv_error) end,
+            tag_values: fn _metadata ->
+              Telemetry.thousand_island_connection_error_metadata(:recv_error)
+            end,
             tags: [:event],
             description: "Counts Thousand Island synchronous recv/send errors."
           ),
           counter(
             [:tuist, :http, :connection, :error, :count],
             event_name: [:thousand_island, :connection, :send_error],
-            tag_values: fn _metadata -> Telemetry.thousand_island_connection_error_metadata(:send_error) end,
+            tag_values: fn _metadata ->
+              Telemetry.thousand_island_connection_error_metadata(:send_error)
+            end,
             tags: [:event],
             description: "Counts Thousand Island synchronous recv/send errors."
           )

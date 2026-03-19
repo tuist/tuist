@@ -4,7 +4,6 @@ This context defines HTTP PromEx metrics integration.
 
 ## Responsibilities
 - Emit Prometheus metrics for Finch request lifecycle (queue, connection, send, receive).
-- Expose Prometheus metrics for shared Bandit/Thousand Island failure signals.
 - Sanitize tags for request metrics.
 
 ## Boundaries

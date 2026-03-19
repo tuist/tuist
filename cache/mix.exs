@@ -54,7 +54,7 @@ defmodule Cache.MixProject do
       {:phoenix_pubsub, "~> 2.1"},
       {:plug, "~> 1.18"},
       {:plug_cowboy, "~> 2.7"},
-      {:prom_ex, "~> 1.10"},
+      {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
       {:req, "~> 0.5"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false},
       {:sweet_xml, "~> 0.7"},
