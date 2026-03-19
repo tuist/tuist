@@ -251,11 +251,18 @@ defmodule Tuist.VCSTest do
               name: "AppTests",
               status: "failure",
               duration: 1000,
+              test_suites: [
+                %{
+                  name: "AppSuite",
+                  status: "failure",
+                  duration: 1000
+                }
+              ],
               test_cases: [
-                %{name: "test1", status: "success", duration: 250},
-                %{name: "test2", status: "success", duration: 250},
-                %{name: "test3", status: "success", duration: 250},
-                %{name: "test4", status: "failure", duration: 250}
+                %{name: "test1", test_suite_name: "AppSuite", status: "success", duration: 250},
+                %{name: "test2", test_suite_name: "AppSuite", status: "success", duration: 250},
+                %{name: "test3", test_suite_name: "AppSuite", status: "success", duration: 250},
+                %{name: "test4", test_suite_name: "AppSuite", status: "failure", duration: 250}
               ]
             }
           ]
@@ -319,7 +326,7 @@ defmodule Tuist.VCSTest do
 
         | Test case | Module | Suite |
         |:-|:-|:-|
-        | [test4](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test_case_id}) | AppTests |  |
+        | [test4](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test_case_id}) | AppTests | AppSuite |
 
         """
 
@@ -2152,6 +2159,7 @@ defmodule Tuist.VCSTest do
         for i <- 1..7 do
           %{
             name: "test_failed_#{i}",
+            test_suite_name: "MySuite",
             status: "failure",
             duration: 250
           }
@@ -2171,6 +2179,13 @@ defmodule Tuist.VCSTest do
               name: "MyModule",
               status: "failure",
               duration: 1000,
+              test_suites: [
+                %{
+                  name: "MySuite",
+                  status: "failure",
+                  duration: 1000
+                }
+              ],
               test_cases: failed_test_cases
             }
           ]
@@ -2192,7 +2207,7 @@ defmodule Tuist.VCSTest do
 
       failed_tests_table_rows =
         Enum.map_join(displayed_failed_tests, "", fn failed_test ->
-          "| [#{failed_test.name}](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}) | MyModule |  |\n"
+          "| [#{failed_test.name}](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}) | MyModule | MySuite |\n"
         end)
 
       expected_body =
