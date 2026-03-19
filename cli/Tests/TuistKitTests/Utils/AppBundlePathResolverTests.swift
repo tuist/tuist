@@ -172,7 +172,7 @@ struct AppBundlePathResolverTests {
 
         #expect(result.app == "App")
         verify(userInputReader)
-            .readValue(asking: .any, values: .any, valueDescription: .any)
+            .readValue(asking: .any, values: Parameter<[GraphTarget]>.any, valueDescription: .any)
             .called(1)
     }
 

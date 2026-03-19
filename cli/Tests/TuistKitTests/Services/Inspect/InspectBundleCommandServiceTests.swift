@@ -10,6 +10,7 @@ import TuistCore
 import TuistGit
 import TuistKit
 import TuistServer
+import TuistSupport
 import TuistTesting
 import TuistXcodeBuildProducts
 
