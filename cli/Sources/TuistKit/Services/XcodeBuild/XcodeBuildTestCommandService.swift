@@ -100,7 +100,8 @@ struct XcodeBuildTestCommandService {
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
-                shardPlanId: shardPlanId
+                shardPlanId: shardPlanId,
+                shardIndex: shardIndex
             )
             if let shardTestProductsPath {
                 try? await fileSystem.remove(shardTestProductsPath)
@@ -207,7 +208,8 @@ struct XcodeBuildTestCommandService {
         resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
-        shardPlanId: String? = nil
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil
     ) async {
         guard let resultBundlePath,
               let projectDerivedDataDirectory,
@@ -220,7 +222,8 @@ struct XcodeBuildTestCommandService {
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
-                shardPlanId: shardPlanId
+                shardPlanId: shardPlanId,
+                shardIndex: shardIndex
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

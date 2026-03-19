@@ -38,7 +38,8 @@ public protocol InspectResultBundleServicing {
         resultBundlePath: AbsolutePath,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
-        shardPlanId: String?
+        shardPlanId: String?,
+        shardIndex: Int?
     ) async throws -> Components.Schemas.RunsTest
 }
 
@@ -135,7 +136,8 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
-            shardPlanId: shardPlanId
+            shardPlanId: shardPlanId,
+            shardIndex: shardIndex
         )
 
         let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)

@@ -550,7 +550,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
-            shardPlanId: shard.shardPlanId
+            shardPlanId: shard.shardPlanId,
+            shardIndex: shardIndex
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -1228,7 +1229,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction,
-        shardPlanId: String? = nil
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil
     ) async {
         guard let resultBundlePath, config.fullHandle != nil, action != .build,
               (try? await fileSystem.exists(resultBundlePath)) == true
@@ -1239,7 +1241,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
-                shardPlanId: shardPlanId
+                shardPlanId: shardPlanId,
+                shardIndex: shardIndex
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
@@ -1331,7 +1334,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
-            shardPlanId: nil
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)

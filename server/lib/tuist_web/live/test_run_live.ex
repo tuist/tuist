@@ -48,9 +48,11 @@ defmodule TuistWeb.TestRunLive do
     run = Map.put(run, :project, project)
 
     command_event =
-      case CommandEvents.get_command_event_by_test_run_id(run.id) do
-        {:ok, event} -> event
-        {:error, :not_found} -> nil
+      if is_nil(run.shard_plan_id) do
+        case CommandEvents.get_command_event_by_test_run_id(run.id) do
+          {:ok, event} -> event
+          {:error, :not_found} -> nil
+        end
       end
 
     test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
