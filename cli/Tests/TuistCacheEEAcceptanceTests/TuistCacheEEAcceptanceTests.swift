@@ -59,6 +59,55 @@ struct TuistCacheEEAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_frameworks")
+    ) func ios_app_with_local_only_storages() async throws {
+        // Given: A fixture with a fullHandle but storages set to local-only.
+        // Without storages: [.local], having a fullHandle with no auth token would throw tokenNotFound.
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let fileSystem = FileSystem()
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
+
+            let tuist = Tuist(
+                fullHandle: "tuist/ios_app_with_frameworks",
+                project: .tuist(
+                    generationOptions: .options(
+                        optionalAuthentication: true
+                    ),
+                    cacheOptions: .options(
+                        storages: [.local]
+                    )
+                )
+            )
+            """,
+            at: fixtureDirectory.appending(component: "Tuist.swift"),
+            options: Set([.overwrite])
+        )
+
+        let xcodeprojPath = fixtureDirectory.appending(component: "MainApp.xcodeproj")
+
+        // When: Cache the binaries locally
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        // When: Generate with a focus on Framework1
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "Framework1"]
+        )
+
+        // Then: Framework2-iOS is replaced with an xcframework from local cache
+        try TuistTest.expectLinked("Framework2-iOS.xcframework", by: "App", inXcodeProj: xcodeprojPath)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
         .withFixture("generated_ios_app_with_external_dependencies_filtered_out")
     ) func generated_ios_app_with_external_dependencies_filtered_out() async throws {
         // Given
