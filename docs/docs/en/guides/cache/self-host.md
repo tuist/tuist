@@ -216,6 +216,19 @@ For a detailed explanation of how each process works internally, see the <Locali
 
 The cache service exposes Prometheus-compatible metrics at `/metrics`.
 
+Database pool metrics exposed by the cache service include:
+
+- `cache_repo_pool_checkout_queue_length`
+- `cache_repo_pool_ready_conn_count`
+- `cache_repo_pool_size`
+- `cache_repo_pool_db_connection_connected_total`
+- `cache_repo_pool_db_connection_disconnected_total`
+
+The pool `last_value` metrics are labeled with:
+
+- `repo` — `cache` or `key_value`
+- `database` — `sqlite`
+
 If you use Grafana, you can import the [reference dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
 
 ### Distributed tracing {#distributed-tracing}
