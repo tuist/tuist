@@ -16,6 +16,20 @@ public struct BuiltAppBundle: Equatable, Sendable {
     }
 }
 
+public enum BuiltAppBundleLocatorError: Equatable, LocalizedError {
+    case noAppsFound(app: String, configuration: String)
+    case multipleBuiltBundlesFound(app: String, paths: [String])
+
+    public var errorDescription: String? {
+        switch self {
+        case let .noAppsFound(app, configuration):
+            "\(app) for the \(configuration) configuration was not found. You can build it by running `xcodebuild build -scheme \(app) -configuration \(configuration)`"
+        case let .multipleBuiltBundlesFound(app, paths):
+            "Multiple built bundles were found for \(app): \(paths.joined(separator: ", ")). Pass an explicit bundle path."
+        }
+    }
+}
+
 @Mockable
 public protocol BuiltAppBundleLocating {
     func locateBuiltAppBundles(
@@ -25,6 +39,14 @@ public protocol BuiltAppBundleLocating {
         configuration: String,
         platforms: [Platform]
     ) async throws -> [BuiltAppBundle]
+
+    func locateBuiltAppBundlePath(
+        app: String,
+        projectPath: AbsolutePath,
+        derivedDataPath: AbsolutePath?,
+        configuration: String,
+        platforms: [Platform]
+    ) async throws -> AbsolutePath
 }
 
 public struct BuiltAppBundleLocator: BuiltAppBundleLocating {
@@ -69,5 +91,36 @@ public struct BuiltAppBundleLocator: BuiltAppBundleLocating {
             guard try await fileSystem.exists(appPath) else { return nil }
             return BuiltAppBundle(destinationType: destinationType, path: appPath)
         }
+    }
+
+    public func locateBuiltAppBundlePath(
+        app: String,
+        projectPath: AbsolutePath,
+        derivedDataPath: AbsolutePath?,
+        configuration: String,
+        platforms: [Platform]
+    ) async throws -> AbsolutePath {
+        let appPaths = try await locateBuiltAppBundles(
+            app: app,
+            projectPath: projectPath,
+            derivedDataPath: derivedDataPath,
+            configuration: configuration,
+            platforms: platforms
+        )
+        .map(\.path)
+
+        guard !appPaths.isEmpty else {
+            throw BuiltAppBundleLocatorError.noAppsFound(app: app, configuration: configuration)
+        }
+
+        let uniquePaths = Array(Set(appPaths)).sorted { $0.pathString < $1.pathString }
+        guard uniquePaths.count == 1, let bundlePath = uniquePaths.first else {
+            throw BuiltAppBundleLocatorError.multipleBuiltBundlesFound(
+                app: app,
+                paths: uniquePaths.map(\.pathString)
+            )
+        }
+
+        return bundlePath
     }
 }
