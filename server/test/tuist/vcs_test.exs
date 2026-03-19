@@ -2237,23 +2237,23 @@ defmodule Tuist.VCSTest do
         )
 
       {failed_test_case_runs, _meta} =
-        Tests.list_test_case_runs(%{
-          filters: [
-            %{field: :test_run_id, op: :==, value: test_run.id},
-            %{field: :status, op: :==, value: "failure"}
-          ],
-          page: 1,
-          page_size: 1000,
-          order_by: [:ran_at],
-          order_directions: [:desc]
-        },
-        preload: [:failures]
+        Tests.list_test_case_runs(
+          %{
+            filters: [
+              %{field: :test_run_id, op: :==, value: test_run.id},
+              %{field: :status, op: :==, value: "failure"},
+              %{field: :is_flaky, op: :==, value: false}
+            ],
+            page: 1,
+            page_size: 5,
+            order_by: [:ran_at],
+            order_directions: [:desc]
+          },
+          preload: [:failures]
         )
 
       displayed_failed_tests =
-        failed_test_case_runs
-        |> Enum.take(5)
-        |> Enum.map(fn tcr ->
+        Enum.map(failed_test_case_runs, fn tcr ->
           %{
             test_case_id: tcr.test_case_id,
             name: tcr.name,

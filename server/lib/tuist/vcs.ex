@@ -747,38 +747,43 @@ defmodule Tuist.VCS do
   end
 
   defp get_failed_tests_body(%{test_runs: test_runs, project: project}) do
-    failed_tests_by_run =
+    failed_runs_with_counts =
       test_runs
       |> Enum.filter(&(&1.status == "failure"))
       |> Enum.map(fn test_run ->
-        {failed_test_case_runs, _meta} =
+        filters = [
+          %{field: :test_run_id, op: :==, value: test_run.id},
+          %{field: :status, op: :==, value: "failure"},
+          %{field: :is_flaky, op: :==, value: false}
+        ]
+
+        {failed_test_case_runs, meta} =
           Tests.list_test_case_runs(
             %{
-              filters: [
-                %{field: :test_run_id, op: :==, value: test_run.id},
-                %{field: :status, op: :==, value: "failure"},
-                %{field: :is_flaky, op: :==, value: false}
-              ],
+              filters: filters,
               page: 1,
-              page_size: 1000,
+              page_size: @max_failed_tests_in_comment,
               order_by: [:ran_at],
               order_directions: [:desc]
             },
             preload: [:failures]
           )
 
-        {test_run, failed_test_case_runs}
+        {test_run, failed_test_case_runs, meta.total_count}
       end)
-      |> Enum.filter(fn {_test_run, failed_tests} -> Enum.any?(failed_tests) end)
+      |> Enum.filter(fn {_test_run, _runs, total_count} -> total_count > 0 end)
 
-    if Enum.empty?(failed_tests_by_run) do
+    if Enum.empty?(failed_runs_with_counts) do
       nil
     else
       project = Repo.preload(project, [:account, :vcs_connection])
 
-      all_failed_tests =
-        failed_tests_by_run
-        |> Enum.flat_map(fn {test_run, failed_test_case_runs} ->
+      total_failed_count =
+        Enum.reduce(failed_runs_with_counts, 0, fn {_, _, count}, acc -> acc + count end)
+
+      displayed_failed_tests =
+        failed_runs_with_counts
+        |> Enum.flat_map(fn {test_run, failed_test_case_runs, _count} ->
           Enum.map(failed_test_case_runs, fn tcr ->
             %{
               test_case_id: tcr.test_case_id,
@@ -791,13 +796,10 @@ defmodule Tuist.VCS do
           end)
         end)
         |> Enum.uniq_by(& &1.test_case_id)
-
-      total_failed_count = length(all_failed_tests)
-      displayed_failed_tests = Enum.take(all_failed_tests, @max_failed_tests_in_comment)
+        |> Enum.take(@max_failed_tests_in_comment)
 
       runs_summary =
-        Enum.map_join(failed_tests_by_run, "", fn {test_run, failed_tests} ->
-          failed_count = length(failed_tests)
+        Enum.map_join(failed_runs_with_counts, "", fn {test_run, _runs, failed_count} ->
           scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
 
           failures_url =
