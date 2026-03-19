@@ -28,13 +28,13 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
       assert stop_metric.tag_values.(%{
                conn: %{method: "GET", private: %{}, request_path: "/bar", status: 500},
                error: nil
-             }) == %{method: "GET", route: "/bar", reason: "server_error"}
+             }) == %{method: "GET", route: "unknown", reason: "server_error"}
 
       assert exception_metric.event_name == [:bandit, :request, :exception]
 
       assert exception_metric.tag_values.(%{
                conn: %{method: "GET", private: %{}, request_path: "/bar"}
-             }) == %{method: "GET", route: "/bar", reason: "exception"}
+             }) == %{method: "GET", route: "unknown", reason: "exception"}
     end
 
     test "tracks Thousand Island drop and error counters from native events" do

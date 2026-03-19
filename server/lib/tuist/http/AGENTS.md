@@ -1,15 +1,16 @@
 # Http (Context)
 
-This context defines HTTP PromEx metrics integration.
+This context defines server-owned HTTP observability integration.
 
 ## Responsibilities
-- Emit Prometheus metrics for Finch request lifecycle (queue, connection, send, receive).
-- Sanitize tags for request metrics.
+- Emit server-owned HTTP client metrics for Finch request lifecycle (queue, connection, send, receive).
+- Reuse shared transport observability from `tuist_common/lib/tuist_common/http` for Bandit and Thousand Island server metrics/logging.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
 - Configuration belongs in `server/config`.
 - Schema changes and migrations live in `server/priv`.
+- Shared Bandit/Thousand Island observability belongs in `tuist_common/`.
 
 ## Guardrails
 - If changes add or modify stored customer data, update `server/data-export.md`.
