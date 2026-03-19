@@ -3,20 +3,17 @@ defmodule TuistWeb.Marketing.MarketingBlogPostLive do
   use TuistWeb, :live_view
   use Noora
 
-  import TuistWeb.Marketing.MarketingComponents
+  import TuistWeb.CSP, only: [get_csp_nonce: 0]
   import TuistWeb.Marketing.MarketingHTML, only: [marketing_banner: 1]
   import TuistWeb.Marketing.StructuredMarkup
-  import TuistWeb.Marketing.Components.AgentPrompt
-
-  require MDEx
 
   alias Tuist.Marketing.Blog
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Marketing.Localization
 
-  on_mount {TuistWeb.Authentication, :mount_current_user}
+  require MDEx
 
-  import TuistWeb.CSP, only: [get_csp_nonce: 0]
+  on_mount {TuistWeb.Authentication, :mount_current_user}
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, :csp_nonce, get_csp_nonce())}
