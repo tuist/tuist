@@ -1,10 +1,8 @@
 [id^="agent_prompt_window-"] {
   --agent-prompt-height: 12lh;
   --agent-prompt-gap: var(--noora-spacing-2);
+  --agent-prompt-prefix-width: 1.25ch;
   --agent-prompt-line-height: 1.45;
-  --agent-prompt-cursor-width: 0.65ch;
-  --agent-prompt-link-offset: 0.14em;
-  --agent-prompt-played-opacity: 0.55;
   --agent-prompt-response-color: var(--noora-azure-500);
 
   display: block;
@@ -15,6 +13,7 @@
     flex-direction: column;
     gap: var(--agent-prompt-gap);
     height: var(--agent-prompt-height);
+    padding-bottom: var(--noora-spacing-4);
     overflow-y: auto;
     scrollbar-gutter: stable;
   }
@@ -33,7 +32,9 @@
 
   & [data-part="shell-prompt"] {
     flex-shrink: 0;
+    display: inline-block;
     color: var(--noora-surface-label-secondary);
+    width: var(--agent-prompt-prefix-width);
   }
 
   & [data-part="prompt-text"] {
@@ -43,6 +44,7 @@
   }
 
   & [data-part="response-section"] {
+    padding-left: calc(var(--agent-prompt-prefix-width) + var(--noora-spacing-2));
     color: var(--agent-prompt-response-color);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
     min-height: 1lh;
@@ -50,7 +52,7 @@
   }
 
   & [data-part="trigger"][data-played] {
-    opacity: var(--agent-prompt-played-opacity);
+    opacity: 0.55;
   }
 
   & [data-part="response-text"] {
@@ -62,7 +64,7 @@
   & [data-part="response-text"] a {
     color: inherit;
     text-decoration: underline;
-    text-underline-offset: var(--agent-prompt-link-offset);
+    text-underline-offset: 0.14em;
   }
 
   & [data-part="prompt-cursor"],
@@ -70,7 +72,7 @@
     display: inline-block;
     vertical-align: text-bottom;
     margin-left: var(--noora-spacing-1);
-    width: var(--agent-prompt-cursor-width);
+    width: 0.65ch;
     height: 1em;
     border-radius: var(--noora-radius-xsmall);
     animation: agent-prompt-blink 0.8s step-end infinite;
