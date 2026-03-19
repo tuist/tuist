@@ -25,29 +25,18 @@ defmodule Tuist.Shards.BinPacker do
       ]
   """
   def pack(units, shard_count) when is_list(units) and is_integer(shard_count) and shard_count > 0 do
-    sorted = Enum.sort_by(units, fn {_name, duration} -> duration end, :desc)
+    empty_shards = Enum.map(0..(shard_count - 1), &{&1, [], 0})
 
-    shards =
-      for i <- 0..(shard_count - 1), into: %{} do
-        {i, {i, [], 0}}
-      end
+    units
+    |> Enum.sort_by(&elem(&1, 1), :desc)
+    |> Enum.reduce(empty_shards, fn {name, duration}, shards ->
+      min_index = Enum.min_by(shards, &elem(&1, 2)) |> elem(0)
 
-    shards =
-      Enum.reduce(sorted, shards, fn {name, duration} = _unit, acc ->
-        {min_index, _} =
-          Enum.min_by(acc, fn {_i, {_index, _units, total}} -> total end)
-
-        Map.update!(acc, min_index, fn {index, units, total} ->
-          {index, [{name, duration} | units], total + duration}
-        end)
+      List.update_at(shards, min_index, fn {index, units, total} ->
+        {index, [{name, duration} | units], total + duration}
       end)
-
-    shards
-    |> Map.values()
-    |> Enum.sort_by(fn {index, _units, _total} -> index end)
-    |> Enum.map(fn {index, units, total} ->
-      {index, Enum.reverse(units), total}
     end)
+    |> Enum.map(fn {index, units, total} -> {index, Enum.reverse(units), total} end)
   end
 
   @doc """
