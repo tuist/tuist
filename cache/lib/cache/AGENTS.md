@@ -7,9 +7,9 @@ This directory contains core cache domain logic, storage backends, and auth help
 - Key-value storage and cache metadata.
 - Authentication against the Tuist Server.
 - Registry metadata and artifact storage helpers.
-- Repo-level monitoring and telemetry wiring for cache storage backends.
 
 ## Related Context
 - Web/API layer: `cache/lib/cache_web/AGENTS.md`
 - Cache service overview: `cache/README.md`
-- Repo monitoring: `cache/lib/cache/repo/AGENTS.md`
+- Repo monitoring wrappers: `cache/lib/cache/repo/AGENTS.md`
+- Shared repo monitoring: `tuist_common/AGENTS.md`
