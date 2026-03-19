@@ -27,7 +27,7 @@ defmodule Tuist.Tests do
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
-  alias Tuist.Shards.ShardPlan
+  alias Tuist.Shards
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
@@ -291,8 +291,8 @@ defmodule Tuist.Tests do
         )
       )
 
-    shard_plan = ClickHouseRepo.one(from(s in ShardPlan, where: s.id == ^shard_plan_id, limit: 1))
-    expected_shard_count = if shard_plan, do: shard_plan.shard_count, else: 1
+    {:ok, shard_plan} = Shards.get_shard_plan(shard_plan_id)
+    expected_shard_count = shard_plan.shard_count
 
     shard_index = Map.get(attrs, :shard_index)
     shard_status = Map.get(attrs, :status, "success")

@@ -74,6 +74,13 @@ defmodule Tuist.Shards do
     }
   end
 
+  def get_shard_plan(id) do
+    case ClickHouseRepo.one(from(s in ShardPlan, where: s.id == ^id, limit: 1)) do
+      nil -> {:error, :not_found}
+      plan -> {:ok, plan}
+    end
+  end
+
   def start_upload(%Project{} = project, %Account{} = account, reference) do
     upload_id = Storage.multipart_start(bundle_object_key(account, project, reference), account)
     {:ok, upload_id}
