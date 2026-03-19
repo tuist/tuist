@@ -81,7 +81,8 @@ struct CacheRemoteStorageTests {
             downloader: downloader,
             retryProvider: retryProvider,
             multipartUploadArtifactService: multipartUploadArtifactService,
-            concurrencyLimit: 15
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
         )
     }
 
