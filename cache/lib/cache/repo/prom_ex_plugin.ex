@@ -1,33 +1,32 @@
-defmodule Tuist.Repo.PromExPlugin do
-  @moduledoc ~s"""
-  A prom_ex plugin that exposes metrics around the DB repo.
+defmodule Cache.Repo.PromExPlugin do
+  @moduledoc """
+  PromEx plugin for Cache DB pool metrics.
   """
   use PromEx.Plugin
 
-  alias Tuist.Telemetry
   alias TuistCommon.Repo.PoolMetrics
 
+  @pool_metrics_event [:cache, :repo, :pool, :metrics]
   @repos [
-    {Tuist.Repo, %{repo: "postgres", database: "postgres"}},
-    {Tuist.ClickHouseRepo, %{repo: "clickhouse_read", database: "clickhouse"}},
-    {Tuist.IngestRepo, %{repo: "clickhouse_write", database: "clickhouse"}}
+    {Cache.Repo, %{repo: "cache", database: "sqlite"}},
+    {Cache.KeyValueRepo, %{repo: "key_value", database: "sqlite"}}
   ]
 
   @impl true
   def event_metrics(_opts) do
     [
       Event.build(
-        :tuist_repo_pool_event_metrics,
+        :cache_repo_pool_event_metrics,
         [
           counter(
-            [:tuist, :repo, :pool, :db_connection, :connected],
+            [:cache, :repo, :pool, :db_connection, :connected],
             event_name: [:db_connection, :connected],
             tags: [:tag],
             description: "The number of pool connections that have been established.",
             measurement: :count
           ),
           counter(
-            [:tuist, :repo, :pool, :db_connection, :disconnected],
+            [:cache, :repo, :pool, :db_connection, :disconnected],
             event_name: [:db_connection, :disconnected],
             tags: [:tag],
             description: "The number of pool connections that have been dropped.",
@@ -44,27 +43,27 @@ defmodule Tuist.Repo.PromExPlugin do
 
     [
       Polling.build(
-        :tuist_repo_pool_manual_metrics,
+        :cache_repo_pool_manual_metrics,
         poll_rate,
-        {__MODULE__, :execute_tuist_repo_pool_metrics_event, []},
+        {__MODULE__, :execute_cache_repo_pool_metrics_event, []},
         [
           last_value(
-            [:tuist, :repo, :pool, :checkout_queue, :length],
-            event_name: Telemetry.event_name_repo_pool_metrics(),
+            [:cache, :repo, :pool, :checkout_queue, :length],
+            event_name: @pool_metrics_event,
             tags: [:repo, :database],
-            description: "The total number of queries that are in the queue waiting to be checked out",
+            description: "The total number of requests waiting for a DB connection checkout.",
             measurement: :checkout_queue_length
           ),
           last_value(
-            [:tuist, :repo, :pool, :ready_conn, :count],
-            event_name: Telemetry.event_name_repo_pool_metrics(),
+            [:cache, :repo, :pool, :ready_conn, :count],
+            event_name: @pool_metrics_event,
             tags: [:repo, :database],
             description: "The number of connections that are available to run queries.",
             measurement: :ready_conn_count
           ),
           last_value(
-            [:tuist, :repo, :pool, :size],
-            event_name: Telemetry.event_name_repo_pool_metrics(),
+            [:cache, :repo, :pool, :size],
+            event_name: @pool_metrics_event,
             tags: [:repo, :database],
             description: "The configured number of connections in the pool.",
             measurement: :pool_size
@@ -74,7 +73,7 @@ defmodule Tuist.Repo.PromExPlugin do
     ]
   end
 
-  def execute_tuist_repo_pool_metrics_event do
+  def execute_cache_repo_pool_metrics_event do
     Enum.each(@repos, fn {repo, metadata} -> emit_pool_metrics(repo, metadata) end)
   end
 
@@ -85,11 +84,7 @@ defmodule Tuist.Repo.PromExPlugin do
           :ok
 
         measurements ->
-          :telemetry.execute(
-            Telemetry.event_name_repo_pool_metrics(),
-            measurements,
-            metadata
-          )
+          :telemetry.execute(@pool_metrics_event, measurements, metadata)
       end
     end
   end

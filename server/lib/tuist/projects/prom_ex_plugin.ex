@@ -5,8 +5,8 @@ defmodule Tuist.Projects.PromExPlugin do
   use PromEx.Plugin
 
   alias Tuist.Projects
-  alias Tuist.Repo.PoolMetrics
   alias Tuist.Telemetry
+  alias TuistCommon.Repo.PoolMetrics
 
   @impl true
   def polling_metrics(opts) do
