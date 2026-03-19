@@ -109,7 +109,6 @@ defmodule Tuist do
       Incidents,
       License,
       PubSub,
-      HTTP.ServerTelemetry,
       KeyValueStore,
       ClickHouseRepo,
       ClickHouseFlop,

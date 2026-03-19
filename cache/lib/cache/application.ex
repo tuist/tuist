@@ -18,6 +18,7 @@ defmodule Cache.Application do
     end
 
     Oban.Telemetry.attach_default_logger()
+    TuistCommon.HTTP.Telemetry.attach()
     start_sentry_logger()
     start_loki_logger()
     start_opentelemetry()

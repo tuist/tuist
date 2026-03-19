@@ -4,18 +4,6 @@ defmodule Tuist.Telemetry do
     [:tuist, :http, :queue, :status]
   end
 
-  def event_name_http_server_request do
-    [:tuist, :http, :server, :request]
-  end
-
-  def event_name_http_server_request_exception do
-    [:tuist, :http, :server, :request, :exception]
-  end
-
-  def event_name_http_server_connection_error do
-    [:tuist, :http, :server, :connection, :error]
-  end
-
   def event_name_projects_count do
     [:tuist, :projects, :count]
   end
