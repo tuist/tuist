@@ -308,8 +308,17 @@ defmodule Tuist.VCSTest do
         "https://tuist.dev#{path}"
       end)
 
-      [failed_test] = Tests.get_failed_tests_for_test_run(test_run_two.id)
-      failed_test_case_id = failed_test.test_case_id
+      {[failed_test_case_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test_run_two.id},
+            %{field: :status, op: :==, value: "failure"}
+          ],
+          page: 1,
+          page_size: 10
+        })
+
+      failed_test_case_id = failed_test_case_run.test_case_id
 
       commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
 
@@ -2106,8 +2115,17 @@ defmodule Tuist.VCSTest do
           ]
         })
 
-      [failed_test] = Tests.get_failed_tests_for_test_run(test_run.id)
-      test_case_id = failed_test.test_case_id
+      {[failed_test_case_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test_run.id},
+            %{field: :status, op: :==, value: "failure"}
+          ],
+          page: 1,
+          page_size: 10
+        })
+
+      test_case_id = failed_test_case_run.test_case_id
 
       stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
@@ -2218,8 +2236,30 @@ defmodule Tuist.VCSTest do
           ]
         )
 
-      failed_tests = Tests.get_failed_tests_for_test_run(test_run.id)
-      displayed_failed_tests = Enum.take(failed_tests, 5)
+      {failed_test_case_runs, _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test_run.id},
+            %{field: :status, op: :==, value: "failure"}
+          ],
+          page: 1,
+          page_size: 1000,
+          order_by: [:ran_at],
+          order_directions: [:desc]
+        },
+        preload: [:failures]
+        )
+
+      displayed_failed_tests =
+        failed_test_case_runs
+        |> Enum.take(5)
+        |> Enum.map(fn tcr ->
+          %{
+            test_case_id: tcr.test_case_id,
+            name: tcr.name,
+            failure: List.first(tcr.failures)
+          }
+        end)
 
       stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
@@ -2356,7 +2396,7 @@ defmodule Tuist.VCSTest do
           ]
         )
 
-      {:ok, test_run} =
+      {:ok, _test_run} =
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
@@ -2393,8 +2433,6 @@ defmodule Tuist.VCSTest do
         )
 
       RunsFixtures.optimize_test_case_runs()
-
-      assert [] == Tests.get_failed_tests_for_test_run(test_run.id)
 
       stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}

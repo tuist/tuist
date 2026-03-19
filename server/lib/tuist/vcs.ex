@@ -751,8 +751,23 @@ defmodule Tuist.VCS do
       test_runs
       |> Enum.filter(&(&1.status == "failure"))
       |> Enum.map(fn test_run ->
-        failed_tests = Tests.get_failed_tests_for_test_run(test_run.id)
-        {test_run, failed_tests}
+        {failed_test_case_runs, _meta} =
+          Tests.list_test_case_runs(
+            %{
+              filters: [
+                %{field: :test_run_id, op: :==, value: test_run.id},
+                %{field: :status, op: :==, value: "failure"},
+                %{field: :is_flaky, op: :==, value: false}
+              ],
+              page: 1,
+              page_size: 1000,
+              order_by: [:ran_at],
+              order_directions: [:desc]
+            },
+            preload: [:failures]
+          )
+
+        {test_run, failed_test_case_runs}
       end)
       |> Enum.filter(fn {_test_run, failed_tests} -> Enum.any?(failed_tests) end)
 
@@ -763,8 +778,17 @@ defmodule Tuist.VCS do
 
       all_failed_tests =
         failed_tests_by_run
-        |> Enum.flat_map(fn {test_run, failed_tests} ->
-          Enum.map(failed_tests, &Map.put(&1, :git_commit_sha, test_run.git_commit_sha))
+        |> Enum.flat_map(fn {test_run, failed_test_case_runs} ->
+          Enum.map(failed_test_case_runs, fn tcr ->
+            %{
+              test_case_id: tcr.test_case_id,
+              name: tcr.name,
+              module_name: tcr.module_name,
+              suite_name: tcr.suite_name,
+              failure: List.first(tcr.failures),
+              git_commit_sha: test_run.git_commit_sha
+            }
+          end)
         end)
         |> Enum.uniq_by(& &1.test_case_id)
 
