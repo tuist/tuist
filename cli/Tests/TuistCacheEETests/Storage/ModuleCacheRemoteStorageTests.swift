@@ -70,7 +70,8 @@ struct ModuleCacheRemoteStorageTests {
             fileHandler: FileHandler.shared,
             fileSystem: fileSystem,
             retryProvider: retryProvider,
-            concurrencyLimit: 15
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
         )
     }
 

@@ -11,6 +11,7 @@ private func tuistURLSessionConfiguration() -> URLSessionConfiguration {
     let configuration: URLSessionConfiguration = .ephemeral
     configuration.timeoutIntervalForRequest = 120 // 2 minutes
     configuration.timeoutIntervalForResource = 300 // 5 minutes
+    configuration.httpMaximumConnectionsPerHost = 20
     #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
         configuration.allowsCellularAccess = true
         configuration.allowsConstrainedNetworkAccess = true
