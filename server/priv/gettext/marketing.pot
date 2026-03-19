@@ -612,11 +612,6 @@ msgstr ""
 msgid "Longevity"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:14
-#, elixir-autogen, elixir-format
-msgid "Make mobile"
-msgstr ""
-
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Make modular Xcode projects more manageable"
@@ -1020,16 +1015,6 @@ msgstr ""
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:23
-#, elixir-autogen, elixir-format
-msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:41
-#, elixir-autogen, elixir-format
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "The team"
@@ -1402,11 +1387,6 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "via dedicated Slack"
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:17
-#, elixir-autogen, elixir-format
-msgid "your competitive advantage"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:44
@@ -2368,4 +2348,20 @@ msgstr ""
 #: lib/tuist_web/marketing/live/marketing_test_insights_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Your mobile platform team,"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:17
+#, elixir-autogen, elixir-format
+msgid "as a service"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:41
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
 msgstr ""
