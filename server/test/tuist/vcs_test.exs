@@ -1037,6 +1037,126 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "excludes processing builds from the comment" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      {:ok, _processing_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "MyApp",
+          status: "processing",
+          duration: 0,
+          git_commit_sha: @git_commit_sha,
+          git_ref: @git_ref
+        )
+
+      {:ok, _failed_processing_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "OtherApp",
+          status: "failed_processing",
+          duration: 0,
+          git_commit_sha: @git_commit_sha,
+          git_ref: @git_ref
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      reject(&Req.post/1)
+
+      # When / Then — no comment is posted because there is no reportable data
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "includes only finished builds and excludes processing builds from the comment" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      {:ok, finished_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "MyApp",
+          status: "success",
+          duration: 45_000,
+          git_commit_sha: @git_commit_sha,
+          git_ref: @git_ref
+        )
+
+      {:ok, _processing_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "OtherApp",
+          status: "processing",
+          duration: 0,
+          git_commit_sha: @git_commit_sha,
+          git_ref: @git_ref
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Builds 🔨
+
+        | Scheme | Status | Duration | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [MyApp](https://tuist.dev/build-runs/#{finished_build.id}) | ✅ | 45.0s | #{commit_link} |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
+      })
+    end
+
     test "creates a comment with gradle builds" do
       # Given
       project =
