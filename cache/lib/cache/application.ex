@@ -24,8 +24,8 @@ defmodule Cache.Application do
 
     base_children = [
       {DBConnection.TelemetryListener, name: TelemetryListener},
-      {Cache.Repo, connection_listeners: [TelemetryListener]},
-      {Cache.KeyValueRepo, connection_listeners: [TelemetryListener]},
+      {Cache.Repo, connection_listeners: {[TelemetryListener], :cache}},
+      {Cache.KeyValueRepo, connection_listeners: {[TelemetryListener], :key_value}},
       Cache.KeyValueBuffer,
       Cache.CacheArtifactsBuffer,
       Cache.S3TransfersBuffer,
