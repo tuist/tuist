@@ -54,17 +54,17 @@ class TuistTestShardingService(
 
         val response = shardsApi.createShardPlan(accountHandle, projectHandle, body).execute()
         if (!response.isSuccessful) {
-            throw RuntimeException("Shard plan creation failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
+            throw org.gradle.api.GradleException("Shard plan creation failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
         }
-        return response.body() ?: throw RuntimeException("Shard plan creation returned empty response.")
+        return response.body() ?: throw org.gradle.api.GradleException("Shard plan creation returned empty response.")
     }
 
     fun getShard(planId: String, shardIndex: Int): Shard {
         val response = shardsApi.getShard(accountHandle, projectHandle, planId, shardIndex).execute()
         if (!response.isSuccessful) {
-            throw RuntimeException("Get shard failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
+            throw org.gradle.api.GradleException("Get shard failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
         }
-        return response.body() ?: throw RuntimeException("Get shard returned empty response.")
+        return response.body() ?: throw org.gradle.api.GradleException("Get shard returned empty response.")
     }
 
     internal fun derivePlanId(): String? {

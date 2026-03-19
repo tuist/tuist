@@ -81,7 +81,7 @@ class TuistTestShardingTest {
         val service = createService()
         mockWebServer.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
-        assertThrows<RuntimeException> {
+        assertThrows<org.gradle.api.GradleException> {
             service.createShardPlan(
                 planId = "github-456-1",
                 testSuites = listOf("com.example.Test"),
@@ -155,7 +155,7 @@ class TuistTestShardingTest {
         val service = createService()
         mockWebServer.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
 
-        assertThrows<RuntimeException> {
+        assertThrows<org.gradle.api.GradleException> {
             service.getShard("nonexistent-plan", 0)
         }
     }
