@@ -2188,17 +2188,40 @@ defmodule Tuist.VCSTest do
         "https://tuist.dev#{path}"
       end)
 
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      failed_tests_table_rows =
+        Enum.map_join(displayed_failed_tests, "", fn failed_test ->
+          "| [#{failed_test.name}](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}) | MyModule |  |\n"
+        end)
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tests 🧪
+
+        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 7 | 0 | 7 | #{commit_link} |
+
+
+        #### Failed Tests ❌
+
+        - **test**: 7 failed tests ([View all](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures))
+
+        | Test case | Module | Suite |
+        |:-|:-|:-|
+        #{failed_tests_table_rows}
+        > Showing 5 of 7 failed tests. See links above for full details.
+
+        """
+
       expect(Req, :post, fn opts ->
-        body = opts[:json][:body]
-
-        assert String.contains?(body, "#### Failed Tests ❌")
-        assert String.contains?(body, "**test**: 7 failed tests")
-        assert String.contains?(body, "tab=failures")
-        assert String.contains?(body, "Showing 5 of 7 failed tests")
-
-        for failed_test <- displayed_failed_tests do
-          assert String.contains?(body, failed_test.name)
-        end
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
