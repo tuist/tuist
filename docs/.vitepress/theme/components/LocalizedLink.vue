@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from "vue";
 import { useData } from "vitepress";
-import { localizedDocsPath } from "../../paths.mjs";
 
 const { lang } = useData();
 
@@ -33,9 +32,7 @@ const resolvedLocale = computed(() => {
   return isNonLocalized ? "en" : lang.value;
 });
 
-const resolvedHref = computed(() =>
-  localizedDocsPath(resolvedLocale.value, props.href),
-);
+const resolvedHref = computed(() => `/${resolvedLocale.value}${props.href}`);
 
 // Log invalid links in development mode
 if (import.meta.env.DEV && props.href) {

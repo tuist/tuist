@@ -1,7 +1,22 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.160.2<!-- RELEASE NOTES START -->
+## What's Changed in 4.161.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* process builds remotely by [@fortmarek](https://github.com/fortmarek) in [#9911](https://github.com/tuist/tuist/pull/9911)
+### 🐛 Bug Fixes
+
+* use SDK-conditioned FRAMEWORK_SEARCH_PATHS for xcframeworks by [@wojmangh](https://github.com/wojmangh) in [#9902](https://github.com/tuist/tuist/pull/9902)
+* resolve merge commit to actual PR head SHA by [@fortmarek](https://github.com/fortmarek) in [#9905](https://github.com/tuist/tuist/pull/9905)
+* only record /cache/ac hashes for test targets, not their deps by [@fortmarek](https://github.com/fortmarek) in [#9909](https://github.com/tuist/tuist/pull/9909)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.160.3...4.161.0
+
+## What's Changed in 4.160.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
@@ -10,7 +25,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.160.1...4.160.2
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.160.1...4.160.3
 
 ## What's Changed in 4.160.1<!-- RELEASE NOTES START -->
 
