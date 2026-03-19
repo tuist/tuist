@@ -193,7 +193,10 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
     check_origin: check_origin,
     http: [
       ip: http_ip,
-      port: port
+      port: port,
+      thousand_island_options: [
+        read_timeout: to_timeout(second: 15)
+      ]
     ]
 
   # ## Configuring the mailer
