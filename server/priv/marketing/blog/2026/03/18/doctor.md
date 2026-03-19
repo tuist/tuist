@@ -19,7 +19,7 @@ All the knowledge David had acquired about the underlying tools was locked in hi
 
 But this week was different. It was quiet. He arrived early to the office, left his remaining coffee on the table, turned on the computer, and with a few commands, he had Xcode and Gradle data and blobs flowing to and from Tuist. The interface was more polished than his previous tool, but he felt nothing would really change. That feeling lasted just a few minutes, until he tried something that would change his team's culture entirely.
 
-![](/marketing/images/blog/2026/03/18/mcp/david.jpg)
+![Illustration of a developer overwhelmed by build and performance questions while staring at a computer showing a build in progress.](/marketing/images/blog/2026/03/18/mcp/david.jpg)
 
 ## Every platform team has a doctor problem
 
@@ -32,7 +32,7 @@ When you think about what it takes to be a good doctor, there are two fundamenta
 
 The data is something we had already been collecting at Tuist. First from Xcode builds and test runs. Later from the Gradle build toolchain. We had built the infrastructure to persist it over time and across environments, and we made it available through web-native APIs like our HTTP REST interface. But what about the knowledge? That's when we realized that the LLM frontier models people have been using might already have the right amount of knowledge to understand the data we expose. And we could extend them with additional context when needed to make them even more effective at their job.
 
-What if we could turn LLM-based agents like Codex or Claude into a project health doctor by feeding them with the right data and knowledge? A doctor that any developer in the organization could consult, not just the platform team. A doctor that never sleeps, never context-switches reluctantly, and scales with the size of the organization.
+What if we could turn LLM-based agents like [Codex](https://openai.com/codex/) or [Claude](https://claude.ai/) into a project health doctor by feeding them with the right data and knowledge? A doctor that any developer in the organization could consult, not just the platform team. A doctor that never sleeps, never context-switches reluctantly, and scales with the size of the organization.
 
 ## Building a virtual platform team
 
@@ -47,13 +47,13 @@ You will likely see discussions on the Internet about MCP vs CLI. We believe bot
 
 What follows are some use cases showing how agents can become doctors of your project's health.
 
-![](/marketing/images/blog/2026/03/18/mcp/tuist.jpg)
+![Illustration showing Tuist connecting CLI, skills, and MCP prompts and tools to coding agents like Codex and Claude.](/marketing/images/blog/2026/03/18/mcp/tuist.jpg)
 
 ## Diagnosing and fixing flaky tests
 
 Flakiness is one of those chronic conditions that slowly erodes developer trust in a test suite. It requires analyzing test data across many runs, spotting patterns, and understanding the root causes. Tuist does that work. We know which tests are flaky, and we expose that information through our read interfaces. What that means is that you can start your agentic coding session and simply tell your agent:
 
-<.agent_prompt id="agent-prompt-flaky" prompt="Can you fix the most flaky tests in this project?" response="I found 3 flaky tests via Tuist. The most flaky is LoginViewModelTests.test_login_success (42% failure rate, 18 runs). The failures correlate with async token refresh timing. I've added an explicit await on the token refresh before asserting, and the test now passes consistently across 10 local runs." />
+<.agent_prompt id="agent-prompt-flaky" title="Fix Flaky Tests" prompt="Can you fix the most flaky tests in this project?" response={["Querying flaky tests via list_test_cases...", "Found 17 flaky test cases across 4 test suites.", {"Inspecting flaky runs and crash patterns...", 700}, "10 tests point to Matcher.register crashes under parallel execution.", "1 quarantined flaky test points to a shared manifest cache race in InitCommandServiceTests.", {"Opening the affected test suites and support code...", 700}, "Keeping Matcher.register only where generic type erasure requires it.", {"Implementing a fix for the manifest cache race...", 1200}, "Replacing the shared InitGeneratedProjectService with a mock in InitCommandServiceTests.", {"Running the affected tests with repeated iterations...", 1400}, "The flaky unit tests are stable after the change.", "PR: https://github.com/tuist/tuist/pull/9424"]} />
 
 The coding agent will use the CLI or MCP to pull flakiness data, then leverage a skill or prompt that provides guidelines on how to fix those flaky tests. It's like handing a doctor the patient's full medical history and asking them to prescribe a treatment. Long-term, we would like to do that proactive work for you so that flaky tests get fixed automatically, but one thing at a time.
 
@@ -61,7 +61,7 @@ The coding agent will use the CLI or MCP to pull flakiness data, then leverage a
 
 When things fail, whether it's a build or a test suite run, developers typically go to the logs and try to understand the errors themselves. This can get tricky, especially if you are not very familiar with the codebase, its internals, or the underlying toolchain like Gradle or Xcode's build system. All the diagnostics data necessary for that analysis is collected by Tuist through our insights feature. So all you need to do is hand the agent the URL:
 
-<.agent_prompt id="agent-prompt-build" prompt="Why did this build fail?" response="The build failed due to 2 Swift compilation errors in the AuthModule target. The first is a missing conformance to Sendable in TokenManager.swift:42. The second is an ambiguous use of 'decode' in UserSession.swift:87 after the Swift 6 migration. The AuthModule target took 34s before failing, which is 2x slower than the baseline on main. I recommend fixing the Sendable conformance first since it is blocking 3 downstream targets." />
+<.agent_prompt id="agent-prompt-build" title="Diagnose Build" prompt="Why did this build fail?" response={[{"Loading build issues and target timings...", 600}, "First blocking target: AuthModule", "Primary error: TokenManager.swift failed Swift concurrency checks.", "Secondary error: UserSession.swift decode issue after the same compile step failed.", {"Opening AuthModule/TokenManager.swift to inspect the issue...", 700}, "The failure comes from mutable shared state crossing an actor boundary.", {"Implementing a targeted fix...", 1200}, "Wrapped the shared mutable state behind actor-isolated access.", {"Re-running the build...", 1200}, "AuthModule now compiles and the downstream decode error is gone."]} />
 
 The coding agent can pull information from that build (warnings, build errors, tasks, timings) and diagnose what the issue might have been. While the information for diagnosing might technically be in the logs, structured build data often provides additional signals that help diagnose issues more effectively and suggest a better set of next steps. In practice, this means that teams don't need to walk over to the platform engineer and treat them as a doctor. They can be doctors of their own work. The agent reads the X-rays so the developer doesn't have to.
 
@@ -69,11 +69,11 @@ The coding agent can pull information from that build (warnings, build errors, t
 
 Our bundle insights feature allows teams to understand how size is distributed across their app bundle. Sometimes the size is larger than it should be because resources are duplicated, or optimizations that could have been applied were missed. Through the dashboard, people can traverse the bundle structure and try to diagnose issues themselves. We do too, but there are scenarios we haven't codified deterministically yet. So what if agents could do that job for you?
 
-<.agent_prompt id="agent-prompt-bundle" prompt="Can I optimize anything in this bundle?" response="Your app bundle is 142 MB. I found 3 optimization opportunities: (1) The Assets.car file contains 847 unused image assets totaling 18 MB. (2) There are duplicate copies of libswiftCore.dylib in both the main bundle and the AnalyticsFramework, adding 12 MB. (3) The ML model in Resources/prediction.mlmodelc could be compressed, saving roughly 8 MB. Total potential savings: ~38 MB (27%)." />
+<.agent_prompt id="agent-prompt-bundle" title="Inspect Bundle" prompt="Can I optimize anything in this bundle?" response={[{"Loading bundle metadata...", 500}, {"Reading artifact tree...", 700}, "Detected duplicated onboarding resources across two feature bundles.", "The largest duplicated paths are images and localized strings copied into both targets.", {"Opening the project to inspect resource ownership...", 700}, "Both features embed the same resources instead of consuming a shared bundle.", {"Extracting duplicated resources into SharedOnboardingResources.bundle...", 1300}, "Updating both targets to reference the shared bundle instead of copying their own copies.", {"Re-checking bundle structure...", 900}, "Duplicate resources are gone and the install size dropped by 6.2 MB."]} />
 
 Or you can also compare bundles to understand what changed:
 
-<.agent_prompt id="agent-prompt-compare" prompt="How do these two bundles compare?" response="The bundle grew by 11 MB between these two versions (131 MB to 142 MB). The biggest contributor is a new VideoPlayer framework (+8.4 MB) added in the latest build. Additionally, three localization files were duplicated across two targets, adding 1.8 MB. The remaining 0.8 MB comes from new image assets in the onboarding flow. I suggest deduplicating the localization bundles and verifying the VideoPlayer framework is stripped of debug symbols." />
+<.agent_prompt id="agent-prompt-compare" title="Compare Bundles" prompt="How do these two bundles compare?" response={[{"Resolving base and head bundles...", 500}, {"Comparing install_size and download_size...", 700}, "Head bundle: +11.4 MB install size, +4.1 MB download size.", "Largest new artifact: VideoPlayer.framework (+8.3 MB).", "Largest secondary increase: onboarding resources duplicated across two targets (+1.9 MB).", "No meaningful removals offset the increase.", {"Inspecting the changed artifact paths...", 700}, "This looks like one new framework plus duplicated resources introduced by the latest feature split.", "If VideoPlayer.framework is required, the next fix is deduplicating the onboarding resources."]} />
 
 Think of it as getting a second opinion. The agent can traverse the bundle tree, identify the heaviest nodes, flag duplicated resources, and suggest concrete actions. The interfaces are designed so that coding agents can go as deep and broad as needed without exhausting the context window.
 
@@ -81,7 +81,7 @@ Think of it as getting a second opinion. The agent can traverse the bundle tree,
 
 Something we keep telling our customers about the cache is that part of the responsibility for making it effective is on us. We ensure low latency and high-bandwidth access from any environment. But the second part is on you, since you need to ensure your project's graph is designed so that tasks with side effects are minimal and tasks are not a parallelization bottleneck. Since Tuist collects cache data from your builds, you can also use that data to optimize your cache usage:
 
-<.agent_prompt id="agent-prompt-cache" prompt="Why did the cache hit rate drop?" response="The cache hit rate dropped from 87% to 31% compared to the main branch baseline. The root cause is a change to SharedModels/Package.swift that added a new dependency on CryptoKit. This invalidated the hash for SharedModels and all 14 targets that depend on it. Since SharedModels sits at the base of your dependency graph, almost every target needed to rebuild. Consider isolating the CryptoKit dependency into a separate leaf module to limit the cache invalidation blast radius." />
+<.agent_prompt id="agent-prompt-cache" title="Compare Cache Runs" prompt="Why did the cache hit rate drop?" response={[{"Resolving baseline from the main branch...", 500}, {"Comparing cache runs...", 700}, "Cache hit rate dropped from 86% to 34%.", {"Inspecting list_xcode_module_cache_targets...", 700}, "First non-dependencies change: SharedModels", "Changed subhash: dependencies", "Root cause dependency: CryptoKit was added to SharedModels and propagated through 14 dependent targets.", {"Opening SharedModels to inspect the change...", 700}, "CryptoKit is only needed by one signing helper, but it now sits in the base shared module.", {"Moving the signing helper into a leaf module...", 1300}, "That isolates the CryptoKit dependency and should restore cache hits for the unaffected targets."]} />
 
 Notice we didn't specify a baseline. The skills and prompts instruct the coding agent to use the project's repository main branch as the baseline to compare against, so it can pinpoint what might have caused any issues or even a regression in the project's configuration. It's like a doctor comparing your latest blood work to your historical results, looking for anything that deviated from the norm.
 

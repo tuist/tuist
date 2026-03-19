@@ -1,26 +1,52 @@
 defmodule TuistWeb.Marketing.Components.AgentPrompt do
   @moduledoc false
   use Phoenix.Component
+  use Noora
 
   attr :id, :string, required: true
+  attr :title, :string, default: "bash"
   attr :prompt, :string, required: true
-  attr :response, :string, required: true
+  attr :response, :any, required: true
 
   def agent_prompt(assigns) do
+    assigns = assign(assigns, :response_steps_json, Jason.encode!(normalize_response_steps(assigns.response)))
+
     ~H"""
-    <div id={@id} phx-hook="AgentPrompt">
-      <div id="marketing-agent-prompt">
-        <div data-part="prompt">
-          <div data-part="avatar">You</div>
-          <div data-part="prompt-text" data-value={@prompt}>{@prompt}</div>
+    <div id={@id} phx-hook="AgentPrompt" phx-update="ignore" data-part="agent-prompt">
+      <div data-part="agent-prompt-window">
+        <div data-part="bar">
+          <div data-part="language">{@title}</div>
+          <button
+            class="noora-neutral-button"
+            id={@id <> "-trigger"}
+            type="button"
+            data-size="medium"
+            data-part="trigger"
+            aria-label="Play agent prompt"
+          >
+            <.player_play />
+          </button>
         </div>
-        <div data-part="response-section">
-          <div data-part="response-header">Agent</div>
-          <div data-part="response-text" data-value={@response}>{@response}</div>
-          <div data-part="cursor"></div>
+        <div data-part="code">
+          <div data-part="terminal-line">
+            <span data-part="shell-prompt">$</span>
+            <span data-part="prompt-text" data-value={@prompt}></span><span data-part="prompt-cursor" style="visibility: hidden;"></span>
+          </div>
+          <div data-part="response-section" data-response-steps={@response_steps_json}>
+            <span data-part="response-text"></span><span data-part="response-cursor" style="visibility: hidden;"></span>
+          </div>
         </div>
       </div>
     </div>
     """
+  end
+
+  defp normalize_response_steps(response) when is_binary(response), do: [normalize_response_step(response)]
+  defp normalize_response_steps(response) when is_list(response), do: Enum.map(response, &normalize_response_step/1)
+
+  defp normalize_response_step(step) when is_binary(step), do: %{text: step, wait_ms: 0}
+
+  defp normalize_response_step({text, wait_ms}) when is_binary(text) and is_integer(wait_ms) and wait_ms >= 0 do
+    %{text: text, wait_ms: wait_ms}
   end
 end
