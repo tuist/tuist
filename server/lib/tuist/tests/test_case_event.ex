@@ -13,6 +13,7 @@ defmodule Tuist.Tests.TestCaseEvent do
   a deterministic ID based on test_case_id ensures deduplication.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 

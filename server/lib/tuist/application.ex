@@ -5,11 +5,19 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias Tuist.Builds.Build
+  alias Tuist.Cache.CASEvent
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.Tests.TestCase
+  alias Tuist.Tests.TestCaseEvent
+  alias Tuist.Tests.TestCaseFailure
+  alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunRepetition
+  alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestSuiteRun
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
@@ -117,6 +125,14 @@ defmodule Tuist.Application do
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
         Supervisor.child_spec(Buffer, id: Buffer),
         Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+        Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
+        Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
+        Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
+        Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
+        Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
+        Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
+        Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
+        Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
