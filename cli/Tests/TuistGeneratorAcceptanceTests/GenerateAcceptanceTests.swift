@@ -1213,14 +1213,15 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
 
+        let fileSystem = FileSystem()
         let xcstringsPath = fixturePath.appending(
             components: "StaticFramework", "Resources", "Localizable.xcstrings"
         )
-        let contentBeforeBuild = try Data(contentsOf: URL(fileURLWithPath: xcstringsPath.pathString))
+        let contentBeforeBuild = try await fileSystem.readFile(at: xcstringsPath)
 
         try await run(BuildCommand.self)
 
-        let contentAfterBuild = try Data(contentsOf: URL(fileURLWithPath: xcstringsPath.pathString))
+        let contentAfterBuild = try await fileSystem.readFile(at: xcstringsPath)
         #expect(
             contentBeforeBuild == contentAfterBuild,
             "Localizable.xcstrings was modified during build — Xcode likely added stale extraction state"
