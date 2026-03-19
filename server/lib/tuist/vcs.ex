@@ -744,6 +744,7 @@ defmodule Tuist.VCS do
 
     from(b in Builds.Build)
     |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> where([b], b.status not in ["processing", "failed_processing"])
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.filter(&(&1.scheme != ""))
