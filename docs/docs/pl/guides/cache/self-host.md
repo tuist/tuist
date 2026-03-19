@@ -6,47 +6,48 @@
 }
 ---
 
-# Własny serwer pamięci podręcznej {#self-host-cache}
+# Pamięć podręczna serwera własnego {#self-host-cache}
 
-Usługa pamięci podręcznej Tuist może być hostowana samodzielnie, aby zapewnić
-prywatną pamięć podręczną plików binarnych dla Twojego zespołu. Jest to
+Usługę pamięci podręcznej Tuist można hostować samodzielnie, aby zapewnić
+prywatną pamięć podręczną plików binarnych dla swojego zespołu. Jest to
 najbardziej przydatne w przypadku organizacji posiadających duże artefakty i
 często tworzących kompilacje, gdzie umieszczenie pamięci podręcznej bliżej
 infrastruktury CI zmniejsza opóźnienia i poprawia wydajność pamięci podręcznej.
 Minimalizując odległość między agentami kompilacji a pamięcią podręczną,
-zapewniasz, że obciążenie sieci nie zniweluje korzyści płynących z szybkości
-buforowania.
+zapewniasz, że obciążenie sieciowe nie zniweluje korzyści związanych z
+szybkością wynikających z buforowania.
 
 :: info
 <!-- -->
-Samodzielne hostowanie węzłów pamięci podręcznej wymaga planu **Enterprise**.
+Samodzielne hostowanie węzłów pamięci podręcznej wymaga planu Enterprise w
+usłudze **** .
 
-Możesz połączyć samodzielnie hostowane węzły pamięci podręcznej z hostowanym
-serwerem Tuist (`https://tuist.dev`) lub samodzielnie hostowanym serwerem Tuist.
-Samodzielne hostowanie serwera Tuist wymaga oddzielnej licencji serwerowej.
-Zapoznaj się z
-<LocalizedLink href="/guides/server/self-host/install">przewodnikiem dotyczącym
-samodzielnego hostowania serwera</LocalizedLink>.
+Możesz połączyć samodzielnie hostowane węzły pamięci podręcznej albo z
+hostowanym serwerem Tuist (`https://tuist.dev`), albo z samodzielnie hostowanym
+serwerem Tuist. Samodzielne hostowanie samego serwera Tuist wymaga osobnej
+licencji serwerowej. Zobacz
+<LocalizedLink href="/guides/server/self-host/install">przewodnik po
+samodzielnym hostowaniu serwera</LocalizedLink>.
 <!-- -->
 :::
 
 ## Wymagania wstępne {#prerequisites}
 
 - Docker i Docker Compose
-- Bucket pamięci masowej zgodny z S3
-- Działająca instancja serwera Tuist (hostowana lub samodzielnie hostowana)
+- Zbiornik danych zgodny ze standardem S3
+- Uruchomiona instancja serwera Tuist (hostowana lub samodzielnie hostowana)
 
 ## Wdrożenie {#deployment}
 
-Usługa pamięci podręcznej jest dystrybuowana jako obraz Docker pod adresem
+Usługa pamięci podręcznej jest udostępniana jako obraz Docker na stronie
 [ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). Pliki konfiguracyjne
-referencyjne udostępniamy w [katalogu
+referencyjne znajdują się w [katalogu
 cache](https://github.com/tuist/tuist/tree/main/cache).
 
 ::: napiwek
 <!-- -->
-Zapewniamy konfigurację Docker Compose, ponieważ stanowi ona wygodną podstawę do
-oceny i niewielkich wdrożeń. Możesz ją wykorzystać jako punkt odniesienia i
+Udostępniamy konfigurację Docker Compose, ponieważ stanowi ona wygodną podstawę
+do oceny i niewielkich wdrożeń. Możesz ją wykorzystać jako punkt odniesienia i
 dostosować do preferowanego modelu wdrożenia (Kubernetes, surowy Docker itp.).
 <!-- -->
 :::
@@ -61,12 +62,12 @@ curl -o docker/nginx.conf https://raw.githubusercontent.com/tuist/tuist/main/cac
 
 ### Zmienne środowiskowe {#environment-variables}
 
-Utwórz plik `.env` z własną konfiguracją.
+Utwórz plik `.env` zawierający Twoją konfigurację.
 
 ::: napiwek
 <!-- -->
 Usługa została zbudowana przy użyciu Elixir/Phoenix, więc niektóre zmienne
-używają przedrostka `PHX_`. Można je traktować jako standardową konfigurację
+używają prefiksów `PHX_`. Możesz traktować je jako standardową konfigurację
 usługi.
 <!-- -->
 :::
@@ -95,29 +96,29 @@ S3_REGION=us-east-1
 DATA_DIR=/data
 ```
 
-| Zmienna                           | Wymagane | Domyślne                  | Opis                                                                                                                     |
-| --------------------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `SECRET_KEY_BASE`                 | Tak      |                           | Tajny klucz używany do podpisywania i szyfrowania danych (minimum 64 znaki).                                             |
-| `PUBLIC_HOST`                     | Tak      |                           | Publiczna nazwa hosta lub adres IP usługi pamięci podręcznej. Służy do generowania bezwzględnych adresów URL.            |
-| `SERVER_URL`                      | Tak      |                           | Adres URL serwera Tuist do uwierzytelniania. Domyślnie `https://tuist.dev`                                               |
-| `DATA_DIR`                        | Tak      |                           | Katalog, w którym artefakty CAS są przechowywane na dysku. Dostarczona konfiguracja Docker Compose wykorzystuje `/data`. |
-| `S3_BUCKET`                       | Tak      |                           | Nazwa zasobnika S3.                                                                                                      |
-| `S3_HOST`                         | Tak      |                           | Nazwa hosta punktu końcowego S3.                                                                                         |
-| `S3_ACCESS_KEY_ID`                | Tak      |                           | Klucz dostępu S3.                                                                                                        |
-| `S3_SECRET_ACCESS_KEY`            | Tak      |                           | Sekretny klucz S3.                                                                                                       |
-| `S3_REGION`                       | Tak      |                           | Region S3.                                                                                                               |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | Nie      | `85`                      | Procent wykorzystania dysku, który powoduje usunięcie LRU.                                                               |
-| `CAS_DISK_TARGET_PERCENT`         | Nie      | `70`                      | Docelowe wykorzystanie dysku po usunięciu.                                                                               |
-| `PHX_SOCKET_PATH`                 | Nie      | `/run/cache/cache.sock`   | Ścieżka, w której usługa tworzy gniazdo Unix (jeśli jest włączone).                                                      |
-| `PHX_SOCKET_LINK`                 | Nie      | `/run/cache/current.sock` | Ścieżka dowiązania symbolicznego używana przez Nginx do połączenia się z usługą.                                         |
+| Zmienna                           | Wymagane | Domyślne                  | Opis                                                                                                                 |
+| --------------------------------- | -------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `SECRET_KEY_BASE`                 | Tak      |                           | Tajny klucz używany do podpisywania i szyfrowania danych (minimum 64 znaki).                                         |
+| `PUBLIC_HOST`                     | Tak      |                           | Publiczna nazwa hosta lub adres IP Twojej usługi pamięci podręcznej. Służy do generowania bezwzględnych adresów URL. |
+| `SERVER_URL`                      | Tak      |                           | Adres URL serwera Tuist do uwierzytelniania. Domyślnie `https://tuist.dev`                                           |
+| `DATA_DIR`                        | Tak      |                           | Katalog, w którym na dysku przechowywane są artefakty CAS. Podana konfiguracja Docker Compose wykorzystuje `/data`.  |
+| `S3_BUCKET`                       | Tak      |                           | Nazwa zasobnika S3.                                                                                                  |
+| `S3_HOST`                         | Tak      |                           | Nazwa hosta punktu końcowego S3.                                                                                     |
+| `S3_ACCESS_KEY_ID`                | Tak      |                           | Klucz dostępu S3.                                                                                                    |
+| `S3_SECRET_ACCESS_KEY`            | Tak      |                           | Tajny klucz S3.                                                                                                      |
+| `S3_REGION`                       | Tak      |                           | Region S3.                                                                                                           |
+| `CAS_DISK_HIGH_WATERMARK_PERCENT` | Nie      | `85`                      | Procentowe wykorzystanie dysku, które powoduje usunięcie elementów z listy LRU.                                      |
+| `CAS_DISK_TARGET_PERCENT`         | Nie      | `70`                      | Docelowe wykorzystanie dysku po usunięciu.                                                                           |
+| `PHX_SOCKET_PATH`                 | Nie      | `/run/cache/cache.sock`   | Ścieżka, w której usługa tworzy swój gniazdo Unix (gdy jest włączona).                                               |
+| `PHX_SOCKET_LINK`                 | Nie      | `/run/cache/current.sock` | Ścieżka dowiązania symbolicznego, której Nginx używa do połączenia się z usługą.                                     |
 
-### Rozpocznij usługę {#start-service}
+### Uruchom usługę {#start-service}
 
 ```bash
 docker compose up -d
 ```
 
-### Sprawdź wdrożenie. {#verify}
+### Sprawdź wdrożenie {#verify}
 
 ```bash
 curl http://localhost/up
@@ -128,9 +129,8 @@ curl http://localhost/up
 Po wdrożeniu usługi pamięci podręcznej zarejestruj ją w ustawieniach organizacji
 serwera Tuist:
 
-1. Przejdź do strony ustawień **organizacji**.
-2. Znajdź sekcję „ **” (Punkty końcowe niestandardowej pamięci podręcznej) „** ”
-   (Punkty końcowe niestandardowej pamięci podręcznej).
+1. Przejdź do strony Ustawienia **Twojej organizacji**
+2. Znajdź sekcję „ **” (Niestandardowe punkty końcowe pamięci podręcznej)**
 3. Dodaj adres URL swojej usługi pamięci podręcznej (na przykład
    `https://cache.example.com`)
 
@@ -142,30 +142,30 @@ graph TD
   B --> C[Tuist CLI uses your endpoint]
 ```
 
-Po skonfigurowaniu Tuist CLI będzie korzystać z Twojej własnej pamięci
+Po skonfigurowaniu interfejs CLI Tuist będzie korzystał z Twojej własnej pamięci
 podręcznej.
 
 ## Tom {#volumes}
 
 Konfiguracja Docker Compose wykorzystuje trzy woluminy:
 
-| Tom            | Cel                                               |
-| -------------- | ------------------------------------------------- |
-| `cas_data`     | Binarne przechowywanie artefaktów                 |
-| `sqlite_data`  | Dostęp do metadanych dotyczących usuwania LRU     |
-| `cache_socket` | Gniazdo Unix do komunikacji między usługami Nginx |
+| Tom            | Cel                                                             |
+| -------------- | --------------------------------------------------------------- |
+| `cas_data`     | Binarne przechowywanie artefaktów                               |
+| `sqlite_data`  | Dostęp do metadanych dotyczących usuwania elementów z listy LRU |
+| `cache_socket` | Gniazdo Unix do komunikacji między serwerem Nginx a usługą      |
 
-## Kontrole stanu zdrowia {#health-checks}
+## Kontrola poprawności {#health-checks}
 
-- `GET /up` — zwraca 200, gdy wszystko działa poprawnie
-- `GET /metrics` — Metryki Prometheus
+- `GET /up` — Zwraca kod 200, jeśli wszystko działa poprawnie
+- `GET /metrics` — Metryki Prometheusa
 
 ## Monitorowanie {#monitoring}
 
 Usługa pamięci podręcznej udostępnia metryki zgodne z Prometheusem pod adresem
 `/metrics`.
 
-Jeśli korzystasz z Grafana, możesz zaimportować [pulpit
+Jeśli korzystasz z Grafany, możesz zaimportować [pulpit nawigacyjny
 referencyjny](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
 
 ## Aktualizacja {#upgrading}
@@ -175,28 +175,29 @@ docker compose pull
 docker compose up -d
 ```
 
-Usługa automatycznie uruchamia migracje baz danych podczas startu.
+Usługa automatycznie uruchamia migracje bazy danych podczas startu.
 
 ## Rozwiązywanie problemów {#troubleshooting}
 
 ### Pamięć podręczna nie jest używana {#troubleshooting-caching}
 
 Jeśli spodziewasz się buforowania, ale obserwujesz ciągłe braki w pamięci
-podręcznej (na przykład CLI wielokrotnie przesyła te same artefakty lub
-pobieranie nigdy nie następuje), wykonaj następujące czynności:
+podręcznej (na przykład interfejs CLI wielokrotnie przesyła te same artefakty
+lub pobieranie nigdy nie ma miejsca), wykonaj następujące czynności:
 
 1. Sprawdź, czy niestandardowy punkt końcowy pamięci podręcznej jest poprawnie
    skonfigurowany w ustawieniach organizacji.
-2. Upewnij się, że Twoje Tuist CLI jest uwierzytelnione, uruchamiając `tuist
-   auth login`.
-3. Sprawdź logi usługi cache pod kątem błędów: `docker compose logs cache`.
+2. Upewnij się, że Twoje CLI Tuist jest uwierzytelnione, uruchamiając polecenie
+   `tuist auth login`.
+3. Sprawdź logi usługi pamięci podręcznej pod kątem błędów: `docker compose logs
+   cache`.
 
 ### Niezgodność ścieżki gniazda {#troubleshooting-socket}
 
-Jeśli widzisz błędy odmowy połączenia:
+Jeśli pojawiają się błędy typu „connection refused”:
 
-- Upewnij się, że `PHX_SOCKET_LINK` wskazuje ścieżkę gniazda skonfigurowaną w
-  nginx.conf (domyślnie: `/run/cache/current.sock`)
+- Upewnij się, że `PHX_SOCKET_LINK` wskazuje na ścieżkę gniazda skonfigurowaną w
+  pliku nginx.conf (domyślnie: `/run/cache/current.sock`)
 - Sprawdź, czy `PHX_SOCKET_PATH` oraz `PHX_SOCKET_LINK` są poprawnie ustawione w
-  pliku docker-compose.yml.
-- Sprawdź, czy wolumin `cache_socket` jest zamontowany w obu kontenerach.
+  pliku docker-compose.yml
+- Sprawdź, czy wolumin `cache_socket` jest zamontowany w obu kontenerach
