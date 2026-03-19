@@ -59,7 +59,6 @@ defmodule Tuist.Application do
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     ReqTelemetry.attach_default_logger(:pipeline)
-    TuistCommon.HTTP.Telemetry.attach()
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
