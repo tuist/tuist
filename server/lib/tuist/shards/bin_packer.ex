@@ -15,6 +15,14 @@ defmodule Tuist.Shards.BinPacker do
 
   Returns a list of `{index, units, total_duration_ms}` tuples,
   one per shard. Empty shards are included with empty unit lists.
+
+  ## Example
+
+      iex> BinPacker.pack([{"AppTests", 8000}, {"CoreTests", 3000}, {"UITests", 5000}], 2)
+      [
+        {0, [{"AppTests", 8000}], 8000},
+        {1, [{"UITests", 5000}, {"CoreTests", 3000}], 8000}
+      ]
   """
   def pack(units, shard_count) when is_list(units) and is_integer(shard_count) and shard_count > 0 do
     sorted = Enum.sort_by(units, fn {_name, duration} -> duration end, :desc)
