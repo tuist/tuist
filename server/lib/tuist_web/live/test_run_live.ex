@@ -1277,8 +1277,6 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_shard_rows(socket, run) do
-    import Ecto.Query
-
     shard_plan = Map.get(run, :shard_plan)
 
     expected_shard_count =
@@ -1319,8 +1317,6 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp fetch_target_counts(%ShardPlan{granularity: "suite"}, plan_id, project_id) do
-    import Ecto.Query
-
     from(s in ShardPlanTestSuite,
       where: s.shard_plan_id == ^plan_id,
       where: s.project_id == ^project_id,
@@ -1332,8 +1328,6 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp fetch_target_counts(%ShardPlan{}, plan_id, project_id) do
-    import Ecto.Query
-
     from(m in ShardPlanModule,
       where: m.shard_plan_id == ^plan_id,
       where: m.project_id == ^project_id,
