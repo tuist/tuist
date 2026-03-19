@@ -212,7 +212,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         generateOnly: Bool,
         passthroughXcodeBuildArguments: [String],
         skipQuarantine: Bool = false,
-        shardPlanId: String? = nil,
+        shardReference: String? = nil,
         shardGranularity: ShardGranularity = .module,
         shardMin: Int? = nil,
         shardMax: Int? = nil,
@@ -459,7 +459,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
                 schemes: schemes.map(\.name),
-                reference: shardPlanId,
+                reference: shardReference,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,

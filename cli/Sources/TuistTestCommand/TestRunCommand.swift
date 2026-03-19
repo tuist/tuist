@@ -278,7 +278,7 @@
             help: "Explicit shard plan ID. This ID is derived from environment variables for supported CI providers.",
             envKey: .testShardPlanId
         )
-        var shardPlanId: String?
+        var shardReference: String?
 
         @Argument(
             parsing: .postTerminator,
@@ -391,7 +391,7 @@
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
-                shardPlanId: shardPlanId,
+                shardReference: shardReference,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,

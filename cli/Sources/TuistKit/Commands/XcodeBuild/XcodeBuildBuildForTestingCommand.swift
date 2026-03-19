@@ -58,7 +58,7 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
         help: "Explicit shard plan ID. This ID is derived from environment variables for supported CI providers.",
         envKey: .testShardPlanId
     )
-    var shardPlanId: String?
+    var shardReference: String?
 
     @Argument(
         parsing: .captureForPassthrough,
@@ -70,7 +70,7 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
         try await XcodeBuildBuildCommandService()
             .run(
                 passthroughXcodebuildArguments: ["build-for-testing"] + passthroughXcodebuildArguments,
-                shardPlanId: shardPlanId,
+                shardReference: shardReference,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,

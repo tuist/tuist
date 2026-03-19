@@ -135,7 +135,7 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
-            shardPlanId: shardPlanId ?? ciInfo?.shardReference
+            shardPlanId: shardPlanId
         )
 
         let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)
