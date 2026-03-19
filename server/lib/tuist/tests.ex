@@ -389,7 +389,7 @@ defmodule Tuist.Tests do
 
     IngestRepo.insert_all(ShardRun, [
       %{
-        reference: plan_id,
+        shard_plan_id: plan_id,
         project_id: project_id,
         test_run_id: test_run_id,
         shard_index: shard_index || 0,
