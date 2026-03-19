@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-24 14:48+0000\n"
-"PO-Revision-Date: 2026-03-12 17:34+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>\n"
-"Language-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\n"
-"Language: pl\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.16.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2026-03-19 15:01+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\nLanguage: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -1738,14 +1726,17 @@ msgstr "Standardy"
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr "Śledź wydajność testów, wcześnie wykrywaj powolne testy i debuguj awarie CI bez konieczności przeglądania logów."
 
+#, fuzzy
 msgid "Your mobile platform team,"
-msgstr ""
+msgstr "Zespół ds. platform mobilnych,"
 
+#, fuzzy
 msgid "as a service"
-msgstr ""
+msgstr "jako usługa"
 
+#, fuzzy
 msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
-msgstr ""
+msgstr "Wirtualnie dołączamy do Twojego zespołu, aby zoptymalizować Twoje ustawienia, dzięki czemu możesz skupić się na dostarczaniu produktów"
 
 #, fuzzy
 #~ msgid "Make mobile"
