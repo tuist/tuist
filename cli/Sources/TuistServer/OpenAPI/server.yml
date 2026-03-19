@@ -1245,7 +1245,7 @@ components:
           x-struct:
           x-validate:
         reference:
-          description: A unique plan identifier.
+          description: A unique shard plan reference, typically derived from CI environment.
           type: string
           x-struct:
           x-validate:
@@ -3988,7 +3988,7 @@ components:
           x-struct:
           x-validate:
         reference:
-          description: The plan identifier.
+          description: A unique shard plan reference, typically derived from CI environment.
           type: string
           x-struct:
           x-validate:
@@ -4030,17 +4030,11 @@ components:
           type: array
           x-struct:
           x-validate:
-        upload_id:
-          description: The multipart upload ID for the test products bundle.
-          type: string
-          x-struct:
-          x-validate:
       required:
         - id
         - reference
         - shard_count
         - shards
-        - upload_id
       title: ShardPlan
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Shards.ShardPlan
@@ -4095,7 +4089,7 @@ components:
           x-struct:
           x-validate:
         reference:
-          description: The shard plan identifier.
+          description: The shard plan reference.
           type: string
           x-struct:
           x-validate:
@@ -4381,6 +4375,19 @@ components:
         - remote
       title: CacheStatus
       type: string
+      x-struct:
+      x-validate:
+    StartShardUploadParams:
+      properties:
+        reference:
+          description: The shard plan reference.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - reference
+      title: StartShardUploadParams
+      type: object
       x-struct:
       x-validate:
     GenerationsIndexPageSize:
@@ -5283,7 +5290,7 @@ components:
           x-struct:
           x-validate:
         reference:
-          description: The shard plan identifier.
+          description: The shard plan reference.
           type: string
           x-struct:
           x-validate:
@@ -5677,6 +5684,102 @@ paths:
       summary: Get a build by ID.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete:
+    post:
+      callbacks: {}
+      operationId: completeShardUpload
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                parts:
+                  description: The uploaded parts with their ETags.
+                  items:
+                    properties:
+                      etag:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      part_number:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - part_number
+                      - etag
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                reference:
+                  description: The shard plan reference.
+                  type: string
+                  x-struct:
+                  x-validate:
+                upload_id:
+                  description: The multipart upload ID.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - reference
+                - upload_id
+                - parts
+              title: CompleteShardUploadParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Complete upload params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  status:
+                    type: string
+                    x-struct:
+                    x-validate:
+                type: object
+                x-struct:
+                x-validate:
+          description: Upload completed
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+      summary: Complete the multipart upload and trigger per-shard xctestrun creation.
+      tags:
+        - Shards
   /api/analytics:
     post:
       callbacks: {}
@@ -6870,7 +6973,7 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: The shard plan identifier.
+        - description: The shard plan reference.
           in: path
           name: reference
           required: true
@@ -8584,91 +8687,6 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Cache
-  /api/projects/{account_handle}/{project_handle}/tests/shards/generate-url:
-    post:
-      callbacks: {}
-      operationId: generateShardUploadURL
-      parameters:
-        - description: The handle of the project's account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                part_number:
-                  description: The part number.
-                  type: integer
-                  x-struct:
-                  x-validate:
-                reference:
-                  description: The shard plan identifier.
-                  type: string
-                  x-struct:
-                  x-validate:
-                upload_id:
-                  description: The multipart upload ID.
-                  type: string
-                  x-struct:
-                  x-validate:
-              required:
-                - reference
-                - upload_id
-                - part_number
-              title: GenerateShardUploadURLParams
-              type: object
-              x-struct:
-              x-validate:
-        description: Upload URL params
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  data:
-                    properties:
-                      url:
-                        type: string
-                        x-struct:
-                        x-validate:
-                    type: object
-                    x-struct:
-                    x-validate:
-                type: object
-                x-struct:
-                x-validate:
-          description: The signed URL
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized
-      summary: Generate a signed URL for uploading a part of the test bundle.
-      tags:
-        - Shards
   /api/projects/{account_handle}/{project_handle}/previews/latest:
     get:
       callbacks: {}
@@ -10825,6 +10843,91 @@ paths:
       summary: List attachments for a test case run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url:
+    post:
+      callbacks: {}
+      operationId: generateShardUploadURL
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                part_number:
+                  description: The part number.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                reference:
+                  description: The shard plan reference.
+                  type: string
+                  x-struct:
+                  x-validate:
+                upload_id:
+                  description: The multipart upload ID.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - reference
+                - upload_id
+                - part_number
+              title: GenerateShardUploadURLParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Upload URL params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    properties:
+                      url:
+                        type: string
+                        x-struct:
+                        x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
+                type: object
+                x-struct:
+                x-validate:
+          description: The signed URL
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+      summary: Generate a signed URL for uploading a part of the test bundle.
+      tags:
+        - Shards
   /api/projects/{account_handle}/{project_handle}/builds/upload/complete:
     post:
       callbacks: {}
@@ -11992,102 +12095,6 @@ paths:
       summary: List tasks for a Gradle build.
       tags:
         - Gradle
-  /api/projects/{account_handle}/{project_handle}/tests/shards/complete:
-    post:
-      callbacks: {}
-      operationId: completeShardUpload
-      parameters:
-        - description: The handle of the project's account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                parts:
-                  description: The uploaded parts with their ETags.
-                  items:
-                    properties:
-                      etag:
-                        type: string
-                        x-struct:
-                        x-validate:
-                      part_number:
-                        type: integer
-                        x-struct:
-                        x-validate:
-                    required:
-                      - part_number
-                      - etag
-                    type: object
-                    x-struct:
-                    x-validate:
-                  type: array
-                  x-struct:
-                  x-validate:
-                reference:
-                  description: The shard plan identifier.
-                  type: string
-                  x-struct:
-                  x-validate:
-                upload_id:
-                  description: The multipart upload ID.
-                  type: string
-                  x-struct:
-                  x-validate:
-              required:
-                - reference
-                - upload_id
-                - parts
-              title: CompleteShardUploadParams
-              type: object
-              x-struct:
-              x-validate:
-        description: Complete upload params
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  status:
-                    type: string
-                    x-struct:
-                    x-validate:
-                type: object
-                x-struct:
-                x-validate:
-          description: Upload completed
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized
-      summary: Complete the multipart upload and trigger per-shard xctestrun creation.
-      tags:
-        - Shards
   /api/accounts/{account_handle}/tokens/{token_name}:
     delete:
       callbacks: {}
@@ -12134,6 +12141,79 @@ paths:
       summary: Revoke an account token.
       tags:
         - Account tokens
+  /api/projects/{account_handle}/{project_handle}/tests/shards/upload/start:
+    post:
+      callbacks: {}
+      operationId: startShardUpload
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                reference:
+                  description: The shard plan reference.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - reference
+              title: StartShardUploadParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Start upload params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    properties:
+                      upload_id:
+                        type: string
+                        x-struct:
+                        x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
+                type: object
+                x-struct:
+                x-validate:
+          description: The upload ID
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+      summary: Start a multipart upload for the test products bundle.
+      tags:
+        - Shards
   /api/organizations/{organization_name}/invitations:
     delete:
       callbacks: {}
@@ -17595,7 +17675,7 @@ paths:
                   x-struct:
                   x-validate:
                 reference:
-                  description: A unique plan identifier.
+                  description: A unique shard plan reference, typically derived from CI environment.
                   type: string
                   x-struct:
                   x-validate:

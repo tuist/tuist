@@ -441,8 +441,9 @@ defmodule TuistWeb.Router do
 
           scope "/shards" do
             post "/", ShardsController, :create
-            post "/generate-url", ShardsController, :generate_url
-            post "/complete", ShardsController, :complete
+            post "/upload/start", ShardsController, :start_upload
+            post "/upload/generate-url", ShardsController, :generate_url
+            post "/upload/complete", ShardsController, :complete
             get "/:reference/:shard_index", ShardsController, :show
           end
         end

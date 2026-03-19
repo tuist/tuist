@@ -47,6 +47,7 @@
     public struct ShardPlanService: ShardPlanServicing {
         private let xcTestEnumerator: XCTestEnumerating
         private let createShardPlanService: CreateShardPlanServicing
+        private let startShardUploadService: StartShardUploadServicing
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
         private let multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing
         private let multipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing
@@ -57,6 +58,7 @@
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
             createShardPlanService: CreateShardPlanServicing = CreateShardPlanService(),
+            startShardUploadService: StartShardUploadServicing = StartShardUploadService(),
             multipartUploadArtifactService: MultipartUploadArtifactServicing = MultipartUploadArtifactService(),
             multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing =
                 MultipartUploadGenerateURLShardsService(),
@@ -68,6 +70,7 @@
         ) {
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
+            self.startShardUploadService = startShardUploadService
             self.multipartUploadArtifactService = multipartUploadArtifactService
             self.multipartUploadGenerateURLShardsService = multipartUploadGenerateURLShardsService
             self.multipartUploadCompleteShardsService = multipartUploadCompleteShardsService
@@ -137,6 +140,12 @@
 
             Logger.current.info("Shard plan created: \(shardPlan.shard_count) shards")
 
+            let uploadId = try await startShardUploadService.startUpload(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                reference: reference
+            )
+
             Logger.current.debug("Uploading test products bundle...")
             let archivePath = try await fileArchiver
                 .makeFileArchiver(for: [xctestproductsPath])
@@ -148,7 +157,7 @@
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         reference: reference,
-                        uploadId: shardPlan.upload_id,
+                        uploadId: uploadId,
                         partNumber: part.number
                     )
                 },
@@ -161,7 +170,7 @@
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 reference: reference,
-                uploadId: shardPlan.upload_id,
+                uploadId: uploadId,
                 parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
             )
 

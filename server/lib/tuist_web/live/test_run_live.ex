@@ -1344,6 +1344,4 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp fetch_target_counts(_, _, _), do: %{}
-
-  end
 end

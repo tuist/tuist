@@ -41,12 +41,8 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
           },
           required: [:index, :test_targets, :estimated_duration_ms]
         }
-      },
-      upload_id: %Schema{
-        type: :string,
-        description: "The multipart upload ID for the test products bundle."
       }
     },
-    required: [:id, :reference, :shard_count, :shards, :upload_id]
+    required: [:id, :reference, :shard_count, :shards]
   })
 end
