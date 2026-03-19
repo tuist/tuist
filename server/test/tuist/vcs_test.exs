@@ -262,7 +262,20 @@ defmodule Tuist.VCSTest do
                 %{name: "test1", test_suite_name: "AppSuite", status: "success", duration: 250},
                 %{name: "test2", test_suite_name: "AppSuite", status: "success", duration: 250},
                 %{name: "test3", test_suite_name: "AppSuite", status: "success", duration: 250},
-                %{name: "test4", test_suite_name: "AppSuite", status: "failure", duration: 250}
+                %{
+                  name: "test4",
+                  test_suite_name: "AppSuite",
+                  status: "failure",
+                  duration: 250,
+                  failures: [
+                    %{
+                      message: ~s{XCTAssertEqual failed: ("snapshot") is not equal to ("expected")},
+                      path: "Tests/AppTests/SnapshotTests.swift",
+                      line_number: 42,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
               ]
             }
           ]
@@ -324,9 +337,9 @@ defmodule Tuist.VCSTest do
 
         - **test App**: 1 failed test ([View all](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run_two.id}?tab=failures))
 
-        | Test case | Module | Suite |
-        |:-|:-|:-|
-        | [test4](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test_case_id}) | AppTests | AppSuite |
+        | Test case | Module | Suite | Message |
+        |:-|:-|:-|:-|
+        | [test4](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test_case_id}) | AppTests | AppSuite | `XCTAssertEqual failed: ("snapshot") is not equal to ("expected")` |
 
         """
 
@@ -2079,7 +2092,15 @@ defmodule Tuist.VCSTest do
                   name: "test_failing",
                   test_suite_name: "MySuite",
                   status: "failure",
-                  duration: 250
+                  duration: 250,
+                  failures: [
+                    %{
+                      message: "Expected true, got false",
+                      path: "Tests/MyModule/MyTests.swift",
+                      line_number: 10,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
                 }
               ]
             }
@@ -2115,9 +2136,9 @@ defmodule Tuist.VCSTest do
 
         - **test**: 1 failed test ([View all](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures))
 
-        | Test case | Module | Suite |
-        |:-|:-|:-|
-        | [test_failing](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{test_case_id}) | MyModule | MySuite |
+        | Test case | Module | Suite | Message |
+        |:-|:-|:-|:-|
+        | [test_failing](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{test_case_id}) | MyModule | MySuite | `Expected true, got false` |
 
         """
 
@@ -2161,7 +2182,15 @@ defmodule Tuist.VCSTest do
             name: "test_failed_#{i}",
             test_suite_name: "MySuite",
             status: "failure",
-            duration: 250
+            duration: 250,
+            failures: [
+              %{
+                message: "Failure in test #{i}",
+                path: "Tests/MyModule/Test#{i}.swift",
+                line_number: i * 10,
+                issue_type: "assertion_failure"
+              }
+            ]
           }
         end
 
@@ -2207,7 +2236,7 @@ defmodule Tuist.VCSTest do
 
       failed_tests_table_rows =
         Enum.map_join(displayed_failed_tests, "", fn failed_test ->
-          "| [#{failed_test.name}](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}) | MyModule | MySuite |\n"
+          "| [#{failed_test.name}](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}) | MyModule | MySuite | `#{failed_test.failure_message}` |\n"
         end)
 
       expected_body =
@@ -2225,8 +2254,8 @@ defmodule Tuist.VCSTest do
 
         - **test**: 7 failed tests ([View all](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures))
 
-        | Test case | Module | Suite |
-        |:-|:-|:-|
+        | Test case | Module | Suite | Message |
+        |:-|:-|:-|:-|
         #{failed_tests_table_rows}
         > Showing 5 of 7 failed tests. See links above for full details.
 

@@ -1688,20 +1688,29 @@ defmodule Tuist.Tests do
   end
 
   def get_failed_tests_for_test_run(test_run_id) do
-    from(tcr in TestCaseRun,
-      where: tcr.test_run_id == ^test_run_id,
-      where: tcr.status == "failure",
-      where: tcr.is_flaky == false,
-      order_by: [desc: tcr.ran_at]
-    )
-    |> ClickHouseRepo.all()
-    |> Enum.uniq_by(& &1.test_case_id)
-    |> Enum.map(fn tcr ->
+    failed_runs =
+      from(tcr in TestCaseRun,
+        where: tcr.test_run_id == ^test_run_id,
+        where: tcr.status == "failure",
+        where: tcr.is_flaky == false,
+        order_by: [desc: tcr.ran_at]
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.uniq_by(& &1.test_case_id)
+
+    run_ids = Enum.map(failed_runs, & &1.id)
+    failures = get_failures_for_runs(run_ids)
+    failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
+
+    Enum.map(failed_runs, fn tcr ->
+      first_failure = failures_by_run_id |> Map.get(tcr.id, []) |> List.first()
+
       %{
         test_case_id: tcr.test_case_id,
         name: tcr.name,
         module_name: tcr.module_name,
-        suite_name: tcr.suite_name
+        suite_name: tcr.suite_name,
+        failure_message: first_failure && first_failure.message
       }
     end)
   end

@@ -795,16 +795,31 @@ defmodule Tuist.VCS do
       #### Failed Tests ❌
 
       #{runs_summary}
-      | Test case | Module | Suite |
-      |:-|:-|:-|
+      | Test case | Module | Suite | Message |
+      |:-|:-|:-|:-|
       #{Enum.map_join(displayed_failed_tests, "", fn failed_test ->
         test_case_url = Environment.app_url(path: "/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}")
+        message = truncate_failure_message(failed_test.failure_message)
 
         """
-        | [#{failed_test.name}](#{test_case_url}) | #{failed_test.module_name} | #{failed_test.suite_name} |
+        | [#{failed_test.name}](#{test_case_url}) | #{failed_test.module_name} | #{failed_test.suite_name} | #{message} |
         """
       end)}#{more_tests_note}
       """
+    end
+  end
+
+  @max_failure_message_length 100
+
+  defp truncate_failure_message(nil), do: ""
+
+  defp truncate_failure_message(message) do
+    sanitized = message |> String.replace(~r/[\n\r]+/, " ") |> String.replace("|", "\\|") |> String.trim()
+
+    if String.length(sanitized) > @max_failure_message_length do
+      "`#{String.slice(sanitized, 0, @max_failure_message_length)}…`"
+    else
+      "`#{sanitized}`"
     end
   end
 
