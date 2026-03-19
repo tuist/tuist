@@ -85,21 +85,21 @@ S3_REGION=us-east-1
 DATA_DIR=/data
 ```
 
-| 변수                                | 필수  | 기본 값                      | 설명                                                                |
-| --------------------------------- | --- | ------------------------- | ----------------------------------------------------------------- |
-| `SECRET_KEY_BASE`                 | 예   |                           | 데이터 서명 및 암호화에 사용되는 비밀 키(최소 64자)입니다.                               |
-| `PUBLIC_HOST`                     | 예   |                           | 캐시 서비스의 공개 호스트명 또는 IP 주소입니다. 절대 URL을 생성하는 데 사용됩니다.                |
-| `SERVER_URL`                      | 예   |                           | 인증을 위한 Tuist 서버의 URL입니다. 기본 값은 `https://tuist.dev`                |
-| `DATA_DIR`                        | 예   |                           | 디스크에 CAS 아티팩트가 저장되는 디렉터리. 제공된 Docker Compose 설정은 `/data` 를 사용합니다. |
-| `S3_BUCKET`                       | 예   |                           | S3 버킷 이름.                                                         |
-| `S3_HOST`                         | 예   |                           | S3 주소의 호스트 이름.                                                    |
-| `S3_ACCESS_KEY_ID`                | 예   |                           | S3 접근 키.                                                          |
-| `S3_SECRET_ACCESS_KEY`            | 예   |                           | S3 비밀 키.                                                          |
-| `S3_REGION`                       | 예   |                           | S3 지역.                                                            |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | 아니요 | `85`                      | LRU 축출을 실행하는 디스크 사용량 비율입니다.                                       |
-| `CAS_DISK_TARGET_PERCENT`         | 아니요 | `70`                      | 축출 후 대상 디스크 사용량 입니다.                                              |
-| `PHX_SOCKET_PATH`                 | 아니요 | `/run/cache/cache.sock`   | 서비스가 유닉스 소켓을 생성하는 경로(활성화된 경우)입니다.                                 |
-| `PHX_SOCKET_LINK`                 | 아니요 | `/run/cache/current.sock` | Nginx가 서비스에 연결하는 데 사용하는 심볼릭 링크 경로입니다.                             |
+| 변수                                | 필수  | 기본 값                      | 설명                                                                 |
+| --------------------------------- | --- | ------------------------- | ------------------------------------------------------------------ |
+| `SECRET_KEY_BASE`                 | 예   |                           | 데이터 서명 및 암호화에 사용되는 비밀 키(최소 64자)입니다.                                |
+| `PUBLIC_HOST`                     | 예   |                           | 캐시 서비스의 공개 호스트명 또는 IP 주소입니다. 절대 URL을 생성하는 데 사용됩니다.                 |
+| `SERVER_URL`                      | 예   |                           | 인증을 위한 Tuist 서버의 URL입니다. 기본 값은 `https://tuist.dev`                 |
+| `DATA_DIR`                        | 예   |                           | CAS 아티팩트가 디스크에 저장되는 디렉터리입니다. 제공된 Docker Compose 설정은 `/cas`를 사용합니다. |
+| `S3_BUCKET`                       | 예   |                           | S3 버킷 이름.                                                          |
+| `S3_HOST`                         | 예   |                           | S3 주소의 호스트 이름.                                                     |
+| `S3_ACCESS_KEY_ID`                | 예   |                           | S3 접근 키.                                                           |
+| `S3_SECRET_ACCESS_KEY`            | 예   |                           | S3 비밀 키.                                                           |
+| `S3_REGION`                       | 예   |                           | S3 지역.                                                             |
+| `CAS_DISK_HIGH_WATERMARK_PERCENT` | 아니요 | `85`                      | LRU 축출을 실행하는 디스크 사용량 비율입니다.                                        |
+| `CAS_DISK_TARGET_PERCENT`         | 아니요 | `70`                      | 축출 후 대상 디스크 사용량 입니다.                                               |
+| `PHX_SOCKET_PATH`                 | 아니요 | `/run/cache/cache.sock`   | 서비스가 유닉스 소켓을 생성하는 경로(활성화된 경우)입니다.                                  |
+| `PHX_SOCKET_LINK`                 | 아니요 | `/run/cache/current.sock` | Nginx가 서비스에 연결하는 데 사용하는 심볼릭 링크 경로입니다.                              |
 
 ### 서비스 시작 {#start-service}
 
