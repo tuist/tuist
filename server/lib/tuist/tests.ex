@@ -352,30 +352,27 @@ defmodule Tuist.Tests do
 
   defp count_reported_shards(test_run_id) do
     ClickHouseRepo.one(
-      from(tcr in TestCaseRun,
-        hints: ["FINAL"],
-        where: tcr.test_run_id == ^test_run_id,
-        where: not is_nil(tcr.shard_index),
-        select: fragment("count(DISTINCT ?)", tcr.shard_index)
+      from(sr in ShardRun,
+        where: sr.test_run_id == ^test_run_id,
+        select: count()
       )
     ) || 0
   end
 
   defp compute_final_shard_status(existing_test, current_shard_status) do
-    has_existing_failure =
+    has_failed_shard =
       ClickHouseRepo.one(
-        from(tcr in TestCaseRun,
-          hints: ["FINAL"],
-          where: tcr.test_run_id == ^existing_test.id,
-          where: tcr.status == "failure",
-          select: count(tcr.id),
+        from(sr in ShardRun,
+          where: sr.test_run_id == ^existing_test.id,
+          where: sr.status == "failure",
+          select: count(),
           limit: 1
         )
       ) || 0
 
     cond do
       current_shard_status == "failure" -> "failure"
-      has_existing_failure > 0 -> "failure"
+      has_failed_shard > 0 -> "failure"
       true -> "success"
     end
   end
