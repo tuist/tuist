@@ -8,10 +8,9 @@ import Testing
 import TuistConfigLoader
 import TuistCore
 import TuistGit
-import TuistLoader
+import TuistKit
 import TuistServer
 import TuistTesting
-import TuistUserInputReader
 import TuistXcodeBuildProducts
 
 @testable import TuistInspectCommand
@@ -25,10 +24,7 @@ struct InspectBundleCommandServiceTests {
     private let gitController = MockGitControlling()
     private let fileHandler = FileHandler.shared
     private let builtAppBundleLocator = MockBuiltAppBundleLocating()
-    private let manifestLoader = MockManifestLoading()
-    private let manifestGraphLoader = MockManifestGraphLoading()
-    private let userInputReader = MockUserInputReading()
-    private let defaultConfigurationFetcher = MockDefaultConfigurationFetching()
+    private let appBundlePathResolver = MockAppBundlePathResolving()
     private let subject: InspectBundleCommandService
 
     init() {
@@ -41,19 +37,12 @@ struct InspectBundleCommandServiceTests {
             fileSystem: fileSystem,
             fileHandler: fileHandler,
             builtAppBundleLocator: builtAppBundleLocator,
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader,
-            userInputReader: userInputReader,
-            defaultConfigurationFetcher: defaultConfigurationFetcher
+            appBundlePathResolver: appBundlePathResolver
         )
 
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(false)
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
@@ -141,7 +130,21 @@ struct InspectBundleCommandServiceTests {
             let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             let bundlePath = temporaryDirectory.appending(component: "App.app")
 
-            try await fileSystem.makeDirectory(at: workspacePath)
+            given(appBundlePathResolver)
+                .resolve(
+                    app: .value("App"),
+                    path: .value(temporaryDirectory),
+                    configuration: .value("Debug"),
+                    platforms: .value([.iOS]),
+                    derivedDataPath: .value(nil)
+                )
+                .willReturn(ResolvedAppBundleTarget(
+                    app: "App",
+                    workspacePath: workspacePath,
+                    configuration: "Debug",
+                    platforms: [.iOS],
+                    derivedDataPath: nil
+                ))
 
             given(builtAppBundleLocator)
                 .locateBuiltAppBundlePath(

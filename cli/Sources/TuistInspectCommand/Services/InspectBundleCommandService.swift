@@ -5,37 +5,23 @@ import Path
 import Rosalind
 import TuistAlert
 import TuistConfigLoader
-import TuistCore
 import TuistEncodable
 import TuistEnvironment
 import TuistGit
-import TuistLoader
+import TuistKit
 import TuistLogging
 import TuistServer
 import TuistSupport
-import TuistUserInputReader
 import TuistXcodeBuildProducts
 import XcodeGraph
 
 public enum InspectBundleCommandServiceError: LocalizedError {
     case missingFullHandle
-    case projectOrWorkspaceNotFound(path: String)
-    case noAppsFound(app: String, configuration: String)
-    case multipleBuiltBundlesFound(app: String, paths: [String])
-    case platformsNotSpecified
 
     public var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             "To analyze the app bundle, run 'tuist init' to connect to the Tuist server."
-        case let .projectOrWorkspaceNotFound(path):
-            "Workspace or project not found at \(path)"
-        case let .noAppsFound(app, configuration):
-            "\(app) was not found in Xcode build products for the \(configuration) configuration. Build the app first or pass an explicit bundle path."
-        case let .multipleBuiltBundlesFound(app, paths):
-            "Multiple built bundles were found for \(app): \(paths.joined(separator: ", ")). Pass an explicit bundle path."
-        case .platformsNotSpecified:
-            "If you're not using Tuist projects, you must specify the platforms when inspecting an app by name, such as `tuist inspect bundle App --platforms ios`."
         }
     }
 }
@@ -49,10 +35,7 @@ public struct InspectBundleCommandService {
     private let fileSystem: FileSysteming
     private let fileHandler: FileHandling
     private let builtAppBundleLocator: BuiltAppBundleLocating
-    private let manifestLoader: ManifestLoading
-    private let manifestGraphLoader: ManifestGraphLoading
-    private let userInputReader: UserInputReading
-    private let defaultConfigurationFetcher: DefaultConfigurationFetching
+    private let appBundlePathResolver: AppBundlePathResolving
 
     public init(
         rosalind: Rosalindable = Rosalind(),
@@ -61,7 +44,6 @@ public struct InspectBundleCommandService {
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController()
     ) {
-        let manifestLoader = ManifestLoader.current
         self.init(
             rosalind: rosalind,
             createBundleService: createBundleService,
@@ -71,14 +53,7 @@ public struct InspectBundleCommandService {
             fileSystem: FileSystem(),
             fileHandler: FileHandler.shared,
             builtAppBundleLocator: BuiltAppBundleLocator(),
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: ManifestGraphLoader(
-                manifestLoader: manifestLoader,
-                workspaceMapper: SequentialWorkspaceMapper(mappers: []),
-                graphMapper: SequentialGraphMapper([])
-            ),
-            userInputReader: UserInputReader(),
-            defaultConfigurationFetcher: DefaultConfigurationFetcher()
+            appBundlePathResolver: AppBundlePathResolver()
         )
     }
 
@@ -91,10 +66,7 @@ public struct InspectBundleCommandService {
         fileSystem: FileSysteming,
         fileHandler: FileHandling,
         builtAppBundleLocator: BuiltAppBundleLocating,
-        manifestLoader: ManifestLoading,
-        manifestGraphLoader: ManifestGraphLoading,
-        userInputReader: UserInputReading,
-        defaultConfigurationFetcher: DefaultConfigurationFetching
+        appBundlePathResolver: AppBundlePathResolving
     ) {
         self.rosalind = rosalind
         self.createBundleService = createBundleService
@@ -104,10 +76,7 @@ public struct InspectBundleCommandService {
         self.fileSystem = fileSystem
         self.fileHandler = fileHandler
         self.builtAppBundleLocator = builtAppBundleLocator
-        self.manifestLoader = manifestLoader
-        self.manifestGraphLoader = manifestGraphLoader
-        self.userInputReader = userInputReader
-        self.defaultConfigurationFetcher = defaultConfigurationFetcher
+        self.appBundlePathResolver = appBundlePathResolver
     }
 
     public func run(
@@ -201,119 +170,21 @@ public struct InspectBundleCommandService {
             try AbsolutePath(validating: $0, relativeTo: fileHandler.currentPath)
         }
 
-        if try await manifestLoader.hasRootManifest(at: path) {
-            return try await resolveFromManifest(
-                bundle: bundle,
-                path: path,
-                configuration: configuration,
-                platforms: platforms,
-                derivedDataPath: resolvedDerivedDataPath
-            )
-        } else {
-            guard !platforms.isEmpty else {
-                throw InspectBundleCommandServiceError.platformsNotSpecified
-            }
-
-            let workspace = try await fileSystem.glob(directory: path, include: ["*.xcworkspace"])
-                .collect()
-                .first
-            let project = try await fileSystem.glob(directory: path, include: ["*.xcodeproj"])
-                .collect()
-                .first
-
-            guard let workspaceOrProjectPath = workspace ?? project else {
-                throw InspectBundleCommandServiceError.projectOrWorkspaceNotFound(path: path.pathString)
-            }
-
-            return try await resolveBuiltAppPath(
-                app: bundle,
-                workspacePath: workspaceOrProjectPath,
-                configuration: configuration ?? BuildConfiguration.debug.name,
-                platforms: platforms,
-                derivedDataPath: resolvedDerivedDataPath
-            )
-        }
-    }
-
-    private func resolveFromManifest(
-        bundle: String,
-        path: AbsolutePath,
-        configuration: String?,
-        platforms: [Platform],
-        derivedDataPath: AbsolutePath?
-    ) async throws -> AbsolutePath {
-        let config = try await configLoader.loadConfig(path: path)
-        let (graph, _, _, _) = try await manifestGraphLoader.load(
+        let resolved = try await appBundlePathResolver.resolve(
+            app: bundle,
             path: path,
-            disableSandbox: config.project.disableSandbox
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
-        let matchingTargets = graphTraverser
-            .targets(product: .app)
-            .union(graphTraverser.targets(product: .appClip))
-            .union(graphTraverser.targets(product: .watch2App))
-            .filter { target in
-                target.target.name == bundle || target.target.productName == bundle
-            }
-            .sorted { $0.target.name < $1.target.name }
-
-        let resolvedConfiguration = try defaultConfigurationFetcher.fetch(
             configuration: configuration,
-            defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
-            graph: graph
+            platforms: platforms,
+            derivedDataPath: resolvedDerivedDataPath
         )
 
-        guard !matchingTargets.isEmpty else {
-            throw InspectBundleCommandServiceError.noAppsFound(
-                app: bundle,
-                configuration: resolvedConfiguration
-            )
-        }
-
-        let appTarget: GraphTarget
-        if matchingTargets.count == 1, let singleTarget = matchingTargets.first {
-            appTarget = singleTarget
-        } else {
-            appTarget = try userInputReader.readValue(
-                asking: "Select the app that you want to inspect:",
-                values: matchingTargets,
-                valueDescription: \.target.name
-            )
-        }
-
-        let resolvedPlatforms = platforms.isEmpty ? appTarget.target.supportedPlatforms.map { $0 } : platforms
-        return try await resolveBuiltAppPath(
-            app: appTarget.target.productName,
-            workspacePath: graph.workspace.xcWorkspacePath,
-            configuration: resolvedConfiguration,
-            platforms: resolvedPlatforms,
-            derivedDataPath: derivedDataPath
+        return try await builtAppBundleLocator.locateBuiltAppBundlePath(
+            app: resolved.app,
+            projectPath: resolved.workspacePath,
+            derivedDataPath: resolved.derivedDataPath,
+            configuration: resolved.configuration,
+            platforms: resolved.platforms
         )
-    }
-
-    private func resolveBuiltAppPath(
-        app: String,
-        workspacePath: AbsolutePath,
-        configuration: String,
-        platforms: [Platform],
-        derivedDataPath: AbsolutePath?
-    ) async throws -> AbsolutePath {
-        do {
-            return try await builtAppBundleLocator.locateBuiltAppBundlePath(
-                app: app,
-                projectPath: workspacePath,
-                derivedDataPath: derivedDataPath,
-                configuration: configuration,
-                platforms: platforms
-            )
-        } catch let error as BuiltAppBundleLocatorError {
-            switch error {
-            case let .noAppsFound(app, configuration):
-                throw InspectBundleCommandServiceError.noAppsFound(app: app, configuration: configuration)
-            case let .multipleBuiltBundlesFound(app, paths):
-                throw InspectBundleCommandServiceError.multipleBuiltBundlesFound(app: app, paths: paths)
-            }
-        }
     }
 
     private func looksLikeBundlePath(_ path: AbsolutePath) -> Bool {
