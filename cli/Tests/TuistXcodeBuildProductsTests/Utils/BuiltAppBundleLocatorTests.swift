@@ -1,36 +1,27 @@
 import FileSystem
 import Mockable
 import Path
-import TuistSimulator
-import TuistTesting
+import Testing
 import TuistXcodeBuildProducts
 import XcodeGraph
-import XCTest
 
 @testable import TuistXcodeBuildProducts
 
-final class BuiltAppBundleLocatorTests: TuistTestCase {
+struct BuiltAppBundleLocatorTests {
     private let fileSystem = FileSystem()
-    private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating!
-    private var subject: BuiltAppBundleLocator!
+    private let xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocating()
+    private let subject: BuiltAppBundleLocator
 
-    override func setUp() {
-        super.setUp()
-        xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocating()
+    init() {
         subject = BuiltAppBundleLocator(
             fileSystem: fileSystem,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator
         )
     }
 
-    override func tearDown() {
-        xcodeProjectBuildDirectoryLocator = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_locateBuiltAppBundles_returns_existing_bundles_for_requested_platforms() async throws {
-        let temporaryDirectory = try XCTUnwrap(FileSystem.temporaryTestDirectory)
+    @Test(.inTemporaryDirectory)
+    func locateBuiltAppBundles_returns_existing_bundles_for_requested_platforms() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcworkspace")
         let simulatorBuildPath = temporaryDirectory.appending(component: "Debug-iphonesimulator")
         let deviceBuildPath = temporaryDirectory.appending(component: "Debug-iphoneos")
@@ -66,9 +57,8 @@ final class BuiltAppBundleLocatorTests: TuistTestCase {
             platforms: [.iOS]
         )
 
-        XCTAssertEqual(
-            bundles,
-            [
+        #expect(
+            bundles == [
                 BuiltAppBundle(
                     destinationType: .simulator(.iOS),
                     path: simulatorBuildPath.appending(component: "App.app")
@@ -81,7 +71,8 @@ final class BuiltAppBundleLocatorTests: TuistTestCase {
         )
     }
 
-    func test_locateBuiltAppBundlePath_throws_when_no_built_bundle_exists() async throws {
+    @Test
+    func locateBuiltAppBundlePath_throws_when_no_built_bundle_exists() async throws {
         let projectPath = try AbsolutePath(validating: "/Project/App.xcworkspace")
         let simulatorBuildPath = try AbsolutePath(validating: "/Derived/Build/Products/Debug-iphonesimulator")
         let deviceBuildPath = try AbsolutePath(validating: "/Derived/Build/Products/Debug-iphoneos")
@@ -104,7 +95,9 @@ final class BuiltAppBundleLocatorTests: TuistTestCase {
             )
             .willReturn(deviceBuildPath)
 
-        do {
+        await #expect(
+            throws: BuiltAppBundleLocatorError.noAppsFound(app: "App", configuration: "Debug")
+        ) {
             _ = try await subject.locateBuiltAppBundlePath(
                 app: "App",
                 projectPath: projectPath,
@@ -112,14 +105,12 @@ final class BuiltAppBundleLocatorTests: TuistTestCase {
                 configuration: "Debug",
                 platforms: [.iOS]
             )
-            XCTFail("Expected locateBuiltAppBundlePath to throw")
-        } catch let error as BuiltAppBundleLocatorError {
-            XCTAssertEqual(error, .noAppsFound(app: "App", configuration: "Debug"))
         }
     }
 
-    func test_locateBuiltAppBundlePath_returns_single_unique_bundle_path() async throws {
-        let temporaryDirectory = try XCTUnwrap(FileSystem.temporaryTestDirectory)
+    @Test(.inTemporaryDirectory)
+    func locateBuiltAppBundlePath_returns_single_unique_bundle_path() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcworkspace")
         let simulatorBuildPath = temporaryDirectory.appending(component: "Debug-iphonesimulator")
         let deviceBuildPath = temporaryDirectory.appending(component: "Debug-iphoneos")
@@ -155,11 +146,12 @@ final class BuiltAppBundleLocatorTests: TuistTestCase {
             platforms: [.iOS]
         )
 
-        XCTAssertEqual(resolvedPath, bundlePath)
+        #expect(resolvedPath == bundlePath)
     }
 
-    func test_locateBuiltAppBundlePath_throws_when_multiple_unique_bundles_exist() async throws {
-        let temporaryDirectory = try XCTUnwrap(FileSystem.temporaryTestDirectory)
+    @Test(.inTemporaryDirectory)
+    func locateBuiltAppBundlePath_throws_when_multiple_unique_bundles_exist() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcworkspace")
         let simulatorBuildPath = temporaryDirectory.appending(component: "Debug-iphonesimulator")
         let deviceBuildPath = temporaryDirectory.appending(component: "Debug-iphoneos")
@@ -189,22 +181,18 @@ final class BuiltAppBundleLocatorTests: TuistTestCase {
             )
             .willReturn(deviceBuildPath)
 
-        do {
+        await #expect(
+            throws: BuiltAppBundleLocatorError.multipleBuiltBundlesFound(
+                app: "App",
+                paths: [deviceBundlePath.pathString, simulatorBundlePath.pathString]
+            )
+        ) {
             _ = try await subject.locateBuiltAppBundlePath(
                 app: "App",
                 projectPath: projectPath,
                 derivedDataPath: nil,
                 configuration: "Debug",
                 platforms: [.iOS]
-            )
-            XCTFail("Expected locateBuiltAppBundlePath to throw")
-        } catch let error as BuiltAppBundleLocatorError {
-            XCTAssertEqual(
-                error,
-                .multipleBuiltBundlesFound(
-                    app: "App",
-                    paths: [deviceBundlePath.pathString, simulatorBundlePath.pathString]
-                )
             )
         }
     }
