@@ -97,8 +97,7 @@
                 resultBundlePath: resolvedResultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
-                shardPlanId: nil,
-                shardIndex: nil
+                shardPlanId: nil
             )
 
             AlertController.current.success(

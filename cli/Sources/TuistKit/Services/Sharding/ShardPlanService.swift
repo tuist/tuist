@@ -197,6 +197,7 @@
                 try await fileSystem.writeText(
                     existing + "matrix=\(matrixJSON)\n",
                     at: outputPath,
+                    encoding: .utf8,
                     options: [.overwrite]
                 )
                 Logger.current.debug("GitHub Actions matrix output written.")

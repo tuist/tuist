@@ -82,11 +82,6 @@ public struct MultipartUploadCompleteShardsService: MultipartUploadCompleteShard
             case let .json(error):
                 throw MultipartUploadCompleteShardsServiceError.unauthorized(error.message)
             }
-        case let .notFound(notFoundResponse):
-            switch notFoundResponse.body {
-            case let .json(error):
-                throw MultipartUploadCompleteShardsServiceError.notFound(error.message)
-            }
         case let .undocumented(statusCode, _):
             throw MultipartUploadCompleteShardsServiceError.unknownError(statusCode)
         }

@@ -67,7 +67,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
             ),
             body: .json(
                 .init(
-                    granularity: shardGranularity,
+                    granularity: .init(rawValue: shardGranularity.rawValue),
                     modules: modules,
                     reference: reference,
                     shard_max: shardMax,

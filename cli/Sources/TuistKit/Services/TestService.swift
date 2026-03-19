@@ -82,7 +82,7 @@ public enum TestServiceError: FatalError, Equatable {
         switch self {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound,
              .testIdentifierInvalid, .duplicatedTestTargets,
-             .nothingToSkip, .actionInvalid, .unspecifiedPlatform:
+             .nothingToSkip, .actionInvalid, .testProductsNotFound, .unspecifiedPlatform:
             return .abort
         }
     }

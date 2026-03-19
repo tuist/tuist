@@ -81,11 +81,6 @@ public struct MultipartUploadGenerateURLShardsService: MultipartUploadGenerateUR
             case let .json(error):
                 throw MultipartUploadGenerateURLShardsServiceError.unauthorized(error.message)
             }
-        case let .notFound(notFoundResponse):
-            switch notFoundResponse.body {
-            case let .json(error):
-                throw MultipartUploadGenerateURLShardsServiceError.notFound(error.message)
-            }
         case let .undocumented(statusCode, _):
             throw MultipartUploadGenerateURLShardsServiceError.unknownError(statusCode)
         }
