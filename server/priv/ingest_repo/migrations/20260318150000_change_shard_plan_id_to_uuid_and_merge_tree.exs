@@ -30,8 +30,6 @@ defmodule Tuist.IngestRepo.Migrations.ChangeShardPlanIdToUuidAndMergeTree do
       `project_id` Int64,
       `shard_count` Int32,
       `granularity` LowCardinality(String) DEFAULT 'module',
-      `modules_count` UInt32 DEFAULT 0,
-      `suites_count` UInt32 DEFAULT 0,
       `inserted_at` DateTime64(6)
     )
     ENGINE = MergeTree()
@@ -63,8 +61,6 @@ defmodule Tuist.IngestRepo.Migrations.ChangeShardPlanIdToUuidAndMergeTree do
       `project_id` Int64,
       `shard_count` Int32,
       `granularity` LowCardinality(String) DEFAULT 'module',
-      `modules_count` UInt32 DEFAULT 0,
-      `suites_count` UInt32 DEFAULT 0,
       `inserted_at` DateTime64(6)
     )
     ENGINE = ReplacingMergeTree(inserted_at)

@@ -6,7 +6,7 @@ defmodule Tuist.ShardsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
 
-  describe "create_shard_plan/3" do
+  describe "create_shard_plan/2" do
     test "creates a shard plan with module-level granularity" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
@@ -20,7 +20,7 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
-      assert {:ok, result} = Shards.create_shard_plan(project, account, params)
+      assert {:ok, result} = Shards.create_shard_plan(project, params)
       assert result.shard_count == 2
       assert result.upload_id == "upload-id-123"
       assert length(result.shard_assignments) == 2
@@ -52,7 +52,7 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
-      assert {:ok, result} = Shards.create_shard_plan(project, account, params)
+      assert {:ok, result} = Shards.create_shard_plan(project, params)
       assert result.shard_count == 2
     end
 
@@ -70,7 +70,7 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
-      assert {:ok, result} = Shards.create_shard_plan(project, account, params)
+      assert {:ok, result} = Shards.create_shard_plan(project, params)
       assert result.shard_count == 2
     end
   end

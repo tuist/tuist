@@ -13,8 +13,6 @@ defmodule Tuist.Shards.ShardPlan do
     field :project_id, Ch, type: "Int64"
     field :shard_count, Ch, type: "Int32"
     field :granularity, Ch, type: "LowCardinality(String)", default: "module"
-    field :modules_count, Ch, type: "UInt32", default: 0
-    field :suites_count, Ch, type: "UInt32", default: 0
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
@@ -26,8 +24,6 @@ defmodule Tuist.Shards.ShardPlan do
       :project_id,
       :shard_count,
       :granularity,
-      :modules_count,
-      :suites_count,
       :inserted_at
     ])
     |> validate_required([

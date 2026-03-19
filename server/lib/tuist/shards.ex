@@ -25,7 +25,7 @@ defmodule Tuist.Shards do
   @default_suite_duration_ms 5_000
   @timing_lookback_days 30
 
-  def create_shard_plan(%Project{} = project, %Account{} = account, params) do
+  def create_shard_plan(%Project{} = project, params) do
     granularity = Map.get(params, :granularity, "module")
     reference = Map.fetch!(params, :reference)
 
@@ -54,16 +54,12 @@ defmodule Tuist.Shards do
         }
       end)
 
-    {modules_count, suites_count} = count_targets(units, granularity)
-
     attrs = %{
       id: Ecto.UUID.generate(),
       reference: reference,
       project_id: project.id,
       shard_count: shard_count,
       granularity: granularity,
-      modules_count: modules_count,
-      suites_count: suites_count,
       inserted_at: now
     }
 
@@ -71,12 +67,9 @@ defmodule Tuist.Shards do
       {:ok, plan} ->
         insert_shard_targets(reference, project.id, shards, granularity, now)
 
-        upload_id = Storage.multipart_start(bundle_object_key(account, project, reference), account)
-
         {:ok,
          %{
            plan: plan,
-           upload_id: upload_id,
            shard_count: shard_count,
            shard_assignments: shard_assignments
          }}
@@ -84,6 +77,11 @@ defmodule Tuist.Shards do
       {:error, changeset} ->
         {:error, changeset}
     end
+  end
+
+  def start_upload(%Project{} = project, %Account{} = account, reference) do
+    upload_id = Storage.multipart_start(bundle_object_key(account, project, reference), account)
+    {:ok, upload_id}
   end
 
   def get_shard(%Project{} = project, %Account{} = account, reference, shard_index) do
@@ -130,22 +128,6 @@ defmodule Tuist.Shards do
 
   defp bundle_object_key(account, project, reference) do
     "#{account.id}/#{project.id}/shards/#{reference}/bundle.zip"
-  end
-
-  defp count_targets(units, "module"), do: {length(units), 0}
-
-  defp count_targets(units, "suite") do
-    modules =
-      units
-      |> Enum.map(fn name ->
-        case String.split(name, "/", parts: 2) do
-          [mod, _] -> mod
-          [mod] -> mod
-        end
-      end)
-      |> Enum.uniq()
-
-    {length(modules), length(units)}
   end
 
   defp insert_shard_targets(reference, project_id, shards, "module", now) do

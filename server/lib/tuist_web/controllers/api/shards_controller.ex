@@ -92,14 +92,13 @@ defmodule TuistWeb.API.ShardsController do
       granularity: Map.get(body_params, :granularity, "module")
     }
 
-    case Shards.create_shard_plan(selected_project, selected_project.account, params) do
+    case Shards.create_shard_plan(selected_project, params) do
       {:ok, result} ->
         json(conn, %{
           id: result.plan.id,
           reference: result.plan.reference,
           shard_count: result.shard_count,
-          shards: result.shard_assignments,
-          upload_id: result.upload_id
+          shards: result.shard_assignments
         })
 
       {:error, _changeset} ->
@@ -107,6 +106,64 @@ defmodule TuistWeb.API.ShardsController do
         |> put_status(:bad_request)
         |> json(%{message: "Invalid parameters."})
     end
+  end
+
+  operation(:start_upload,
+    summary: "Start a multipart upload for the test products bundle.",
+    operation_id: "startShardUpload",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project's account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Start upload params", "application/json",
+       %Schema{
+         title: "StartShardUploadParams",
+         type: :object,
+         properties: %{
+           reference: %Schema{type: :string, description: "The shard plan reference."}
+         },
+         required: [:reference]
+       }},
+    responses: %{
+      ok:
+        {"The upload ID", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             data: %Schema{
+               type: :object,
+               properties: %{upload_id: %Schema{type: :string}}
+             }
+           }
+         }},
+      unauthorized: {"You need to be authenticated", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error}
+    }
+  )
+
+  def start_upload(
+        %{assigns: %{selected_project: selected_project}, body_params: %{reference: reference}} = conn,
+        _params
+      ) do
+    {:ok, upload_id} =
+      Shards.start_upload(
+        selected_project,
+        selected_project.account,
+        reference
+      )
+
+    json(conn, %{data: %{upload_id: upload_id}})
   end
 
   operation(:show,
