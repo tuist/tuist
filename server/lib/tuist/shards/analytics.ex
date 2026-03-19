@@ -252,27 +252,31 @@ defmodule Tuist.Shards.Analytics do
     date_format = get_clickhouse_date_format(time_bucket)
 
     ClickHouseRepo.all(
-      from(s in ShardPlan,
-        where: s.project_id == ^project_id,
-        where: s.inserted_at >= ^start_datetime,
-        where: s.inserted_at <= ^end_datetime,
-        group_by: fragment("formatDateTime(?, ?)", s.inserted_at, ^date_format),
+      from(t in Test,
+        hints: ["FINAL"],
+        where: t.project_id == ^project_id,
+        where: not is_nil(t.shard_plan_id),
+        where: t.ran_at >= ^start_datetime,
+        where: t.ran_at <= ^end_datetime,
+        group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
         select: %{
-          date: fragment("formatDateTime(?, ?)", s.inserted_at, ^date_format),
-          count: count(s.reference, :distinct)
+          date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+          count: count(t.id)
         },
-        order_by: fragment("formatDateTime(?, ?)", s.inserted_at, ^date_format)
+        order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
       )
     )
   end
 
   defp sharded_run_total_count(project_id, start_datetime, end_datetime) do
     ClickHouseRepo.one(
-      from(s in ShardPlan,
-        where: s.project_id == ^project_id,
-        where: s.inserted_at >= ^start_datetime,
-        where: s.inserted_at <= ^end_datetime,
-        select: count(s.reference, :distinct)
+      from(t in Test,
+        hints: ["FINAL"],
+        where: t.project_id == ^project_id,
+        where: not is_nil(t.shard_plan_id),
+        where: t.ran_at >= ^start_datetime,
+        where: t.ran_at <= ^end_datetime,
+        select: count(t.id)
       )
     ) || 0
   end

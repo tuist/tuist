@@ -54,7 +54,7 @@ class TuistTestShardingServiceTest {
                     ShardPlanShardsInner(index = 0, testTargets = listOf("com.example.LoginTest"), estimatedDurationMs = 5000),
                     ShardPlanShardsInner(index = 1, testTargets = listOf("com.example.SignupTest"), estimatedDurationMs = 4500)
                 ),
-                uploadId = "upload-abc"
+                id = java.util.UUID.randomUUID()
             )
         )))
 
@@ -98,6 +98,7 @@ class TuistTestShardingServiceTest {
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(Gson().toJson(
             Shard(
                 modules = listOf("AppModule"),
+                shardPlanId = java.util.UUID.randomUUID(),
                 suites = mapOf("AppModule" to listOf("com.example.LoginTest", "com.example.LogoutTest")),
                 downloadUrl = "https://download.example.com/bundle.zip"
             )

@@ -55,6 +55,9 @@ cp "$SHARDS_MODEL/GenerateShardUploadURL200Response.kt" "$TARGET_DIR/model/"
 cp "$SHARDS_MODEL/GenerateShardUploadURL200ResponseData.kt" "$TARGET_DIR/model/"
 cp "$SHARDS_MODEL/GenerateShardUploadURLParams1.kt" "$TARGET_DIR/model/"
 cp "$SHARDS_MODEL/Error.kt" "$TARGET_DIR/model/"
+cp "$SHARDS_MODEL/StartShardUpload200Response.kt" "$TARGET_DIR/model/"
+cp "$SHARDS_MODEL/StartShardUploadParams1.kt" "$TARGET_DIR/model/"
+cp "$SHARDS_MODEL/StartShardUpload200ResponseData.kt" "$TARGET_DIR/model/"
 
 # Shards API interface (generated)
 cp "$SHARDS_API/ShardsApi.kt" "$TARGET_DIR/"
