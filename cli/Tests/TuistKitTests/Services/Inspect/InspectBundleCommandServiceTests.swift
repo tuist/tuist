@@ -6,19 +6,29 @@ import Path
 import Rosalind
 import Testing
 import TuistConfigLoader
+import TuistCore
 import TuistGit
+import TuistLoader
 import TuistServer
 import TuistTesting
+import TuistUserInputReader
+import TuistXcodeBuildProducts
 
 @testable import TuistInspectCommand
 
 struct InspectBundleCommandServiceTests {
+    private let fileSystem = FileSystem()
     private let rosalind = MockRosalind()
     private let createBundleService = MockCreateBundleServicing()
     private let configLoader = MockConfigLoading()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController = MockGitControlling()
-    private let bundlePathResolver = MockInspectBundlePathResolving()
+    private let fileHandler = FileHandler.shared
+    private let builtAppBundleLocator = MockBuiltAppBundleLocating()
+    private let manifestLoader = MockManifestLoading()
+    private let manifestGraphLoader = MockManifestGraphLoading()
+    private let userInputReader = MockUserInputReading()
+    private let defaultConfigurationFetcher = MockDefaultConfigurationFetching()
     private let subject: InspectBundleCommandService
 
     init() {
@@ -28,12 +38,22 @@ struct InspectBundleCommandServiceTests {
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
             gitController: gitController,
-            bundlePathResolver: bundlePathResolver
+            fileSystem: fileSystem,
+            fileHandler: fileHandler,
+            builtAppBundleLocator: builtAppBundleLocator,
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: manifestGraphLoader,
+            userInputReader: userInputReader,
+            defaultConfigurationFetcher: defaultConfigurationFetcher
         )
 
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(manifestLoader)
+            .hasRootManifest(at: .any)
+            .willReturn(false)
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
@@ -86,16 +106,6 @@ struct InspectBundleCommandServiceTests {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let bundlePath = temporaryDirectory.appending(component: "App.ipa")
 
-            given(bundlePathResolver)
-                .resolve(
-                    bundle: .any,
-                    path: .any,
-                    configuration: .any,
-                    platforms: .any,
-                    derivedDataPath: .any
-                )
-                .willReturn(bundlePath)
-
             // When
             try await subject.run(
                 path: temporaryDirectory.pathString,
@@ -128,15 +138,18 @@ struct InspectBundleCommandServiceTests {
     func analyzeAppBundle_resolving_app_name_from_built_products() async throws {
         try await withMockedDependencies {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
             let bundlePath = temporaryDirectory.appending(component: "App.app")
 
-            given(bundlePathResolver)
-                .resolve(
-                    bundle: .value("App"),
-                    path: .value(temporaryDirectory),
+            try await fileSystem.makeDirectory(at: workspacePath)
+
+            given(builtAppBundleLocator)
+                .locateBuiltAppBundlePath(
+                    app: .value("App"),
+                    projectPath: .value(workspacePath),
+                    derivedDataPath: .value(nil),
                     configuration: .value("Debug"),
-                    platforms: .value([]),
-                    derivedDataPath: .value(nil)
+                    platforms: .value([.iOS])
                 )
                 .willReturn(bundlePath)
 
@@ -145,7 +158,7 @@ struct InspectBundleCommandServiceTests {
                 path: temporaryDirectory.pathString,
                 bundle: "App",
                 configuration: "Debug",
-                platforms: [],
+                platforms: [.iOS],
                 derivedDataPath: nil,
                 json: false
             )
