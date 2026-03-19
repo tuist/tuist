@@ -55,8 +55,8 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
 
     @Option(
         name: .long,
-        help: "Explicit shard plan ID. This ID is derived from environment variables for supported CI providers.",
-        envKey: .testShardPlanId
+        help: "Explicit shard reference. Derived from environment variables for supported CI providers.",
+        envKey: .testShardReference
     )
     var shardReference: String?
 
