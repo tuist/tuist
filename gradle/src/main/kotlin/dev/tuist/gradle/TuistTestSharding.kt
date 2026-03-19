@@ -277,11 +277,12 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
         val assignedTargets = shard.suites.values.flatten()
         logger.lifecycle("Tuist: Shard $shardIndex assigned ${assignedTargets.size} test suite(s)")
 
-        // Set shard plan ID on the test insights service so it's included in the test report
+        // Set shard context on the test insights service so it's included in the test report
         project.gradle.sharedServices.registrations.findByName("tuistTestInsights")?.let { registration ->
             val service = registration.service.orNull
             if (service is TuistTestInsightsService) {
                 service.shardPlanId = shard.shardPlanId.toString()
+                service.shardIndex = shardIndex
             }
         }
 

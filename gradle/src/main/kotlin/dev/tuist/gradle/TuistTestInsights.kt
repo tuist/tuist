@@ -33,6 +33,7 @@ data class TestReport(
     @SerializedName("git_remote_url_origin") val gitRemoteUrlOrigin: String?,
     @SerializedName("gradle_build_id") val gradleBuildId: String? = null,
     @SerializedName("shard_plan_id") val shardPlanId: String? = null,
+    @SerializedName("shard_index") val shardIndex: Int? = null,
     @SerializedName("test_modules") val testModules: List<TestModule>
 )
 
@@ -112,7 +113,8 @@ internal class TestReportCollector {
         gitRef: String?,
         gitRemoteUrlOrigin: String?,
         gradleBuildId: String?,
-        shardPlanId: String? = null
+        shardPlanId: String? = null,
+        shardIndex: Int? = null
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
             val testCases = buildTestCases(attempts)
@@ -154,6 +156,7 @@ internal class TestReportCollector {
             gitRemoteUrlOrigin = gitRemoteUrlOrigin,
             gradleBuildId = gradleBuildId,
             shardPlanId = shardPlanId,
+            shardIndex = shardIndex,
             testModules = testModules
         )
     }
@@ -281,6 +284,7 @@ abstract class TuistTestInsightsService :
     internal var uploadInBackground: Boolean? = null
     internal var buildInsightsService: TuistBuildInsightsService? = null
     internal var shardPlanId: String? = null
+    internal var shardIndex: Int? = null
 
     private val collector = TestReportCollector()
     private var earliestStartTime: Long = Long.MAX_VALUE
@@ -366,7 +370,8 @@ abstract class TuistTestInsightsService :
             gitRef = gitInfoProvider.ref(),
             gitRemoteUrlOrigin = gitInfoProvider.remoteUrlOrigin(),
             gradleBuildId = gradleBuildId,
-            shardPlanId = shardPlanId
+            shardPlanId = shardPlanId,
+            shardIndex = shardIndex
         )
 
         val response = httpClient.execute { config ->
