@@ -4,15 +4,12 @@ defmodule Tuist.ShardsTest do
 
   alias Tuist.Shards
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
 
   describe "create_shard_plan/2" do
     test "creates a shard plan with module-level granularity" do
       project = ProjectsFixtures.project_fixture()
-      account = project.account
-
-      stub(Tuist.ClickHouseRepo, :all, fn _query -> [] end)
-      stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id-123" end)
 
       params = %{
         reference: "github-123-1",
@@ -22,7 +19,6 @@ defmodule Tuist.ShardsTest do
 
       result = Shards.create_shard_plan(project, params)
       assert result.shard_count == 2
-      assert result.upload_id == "upload-id-123"
       assert length(result.shard_assignments) == 2
 
       all_targets =
@@ -35,16 +31,18 @@ defmodule Tuist.ShardsTest do
 
     test "uses historical timing data for bin-packing" do
       project = ProjectsFixtures.project_fixture()
-      account = project.account
 
-      stub(Tuist.ClickHouseRepo, :all, fn _query ->
-        [
-          %{name: "SlowTests", avg_duration: 100_000.0},
-          %{name: "FastTests", avg_duration: 10_000.0}
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{name: "SlowTests", status: "success", duration: 100_000, test_cases: []},
+          %{name: "FastTests", status: "success", duration: 10_000, test_cases: []}
         ]
-      end)
+      )
 
-      stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id" end)
+      RunsFixtures.optimize_test_runs()
 
       params = %{
         reference: "session-1",
@@ -58,10 +56,6 @@ defmodule Tuist.ShardsTest do
 
     test "creates a shard plan with suite-level granularity" do
       project = ProjectsFixtures.project_fixture()
-      account = project.account
-
-      stub(Tuist.ClickHouseRepo, :all, fn _query -> [] end)
-      stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id" end)
 
       params = %{
         reference: "session-2",
