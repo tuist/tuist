@@ -3,7 +3,6 @@ defmodule Tuist.TestsTest do
   use Mimic
 
   alias Tuist.IngestRepo
-  alias Tuist.Shards.ShardPlan
   alias Tuist.Tests
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -11,6 +10,7 @@ defmodule Tuist.TestsTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
 
   describe "get_test_case_run_by_id/2" do
     test "returns test case run when it exists" do
@@ -389,18 +389,17 @@ defmodule Tuist.TestsTest do
   describe "list_sharded_test_runs/1" do
     test "lists only sharded test runs" do
       project = ProjectsFixtures.project_fixture()
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id)
 
       {:ok, _non_sharded} =
-        RunsFixtures.test_fixture(project_id: project.id, shard_plan_id: "")
+        RunsFixtures.test_fixture(project_id: project.id)
 
       {:ok, sharded} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          shard_plan_id: "session-123",
+          shard_plan_id: plan.id,
           shard_index: 0
         )
-
-      stub(IngestRepo, :one, fn _query -> nil end)
 
       {tests, _meta} =
         Tests.list_sharded_test_runs(%{
@@ -415,11 +414,13 @@ defmodule Tuist.TestsTest do
 
     test "filters sharded test runs by status" do
       project = ProjectsFixtures.project_fixture()
+      plan1 = ShardsFixtures.shard_plan_fixture(project_id: project.id)
+      plan2 = ShardsFixtures.shard_plan_fixture(project_id: project.id)
 
       {:ok, _success} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          shard_plan_id: "session-1",
+          shard_plan_id: plan1.id,
           shard_index: 0,
           status: "success"
         )
@@ -427,12 +428,10 @@ defmodule Tuist.TestsTest do
       {:ok, in_progress} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          shard_plan_id: "session-2",
+          shard_plan_id: plan2.id,
           shard_index: 0,
           status: "in_progress"
         )
-
-      stub(IngestRepo, :one, fn _query -> nil end)
 
       {tests, _meta} =
         Tests.list_sharded_test_runs(%{
@@ -448,11 +447,13 @@ defmodule Tuist.TestsTest do
 
     test "searches sharded test runs by scheme" do
       project = ProjectsFixtures.project_fixture()
+      plan1 = ShardsFixtures.shard_plan_fixture(project_id: project.id)
+      plan2 = ShardsFixtures.shard_plan_fixture(project_id: project.id)
 
       {:ok, app_test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          shard_plan_id: "session-1",
+          shard_plan_id: plan1.id,
           shard_index: 0,
           scheme: "AppScheme"
         )
@@ -460,12 +461,10 @@ defmodule Tuist.TestsTest do
       {:ok, _other} =
         RunsFixtures.test_fixture(
           project_id: project.id,
-          shard_plan_id: "session-2",
+          shard_plan_id: plan2.id,
           shard_index: 0,
           scheme: "OtherScheme"
         )
-
-      stub(IngestRepo, :one, fn _query -> nil end)
 
       {tests, _meta} =
         Tests.list_sharded_test_runs(%{
@@ -1283,17 +1282,7 @@ defmodule Tuist.TestsTest do
     test "first shard creates test with in_progress status" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
-
-      shard_plan = %ShardPlan{
-        id: Ecto.UUID.generate(),
-        plan_id: "session-1",
-        project_id: project.id,
-        shard_count: 2,
-        granularity: "module",
-        inserted_at: NaiveDateTime.utc_now()
-      }
-
-      stub(IngestRepo, :one, fn _query -> shard_plan end)
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
 
       {:ok, test} =
         Tests.create_test(%{
@@ -1309,28 +1298,18 @@ defmodule Tuist.TestsTest do
           git_commit_sha: "abc123",
           ran_at: NaiveDateTime.utc_now(),
           is_ci: true,
-          shard_plan_id: "session-1",
+          shard_plan_id: plan.id,
           shard_index: 0
         })
 
       assert test.status == "in_progress"
-      assert test.shard_plan_id == "session-1"
+      assert test.shard_plan_id == plan.id
     end
 
     test "second shard updates existing test and sets final status" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account
-
-      shard_plan = %ShardPlan{
-        id: Ecto.UUID.generate(),
-        plan_id: "session-2",
-        project_id: project.id,
-        shard_count: 2,
-        granularity: "module",
-        inserted_at: NaiveDateTime.utc_now()
-      }
-
-      stub(IngestRepo, :one, fn _query -> shard_plan end)
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
 
       {:ok, first_test} =
         Tests.create_test(%{
@@ -1346,7 +1325,7 @@ defmodule Tuist.TestsTest do
           git_commit_sha: "abc123",
           ran_at: NaiveDateTime.utc_now(),
           is_ci: true,
-          shard_plan_id: "session-2",
+          shard_plan_id: plan.id,
           shard_index: 0,
           test_modules: [
             %{
@@ -1376,7 +1355,7 @@ defmodule Tuist.TestsTest do
           git_commit_sha: "abc123",
           ran_at: NaiveDateTime.utc_now(),
           is_ci: true,
-          shard_plan_id: "session-2",
+          shard_plan_id: plan.id,
           shard_index: 1,
           test_modules: [
             %{
