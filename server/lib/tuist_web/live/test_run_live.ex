@@ -1277,7 +1277,11 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_shard_rows(socket, run) do
-    shard_plan = Map.get(run, :shard_plan)
+    shard_plan =
+      case Map.get(run, :shard_plan) do
+        nil -> nil
+        plan -> ClickHouseRepo.preload(plan, [:modules, :test_suites])
+      end
 
     expected_shard_count =
       case shard_plan do
@@ -1285,7 +1289,7 @@ defmodule TuistWeb.TestRunLive do
         _ -> 0
       end
 
-    target_counts = fetch_target_counts(shard_plan, run.shard_plan_id, run.project_id)
+    target_counts = target_counts_by_shard(shard_plan)
 
     reported_shards = Tuist.Shards.Analytics.shard_metrics(run.id)
 
@@ -1316,27 +1320,13 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:display_duration, run.duration)
   end
 
-  defp fetch_target_counts(%ShardPlan{granularity: "suite"}, plan_id, project_id) do
-    from(s in ShardPlanTestSuite,
-      where: s.shard_plan_id == ^plan_id,
-      where: s.project_id == ^project_id,
-      group_by: s.shard_index,
-      select: {s.shard_index, count()}
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new()
+  defp target_counts_by_shard(%ShardPlan{granularity: "suite"} = plan) do
+    plan.test_suites |> Enum.frequencies_by(& &1.shard_index)
   end
 
-  defp fetch_target_counts(%ShardPlan{}, plan_id, project_id) do
-    from(m in ShardPlanModule,
-      where: m.shard_plan_id == ^plan_id,
-      where: m.project_id == ^project_id,
-      group_by: m.shard_index,
-      select: {m.shard_index, count()}
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new()
+  defp target_counts_by_shard(%ShardPlan{} = plan) do
+    plan.modules |> Enum.frequencies_by(& &1.shard_index)
   end
 
-  defp fetch_target_counts(_, _, _), do: %{}
+  defp target_counts_by_shard(_), do: %{}
 end
