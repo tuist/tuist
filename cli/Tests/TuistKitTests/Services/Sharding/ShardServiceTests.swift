@@ -161,6 +161,83 @@ struct ShardServiceTests {
         #expect(target["OnlyTestIdentifiers"] == nil)
     }
 
+    // MARK: - Legacy Format (v1)
+
+    @Test
+    func filterXCTestRun_legacyFormat_filtersToSpecifiedModules() throws {
+        // Given
+        let plistData = try makePlist([
+            "__xctestrun_metadata__": ["FormatVersion": 1],
+            "AppTests": ["BlueprintName": "AppTests", "TestHostPath": "/path/to/host"],
+            "CoreTests": ["BlueprintName": "CoreTests", "TestHostPath": "/path/to/core"],
+            "UITests": ["BlueprintName": "UITests", "TestHostPath": "/path/to/ui"],
+        ])
+
+        // When
+        let filtered = try subject.filterXCTestRun(
+            plistData: plistData,
+            modules: ["AppTests", "UITests"],
+            suites: [:]
+        )
+
+        // Then
+        let result = try parsePlist(filtered)
+        #expect(result["AppTests"] != nil)
+        #expect(result["UITests"] != nil)
+        #expect(result["CoreTests"] == nil)
+        #expect(result["__xctestrun_metadata__"] != nil)
+    }
+
+    @Test
+    func filterXCTestRun_legacyFormat_injectsOnlyTestIdentifiers() throws {
+        // Given
+        let plistData = try makePlist([
+            "__xctestrun_metadata__": ["FormatVersion": 1],
+            "AppTests": ["BlueprintName": "AppTests"],
+            "CoreTests": ["BlueprintName": "CoreTests"],
+        ])
+
+        // When
+        let filtered = try subject.filterXCTestRun(
+            plistData: plistData,
+            modules: ["AppTests", "CoreTests"],
+            suites: ["AppTests": ["LoginTests", "SignupTests"]]
+        )
+
+        // Then
+        let result = try parsePlist(filtered)
+        let appTarget = result["AppTests"] as! [String: Any]
+        #expect(appTarget["OnlyTestIdentifiers"] as? [String] == ["LoginTests", "SignupTests"])
+        let coreTarget = result["CoreTests"] as! [String: Any]
+        #expect(coreTarget["OnlyTestIdentifiers"] == nil)
+    }
+
+    @Test
+    func filterXCTestRun_legacyFormat_preservesOtherFields() throws {
+        // Given
+        let plistData = try makePlist([
+            "__xctestrun_metadata__": ["FormatVersion": 1],
+            "AppTests": [
+                "BlueprintName": "AppTests",
+                "TestHostPath": "/path/to/host",
+                "EnvironmentVariables": ["KEY": "VALUE"],
+            ],
+        ])
+
+        // When
+        let filtered = try subject.filterXCTestRun(
+            plistData: plistData,
+            modules: ["AppTests"],
+            suites: [:]
+        )
+
+        // Then
+        let result = try parsePlist(filtered)
+        let target = result["AppTests"] as! [String: Any]
+        #expect(target["TestHostPath"] as? String == "/path/to/host")
+        #expect((target["EnvironmentVariables"] as? [String: String])?["KEY"] == "VALUE")
+    }
+
     // MARK: - Helpers
 
     private func makePlist(_ dict: [String: Any]) throws -> Data {
