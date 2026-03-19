@@ -1015,11 +1015,6 @@ msgstr ""
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:41
-#, elixir-autogen, elixir-format
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/about.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "The team"
@@ -2355,11 +2350,6 @@ msgstr ""
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:23
-#, elixir-autogen, elixir-format
-msgid "The mobile tooling that powers Xcode and Gradle projects with millions of users, delivered as a service for your team"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Your mobile platform team,"
@@ -2368,4 +2358,10 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:17
 #, elixir-autogen, elixir-format
 msgid "as a service"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:41
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "We focus on optimizing your setup, so your team can focus on shipping"
 msgstr ""
