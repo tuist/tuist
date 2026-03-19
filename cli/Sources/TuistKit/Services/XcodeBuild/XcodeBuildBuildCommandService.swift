@@ -11,8 +11,8 @@ import TuistLogging
 import TuistServer
 import TuistSupport
 import TuistUniqueIDGenerator
-import TuistXcodeBuildProducts
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 
 struct XcodeBuildBuildCommandService {
     private let fileSystem: FileSysteming
