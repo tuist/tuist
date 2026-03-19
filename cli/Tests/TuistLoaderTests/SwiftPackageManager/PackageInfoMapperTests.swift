@@ -6168,6 +6168,72 @@ struct PackageInfoMapperTests {
         let mappedTarget = try #require(project?.targets.first(where: { $0.name == "MySDK_Facade" }))
         #expect(mappedTarget.productName == "MySDK_Facade")
     }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenTargetNameContainsSpacesAndDefaultPathUsesUnderscores_mapsTargetSources() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/INCITS_4_1986"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "INCITS 4 1986", type: .library(.automatic), targets: ["INCITS 4 1986"]),
+                    ],
+                    targets: [
+                        .test(name: "INCITS 4 1986"),
+                    ],
+                    platforms: [.macos],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "INCITS_4_1986" }))
+        let sources = try #require(mappedTarget.sources)
+        #expect(sources.globs == ["\(basePath.pathString)/Package/Sources/INCITS_4_1986/**"])
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenTargetNameContainsSpaces_sanitizesBundleIdentifier() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/File_System"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "File System", type: .library(.automatic), targets: ["File System"]),
+                    ],
+                    targets: [
+                        .test(name: "File System"),
+                    ],
+                    platforms: [.macos],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "File_System" }))
+        #expect(mappedTarget.productName == "File_System")
+        #expect(mappedTarget.bundleId == "File.System")
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {

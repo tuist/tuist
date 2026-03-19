@@ -370,9 +370,28 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     fileprivate static func sanitize(targetName: String) -> String {
         targetName
+            .replacingOccurrences(of: " ", with: "_")
             .replacingOccurrences(of: ".", with: "_")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "_")
+    }
+
+    fileprivate static func sanitize(bundleIdentifierComponent: String) -> String {
+        let sanitizedScalars = bundleIdentifierComponent.unicodeScalars.map { scalar -> Character in
+            switch scalar {
+            case "A"..."Z", "a"..."z", "0"..."9", "-", ".":
+                return Character(scalar)
+            case "_", " ", "/", "+":
+                return "."
+            default:
+                return "-"
+            }
+        }
+
+        return String(sanitizedScalars)
+            .split(separator: ".")
+            .filter { !$0.isEmpty }
+            .joined(separator: ".")
     }
 
     private static func effectiveModuleName(
@@ -651,8 +670,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             destinations: destinations,
             product: product,
             productName: productName,
-            bundleId: sanitizedTargetName
-                .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
+            bundleId: PackageInfoMapper.sanitize(bundleIdentifierComponent: targetName),
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,
@@ -1523,14 +1541,13 @@ extension PackageInfo.Target {
             : PackageInfoMapper.predefinedSourceDirectories
 
         for directory in predefinedDirectories {
-            // Standard layout: Sources/TargetName/
-            let standardPath = packageFolder.appending(components: [directory, name])
-            if try await fileSystem.exists(standardPath) {
-                return standardPath
+            for candidate in pathCandidates {
+                let standardPath = packageFolder.appending(components: [directory, candidate])
+                if try await fileSystem.exists(standardPath) {
+                    return standardPath
+                }
             }
 
-            // SE-0162 layout: source files directly in Sources/
-            // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0162-package-manager-custom-target-layouts.md
             let directPath = packageFolder.appending(component: directory)
             if try await hasSourceFiles(in: directPath, fileSystem: fileSystem) {
                 return directPath
@@ -1554,6 +1571,20 @@ extension PackageInfo.Target {
             .first(where: { _ in true }) != nil
 
         return hasFiles
+    }
+
+    private var pathCandidates: [String] {
+        var candidates: [String] = []
+        let possibleCandidates = [
+            name,
+            name.replacingOccurrences(of: " ", with: "_"),
+        ]
+
+        for candidate in possibleCandidates where !candidates.contains(candidate) {
+            candidates.append(candidate)
+        }
+
+        return candidates
     }
 
     func publicHeadersPath(packageFolder: AbsolutePath) async throws -> AbsolutePath {
