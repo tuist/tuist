@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* increase URLSession max connections per host to 20 by [@fortmarek](https://github.com/fortmarek) in [#9931](https://github.com/tuist/tuist/pull/9931)
 * normalize swift package target names with spaces by [@pepicrft](https://github.com/pepicrft) in [#9928](https://github.com/tuist/tuist/pull/9928)
 
 
