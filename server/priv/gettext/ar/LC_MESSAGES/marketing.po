@@ -463,10 +463,6 @@ msgid "Longevity"
 msgstr "طول العمر"
 
 #, fuzzy
-msgid "Make mobile"
-msgstr "اجعله متوافقًا مع الأجهزة المحمولة"
-
-#, fuzzy
 msgid "Make modular Xcode projects more manageable"
 msgstr "اجعل مشاريع Xcode المعيارية أكثر سهولة في الإدارة"
 
@@ -755,14 +751,6 @@ msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr "رقم إصدار النشرة الإخبارية %{issue_number} غير صالح."
 
 #, fuzzy
-msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
-msgstr "نفس أدوات iOS التي تدعم التطبيقات التي يستخدمها ملايين المستخدمين، يتم تقديمها كخدمة لفريقك"
-
-#, fuzzy
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr "نفس أدوات iOS التي تدعم تطبيقات مليار مستخدم، يتم تقديمها كخدمة لفريقك"
-
-#, fuzzy
 msgid "The team"
 msgstr "الفريق"
 
@@ -1033,10 +1021,6 @@ msgstr "عبر منتدى المجتمع"
 #, fuzzy
 msgid "via dedicated Slack"
 msgstr "عبر Slack المخصص"
-
-#, fuzzy
-msgid "your competitive advantage"
-msgstr "ميزتك التنافسية"
 
 #, fuzzy
 msgid "Custom"
@@ -1753,6 +1737,31 @@ msgstr "المعايير"
 #, fuzzy
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr "تتبع أداء الاختبارات، واكتشف الاختبارات البطيئة مبكرًا، وقم بتصحيح أخطاء CI دون الحاجة إلى البحث في السجلات."
+
+msgid "Your mobile platform team,"
+msgstr ""
+
+msgid "as a service"
+msgstr ""
+
+msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Make mobile"
+#~ msgstr "اجعله متوافقًا مع الأجهزة المحمولة"
+
+#, fuzzy
+#~ msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+#~ msgstr "نفس أدوات iOS التي تدعم التطبيقات التي يستخدمها ملايين المستخدمين، يتم تقديمها كخدمة لفريقك"
+
+#, fuzzy
+#~ msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+#~ msgstr "نفس أدوات iOS التي تدعم تطبيقات مليار مستخدم، يتم تقديمها كخدمة لفريقك"
+
+#, fuzzy
+#~ msgid "your competitive advantage"
+#~ msgstr "ميزتك التنافسية"
 
 #, fuzzy
 #~ msgid "Bundle insights"

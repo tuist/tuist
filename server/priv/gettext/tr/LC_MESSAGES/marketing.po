@@ -353,9 +353,6 @@ msgstr "Giriş yap"
 msgid "Longevity"
 msgstr "Uzun Ömürlülük"
 
-msgid "Make mobile"
-msgstr "Mobili"
-
 msgid "Make modular Xcode projects more manageable"
 msgstr "Modüler Xcode projelerini daha yönetilebilir hale getirin"
 
@@ -572,12 +569,6 @@ msgstr "Haber bülteni sayısı %{sayı_sayı} bulunamadı."
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr "Bülten sayı numarası %{issue_number} geçerli bir sayı değil."
 
-msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
-msgstr "Milyonlarca kullanıcısı olan uygulamalara güç veren iOS araçlarının aynısı, ekibiniz için bir hizmet olarak sunuluyor"
-
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr "Milyarlarca kullanıcılı uygulamalara güç veren iOS araçlarının aynısı, ekibiniz için bir hizmet olarak sunuluyor"
-
 msgid "The team"
 msgstr "Ekip"
 
@@ -781,9 +772,6 @@ msgstr "Topluluk Forumu aracılığıyla"
 
 msgid "via dedicated Slack"
 msgstr "özel Slack aracılığıyla"
-
-msgid "your competitive advantage"
-msgstr "rekabet avantajınıza dönüştürün"
 
 msgid "Custom"
 msgstr "Özel"
@@ -1475,6 +1463,27 @@ msgstr "Standartlar"
 #, fuzzy
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr "Test performansını takip edin, yavaş testleri erken tespit edin ve günlükleri incelemeden CI hatalarını giderin."
+
+msgid "Your mobile platform team,"
+msgstr ""
+
+msgid "as a service"
+msgstr ""
+
+msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
+msgstr ""
+
+#~ msgid "Make mobile"
+#~ msgstr "Mobili"
+
+#~ msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+#~ msgstr "Milyonlarca kullanıcısı olan uygulamalara güç veren iOS araçlarının aynısı, ekibiniz için bir hizmet olarak sunuluyor"
+
+#~ msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+#~ msgstr "Milyarlarca kullanıcılı uygulamalara güç veren iOS araçlarının aynısı, ekibiniz için bir hizmet olarak sunuluyor"
+
+#~ msgid "your competitive advantage"
+#~ msgstr "rekabet avantajınıza dönüştürün"
 
 #~ msgid "Bundle insights"
 #~ msgstr "Bundle analizleri"

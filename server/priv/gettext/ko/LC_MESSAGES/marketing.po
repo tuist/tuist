@@ -354,9 +354,6 @@ msgstr "로그인"
 msgid "Longevity"
 msgstr "지속성"
 
-msgid "Make mobile"
-msgstr "모바일로"
-
 msgid "Make modular Xcode projects more manageable"
 msgstr "더 관리가 용이하게 모듈화된 Xcode 프로젝트들을 만드세요"
 
@@ -573,12 +570,6 @@ msgstr "%{issue_number} 이슈 소식을 찾을 수 없습니다."
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr "소식지 이슈 번호 %{issue_number} 는 유효하지 않습니다."
 
-msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
-msgstr "수백만 사용자를 가진 앱들을 구동하는 동일한 iOS 도구가 여러분의 팀에게도 서비스 됩니다"
-
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr "수억의 사용자를 가진 앱들을 구동하는 동일한 iOS 도구가 여러분의 팀에게도 제공 됩니다"
-
 msgid "The team"
 msgstr "팀"
 
@@ -782,9 +773,6 @@ msgstr "온라인 커뮤니티를 통해"
 
 msgid "via dedicated Slack"
 msgstr "Slack 채널을 통해"
-
-msgid "your competitive advantage"
-msgstr "경쟁력을 높이세요"
 
 msgid "Custom"
 msgstr "맞춤형"
@@ -1322,6 +1310,27 @@ msgstr "선택"
 
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr "테스트 실행 결과를 추적하고, 느린 테스트를 조기에 발견하며, 로그를 일일이 살펴보지 않고도 CI 실패를 디버깅하세요."
+
+msgid "Your mobile platform team,"
+msgstr ""
+
+msgid "as a service"
+msgstr ""
+
+msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
+msgstr ""
+
+#~ msgid "Make mobile"
+#~ msgstr "모바일로"
+
+#~ msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+#~ msgstr "수백만 사용자를 가진 앱들을 구동하는 동일한 iOS 도구가 여러분의 팀에게도 서비스 됩니다"
+
+#~ msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+#~ msgstr "수억의 사용자를 가진 앱들을 구동하는 동일한 iOS 도구가 여러분의 팀에게도 제공 됩니다"
+
+#~ msgid "your competitive advantage"
+#~ msgstr "경쟁력을 높이세요"
 
 #~ msgid "Bundle insights"
 #~ msgstr "번들 분석"

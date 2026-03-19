@@ -463,10 +463,6 @@ msgid "Longevity"
 msgstr "Długowieczność"
 
 #, fuzzy
-msgid "Make mobile"
-msgstr "Ustaw mobilny"
-
-#, fuzzy
 msgid "Make modular Xcode projects more manageable"
 msgstr "Ułatw zarządzanie modułowymi projektami Xcode"
 
@@ -755,14 +751,6 @@ msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr "Numer wydania biuletynu %{issue_number} nie jest prawidłowym numerem."
 
 #, fuzzy
-msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
-msgstr "Te same narzędzia iOS, które obsługują aplikacje używane przez miliony użytkowników, dostarczane jako usługa dla Twojego zespołu."
-
-#, fuzzy
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr "Te same narzędzia iOS, które obsługują aplikacje używane przez miliardy użytkowników, dostarczane jako usługa dla Twojego zespołu."
-
-#, fuzzy
 msgid "The team"
 msgstr "Zespół"
 
@@ -1033,10 +1021,6 @@ msgstr "za pośrednictwem forum społecznościowego"
 #, fuzzy
 msgid "via dedicated Slack"
 msgstr "za pośrednictwem dedykowanego Slacka"
-
-#, fuzzy
-msgid "your competitive advantage"
-msgstr "Twoja przewaga konkurencyjna"
 
 #, fuzzy
 msgid "Custom"
@@ -1753,6 +1737,31 @@ msgstr "Standardy"
 #, fuzzy
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr "Śledź wydajność testów, wcześnie wykrywaj powolne testy i debuguj awarie CI bez konieczności przeglądania logów."
+
+msgid "Your mobile platform team,"
+msgstr ""
+
+msgid "as a service"
+msgstr ""
+
+msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Make mobile"
+#~ msgstr "Ustaw mobilny"
+
+#, fuzzy
+#~ msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+#~ msgstr "Te same narzędzia iOS, które obsługują aplikacje używane przez miliony użytkowników, dostarczane jako usługa dla Twojego zespołu."
+
+#, fuzzy
+#~ msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+#~ msgstr "Te same narzędzia iOS, które obsługują aplikacje używane przez miliardy użytkowników, dostarczane jako usługa dla Twojego zespołu."
+
+#, fuzzy
+#~ msgid "your competitive advantage"
+#~ msgstr "Twoja przewaga konkurencyjna"
 
 #, fuzzy
 #~ msgid "Bundle insights"

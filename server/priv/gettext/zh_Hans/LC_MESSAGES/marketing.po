@@ -353,9 +353,6 @@ msgstr "登录"
 msgid "Longevity"
 msgstr "持久性"
 
-msgid "Make mobile"
-msgstr "让移动开发成为"
-
 msgid "Make modular Xcode projects more manageable"
 msgstr "让模块化 Xcode 项目更易于管理"
 
@@ -572,12 +569,6 @@ msgstr "未找到新闻通讯第 %{issue_number} 期。"
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr "新闻通讯期号 %{issue_number} 不是有效数字。"
 
-msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
-msgstr "驱动千万级用户应用的 iOS 工具，以服务形式赋能您的团队"
-
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr "驱动十亿级用户应用的 iOS 工具，以服务形式赋能您的团队"
-
 msgid "The team"
 msgstr "团队"
 
@@ -781,9 +772,6 @@ msgstr "通过社区论坛"
 
 msgid "via dedicated Slack"
 msgstr "通过专用 Slack"
-
-msgid "your competitive advantage"
-msgstr "你的竞争优势"
 
 msgid "Custom"
 msgstr "定制"
@@ -1475,6 +1463,27 @@ msgstr "标准"
 #, fuzzy
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr "追踪测试性能，及早发现低效测试，无需翻阅日志即可排查持续集成失败问题。"
+
+msgid "Your mobile platform team,"
+msgstr ""
+
+msgid "as a service"
+msgstr ""
+
+msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
+msgstr ""
+
+#~ msgid "Make mobile"
+#~ msgstr "让移动开发成为"
+
+#~ msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+#~ msgstr "驱动千万级用户应用的 iOS 工具，以服务形式赋能您的团队"
+
+#~ msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+#~ msgstr "驱动十亿级用户应用的 iOS 工具，以服务形式赋能您的团队"
+
+#~ msgid "your competitive advantage"
+#~ msgstr "你的竞争优势"
 
 #~ msgid "Bundle insights"
 #~ msgstr "应用包洞察"

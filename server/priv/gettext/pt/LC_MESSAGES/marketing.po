@@ -362,9 +362,6 @@ msgstr ""
 msgid "Longevity"
 msgstr ""
 
-msgid "Make mobile"
-msgstr ""
-
 msgid "Make modular Xcode projects more manageable"
 msgstr ""
 
@@ -585,12 +582,6 @@ msgstr ""
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr ""
 
-msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
-msgstr ""
-
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr ""
-
 msgid "The team"
 msgstr ""
 
@@ -794,9 +785,6 @@ msgid "via Community Forum"
 msgstr ""
 
 msgid "via dedicated Slack"
-msgstr ""
-
-msgid "your competitive advantage"
 msgstr ""
 
 msgid "Custom"
@@ -1336,4 +1324,13 @@ msgid "Standards"
 msgstr ""
 
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+msgstr ""
+
+msgid "Your mobile platform team,"
+msgstr ""
+
+msgid "as a service"
+msgstr ""
+
+msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
 msgstr ""

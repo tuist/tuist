@@ -354,9 +354,6 @@ msgstr "ログイン"
 msgid "Longevity"
 msgstr "持続性"
 
-msgid "Make mobile"
-msgstr "モバイルを"
-
 msgid "Make modular Xcode projects more manageable"
 msgstr "モジュラーXcodeプロジェクトをより管理しやすく"
 
@@ -573,12 +570,6 @@ msgstr "ニュースレター第%{issue_number}号が見つかりませんでし
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr "ニュースレター番号%{issue_number}は有効な番号ではありません。"
 
-msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
-msgstr "数百万ユーザーのアプリを支えるiOSツールと同じものを、あなたのチーム向けにサービスとして提供"
-
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr "数十億ユーザーのアプリを支えるiOSツールと同じものを、あなたのチーム向けにサービスとして提供"
-
 msgid "The team"
 msgstr "チーム"
 
@@ -782,9 +773,6 @@ msgstr "コミュニティフォーラム経由"
 
 msgid "via dedicated Slack"
 msgstr "専用Slack経由"
-
-msgid "your competitive advantage"
-msgstr "あなたの武器に"
 
 msgid "Custom"
 msgstr "カスタム"
@@ -1476,6 +1464,27 @@ msgstr "標準"
 #, fuzzy
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr "テストの実行状況を追跡し、遅いテストを早期に発見し、ログを掘り下げることなくCIの失敗をデバッグします。"
+
+msgid "Your mobile platform team,"
+msgstr ""
+
+msgid "as a service"
+msgstr ""
+
+msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
+msgstr ""
+
+#~ msgid "Make mobile"
+#~ msgstr "モバイルを"
+
+#~ msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+#~ msgstr "数百万ユーザーのアプリを支えるiOSツールと同じものを、あなたのチーム向けにサービスとして提供"
+
+#~ msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+#~ msgstr "数十億ユーザーのアプリを支えるiOSツールと同じものを、あなたのチーム向けにサービスとして提供"
+
+#~ msgid "your competitive advantage"
+#~ msgstr "あなたの武器に"
 
 #~ msgid "Bundle insights"
 #~ msgstr "バンドル分析"

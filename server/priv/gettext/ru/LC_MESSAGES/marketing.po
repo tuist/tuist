@@ -354,9 +354,6 @@ msgstr "Войти"
 msgid "Longevity"
 msgstr "Устойчивость"
 
-msgid "Make mobile"
-msgstr "Сделайте мобильную разработку"
-
 msgid "Make modular Xcode projects more manageable"
 msgstr "Упростите работу с модульными проектами Xcode"
 
@@ -573,12 +570,6 @@ msgstr "Выпуск рассылки %{issue_number} не найден."
 msgid "The newsletter issue number %{issue_number} is not a valid number."
 msgstr "Номер выпуска рассылки %{issue_number} недействителен."
 
-msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
-msgstr "Те же инструменты iOS, что используются в приложениях с миллионами пользователей, – теперь как сервис для вашей команды"
-
-msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
-msgstr "Те же инструменты iOS, что используются в приложениях с миллионами пользователей, – теперь как сервис для вашей команды"
-
 msgid "The team"
 msgstr "Команда"
 
@@ -782,9 +773,6 @@ msgstr "через форум сообщества"
 
 msgid "via dedicated Slack"
 msgstr "через выделенный канал Slack"
-
-msgid "your competitive advantage"
-msgstr "своим конкурентным преимуществом"
 
 msgid "Custom"
 msgstr "Индивидуальный"
@@ -1476,6 +1464,27 @@ msgstr "Стандарты"
 #, fuzzy
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
 msgstr "Отслеживайте производительность тестов, своевременно выявляйте медленные тесты и устраняйте сбои CI без необходимости просматривать журналы."
+
+msgid "Your mobile platform team,"
+msgstr ""
+
+msgid "as a service"
+msgstr ""
+
+msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
+msgstr ""
+
+#~ msgid "Make mobile"
+#~ msgstr "Сделайте мобильную разработку"
+
+#~ msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+#~ msgstr "Те же инструменты iOS, что используются в приложениях с миллионами пользователей, – теперь как сервис для вашей команды"
+
+#~ msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+#~ msgstr "Те же инструменты iOS, что используются в приложениях с миллионами пользователей, – теперь как сервис для вашей команды"
+
+#~ msgid "your competitive advantage"
+#~ msgstr "своим конкурентным преимуществом"
 
 #~ msgid "Bundle insights"
 #~ msgstr "Аналитика бандлов"
