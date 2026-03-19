@@ -17,8 +17,6 @@ defmodule Tuist.Ingestion.SchemaBuffer do
     schema = Keyword.fetch!(opts, :schema)
 
     quote do
-      @moduledoc false
-
       alias Tuist.Ingestion.Buffer
 
       %{
@@ -61,7 +59,8 @@ defmodule Tuist.Ingestion.SchemaBuffer do
 
       def insert_all(rows) do
         row_binary =
-          Enum.map(rows, fn row ->
+          rows
+          |> Enum.map(fn row ->
             Enum.map(@__fields, fn field -> Map.fetch!(row, field) end)
           end)
           |> Ch.RowBinary._encode_rows(@__encoding_types)
