@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.162.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add storages option to cache configuration by [@fortmarek](https://github.com/fortmarek) in [#9938](https://github.com/tuist/tuist/pull/9938)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.161.4...4.162.0
+
 ## What's Changed in 4.161.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
