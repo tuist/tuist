@@ -1311,12 +1311,10 @@ defmodule TuistWeb.TestRunLive do
       end)
       |> Enum.with_index(fn shard, idx -> Map.put(shard, :id, idx) end)
 
-    display_duration = shard_wall_clock_duration(reported_shards, run.duration)
-
     socket
     |> assign(:shard_rows, all_shards)
     |> assign(:expected_shard_count, expected_shard_count)
-    |> assign(:display_duration, display_duration)
+    |> assign(:display_duration, run.duration)
   end
 
   defp fetch_target_counts(%ShardPlan{granularity: "suite"}, plan_id, project_id) do
@@ -1347,32 +1345,5 @@ defmodule TuistWeb.TestRunLive do
 
   defp fetch_target_counts(_, _, _), do: %{}
 
-  defp shard_wall_clock_duration([], run_duration), do: run_duration
-
-  defp shard_wall_clock_duration(shard_balance, _run_duration) do
-    timestamps =
-      Enum.flat_map(shard_balance, fn shard ->
-        case shard do
-          %{ran_at: ran_at, actual_duration_ms: duration_ms}
-          when not is_nil(ran_at) and not is_nil(duration_ms) ->
-            start_ms =
-              ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(:millisecond)
-
-            [{start_ms, start_ms + duration_ms}]
-
-          _ ->
-            []
-        end
-      end)
-
-    case timestamps do
-      [] ->
-        0
-
-      pairs ->
-        earliest_start = pairs |> Enum.map(&elem(&1, 0)) |> Enum.min()
-        latest_end = pairs |> Enum.map(&elem(&1, 1)) |> Enum.max()
-        latest_end - earliest_start
-    end
   end
 end
