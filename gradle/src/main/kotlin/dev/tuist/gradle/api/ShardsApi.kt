@@ -69,7 +69,7 @@ interface ShardsApi {
     fun generateShardUploadURL(@Path("account_handle") accountHandle: kotlin.String, @Path("project_handle") projectHandle: kotlin.String, @Body generateShardUploadURLParams1: GenerateShardUploadURLParams1? = null): Call<GenerateShardUploadURL200Response>
 
     /**
-     * GET api/projects/{account_handle}/{project_handle}/tests/shards/{plan_id}/{shard_index}
+     * GET api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}
      * Get a shard.
      * Returns the test targets and download URLs for a specific shard.
      * Responses:

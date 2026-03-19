@@ -23,7 +23,7 @@ import com.google.gson.annotations.SerializedName
  * 
  *
  * @param parts The uploaded parts with their ETags.
- * @param planId The shard plan identifier.
+ * @param reference The shard plan identifier.
  * @param uploadId The multipart upload ID.
  */
 
@@ -35,8 +35,8 @@ data class CompleteShardUploadParams1 (
     val parts: kotlin.collections.List<CompleteShardUploadParams1PartsInner>,
 
     /* The shard plan identifier. */
-    @SerializedName("plan_id")
-    val planId: kotlin.String,
+    @SerializedName("reference")
+    val reference: kotlin.String,
 
     /* The multipart upload ID. */
     @SerializedName("upload_id")

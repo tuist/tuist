@@ -22,6 +22,7 @@ import com.google.gson.annotations.SerializedName
 /**
  * A shard plan with assignment details.
  *
+ * @param id The shard plan UUID.
  * @param reference The plan identifier.
  * @param shardCount The number of shards.
  * @param shards The shard assignments.
@@ -30,6 +31,10 @@ import com.google.gson.annotations.SerializedName
 
 
 data class ShardPlan (
+
+    /* The shard plan UUID. */
+    @SerializedName("id")
+    val id: java.util.UUID,
 
     /* The plan identifier. */
     @SerializedName("reference")

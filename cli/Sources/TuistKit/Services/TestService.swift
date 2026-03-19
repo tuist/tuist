@@ -550,8 +550,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
-            shardPlanId: shard.shardPlanId,
-            shardIndex: shardIndex
+            shardPlanId: shard.shardPlanId
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -1332,8 +1331,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
-            shardPlanId: nil,
-            shardIndex: nil
+            shardPlanId: nil
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)

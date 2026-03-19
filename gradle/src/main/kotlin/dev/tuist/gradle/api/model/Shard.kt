@@ -23,6 +23,7 @@ import com.google.gson.annotations.SerializedName
  *
  * @param downloadUrl Presigned URL to download the shared test products bundle.
  * @param modules The test modules assigned to this shard.
+ * @param shardPlanId The UUID of the shard plan.
  * @param suites The test suites assigned to this shard, grouped by module name.
  */
 
@@ -36,6 +37,10 @@ data class Shard (
     /* The test modules assigned to this shard. */
     @SerializedName("modules")
     val modules: kotlin.collections.List<kotlin.String>,
+
+    /* The UUID of the shard plan. */
+    @SerializedName("shard_plan_id")
+    val shardPlanId: java.util.UUID,
 
     /* The test suites assigned to this shard, grouped by module name. */
     @SerializedName("suites")
