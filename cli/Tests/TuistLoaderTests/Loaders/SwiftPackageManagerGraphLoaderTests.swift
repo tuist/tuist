@@ -219,6 +219,108 @@ struct SwiftPackageManagerGraphLoaderTests {
         }
     }
 
+    @Test
+    func load_when_packagesShareManifestName_preservesDistinctPackageReferenceNames() async throws {
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+                let packageSettings = PackageSettings.test()
+
+                let workspacePath = temporaryDirectory.appending(components: [
+                    ".build", "workspace-state.json",
+                ])
+                try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+                try await fileSystem.writeText(
+                    """
+                    {
+                      "object" : {
+                        "artifacts" : [],
+                        "dependencies" : [
+                          {
+                            "basedOn" : null,
+                            "packageRef" : {
+                              "identity" : "apple.swift-async-algorithms",
+                              "kind" : "registry",
+                              "location" : "apple.swift-async-algorithms",
+                              "name" : "apple.swift-async-algorithms"
+                            },
+                            "state" : {
+                              "name" : "registryDownload",
+                              "version" : "1.1.3"
+                            },
+                            "subpath" : "apple/swift-async-algorithms/1.1.3"
+                          },
+                          {
+                            "basedOn" : null,
+                            "packageRef" : {
+                              "identity" : "coenttb.swift-async-algorithms-fork",
+                              "kind" : "registry",
+                              "location" : "coenttb.swift-async-algorithms-fork",
+                              "name" : "coenttb.swift-async-algorithms-fork"
+                            },
+                            "state" : {
+                              "name" : "registryDownload",
+                              "version" : "1.2.0"
+                            },
+                            "subpath" : "coenttb/swift-async-algorithms-fork/1.2.0"
+                          }
+                        ]
+                      }
+                    }
+                    """,
+                    at: workspacePath
+                )
+
+                try await fileSystem.makeDirectory(
+                    at: temporaryDirectory.appending(components: [".build", "Derived"])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(components: [
+                        ".build", "Derived", "Package.resolved",
+                    ])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(component: "Package.resolved")
+                )
+
+                given(manifestLoader)
+                    .loadPackage(at: .any, disableSandbox: .value(true))
+                    .willProduce { path, _ in
+                        if path == temporaryDirectory {
+                            return .test(name: "Root")
+                        } else {
+                            return .test(name: "swift-async-algorithms")
+                        }
+                    }
+
+                given(packageInfoMapper)
+                    .resolveExternalDependencies(
+                        path: .any,
+                        packageInfos: .any,
+                        packageToFolder: .any,
+                        packageToTargetsToArtifactPaths: .any,
+                        packageModuleAliases: .any
+                    )
+                    .willProduce { _, packageInfos, _, _, _ in
+                        #expect(Set(packageInfos.keys) == [
+                            "apple.swift-async-algorithms",
+                            "coenttb.swift-async-algorithms-fork",
+                        ])
+                        #expect(Set(packageInfos.values.map(\.name)) == [
+                            "apple.swift-async-algorithms",
+                            "coenttb.swift-async-algorithms-fork",
+                        ])
+                        return [:]
+                    }
+
+                _ = try await subject.load(
+                    packagePath: temporaryDirectory.appending(component: "Package.swift"),
+                    packageSettings: packageSettings,
+                    disableSandbox: true
+                )
+            }
+        }
+    }
+
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func load_when_dependency_via_local_registry_and_scm() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

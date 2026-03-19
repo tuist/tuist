@@ -119,6 +119,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private let fileSystem: FileSysteming
     private let rootDirectoryLocator: RootDirectoryLocating
 
+    fileprivate static func externalDependencyKey(packageName: String, productName: String) -> String {
+        "\(packageName)::\(productName)"
+    }
+
     public init(
         moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator(),
         fileSystem: FileSysteming = FileSystem(),
@@ -142,6 +146,15 @@ public struct PackageInfoMapper: PackageInfoMapping {
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         packageModuleAliases: [String: [String: String]]
     ) async throws -> [String: [ProjectDescription.TargetDependency]] {
+        let manifestNameOccurrences = packageInfos.values.reduce(into: [String: Int]()) { result, packageInfo in
+            result[packageInfo.name, default: 0] += 1
+        }
+        let productNameOccurrences = packageInfos.values.reduce(into: [String: Int]()) { result, packageInfo in
+            for product in packageInfo.products {
+                result[product.name, default: 0] += 1
+            }
+        }
+
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
                 guard target.type == .binary else { return }
@@ -176,7 +189,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             .reduce(into: [:]) { result, packageInfo in
                 let moduleAliases = packageModuleAliases[packageInfo.value.name]
                 for product in packageInfo.value.products {
-                    result[moduleAliases?[product.name] ?? product.name] = try product.targets.flatMap { target in
+                    let productName = moduleAliases?[product.name] ?? product.name
+                    let dependencies: [ProjectDescription.TargetDependency] = try product.targets.flatMap { target in
                         try ResolvedDependency.fromTarget(
                             name: moduleAliases?[target] ?? target,
                             targetDependencyToFramework: targetDependencyToFramework,
@@ -201,6 +215,19 @@ public struct PackageInfoMapper: PackageInfoMapping {
                                 )
                             }
                         }
+                    }
+                    result[PackageInfoMapper.externalDependencyKey(packageName: packageInfo.key, productName: productName)] =
+                        dependencies
+
+                    if manifestNameOccurrences[packageInfo.value.name] == 1 {
+                        result[PackageInfoMapper.externalDependencyKey(
+                            packageName: packageInfo.value.name,
+                            productName: productName
+                        )] = dependencies
+                    }
+
+                    if productNameOccurrences[product.name] == 1 {
+                        result[productName] = dependencies
                     }
                 }
             }
@@ -617,9 +644,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
             dependencies = try linkerDependencies + target.dependencies.compactMap {
                 switch $0 {
-                case let .product(name: name, package: _, moduleAliases: moduleAliases, condition: condition):
+                case let .product(name: name, package: package, moduleAliases: moduleAliases, condition: condition):
                     try mapDependency(
                         name: name,
+                        packageName: package,
                         packageInfo: packageInfo,
                         packageType: packageType,
                         condition: condition,
@@ -686,6 +714,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     private func mapDependency(
         name: String,
+        packageName: String? = nil,
         packageInfo: PackageInfo,
         packageType: PackageType,
         condition: PackageInfo.PackageConditionDescription?,
@@ -727,9 +756,23 @@ public struct PackageInfoMapper: PackageInfoMapping {
         } else {
             if let aliasedName = moduleAliases?[name] {
                 dependencyModuleAliases[name] = aliasedName
-                return .external(name: aliasedName, condition: platformCondition)
+                if let packageName {
+                    return .external(
+                        name: PackageInfoMapper.externalDependencyKey(packageName: packageName, productName: aliasedName),
+                        condition: platformCondition
+                    )
+                } else {
+                    return .external(name: aliasedName, condition: platformCondition)
+                }
             } else {
-                return .external(name: name, condition: platformCondition)
+                if let packageName {
+                    return .external(
+                        name: PackageInfoMapper.externalDependencyKey(packageName: packageName, productName: name),
+                        condition: platformCondition
+                    )
+                } else {
+                    return .external(name: name, condition: platformCondition)
+                }
             }
         }
     }

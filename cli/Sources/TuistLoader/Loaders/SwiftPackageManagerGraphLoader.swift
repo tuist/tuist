@@ -102,6 +102,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             (
                 id: String,
                 name: String,
+                identityName: String,
+                manifestName: String,
                 folder: AbsolutePath,
                 targetToArtifactPaths: [String: AbsolutePath],
                 info: PackageInfo,
@@ -112,10 +114,12 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
             let hash: String?
+            let identityName: String
             switch dependency.packageRef.kind {
             case "remote", "remoteSourceControl":
                 packageFolder = checkoutsFolder.appending(component: dependency.subpath)
                 hash = dependency.state?.checkoutState?.revision
+                identityName = packageFolder.basename
             case "local", "fileSystem", "localSourceControl":
                 // Depending on the swift version, the information is available either in `path` or in `location`
                 guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
@@ -128,15 +132,29 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     validating: path.replacingOccurrences(of: "/private/var", with: "/var")
                 )
                 hash = nil
+                identityName = packageFolder.basename
             case "registry":
                 let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
                 packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
                 hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
+                identityName = packageFolder.parentDirectory.basename
             default:
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
-            let packageInfo = try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+            let loadedPackageInfo = try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+            let packageInfo = PackageInfo(
+                name: dependency.packageRef.name,
+                products: loadedPackageInfo.products,
+                targets: loadedPackageInfo.targets,
+                traits: loadedPackageInfo.traits,
+                dependencies: loadedPackageInfo.dependencies,
+                platforms: loadedPackageInfo.platforms,
+                cLanguageStandard: loadedPackageInfo.cLanguageStandard,
+                cxxLanguageStandard: loadedPackageInfo.cxxLanguageStandard,
+                swiftLanguageVersions: loadedPackageInfo.swiftLanguageVersions,
+                toolsVersion: loadedPackageInfo.toolsVersion
+            )
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in
@@ -146,6 +164,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             return (
                 id: dependency.packageRef.identity.lowercased(),
                 name: name,
+                identityName: identityName,
+                manifestName: loadedPackageInfo.name,
                 folder: packageFolder,
                 targetToArtifactPaths: targetToArtifactPaths,
                 info: packageInfo,
@@ -166,14 +186,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         // References:
         // - https://github.com/tuist/tuist/pull/7518
         // - https://community.tuist.dev/t/swift-package-registry-overriding-local-dependency-in-tuist-generated-project/902
-        packageInfos = Dictionary(grouping: packageInfos, by: {
-            if $0.kind == "registry" {
-                // A package is uniquely identified by a scoped identifier in the form scope.package-name.
-                return String($0.name.split(separator: ".").last ?? "").lowercased()
-            } else {
-                return $0.name.lowercased()
-            }
-        })
+        packageInfos = Dictionary(grouping: packageInfos, by: \.id)
         .compactMap { _, groupedPackageInfos in
             if let localPackage = groupedPackageInfos.first(where: {
                 ["local", "fileSystem", "localSourceControl"].contains($0.kind)
@@ -186,7 +199,101 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             }
         }
 
+        var packageReferenceNameByAlias: [String: String] = [:]
+        for packageInfo in packageInfos {
+            for alias in [
+                packageInfo.id,
+                packageInfo.name.lowercased(),
+                packageInfo.identityName.lowercased(),
+                packageInfo.manifestName.lowercased(),
+            ] {
+                packageReferenceNameByAlias[alias] = packageInfo.name
+            }
+        }
+
+        packageInfos = packageInfos.map { packageInfo in
+            let directDependencyReferenceNameByIdentity = Dictionary<String, String>(
+                uniqueKeysWithValues: packageInfo.info.dependencies.compactMap { dependency in
+                    guard let referenceName = packageReferenceNameByAlias[dependency.identity.lowercased()] else { return nil }
+                    return (dependency.identity.lowercased(), referenceName)
+                }
+            )
+
+            let normalizedTargets = packageInfo.info.targets.map { target in
+                let normalizedDependencies = target.dependencies.map { dependency in
+                    switch dependency {
+                    case let .product(name, package, moduleAliases, condition):
+                        return PackageInfo.Target.Dependency.product(
+                            name: name,
+                            package: directDependencyReferenceNameByIdentity[package.lowercased()] ?? package,
+                            moduleAliases: moduleAliases,
+                            condition: condition
+                        )
+                    case .byName, .target:
+                        return dependency
+                    }
+                }
+
+                return PackageInfo.Target(
+                    name: target.name,
+                    path: target.path,
+                    url: target.url,
+                    sources: target.sources,
+                    resources: target.resources,
+                    exclude: target.exclude,
+                    dependencies: normalizedDependencies,
+                    publicHeadersPath: target.publicHeadersPath,
+                    type: target.type,
+                    settings: target.settings,
+                    checksum: target.checksum,
+                    packageAccess: target.packageAccess
+                )
+            }
+
+            let normalizedPackageInfo = PackageInfo(
+                name: packageInfo.info.name,
+                products: packageInfo.info.products,
+                targets: normalizedTargets,
+                traits: packageInfo.info.traits,
+                dependencies: packageInfo.info.dependencies,
+                platforms: packageInfo.info.platforms,
+                cLanguageStandard: packageInfo.info.cLanguageStandard,
+                cxxLanguageStandard: packageInfo.info.cxxLanguageStandard,
+                swiftLanguageVersions: packageInfo.info.swiftLanguageVersions,
+                toolsVersion: packageInfo.info.toolsVersion
+            )
+
+            return (
+                id: packageInfo.id,
+                name: packageInfo.name,
+                identityName: packageInfo.identityName,
+                manifestName: packageInfo.manifestName,
+                folder: packageInfo.folder,
+                targetToArtifactPaths: packageInfo.targetToArtifactPaths,
+                info: normalizedPackageInfo,
+                hash: packageInfo.hash,
+                kind: packageInfo.kind
+            )
+        }
+
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
+        let packageInfoDictionaryForExternalDependencies = Dictionary(uniqueKeysWithValues: packageInfos.map {
+            (
+                $0.name,
+                PackageInfo(
+                    name: $0.identityName,
+                    products: $0.info.products,
+                    targets: $0.info.targets,
+                    traits: $0.info.traits,
+                    dependencies: $0.info.dependencies,
+                    platforms: $0.info.platforms,
+                    cLanguageStandard: $0.info.cLanguageStandard,
+                    cxxLanguageStandard: $0.info.cxxLanguageStandard,
+                    swiftLanguageVersions: $0.info.swiftLanguageVersions,
+                    toolsVersion: $0.info.toolsVersion
+                )
+            )
+        })
         let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageToTargetsToArtifactPaths = Dictionary(uniqueKeysWithValues: packageInfos.map {
             ($0.name, $0.targetToArtifactPaths)
@@ -218,7 +325,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
         let externalDependencies = try await packageInfoMapper.resolveExternalDependencies(
             path: path,
-            packageInfos: packageInfoDictionary,
+            packageInfos: packageInfoDictionaryForExternalDependencies,
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
             packageModuleAliases: mutablePackageModuleAliases

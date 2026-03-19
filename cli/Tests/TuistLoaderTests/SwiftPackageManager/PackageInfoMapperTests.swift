@@ -321,6 +321,60 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func resolveDependencies_whenProductsShareNameAcrossPackages_qualifiesByPackageName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let applePath = basePath.appending(component: "apple.swift-async-algorithms")
+        let forkPath = basePath.appending(component: "coenttb.swift-async-algorithms-fork")
+
+        try await fileSystem.makeDirectory(at: applePath.appending(try RelativePath(validating: "Sources/AsyncAlgorithms")))
+        try await fileSystem.makeDirectory(at: forkPath.appending(try RelativePath(validating: "Sources/AsyncAlgorithms")))
+
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
+            packageInfos: [
+                "apple.swift-async-algorithms": .test(
+                    name: "apple.swift-async-algorithms",
+                    products: [
+                        .init(name: "AsyncAlgorithms", type: .library(.automatic), targets: ["AsyncAlgorithms"]),
+                    ],
+                    targets: [
+                        .test(name: "AsyncAlgorithms"),
+                    ]
+                ),
+                "coenttb.swift-async-algorithms-fork": .test(
+                    name: "coenttb.swift-async-algorithms-fork",
+                    products: [
+                        .init(name: "AsyncAlgorithms", type: .library(.automatic), targets: ["AsyncAlgorithms"]),
+                    ],
+                    targets: [
+                        .test(name: "AsyncAlgorithms"),
+                    ]
+                ),
+            ],
+            packageToFolder: [
+                "apple.swift-async-algorithms": applePath,
+                "coenttb.swift-async-algorithms-fork": forkPath,
+            ],
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
+        )
+
+        #expect(
+            resolvedDependencies ==
+                [
+                    "apple.swift-async-algorithms::AsyncAlgorithms": [
+                        .project(target: "AsyncAlgorithms", path: .relativeToManifest(applePath.pathString)),
+                    ],
+                    "coenttb.swift-async-algorithms-fork::AsyncAlgorithms": [
+                        .project(target: "AsyncAlgorithms", path: .relativeToManifest(forkPath.pathString)),
+                    ],
+                ]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func resolveDependencies_whenHasModuleAliases() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target_1")))
