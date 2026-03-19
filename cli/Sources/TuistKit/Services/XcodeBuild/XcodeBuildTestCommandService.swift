@@ -116,7 +116,8 @@ struct XcodeBuildTestCommandService {
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
-            shardPlanId: shardPlanId
+            shardPlanId: shardPlanId,
+            shardIndex: shardIndex
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
