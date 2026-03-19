@@ -19,9 +19,6 @@ defmodule Tuist.Utilities.DateFormatter do
     duration_ms = trunc(duration_ms)
 
     cond do
-      duration_ms == 0 ->
-        "0.0s"
-
       duration_ms < 1000 ->
         "#{duration_ms}ms"
 

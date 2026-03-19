@@ -196,10 +196,7 @@
               <div data-part="title">{dgettext("dashboard_tests", "Duration")}</div>
               <span :if={@run.status != "in_progress"} data-part="value">
                 <.history />
-                {dgettext("dashboard_tests", "%{run_duration}s",
-                  run_duration:
-                    (@display_duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
-                )}
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@display_duration)}
               </span>
               <span :if={@run.status == "in_progress"} data-part="value">
                 <.status_badge_cell
