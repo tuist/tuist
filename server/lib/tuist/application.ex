@@ -108,8 +108,8 @@ defmodule Tuist.Application do
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
         {Tuist.Repo, connection_listeners: [TelemetryListener]},
-        Tuist.ClickHouseRepo,
-        Tuist.IngestRepo,
+        {Tuist.ClickHouseRepo, connection_listeners: [TelemetryListener]},
+        {Tuist.IngestRepo, connection_listeners: [TelemetryListener]},
         Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),

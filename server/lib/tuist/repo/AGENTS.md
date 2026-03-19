@@ -3,8 +3,8 @@
 This context owns the primary Ecto repository and DB pool utilities.
 
 ## Responsibilities
-- Define the Postgres repo.
-- Surface connection pool metrics for monitoring.
+- Define repo pool monitoring utilities.
+- Surface connection pool metrics for monitoring across database repos.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

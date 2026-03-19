@@ -4,6 +4,7 @@ defmodule Tuist.Repo.PromExPlugin do
   """
   use PromEx.Plugin
 
+  alias Tuist.Repo.PoolMetrics
   alias Tuist.Telemetry
 
   @impl true
@@ -44,14 +45,23 @@ defmodule Tuist.Repo.PromExPlugin do
           last_value(
             [:tuist, :repo, :pool, :checkout_queue, :length],
             event_name: Telemetry.event_name_repo_pool_metrics(),
+            tags: [:repo, :database],
             description: "The total number of queries that are in the queue waiting to be checked out",
             measurement: :checkout_queue_length
           ),
           last_value(
             [:tuist, :repo, :pool, :ready_conn, :count],
             event_name: Telemetry.event_name_repo_pool_metrics(),
+            tags: [:repo, :database],
             description: "The number of connections that are available to run queries.",
             measurement: :ready_conn_count
+          ),
+          last_value(
+            [:tuist, :repo, :pool, :size],
+            event_name: Telemetry.event_name_repo_pool_metrics(),
+            tags: [:repo, :database],
+            description: "The configured number of connections in the pool.",
+            measurement: :pool_size
           )
         ]
       )
@@ -59,12 +69,22 @@ defmodule Tuist.Repo.PromExPlugin do
   end
 
   def execute_tuist_repo_pool_metrics_event do
-    if Tuist.Repo.running?() do
-      :telemetry.execute(
-        Telemetry.event_name_repo_pool_metrics(),
-        Tuist.Repo.connection_pool_metrics(),
-        %{}
-      )
+    Enum.each(PoolMetrics.repos(), &emit_pool_metrics/1)
+  end
+
+  defp emit_pool_metrics(repo) do
+    if PoolMetrics.running?(repo) do
+      case PoolMetrics.connection_pool_metrics(repo) do
+        nil ->
+          :ok
+
+        measurements ->
+          :telemetry.execute(
+            Telemetry.event_name_repo_pool_metrics(),
+            measurements,
+            PoolMetrics.telemetry_metadata(repo)
+          )
+      end
     end
   end
 end
