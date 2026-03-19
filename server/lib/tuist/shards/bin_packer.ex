@@ -7,9 +7,6 @@ defmodule Tuist.Shards.BinPacker do
   @default_min_shards 1
   @default_max_shards 10
 
-  @type unit :: {name :: String.t(), duration_ms :: non_neg_integer()}
-  @type shard :: {index :: non_neg_integer(), units :: [unit()], total_duration_ms :: non_neg_integer()}
-
   @doc """
   Packs units into `shard_count` shards using the LPT algorithm.
 
