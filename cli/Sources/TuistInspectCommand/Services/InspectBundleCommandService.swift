@@ -19,7 +19,6 @@ import XcodeGraph
 
 public enum InspectBundleCommandServiceError: LocalizedError {
     case missingFullHandle
-    case appleAppNameResolutionNotSupported
     case projectOrWorkspaceNotFound(path: String)
     case noAppsFound(app: String, configuration: String)
     case multipleBuiltBundlesFound(app: String, paths: [String])
@@ -29,8 +28,6 @@ public enum InspectBundleCommandServiceError: LocalizedError {
         switch self {
         case .missingFullHandle:
             "To analyze the app bundle, run 'tuist init' to connect to the Tuist server."
-        case .appleAppNameResolutionNotSupported:
-            "Resolving an app name for Apple platforms from Xcode build products is only supported on macOS. Pass an explicit bundle path instead."
         case let .projectOrWorkspaceNotFound(path):
             "Workspace or project not found at \(path)"
         case let .noAppsFound(app, configuration):
@@ -200,10 +197,6 @@ public struct InspectBundleCommandService {
             return explicitPath
         }
 
-        guard try await canResolveAppleAppNamesFromXcodeBuildProducts() else {
-            throw InspectBundleCommandServiceError.appleAppNameResolutionNotSupported
-        }
-
         let resolvedDerivedDataPath = try derivedDataPath.map {
             try AbsolutePath(validating: $0, relativeTo: fileHandler.currentPath)
         }
@@ -321,10 +314,6 @@ public struct InspectBundleCommandService {
                 throw InspectBundleCommandServiceError.multipleBuiltBundlesFound(app: app, paths: paths)
             }
         }
-    }
-
-    private func canResolveAppleAppNamesFromXcodeBuildProducts() async throws -> Bool {
-        try await fileSystem.exists(try AbsolutePath(validating: "/usr/bin/xcodebuild"))
     }
 
     private func looksLikeBundlePath(_ path: AbsolutePath) -> Bool {
