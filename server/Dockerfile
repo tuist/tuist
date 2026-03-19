@@ -38,10 +38,12 @@ COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
-# Install noora dependencies for source resolution by esbuild
-COPY noora/package.json noora/pnpm-lock.yaml /noora/
+# Build noora static assets (JS + CSS) from source
+COPY noora /noora
 WORKDIR /noora
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install
+RUN npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
+    npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
 WORKDIR /app
 
 # ========================================
@@ -97,9 +99,7 @@ COPY server/config/runtime.exs config/
 COPY server/rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
-COPY --from=npm-deps /noora/node_modules /noora/node_modules
-COPY noora/js /noora/js
-COPY noora/css /noora/css
+COPY --from=npm-deps /noora/priv/static /noora/priv/static
 RUN mix assets.deploy
 
 RUN mix release
