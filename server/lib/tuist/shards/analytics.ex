@@ -135,7 +135,6 @@ defmodule Tuist.Shards.Analytics do
     result =
       ClickHouseRepo.one(
         from(s in ShardPlan,
-          hints: ["FINAL"],
           where: s.project_id == ^project_id,
           where: s.inserted_at >= ^start_datetime,
           where: s.inserted_at <= ^end_datetime,
@@ -158,7 +157,6 @@ defmodule Tuist.Shards.Analytics do
 
     ClickHouseRepo.all(
       from(s in ShardPlan,
-        hints: ["FINAL"],
         where: s.project_id == ^project_id,
         where: s.inserted_at >= ^start_datetime,
         where: s.inserted_at <= ^end_datetime,
@@ -177,7 +175,6 @@ defmodule Tuist.Shards.Analytics do
   defp shard_balance_sessions(project_id, start_datetime, end_datetime) do
     ClickHouseRepo.all(
       from(t in Test,
-        hints: ["FINAL"],
         where: t.project_id == ^project_id,
         where: not is_nil(t.shard_plan_id),
         where: t.ran_at >= ^start_datetime,
@@ -256,7 +253,6 @@ defmodule Tuist.Shards.Analytics do
 
     ClickHouseRepo.all(
       from(s in ShardPlan,
-        hints: ["FINAL"],
         where: s.project_id == ^project_id,
         where: s.inserted_at >= ^start_datetime,
         where: s.inserted_at <= ^end_datetime,
@@ -273,7 +269,6 @@ defmodule Tuist.Shards.Analytics do
   defp sharded_run_total_count(project_id, start_datetime, end_datetime) do
     ClickHouseRepo.one(
       from(s in ShardPlan,
-        hints: ["FINAL"],
         where: s.project_id == ^project_id,
         where: s.inserted_at >= ^start_datetime,
         where: s.inserted_at <= ^end_datetime,
@@ -287,7 +282,6 @@ defmodule Tuist.Shards.Analytics do
 
     ClickHouseRepo.all(
       from(s in ShardPlan,
-        hints: ["FINAL"],
         where: s.project_id == ^project_id,
         where: s.inserted_at >= ^start_datetime,
         where: s.inserted_at <= ^end_datetime,
@@ -304,7 +298,6 @@ defmodule Tuist.Shards.Analytics do
   defp avg_shard_count_in_range(project_id, start_datetime, end_datetime) do
     ClickHouseRepo.one(
       from(s in ShardPlan,
-        hints: ["FINAL"],
         where: s.project_id == ^project_id,
         where: s.inserted_at >= ^start_datetime,
         where: s.inserted_at <= ^end_datetime,
@@ -483,7 +476,6 @@ defmodule Tuist.Shards.Analytics do
   def shard_metrics(test_run_id) when is_binary(test_run_id) do
     ClickHouseRepo.all(
       from(sr in ShardRun,
-        hints: ["FINAL"],
         where: sr.test_run_id == ^test_run_id,
         select: %{
           shard_index: sr.shard_index,
