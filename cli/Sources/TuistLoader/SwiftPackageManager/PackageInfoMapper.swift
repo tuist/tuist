@@ -112,6 +112,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
     /// https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
     fileprivate static let predefinedTestDirectories = ["Tests", "Sources", "Source", "src", "srcs"]
+    private static let bundleIdentifierSeparators = CharacterSet(charactersIn: " _/+")
+    private static let bundleIdentifierAllowedCharacters =
+        CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-."))
     private let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     private let fileSystem: FileSysteming
     private let rootDirectoryLocator: RootDirectoryLocating
@@ -377,18 +380,17 @@ public struct PackageInfoMapper: PackageInfoMapping {
     }
 
     fileprivate static func sanitize(bundleIdentifierComponent: String) -> String {
-        let sanitizedScalars = bundleIdentifierComponent.unicodeScalars.map { scalar -> Character in
-            switch scalar {
-            case "A"..."Z", "a"..."z", "0"..."9", "-", ".":
-                return Character(scalar)
-            case "_", " ", "/", "+":
+        let normalized = String(bundleIdentifierComponent.unicodeScalars.map { scalar in
+            if bundleIdentifierSeparators.contains(scalar) {
                 return "."
-            default:
-                return "-"
             }
-        }
+            if bundleIdentifierAllowedCharacters.contains(scalar) {
+                return Character(scalar)
+            }
+            return "-"
+        })
 
-        return String(sanitizedScalars)
+        return normalized
             .split(separator: ".")
             .filter { !$0.isEmpty }
             .joined(separator: ".")
