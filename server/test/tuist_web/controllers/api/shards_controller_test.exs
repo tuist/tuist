@@ -70,6 +70,80 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
       assert response(conn, :unauthorized)
     end
+
+    test "returns bad request when reference is missing", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            modules: ["AppTests"]
+          }
+        )
+
+      assert response(conn, 400)
+    end
+
+    test "creates plan with empty modules list", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :create_shard_plan, fn _project, _params ->
+        %{
+          plan: %{id: plan_id, reference: "empty-modules-ref"},
+          shard_count: 1,
+          shard_assignments: [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
+        }
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "empty-modules-ref",
+            modules: []
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert response["reference"] == "empty-modules-ref"
+      assert is_integer(response["shard_count"])
+    end
+
+    test "response includes id field", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :create_shard_plan, fn _project, _params ->
+        %{
+          plan: %{id: plan_id, reference: "id-check-ref"},
+          shard_count: 2,
+          shard_assignments: [
+            %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 1000},
+            %{"index" => 1, "test_targets" => [], "estimated_duration_ms" => 0}
+          ]
+        }
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "id-check-ref",
+            modules: ["AppTests"]
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert is_binary(response["id"])
+      assert {:ok, _} = Ecto.UUID.cast(response["id"])
+    end
   end
 
   describe "GET /api/projects/:account/:project/tests/shards/:reference/:shard_index" do

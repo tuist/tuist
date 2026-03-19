@@ -69,6 +69,118 @@ defmodule Tuist.ShardsTest do
     end
   end
 
+  describe "create_shard_plan/2 edge cases" do
+    test "creates a plan with empty modules list" do
+      project = ProjectsFixtures.project_fixture()
+
+      params = %{
+        reference: "empty-modules-1",
+        modules: [],
+        shard_min: 3,
+        shard_max: 5
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      assert result.shard_count == 1
+      assert result.shard_assignments == [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
+    end
+
+    test "uses shard_total override regardless of module count" do
+      project = ProjectsFixtures.project_fixture()
+
+      params = %{
+        reference: "total-override-1",
+        modules: ["A", "B", "C", "D", "E", "F"],
+        shard_total: 3
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      assert result.shard_count == 3
+      assert length(result.shard_assignments) == 3
+
+      all_targets =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(all_targets, MapSet.new(["A", "B", "C", "D", "E", "F"]))
+    end
+
+    test "suite granularity with Module/Suite format names" do
+      project = ProjectsFixtures.project_fixture()
+
+      params = %{
+        reference: "suite-split-1",
+        test_suites: ["AppTests/LoginSuite", "AppTests/SignupSuite", "CoreTests/UtilSuite"],
+        granularity: "suite",
+        shard_max: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      assert result.shard_count == 2
+      assert length(result.shard_assignments) == 2
+
+      all_targets =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(
+               all_targets,
+               MapSet.new(["AppTests/LoginSuite", "AppTests/SignupSuite", "CoreTests/UtilSuite"])
+             )
+    end
+  end
+
+  describe "get_shard_plan/1" do
+    test "returns the shard plan when it exists" do
+      project = ProjectsFixtures.project_fixture()
+
+      plan =
+        ShardsFixtures.shard_plan_fixture(
+          project_id: project.id,
+          reference: "get-plan-1",
+          shard_count: 3
+        )
+
+      assert {:ok, fetched_plan} = Shards.get_shard_plan(plan.id)
+      assert fetched_plan.id == plan.id
+      assert fetched_plan.shard_count == 3
+      assert fetched_plan.reference == "get-plan-1"
+    end
+
+    test "returns error for non-existent id" do
+      assert {:error, :not_found} = Shards.get_shard_plan(Ecto.UUID.generate())
+    end
+  end
+
+  describe "start_upload/3" do
+    test "starts a multipart upload and returns upload_id" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      ShardsFixtures.shard_plan_fixture(
+        project_id: project.id,
+        reference: "upload-ref-1"
+      )
+
+      stub(Tuist.Storage, :multipart_start, fn key, _account ->
+        assert key =~ "shards/"
+        assert key =~ "/bundle.zip"
+        "test-upload-id"
+      end)
+
+      assert {:ok, "test-upload-id"} = Shards.start_upload(project, account, "upload-ref-1")
+    end
+
+    test "returns not_found when plan does not exist" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      assert {:error, :not_found} = Shards.start_upload(project, account, "nonexistent-ref")
+    end
+  end
+
   describe "get_shard/4" do
     test "returns modules for module granularity" do
       project = ProjectsFixtures.project_fixture()
