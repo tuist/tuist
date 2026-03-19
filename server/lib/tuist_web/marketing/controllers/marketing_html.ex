@@ -23,7 +23,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   attr(:secondary_action_target, :string, default: "_blank")
 
   defp marketing_banner(assigns) do
-    default_primary_href = localized_href("https://docs.tuist.dev/")
+    default_primary_href = ~p"/users/register"
 
     assigns =
       assigns

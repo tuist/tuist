@@ -253,15 +253,10 @@ defmodule TuistWeb.Marketing.Localization do
   defp normalize_docs_path(path) do
     localized_path = path_without_locale(path || "/")
 
-    cond do
-      localized_path == "/" ->
-        "/docs/"
-
-      localized_path == "/docs" or String.starts_with?(localized_path, "/docs/") ->
-        localized_path
-
-      true ->
-        "/docs" <> localized_path
+    if localized_path == "/" do
+      "/"
+    else
+      localized_path
     end
   end
 
