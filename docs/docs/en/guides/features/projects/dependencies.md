@@ -119,7 +119,7 @@ The `PackageSettings` instance wrapped in a compiler directive allows you to con
 
 ### Binary Target Signatures
 
-For example, if a local or remote Swift package exposes a binary XCFramework target, you can configure its expected signature like this:
+If a local or remote Swift package exposes a binary XCFramework target, you can configure its expected signature using `PackageSettings.binaryTargetSignatures`:
 
 ```swift
 #if TUIST
