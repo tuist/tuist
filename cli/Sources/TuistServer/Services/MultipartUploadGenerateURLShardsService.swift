@@ -7,7 +7,7 @@ public protocol MultipartUploadGenerateURLShardsServicing {
     func generateUploadURL(
         fullHandle: String,
         serverURL: URL,
-        planId: String,
+        reference: String,
         uploadId: String,
         partNumber: Int
     ) async throws -> String
@@ -41,7 +41,7 @@ public struct MultipartUploadGenerateURLShardsService: MultipartUploadGenerateUR
     public func generateUploadURL(
         fullHandle: String,
         serverURL: URL,
-        planId: String,
+        reference: String,
         uploadId: String,
         partNumber: Int
     ) async throws -> String {
@@ -56,7 +56,7 @@ public struct MultipartUploadGenerateURLShardsService: MultipartUploadGenerateUR
             body: .json(
                 .init(
                     part_number: partNumber,
-                    plan_id: planId,
+                    reference: reference,
                     upload_id: uploadId
                 )
             )

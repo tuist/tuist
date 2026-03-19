@@ -4,7 +4,7 @@ defmodule Tuist.Shards.ShardRun do
 
   @primary_key false
   schema "shard_runs" do
-    field :plan_id, Ch, type: "String"
+    field :reference, Ch, type: "String"
     field :project_id, Ch, type: "Int64"
     field :test_run_id, Ch, type: "String"
     field :shard_index, Ch, type: "UInt16"

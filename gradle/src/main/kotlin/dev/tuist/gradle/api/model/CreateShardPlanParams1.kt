@@ -21,7 +21,7 @@ import com.google.gson.annotations.SerializedName
 /**
  * 
  *
- * @param planId A unique plan identifier.
+ * @param reference A unique plan identifier.
  * @param granularity Sharding granularity level.
  * @param modules Test module names (for module-level granularity).
  * @param shardMax Maximum number of shards.
@@ -35,8 +35,8 @@ import com.google.gson.annotations.SerializedName
 data class CreateShardPlanParams1 (
 
     /* A unique plan identifier. */
-    @SerializedName("plan_id")
-    val planId: kotlin.String,
+    @SerializedName("reference")
+    val reference: kotlin.String,
 
     /* Sharding granularity level. */
     @SerializedName("granularity")

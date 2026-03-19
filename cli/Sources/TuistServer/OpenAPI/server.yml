@@ -1244,7 +1244,7 @@ components:
           type: array
           x-struct:
           x-validate:
-        plan_id:
+        reference:
           description: A unique plan identifier.
           type: string
           x-struct:
@@ -1279,7 +1279,7 @@ components:
           x-struct:
           x-validate:
       required:
-        - plan_id
+        - reference
       title: CreateShardPlanParams
       type: object
       x-struct:
@@ -1852,6 +1852,12 @@ components:
           type: array
           x-struct:
           x-validate:
+        shard_plan_id:
+          description: The UUID of the shard plan.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         suites:
           additionalProperties:
             items:
@@ -1866,6 +1872,7 @@ components:
           x-struct:
           x-validate:
       required:
+        - shard_plan_id
         - modules
         - suites
         - download_url
@@ -3709,11 +3716,6 @@ components:
           type: string
           x-struct:
           x-validate:
-        shard_index:
-          description: The zero-based shard index if this test run is part of a sharded execution.
-          type: integer
-          x-struct:
-          x-validate:
         shard_plan_id:
           description: The shard plan ID if this test run is part of a sharded execution.
           type: string
@@ -3739,12 +3741,6 @@ components:
                 x-validate:
               name:
                 description: The name of the test module/target.
-                type: string
-                x-struct:
-                x-validate:
-              selective_testing_hash:
-                description: The selective testing hash for this module, if available.
-                nullable: true
                 type: string
                 x-struct:
                 x-validate:
@@ -3985,7 +3981,13 @@ components:
     ShardPlan:
       description: A shard plan with assignment details.
       properties:
-        plan_id:
+        id:
+          description: The shard plan UUID.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        reference:
           description: The plan identifier.
           type: string
           x-struct:
@@ -4034,7 +4036,8 @@ components:
           x-struct:
           x-validate:
       required:
-        - plan_id
+        - id
+        - reference
         - shard_count
         - shards
         - upload_id
@@ -4091,7 +4094,7 @@ components:
           type: array
           x-struct:
           x-validate:
-        plan_id:
+        reference:
           description: The shard plan identifier.
           type: string
           x-struct:
@@ -4102,7 +4105,7 @@ components:
           x-struct:
           x-validate:
       required:
-        - plan_id
+        - reference
         - upload_id
         - parts
       title: CompleteShardUploadParams
@@ -5279,7 +5282,7 @@ components:
           type: integer
           x-struct:
           x-validate:
-        plan_id:
+        reference:
           description: The shard plan identifier.
           type: string
           x-struct:
@@ -5290,7 +5293,7 @@ components:
           x-struct:
           x-validate:
       required:
-        - plan_id
+        - reference
         - upload_id
         - part_number
       title: GenerateShardUploadURLParams
@@ -6845,6 +6848,72 @@ paths:
       summary: It completes a multi-part upload
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}:
+    get:
+      callbacks: {}
+      description: Returns the test targets and download URLs for a specific shard.
+      operationId: getShard
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The shard plan identifier.
+          in: path
+          name: reference
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The zero-based shard index.
+          in: path
+          name: shard_index
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shard'
+          description: The shard
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The session or shard was not found
+      summary: Get a shard.
+      tags:
+        - Shards
   /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/targets:
     get:
       callbacks: {}
@@ -8546,7 +8615,7 @@ paths:
                   type: integer
                   x-struct:
                   x-validate:
-                plan_id:
+                reference:
                   description: The shard plan identifier.
                   type: string
                   x-struct:
@@ -8557,7 +8626,7 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - plan_id
+                - reference
                 - upload_id
                 - part_number
               title: GenerateShardUploadURLParams
@@ -11970,7 +12039,7 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
-                plan_id:
+                reference:
                   description: The shard plan identifier.
                   type: string
                   x-struct:
@@ -11981,7 +12050,7 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - plan_id
+                - reference
                 - upload_id
                 - parts
               title: CompleteShardUploadParams
@@ -13571,72 +13640,6 @@ paths:
       summary: List cacheable tasks for a given build.
       tags:
         - Builds
-  /api/projects/{account_handle}/{project_handle}/tests/shards/{plan_id}/{shard_index}:
-    get:
-      callbacks: {}
-      description: Returns the test targets and download URLs for a specific shard.
-      operationId: getShard
-      parameters:
-        - description: The handle of the project's account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The shard plan identifier.
-          in: path
-          name: plan_id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The zero-based shard index.
-          in: path
-          name: shard_index
-          required: true
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Shard'
-          description: The shard
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The session or shard was not found
-      summary: Get a shard.
-      tags:
-        - Shards
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs:
     get:
       callbacks: {}
@@ -17591,7 +17594,7 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
-                plan_id:
+                reference:
                   description: A unique plan identifier.
                   type: string
                   x-struct:
@@ -17626,7 +17629,7 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - plan_id
+                - reference
               title: CreateShardPlanParams
               type: object
               x-struct:
@@ -18041,11 +18044,6 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                shard_index:
-                  description: The zero-based shard index if this test run is part of a sharded execution.
-                  type: integer
-                  x-struct:
-                  x-validate:
                 shard_plan_id:
                   description: The shard plan ID if this test run is part of a sharded execution.
                   type: string
@@ -18071,12 +18069,6 @@ paths:
                         x-validate:
                       name:
                         description: The name of the test module/target.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      selective_testing_hash:
-                        description: The selective testing hash for this module, if available.
-                        nullable: true
                         type: string
                         x-struct:
                         x-validate:

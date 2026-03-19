@@ -459,7 +459,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
                 schemes: schemes.map(\.name),
-                planId: shardPlanId,
+                reference: shardPlanId,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,
@@ -1229,8 +1229,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction,
-        shardPlanId: String? = nil,
-        shardIndex: Int? = nil
+        shardPlanId: String? = nil
     ) async {
         guard let resultBundlePath, config.fullHandle != nil, action != .build,
               (try? await fileSystem.exists(resultBundlePath)) == true
@@ -1241,8 +1240,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
-                shardPlanId: shardPlanId,
-                shardIndex: shardIndex
+                shardPlanId: shardPlanId
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

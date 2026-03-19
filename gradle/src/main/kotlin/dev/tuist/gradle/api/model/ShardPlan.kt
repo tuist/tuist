@@ -22,7 +22,7 @@ import com.google.gson.annotations.SerializedName
 /**
  * A shard plan with assignment details.
  *
- * @param planId The plan identifier.
+ * @param reference The plan identifier.
  * @param shardCount The number of shards.
  * @param shards The shard assignments.
  * @param uploadId The multipart upload ID for the test products bundle.
@@ -32,8 +32,8 @@ import com.google.gson.annotations.SerializedName
 data class ShardPlan (
 
     /* The plan identifier. */
-    @SerializedName("plan_id")
-    val planId: kotlin.String,
+    @SerializedName("reference")
+    val reference: kotlin.String,
 
     /* The number of shards. */
     @SerializedName("shard_count")

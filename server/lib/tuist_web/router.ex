@@ -443,7 +443,7 @@ defmodule TuistWeb.Router do
             post "/", ShardsController, :create
             post "/generate-url", ShardsController, :generate_url
             post "/complete", ShardsController, :complete
-            get "/:plan_id/:shard_index", ShardsController, :show
+            get "/:reference/:shard_index", ShardsController, :show
           end
         end
 

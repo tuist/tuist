@@ -14,7 +14,7 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
         format: :uuid,
         description: "The shard plan UUID."
       },
-      plan_id: %Schema{
+      reference: %Schema{
         type: :string,
         description: "The plan identifier."
       },
@@ -47,6 +47,6 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
         description: "The multipart upload ID for the test products bundle."
       }
     },
-    required: [:id, :plan_id, :shard_count, :shards, :upload_id]
+    required: [:id, :reference, :shard_count, :shards, :upload_id]
   })
 end

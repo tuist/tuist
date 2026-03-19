@@ -31,7 +31,7 @@ defmodule TuistTestSupport.Fixtures.ShardsFixtures do
 
     plan_attrs = %{
       id: Keyword.get(attrs, :id, Ecto.UUID.generate()),
-      plan_id: Keyword.get(attrs, :plan_id, "plan-#{System.unique_integer([:positive])}"),
+      reference: Keyword.get(attrs, :reference, "plan-#{System.unique_integer([:positive])}"),
       project_id: project_id,
       shard_count: Keyword.get(attrs, :shard_count, 2),
       granularity: Keyword.get(attrs, :granularity, "module"),
@@ -52,7 +52,7 @@ defmodule TuistTestSupport.Fixtures.ShardsFixtures do
     now = NaiveDateTime.utc_now()
 
     row = %{
-      plan_id: Keyword.fetch!(attrs, :plan_id),
+      reference: Keyword.fetch!(attrs, :plan_id),
       project_id: Keyword.fetch!(attrs, :project_id),
       shard_index: Keyword.get(attrs, :shard_index, 0),
       module_name: Keyword.fetch!(attrs, :module_name),
@@ -68,7 +68,7 @@ defmodule TuistTestSupport.Fixtures.ShardsFixtures do
     now = NaiveDateTime.utc_now()
 
     row = %{
-      plan_id: Keyword.fetch!(attrs, :plan_id),
+      reference: Keyword.fetch!(attrs, :plan_id),
       project_id: Keyword.fetch!(attrs, :project_id),
       shard_index: Keyword.get(attrs, :shard_index, 0),
       module_name: Keyword.fetch!(attrs, :module_name),

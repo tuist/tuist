@@ -93,7 +93,7 @@ struct XcodeBuildBuildCommandService {
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
                 schemes: [schemeName],
-                planId: shardPlanId,
+                reference: shardPlanId,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,

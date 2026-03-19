@@ -1323,7 +1323,7 @@ defmodule TuistWeb.TestRunLive do
     import Ecto.Query
 
     from(s in ShardPlanTestSuite,
-      where: s.plan_id == ^plan_id,
+      where: s.reference == ^plan_id,
       where: s.project_id == ^project_id,
       group_by: s.shard_index,
       select: {s.shard_index, count()}
@@ -1336,7 +1336,7 @@ defmodule TuistWeb.TestRunLive do
     import Ecto.Query
 
     from(m in ShardPlanModule,
-      where: m.plan_id == ^plan_id,
+      where: m.reference == ^plan_id,
       where: m.project_id == ^project_id,
       group_by: m.shard_index,
       select: {m.shard_index, count()}

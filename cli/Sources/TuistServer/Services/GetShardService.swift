@@ -7,7 +7,7 @@ public protocol GetShardServicing {
     func getShard(
         fullHandle: String,
         serverURL: URL,
-        planId: String,
+        reference: String,
         shardIndex: Int
     ) async throws -> Components.Schemas.Shard
 }
@@ -40,7 +40,7 @@ public struct GetShardService: GetShardServicing {
     public func getShard(
         fullHandle: String,
         serverURL: URL,
-        planId: String,
+        reference: String,
         shardIndex: Int
     ) async throws -> Components.Schemas.Shard {
         let client = Client.authenticated(serverURL: serverURL)
@@ -50,7 +50,7 @@ public struct GetShardService: GetShardServicing {
             path: .init(
                 account_handle: handles.accountHandle,
                 project_handle: handles.projectHandle,
-                plan_id: planId,
+                reference: reference,
                 shard_index: shardIndex
             )
         )

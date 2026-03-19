@@ -27,7 +27,7 @@ defmodule Tuist.Shards do
 
   def create_shard_plan(%Project{} = project, %Account{} = account, params) do
     granularity = Map.get(params, :granularity, "module")
-    plan_id = Map.fetch!(params, :plan_id)
+    reference = Map.fetch!(params, :reference)
 
     units = extract_units(params, granularity)
     timing_data = fetch_timing_data(project, granularity)
@@ -58,7 +58,7 @@ defmodule Tuist.Shards do
 
     attrs = %{
       id: Ecto.UUID.generate(),
-      plan_id: plan_id,
+      reference: reference,
       project_id: project.id,
       shard_count: shard_count,
       granularity: granularity,
@@ -69,9 +69,9 @@ defmodule Tuist.Shards do
 
     case %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert() do
       {:ok, plan} ->
-        insert_shard_targets(plan_id, project.id, shards, granularity, now)
+        insert_shard_targets(reference, project.id, shards, granularity, now)
 
-        upload_id = Storage.multipart_start(bundle_object_key(account, project, plan_id), account)
+        upload_id = Storage.multipart_start(bundle_object_key(account, project, reference), account)
 
         {:ok,
          %{
@@ -86,19 +86,19 @@ defmodule Tuist.Shards do
     end
   end
 
-  def get_shard(%Project{} = project, %Account{} = account, plan_id, shard_index) do
-    case get_plan(project.id, plan_id) do
+  def get_shard(%Project{} = project, %Account{} = account, reference, shard_index) do
+    case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        case fetch_shard_data(plan, plan_id, project.id, shard_index) do
+        case fetch_shard_data(plan, reference, project.id, shard_index) do
           nil ->
             {:error, :invalid_shard_index}
 
           %{modules: modules, suites: suites} ->
             download_url =
-              Storage.generate_download_url(bundle_object_key(account, project, plan_id), account)
+              Storage.generate_download_url(bundle_object_key(account, project, reference), account)
 
             {:ok,
              %{
@@ -111,15 +111,15 @@ defmodule Tuist.Shards do
     end
   end
 
-  def complete_upload(%Project{} = project, %Account{} = account, plan_id, upload_id, parts) do
-    Storage.multipart_complete_upload(bundle_object_key(account, project, plan_id), upload_id, parts, account)
+  def complete_upload(%Project{} = project, %Account{} = account, reference, upload_id, parts) do
+    Storage.multipart_complete_upload(bundle_object_key(account, project, reference), upload_id, parts, account)
     :ok
   end
 
-  def generate_upload_url(%Project{} = project, %Account{} = account, plan_id, upload_id, part_number) do
+  def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number) do
     url =
       Storage.multipart_generate_url(
-        bundle_object_key(account, project, plan_id),
+        bundle_object_key(account, project, reference),
         upload_id,
         part_number,
         account
@@ -128,8 +128,8 @@ defmodule Tuist.Shards do
     {:ok, url}
   end
 
-  defp bundle_object_key(account, project, plan_id) do
-    "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
+  defp bundle_object_key(account, project, reference) do
+    "#{account.id}/#{project.id}/shards/#{reference}/bundle.zip"
   end
 
   defp count_targets(units, "module"), do: {length(units), 0}
@@ -148,12 +148,12 @@ defmodule Tuist.Shards do
     {length(modules), length(units)}
   end
 
-  defp insert_shard_targets(plan_id, project_id, shards, "module", now) do
+  defp insert_shard_targets(reference, project_id, shards, "module", now) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
           %{
-            plan_id: plan_id,
+            reference: reference,
             project_id: project_id,
             shard_index: index,
             module_name: name,
@@ -166,7 +166,7 @@ defmodule Tuist.Shards do
     if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
   end
 
-  defp insert_shard_targets(plan_id, project_id, shards, "suite", now) do
+  defp insert_shard_targets(reference, project_id, shards, "suite", now) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
@@ -177,7 +177,7 @@ defmodule Tuist.Shards do
             end
 
           %{
-            plan_id: plan_id,
+            reference: reference,
             project_id: project_id,
             shard_index: index,
             module_name: module_name,
@@ -191,11 +191,11 @@ defmodule Tuist.Shards do
     if rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, rows)
   end
 
-  defp fetch_shard_data(%ShardPlan{granularity: "module"}, plan_id, project_id, shard_index) do
+  defp fetch_shard_data(%ShardPlan{granularity: "module"}, reference, project_id, shard_index) do
     modules =
       ClickHouseRepo.all(
         from(m in ShardPlanModule,
-          where: m.plan_id == ^plan_id,
+          where: m.reference == ^reference,
           where: m.project_id == ^project_id,
           where: m.shard_index == ^shard_index,
           select: m.module_name
@@ -205,11 +205,11 @@ defmodule Tuist.Shards do
     if modules == [], do: nil, else: %{modules: modules, suites: %{}}
   end
 
-  defp fetch_shard_data(%ShardPlan{granularity: "suite"}, plan_id, project_id, shard_index) do
+  defp fetch_shard_data(%ShardPlan{granularity: "suite"}, reference, project_id, shard_index) do
     results =
       ClickHouseRepo.all(
         from(s in ShardPlanTestSuite,
-          where: s.plan_id == ^plan_id,
+          where: s.reference == ^reference,
           where: s.project_id == ^project_id,
           where: s.shard_index == ^shard_index,
           select: {s.module_name, s.test_suite_name}
@@ -225,11 +225,11 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp get_plan(project_id, plan_id) do
+  defp get_plan(project_id, reference) do
     ClickHouseRepo.one(
       from(s in ShardPlan,
         where: s.project_id == ^project_id,
-        where: s.plan_id == ^plan_id,
+        where: s.reference == ^reference,
         order_by: [desc: s.inserted_at],
         limit: 1
       )

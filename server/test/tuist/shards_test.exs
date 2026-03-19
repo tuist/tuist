@@ -15,7 +15,7 @@ defmodule Tuist.ShardsTest do
       stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id-123" end)
 
       params = %{
-        plan_id: "github-123-1",
+        reference: "github-123-1",
         modules: ["AppTests", "CoreTests", "NetworkTests"],
         shard_max: 2
       }
@@ -47,7 +47,7 @@ defmodule Tuist.ShardsTest do
       stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id" end)
 
       params = %{
-        plan_id: "session-1",
+        reference: "session-1",
         modules: ["SlowTests", "FastTests", "MediumTests"],
         shard_max: 2
       }
@@ -64,7 +64,7 @@ defmodule Tuist.ShardsTest do
       stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id" end)
 
       params = %{
-        plan_id: "session-2",
+        reference: "session-2",
         test_suites: ["LoginTest", "SignupTest", "ProfileTest"],
         granularity: "suite",
         shard_max: 2
@@ -80,17 +80,17 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, plan_id: "plan-1", granularity: "module")
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "plan-1", granularity: "module")
 
       ShardsFixtures.shard_plan_module_fixture(
-        plan_id: plan.plan_id,
+        reference: plan.reference,
         project_id: project.id,
         shard_index: 0,
         module_name: "AppTests"
       )
 
       ShardsFixtures.shard_plan_module_fixture(
-        plan_id: plan.plan_id,
+        reference: plan.reference,
         project_id: project.id,
         shard_index: 0,
         module_name: "CoreTests"
@@ -114,10 +114,10 @@ defmodule Tuist.ShardsTest do
       account = project.account
 
       plan =
-        ShardsFixtures.shard_plan_fixture(project_id: project.id, plan_id: "plan-2", granularity: "suite")
+        ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "plan-2", granularity: "suite")
 
       ShardsFixtures.shard_plan_test_suite_fixture(
-        plan_id: plan.plan_id,
+        reference: plan.reference,
         project_id: project.id,
         shard_index: 0,
         module_name: "AppTests",
@@ -125,7 +125,7 @@ defmodule Tuist.ShardsTest do
       )
 
       ShardsFixtures.shard_plan_test_suite_fixture(
-        plan_id: plan.plan_id,
+        reference: plan.reference,
         project_id: project.id,
         shard_index: 0,
         module_name: "AppTests",
@@ -159,7 +159,7 @@ defmodule Tuist.ShardsTest do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
-      ShardsFixtures.shard_plan_fixture(project_id: project.id, plan_id: "plan-3", granularity: "module")
+      ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "plan-3", granularity: "module")
       ShardsFixtures.optimize_shard_plans()
       ShardsFixtures.optimize_shard_plan_modules()
 

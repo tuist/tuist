@@ -16,7 +16,7 @@
         func plan(
             xctestproductsPath: AbsolutePath,
             schemes: [String],
-            planId: String?,
+            reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
             shardMax: Int?,
@@ -79,7 +79,7 @@
         public func plan(
             xctestproductsPath: AbsolutePath,
             schemes: [String],
-            planId: String?,
+            reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
             shardMax: Int?,
@@ -88,7 +88,7 @@
             fullHandle: String,
             serverURL: URL
         ) async throws -> Components.Schemas.ShardPlan {
-            guard let planId = planId ?? ciController.ciInfo()?.shardPlanId else {
+            guard let reference = reference ?? ciController.ciInfo()?.shardReference else {
                 throw ShardPlanServiceError.cannotDeriveSessionId
             }
 
@@ -120,12 +120,12 @@
                 testSuites = allSuites
             }
 
-            Logger.current.debug("Creating shard plan '\(planId)' with \(modules.count) test modules...")
+            Logger.current.debug("Creating shard plan '\(reference)' with \(modules.count) test modules...")
 
             let shardPlan = try await createShardPlanService.createShardPlan(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                planId: planId,
+                reference: reference,
                 modules: modules,
                 testSuites: testSuites,
                 shardMin: shardMin,
@@ -147,7 +147,7 @@
                     try await multipartUploadGenerateURLShardsService.generateUploadURL(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
-                        planId: planId,
+                        reference: reference,
                         uploadId: shardPlan.upload_id,
                         partNumber: part.number
                     )
@@ -160,7 +160,7 @@
             try await multipartUploadCompleteShardsService.completeUpload(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                planId: planId,
+                reference: reference,
                 uploadId: shardPlan.upload_id,
                 parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
             )

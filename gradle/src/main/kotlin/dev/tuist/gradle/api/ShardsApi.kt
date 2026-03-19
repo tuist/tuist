@@ -80,11 +80,11 @@ interface ShardsApi {
      *
      * @param accountHandle The handle of the project&#39;s account.
      * @param projectHandle The handle of the project.
-     * @param planId The shard plan identifier.
+     * @param reference The shard plan identifier.
      * @param shardIndex The zero-based shard index.
      * @return [Call]<[Shard]>
      */
-    @GET("api/projects/{account_handle}/{project_handle}/tests/shards/{plan_id}/{shard_index}")
-    fun getShard(@Path("account_handle") accountHandle: kotlin.String, @Path("project_handle") projectHandle: kotlin.String, @Path("plan_id") planId: kotlin.String, @Path("shard_index") shardIndex: kotlin.Int): Call<Shard>
+    @GET("api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}")
+    fun getShard(@Path("account_handle") accountHandle: kotlin.String, @Path("project_handle") projectHandle: kotlin.String, @Path("reference") reference: kotlin.String, @Path("shard_index") shardIndex: kotlin.Int): Call<Shard>
 
 }

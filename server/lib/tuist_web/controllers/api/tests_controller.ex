@@ -285,10 +285,6 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              description: "The shard plan ID if this test run is part of a sharded execution."
            },
-           shard_index: %Schema{
-             type: :integer,
-             description: "The zero-based shard index if this test run is part of a sharded execution."
-           },
            build_system: BuildSystem.schema(),
            test_modules: %Schema{
              type: :array,
@@ -622,8 +618,7 @@ defmodule TuistWeb.API.TestsController do
           test_cases: Map.get(params, :test_cases, []),
           build_run_id: Map.get(params, :build_run_id),
           gradle_build_id: Map.get(params, :gradle_build_id),
-          shard_plan_id: Map.get(params, :shard_plan_id),
-          shard_index: Map.get(params, :shard_index)
+          shard_plan_id: Map.get(params, :shard_plan_id)
         })
     end
   end

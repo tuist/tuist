@@ -48,7 +48,7 @@ class TuistTestShardingServiceTest {
 
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(Gson().toJson(
             ShardPlan(
-                planId = "github-123-1",
+                reference = "github-123-1",
                 shardCount = 2,
                 shards = listOf(
                     ShardPlanShardsInner(index = 0, testTargets = listOf("com.example.LoginTest"), estimatedDurationMs = 5000),
@@ -59,7 +59,7 @@ class TuistTestShardingServiceTest {
         )))
 
         val result = service.createShardPlan(
-            planId = "github-123-1",
+            reference = "github-123-1",
             testSuites = listOf("com.example.LoginTest", "com.example.SignupTest"),
             shardMax = 2,
             shardMin = null,
@@ -82,7 +82,7 @@ class TuistTestShardingServiceTest {
 
         assertThrows<org.gradle.api.GradleException> {
             service.createShardPlan(
-                planId = "plan-1",
+                reference = "plan-1",
                 testSuites = listOf("com.example.Test"),
                 shardMax = 2,
                 shardMin = null,
@@ -120,10 +120,10 @@ class TuistTestShardingServiceTest {
     }
 }
 
-class DerivePlanIdTest {
+class DeriveReferenceTest {
 
     @Test
-    fun `derivePlanId returns null without CI environment`() {
+    fun `deriveReference returns null without CI environment`() {
         val service = TuistTestShardingService(
             baseUrl = "http://localhost",
             token = "token",
@@ -136,7 +136,7 @@ class DerivePlanIdTest {
             System.getenv("CI_PIPELINE_ID") == null &&
             System.getenv("CM_BUILD_ID") == null
         ) {
-            assertNull(service.derivePlanId())
+            assertNull(service.deriveReference())
         }
     }
 }

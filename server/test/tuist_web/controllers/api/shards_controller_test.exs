@@ -28,14 +28,14 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
           %{
-            plan_id: "github-123-1",
+            reference: "github-123-1",
             modules: ["AppTests", "CoreTests"],
             shard_max: 2
           }
         )
 
       response = json_response(conn, :ok)
-      assert response["plan_id"] == "github-123-1"
+      assert response["reference"] == "github-123-1"
       assert response["shard_count"] == 2
       assert is_list(response["shards"])
       assert response["upload_id"] == "upload-id-123"
@@ -52,7 +52,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> post(
           ~p"/api/projects/#{other_project.account.name}/#{other_project.name}/tests/shards",
           %{
-            plan_id: "session-1",
+            reference: "session-1",
             modules: ["AppTests"]
           }
         )
@@ -67,7 +67,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
           %{
-            plan_id: "session-1",
+            reference: "session-1",
             modules: ["AppTests"]
           }
         )
@@ -76,7 +76,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
   end
 
-  describe "GET /api/projects/:account/:project/tests/shards/:plan_id/:shard_index" do
+  describe "GET /api/projects/:account/:project/tests/shards/:reference/:shard_index" do
     test "returns shard assignment for valid params", %{conn: conn, user: user, project: project} do
       stub(Tuist.Shards, :get_shard, fn _project, _account, _plan_id, _shard_index ->
         {:ok, %{modules: ["AppTests"], suites: %{}, download_url: "https://download.example.com"}}
@@ -134,7 +134,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/generate-url",
-          %{plan_id: "session-1", upload_id: "upload-id", part_number: 1}
+          %{reference: "session-1", upload_id: "upload-id", part_number: 1}
         )
 
       response = json_response(conn, :ok)
@@ -154,7 +154,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/complete",
-          %{plan_id: "session-1", upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}]}
+          %{reference: "session-1", upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}]}
         )
 
       response = json_response(conn, :ok)
@@ -172,7 +172,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/complete",
-          %{plan_id: "nonexistent", upload_id: "upload-id", parts: []}
+          %{reference: "nonexistent", upload_id: "upload-id", parts: []}
         )
 
       response = json_response(conn, :not_found)

@@ -10,7 +10,7 @@ import TuistServer
 import TuistSupport
 
 public struct Shard {
-    public let planId: String
+    public let reference: String
     public let shardPlanId: String
     public let testProductsPath: AbsolutePath
     public let modules: [String]
@@ -72,16 +72,16 @@ public struct ShardService: ShardServicing {
         fullHandle: String,
         serverURL: URL
     ) async throws -> Shard {
-        guard let planId = ciController.ciInfo()?.shardPlanId else {
+        guard let reference = ciController.ciInfo()?.shardReference else {
             throw ShardServiceError.cannotDeriveSessionId
         }
 
-        Logger.current.debug("Fetching shard \(shardIndex) for plan '\(planId)'...")
+        Logger.current.debug("Fetching shard \(shardIndex) for plan '\(reference)'...")
 
         let shard = try await getShardService.getShard(
             fullHandle: fullHandle,
             serverURL: serverURL,
-            planId: planId,
+            reference: reference,
             shardIndex: shardIndex
         )
 
@@ -127,7 +127,7 @@ public struct ShardService: ShardServicing {
         }
 
         return Shard(
-            planId: planId,
+            reference: reference,
             shardPlanId: shard.shard_plan_id,
             testProductsPath: testProductsPath,
             modules: shard.modules,

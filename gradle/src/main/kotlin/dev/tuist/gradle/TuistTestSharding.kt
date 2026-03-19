@@ -38,14 +38,14 @@ class TuistTestShardingService(
     )
 
     fun createShardPlan(
-        planId: String,
+        reference: String,
         testSuites: List<String>,
         shardMax: Int,
         shardMin: Int?,
         shardMaxDuration: Int?
     ): ShardPlan {
         val body = CreateShardPlanParams1(
-            planId = planId,
+            reference = reference,
             testSuites = testSuites,
             shardMin = shardMin,
             shardMax = shardMax,
@@ -60,15 +60,15 @@ class TuistTestShardingService(
         return response.body() ?: throw org.gradle.api.GradleException("Shard plan creation returned empty response.")
     }
 
-    fun getShard(planId: String, shardIndex: Int): Shard {
-        val response = shardsApi.getShard(accountHandle, projectHandle, planId, shardIndex).execute()
+    fun getShard(reference: String, shardIndex: Int): Shard {
+        val response = shardsApi.getShard(accountHandle, projectHandle, reference, shardIndex).execute()
         if (!response.isSuccessful) {
             throw org.gradle.api.GradleException("Get shard failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
         }
         return response.body() ?: throw org.gradle.api.GradleException("Get shard returned empty response.")
     }
 
-    internal fun derivePlanId(): String? {
+    internal fun deriveReference(): String? {
         System.getenv("GITHUB_RUN_ID")?.let { runId ->
             val attempt = System.getenv("GITHUB_RUN_ATTEMPT") ?: "1"
             return "github-$runId-$attempt"
@@ -140,10 +140,10 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     @get:Optional
     var shardMaxDuration: Int? = null
 
-    /** Explicit shard plan ID. Derived from CI environment variables when not set. */
+    /** Explicit shard reference. Derived from CI environment variables when not set. */
     @get:Input
     @get:Optional
-    var shardPlanId: String? = null
+    var shardReference: String? = null
 
     @get:Internal
     var serverUrl: String = "https://tuist.dev"
@@ -155,10 +155,10 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     fun execute() {
         val shardingService = createShardingService()
 
-        val planId = shardPlanId
-            ?: shardingService.derivePlanId()
+        val reference = shardReference
+            ?: shardingService.deriveReference()
             ?: throw org.gradle.api.GradleException(
-                "Could not derive shard plan ID. Set TUIST_SHARD_PLAN_ID or run in a supported CI environment."
+                "Could not derive shard reference. Set TUIST_SHARD_REFERENCE or run in a supported CI environment."
             )
 
         val testSuites = discoverTestSuites(project)
@@ -169,14 +169,14 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         logger.lifecycle("Tuist: Discovered ${testSuites.size} test suite(s): ${testSuites.joinToString(", ")}")
 
         val response = shardingService.createShardPlan(
-            planId = planId,
+            reference = reference,
             testSuites = testSuites,
             shardMax = shardMax,
             shardMin = shardMin,
             shardMaxDuration = shardMaxDuration
         )
 
-        logger.lifecycle("Tuist: Shard plan created — plan=$planId, shards=${response.shardCount}")
+        logger.lifecycle("Tuist: Shard plan created — reference=$reference, shards=${response.shardCount}")
         for (shard in response.shards) {
             logger.lifecycle("Tuist:   Shard ${shard.index}: ${shard.testTargets.joinToString(", ")} (est. ${shard.estimatedDurationMs}ms)")
         }
@@ -189,7 +189,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
             logger.lifecycle("Tuist: GitHub Actions matrix output written.")
         } else {
             val matrix = mapOf(
-                "plan_id" to planId,
+                "reference" to reference,
                 "shard_count" to response.shardCount,
                 "shards" to response.shards.map { shard ->
                     mapOf(
@@ -240,7 +240,7 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
             project.findProperty("tuistShardMin")?.toString()?.toIntOrNull()?.let { shardMin = it }
             project.findProperty("tuistShardMaxDuration")?.toString()?.toIntOrNull()?.let { shardMaxDuration = it }
 
-            System.getenv("TUIST_SHARD_PLAN_ID")?.let { shardPlanId = it }
+            System.getenv("TUIST_SHARD_REFERENCE")?.let { shardReference = it }
 
             dependsOn(project.allprojects.flatMap { it.tasks.matching { task -> task.name == "testClasses" } })
         }
@@ -265,14 +265,14 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
             projectHandle = cacheConfig.projectHandle
         )
 
-        val planId = System.getenv("TUIST_SHARD_PLAN_ID") ?: shardingService.derivePlanId()
+        val reference = System.getenv("TUIST_SHARD_REFERENCE") ?: shardingService.deriveReference()
             ?: throw org.gradle.api.GradleException(
-                "Could not derive shard plan ID. Set TUIST_SHARD_PLAN_ID or run in a supported CI environment."
+                "Could not derive shard reference. Set TUIST_SHARD_REFERENCE or run in a supported CI environment."
             )
 
-        logger.lifecycle("Tuist: Test sharding active — shard index $shardIndex, plan $planId")
+        logger.lifecycle("Tuist: Test sharding active — shard index $shardIndex, reference $reference")
 
-        val shard = shardingService.getShard(planId, shardIndex)
+        val shard = shardingService.getShard(reference, shardIndex)
 
         val assignedTargets = shard.suites.values.flatten()
         logger.lifecycle("Tuist: Shard $shardIndex assigned ${assignedTargets.size} test suite(s)")
