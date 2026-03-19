@@ -100,29 +100,21 @@ private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
         .create(ShardsApi::class.java)
 }
 
-private val classPattern = Regex("""^\s*class\s+(\w+)""", RegexOption.MULTILINE)
-
 internal fun discoverTestSuites(project: Project): List<String> {
     val testSuites = mutableSetOf<String>()
     for (subproject in project.allprojects) {
-        val testDirs = listOf("src/test/java", "src/test/kotlin")
-        for (testDir in testDirs) {
-            val dir = subproject.file(testDir)
-            if (!dir.exists()) continue
-            dir.walkTopDown()
-                .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
-                .forEach { file ->
-                    val relativePath = file.relativeTo(dir).path
-                    val packagePrefix = relativePath
-                        .substringBeforeLast(java.io.File.separatorChar.toString(), "")
-                        .replace(java.io.File.separatorChar, '.')
-                    val content = file.readText()
-                    val classNames = classPattern.findAll(content).map { it.groupValues[1] }.toList()
-                    for (className in classNames) {
-                        val fqcn = if (packagePrefix.isNotEmpty()) "$packagePrefix.$className" else className
+        subproject.tasks.withType(Test::class.java).forEach { testTask ->
+            for (dir in testTask.testClassesDirs.files) {
+                if (!dir.exists()) continue
+                dir.walkTopDown()
+                    .filter { it.isFile && it.extension == "class" && !it.name.contains('$') }
+                    .forEach { file ->
+                        val fqcn = file.relativeTo(dir).path
+                            .removeSuffix(".class")
+                            .replace(java.io.File.separatorChar, '.')
                         testSuites.add(fqcn)
                     }
-                }
+            }
         }
     }
     return testSuites.sorted()
@@ -164,7 +156,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
 
         val testSuites = discoverTestSuites(project)
         if (testSuites.isEmpty()) {
-            throw org.gradle.api.GradleException("No test suites found. Ensure test source directories contain *Test.kt or *Test.java files.")
+            throw org.gradle.api.GradleException("No test classes found in compiled test output.")
         }
 
         logger.lifecycle("Tuist: Discovered ${testSuites.size} test suite(s): ${testSuites.joinToString(", ")}")
@@ -233,7 +225,7 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
 
         project.tasks.register("tuistPrepareTestShards", TuistPrepareTestShardsTask::class.java).configure {
             group = "tuist"
-            description = "Discover test suites and create a shard plan on the Tuist server"
+            description = "Build test classes, discover test suites, and create a shard plan on the Tuist server"
             serverUrl = config.url
             tuistProject = config.project
 
@@ -242,6 +234,8 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
             project.findProperty("tuistShardMaxDuration")?.toString()?.toIntOrNull()?.let { shardMaxDuration = it }
 
             System.getenv("TUIST_SHARD_PLAN_ID")?.let { planIdOverride = it }
+
+            dependsOn(project.allprojects.flatMap { it.tasks.matching { task -> task.name == "testClasses" } })
         }
 
         val shardIndexStr = System.getenv("TUIST_SHARD_INDEX") ?: return
