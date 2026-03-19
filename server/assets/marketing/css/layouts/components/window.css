@@ -1,5 +1,5 @@
-#marketing-window,
-[data-part="agent-prompt-window"] {
+[data-part="marketing-window"],
+[phx-hook="AgentPrompt"] {
   display: flex;
   flex-direction: column;
   align-items: stretch;

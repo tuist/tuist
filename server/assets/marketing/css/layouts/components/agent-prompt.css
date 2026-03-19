@@ -1,4 +1,4 @@
-[data-part="agent-prompt"] {
+[phx-hook="AgentPrompt"] {
   --agent-prompt-height: 12lh;
   --agent-prompt-gap: var(--noora-spacing-2);
   --agent-prompt-line-height: 1.45;
@@ -9,9 +9,7 @@
 
   display: block;
   margin-block: var(--noora-spacing-8);
-}
 
-[data-part="agent-prompt-window"] {
   & > [data-part="code"] {
     display: flex;
     flex-direction: column;

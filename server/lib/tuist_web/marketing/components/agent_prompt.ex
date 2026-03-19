@@ -12,29 +12,27 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
     assigns = assign(assigns, :response_steps_json, Jason.encode!(normalize_response_steps(assigns.response)))
 
     ~H"""
-    <div id={@id} phx-hook="AgentPrompt" phx-update="ignore" data-part="agent-prompt">
-      <div data-part="agent-prompt-window">
-        <div data-part="bar">
-          <div data-part="language">{@title}</div>
-          <button
-            class="noora-neutral-button"
-            id={@id <> "-trigger"}
-            type="button"
-            data-size="medium"
-            data-part="trigger"
-            aria-label="Play agent prompt"
-          >
-            <.player_play />
-          </button>
+    <div id={@id} phx-hook="AgentPrompt" phx-update="ignore">
+      <div data-part="bar">
+        <div data-part="language">{@title}</div>
+        <button
+          class="noora-neutral-button"
+          id={@id <> "-trigger"}
+          type="button"
+          data-size="medium"
+          data-part="trigger"
+          aria-label="Play agent prompt"
+        >
+          <.player_play />
+        </button>
+      </div>
+      <div data-part="code">
+        <div data-part="terminal-line">
+          <span data-part="shell-prompt">$</span>
+          <span data-part="prompt-text" data-value={@prompt}></span><span data-part="prompt-cursor" style="visibility: hidden;"></span>
         </div>
-        <div data-part="code">
-          <div data-part="terminal-line">
-            <span data-part="shell-prompt">$</span>
-            <span data-part="prompt-text" data-value={@prompt}></span><span data-part="prompt-cursor" style="visibility: hidden;"></span>
-          </div>
-          <div data-part="response-section" data-response-steps={@response_steps_json}>
-            <span data-part="response-text"></span><span data-part="response-cursor" style="visibility: hidden;"></span>
-          </div>
+        <div data-part="response-section" data-response-steps={@response_steps_json}>
+          <span data-part="response-text"></span><span data-part="response-cursor" style="visibility: hidden;"></span>
         </div>
       </div>
     </div>
