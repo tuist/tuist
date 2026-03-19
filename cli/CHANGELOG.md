@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.161.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.161.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* normalize swift package target names with spaces by [@pepicrft](https://github.com/pepicrft) in [#9928](https://github.com/tuist/tuist/pull/9928)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.161.1...4.161.2
+
+## What's Changed in 4.161.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -15,7 +25,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.160.3...4.161.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.160.3...4.161.1
 
 ## What's Changed in 4.160.3<!-- RELEASE NOTES START -->
 
