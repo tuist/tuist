@@ -26,9 +26,11 @@ defmodule Tuist.VCS do
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
   @max_flaky_tests_in_comment 5
+  @max_failed_tests_in_comment 5
 
   @doc """
   Constructs a CI run URL based on the CI provider and metadata.
@@ -169,7 +171,7 @@ defmodule Tuist.VCS do
     schedule_in = flush_interval_seconds + 1
 
     args
-    |> VCS.Workers.CommentWorker.new(schedule_in: schedule_in)
+    |> CommentWorker.new(schedule_in: schedule_in)
     |> Oban.insert()
   end
 
@@ -409,7 +411,13 @@ defmodule Tuist.VCS do
         project: project
       })
 
-    bodies = [previews_body, test_body, flaky_tests_body, builds_body, bundles_body]
+    failed_tests_body =
+      get_failed_tests_body(%{
+        test_runs: test_runs,
+        project: project
+      })
+
+    bodies = [previews_body, test_body, failed_tests_body, flaky_tests_body, builds_body, bundles_body]
 
     if Enum.all?(bodies, &is_nil/1) do
       nil
@@ -733,6 +741,67 @@ defmodule Tuist.VCS do
 
         """
         | [#{flaky_test.name}](#{test_case_url}) | #{flaky_test.module_name} | #{flaky_test.suite_name} |
+        """
+      end)}#{more_tests_note}
+      """
+    end
+  end
+
+  defp get_failed_tests_body(%{test_runs: test_runs, project: project}) do
+    failed_tests_by_run =
+      test_runs
+      |> Enum.filter(&(&1.status == "failure"))
+      |> Enum.map(fn test_run ->
+        failed_tests = Tests.get_failed_tests_for_test_run(test_run.id)
+        {test_run, failed_tests}
+      end)
+      |> Enum.filter(fn {_test_run, failed_tests} -> Enum.any?(failed_tests) end)
+
+    if Enum.empty?(failed_tests_by_run) do
+      nil
+    else
+      project = Repo.preload(project, :account)
+
+      all_failed_tests =
+        failed_tests_by_run
+        |> Enum.flat_map(fn {_test_run, failed_tests} -> failed_tests end)
+        |> Enum.uniq_by(& &1.test_case_id)
+
+      total_failed_count = length(all_failed_tests)
+      displayed_failed_tests = Enum.take(all_failed_tests, @max_failed_tests_in_comment)
+
+      runs_summary =
+        Enum.map_join(failed_tests_by_run, "", fn {test_run, failed_tests} ->
+          failed_count = length(failed_tests)
+          scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
+
+          failures_url =
+            Environment.app_url(
+              path: "/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures"
+            )
+
+          "- **#{scheme}**: #{failed_count} failed #{if failed_count == 1, do: "test", else: "tests"} ([View all](#{failures_url}))\n"
+        end)
+
+      more_tests_note =
+        if total_failed_count > @max_failed_tests_in_comment do
+          "\n> Showing #{@max_failed_tests_in_comment} of #{total_failed_count} failed tests. See links above for full details.\n"
+        else
+          ""
+        end
+
+      """
+
+      #### Failed Tests ❌
+
+      #{runs_summary}
+      | Test case | Module | Suite |
+      |:-|:-|:-|
+      #{Enum.map_join(displayed_failed_tests, "", fn failed_test ->
+        test_case_url = Environment.app_url(path: "/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}")
+
+        """
+        | [#{failed_test.name}](#{test_case_url}) | #{failed_test.module_name} | #{failed_test.suite_name} |
         """
       end)}#{more_tests_note}
       """

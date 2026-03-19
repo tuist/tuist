@@ -1687,6 +1687,25 @@ defmodule Tuist.Tests do
     |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
   end
 
+  def get_failed_tests_for_test_run(test_run_id) do
+    from(tcr in TestCaseRun,
+      where: tcr.test_run_id == ^test_run_id,
+      where: tcr.status == "failure",
+      where: tcr.is_flaky == false,
+      order_by: [desc: tcr.ran_at]
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.test_case_id)
+    |> Enum.map(fn tcr ->
+      %{
+        test_case_id: tcr.test_case_id,
+        name: tcr.name,
+        module_name: tcr.module_name,
+        suite_name: tcr.suite_name
+      }
+    end)
+  end
+
   defp get_cross_run_flaky_runs(_test_run_id, []), do: []
 
   defp get_cross_run_flaky_runs(test_run_id, current_flaky_runs) do
