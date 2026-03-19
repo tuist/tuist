@@ -5,6 +5,7 @@ defmodule Tuist.Accounts.PromExPlugin do
   use PromEx.Plugin
 
   alias Tuist.Accounts
+  alias Tuist.Repo.PoolMetrics
   alias Tuist.Telemetry
 
   @impl true
@@ -42,7 +43,7 @@ defmodule Tuist.Accounts.PromExPlugin do
   end
 
   def execute_accounts_users_count_telemetry_event do
-    if Tuist.Repo.running?() do
+    if PoolMetrics.running?(Tuist.Repo) do
       :telemetry.execute(
         Telemetry.event_name_accounts_users_count(),
         %{total: Accounts.get_users_count()},
@@ -52,7 +53,7 @@ defmodule Tuist.Accounts.PromExPlugin do
   end
 
   def execute_accounts_organizations_count_telemetry_event do
-    if Tuist.Repo.running?() do
+    if PoolMetrics.running?(Tuist.Repo) do
       :telemetry.execute(
         Telemetry.event_name_accounts_organizations_count(),
         %{total: Accounts.get_organizations_count()},
