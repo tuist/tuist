@@ -1,6 +1,8 @@
-defmodule Cache.HTTPPromExPlugin do
+defmodule Tuist.HTTP.TransportPromExPlugin do
   @moduledoc """
-  PromEx metrics for shared HTTP failure signals emitted from Bandit and Thousand Island.
+  PromEx transport metrics for Bandit and Thousand Island.
+
+  The current metric set focuses on transport-layer failures and timeouts.
   """
   use PromEx.Plugin
 
