@@ -36,6 +36,7 @@ config :tuist, Tuist.IngestRepo,
   flush_interval_ms: 5000,
   max_buffer_size: 100_000,
   pool_size: 5,
+  sync_writes: true,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
   settings: [query_plan_optimize_lazy_materialization: 0]

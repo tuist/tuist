@@ -566,6 +566,13 @@ defmodule Tuist.Environment do
     end
   end
 
+  def clickhouse_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> 4
+    end
+  end
+
   @doc """
   Returns additional Finch pools from the TUIST_ADDITIONAL_FINCH_POOLS environment variable.
 

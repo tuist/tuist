@@ -36,6 +36,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
@@ -49,15 +50,13 @@ defmodule Tuist.Tests do
   end
 
   def total_test_case_run_count do
-    TestCaseRun
-    |> from(hints: ["FINAL"], select: count())
-    |> ClickHouseRepo.one() || 0
+    ClickHouseRepo.one(from(d in TestCaseRunDashboardCount, select: fragment("countMerge(count)"))) || 0
   end
 
   def flaky_test_case_run_count do
-    TestCaseRun
-    |> from(hints: ["FINAL"], where: [is_flaky: true], select: count())
-    |> ClickHouseRepo.one() || 0
+    ClickHouseRepo.one(
+      from(d in TestCaseRunDashboardCount, where: d.is_flaky == true, select: fragment("countMerge(count)"))
+    ) || 0
   end
 
   def last_24h_test_run_count do
@@ -68,21 +67,23 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_test_case_run_count do
-    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
+    yesterday = Date.add(Date.utc_today(), -1)
 
     ClickHouseRepo.one(
-      from(t in TestCaseRun, hints: ["FINAL"], where: t.inserted_at >= ^twenty_four_hours_ago, select: count())
+      from(d in TestCaseRunDashboardCount,
+        where: d.day >= ^yesterday,
+        select: fragment("countMerge(count)")
+      )
     ) || 0
   end
 
   def last_24h_flaky_test_case_run_count do
-    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
+    yesterday = Date.add(Date.utc_today(), -1)
 
     ClickHouseRepo.one(
-      from(t in TestCaseRun,
-        hints: ["FINAL"],
-        where: t.is_flaky == true and t.inserted_at >= ^twenty_four_hours_ago,
-        select: count()
+      from(d in TestCaseRunDashboardCount,
+        where: d.is_flaky == true and d.day >= ^yesterday,
+        select: fragment("countMerge(count)")
       )
     ) || 0
   end
@@ -353,7 +354,7 @@ defmodule Tuist.Tests do
       |> Enum.reject(&Map.has_key?(existing_data, &1))
       |> MapSet.new()
 
-    IngestRepo.insert_all(TestCase, test_cases)
+    TestCase.Buffer.insert_all(test_cases)
 
     test_case_id_map =
       Map.new(test_cases, fn tc ->
@@ -441,7 +442,7 @@ defmodule Tuist.Tests do
         |> Map.merge(filtered_attrs)
         |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
-      {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
+      {1, nil} = TestCase.Buffer.insert_all([attrs])
 
       create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
 
@@ -466,7 +467,7 @@ defmodule Tuist.Tests do
           }
         end)
 
-      IngestRepo.insert_all(TestCaseEvent, events)
+      TestCaseEvent.Buffer.insert_all(events)
     end
   end
 
@@ -534,12 +535,18 @@ defmodule Tuist.Tests do
       )
 
     query =
-      case uuidv7_to_yyyymm(id) do
-        {:ok, month} ->
-          where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
+      case Keyword.get(opts, :project_id) do
+        nil ->
+          case uuidv7_to_yyyymm(id) do
+            {:ok, month} ->
+              where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
 
-        :error ->
-          query
+            :error ->
+              query
+          end
+
+        project_id ->
+          where(query, [tcr], tcr.project_id == ^project_id)
       end
 
     case ClickHouseRepo.one(query) do
@@ -606,10 +613,11 @@ defmodule Tuist.Tests do
         inserted_at: NaiveDateTime.utc_now()
       }
 
-      {:ok, _module_run} =
-        %TestModuleRun{}
-        |> TestModuleRun.create_changeset(module_run_attrs)
-        |> IngestRepo.insert()
+      %TestModuleRun{}
+      |> TestModuleRun.create_changeset(module_run_attrs)
+      |> Ecto.Changeset.apply_action!(:insert)
+
+      TestModuleRun.Buffer.insert(module_run_attrs)
 
       suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
 
@@ -670,7 +678,7 @@ defmodule Tuist.Tests do
 
   defp check_cross_run_flakiness(test, test_case_data) do
     test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
-    existing_runs = get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha)
+    existing_runs = get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha, test.project_id)
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
       case filter_cross_run_flaky(data, existing_runs) do
@@ -693,13 +701,14 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp get_existing_ci_runs_for_commit([], _git_commit_sha), do: %{}
+  defp get_existing_ci_runs_for_commit([], _git_commit_sha, _project_id), do: %{}
 
-  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha) do
+  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha, project_id) do
     test_case_id_set = MapSet.new(test_case_ids)
 
     query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.is_ci == true,
         where: tcr.status in ["success", "failure"]
@@ -783,7 +792,7 @@ defmodule Tuist.Tests do
         {suite_run, updated_mapping}
       end)
 
-    IngestRepo.insert_all(TestSuiteRun, test_suite_runs)
+    TestSuiteRun.Buffer.insert_all(test_suite_runs)
     suite_name_to_id
   end
 
@@ -881,11 +890,11 @@ defmodule Tuist.Tests do
         {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc}
       end)
 
-    IngestRepo.insert_all(TestCaseRun, test_case_runs)
-    IngestRepo.insert_all(TestCaseFailure, all_failures)
+    TestCaseRun.Buffer.insert_all(test_case_runs)
+    TestCaseFailure.Buffer.insert_all(all_failures)
 
     if Enum.any?(all_repetitions) do
-      IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
+      TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
     end
 
     create_first_run_events(test_case_runs, new_test_case_ids)
@@ -913,7 +922,7 @@ defmodule Tuist.Tests do
           }
         end)
 
-      IngestRepo.insert_all(TestCaseEvent, events)
+      TestCaseEvent.Buffer.insert_all(events)
     end
   end
 
@@ -1426,7 +1435,7 @@ defmodule Tuist.Tests do
         |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
       end)
 
-    IngestRepo.insert_all(TestCaseRun, updated_runs)
+    TestCaseRun.Buffer.insert_all(updated_runs)
     :ok
   end
 
@@ -1788,7 +1797,7 @@ defmodule Tuist.Tests do
         |> Map.merge(%{is_flaky: false, inserted_at: now})
       end)
 
-    IngestRepo.insert_all(TestCase, test_cases_to_update)
+    TestCase.Buffer.insert_all(test_cases_to_update)
 
     if Enum.any?(stale_test_cases) do
       events =
@@ -1802,7 +1811,7 @@ defmodule Tuist.Tests do
           }
         end)
 
-      IngestRepo.insert_all(TestCaseEvent, events)
+      TestCaseEvent.Buffer.insert_all(events)
     end
 
     {:ok, length(test_cases_to_update)}
