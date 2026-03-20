@@ -10,6 +10,9 @@ defmodule Tuist.IngestRepo.Migrations.RecreateBranchPresenceMvWithDedup do
 
   The query uses ran_at >= ? as a filter (not in ORDER BY), so it's applied
   after the PrimaryKey binary search on (project_id, git_branch, is_ci).
+
+  To avoid downtime, the new MV is created under a temporary name, backfilled,
+  then atomically swapped with the old one via EXCHANGE TABLES.
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
@@ -19,10 +22,10 @@ defmodule Tuist.IngestRepo.Migrations.RecreateBranchPresenceMvWithDedup do
   @disable_migration_lock true
 
   def up do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_branch_presence")
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_branch_presence_new")
 
     IngestRepo.query!("""
-    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_branch_presence
+    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_branch_presence_new
     ENGINE = ReplacingMergeTree(ran_at)
     ORDER BY (project_id, git_branch, is_ci, test_case_id)
     SETTINGS allow_nullable_key = 1
@@ -35,7 +38,10 @@ defmodule Tuist.IngestRepo.Migrations.RecreateBranchPresenceMvWithDedup do
     FROM test_case_runs
     """)
 
-    backfill("test_case_runs", "test_case_branch_presence")
+    backfill("test_case_runs", "test_case_branch_presence_new")
+
+    IngestRepo.query!("EXCHANGE TABLES test_case_branch_presence AND test_case_branch_presence_new")
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_branch_presence_new")
   end
 
   def down do
