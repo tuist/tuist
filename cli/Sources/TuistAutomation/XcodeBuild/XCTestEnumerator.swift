@@ -58,10 +58,6 @@
             self.commandRunner = commandRunner
         }
 
-        public init(system: Systeming) {
-            commandRunner = SystemCommandRunnerAdapter(system: system)
-        }
-
         public func enumerateTests(
             testProductsPath: AbsolutePath,
             scheme: String,
@@ -103,26 +99,4 @@
         }
     }
 
-    private struct SystemCommandRunnerAdapter: CommandRunning, @unchecked Sendable {
-        let system: Systeming
-
-        func run(
-            arguments: [String],
-            environment _: [String: String],
-            workingDirectory _: AbsolutePath?
-        ) -> AsyncThrowingStream<CommandEvent, any Error> {
-            AsyncThrowingStream { continuation in
-                Task {
-                    do {
-                        let result = try await system.runAndCollectOutput(arguments)
-                        let bytes = [UInt8](result.standardOutput.utf8)
-                        continuation.yield(.standardOutput(bytes))
-                        continuation.finish()
-                    } catch {
-                        continuation.finish(throwing: error)
-                    }
-                }
-            }
-        }
-    }
 #endif

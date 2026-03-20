@@ -127,7 +127,7 @@
                 testSuites = allSuites
             }
 
-            Logger.current.debug("Creating shard plan '\(reference)' with \(modules.count) test modules...")
+            Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
             let shardPlan = try await createShardPlanService.createShardPlan(
                 fullHandle: fullHandle,
@@ -142,7 +142,7 @@
                 shardGranularity: shardGranularity
             )
 
-            Logger.current.info("Shard plan created: \(shardPlan.shard_count) shards")
+            Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
 
             let uploadId = try await startShardUploadService.startUpload(
                 fullHandle: fullHandle,

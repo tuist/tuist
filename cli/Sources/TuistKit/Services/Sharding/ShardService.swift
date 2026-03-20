@@ -87,7 +87,10 @@ public struct ShardService: ShardServicing {
             shardIndex: shardIndex
         )
 
-        Logger.current.info("Shard \(shardIndex) assigned modules: \(shard.modules.joined(separator: ", "))")
+        Logger.current.notice(
+            "Shard \(shardIndex) assigned modules: \(shard.modules.joined(separator: ", "))",
+            metadata: .section
+        )
 
         guard let downloadURL = URL(string: shard.download_url) else {
             throw ShardServiceError.invalidDownloadURL(shard.download_url)
@@ -95,10 +98,13 @@ public struct ShardService: ShardServicing {
         let shardZipPath = try await fileClient.download(url: downloadURL)
         Logger.current.debug("Downloaded test products bundle.")
 
+        // ditto is used instead of FileUnarchiver (ZIPFoundation) because .xctestproducts
+        // bundles contain symlinks which ZIPFoundation cannot handle.
         let unzippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
         _ = try await commandRunner
             .run(arguments: ["/usr/bin/ditto", "-x", "-k", shardZipPath.pathString, unzippedPath.pathString])
             .concatenatedString()
+        try? await fileSystem.remove(shardZipPath)
 
         guard let testProductsPath = try await fileSystem
             .glob(directory: unzippedPath, include: ["*.xctestproducts"])

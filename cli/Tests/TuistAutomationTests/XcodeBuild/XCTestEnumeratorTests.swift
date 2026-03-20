@@ -1,26 +1,50 @@
 #if os(macOS)
+    import Command
     import FileSystem
     import FileSystemTesting
     import Foundation
+    import Mockable
     import Path
     import Testing
-    import TuistSupport
-    import TuistTesting
 
     @testable import TuistAutomation
 
     struct XCTestEnumeratorTests {
         let subject: XCTestEnumerator
-        let system: MockSystem
+        let commandRunner: MockCommandRunning
 
         init() {
-            system = MockSystem()
-            subject = XCTestEnumerator(system: system)
+            commandRunner = MockCommandRunning()
+            subject = XCTestEnumerator(commandRunner: commandRunner)
+        }
+
+        private func givenCommandOutput(_ output: String) {
+            given(commandRunner)
+                .run(arguments: .any, environment: .any, workingDirectory: .any)
+                .willProduce { _, _, _ in
+                    AsyncThrowingStream { continuation in
+                        continuation.yield(CommandEvent.standardOutput(Array(output.utf8)))
+                        continuation.finish()
+                    }
+                }
+        }
+
+        private func givenCommandError(_ message: String) {
+            given(commandRunner)
+                .run(arguments: .any, environment: .any, workingDirectory: .any)
+                .willProduce { _, _, _ in
+                    AsyncThrowingStream { continuation in
+                        continuation.finish(throwing: NSError(
+                            domain: "test",
+                            code: 1,
+                            userInfo: [NSLocalizedDescriptionKey: message]
+                        ))
+                    }
+                }
         }
 
         @Test(.inTemporaryDirectory)
         func enumerateTests_parsesMultipleTargetsAndSuites() async throws {
-            // Given
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
             let jsonOutput = """
             {
@@ -45,24 +69,14 @@
                 ]
             }
             """
-            system.succeedCommand(
-                [
-                    "xcodebuild", "test-without-building",
-                    "-enumerate-tests",
-                    "-testProductsPath", testProductsPath.pathString,
-                    "-scheme", "App",
-                ],
-                output: jsonOutput
-            )
+            givenCommandOutput(jsonOutput)
 
-            // When
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
                 scheme: "App",
                 destination: nil
             )
 
-            // Then
             let appTests = result.first { $0.blueprintName == "AppTests" }
             #expect(appTests?.onlyTestIdentifiers == ["LoginTests", "SignupTests"])
             let coreTests = result.first { $0.blueprintName == "CoreTests" }
@@ -71,7 +85,6 @@
 
         @Test(.inTemporaryDirectory)
         func enumerateTests_withDestination() async throws {
-            // Given
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
             let jsonOutput = """
             {
@@ -89,32 +102,20 @@
                 ]
             }
             """
-            system.succeedCommand(
-                [
-                    "xcodebuild", "test-without-building",
-                    "-enumerate-tests",
-                    "-testProductsPath", testProductsPath.pathString,
-                    "-scheme", "App",
-                    "-destination", "platform=iOS Simulator,name=iPhone 16",
-                ],
-                output: jsonOutput
-            )
+            givenCommandOutput(jsonOutput)
 
-            // When
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
                 scheme: "App",
                 destination: "platform=iOS Simulator,name=iPhone 16"
             )
 
-            // Then
             let uiTests = result.first { $0.blueprintName == "UITests" }
             #expect(uiTests?.onlyTestIdentifiers == ["SnapshotTests"])
         }
 
         @Test(.inTemporaryDirectory)
         func enumerateTests_withEmptySubtests() async throws {
-            // Given
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
             let jsonOutput = """
             {
@@ -129,43 +130,23 @@
                 ]
             }
             """
-            system.succeedCommand(
-                [
-                    "xcodebuild", "test-without-building",
-                    "-enumerate-tests",
-                    "-testProductsPath", testProductsPath.pathString,
-                    "-scheme", "App",
-                ],
-                output: jsonOutput
-            )
+            givenCommandOutput(jsonOutput)
 
-            // When
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
                 scheme: "App",
                 destination: nil
             )
 
-            // Then
             let emptyTarget = result.first { $0.blueprintName == "EmptyTarget" }
             #expect(emptyTarget?.onlyTestIdentifiers == nil)
         }
 
         @Test(.inTemporaryDirectory)
         func enumerateTests_throwsEnumerationFailedWhenCommandFails() async throws {
-            // Given
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            system.errorCommand(
-                [
-                    "xcodebuild", "test-without-building",
-                    "-enumerate-tests",
-                    "-testProductsPath", testProductsPath.pathString,
-                    "-scheme", "App",
-                ],
-                error: "something went wrong"
-            )
+            givenCommandError("something went wrong")
 
-            // When / Then
             await #expect(throws: XCTestEnumeratorError.self) {
                 try await subject.enumerateTests(
                     testProductsPath: testProductsPath,
@@ -177,19 +158,9 @@
 
         @Test(.inTemporaryDirectory)
         func enumerateTests_throwsInvalidOutputForMalformedJSON() async throws {
-            // Given
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            system.succeedCommand(
-                [
-                    "xcodebuild", "test-without-building",
-                    "-enumerate-tests",
-                    "-testProductsPath", testProductsPath.pathString,
-                    "-scheme", "App",
-                ],
-                output: "not json"
-            )
+            givenCommandOutput("not json")
 
-            // When / Then
             await #expect(throws: XCTestEnumeratorError.self) {
                 try await subject.enumerateTests(
                     testProductsPath: testProductsPath,
@@ -201,7 +172,6 @@
 
         @Test(.inTemporaryDirectory)
         func enumerateTests_withMultipleValues() async throws {
-            // Given
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
             let jsonOutput = """
             {
@@ -225,24 +195,14 @@
                 ]
             }
             """
-            system.succeedCommand(
-                [
-                    "xcodebuild", "test-without-building",
-                    "-enumerate-tests",
-                    "-testProductsPath", testProductsPath.pathString,
-                    "-scheme", "App",
-                ],
-                output: jsonOutput
-            )
+            givenCommandOutput(jsonOutput)
 
-            // When
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
                 scheme: "App",
                 destination: nil
             )
 
-            // Then
             let targetA = result.first { $0.blueprintName == "TargetA" }
             #expect(targetA?.onlyTestIdentifiers == ["SuiteA"])
             let targetB = result.first { $0.blueprintName == "TargetB" }

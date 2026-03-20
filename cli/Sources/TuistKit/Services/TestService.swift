@@ -398,11 +398,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
            !passthroughXcodeBuildArguments.contains("-testProductsPath")
         {
-            let testProductsDir = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
-                .appending(component: "shard-test-products")
-            try await fileSystem.makeDirectory(at: testProductsDir)
-            let schemeName = schemeName ?? schemes.first?.name ?? "Test"
-            let productsPath = testProductsDir.appending(component: "\(schemeName).xctestproducts")
+            let testProductsDir = try await fileSystem.makeTemporaryDirectory(prefix: "shard-test-products")
+            let productsName = (schemeName ?? schemes.first?.name ?? "Test") + ".xctestproducts"
+            let productsPath = testProductsDir.appending(component: productsName)
             passthroughXcodeBuildArguments += ["-testProductsPath", productsPath.pathString]
         }
 

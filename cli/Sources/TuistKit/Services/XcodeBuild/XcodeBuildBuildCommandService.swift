@@ -64,13 +64,14 @@ struct XcodeBuildBuildCommandService {
 
         // When sharding, ensure -testProductsPath is set so xcodebuild produces
         // a .xctestproducts bundle (required for shard distribution).
-        let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
-
-        if shardMin != nil || shardMax != nil || shardTotal != nil {
+        let isSharding = shardMin != nil || shardMax != nil || shardTotal != nil
+        let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments)
+        if isSharding {
+            guard let schemeName else {
+                throw XcodeBuildBuildCommandServiceError.schemeRequired
+            }
             if passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) == nil {
-                let testProductsDir = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
-                    .appending(component: "shard-test-products")
-                try await fileSystem.makeDirectory(at: testProductsDir)
+                let testProductsDir = try await fileSystem.makeTemporaryDirectory(prefix: "shard-test-products")
                 let productsPath = testProductsDir.appending(component: "\(schemeName).xctestproducts")
                 passthroughXcodebuildArguments += ["-testProductsPath", productsPath.pathString]
             }
@@ -91,7 +92,7 @@ struct XcodeBuildBuildCommandService {
             await RunMetadataStorage.current.update(buildRunId: mostRecentActivityLogPath.path.basenameWithoutExt)
         }
 
-        if shardMin != nil || shardMax != nil || shardTotal != nil {
+        if isSharding, let schemeName {
             let testProductsPath = try await resolveTestProductsPath(
                 passthroughXcodebuildArguments: passthroughXcodebuildArguments,
                 derivedDataPath: derivedDataPath
@@ -223,11 +224,14 @@ struct XcodeBuildBuildCommandService {
 
 enum XcodeBuildBuildCommandServiceError: LocalizedError {
     case testProductsNotFound
+    case schemeRequired
 
     var errorDescription: String? {
         switch self {
         case .testProductsNotFound:
             return "Could not find .xctestproducts bundle. Pass -testProductsPath or -derivedDataPath explicitly."
+        case .schemeRequired:
+            return "The -scheme argument is required when sharding is enabled."
         }
     }
 }
