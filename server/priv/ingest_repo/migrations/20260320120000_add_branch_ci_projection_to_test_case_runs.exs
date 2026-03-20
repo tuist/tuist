@@ -13,6 +13,11 @@ defmodule Tuist.IngestRepo.Migrations.AddBranchCiProjectionToTestCaseRuns do
 
   Stale rows from ReplacingMergeTree are acceptable here because the query
   uses DISTINCT — duplicates are collapsed in the result.
+
+  Production runs on ClickHouse Cloud which supports projections on
+  ReplacingMergeTree natively. Open-source ClickHouse 26.1+ blocks this
+  with `deduplicate_merge_projection_mode = throw` — local dev may need
+  that setting changed manually.
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
