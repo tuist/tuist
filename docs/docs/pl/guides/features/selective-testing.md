@@ -5,58 +5,58 @@
   "description": "Use selective testing to run only the tests that have changed since the last successful test run."
 }
 ---
-# Testowanie wybiórcze {#selective-testing}
+# Testy selektywne {#selective-testing}
 
-Wraz z rozwojem projektu rośnie liczba testów. Przez długi czas uruchamianie
-wszystkich testów dla każdego PR lub push do `main` zajmuje dziesiątki sekund.
-Jednak rozwiązanie to nie jest skalowalne do tysięcy testów, które może mieć
+Wraz z rozwojem projektu rośnie liczba testów. Przez długi czas uruchomienie
+wszystkich testów przy każdym PR lub push do `main` zajmuje kilkadziesiąt
+sekund. Jednak to rozwiązanie nie skaluje się do tysięcy testów, które może mieć
 Twój zespół.
 
-Podczas każdego testu w CI najprawdopodobniej ponownie uruchamiasz wszystkie
-testy, niezależnie od zmian. Selektywne testowanie Tuist pomaga znacznie
-przyspieszyć samo uruchamianie testów, uruchamiając tylko te testy, które uległy
-zmianie od ostatniego pomyślnego uruchomienia testu w oparciu o nasz algorytm
-haszujący <LocalizedLink href="/guides/features/projects/hashing">.
+Podczas każdego przebiegu testów w CI najprawdopodobniej ponownie uruchamiasz
+wszystkie testy, niezależnie od wprowadzonych zmian. Selektywne testowanie w
+Tuist pomaga znacznie przyspieszyć sam proces testowania, uruchamiając tylko te
+testy, które uległy zmianie od ostatniego pomyślnego przebiegu testów, w oparciu
+o nasz <LocalizedLink href="/guides/features/projects/hashing">algorytm
+haszujący</LocalizedLink>.
 
 Aby uruchomić testy selektywnie z
 <LocalizedLink href="/guides/features/projects">wygenerowanym
 projektem</LocalizedLink>, użyj polecenia `tuist test`. Polecenie to
-<LocalizedLink href="/guides/features/projects/hashing">haszuje</LocalizedLink>
-projekt Xcode w taki sam sposób, jak
-<LocalizedLink href="/guides/features/cache/module-cache">pamięć podręczną
-modułu</LocalizedLink>, a po pomyślnym zakończeniu zachowuje skróty, aby
-określić, co uległo zmianie w przyszłych uruchomieniach. W przyszłych
-uruchomieniach `tuist test` w sposób przejrzysty wykorzystuje skróty do
-filtrowania testów i uruchamiania tylko tych, które uległy zmianie od ostatniego
-pomyślnego uruchomienia testów.
+<LocalizedLink href="/guides/features/projects/hashing">generuje
+skróty</LocalizedLink> projektu Xcode w taki sam sposób, jak w przypadku
+<LocalizedLink href="/guides/features/cache/module-cache">pamięci podręcznej
+modułów</LocalizedLink>, a w przypadku powodzenia zapisuje skróty, aby określić,
+co uległo zmianie w przyszłych uruchomieniach. W kolejnych uruchomieniach
+polecenie `tuist test` w sposób przejrzysty wykorzystuje skróty do filtrowania
+testów i uruchamia tylko te, które uległy zmianie od ostatniego pomyślnego
+uruchomienia testów.
 
-`tuist test` integruje się bezpośrednio z
-<LocalizedLink href="/guides/features/cache/module-cache">modułową pamięcią
-podręczną</LocalizedLink>, aby wykorzystać jak najwięcej plików binarnych z
-lokalnej lub zdalnej pamięci masowej w celu skrócenia czasu kompilacji podczas
-uruchamiania zestawu testów. Połączenie selektywnego testowania z buforowaniem
-modułów może znacznie skrócić czas potrzebny do przeprowadzenia testów w ramach
-ciągłej integracji.
+`Test tuist` integruje się bezpośrednio z
+<LocalizedLink href="/guides/features/cache/module-cache">pamięcią podręczną
+modułów</LocalizedLink>, aby wykorzystać jak najwięcej plików binarnych z
+lokalnej lub zdalnej pamięci w celu skrócenia czasu kompilacji podczas
+uruchamiania zestawu testów. Połączenie selektywnego testowania z pamięcią
+podręczną modułów może znacznie skrócić czas wykonywania testów w środowisku CI.
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
-Ze względu na niemożność wykrycia zależności między testami a źródłami w kodzie,
-maksymalna szczegółowość testów selektywnych znajduje się na poziomie docelowym.
-Dlatego zalecamy, aby cele były niewielkie i skoncentrowane, aby zmaksymalizować
-korzyści płynące z testów selektywnych.
+Ze względu na niemożność wykrycia zależności w kodzie między testami a źródłami,
+maksymalna szczegółowość testowania selektywnego znajduje się na poziomie
+docelowym. Dlatego zalecamy, aby cele były niewielkie i konkretne, co pozwoli
+zmaksymalizować korzyści płynące z testowania selektywnego.
 <!-- -->
 :::
 
 ::: warning TEST COVERAGE
 <!-- -->
-Narzędzia do testowania pokrycia zakładają, że cały zestaw testów jest
+Narzędzia do pomiaru pokrycia testowego zakładają, że cały zestaw testów jest
 uruchamiany jednocześnie, co sprawia, że nie są one kompatybilne z selektywnym
 uruchamianiem testów — oznacza to, że dane dotyczące pokrycia mogą nie
-odzwierciedlać rzeczywistości w przypadku korzystania z selekcji testów. Jest to
+odzwierciedlać rzeczywistości podczas korzystania z selekcji testów. Jest to
 znane ograniczenie i nie oznacza, że robisz coś źle. Zachęcamy zespoły do
-zastanowienia się, czy pokrycie nadal dostarcza znaczących informacji w tym
+zastanowienia się, czy pokrycie nadal dostarcza wartościowych informacji w tym
 kontekście, a jeśli tak, to zapewniamy, że już zastanawiamy się, jak sprawić, by
-pokrycie działało poprawnie z selektywnymi uruchomieniami w przyszłości.
+pokrycie działało poprawnie przy selektywnych uruchomieniach w przyszłości.
 <!-- -->
 :::
 
@@ -74,8 +74,8 @@ Git</LocalizedLink>.
 :::
 
 Gdy projekt Tuist zostanie połączony z platformą Git, taką jak
-[GitHub](https://github.com), i zaczniesz używać `tuist test` w ramach przepływu
-pracy CI, Tuist opublikuje komentarz bezpośrednio w żądaniach pull/merge,
-zawierający informacje o tym, które testy zostały przeprowadzone, a które
-pominięte: ![Komentarz w aplikacji GitHub z linkiem do podglądu
+[GitHub](https://github.com), a użytkownik zacznie korzystać z polecenia `tuist
+test` w ramach procesu CI, Tuist zamieści komentarz bezpośrednio w żądaniach
+pull/merge, zawierający informacje o tym, które testy zostały uruchomione, a
+które pominięte: ![Komentarz w aplikacji GitHub z linkiem do podglądu
 Tuist](/images/guides/features/selective-testing/github-app-comment.png)
