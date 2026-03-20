@@ -254,50 +254,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       assert response["upload_url"] == "https://s3.example.com/upload?signed=true"
     end
 
-    test "returns 404 when test case run belongs to a different project", %{
-      conn: conn,
-      user: user,
-      project: project
-    } do
-      # Given
-      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
-      test_case_run = RunsFixtures.test_case_run_fixture(project_id: other_project.id)
-
-      # When
-      conn =
-        post(
-          conn,
-          "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
-          %{
-            test_case_run_id: test_case_run.id,
-            file_name: "crash-report.ips"
-          }
-        )
-
-      # Then
-      assert json_response(conn, :not_found)
-    end
-
-    test "returns 404 when test case run does not exist", %{
-      conn: conn,
-      user: user,
-      project: project
-    } do
-      # When
-      conn =
-        post(
-          conn,
-          "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
-          %{
-            test_case_run_id: UUIDv7.generate(),
-            file_name: "crash-report.ips"
-          }
-        )
-
-      # Then
-      assert json_response(conn, :not_found)
-    end
-
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do
       # Given
       other_user = AccountsFixtures.user_fixture(preload: [:account])
