@@ -21,6 +21,7 @@ defmodule Tuist.Application do
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
+  alias TuistCommon.HTTP.TransportLogger
 
   require Logger
 
@@ -67,6 +68,7 @@ defmodule Tuist.Application do
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     ReqTelemetry.attach_default_logger(:pipeline)
+    TransportLogger.attach(:tuist)
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()

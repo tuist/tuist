@@ -4,6 +4,7 @@ defmodule Cache.Application do
   use Application
 
   alias Cache.DBConnection.TelemetryListener
+  alias TuistCommon.HTTP.TransportLogger
 
   require Logger
 
@@ -18,6 +19,7 @@ defmodule Cache.Application do
     end
 
     Oban.Telemetry.attach_default_logger()
+    TransportLogger.attach(:cache)
     start_sentry_logger()
     start_loki_logger()
     start_opentelemetry()
