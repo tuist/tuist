@@ -123,19 +123,7 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
         %{table: source}
       )
 
-    {:ok, %{rows: existing_partitions}} =
-      IngestRepo.query(
-        """
-        SELECT DISTINCT partition
-        FROM system.parts
-        WHERE database = currentDatabase() AND table = {table:String} AND active
-        """,
-        %{table: destination}
-      )
-
-    existing_set = MapSet.new(existing_partitions, fn [p] -> p end)
-
-    for [partition] <- partitions, not MapSet.member?(existing_set, partition) do
+    for [partition] <- partitions do
       Logger.info("Copying partition #{partition} from #{source} to #{destination}")
 
       IngestRepo.query!(
