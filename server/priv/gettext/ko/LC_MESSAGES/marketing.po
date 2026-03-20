@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:58+0000\n"
-"PO-Revision-Date: 2026-03-19 15:53+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\n"
-"Language: ko\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-03-20 15:29+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -1320,11 +1308,13 @@ msgstr "서비스로서"
 msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
 msgstr "설정을 지속적으로 최적화하고 모니터링하는 가상 파트너가 되어 드리겠습니다. 그러니 여러분은 출시에만 집중하세요"
 
+#, fuzzy
 msgid "Open the %{feature} feature page"
-msgstr ""
+msgstr "%{feature} 기능 페이지 열기"
 
+#, fuzzy
 msgid "From code to feedback in minutes. Instant previews close the loop between building and validating."
-msgstr ""
+msgstr "몇 분 만에 코드에서 피드백으로. 즉시 미리보기를 통해 빌드와 검증 간의 피드백 루프를 완성합니다."
 
 #~ msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
 #~ msgstr "코드를 피드백으로 단 몇 분 만에. 실시간 미리보기와 AI 기반 테스트로 구축과 검증의 연결 고리를 완성합니다."
