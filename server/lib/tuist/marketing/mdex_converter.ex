@@ -7,8 +7,9 @@ defmodule Tuist.Marketing.MDExConverter do
   runtime assigns from LiveView.
   """
 
-  alias Phoenix.HTML.Safe
   use Noora
+
+  alias Phoenix.HTML.Safe
 
   @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
   @copy_check_icon %{__changed__: nil} |> Noora.Icon.copy_check() |> Safe.to_iodata() |> IO.iodata_to_binary()
@@ -43,8 +44,6 @@ defmodule Tuist.Marketing.MDExConverter do
     template =
       if live? do
         compile_heex_template(html, path)
-      else
-        nil
       end
 
     {html, template}

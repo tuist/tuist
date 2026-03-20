@@ -9,9 +9,7 @@ defmodule Tuist.Marketing.Blog.PostParser do
     [frontmatter_string, body] =
       contents |> String.replace(~r/^---\n/, "") |> String.split(["\n---\n"], parts: 2)
 
-    frontmatter =
-      frontmatter_string
-      |> YamlElixir.read_from_string!()
+    frontmatter = YamlElixir.read_from_string!(frontmatter_string)
 
     {body_html, body_template} = MDExConverter.compile_markdown(body, path, frontmatter["live"] || false)
 
@@ -19,15 +17,14 @@ defmodule Tuist.Marketing.Blog.PostParser do
     date = date_string |> Timex.parse!("{YYYY}/{M}/{D}") |> Timex.to_datetime("Etc/UTC")
 
     frontmatter =
-      frontmatter
-      |> Map.merge(%{
-        # /blog/2024/09/28/kamal-two-swift-server
+      Map.merge(frontmatter, %{
         "slug" =>
           "/blog/#{date_string}/#{path |> Path.basename() |> String.replace(".md", "") |> String.replace(".", "")}",
         "date" => date,
         "body_template" => body_template
       })
 
+    # /blog/2024/09/28/kamal-two-swift-server
     {frontmatter, body_html}
   end
 
