@@ -178,54 +178,46 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
   )
 
   def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
-    with {:ok, run} <- Tests.get_test_case_run_by_id(body_params.test_case_run_id, project_id: project.id),
-         true <- run.project_id == project.id do
-      attachment_id = UUIDv7.generate()
+    attachment_id = UUIDv7.generate()
 
-      attrs =
-        then(
-          %{
-            id: attachment_id,
-            test_case_run_id: body_params.test_case_run_id,
-            file_name: body_params.file_name,
-            inserted_at: NaiveDateTime.utc_now()
-          },
-          fn attrs ->
-            case Map.get(body_params, :repetition_number) do
-              nil -> attrs
-              repetition_number -> Map.put(attrs, :repetition_number, repetition_number)
-            end
-          end
-        )
-
-      {:ok, _attachment} = Tests.create_test_case_run_attachment(attrs)
-
-      expires_in = 3600
-
-      s3_object_key =
-        Tests.attachment_storage_key(%{
-          account_handle: project.account.name,
-          project_handle: project.name,
+    attrs =
+      then(
+        %{
+          id: attachment_id,
           test_case_run_id: body_params.test_case_run_id,
-          attachment_id: attachment_id,
-          file_name: body_params.file_name
-        })
+          file_name: body_params.file_name,
+          inserted_at: NaiveDateTime.utc_now()
+        },
+        fn attrs ->
+          case Map.get(body_params, :repetition_number) do
+            nil -> attrs
+            repetition_number -> Map.put(attrs, :repetition_number, repetition_number)
+          end
+        end
+      )
 
-      upload_url =
-        Storage.generate_upload_url(s3_object_key, project.account, expires_in: expires_in)
+    {:ok, _attachment} = Tests.create_test_case_run_attachment(attrs)
 
-      conn
-      |> put_status(:created)
-      |> json(%{
-        id: attachment_id,
-        upload_url: upload_url,
-        expires_at: System.system_time(:second) + expires_in
+    expires_in = 3600
+
+    s3_object_key =
+      Tests.attachment_storage_key(%{
+        account_handle: project.account.name,
+        project_handle: project.name,
+        test_case_run_id: body_params.test_case_run_id,
+        attachment_id: attachment_id,
+        file_name: body_params.file_name
       })
-    else
-      _ ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{message: "Test case run not found."})
-    end
+
+    upload_url =
+      Storage.generate_upload_url(s3_object_key, project.account, expires_in: expires_in)
+
+    conn
+    |> put_status(:created)
+    |> json(%{
+      id: attachment_id,
+      upload_url: upload_url,
+      expires_at: System.system_time(:second) + expires_in
+    })
   end
 end
