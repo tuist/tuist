@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-05 15:32+0000\n"
-"PO-Revision-Date: 2026-03-19 15:53+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\n"
-"Language: tr\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.16.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2026-03-20 15:29+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -1472,11 +1460,13 @@ msgstr "bir hizmet olarak"
 msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
 msgstr "Kurulumunuzu sürekli olarak optimize eden ve gözlemleyen sanal yardımcınız olalım, böylece siz sevkiyata odaklanabilirsiniz"
 
+#, fuzzy
 msgid "Open the %{feature} feature page"
-msgstr ""
+msgstr "%{feature} özellik sayfasını açın"
 
+#, fuzzy
 msgid "From code to feedback in minutes. Instant previews close the loop between building and validating."
-msgstr ""
+msgstr "Koddan geri bildirime dakikalar içinde. Anlık önizlemeler, oluşturma ve doğrulama arasındaki döngüyü kapatır."
 
 #, fuzzy
 #~ msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
