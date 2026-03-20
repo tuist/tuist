@@ -26,7 +26,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseBranchPresenceMv do
     ENGINE = MergeTree
     ORDER BY (project_id, git_branch, is_ci, ran_at, test_case_id)
     SETTINGS allow_nullable_key = 1
-    POPULATE
     AS SELECT
       project_id,
       git_branch,
