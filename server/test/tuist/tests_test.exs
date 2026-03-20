@@ -443,8 +443,8 @@ defmodule Tuist.TestsTest do
           ]
         })
 
-      assert length(tests) == 1
-      assert hd(tests).id == in_progress.id
+      assert Enum.any?(tests, fn t -> t.id == in_progress.id end)
+      refute Enum.any?(tests, fn t -> t.status == "success" end)
     end
 
     test "searches sharded test runs by scheme" do

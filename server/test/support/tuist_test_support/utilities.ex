@@ -37,7 +37,6 @@ defmodule TuistTestSupport.Utilities do
       "TRUNCATE TABLE IF EXISTS gradle_builds",
       "TRUNCATE TABLE IF EXISTS gradle_tasks",
       "TRUNCATE TABLE IF EXISTS gradle_cache_events",
-      "TRUNCATE TABLE IF EXISTS test_runs",
       "TRUNCATE TABLE IF EXISTS shard_plans",
       "TRUNCATE TABLE IF EXISTS shard_plan_modules",
       "TRUNCATE TABLE IF EXISTS shard_plan_test_suites",
