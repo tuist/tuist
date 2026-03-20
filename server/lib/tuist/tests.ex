@@ -32,10 +32,10 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.QuarantinedTestCase
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
+  alias Tuist.Tests.TestCaseBranchPresence
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
-  alias Tuist.Tests.TestCaseBranchPresence
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunRepetition
