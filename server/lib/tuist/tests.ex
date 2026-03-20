@@ -354,7 +354,7 @@ defmodule Tuist.Tests do
       |> Enum.reject(&Map.has_key?(existing_data, &1))
       |> MapSet.new()
 
-    IngestRepo.insert_all(TestCase, test_cases)
+    TestCase.Buffer.insert_all(test_cases)
 
     test_case_id_map =
       Map.new(test_cases, fn tc ->
@@ -442,7 +442,7 @@ defmodule Tuist.Tests do
         |> Map.merge(filtered_attrs)
         |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
-      {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
+      {1, nil} = TestCase.Buffer.insert_all([attrs])
 
       create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
 
@@ -467,7 +467,7 @@ defmodule Tuist.Tests do
           }
         end)
 
-      IngestRepo.insert_all(TestCaseEvent, events)
+      TestCaseEvent.Buffer.insert_all(events)
     end
   end
 
@@ -537,8 +537,13 @@ defmodule Tuist.Tests do
     query =
       case Keyword.get(opts, :project_id) do
         nil ->
-          month = uuidv7_to_yyyymm(id)
-          where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
+          case uuidv7_to_yyyymm(id) do
+            {:ok, month} ->
+              where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
+
+            :error ->
+              query
+          end
 
         project_id ->
           where(query, [tcr], tcr.project_id == ^project_id)
@@ -564,8 +569,13 @@ defmodule Tuist.Tests do
   defp uuidv7_to_yyyymm(uuid_string) do
     hex = uuid_string |> String.replace("-", "") |> String.slice(0, 12)
     timestamp_ms = String.to_integer(hex, 16)
-    {:ok, datetime} = DateTime.from_unix(timestamp_ms, :millisecond)
-    datetime.year * 100 + datetime.month
+
+    case DateTime.from_unix(timestamp_ms, :millisecond) do
+      {:ok, datetime} -> {:ok, datetime.year * 100 + datetime.month}
+      _ -> :error
+    end
+  rescue
+    _ -> :error
   end
 
   defp create_test_modules(test, test_modules) do
@@ -603,10 +613,11 @@ defmodule Tuist.Tests do
         inserted_at: NaiveDateTime.utc_now()
       }
 
-      {:ok, _module_run} =
-        %TestModuleRun{}
-        |> TestModuleRun.create_changeset(module_run_attrs)
-        |> IngestRepo.insert()
+      %TestModuleRun{}
+      |> TestModuleRun.create_changeset(module_run_attrs)
+      |> Ecto.Changeset.apply_action!(:insert)
+
+      TestModuleRun.Buffer.insert(module_run_attrs)
 
       suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
 
@@ -781,7 +792,7 @@ defmodule Tuist.Tests do
         {suite_run, updated_mapping}
       end)
 
-    IngestRepo.insert_all(TestSuiteRun, test_suite_runs)
+    TestSuiteRun.Buffer.insert_all(test_suite_runs)
     suite_name_to_id
   end
 
@@ -879,11 +890,11 @@ defmodule Tuist.Tests do
         {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc}
       end)
 
-    IngestRepo.insert_all(TestCaseRun, test_case_runs)
-    IngestRepo.insert_all(TestCaseFailure, all_failures)
+    TestCaseRun.Buffer.insert_all(test_case_runs)
+    TestCaseFailure.Buffer.insert_all(all_failures)
 
     if Enum.any?(all_repetitions) do
-      IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
+      TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
     end
 
     create_first_run_events(test_case_runs, new_test_case_ids)
@@ -911,7 +922,7 @@ defmodule Tuist.Tests do
           }
         end)
 
-      IngestRepo.insert_all(TestCaseEvent, events)
+      TestCaseEvent.Buffer.insert_all(events)
     end
   end
 
@@ -1424,7 +1435,7 @@ defmodule Tuist.Tests do
         |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
       end)
 
-    IngestRepo.insert_all(TestCaseRun, updated_runs)
+    TestCaseRun.Buffer.insert_all(updated_runs)
     :ok
   end
 
@@ -1786,7 +1797,7 @@ defmodule Tuist.Tests do
         |> Map.merge(%{is_flaky: false, inserted_at: now})
       end)
 
-    IngestRepo.insert_all(TestCase, test_cases_to_update)
+    TestCase.Buffer.insert_all(test_cases_to_update)
 
     if Enum.any?(stale_test_cases) do
       events =
@@ -1800,7 +1811,7 @@ defmodule Tuist.Tests do
           }
         end)
 
-      IngestRepo.insert_all(TestCaseEvent, events)
+      TestCaseEvent.Buffer.insert_all(events)
     end
 
     {:ok, length(test_cases_to_update)}

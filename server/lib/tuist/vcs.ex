@@ -24,11 +24,12 @@ defmodule Tuist.VCS do
   alias Tuist.Tests.Analytics, as: TestsAnalytics
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
-  alias Tuist.VCS
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
   @max_flaky_tests_in_comment 5
+  @max_failed_tests_in_comment 5
 
   @doc """
   Constructs a CI run URL based on the CI provider and metadata.
@@ -169,7 +170,7 @@ defmodule Tuist.VCS do
     schedule_in = flush_interval_seconds + 1
 
     args
-    |> VCS.Workers.CommentWorker.new(schedule_in: schedule_in)
+    |> CommentWorker.new(schedule_in: schedule_in)
     |> Oban.insert()
   end
 
@@ -409,7 +410,13 @@ defmodule Tuist.VCS do
         project: project
       })
 
-    bodies = [previews_body, test_body, flaky_tests_body, builds_body, bundles_body]
+    failed_tests_body =
+      get_failed_tests_body(%{
+        test_runs: test_runs,
+        project: project
+      })
+
+    bodies = [previews_body, test_body, failed_tests_body, flaky_tests_body, builds_body, bundles_body]
 
     if Enum.all?(bodies, &is_nil/1) do
       nil
@@ -739,11 +746,155 @@ defmodule Tuist.VCS do
     end
   end
 
+  defp get_failed_tests_body(%{test_runs: test_runs, project: project}) do
+    failed_runs_with_counts =
+      test_runs
+      |> Enum.filter(&(&1.status == "failure"))
+      |> Enum.map(fn test_run ->
+        filters = [
+          %{field: :test_run_id, op: :==, value: test_run.id},
+          %{field: :status, op: :==, value: "failure"},
+          %{field: :is_flaky, op: :==, value: false}
+        ]
+
+        {failed_test_case_runs, meta} =
+          Tests.list_test_case_runs(
+            %{
+              filters: filters,
+              page: 1,
+              page_size: @max_failed_tests_in_comment,
+              order_by: [:ran_at],
+              order_directions: [:desc]
+            },
+            preload: [:failures]
+          )
+
+        {test_run, failed_test_case_runs, meta.total_count}
+      end)
+      |> Enum.filter(fn {_test_run, _runs, total_count} -> total_count > 0 end)
+
+    if Enum.empty?(failed_runs_with_counts) do
+      nil
+    else
+      project = Repo.preload(project, [:account, :vcs_connection])
+
+      total_failed_count =
+        Enum.reduce(failed_runs_with_counts, 0, fn {_, _, count}, acc -> acc + count end)
+
+      displayed_failed_tests =
+        failed_runs_with_counts
+        |> Enum.flat_map(fn {test_run, failed_test_case_runs, _count} ->
+          Enum.map(failed_test_case_runs, fn tcr ->
+            %{
+              test_case_id: tcr.test_case_id,
+              name: tcr.name,
+              module_name: tcr.module_name,
+              suite_name: tcr.suite_name,
+              failure: List.first(tcr.failures),
+              git_commit_sha: test_run.git_commit_sha
+            }
+          end)
+        end)
+        |> Enum.uniq_by(& &1.test_case_id)
+        |> Enum.take(@max_failed_tests_in_comment)
+
+      runs_summary =
+        Enum.map_join(failed_runs_with_counts, "", fn {test_run, _runs, failed_count} ->
+          scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
+
+          failures_url =
+            Environment.app_url(
+              path: "/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures"
+            )
+
+          "- **#{scheme}**: #{failed_count} failed #{if failed_count == 1, do: "test", else: "tests"} ([View all](#{failures_url}))\n"
+        end)
+
+      more_tests_note =
+        if total_failed_count > @max_failed_tests_in_comment do
+          "\n> Showing #{@max_failed_tests_in_comment} of #{total_failed_count} failed tests. See links above for full details.\n"
+        else
+          ""
+        end
+
+      failed_tests_list =
+        Enum.map_join(displayed_failed_tests, "", &format_failed_test_item(&1, project))
+
+      """
+
+      #### Failed Tests ❌
+
+      #{runs_summary}
+      #{failed_tests_list}#{more_tests_note}
+      """
+    end
+  end
+
+  defp format_failed_test_item(failed_test, project) do
+    test_case_url =
+      Environment.app_url(path: "/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}")
+
+    subtitle =
+      case {failed_test.module_name, failed_test.suite_name} do
+        {m, s} when m not in [nil, ""] and s not in [nil, ""] -> " · #{m} · #{s}"
+        {m, _} when m not in [nil, ""] -> " · #{m}"
+        _ -> ""
+      end
+
+    failure_detail = format_failure_detail(failed_test.failure, project, failed_test.git_commit_sha)
+
+    "- [**#{failed_test.name}**](#{test_case_url})#{subtitle}\\\n#{failure_detail}\n"
+  end
+
+  @max_failure_message_length 160
+
+  defp format_failure_detail(nil, _project, _commit_sha), do: ""
+
+  defp format_failure_detail(failure, project, commit_sha) do
+    location = format_failure_location(failure, project, commit_sha)
+    message = sanitize_for_markdown(failure.message)
+
+    case {location, message} do
+      {nil, nil} -> ""
+      {loc, nil} -> loc
+      {nil, msg} -> truncate_message(msg)
+      {loc, msg} -> "#{loc}: #{truncate_message(msg)}"
+    end
+  end
+
+  defp format_failure_location(%{path: path} = failure, project, commit_sha) when path not in [nil, ""] do
+    location_text = "#{path}:#{failure.line_number}"
+    repo_handle = project.vcs_connection && project.vcs_connection.repository_full_handle
+
+    if repo_handle && commit_sha not in [nil, ""] do
+      "[`#{location_text}`](https://github.com/#{repo_handle}/blob/#{commit_sha}/#{path}#L#{failure.line_number})"
+    else
+      "`#{location_text}`"
+    end
+  end
+
+  defp format_failure_location(_, _, _), do: nil
+
+  defp sanitize_for_markdown(nil), do: nil
+
+  defp sanitize_for_markdown(message) do
+    message |> String.replace(~r/[\n\r]+/, " ") |> String.trim()
+  end
+
+  defp truncate_message(message) do
+    if String.length(message) > @max_failure_message_length do
+      String.slice(message, 0, @max_failure_message_length) <> "…"
+    else
+      message
+    end
+  end
+
   defp get_latest_builds(%{git_ref: git_ref, project: project}) do
     git_ref_pattern = get_git_ref_pattern(git_ref)
 
     from(b in Builds.Build)
     |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> where([b], b.status not in ["processing", "failed_processing"])
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.filter(&(&1.scheme != ""))

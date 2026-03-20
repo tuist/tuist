@@ -359,12 +359,12 @@ defmodule TuistWeb.Marketing.LocalizationTest do
   # end
 
   describe "docs URL localization" do
-    test "places the locale before the docs section" do
+    test "places the locale before the path" do
       Gettext.put_locale(TuistWeb.Gettext, "ko")
 
       result = Localization.localized_href("https://docs.tuist.dev/guides/features/projects")
 
-      assert result == "https://docs.tuist.dev/ko/docs/guides/features/projects"
+      assert result == "https://docs.tuist.dev/ko/guides/features/projects"
     end
 
     test "normalizes old locale-prefixed docs URLs" do
@@ -374,17 +374,17 @@ defmodule TuistWeb.Marketing.LocalizationTest do
           "ja"
         )
 
-      assert result == "https://docs.tuist.dev/ja/docs/guides/features/projects"
+      assert result == "https://docs.tuist.dev/ja/guides/features/projects"
     end
 
-    test "keeps docs-prefixed URLs stable when switching locales" do
+    test "keeps URLs stable when switching locales" do
       result =
         Localization.localized_href(
-          "https://docs.tuist.dev/ko/docs/guides/features/projects",
+          "https://docs.tuist.dev/ko/guides/features/projects",
           "ja"
         )
 
-      assert result == "https://docs.tuist.dev/ja/docs/guides/features/projects"
+      assert result == "https://docs.tuist.dev/ja/guides/features/projects"
     end
   end
 end

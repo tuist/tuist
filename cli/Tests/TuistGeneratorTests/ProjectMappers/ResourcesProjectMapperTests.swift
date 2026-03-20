@@ -982,7 +982,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenStaticTargetHasXcstringsAddsThemAsSources() async throws {
+    func mapWhenStaticTargetHasXcstringsKeepsThemInResources() async throws {
         // Given
         let resources: [ResourceFileElement] = [
             .file(path: "/Resources/Localizable.xcstrings"),
@@ -998,11 +998,12 @@ struct ResourcesProjectMapperTests {
 
         // Then
         let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.resources.resources.isEmpty)
         let xcstringsSources = gotTarget.sources.filter { $0.path.extension == "xcstrings" }
-        #expect(xcstringsSources.count == 1)
+        #expect(xcstringsSources.isEmpty)
         let expectedXcstringsPath = try AbsolutePath(validating: "/Resources/Localizable.xcstrings")
-        #expect(xcstringsSources.first?.path == expectedXcstringsPath)
+        let xcstringsResources = gotTarget.resources.resources.filter { $0.path.extension == "xcstrings" }
+        #expect(xcstringsResources.count == 1)
+        #expect(xcstringsResources.first?.path == expectedXcstringsPath)
     }
 
     @Test

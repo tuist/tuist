@@ -43,7 +43,7 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
         """
 
         IngestRepo.query!("""
-        CREATE TABLE test_case_runs_new (
+        CREATE TABLE IF NOT EXISTS test_case_runs_new (
           #{columns},
           #{indexes}
         ) ENGINE = ReplacingMergeTree(inserted_at)
@@ -54,7 +54,17 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
 
         copy_data_by_partition("test_case_runs", "test_case_runs_new")
 
-        IngestRepo.query!("EXCHANGE TABLES test_case_runs AND test_case_runs_new")
+        {:ok, %{rows: [[current_key]]}} =
+          IngestRepo.query(
+            "SELECT sorting_key FROM system.tables WHERE database = currentDatabase() AND name = {table:String}",
+            %{table: "test_case_runs"}
+          )
+
+        if current_key != "project_id, test_case_id, ran_at, id" do
+          IngestRepo.query!("EXCHANGE TABLES test_case_runs AND test_case_runs_new")
+        else
+          Logger.info("Tables already swapped by another instance, skipping EXCHANGE")
+        end
 
         # MVs reference the source table by internal UUID, so after the exchange
         # the old MVs still point at test_case_runs_new (which now holds the old
@@ -64,7 +74,7 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
         IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_daily_stats")
 
         IngestRepo.query!("""
-        CREATE MATERIALIZED VIEW test_case_runs_by_inserted_at
+        CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_inserted_at
         ENGINE = MergeTree
         ORDER BY (project_id, inserted_at)
         POPULATE
@@ -72,7 +82,7 @@ defmodule Tuist.IngestRepo.Migrations.ReorderTestCaseRuns do
         """)
 
         IngestRepo.query!("""
-        CREATE MATERIALIZED VIEW test_case_runs_daily_stats
+        CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_daily_stats
         ENGINE = AggregatingMergeTree
         ORDER BY (project_id, date, status, is_ci, is_flaky)
         POPULATE

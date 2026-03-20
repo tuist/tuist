@@ -3,6 +3,12 @@ import Config
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
 
+# Prevent ExAws.Config.AuthCache from trying to fetch credentials from AWS instance metadata
+config :ex_aws,
+  access_key_id: "test",
+  secret_access_key: "test",
+  region: "us-east-1"
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 
@@ -30,6 +36,7 @@ config :tuist, Tuist.IngestRepo,
   flush_interval_ms: 5000,
   max_buffer_size: 100_000,
   pool_size: 5,
+  sync_writes: true,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
   settings: [query_plan_optimize_lazy_materialization: 0]

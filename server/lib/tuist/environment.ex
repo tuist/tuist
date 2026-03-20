@@ -505,15 +505,24 @@ defmodule Tuist.Environment do
   end
 
   def clickhouse_pool_size(secrets \\ secrets()) do
-    get([:clickhouse, :pool_size], secrets) || database_pool_size(secrets)
+    case get([:clickhouse, :pool_size], secrets) do
+      pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
+      _ -> database_pool_size(secrets)
+    end
   end
 
   def clickhouse_queue_interval(secrets \\ secrets()) do
-    get([:clickhouse, :queue_interval], secrets) || database_queue_interval(secrets)
+    case get([:clickhouse, :queue_interval], secrets) do
+      queue_interval when is_binary(queue_interval) -> String.to_integer(queue_interval)
+      _ -> database_queue_interval(secrets)
+    end
   end
 
   def clickhouse_queue_target(secrets \\ secrets()) do
-    get([:clickhouse, :queue_target], secrets) || database_queue_target(secrets)
+    case get([:clickhouse, :queue_target], secrets) do
+      queue_target when is_binary(queue_target) -> String.to_integer(queue_target)
+      _ -> database_queue_target(secrets)
+    end
   end
 
   def anthropic_api_key(secrets \\ secrets()) do
@@ -554,6 +563,13 @@ defmodule Tuist.Environment do
     case get([:clickhouse, :buffer_pool_size], secrets) do
       buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
       _ -> 5
+    end
+  end
+
+  def clickhouse_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> 4
     end
   end
 

@@ -69,7 +69,7 @@ msgstr ""
 msgid "Attachments"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:492
+#: lib/tuist_web/live/test_case_live.ex:491
 #, elixir-autogen, elixir-format
 msgid "Automatically by Tuist"
 msgstr ""
@@ -280,7 +280,7 @@ msgstr ""
 msgid "Environment:"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:488
+#: lib/tuist_web/live/test_case_live.ex:487
 #, elixir-autogen, elixir-format
 msgid "Event"
 msgstr ""
@@ -417,7 +417,7 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:483
+#: lib/tuist_web/live/test_case_live.ex:482
 #, elixir-autogen, elixir-format
 msgid "First run of this test"
 msgstr ""
@@ -626,7 +626,7 @@ msgstr ""
 msgid "Mac device"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:494
+#: lib/tuist_web/live/test_case_live.ex:493
 #, elixir-autogen, elixir-format
 msgid "Manually by @%{name}"
 msgstr ""
@@ -636,17 +636,17 @@ msgstr ""
 msgid "Mark as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:484
+#: lib/tuist_web/live/test_case_live.ex:483
 #, elixir-autogen, elixir-format
 msgid "Marked as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:486
+#: lib/tuist_web/live/test_case_live.ex:485
 #, elixir-autogen, elixir-format
 msgid "Marked as quarantined"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:487
+#: lib/tuist_web/live/test_case_live.ex:486
 #, elixir-autogen, elixir-format
 msgid "Marked as unquarantined"
 msgstr ""
@@ -1308,7 +1308,7 @@ msgstr ""
 msgid "Unmark as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/test_case_live.ex:485
+#: lib/tuist_web/live/test_case_live.ex:484
 #, elixir-autogen, elixir-format
 msgid "Unmarked as flaky"
 msgstr ""

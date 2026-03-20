@@ -203,7 +203,19 @@ final class DumpServiceTests: TuistTestCase {
                       "profileByName": {
 
                       }
-                    }
+                    },
+                    "storages": [
+                      {
+                        "local": {
+
+                        }
+                      },
+                      {
+                        "remote": {
+
+                        }
+                      }
+                    ]
                   },
                   "compatibleXcodeVersions": {
                     "all": {

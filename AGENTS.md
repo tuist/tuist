@@ -6,6 +6,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
+- `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`

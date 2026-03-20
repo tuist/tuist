@@ -4,6 +4,7 @@ defmodule Tuist.Tests.TestCaseRun do
   This is a ClickHouse entity that stores test case run data.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 
