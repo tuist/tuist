@@ -196,7 +196,9 @@
               <div data-part="title">{dgettext("dashboard_tests", "Duration")}</div>
               <span :if={@run.status != "in_progress"} data-part="value">
                 <.history />
-                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(@display_duration)}
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @display_duration
+                )}
               </span>
               <span :if={@run.status == "in_progress"} data-part="value">
                 <.status_badge_cell
