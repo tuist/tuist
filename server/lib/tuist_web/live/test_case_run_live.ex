@@ -21,6 +21,7 @@ defmodule TuistWeb.TestCaseRunLive do
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     test_case_run =
       case Tests.get_test_case_run_by_id(params["test_case_run_id"],
+             project_id: project.id,
              preload: [:failures, :repetitions, :attachments, crash_report: :test_case_run_attachment]
            ) do
         {:ok, run} ->

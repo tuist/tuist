@@ -534,12 +534,18 @@ defmodule Tuist.Tests do
       )
 
     query =
-      case uuidv7_to_yyyymm(id) do
-        {:ok, month} ->
-          where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
+      case Keyword.get(opts, :project_id) do
+        nil ->
+          case uuidv7_to_yyyymm(id) do
+            {:ok, month} ->
+              where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
 
-        :error ->
-          query
+            :error ->
+              query
+          end
+
+        project_id ->
+          where(query, [tcr], tcr.project_id == ^project_id)
       end
 
     case ClickHouseRepo.one(query) do
@@ -671,7 +677,7 @@ defmodule Tuist.Tests do
 
   defp check_cross_run_flakiness(test, test_case_data) do
     test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
-    existing_runs = get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha)
+    existing_runs = get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha, test.project_id)
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
       case filter_cross_run_flaky(data, existing_runs) do
@@ -694,13 +700,14 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp get_existing_ci_runs_for_commit([], _git_commit_sha), do: %{}
+  defp get_existing_ci_runs_for_commit([], _git_commit_sha, _project_id), do: %{}
 
-  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha) do
+  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha, project_id) do
     test_case_id_set = MapSet.new(test_case_ids)
 
     query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.is_ci == true,
         where: tcr.status in ["success", "failure"]

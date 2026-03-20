@@ -406,6 +406,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
         _params
       ) do
     case Tests.get_test_case_run_by_id(test_case_run_id,
+           project_id: selected_project.id,
            preload: [:failures, :repetitions, :attachments, crash_report: :test_case_run_attachment]
          ) do
       {:ok, run} ->
