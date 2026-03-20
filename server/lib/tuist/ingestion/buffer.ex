@@ -128,6 +128,9 @@ defmodule Tuist.Ingestion.Buffer do
   end
 
   defp sync_writes? do
-    Application.get_env(:tuist, IngestRepo)[:sync_writes] == true
+    case Application.get_env(:tuist, IngestRepo) do
+      config when is_list(config) -> Keyword.get(config, :sync_writes, false)
+      _ -> false
+    end
   end
 end

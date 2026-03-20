@@ -1,19 +1,26 @@
 defmodule Tuist.Ingestion.Bufferable do
   @moduledoc """
-  A module that can be used to make an Ecto schema bufferable for ClickHouse ingestion.
+  Makes an Ecto schema bufferable for ClickHouse ingestion.
 
-  When used, it provides compile-time preparation of buffer parameters for efficient
-  RowBinaryWithNamesAndTypes format ingestion.
+  When used, it defines `buffer_opts/0` on the schema and generates a
+  `Buffer` submodule with `child_spec/1`, `insert/1`, `insert_all/1`,
+  and `flush/0`.
 
   ## Usage
 
       defmodule MySchema do
+        use Ecto.Schema
         use Tuist.Ingestion.Bufferable
-        # ... rest of your schema definition
+
+        schema "my_table" do
+          field :name, :string
+          # ...
+        end
       end
 
-      # Access the prepared buffer options
-      MySchema.buffer_opts()
+      # The Buffer submodule is generated automatically:
+      MySchema.Buffer.insert(row)
+      MySchema.Buffer.insert_all(rows)
   """
 
   defmacro __using__(_opts) do
@@ -22,22 +29,84 @@ defmodule Tuist.Ingestion.Bufferable do
     end
   end
 
-  defmacro __before_compile__(_env) do
+  defmacro __before_compile__(env) do
+    parent = env.module
+
     quote do
-      @doc """
-      Returns the compile-time prepared buffer options for this schema.
-      """
       def buffer_opts do
         Tuist.Ingestion.Bufferable.compile_time_prepare(__MODULE__)
+      end
+
+      defmodule Buffer do
+        @moduledoc false
+
+        alias Tuist.Ingestion.Buffer
+
+        @parent unquote(parent)
+
+        defp opts do
+          case :persistent_term.get({__MODULE__, :opts}, nil) do
+            nil ->
+              computed = Tuist.Ingestion.Bufferable.compile_time_prepare(@parent)
+              :persistent_term.put({__MODULE__, :opts}, computed)
+              computed
+
+            cached ->
+              cached
+          end
+        end
+
+        def child_spec(child_opts) do
+          %{header: header, insert_sql: insert_sql, insert_opts: insert_opts} = opts()
+
+          child_opts =
+            Keyword.merge(child_opts,
+              name: __MODULE__,
+              header: header,
+              insert_sql: insert_sql,
+              insert_opts: insert_opts
+            )
+
+          Buffer.child_spec(child_opts)
+        end
+
+        def insert(row) do
+          %{fields: fields, encoding_types: encoding_types} = opts()
+
+          row_binary =
+            [Enum.map(fields, fn field -> Map.fetch!(row, field) end)]
+            |> Ch.RowBinary._encode_rows(encoding_types)
+            |> IO.iodata_to_binary()
+
+          :ok = Buffer.insert(__MODULE__, row_binary)
+          {:ok, row}
+        end
+
+        def insert_all([]), do: {0, nil}
+
+        def insert_all(rows) do
+          %{fields: fields, encoding_types: encoding_types} = opts()
+
+          row_binary =
+            rows
+            |> Enum.map(fn row ->
+              Enum.map(fields, fn field -> Map.fetch!(row, field) end)
+            end)
+            |> Ch.RowBinary._encode_rows(encoding_types)
+            |> IO.iodata_to_binary()
+
+          :ok = Buffer.insert(__MODULE__, row_binary)
+          {length(rows), nil}
+        end
+
+        def flush do
+          Buffer.flush(__MODULE__)
+        end
       end
     end
   end
 
-  @doc """
-  Prepares a few buffer parameters for a given schema at compile time.
-
-  The `RowBinaryWithNamesAndTypes` format expects a header row with the column names that we can generate before the runtime, as well as the actual SQL query to insert the data.
-  """
+  @doc false
   def compile_time_prepare(schema) do
     all_fields = schema.__schema__(:fields)
 

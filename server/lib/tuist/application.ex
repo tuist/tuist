@@ -118,7 +118,7 @@ defmodule Tuist.Application do
         {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
         {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
         {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
-        Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
+        Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),

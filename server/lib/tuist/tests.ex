@@ -606,6 +606,10 @@ defmodule Tuist.Tests do
         inserted_at: NaiveDateTime.utc_now()
       }
 
+      %TestModuleRun{}
+      |> TestModuleRun.create_changeset(module_run_attrs)
+      |> Ecto.Changeset.apply_action!(:insert)
+
       TestModuleRun.Buffer.insert(module_run_attrs)
 
       suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
