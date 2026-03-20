@@ -86,7 +86,8 @@ defmodule Tuist.Shards.AnalyticsTest do
           project_id: project.id,
           shard_plan_id: plan1.id,
           shard_index: 0,
-          status: "success"
+          status: "success",
+          ran_at: ~N[2024-06-14 10:00:00]
         )
 
       {:ok, _} =
@@ -94,7 +95,8 @@ defmodule Tuist.Shards.AnalyticsTest do
           project_id: project.id,
           shard_plan_id: plan2.id,
           shard_index: 0,
-          status: "success"
+          status: "success",
+          ran_at: ~N[2024-06-15 08:00:00]
         )
 
       result =
