@@ -254,7 +254,12 @@ const AgentPrompt = {
   },
 
   scrollToBottom(element) {
-    element.scrollTop = element.scrollHeight;
+    const threshold = 40;
+    const isNearBottom = element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
+
+    if (isNearBottom) {
+      element.scrollTop = element.scrollHeight;
+    }
   },
 };
 

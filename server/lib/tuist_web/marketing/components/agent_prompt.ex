@@ -38,8 +38,7 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
       </div>
       <div data-part="code">
         <div data-part="terminal-line">
-          <span data-part="shell-prompt">{@shell_prompt}</span>
-          <span data-part="prompt-text" data-value={@prompt}></span><span
+          <span data-part="shell-prompt">{@shell_prompt}</span>{" "}<span data-part="prompt-text" data-value={@prompt}></span><span
             data-part="prompt-cursor"
             style="visibility: hidden;"
           ></span>
