@@ -87,6 +87,8 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:540
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:10
 #: lib/tuist_web/marketing/live/marketing_blog_live.html.heex:10
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:49
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.html.heex:10
 #, elixir-autogen, elixir-format
 msgid "Blog"
 msgstr ""
@@ -1047,6 +1049,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:575
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:630
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:668
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr ""
@@ -1528,6 +1531,7 @@ msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:35
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:83
+#: lib/tuist_web/marketing/live/marketing_blog_post_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "AI moves fast. So should your builds."
 msgstr ""

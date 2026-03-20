@@ -241,6 +241,11 @@ defmodule TuistWeb.Router do
              TuistWeb.Marketing.MarketingPreviewsLive,
              metadata: %{type: :marketing},
              private: private
+
+        live Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
+             TuistWeb.Marketing.MarketingBlogPostLive,
+             metadata: %{type: :marketing},
+             private: private
       end
 
       get locale_path_prefix, MarketingController, :home,
@@ -256,12 +261,6 @@ defmodule TuistWeb.Router do
       get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug/iframe.html"),
           TuistWeb.Marketing.MarketingBlogIframeController,
           :show,
-          metadata: %{type: :marketing},
-          private: private
-
-      get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
-          MarketingController,
-          :blog_post,
           metadata: %{type: :marketing},
           private: private
 
