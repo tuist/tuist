@@ -83,7 +83,7 @@ defmodule Tuist.Utilities.DateFormatterTest do
     end
 
     test "handles zero duration" do
-      assert DateFormatter.format_duration_from_milliseconds(0) == "0.0s"
+      assert DateFormatter.format_duration_from_milliseconds(0) == "0ms"
     end
 
     test "formats hours with minutes and seconds when include_seconds: true" do

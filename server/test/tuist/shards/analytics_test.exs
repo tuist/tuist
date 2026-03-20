@@ -67,17 +67,35 @@ defmodule Tuist.Shards.AnalyticsTest do
       stub(DateTime, :utc_now, fn -> ~U[2024-06-15 12:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      ShardsFixtures.shard_plan_fixture(
-        project_id: project.id,
-        reference: "run-1",
-        inserted_at: ~N[2024-06-14 10:00:00]
-      )
+      plan1 =
+        ShardsFixtures.shard_plan_fixture(
+          project_id: project.id,
+          reference: "run-1",
+          inserted_at: ~N[2024-06-14 10:00:00]
+        )
 
-      ShardsFixtures.shard_plan_fixture(
-        project_id: project.id,
-        reference: "run-2",
-        inserted_at: ~N[2024-06-15 08:00:00]
-      )
+      plan2 =
+        ShardsFixtures.shard_plan_fixture(
+          project_id: project.id,
+          reference: "run-2",
+          inserted_at: ~N[2024-06-15 08:00:00]
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          shard_plan_id: plan1.id,
+          shard_index: 0,
+          status: "success"
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          shard_plan_id: plan2.id,
+          shard_index: 0,
+          status: "success"
+        )
 
       result =
         Analytics.sharded_run_analytics(project.id,

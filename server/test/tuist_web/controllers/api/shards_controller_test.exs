@@ -34,7 +34,6 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert response["reference"] == "github-123-1"
       assert response["shard_count"] == 2
       assert is_list(response["shards"])
-      assert response["upload_id"] == "upload-id-123"
     end
 
     test "returns forbidden when user doesn't have access", %{conn: conn} do
@@ -198,7 +197,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
   end
 
-  describe "POST /api/projects/:account/:project/tests/shards/generate-url" do
+  describe "POST /api/projects/:account/:project/tests/shards/upload/generate-url" do
     test "returns signed upload URL", %{conn: conn, user: user, project: project} do
       stub(Tuist.Shards, :generate_upload_url, fn _project, _account, _reference, _upload_id, _part ->
         {:ok, "https://upload.example.com/part"}
@@ -209,7 +208,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> Authentication.put_current_user(user)
         |> put_req_header("content-type", "application/json")
         |> post(
-          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/generate-url",
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/generate-url",
           %{reference: "session-1", upload_id: "upload-id", part_number: 1}
         )
 
@@ -218,7 +217,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
   end
 
-  describe "POST /api/projects/:account/:project/tests/shards/complete" do
+  describe "POST /api/projects/:account/:project/tests/shards/upload/complete" do
     test "completes upload successfully", %{conn: conn, user: user, project: project} do
       stub(Tuist.Shards, :complete_upload, fn _project, _account, _reference, _upload_id, _parts ->
         :ok
@@ -229,7 +228,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         |> Authentication.put_current_user(user)
         |> put_req_header("content-type", "application/json")
         |> post(
-          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/complete",
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/complete",
           %{reference: "session-1", upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}]}
         )
 

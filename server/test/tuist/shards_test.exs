@@ -241,7 +241,7 @@ defmodule Tuist.ShardsTest do
 
       assert {:ok, result} = Shards.get_shard(project, account, "plan-2", 0)
       assert result.modules == ["AppTests"]
-      assert result.suites == %{"AppTests" => ["LoginTests", "SignupTests"]}
+      assert Enum.sort(result.suites["AppTests"]) == ["LoginTests", "SignupTests"]
       assert result.download_url == "https://download.example.com"
     end
 
