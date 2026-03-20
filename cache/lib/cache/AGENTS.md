@@ -11,3 +11,5 @@ This directory contains core cache domain logic, storage backends, and auth help
 ## Related Context
 - Web/API layer: `cache/lib/cache_web/AGENTS.md`
 - Cache service overview: `cache/README.md`
+- Repo monitoring wrappers: `cache/lib/cache/repo/AGENTS.md`
+- Shared repo monitoring: `tuist_common/AGENTS.md`

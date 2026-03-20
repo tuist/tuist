@@ -14,8 +14,20 @@ defmodule Tuist.Marketing.Stats do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
+  @default_stats %{
+    cache_artifacts_last_24h: 0,
+    builds_last_24h: 0,
+    test_case_runs_last_24h: 0,
+    test_runs_last_24h: 0,
+    flaky_tests_last_24h: 0
+  }
+
   def get_stats do
-    GenServer.call(__MODULE__, :get_stats)
+    if GenServer.whereis(__MODULE__) do
+      GenServer.call(__MODULE__, :get_stats)
+    else
+      @default_stats
+    end
   end
 
   def subscribe do

@@ -70,16 +70,23 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
             var settings = SettingsDictionary()
             if !staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
-                settings["FRAMEWORK_SEARCH_PATHS"] = .array(
-                    staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies
-                        .flatMap { xcframework in
-                            xcframework.infoPlist.libraries
-                                .filter { target.supportedPlatforms.contains($0.platform.graphPlatform) }
-                                .map { library in
-                                    "\"$(SRCROOT)/\(xcframework.path.appending(component: library.identifier).relative(to: project.path).pathString)\""
-                                }
-                        }
-                )
+                var pathsBySDKCondition: [String: [String]] = [:]
+
+                for xcframework in staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies {
+                    for library in xcframework.infoPlist.libraries {
+                        let platform = library.platform.graphPlatform
+                        guard target.supportedPlatforms.contains(platform) else { continue }
+
+                        let path =
+                            "\"$(SRCROOT)/\(xcframework.path.appending(component: library.identifier).relative(to: project.path).pathString)\""
+                        let sdkCondition = library.sdkCondition
+                        pathsBySDKCondition[sdkCondition, default: []].append(path)
+                    }
+                }
+
+                for sdkCondition in pathsBySDKCondition.keys.sorted() {
+                    settings["FRAMEWORK_SEARCH_PATHS[\(sdkCondition)]"] = .array(pathsBySDKCondition[sdkCondition]!)
+                }
             }
 
             if !staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
@@ -332,6 +339,23 @@ extension XCFrameworkInfoPlist.Library.Platform {
         case .tvOS: return .tvOS
         case .watchOS: return .watchOS
         case .visionOS: return .visionOS
+        }
+    }
+}
+
+extension XCFrameworkInfoPlist.Library {
+    fileprivate var sdkCondition: String {
+        let graphPlatform = platform.graphPlatform
+        switch platformVariant {
+        case .simulator:
+            if let simulatorSDK = graphPlatform.xcodeSimulatorSDK {
+                return "sdk=\(simulatorSDK)*"
+            }
+            return "sdk=\(graphPlatform.xcodeSdkRoot)*"
+        case .maccatalyst:
+            return "sdk=iphoneos*"
+        case nil:
+            return "sdk=\(graphPlatform.xcodeSdkRoot)*"
         }
     }
 }

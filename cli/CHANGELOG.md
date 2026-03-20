@@ -1,18 +1,77 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.160.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.162.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add storages option to cache configuration by [@fortmarek](https://github.com/fortmarek) in [#9938](https://github.com/tuist/tuist/pull/9938)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.161.4...4.162.0
+
+## What's Changed in 4.161.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* remove unsupported DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER build setting by [@fortmarek](https://github.com/fortmarek) in [#9940](https://github.com/tuist/tuist/pull/9940)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.161.3...4.161.4
+
+## What's Changed in 4.161.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* increase URLSession max connections per host to 20 by [@fortmarek](https://github.com/fortmarek) in [#9931](https://github.com/tuist/tuist/pull/9931)
+* normalize swift package target names with spaces by [@pepicrft](https://github.com/pepicrft) in [#9928](https://github.com/tuist/tuist/pull/9928)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.161.1...4.161.3
+
+## What's Changed in 4.161.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* process builds remotely by [@fortmarek](https://github.com/fortmarek) in [#9911](https://github.com/tuist/tuist/pull/9911)
+### 🐛 Bug Fixes
+
+* prevent xcstrings stale extraction state in static targets by [@pepicrft](https://github.com/pepicrft) in [#9907](https://github.com/tuist/tuist/pull/9907)
+* use SDK-conditioned FRAMEWORK_SEARCH_PATHS for xcframeworks by [@wojmangh](https://github.com/wojmangh) in [#9902](https://github.com/tuist/tuist/pull/9902)
+* resolve merge commit to actual PR head SHA by [@fortmarek](https://github.com/fortmarek) in [#9905](https://github.com/tuist/tuist/pull/9905)
+* only record /cache/ac hashes for test targets, not their deps by [@fortmarek](https://github.com/fortmarek) in [#9909](https://github.com/tuist/tuist/pull/9909)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.160.3...4.161.1
+
+## What's Changed in 4.160.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* redact sensitive headers in verbose HTTP logs by [@fortmarek](https://github.com/fortmarek) in [#9906](https://github.com/tuist/tuist/pull/9906)
+* restore TuistCacheEE submodule pointer to include empty graph fix by [@fortmarek](https://github.com/fortmarek) in [#9904](https://github.com/tuist/tuist/pull/9904)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.160.1...4.160.3
+
+## What's Changed in 4.160.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
 * log test targets that will be tested by [@pepicrft](https://github.com/pepicrft) in [#9731](https://github.com/tuist/tuist/pull/9731)
 ### 🐛 Bug Fixes
 
+* use xcactivitylog UUID as build ID for remote processing by [@fortmarek](https://github.com/fortmarek) in [#9897](https://github.com/tuist/tuist/pull/9897)
 * allow iOS bundle targets to have dependencies by [@fortmarek](https://github.com/fortmarek) in [#9883](https://github.com/tuist/tuist/pull/9883)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.159.0...4.160.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.159.0...4.160.1
 
 ## What's Changed in 4.159.0<!-- RELEASE NOTES START -->
 

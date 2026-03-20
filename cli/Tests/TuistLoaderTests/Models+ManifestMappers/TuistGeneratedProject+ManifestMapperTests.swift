@@ -182,6 +182,24 @@ struct TuistGeneratedProjectManifestMapperTests {
         #expect(got.profiles.defaultProfile == "debug")
     }
 
+    @Test func from_mapsStorages_default() throws {
+        let manifest = ProjectDescription.Config.CacheOptions.options()
+        let got = try TuistConfig.CacheOptions.from(manifest: manifest)
+        #expect(got.storages == [.local, .remote])
+    }
+
+    @Test func from_mapsStorages_localOnly() throws {
+        let manifest = ProjectDescription.Config.CacheOptions.options(storages: [.local])
+        let got = try TuistConfig.CacheOptions.from(manifest: manifest)
+        #expect(got.storages == [.local])
+    }
+
+    @Test func from_mapsStorages_remoteOnly() throws {
+        let manifest = ProjectDescription.Config.CacheOptions.options(storages: [.remote])
+        let got = try TuistConfig.CacheOptions.from(manifest: manifest)
+        #expect(got.storages == [.remote])
+    }
+
     @Test func from_throws_whenCustomProfileNameIsReserved() throws {
         for reservedName in BaseCacheProfile.allCases.map(\.rawValue) {
             #expect(throws: CacheOptionsManifestMapperError.reservedProfileName(profile: reservedName)) {

@@ -11,10 +11,10 @@
     <section data-part="hero">
       <header data-part="title">
         <div data-part="title">
-          <h1>{dgettext("marketing", "Make mobile")}</h1>
+          <h1>{dgettext("marketing", "Your mobile platform team,")}</h1>
         </div>
         <div data-part="title">
-          <h1>{dgettext("marketing", "your competitive advantage")}</h1>
+          <h1>{dgettext("marketing", "as a service")}</h1>
         </div>
       </header>
 
@@ -22,16 +22,14 @@
         <p>
           {dgettext(
             "marketing",
-            "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+            "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
           )}
         </p>
       </div>
 
       <nav data-part="actions" aria-label="Primary actions">
         <.button
-          href={localized_href("https://docs.tuist.dev/")}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={~p"/users/register"}
           label={dgettext("marketing", "Get started")}
         >
         </.button>

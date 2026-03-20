@@ -7,17 +7,14 @@ import Config
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 
-noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
-noora_web_path = Path.expand("../../noora", __DIR__)
+noora_source_path = Path.expand("../../noora", __DIR__)
 deps_path = Path.expand("../deps", __DIR__)
 
 # Base watchers for esbuild
 base_watchers = [
   esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
   esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
-  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]},
-  esbuild_noora: {Esbuild, :install_and_run, [:noora_js, ~w(--watch)]},
-  esbuild_noora_css: {Esbuild, :install_and_run, [:noora_css, ~w(--watch)]}
+  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
 ]
 
 # ## SSL Support
@@ -63,8 +60,8 @@ config :esbuild,
       "--outfile=../../priv/static/app/assets/bundle.js",
       "--external:/fonts/*",
       "--external:/images/*",
-      "--alias:noora=#{noora_static_path}/noora.js",
-      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+      "--alias:noora=#{noora_source_path}/js/index.js",
+      "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/app", __DIR__),
     env: %{"NODE_PATH" => deps_path}
@@ -81,8 +78,8 @@ config :esbuild,
       "--outfile=../../priv/static/marketing/assets/bundle.js",
       "--external:/fonts/*",
       "--external:/images/*",
-      "--alias:noora=#{noora_static_path}/noora.js",
-      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+      "--alias:noora=#{noora_source_path}/js/index.js",
+      "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
     env: %{"NODE_PATH" => deps_path}
@@ -92,14 +89,6 @@ config :esbuild,
       ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets/apidocs", __DIR__),
     env: %{"NODE_PATH" => deps_path}
-  ],
-  noora_js: [
-    args: ~w(js/index.js --bundle --sourcemap --format=esm --outfile=./priv/static/noora.js),
-    cd: noora_web_path
-  ],
-  noora_css: [
-    args: ~w(css/noora.css --bundle --sourcemap --outfile=./priv/static/noora.css),
-    cd: noora_web_path
   ]
 
 # Do not include metadata nor timestamps in development logs
@@ -118,7 +107,8 @@ config :phoenix, :stacktrace_depth, 20
 config :phoenix_live_reload,
   dirs: [
     "../../noora/lib",
-    "../../noora/priv/static"
+    "../../noora/js",
+    "../../noora/css"
   ]
 
 # Include HEEx debug annotations as HTML comments in rendered markup
