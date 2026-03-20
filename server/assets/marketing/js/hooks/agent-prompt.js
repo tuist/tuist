@@ -16,32 +16,26 @@ const TIMING = {
 };
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+const SCROLL_THRESHOLD = 40;
 
 function queryElements(root) {
-  const elements = {
-    code: root.querySelector(SELECTORS.code),
-    prompt: root.querySelector(SELECTORS.prompt),
-    response: root.querySelector(SELECTORS.response),
-    promptCursor: root.querySelector(SELECTORS.promptCursor),
-    responseCursor: root.querySelector(SELECTORS.responseCursor),
-    trigger: root.querySelector(SELECTORS.trigger),
-    responseSection: root.querySelector(SELECTORS.responseSection),
-  };
+  const elements = {};
 
-  return Object.values(elements).every(Boolean) ? elements : null;
+  for (const [key, selector] of Object.entries(SELECTORS)) {
+    const el = root.querySelector(selector);
+    if (!el) return null;
+    elements[key] = el;
+  }
+
+  return elements;
 }
 
-function parseResponseSteps(rawValue) {
+function parseResponseSteps(json) {
   try {
-    const steps = JSON.parse(rawValue);
-
+    const steps = JSON.parse(json);
     if (!Array.isArray(steps)) return [];
-
-    return steps.map((step) => ({
-      text: step.text || "",
-      waitMs: step.wait_ms || 0,
-    }));
-  } catch (_error) {
+    return steps.map((s) => ({ text: s.text || "", waitMs: s.wait_ms || 0 }));
+  } catch {
     return [];
   }
 }
@@ -52,11 +46,9 @@ function segmentText(text) {
 
   for (const match of text.matchAll(URL_REGEX)) {
     const index = match.index ?? 0;
-
     if (index > lastIndex) {
       segments.push({ type: "text", value: text.slice(lastIndex, index) });
     }
-
     segments.push({ type: "link", value: match[0] });
     lastIndex = index + match[0].length;
   }
@@ -68,69 +60,43 @@ function segmentText(text) {
   return segments;
 }
 
-function appendLink(container, url) {
-  const link = document.createElement("a");
-  link.href = url;
-  link.target = "_blank";
-  link.rel = "noreferrer";
-  link.textContent = url;
-  container.appendChild(link);
-}
-
-function setCursorVisibility(cursor, isVisible) {
-  if (cursor) {
-    cursor.style.visibility = isVisible ? "visible" : "hidden";
-  }
-}
-
 const AgentPrompt = {
   mounted() {
     this.elements = queryElements(this.el);
     if (!this.elements) return;
 
-    this.timers = new Set();
+    this.abortController = null;
     this.prompt = this.elements.prompt.dataset.value || "";
     this.responseSteps = parseResponseSteps(this.elements.responseSection.dataset.responseSteps);
     this.prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     this.handleClick = (event) => {
-      if (!event.target.closest(SELECTORS.trigger)) return;
-      this.start();
+      if (event.target.closest(SELECTORS.trigger)) this.start();
     };
     this.el.addEventListener("click", this.handleClick);
-
     this.reset();
   },
 
-  beforeDestroy() {
-    this.cleanup();
-  },
-
   destroyed() {
-    this.cleanup();
+    this.abort();
+    this.el.removeEventListener("click", this.handleClick);
   },
 
   reset() {
     if (!this.elements) return;
 
-    this.clearTimers();
+    this.abort();
     this.started = false;
 
     const { code, prompt, response, promptCursor, responseCursor, responseSection, trigger } = this.elements;
-
     prompt.textContent = "";
     response.textContent = "";
     responseSection.style.display = "none";
-    setCursorVisibility(promptCursor, false);
-    setCursorVisibility(responseCursor, false);
+    promptCursor.style.visibility = "hidden";
+    responseCursor.style.visibility = "hidden";
     trigger.disabled = false;
     trigger.removeAttribute("data-played");
     code.scrollTop = 0;
-  },
-
-  cleanup() {
-    this.clearTimers();
-    this.el.removeEventListener("click", this.handleClick);
   },
 
   start() {
@@ -141,123 +107,97 @@ const AgentPrompt = {
     this.elements.trigger.setAttribute("data-played", "true");
 
     if (this.prefersReducedMotion) {
-      this.renderCompletedState();
-      return;
+      this.renderInstant();
+    } else {
+      this.animate();
     }
-
-    this.playPrompt();
   },
 
-  renderCompletedState() {
+  renderInstant() {
     const { code, prompt, response, responseSection } = this.elements;
-
     prompt.textContent = this.prompt;
-    response.textContent = this.responseSteps.map((step) => step.text).join("\n");
+    response.textContent = this.responseSteps.map((s) => s.text).join("\n");
     responseSection.style.display = "";
     this.scrollToBottom(code);
   },
 
-  playPrompt() {
-    const { code, prompt, promptCursor, responseCursor, responseSection } = this.elements;
+  async animate() {
+    const { code, prompt, promptCursor, responseCursor, response, responseSection } = this.elements;
+    const signal = this.createAbortSignal();
 
-    setCursorVisibility(promptCursor, true);
+    promptCursor.style.visibility = "visible";
+    await this.typeText(prompt, this.prompt, TIMING.promptCharMs, signal);
+    promptCursor.style.visibility = "hidden";
 
-    this.typeCharacters(prompt, this.prompt, TIMING.promptCharMs, () => {
-      setCursorVisibility(promptCursor, false);
+    await this.delay(TIMING.promptToResponseMs, signal);
 
-      this.schedule(() => {
-        responseSection.style.display = "";
-        setCursorVisibility(responseCursor, true);
-        this.scrollToBottom(code);
-        this.playResponseStep(0);
-      }, TIMING.promptToResponseMs);
-    });
-  },
+    responseSection.style.display = "";
+    responseCursor.style.visibility = "visible";
+    this.scrollToBottom(code);
 
-  playResponseStep(index) {
-    const { code, response, responseCursor } = this.elements;
-
-    if (index >= this.responseSteps.length) {
-      setCursorVisibility(responseCursor, false);
+    for (let i = 0; i < this.responseSteps.length; i++) {
+      const step = this.responseSteps[i];
+      const text = i === 0 ? step.text : `\n${step.text}`;
+      await this.typeRichText(response, text, signal);
       this.scrollToBottom(code);
-      return;
+      await this.delay(step.waitMs || TIMING.stepPauseMs, signal);
     }
 
-    const step = this.responseSteps[index];
-    const text = index === 0 ? step.text : `\n${step.text}`;
-
-    this.typeRichText(response, text, () => {
-      this.scrollToBottom(code);
-      this.schedule(() => this.playResponseStep(index + 1), step.waitMs > 0 ? step.waitMs : TIMING.stepPauseMs);
-    });
+    responseCursor.style.visibility = "hidden";
   },
 
-  typeRichText(container, text, onComplete) {
-    const segments = segmentText(text);
-    this.typeSegments(container, segments, 0, onComplete);
-  },
-
-  typeSegments(container, segments, index, onComplete) {
-    if (index >= segments.length) {
-      onComplete();
-      return;
-    }
-
-    const segment = segments[index];
-
-    if (segment.type === "link") {
-      appendLink(container, segment.value);
-      this.scrollToBottom(this.elements.code);
-      this.schedule(() => this.typeSegments(container, segments, index + 1, onComplete), TIMING.responseCharMs);
-      return;
-    }
-
-    this.typeCharacters(container, segment.value, TIMING.responseCharMs, () =>
-      this.typeSegments(container, segments, index + 1, onComplete),
-    );
-  },
-
-  typeCharacters(container, text, delay, onComplete) {
+  async typeText(container, text, charMs, signal) {
     const node = document.createTextNode("");
     container.appendChild(node);
-    this.scrollToBottom(this.elements.code);
 
-    let index = 0;
-
-    const tick = () => {
-      if (index >= text.length) {
-        onComplete();
-        return;
-      }
-
-      node.textContent += text[index];
-      index += 1;
+    for (const char of text) {
+      signal.throwIfAborted();
+      node.textContent += char;
       this.scrollToBottom(this.elements.code);
-      this.schedule(tick, delay);
-    };
-
-    tick();
+      await this.delay(charMs, signal);
+    }
   },
 
-  schedule(callback, delay) {
-    const timerId = window.setTimeout(() => {
-      this.timers.delete(timerId);
-      callback();
-    }, delay);
+  async typeRichText(container, text, signal) {
+    for (const segment of segmentText(text)) {
+      signal.throwIfAborted();
 
-    this.timers.add(timerId);
+      if (segment.type === "link") {
+        const link = document.createElement("a");
+        link.href = segment.value;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.textContent = segment.value;
+        container.appendChild(link);
+        this.scrollToBottom(this.elements.code);
+        await this.delay(TIMING.responseCharMs, signal);
+      } else {
+        await this.typeText(container, segment.value, TIMING.responseCharMs, signal);
+      }
+    }
   },
 
-  clearTimers() {
-    this.timers?.forEach((timerId) => window.clearTimeout(timerId));
-    this.timers?.clear();
+  delay(ms, signal) {
+    if (signal?.aborted) return Promise.reject(signal.reason);
+    return new Promise((resolve, reject) => {
+      const id = setTimeout(resolve, ms);
+      signal?.addEventListener("abort", () => { clearTimeout(id); reject(signal.reason); }, { once: true });
+    });
+  },
+
+  createAbortSignal() {
+    this.abortController = new AbortController();
+    return this.abortController.signal;
+  },
+
+  abort() {
+    this.abortController?.abort();
+    this.abortController = null;
   },
 
   scrollToBottom(element) {
-    const threshold = 40;
-    const isNearBottom = element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
-
-    if (isNearBottom) {
+    const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+    if (distanceFromBottom < SCROLL_THRESHOLD) {
       element.scrollTop = element.scrollHeight;
     }
   },

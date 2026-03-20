@@ -24,7 +24,6 @@ defmodule Tuist.Marketing.Blog.PostParser do
         "body_template" => body_template
       })
 
-    # /blog/2024/09/28/kamal-two-swift-server
     {frontmatter, body_html}
   end
 
