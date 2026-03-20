@@ -32,6 +32,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.QuarantinedTestCase
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
+  alias Tuist.Tests.TestCaseBranchPresence
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
@@ -748,13 +749,13 @@ defmodule Tuist.Tests do
   defp get_test_case_ids_with_ci_runs_on_branch(project_id, branch) do
     ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
 
-    from(tcr in TestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.git_branch == ^branch,
-      where: tcr.is_ci == true,
-      where: tcr.ran_at >= ^ninety_days_ago,
+    from(bp in TestCaseBranchPresence,
+      where: bp.project_id == ^project_id,
+      where: bp.git_branch == ^branch,
+      where: bp.is_ci == true,
+      where: bp.ran_at >= ^ninety_days_ago,
       distinct: true,
-      select: tcr.test_case_id
+      select: bp.test_case_id
     )
     |> ClickHouseRepo.all()
     |> MapSet.new()
