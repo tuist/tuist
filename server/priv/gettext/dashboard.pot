@@ -264,6 +264,11 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
+#: lib/tuist_web/components/app_layout_components.ex:353
+#, elixir-autogen, elixir-format
+msgid "Project Settings"
+msgstr ""
+
 #: lib/tuist_web/controllers/error_html.ex:101
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
