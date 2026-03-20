@@ -10,10 +10,9 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseBranchPresenceMv do
   binary search on `project_id` for this query since `test_case_id` (2nd key)
   is not filtered — resulting in ~14.5M rows scanned per call.
 
-  This MV uses ReplacingMergeTree to deduplicate to one row per
-  (project_id, git_branch, is_ci, test_case_id), keeping the latest `ran_at`.
-  ORDER BY `(project_id, git_branch, is_ci, ran_at, test_case_id)` enables a
-  full prefix match on the query's WHERE clause.
+  This MV uses MergeTree with ORDER BY `(project_id, git_branch, is_ci,
+  ran_at, test_case_id)` enabling a full prefix match on the query's WHERE
+  clause. The query uses DISTINCT so duplicate rows don't matter.
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
@@ -24,7 +23,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseBranchPresenceMv do
   def up do
     IngestRepo.query!("""
     CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_branch_presence
-    ENGINE = ReplacingMergeTree(ran_at)
+    ENGINE = MergeTree
     ORDER BY (project_id, git_branch, is_ci, ran_at, test_case_id)
     POPULATE
     AS SELECT
