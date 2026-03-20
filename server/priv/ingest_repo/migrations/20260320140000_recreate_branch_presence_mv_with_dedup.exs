@@ -40,7 +40,9 @@ defmodule Tuist.IngestRepo.Migrations.RecreateBranchPresenceMvWithDedup do
 
     backfill("test_case_runs", "test_case_branch_presence_new")
 
-    IngestRepo.query!("EXCHANGE TABLES test_case_branch_presence AND test_case_branch_presence_new")
+    IngestRepo.query!(
+      "EXCHANGE TABLES test_case_branch_presence AND test_case_branch_presence_new"
+    )
   end
 
   def down do
