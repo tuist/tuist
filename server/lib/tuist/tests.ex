@@ -544,7 +544,6 @@ defmodule Tuist.Tests do
               query
           end
 
-
         project_id ->
           where(query, [tcr], tcr.project_id == ^project_id)
       end
