@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -27,15 +28,16 @@ public protocol ShardServicing {
 }
 
 public enum ShardServiceError: LocalizedError, Equatable {
-    case cannotDeriveSessionId
+    case cannotDeriveReference
     case invalidDownloadURL(String)
     case testProductsNotFound
     case invalidXCTestRun
 
     public var errorDescription: String? {
         switch self {
-        case .cannotDeriveSessionId:
-            return "Cannot derive a shard plan ID. Make sure you are running in a supported CI environment."
+        case .cannotDeriveReference:
+            return
+                "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
         case let .invalidDownloadURL(url):
             return "Invalid shard download URL: \(url)"
         case .testProductsNotFound:
@@ -51,17 +53,20 @@ public struct ShardService: ShardServicing {
     private let ciController: CIControlling
     private let fileClient: FileClienting
     private let fileSystem: FileSysteming
+    private let commandRunner: CommandRunning
 
     public init(
         getShardService: GetShardServicing = GetShardService(),
         ciController: CIControlling = CIController(),
         fileClient: FileClienting = FileClient(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.getShardService = getShardService
         self.ciController = ciController
         self.fileClient = fileClient
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     public func shard(
@@ -70,7 +75,7 @@ public struct ShardService: ShardServicing {
         serverURL: URL
     ) async throws -> Shard {
         guard let reference = ciController.ciInfo()?.shardReference else {
-            throw ShardServiceError.cannotDeriveSessionId
+            throw ShardServiceError.cannotDeriveReference
         }
 
         Logger.current.debug("Fetching shard \(shardIndex) for plan '\(reference)'...")
@@ -91,7 +96,9 @@ public struct ShardService: ShardServicing {
         Logger.current.debug("Downloaded test products bundle.")
 
         let unzippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-        try await System.shared.run(["/usr/bin/ditto", "-x", "-k", shardZipPath.pathString, unzippedPath.pathString])
+        _ = try await commandRunner
+            .run(arguments: ["/usr/bin/ditto", "-x", "-k", shardZipPath.pathString, unzippedPath.pathString])
+            .concatenatedString()
 
         guard let testProductsPath = try await fileSystem
             .glob(directory: unzippedPath, include: ["*.xctestproducts"])
@@ -132,6 +139,8 @@ public struct ShardService: ShardServicing {
         )
     }
 
+    /// Filters xctestrun plist data using raw PropertyListSerialization rather than Decodable because we need
+    /// to preserve all fields (environment variables, test host paths, etc.) that aren't part of XCTestRun's typed model.
     func filterXCTestRun(
         plistData data: Data,
         modules: [String],

@@ -1,4 +1,5 @@
 #if os(macOS)
+    import Command
     import Foundation
     import Mockable
     import Path
@@ -11,12 +12,12 @@
         ///   - testProductsPath: Path to the `.xctestproducts` bundle.
         ///   - scheme: The Xcode scheme whose tests should be enumerated.
         ///   - destination: An optional xcodebuild destination string (e.g. `"platform=iOS Simulator,name=iPhone 16"`).
-        /// - Returns: A dictionary mapping each test target name to its list of test suite names.
+        /// - Returns: An array of test targets, each containing the target name and its test suite names.
         func enumerateTests(
             testProductsPath: AbsolutePath,
             scheme: String,
             destination: String?
-        ) async throws -> [String: [String]]
+        ) async throws -> [XCTestRun.TestTarget]
     }
 
     public enum XCTestEnumeratorError: LocalizedError, Equatable {
@@ -51,17 +52,21 @@
     }
 
     public struct XCTestEnumerator: XCTestEnumerating {
-        private let system: Systeming
+        private let commandRunner: CommandRunning
 
-        public init(system: Systeming = System.shared) {
-            self.system = system
+        public init(commandRunner: CommandRunning = CommandRunner()) {
+            self.commandRunner = commandRunner
+        }
+
+        public init(system: Systeming) {
+            commandRunner = SystemCommandRunnerAdapter(system: system)
         }
 
         public func enumerateTests(
             testProductsPath: AbsolutePath,
             scheme: String,
             destination: String?
-        ) async throws -> [String: [String]] {
+        ) async throws -> [XCTestRun.TestTarget] {
             var arguments = [
                 "xcodebuild",
                 "test-without-building",
@@ -73,14 +78,15 @@
                 arguments.append(contentsOf: ["-destination", destination])
             }
 
-            let result: SystemCollectedOutput
+            let output: String
             do {
-                result = try await system.runAndCollectOutput(arguments)
+                output = try await commandRunner.run(arguments: arguments).concatenatedString()
             } catch {
-                throw XCTestEnumeratorError.enumerationFailed(error.localizedDescription)
+                throw XCTestEnumeratorError
+                    .enumerationFailed("scheme '\(scheme)' at \(testProductsPath.pathString): \(error.localizedDescription)")
             }
 
-            guard let data = result.standardOutput.data(using: .utf8) else {
+            guard let data = output.data(using: .utf8) else {
                 throw XCTestEnumeratorError.invalidOutput("Output is not valid UTF-8")
             }
 
@@ -93,9 +99,30 @@
 
             return enumerated.values
                 .flatMap { $0.subtests ?? [] }
-                .reduce(into: [String: [String]]()) { result, target in
-                    result[target.name] = target.subtests?.map(\.name) ?? []
+                .map { XCTestRun.TestTarget(blueprintName: $0.name, onlyTestIdentifiers: $0.subtests?.map(\.name)) }
+        }
+    }
+
+    private struct SystemCommandRunnerAdapter: CommandRunning, @unchecked Sendable {
+        let system: Systeming
+
+        func run(
+            arguments: [String],
+            environment _: [String: String],
+            workingDirectory _: AbsolutePath?
+        ) -> AsyncThrowingStream<CommandEvent, any Error> {
+            AsyncThrowingStream { continuation in
+                Task {
+                    do {
+                        let result = try await system.runAndCollectOutput(arguments)
+                        let bytes = [UInt8](result.standardOutput.utf8)
+                        continuation.yield(.standardOutput(bytes))
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
                 }
+            }
         }
     }
 #endif

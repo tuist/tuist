@@ -63,8 +63,10 @@
             )
 
             // Then
-            #expect(result["AppTests"] == ["LoginTests", "SignupTests"])
-            #expect(result["CoreTests"] == ["NetworkTests"])
+            let appTests = result.first { $0.blueprintName == "AppTests" }
+            #expect(appTests?.onlyTestIdentifiers == ["LoginTests", "SignupTests"])
+            let coreTests = result.first { $0.blueprintName == "CoreTests" }
+            #expect(coreTests?.onlyTestIdentifiers == ["NetworkTests"])
         }
 
         @Test(.inTemporaryDirectory)
@@ -106,7 +108,8 @@
             )
 
             // Then
-            #expect(result["UITests"] == ["SnapshotTests"])
+            let uiTests = result.first { $0.blueprintName == "UITests" }
+            #expect(uiTests?.onlyTestIdentifiers == ["SnapshotTests"])
         }
 
         @Test(.inTemporaryDirectory)
@@ -144,7 +147,8 @@
             )
 
             // Then
-            #expect(result["EmptyTarget"] == [])
+            let emptyTarget = result.first { $0.blueprintName == "EmptyTarget" }
+            #expect(emptyTarget?.onlyTestIdentifiers == nil)
         }
 
         @Test(.inTemporaryDirectory)
@@ -239,8 +243,10 @@
             )
 
             // Then
-            #expect(result["TargetA"] == ["SuiteA"])
-            #expect(result["TargetB"] == ["SuiteB"])
+            let targetA = result.first { $0.blueprintName == "TargetA" }
+            #expect(targetA?.onlyTestIdentifiers == ["SuiteA"])
+            let targetB = result.first { $0.blueprintName == "TargetB" }
+            #expect(targetB?.onlyTestIdentifiers == ["SuiteB"])
         }
     }
 #endif

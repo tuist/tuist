@@ -66,6 +66,7 @@ class CacheEndpointResolverTest {
         val fastServer = MockWebServer()
         val slowServer = MockWebServer()
         fastServer.enqueue(MockResponse().setBody("ok"))
+        // Use a large delay to ensure deterministic ordering despite thread scheduling variance
         slowServer.enqueue(MockResponse().setBody("ok").setBodyDelay(3, TimeUnit.SECONDS))
         fastServer.start()
         slowServer.start()

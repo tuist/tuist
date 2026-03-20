@@ -69,7 +69,7 @@ defmodule TuistWeb.API.ShardsController do
              description: "Sharding granularity level."
            }
          },
-         required: [:reference]
+         required: [:reference, :modules]
        }},
     responses: %{
       ok: {"The shard plan", "application/json", ShardPlan},

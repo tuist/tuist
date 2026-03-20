@@ -1,6 +1,6 @@
 import Foundation
 
-public struct XCTestRun: Equatable {
+public struct XCTestRun: Decodable, Equatable {
     public let testConfigurations: [TestConfiguration]
 
     public struct TestConfiguration: Decodable, Equatable {
@@ -26,9 +26,7 @@ public struct XCTestRun: Equatable {
             .flatMap { $0.testTargets ?? [] }
             .map(\.blueprintName)
     }
-}
 
-extension XCTestRun: Decodable {
     private struct NewFormat: Decodable {
         let testConfigurations: [TestConfiguration]
 
@@ -51,6 +49,8 @@ extension XCTestRun: Decodable {
             return
         }
 
+        // Legacy xctestrun format (v1): test targets are top-level keys (e.g. 'AppTests', 'CoreTests'),
+        // with '__xctestrun_metadata__' as the metadata key. Used by projects without test plans.
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
         var targets: [TestTarget] = []
         for key in container.allKeys {

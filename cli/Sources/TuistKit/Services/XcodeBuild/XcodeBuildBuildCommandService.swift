@@ -64,9 +64,10 @@ struct XcodeBuildBuildCommandService {
 
         // When sharding, ensure -testProductsPath is set so xcodebuild produces
         // a .xctestproducts bundle (required for shard distribution).
+        let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
+
         if shardMin != nil || shardMax != nil || shardTotal != nil {
             if passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) == nil {
-                let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
                 let testProductsDir = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
                     .appending(component: "shard-test-products")
                 try await fileSystem.makeDirectory(at: testProductsDir)
@@ -102,7 +103,6 @@ struct XcodeBuildBuildCommandService {
                 return
             }
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let schemeName = passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments) ?? "Test"
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
                 schemes: [schemeName],

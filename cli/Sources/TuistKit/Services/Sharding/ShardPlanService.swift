@@ -37,7 +37,8 @@
             case .noTestModulesFound:
                 return "No test modules found in the .xctestproducts bundle."
             case .cannotDeriveSessionId:
-                return "Cannot derive a shard plan ID. Make sure you are running in a supported CI environment."
+                return
+                    "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
             case let .xcTestRunNotFound(path):
                 return "No .xctestrun file found in \(path.pathString)"
             }
@@ -54,6 +55,7 @@
         private let ciController: CIControlling
         private let fileSystem: FileSysteming
         private let fileArchiver: FileArchivingFactorying
+        private let shardMatrixOutputService: ShardMatrixOutputServicing
 
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
@@ -66,7 +68,8 @@
                 MultipartUploadCompleteShardsService(),
             ciController: CIControlling = CIController(),
             fileSystem: FileSysteming = FileSystem(),
-            fileArchiver: FileArchivingFactorying = FileArchivingFactory()
+            fileArchiver: FileArchivingFactorying = FileArchivingFactory(),
+            shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService()
         ) {
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
@@ -77,6 +80,7 @@
             self.ciController = ciController
             self.fileSystem = fileSystem
             self.fileArchiver = fileArchiver
+            self.shardMatrixOutputService = shardMatrixOutputService
         }
 
         public func plan(
@@ -113,12 +117,12 @@
             if shardGranularity == .suite {
                 var allSuites: [String] = []
                 for scheme in schemes {
-                    let suitesMap = try await xcTestEnumerator.enumerateTests(
+                    let targets = try await xcTestEnumerator.enumerateTests(
                         testProductsPath: xctestproductsPath,
                         scheme: scheme,
                         destination: nil
                     )
-                    allSuites += suitesMap.flatMap(\.value)
+                    allSuites += targets.flatMap { $0.onlyTestIdentifiers ?? [] }
                 }
                 testSuites = allSuites
             }
@@ -175,40 +179,9 @@
             )
 
             Logger.current.debug("Upload complete. Shard matrix ready.")
-            try await outputShardMatrix(shardPlan)
+            try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
-        }
-
-        private func outputShardMatrix(_ shardPlan: Components.Schemas.ShardPlan) async throws {
-            for shard in shardPlan.shards {
-                Logger.current
-                    .info(
-                        "  Shard \(shard.index): \(shard.test_targets.joined(separator: ", ")) (~\(shard.estimated_duration_ms)ms)"
-                    )
-            }
-
-            let indices = (0 ..< shardPlan.shard_count).map { $0 }
-
-            if let githubOutputPath = Environment.current.variables["GITHUB_OUTPUT"] {
-                let outputPath = try AbsolutePath(validating: githubOutputPath)
-                let matrixJSON = "{\"shard\":\(indices)}"
-                let existing = (try? await fileSystem.readTextFile(at: outputPath)) ?? ""
-                try await fileSystem.writeText(
-                    existing + "matrix=\(matrixJSON)\n",
-                    at: outputPath,
-                    encoding: .utf8,
-                    options: [.overwrite]
-                )
-                Logger.current.debug("GitHub Actions matrix output written.")
-            } else {
-                let currentDirectory = try await Environment.current.currentWorkingDirectory()
-                let outputPath = currentDirectory.appending(component: ".tuist-shard-matrix.json")
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                try await fileSystem.writeAsJSON(shardPlan, at: outputPath, encoder: encoder)
-                Logger.current.debug("Shard matrix written to \(outputPath.pathString)")
-            }
         }
     }
 #endif

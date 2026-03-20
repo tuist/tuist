@@ -12,7 +12,7 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
       id: %Schema{
         type: :string,
         format: :uuid,
-        description: "The shard plan UUID."
+        description: "The shard plan id."
       },
       reference: %Schema{
         type: :string,

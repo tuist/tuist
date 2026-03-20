@@ -226,6 +226,8 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
     private val logger = Logging.getLogger(TuistTestShardingPlugin::class.java)
 
     override fun apply(project: Project) {
+        // Only apply the sharding plugin to the root project to avoid duplicate task registration
+        // and filter configuration when the plugin is applied transitively to subprojects.
         if (project !== project.rootProject) return
 
         val config = TuistGradleConfig.from(project) ?: return
