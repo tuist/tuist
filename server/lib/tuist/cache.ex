@@ -30,7 +30,7 @@ defmodule Tuist.Cache do
         }
       end)
 
-    IngestRepo.insert_all(CASEvent, entries)
+    CASEvent.Buffer.insert_all(entries)
   end
 
   def last_24h_artifacts_count do
