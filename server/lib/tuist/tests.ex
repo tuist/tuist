@@ -413,7 +413,7 @@ defmodule Tuist.Tests do
     attrs =
       updated_test
       |> Map.from_struct()
-      |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs])
+      |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
       |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
     IngestRepo.insert_all(Test, [attrs])

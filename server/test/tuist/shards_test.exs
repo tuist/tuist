@@ -268,6 +268,7 @@ defmodule Tuist.ShardsTest do
     test "returns upload URL" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
+      ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "session-1")
 
       stub(Tuist.Storage, :multipart_generate_url, fn _key, _upload_id, _part_number, _account ->
         "https://upload.example.com/part"
@@ -282,6 +283,7 @@ defmodule Tuist.ShardsTest do
     test "completes the multipart upload" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
+      ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "session-1")
 
       stub(Tuist.Storage, :multipart_complete_upload, fn _key, _upload_id, _parts, _account ->
         :ok
