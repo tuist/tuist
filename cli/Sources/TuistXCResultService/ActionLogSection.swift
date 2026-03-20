@@ -39,10 +39,7 @@ struct ActionLogSection: Codable {
         let latestOverallCompletion: Double?
         let latestCompletionPerModule: [String: Double]
     }
-}
 
-/// Helper to recursively search for test-related emittedOutput
-extension ActionLogSection {
     func collectEmittedOutputs() -> [String] {
         var outputs: [String] = []
 

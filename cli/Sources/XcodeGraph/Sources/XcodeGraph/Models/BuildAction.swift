@@ -28,10 +28,8 @@ public struct BuildAction: Equatable, Codable, Sendable {
         self.runPostActionsOnFailure = runPostActionsOnFailure
         self.findImplicitDependencies = findImplicitDependencies
     }
-}
 
-#if DEBUG
-    extension BuildAction {
+    #if DEBUG
         public static func test(
             // swiftlint:disable:next force_try
             targets: [TargetReference] = [TargetReference(projectPath: try! AbsolutePath(validating: "/Project"), name: "App")],
@@ -40,5 +38,5 @@ public struct BuildAction: Equatable, Codable, Sendable {
         ) -> BuildAction {
             BuildAction(targets: targets, preActions: preActions, postActions: postActions)
         }
-    }
-#endif
+    #endif
+}

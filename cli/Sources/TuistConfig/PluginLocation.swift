@@ -1,7 +1,7 @@
 import Foundation
 
 /// The location to a directory containing a `Plugin` manifest.
-public enum PluginLocation: Hashable, Equatable {
+public enum PluginLocation: Hashable, Equatable, CustomStringConvertible {
     public enum GitReference: Hashable, Equatable {
         case sha(String)
         case tag(String)
@@ -23,11 +23,7 @@ public enum PluginLocation: Hashable, Equatable {
     /// .git(url: "https://git/helpers.git", gitReference: .sha("1.0.0"))
     /// ```
     case git(url: String, gitReference: GitReference, directory: String?, releaseUrl: String?)
-}
 
-// MARK: - description
-
-extension PluginLocation: CustomStringConvertible {
     public var description: String {
         switch self {
         case let .local(path):

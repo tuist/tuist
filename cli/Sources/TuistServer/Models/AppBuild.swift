@@ -8,9 +8,7 @@
         public let url: URL
         public let supportedPlatforms: [DestinationType]
         public let type: AppBuildType
-    }
 
-    extension AppBuild {
         init?(_ appBuild: Components.Schemas.AppBuild) {
             id = appBuild.id
             guard let url = URL(string: appBuild.url)
@@ -19,10 +17,8 @@
             supportedPlatforms = appBuild.supported_platforms.compactMap(DestinationType.init)
             type = AppBuildType(appBuild._type)
         }
-    }
 
-    #if DEBUG
-        extension AppBuild {
+        #if DEBUG
             public static func test(
                 id: String = "app-build-id",
                 url: URL = URL(string: "https://tuist.dev/tuist/tuist/previews/app-build-id")!,
@@ -36,14 +32,12 @@
                     type: type
                 )
             }
-        }
-    #endif
+        #endif
+    }
 
     public enum AppBuildType: Sendable, Equatable, Codable {
         case appBundle, ipa, apk
-    }
 
-    extension AppBuildType {
         init(_ appBuildType: Components.Schemas.AppBuild._typePayload) {
             switch appBuildType {
             case .app_bundle:

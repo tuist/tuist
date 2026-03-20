@@ -17,10 +17,8 @@ public struct CIInfo: Equatable {
         self.projectHandle = projectHandle
         self.host = host
     }
-}
 
-#if DEBUG
-    extension CIInfo {
+    #if DEBUG
         public static func test(
             provider: CIProvider = .github,
             runId: String? = "123",
@@ -34,5 +32,5 @@ public struct CIInfo: Equatable {
                 host: host
             )
         }
-    }
-#endif
+    #endif
+}

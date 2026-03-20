@@ -165,9 +165,8 @@ private class DirectoryStructure {
             return true
         }
     }
-}
 
-extension DirectoryStructure {
+
     class Graph: Equatable, ExpressibleByArrayLiteral, CustomDebugStringConvertible {
         var nodes: [Node] = []
         private var directoryCache: [AbsolutePath: Graph] = [:]
@@ -210,10 +209,8 @@ extension DirectoryStructure {
             lhs.nodes == rhs.nodes
         }
     }
-}
 
-extension DirectoryStructure {
-    indirect enum Node: Equatable {
+    indirect enum Node: Equatable, CustomDebugStringConvertible {
         case file(AbsolutePath)
         case project(AbsolutePath)
         case directory(AbsolutePath, DirectoryStructure.Graph)
@@ -238,22 +235,20 @@ extension DirectoryStructure {
                 return nil
             }
         }
-    }
-}
 
-extension DirectoryStructure.Node: CustomDebugStringConvertible {
-    var debugDescription: String {
-        switch self {
-        case let .file(path):
-            return "file: \(path.pathString)"
-        case let .project(path):
-            return "project: \(path.pathString)"
-        case let .directory(path, graph):
-            return "directory: \(path.pathString) > \(graph.nodes)"
-        case let .folderReference(path):
-            return "folderReference: \(path.pathString)"
-        case let .virtualGroup(name, graph):
-            return "virtualGroup: \(name) > \(graph.nodes)"
+        var debugDescription: String {
+            switch self {
+            case let .file(path):
+                return "file: \(path.pathString)"
+            case let .project(path):
+                return "project: \(path.pathString)"
+            case let .directory(path, graph):
+                return "directory: \(path.pathString) > \(graph.nodes)"
+            case let .folderReference(path):
+                return "folderReference: \(path.pathString)"
+            case let .virtualGroup(name, graph):
+                return "virtualGroup: \(name) > \(graph.nodes)"
+            }
         }
     }
 }

@@ -1,5 +1,5 @@
 /// Queries for matching against a target in manifests.
-public enum TargetQuery: Codable, Equatable, Sendable {
+public enum TargetQuery: Codable, Equatable, Sendable, ExpressibleByStringLiteral {
     /// Match targets with the given name.
     case named(String)
     /// Match targets with the given metadata tag.
@@ -32,9 +32,7 @@ public enum TargetQuery: Codable, Equatable, Sendable {
             try container.encode(tag, forKey: .tagged)
         }
     }
-}
 
-extension TargetQuery: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         let tagPrefix = "tag:"
         if value.hasPrefix(tagPrefix) {

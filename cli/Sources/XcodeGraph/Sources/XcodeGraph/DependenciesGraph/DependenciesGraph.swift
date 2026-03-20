@@ -18,10 +18,8 @@ public struct DependenciesGraph: Equatable, Codable, Sendable {
 
     /// An empty `DependenciesGraph`.
     public static let none: DependenciesGraph = .init(externalDependencies: [:], externalProjects: [:])
-}
 
-#if DEBUG
-    extension DependenciesGraph {
+    #if DEBUG
         static func test(
             externalDependencies: [String: [TargetDependency]] = [:],
             externalProjects: [AbsolutePath: Project] = [:]
@@ -197,5 +195,5 @@ public struct DependenciesGraph: Equatable, Codable, Sendable {
                 externalProjects: [:]
             )
         }
-    }
-#endif
+    #endif
+}

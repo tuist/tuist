@@ -210,11 +210,9 @@ public actor HARRecorder {
             Logger.current.debug("Failed to persist HAR file: \(error)")
         }
     }
-}
 
-// MARK: - Entry Building
+    // MARK: - Entry Building
 
-extension HARRecorder {
     private func buildEntry(
         url: URL,
         method: String,
@@ -391,11 +389,9 @@ extension HARRecorder {
             )
         }
     }
-}
 
-// MARK: - Static Helpers
+    // MARK: - Static Helpers
 
-extension HARRecorder {
     static func headers(from request: URLRequest) -> [HAR.Header] {
         (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
     }

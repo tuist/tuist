@@ -456,9 +456,7 @@ public enum EnvKey: String, CaseIterable {
     case cacheConfigPath = "TUIST_CACHE_CONFIG_PATH"
     case cacheConfigForceRefresh = "TUIST_CACHE_CONFIG_FORCE_REFRESH"
     case cacheConfigServerURL = "TUIST_CACHE_CONFIG_SERVER_URL"
-}
 
-extension EnvKey {
     public var envValueString: String? {
         Environment.current.tuistVariables[rawValue]
     }

@@ -1,7 +1,7 @@
 /// A struct representing a semver version.
 /// This is taken from SPMUtility and copied here so we do not create a direct dependency for ProjectDescription. Used for
 /// specifying version number requirements inside of Project.swift
-public struct Version: Hashable, Codable, Sendable {
+public struct Version: Hashable, Codable, Sendable, Comparable, CustomStringConvertible, ExpressibleByStringInterpolation {
     /// The major version.
     public var major: Int
 
@@ -32,9 +32,43 @@ public struct Version: Hashable, Codable, Sendable {
         self.prereleaseIdentifiers = prereleaseIdentifiers
         self.buildMetadataIdentifiers = buildMetadataIdentifiers
     }
-}
 
-extension Version: Comparable {
+    /// Create a version object from string.
+    ///
+    /// - Parameters:
+    ///   - string: The string to parse.
+    public init?(string: String) {
+        let prereleaseStartIndex = string.firstIndex(of: "-")
+        let metadataStartIndex = string.firstIndex(of: "+")
+
+        let requiredEndIndex = prereleaseStartIndex ?? metadataStartIndex ?? string.endIndex
+        let requiredCharacters = string.prefix(upTo: requiredEndIndex)
+        let requiredComponents = requiredCharacters
+            .split(separator: ".", maxSplits: 2, omittingEmptySubsequences: false)
+            .map(String.init).compactMap { Int($0) }.filter { $0 >= 0 }
+
+        guard !requiredComponents.isEmpty else { return nil }
+
+        major = requiredComponents[0]
+        minor = requiredComponents.count >= 2 ? requiredComponents[1] : 0
+        patch = requiredComponents.count >= 3 ? requiredComponents[2] : 0
+
+        func identifiers(start: String.Index?, end: String.Index) -> [String] {
+            guard let start else { return [] }
+            let identifiers = string[string.index(after: start) ..< end]
+            return identifiers.split(separator: ".").map(String.init)
+        }
+
+        prereleaseIdentifiers = identifiers(
+            start: prereleaseStartIndex,
+            end: metadataStartIndex ?? string.endIndex
+        )
+        buildMetadataIdentifiers = identifiers(
+            start: metadataStartIndex,
+            end: string.endIndex
+        )
+    }
+
     func isEqualWithoutPrerelease(_ other: Version) -> Bool {
         major == other.major && minor == other.minor && patch == other.patch
     }
@@ -76,9 +110,7 @@ extension Version: Comparable {
 
         return lhs.prereleaseIdentifiers.count < rhs.prereleaseIdentifiers.count
     }
-}
 
-extension Version: CustomStringConvertible {
     public var description: String {
         var base = "\(major).\(minor).\(patch)"
         if !prereleaseIdentifiers.isEmpty {
@@ -89,47 +121,7 @@ extension Version: CustomStringConvertible {
         }
         return base
     }
-}
 
-extension Version {
-    /// Create a version object from string.
-    ///
-    /// - Parameters:
-    ///   - string: The string to parse.
-    public init?(string: String) {
-        let prereleaseStartIndex = string.firstIndex(of: "-")
-        let metadataStartIndex = string.firstIndex(of: "+")
-
-        let requiredEndIndex = prereleaseStartIndex ?? metadataStartIndex ?? string.endIndex
-        let requiredCharacters = string.prefix(upTo: requiredEndIndex)
-        let requiredComponents = requiredCharacters
-            .split(separator: ".", maxSplits: 2, omittingEmptySubsequences: false)
-            .map(String.init).compactMap { Int($0) }.filter { $0 >= 0 }
-
-        guard !requiredComponents.isEmpty else { return nil }
-
-        major = requiredComponents[0]
-        minor = requiredComponents.count >= 2 ? requiredComponents[1] : 0
-        patch = requiredComponents.count >= 3 ? requiredComponents[2] : 0
-
-        func identifiers(start: String.Index?, end: String.Index) -> [String] {
-            guard let start else { return [] }
-            let identifiers = string[string.index(after: start) ..< end]
-            return identifiers.split(separator: ".").map(String.init)
-        }
-
-        prereleaseIdentifiers = identifiers(
-            start: prereleaseStartIndex,
-            end: metadataStartIndex ?? string.endIndex
-        )
-        buildMetadataIdentifiers = identifiers(
-            start: metadataStartIndex,
-            end: string.endIndex
-        )
-    }
-}
-
-extension Version: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         guard let version = Version(string: value) else {
             fatalError("\(value) is not a valid version")

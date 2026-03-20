@@ -70,6 +70,18 @@ public struct AppBundle: Equatable {
                     try container.encode(name)
                 }
             }
+
+            #if DEBUG
+                public static func test(
+                    name: String? = "AppIcon",
+                    iconFiles: [String] = ["AppIcon60x60"]
+                ) -> Self {
+                    .init(
+                        name: name,
+                        iconFiles: iconFiles
+                    )
+                }
+            #endif
         }
 
         public struct BundleIcons: Codable, Equatable {
@@ -91,6 +103,16 @@ public struct AppBundle: Equatable {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
                 primaryIcon = try container.decodeIfPresent(PrimaryBundleIcon.self, forKey: .primaryIcon)
             }
+
+            #if DEBUG
+                public static func test(
+                    primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon = .test()
+                ) -> Self {
+                    .init(
+                        primaryIcon: primaryIcon
+                    )
+                }
+            #endif
         }
 
         /// App version number (e.g. 10.3) - CFBundleShortVersionString
@@ -179,11 +201,33 @@ public struct AppBundle: Equatable {
                 forKey: .bundleIcons
             )
         }
-    }
-}
 
-#if DEBUG
-    extension AppBundle {
+        #if DEBUG
+            public static func test(
+                version: String = "1.0",
+                buildVersion: String = "1",
+                name: String = "App",
+                executableName: String? = "App",
+                bundleId: String = "dev.tuist.App",
+                minimumOSVersion: Version = Version("17.4"),
+                supportedPlatforms: [DestinationType] = [.simulator(.iOS)],
+                bundleIcons: BundleIcons = .test()
+            ) -> Self {
+                .init(
+                    version: version,
+                    buildVersion: buildVersion,
+                    name: name,
+                    executableName: executableName,
+                    bundleId: bundleId,
+                    minimumOSVersion: minimumOSVersion,
+                    supportedPlatforms: supportedPlatforms,
+                    bundleIcons: bundleIcons
+                )
+            }
+        #endif
+    }
+
+    #if DEBUG
         public static func test(
             path: AbsolutePath = try! AbsolutePath(validating: "/App.app"), // swiftlint:disable:this force_try
             infoPlist: InfoPlist = .test()
@@ -193,52 +237,5 @@ public struct AppBundle: Equatable {
                 infoPlist: infoPlist
             )
         }
-    }
-
-    extension AppBundle.InfoPlist {
-        public static func test(
-            version: String = "1.0",
-            buildVersion: String = "1",
-            name: String = "App",
-            executableName: String? = "App",
-            bundleId: String = "dev.tuist.App",
-            minimumOSVersion: Version = Version("17.4"),
-            supportedPlatforms: [DestinationType] = [.simulator(.iOS)],
-            bundleIcons: BundleIcons = .test()
-        ) -> Self {
-            .init(
-                version: version,
-                buildVersion: buildVersion,
-                name: name,
-                executableName: executableName,
-                bundleId: bundleId,
-                minimumOSVersion: minimumOSVersion,
-                supportedPlatforms: supportedPlatforms,
-                bundleIcons: bundleIcons
-            )
-        }
-    }
-
-    extension AppBundle.InfoPlist.BundleIcons {
-        public static func test(
-            primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon = .test()
-        ) -> Self {
-            .init(
-                primaryIcon: primaryIcon
-            )
-        }
-    }
-
-    extension AppBundle.InfoPlist.PrimaryBundleIcon {
-        public static func test(
-            name: String? = "AppIcon",
-            iconFiles: [String] = ["AppIcon60x60"]
-        ) -> Self {
-            .init(
-                name: name,
-                iconFiles: iconFiles
-            )
-        }
-    }
-
-#endif
+    #endif
+}

@@ -1,11 +1,9 @@
 public struct TuistXcodeProjectOptions: Codable, Equatable, Sendable, Hashable {
     public init() {}
-}
 
-#if DEBUG
-    extension TuistXcodeProjectOptions {
+    #if DEBUG
         public static func test() -> Self {
             return TuistXcodeProjectOptions()
         }
-    }
-#endif
+    #endif
+}

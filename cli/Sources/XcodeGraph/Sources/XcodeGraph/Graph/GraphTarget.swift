@@ -30,10 +30,8 @@ public struct GraphTarget: Equatable, Hashable, Comparable, CustomDebugStringCon
     public var description: String {
         "Target '\(target.name)' at path '\(project.path)'"
     }
-}
 
-#if DEBUG
-    extension GraphTarget {
+    #if DEBUG
         public static func test(
             path: AbsolutePath = .root,
             target: Target = .test(),
@@ -45,5 +43,5 @@ public struct GraphTarget: Equatable, Hashable, Comparable, CustomDebugStringCon
                 project: project
             )
         }
-    }
-#endif
+    #endif
+}

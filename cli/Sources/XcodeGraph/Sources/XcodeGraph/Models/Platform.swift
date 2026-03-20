@@ -42,33 +42,7 @@ public enum Platform: String, CaseIterable, Codable, Comparable, Sendable {
     public static func < (lhs: Platform, rhs: Platform) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
-}
 
-public enum PackagePlatform: String, CaseIterable, Codable, Comparable {
-    case iOS = "ios"
-    case macCatalyst = "maccatalyst"
-    case macOS = "macos"
-    case tvOS = "tvos"
-    case watchOS = "watchos"
-    case visionOS = "visionos"
-
-    public var caseValue: String {
-        switch self {
-        case .iOS: return "iOS"
-        case .macCatalyst: return "macCatalyst"
-        case .macOS: return "macOS"
-        case .tvOS: return "tvOS"
-        case .watchOS: return "watchOS"
-        case .visionOS: return "visionOS"
-        }
-    }
-
-    public static func < (lhs: PackagePlatform, rhs: PackagePlatform) -> Bool {
-        lhs.rawValue < rhs.rawValue
-    }
-}
-
-extension Platform {
     public var xcodeSdkRoot: String {
         switch self {
         case .macOS:
@@ -158,5 +132,29 @@ extension Platform {
         case .visionOS:
             return "Platforms/XROS.platform/Developer/Library"
         }
+    }
+}
+
+public enum PackagePlatform: String, CaseIterable, Codable, Comparable {
+    case iOS = "ios"
+    case macCatalyst = "maccatalyst"
+    case macOS = "macos"
+    case tvOS = "tvos"
+    case watchOS = "watchos"
+    case visionOS = "visionos"
+
+    public var caseValue: String {
+        switch self {
+        case .iOS: return "iOS"
+        case .macCatalyst: return "macCatalyst"
+        case .macOS: return "macOS"
+        case .tvOS: return "tvOS"
+        case .watchOS: return "watchOS"
+        case .visionOS: return "visionOS"
+        }
+    }
+
+    public static func < (lhs: PackagePlatform, rhs: PackagePlatform) -> Bool {
+        lhs.rawValue < rhs.rawValue
     }
 }

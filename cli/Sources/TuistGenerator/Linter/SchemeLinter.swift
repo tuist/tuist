@@ -28,9 +28,7 @@ struct SchemeLinter: SchemeLinting {
         issues.append(contentsOf: projectSchemeCantReferenceRemoteTargets(schemes: project.schemes, project: project))
         return issues
     }
-}
 
-extension SchemeLinter {
     private func lintReferencedBuildConfigurations(schemes: [Scheme], settings: Settings) async throws -> [LintingIssue] {
         let buildConfigurations = Array(settings.configurations.keys)
         return try await schemes
@@ -172,3 +170,4 @@ extension SchemeLinter {
         return issues
     }
 }
+

@@ -7,9 +7,7 @@ public struct ServerPaginationMetadata: Equatable {
     public let pageSize: Int
     public let totalCount: Int
     public let totalPages: Int?
-}
 
-extension ServerPaginationMetadata {
     init(_ paginationMetadata: Components.Schemas.PaginationMetadata) {
         hasNextPage = paginationMetadata.has_next_page
         hasPreviousPage = paginationMetadata.has_previous_page
@@ -18,10 +16,8 @@ extension ServerPaginationMetadata {
         totalCount = paginationMetadata.total_count
         totalPages = paginationMetadata.total_pages
     }
-}
 
-#if DEBUG
-    extension ServerPaginationMetadata {
+    #if DEBUG
         public static func test(
             hasNextPage: Bool = true,
             hasPreviousPage: Bool = false,
@@ -39,5 +35,5 @@ extension ServerPaginationMetadata {
                 totalPages: totalPages
             )
         }
-    }
-#endif
+    #endif
+}

@@ -1,5 +1,5 @@
 /// A glob pattern that refers to files.
-public struct FileListGlob: Codable, Equatable, Sendable {
+public struct FileListGlob: Codable, Equatable, Sendable, ExpressibleByStringInterpolation {
     /// The path with a glob pattern.
     public var glob: Path
 
@@ -27,9 +27,7 @@ public struct FileListGlob: Codable, Equatable, Sendable {
             excluding: excluding.flatMap { [$0] } ?? []
         )
     }
-}
 
-extension FileListGlob: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self.init(glob: .path(value), excluding: [])
     }

@@ -400,11 +400,9 @@ public enum HAR {
             self.comment = comment
         }
     }
-}
 
-// MARK: - JSON Encoding/Decoding
+    // MARK: - JSON Encoding/Decoding
 
-extension HAR {
     /// Custom date formatter for HAR format (ISO 8601 with fractional seconds).
     public static var dateFormatter: ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()

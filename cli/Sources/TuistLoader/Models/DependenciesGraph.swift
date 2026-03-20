@@ -1,5 +1,10 @@
 import ProjectDescription
 
+#if DEBUG
+    import Path
+    import TuistSupport
+#endif
+
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
 public struct DependenciesGraph: Equatable, Codable {
     public struct ExternalProject: Equatable, Codable {
@@ -24,13 +29,8 @@ public struct DependenciesGraph: Equatable, Codable {
         self.externalDependencies = externalDependencies
         self.externalProjects = externalProjects
     }
-}
 
-#if DEBUG
-    import Path
-    import TuistSupport
-
-    extension DependenciesGraph {
+    #if DEBUG
         /// A snapshot of `graph.json` file.
         public static var testJson: String {
             """
@@ -699,9 +699,7 @@ public struct DependenciesGraph: Equatable, Codable {
                 ]
             )
         }
-    }
 
-    extension DependenciesGraph {
         fileprivate static func artifactsFolder(spmFolder: Path, packageName: String) -> Path {
             Path("\(spmFolder.pathString)/artifacts/\(packageName)")
         }
@@ -789,8 +787,24 @@ public struct DependenciesGraph: Equatable, Codable {
                 defaultSettings: baseSettings.defaultSettings
             )
         }
-    }
 
+        // MARK: - Helpers
+
+        fileprivate static func resolveDeploymentTargets(for destinations: Destinations) -> DeploymentTargets {
+            let platforms = destinations.platforms
+
+            return .multiplatform(
+                iOS: platforms.contains(.iOS) ? ProjectDescription.Platform.iOS.testVersion() : nil,
+                macOS: platforms.contains(.macOS) ? ProjectDescription.Platform.macOS.testVersion() : nil,
+                watchOS: platforms.contains(.watchOS) ? ProjectDescription.Platform.watchOS.testVersion() : nil,
+                tvOS: platforms.contains(.watchOS) ? ProjectDescription.Platform.tvOS.testVersion() : nil,
+                visionOS: platforms.contains(.visionOS) ? ProjectDescription.Platform.visionOS.testVersion() : nil
+            )
+        }
+    #endif
+}
+
+#if DEBUG
     extension SettingsDictionary {
         /// Combines two `SettingsDictionary`. Instead of overriding values for a duplicate key, it combines them.
         func combine(with settings: SettingsDictionary) -> SettingsDictionary {
@@ -811,21 +825,4 @@ public struct DependenciesGraph: Equatable, Codable {
             })
         }
     }
-
-    // MARK: - Helpers
-
-    extension DependenciesGraph {
-        fileprivate static func resolveDeploymentTargets(for destinations: Destinations) -> DeploymentTargets {
-            let platforms = destinations.platforms
-
-            return .multiplatform(
-                iOS: platforms.contains(.iOS) ? ProjectDescription.Platform.iOS.testVersion() : nil,
-                macOS: platforms.contains(.macOS) ? ProjectDescription.Platform.macOS.testVersion() : nil,
-                watchOS: platforms.contains(.watchOS) ? ProjectDescription.Platform.watchOS.testVersion() : nil,
-                tvOS: platforms.contains(.watchOS) ? ProjectDescription.Platform.tvOS.testVersion() : nil,
-                visionOS: platforms.contains(.visionOS) ? ProjectDescription.Platform.visionOS.testVersion() : nil
-            )
-        }
-    }
-
 #endif

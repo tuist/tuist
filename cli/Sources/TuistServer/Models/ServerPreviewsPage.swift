@@ -4,17 +4,13 @@
     public struct ServerPreviewsPage: Equatable {
         public let previews: [ServerPreview]
         public let paginationMetadata: ServerPaginationMetadata
-    }
 
-    extension ServerPreviewsPage {
         init(_ previewsPage: Operations.listPreviews.Output.Ok.Body.jsonPayload) throws {
             previews = try previewsPage.previews.map(ServerPreview.init)
             paginationMetadata = ServerPaginationMetadata(previewsPage.pagination_metadata)
         }
-    }
 
-    #if DEBUG
-        extension ServerPreviewsPage {
+        #if DEBUG
             public static func test(
                 previews: [ServerPreview] = [.test()],
                 paginationMetadata: ServerPaginationMetadata = .test()
@@ -24,6 +20,6 @@
                     paginationMetadata: paginationMetadata
                 )
             }
-        }
-    #endif
+        #endif
+    }
 #endif

@@ -19,23 +19,7 @@
         public let createdFromCI: Bool
         public let createdBy: ServerAccount?
         public let insertedAt: Date
-    }
 
-    public enum ServerPreviewError: LocalizedError {
-        case invalidURL(String)
-        case invalidDate(String)
-
-        public var errorDescription: String? {
-            switch self {
-            case let .invalidURL(value):
-                return "Invalid preview URL: \(value)"
-            case let .invalidDate(value):
-                return "Invalid preview date: \(value)"
-            }
-        }
-    }
-
-    extension ServerPreview {
         private static let dateFormatter = ISO8601DateFormatter()
 
         public init(_ preview: Components.Schemas.Preview) throws {
@@ -78,10 +62,8 @@
             }
             self.insertedAt = insertedAt
         }
-    }
 
-    #if DEBUG
-        extension ServerPreview {
+        #if DEBUG
             public static func test(
                 id: String = "preview-id",
                 url: URL = URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id")!,
@@ -124,6 +106,20 @@
                     insertedAt: insertedAt
                 )
             }
+        #endif
+    }
+
+    public enum ServerPreviewError: LocalizedError {
+        case invalidURL(String)
+        case invalidDate(String)
+
+        public var errorDescription: String? {
+            switch self {
+            case let .invalidURL(value):
+                return "Invalid preview URL: \(value)"
+            case let .invalidDate(value):
+                return "Invalid preview date: \(value)"
+            }
         }
-    #endif
+    }
 #endif
