@@ -1438,10 +1438,6 @@ msgid "Flaky tests dashboard showing test history and automation creation modal"
 msgstr "Panel de pruebas inestable que muestra el historial de pruebas y el modal de creación de automatizaciones."
 
 #, fuzzy
-msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr "Del código a los comentarios en cuestión de minutos. Las vistas previas instantáneas y las pruebas basadas en IA cierran el ciclo entre la creación y la validación."
-
-#, fuzzy
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
 msgstr "Ejecute solo las pruebas que sean importantes detectando los cambios desde la última ejecución satisfactoria, lo que reducirá los tiempos de prueba tanto en el desarrollo local como en la integración continua."
 
@@ -1476,6 +1472,16 @@ msgstr "como servicio"
 #, fuzzy
 msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
 msgstr "Déjanos ser tu compañero virtual que optimiza y supervisa continuamente tu configuración, para que puedas centrarte en el envío"
+
+msgid "Open the %{feature} feature page"
+msgstr ""
+
+msgid "From code to feedback in minutes. Instant previews close the loop between building and validating."
+msgstr ""
+
+#, fuzzy
+#~ msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+#~ msgstr "Del código a los comentarios en cuestión de minutos. Las vistas previas instantáneas y las pruebas basadas en IA cierran el ciclo entre la creación y la validación."
 
 #, fuzzy
 #~ msgid "We virtually join your team to optimize your setup, so you can focus on shipping"

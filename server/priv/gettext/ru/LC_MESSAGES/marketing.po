@@ -1438,10 +1438,6 @@ msgid "Flaky tests dashboard showing test history and automation creation modal"
 msgstr "Панель управления тестами Flaky, отображающая историю тестов и модальное окно создания автоматизации"
 
 #, fuzzy
-msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr "От кода до обратной связи за считанные минуты. Мгновенный предварительный просмотр и тестирование с помощью искусственного интеллекта сокращают цикл между созданием и проверкой."
-
-#, fuzzy
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
 msgstr "Запускайте только те тесты, которые имеют значение, обнаруживая изменения с момента последнего успешного запуска, сокращая время тестирования как при локальной разработке, так и при CI."
 
@@ -1476,6 +1472,16 @@ msgstr "в качестве услуги"
 #, fuzzy
 msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
 msgstr "Позвольте нам стать вашим виртуальным помощником, который постоянно оптимизирует и контролирует вашу конфигурацию, чтобы вы могли сосредоточиться на доставке"
+
+msgid "Open the %{feature} feature page"
+msgstr ""
+
+msgid "From code to feedback in minutes. Instant previews close the loop between building and validating."
+msgstr ""
+
+#, fuzzy
+#~ msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+#~ msgstr "От кода до обратной связи за считанные минуты. Мгновенный предварительный просмотр и тестирование с помощью искусственного интеллекта сокращают цикл между созданием и проверкой."
 
 #, fuzzy
 #~ msgid "We virtually join your team to optimize your setup, so you can focus on shipping"

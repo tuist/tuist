@@ -1437,10 +1437,6 @@ msgid "Flaky tests dashboard showing test history and automation creation modal"
 msgstr "Test geçmişini ve otomasyon oluşturma modülünü gösteren Flaky test panosu"
 
 #, fuzzy
-msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr "Koddan geri bildirime dakikalar içinde. Anlık önizlemeler ve yapay zeka destekli testler, oluşturma ve doğrulama arasındaki döngüyü tamamlar."
-
-#, fuzzy
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
 msgstr "Son başarılı çalıştırmanızdan bu yana yapılan değişiklikleri tespit ederek yalnızca önemli testleri çalıştırın, böylece hem yerel geliştirme hem de CI'da test sürelerini kısaltın."
 
@@ -1475,6 +1471,16 @@ msgstr "bir hizmet olarak"
 #, fuzzy
 msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
 msgstr "Kurulumunuzu sürekli olarak optimize eden ve gözlemleyen sanal yardımcınız olalım, böylece siz sevkiyata odaklanabilirsiniz"
+
+msgid "Open the %{feature} feature page"
+msgstr ""
+
+msgid "From code to feedback in minutes. Instant previews close the loop between building and validating."
+msgstr ""
+
+#, fuzzy
+#~ msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+#~ msgstr "Koddan geri bildirime dakikalar içinde. Anlık önizlemeler ve yapay zeka destekli testler, oluşturma ve doğrulama arasındaki döngüyü tamamlar."
 
 #, fuzzy
 #~ msgid "We virtually join your team to optimize your setup, so you can focus on shipping"

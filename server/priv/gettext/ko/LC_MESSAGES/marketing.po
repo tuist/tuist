@@ -1287,9 +1287,6 @@ msgstr "불안정한 테스트"
 msgid "Flaky tests dashboard showing test history and automation creation modal"
 msgstr "테스트 이력과 자동화 생성 모달을 보여주는 불안정한 테스트 대시보드"
 
-msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr "코드를 피드백으로 단 몇 분 만에. 실시간 미리보기와 AI 기반 테스트로 구축과 검증의 연결 고리를 완성합니다."
-
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
 msgstr "마지막 성공 실행 이후 변경된 부분을 감지하여 중요한 테스트만 실행함으로써 로컬 개발 및 CI 환경 모두에서 테스트 시간을 단축합니다."
 
@@ -1322,6 +1319,15 @@ msgstr "서비스로서"
 #, fuzzy
 msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
 msgstr "설정을 지속적으로 최적화하고 모니터링하는 가상 파트너가 되어 드리겠습니다. 그러니 여러분은 출시에만 집중하세요"
+
+msgid "Open the %{feature} feature page"
+msgstr ""
+
+msgid "From code to feedback in minutes. Instant previews close the loop between building and validating."
+msgstr ""
+
+#~ msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+#~ msgstr "코드를 피드백으로 단 몇 분 만에. 실시간 미리보기와 AI 기반 테스트로 구축과 검증의 연결 고리를 완성합니다."
 
 #, fuzzy
 #~ msgid "We virtually join your team to optimize your setup, so you can focus on shipping"

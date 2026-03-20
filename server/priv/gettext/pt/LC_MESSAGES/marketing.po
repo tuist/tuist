@@ -1302,9 +1302,6 @@ msgstr ""
 msgid "Flaky tests dashboard showing test history and automation creation modal"
 msgstr ""
 
-msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr ""
-
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
 msgstr ""
 
@@ -1333,4 +1330,10 @@ msgid "as a service"
 msgstr ""
 
 msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
+msgstr ""
+
+msgid "Open the %{feature} feature page"
+msgstr ""
+
+msgid "From code to feedback in minutes. Instant previews close the loop between building and validating."
 msgstr ""

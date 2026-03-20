@@ -1437,10 +1437,6 @@ msgid "Flaky tests dashboard showing test history and automation creation modal"
 msgstr "不穩定測試儀表板顯示測試歷史與自動化建立模態視窗"
 
 #, fuzzy
-msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr "從程式碼到反饋僅需數分鐘。即時預覽與AI驅動測試，實現建構與驗證的閉環流程。"
-
-#, fuzzy
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
 msgstr "透過偵測自上次成功執行以來的變更，僅執行關鍵測試，從而縮短本地開發與持續整合環境中的測試時間。"
 
@@ -1475,6 +1471,16 @@ msgstr "作為一項服務"
 #, fuzzy
 msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
 msgstr "讓我們成為您的虛擬夥伴，持續優化並監控您的系統設定，讓您能專注於產品發布"
+
+msgid "Open the %{feature} feature page"
+msgstr ""
+
+msgid "From code to feedback in minutes. Instant previews close the loop between building and validating."
+msgstr ""
+
+#, fuzzy
+#~ msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+#~ msgstr "從程式碼到反饋僅需數分鐘。即時預覽與AI驅動測試，實現建構與驗證的閉環流程。"
 
 #, fuzzy
 #~ msgid "We virtually join your team to optimize your setup, so you can focus on shipping"

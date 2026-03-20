@@ -1707,10 +1707,6 @@ msgid "Flaky tests dashboard showing test history and automation creation modal"
 msgstr "لوحة معلومات الاختبارات المتقلبة التي تعرض سجل الاختبارات ونموذج إنشاء الأتمتة"
 
 #, fuzzy
-msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr "من الكود إلى التعليقات في دقائق. تتيح المعاينة الفورية والاختبارات المدعومة بالذكاء الاصطناعي إكمال الدورة بين الإنشاء والتحقق من الصحة."
-
-#, fuzzy
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
 msgstr "قم بتشغيل الاختبارات المهمة فقط عن طريق الكشف عن التغييرات التي حدثت منذ آخر تشغيل ناجح، مما يقلل من وقت الاختبار في كل من التطوير المحلي و CI."
 
@@ -1749,6 +1745,16 @@ msgstr "كخدمة"
 #, fuzzy
 msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
 msgstr "دعنا نكون رفيقك الافتراضي الذي يعمل باستمرار على تحسين ومراقبة إعداداتك، حتى تتمكن من التركيز على الشحن"
+
+msgid "Open the %{feature} feature page"
+msgstr ""
+
+msgid "From code to feedback in minutes. Instant previews close the loop between building and validating."
+msgstr ""
+
+#, fuzzy
+#~ msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+#~ msgstr "من الكود إلى التعليقات في دقائق. تتيح المعاينة الفورية والاختبارات المدعومة بالذكاء الاصطناعي إكمال الدورة بين الإنشاء والتحقق من الصحة."
 
 #, fuzzy
 #~ msgid "We virtually join your team to optimize your setup, so you can focus on shipping"
