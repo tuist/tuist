@@ -399,8 +399,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
            !passthroughXcodeBuildArguments.contains("-testProductsPath")
         {
             let testProductsDir = try await fileSystem.makeTemporaryDirectory(prefix: "shard-test-products")
-            let productsName = (schemeName ?? schemes.first?.name ?? "Test") + ".xctestproducts"
-            let productsPath = testProductsDir.appending(component: productsName)
+            let productsPath = testProductsDir.appending(component: "TestProducts.xctestproducts")
             passthroughXcodeBuildArguments += ["-testProductsPath", productsPath.pathString]
         }
 
