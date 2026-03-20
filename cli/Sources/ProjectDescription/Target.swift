@@ -22,7 +22,7 @@ public struct Target: Codable, Equatable, Sendable {
     public var infoPlist: InfoPlist?
 
     /// The source files of the target.
-    /// Note: any playgrounds matched by the globs used in this property will be automatically added.
+    /// Note: any playgrounds matched by the globs used in this property will be automatically added. Specific source paths that do not exist yet will be handled as generated files.
     public var sources: SourceFilesList?
 
     /// The resource files of target.
