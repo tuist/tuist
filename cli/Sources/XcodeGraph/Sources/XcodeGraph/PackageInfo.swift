@@ -513,7 +513,8 @@ public struct PackageInfo: Equatable, Hashable, Codable {
             case macro
 
             /// Defines if target may have a public headers path
-            /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
+            /// Based on preconditions in
+            /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
             public var supportsPublicHeaderPath: Bool {
                 switch self {
                 case .regular, .executable, .test:
@@ -524,7 +525,8 @@ public struct PackageInfo: Equatable, Hashable, Codable {
             }
 
             /// Defines if target may have source files
-            /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
+            /// Based on preconditions in
+            /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
             public var supportsSources: Bool {
                 switch self {
                 case .regular, .executable, .test, .plugin, .macro:
@@ -535,7 +537,8 @@ public struct PackageInfo: Equatable, Hashable, Codable {
             }
 
             /// Defines if target may have resource files
-            /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
+            /// Based on preconditions in
+            /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
             public var supportsResources: Bool {
                 switch self {
                 case .regular, .executable, .test:
@@ -546,7 +549,8 @@ public struct PackageInfo: Equatable, Hashable, Codable {
             }
 
             /// Defines if target may have other dependencies
-            /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
+            /// Based on preconditions in
+            /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
             public var supportsDependencies: Bool {
                 switch self {
                 case .regular, .executable, .test, .plugin, .macro:
@@ -557,7 +561,8 @@ public struct PackageInfo: Equatable, Hashable, Codable {
             }
 
             /// Defines if target supports C, CXX, Swift or linker settings
-            /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
+            /// Based on preconditions in
+            /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
             public var supportsCustomSettings: Bool {
                 switch self {
                 case .regular, .executable, .test:
@@ -960,4 +965,3 @@ public struct PackageDependency: Equatable, Hashable, Codable, Sendable {
         try container.encode([FileSystemDependency(identity: identity, traits: traits)], forKey: .fileSystem)
     }
 }
-

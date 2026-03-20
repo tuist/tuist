@@ -198,4 +198,3 @@ public struct ScaffoldCommand: AsyncParsableCommand, CustomReflectable {
         return Mirror(ScaffoldCommand(), children: children + requiredTemplateChildren + optionalTemplateChildren)
     }
 }
-

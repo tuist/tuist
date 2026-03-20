@@ -275,7 +275,6 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
         )
     }
 
-
     // MARK: - Helper Types
 
     private struct StaticDependencyWarning: Hashable, Comparable {
@@ -331,4 +330,3 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
         }
     }
 }
-

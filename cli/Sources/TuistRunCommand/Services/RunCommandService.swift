@@ -88,7 +88,6 @@ enum DestinationDevice: Equatable, CustomStringConvertible {
         case physical(PhysicalDevice)
     #endif
 
-
     var isReady: Bool {
         switch self {
         case .android:

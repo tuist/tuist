@@ -166,7 +166,6 @@ private class DirectoryStructure {
         }
     }
 
-
     class Graph: Equatable, ExpressibleByArrayLiteral, CustomDebugStringConvertible {
         var nodes: [Node] = []
         private var directoryCache: [AbsolutePath: Graph] = [:]

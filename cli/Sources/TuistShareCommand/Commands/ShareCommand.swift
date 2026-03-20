@@ -7,11 +7,7 @@ import TuistEnvKey
     import XcodeGraph
 #endif
 
-#if os(macOS)
-    public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
-#else
-    public struct ShareCommand: AsyncParsableCommand {
-#endif
+public struct ShareCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -89,8 +85,10 @@ import TuistEnvKey
             )
         #endif
     }
-
-    #if os(macOS)
-        public var analyticsRequired: Bool { false }
-    #endif
 }
+
+#if os(macOS)
+    extension ShareCommand: TrackableParsableCommand {
+        public var analyticsRequired: Bool { false }
+    }
+#endif
