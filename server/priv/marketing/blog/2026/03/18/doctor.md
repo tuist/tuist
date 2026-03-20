@@ -24,7 +24,7 @@ But this week was different. It was quiet. He arrived early to the office, left 
 
 ## Every platform team has a doctor problem
 
-David's story is not unique. Developers becoming doctors of their product teams' projects, tools, and generated artifacts is extremely common. In fact, we at Tuist were starting to become doctors of our own customers' data. They would come to us asking for solutions to problems that were not directly related to Tuist itself. Helping them felt like the right thing to do, but we soon realized we needed a different approach if we wanted to scale that kind of support. They say that if you listen to and observe your customers closely enough, you can learn a lot about what they need. Turns out we had the best example right in front of us. We just had to connect the dots.
+David's story is not unique. Developers becoming doctors of their product teams' projects, tools, and generated artifacts is extremely common. In fact, we at Tuist were starting to become doctors of our own users' data. They would come to us asking for solutions to problems that were not directly related to Tuist itself. Helping them felt like the right thing to do, but we soon realized we needed a different approach if we wanted to scale that kind of support. They say that if you listen to and observe your users closely enough, you can learn a lot about what they need. Turns out we had the best example right in front of us. We just had to connect the dots.
 
 When you think about what it takes to be a good doctor, there are two fundamental ingredients:
 
