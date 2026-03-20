@@ -44,7 +44,13 @@ struct InspectTestCommandServiceTests {
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
         given(inspectResultBundleService)
-            .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any, shardPlanId: .any, shardIndex: .any)
+            .inspectResultBundle(
+                resultBundlePath: .any,
+                projectDerivedDataDirectory: .any,
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
             .willReturn(
                 Components.Schemas.RunsTest(
                     duration: 1000,

@@ -4,11 +4,11 @@
     import Path
     import TuistBuildCommand
     import TuistCore
+    import TuistEnvKey
     import TuistExtension
     import TuistKit
     import TuistLogging
     import TuistServer
-    import TuistEnvKey
     import TuistSupport
 
     enum TuistTestFlagError: FatalError, Equatable {

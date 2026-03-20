@@ -30,7 +30,7 @@ defmodule Tuist.Shards.BinPacker do
     units
     |> Enum.sort_by(&elem(&1, 1), :desc)
     |> Enum.reduce(empty_shards, fn {name, duration}, shards ->
-      min_index = Enum.min_by(shards, &elem(&1, 2)) |> elem(0)
+      min_index = shards |> Enum.min_by(&elem(&1, 2)) |> elem(0)
 
       List.update_at(shards, min_index, fn {index, units, total} ->
         {index, [{name, duration} | units], total + duration}

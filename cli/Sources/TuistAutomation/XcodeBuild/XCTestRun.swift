@@ -65,6 +65,6 @@ extension XCTestRun: Decodable {
         var stringValue: String
         var intValue: Int?
         init?(stringValue: String) { self.stringValue = stringValue }
-        init?(intValue: Int) { self.intValue = intValue; self.stringValue = "\(intValue)" }
+        init?(intValue: Int) { self.intValue = intValue; stringValue = "\(intValue)" }
     }
 }

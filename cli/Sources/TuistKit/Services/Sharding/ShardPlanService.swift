@@ -118,7 +118,7 @@
                         scheme: scheme,
                         destination: nil
                     )
-                    allSuites += suitesMap.flatMap { $0.value }
+                    allSuites += suitesMap.flatMap(\.value)
                 }
                 testSuites = allSuites
             }

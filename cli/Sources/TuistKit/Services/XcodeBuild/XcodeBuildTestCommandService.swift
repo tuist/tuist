@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistAutomation
+import TuistCI
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
@@ -11,7 +12,6 @@ import TuistLoader
 import TuistLogging
 import TuistServer
 import TuistSupport
-import TuistCI
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
 

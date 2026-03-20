@@ -490,8 +490,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     // swiftlint:disable:next function_body_length function_parameter_count
     private func runShard(
         shardIndex: Int,
-        schemeName: String?,
-        path: AbsolutePath,
+        schemeName _: String?,
+        path _: AbsolutePath,
         config: Tuist,
         deviceName: String?,
         platform: String?,
@@ -499,7 +499,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         rosetta: Bool,
         resultBundlePath: AbsolutePath?,
         derivedDataPath: String?,
-        retryCount: Int,
+        retryCount _: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
