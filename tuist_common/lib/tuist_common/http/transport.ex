@@ -1,6 +1,35 @@
 defmodule TuistCommon.HTTP.Transport do
   @moduledoc """
   Shared normalization for Bandit and Thousand Island transport telemetry.
+
+  This module intentionally follows the native telemetry contracts exposed by Bandit and
+  Thousand Island instead of re-emitting app-specific events.
+
+  Useful upstream references:
+
+  - Bandit telemetry event docs:
+    https://github.com/mtrudel/bandit/blob/main/lib/bandit/telemetry.ex
+  - Bandit request pipeline, which forwards `error.message` into `[:bandit, :request, ...]`
+    telemetry metadata:
+    https://github.com/mtrudel/bandit/blob/main/lib/bandit/pipeline.ex
+  - Bandit HTTP/1 socket handling, including the `"Body read timeout"` error that we classify
+    here:
+    https://github.com/mtrudel/bandit/blob/main/lib/bandit/http1/socket.ex
+  - Thousand Island telemetry event docs:
+    https://github.com/mtrudel/thousand_island/blob/main/lib/thousand_island/telemetry.ex
+  - Thousand Island socket internals, which emit `:recv_error`, `:send_error`, and
+    `:socket_shutdown` events:
+    https://github.com/mtrudel/thousand_island/blob/main/lib/thousand_island/socket.ex
+
+  In practice, this module uses Bandit request metadata to:
+  - classify body read timeouts
+  - classify request failures
+  - extract low-cardinality request tags and log fields
+
+  And it uses Thousand Island connection metadata to:
+  - classify connection drops
+  - normalize recv/send error tags
+  - extract connection-level log fields for incident correlation
   """
 
   def bandit_request_timeout?(metadata) do

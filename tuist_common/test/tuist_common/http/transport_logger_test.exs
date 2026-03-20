@@ -1,24 +1,11 @@
 defmodule TuistCommon.HTTP.TransportLoggerTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   import ExUnit.CaptureLog
 
   alias TuistCommon.HTTP.TransportLogger
 
-  setup do
-    handler_suffix = System.unique_integer([:positive])
-    TransportLogger.attach(handler_suffix)
-
-    on_exit(fn ->
-      TransportLogger.detach(handler_suffix)
-    end)
-
-    %{handler_suffix: handler_suffix}
-  end
-
-  test "logs Bandit body read timeouts with route and connection context", %{
-    handler_suffix: _handler_suffix
-  } do
+  test "logs Bandit body read timeouts with route and connection context" do
     log =
       capture_log(
         [
@@ -26,7 +13,7 @@ defmodule TuistCommon.HTTP.TransportLoggerTest do
           metadata: [:request_id, :method, :route, :connection_span_context]
         ],
         fn ->
-          :telemetry.execute(
+          TransportLogger.handle_event(
             [:bandit, :request, :stop],
             %{duration: System.convert_time_unit(2, :millisecond, :native), req_body_bytes: 128},
             %{
@@ -38,7 +25,8 @@ defmodule TuistCommon.HTTP.TransportLoggerTest do
                 private: %{phoenix_route: "/upload"},
                 resp_headers: [{"x-request-id", "req_123"}]
               }
-            }
+            },
+            nil
           )
         end
       )
@@ -50,14 +38,12 @@ defmodule TuistCommon.HTTP.TransportLoggerTest do
     assert log =~ "connection_span_context="
   end
 
-  test "logs Thousand Island drops with normalized reason and remote address", %{
-    handler_suffix: _handler_suffix
-  } do
+  test "logs Thousand Island drops with normalized reason and remote address" do
     log =
       capture_log(
         [format: "$metadata$message", metadata: [:reason, :remote_address, :recv_oct]],
         fn ->
-          :telemetry.execute(
+          TransportLogger.handle_event(
             [:thousand_island, :connection, :stop],
             %{
               duration: System.convert_time_unit(3, :millisecond, :native),
@@ -69,7 +55,8 @@ defmodule TuistCommon.HTTP.TransportLoggerTest do
               remote_address: {127, 0, 0, 1},
               remote_port: 4000,
               error: :closed
-            }
+            },
+            nil
           )
         end
       )
