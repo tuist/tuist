@@ -13,6 +13,7 @@ defmodule Tuist.IngestRepo.Migrations.RecreateBranchPresenceMvWithDedup do
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
+  require Logger
 
   @disable_ddl_transaction true
   @disable_migration_lock true
@@ -33,9 +34,39 @@ defmodule Tuist.IngestRepo.Migrations.RecreateBranchPresenceMvWithDedup do
       ran_at
     FROM test_case_runs
     """)
+
+    backfill("test_case_runs", "test_case_branch_presence")
   end
 
   def down do
     :ok
+  end
+
+  defp backfill(source, destination) do
+    {:ok, %{rows: partitions}} =
+      IngestRepo.query(
+        """
+        SELECT DISTINCT partition
+        FROM system.parts
+        WHERE database = currentDatabase() AND table = {table:String} AND active
+        ORDER BY partition
+        """,
+        %{table: source}
+      )
+
+    for [partition] <- partitions do
+      Logger.info("Backfilling partition #{partition} from #{source} into #{destination}")
+
+      IngestRepo.query!(
+        """
+        INSERT INTO #{destination}
+        SELECT project_id, git_branch, is_ci, test_case_id, ran_at
+        FROM #{source}
+        WHERE toYYYYMM(inserted_at) = {partition:UInt32}
+        """,
+        %{partition: String.to_integer(partition)},
+        timeout: 600_000
+      )
+    end
   end
 end
