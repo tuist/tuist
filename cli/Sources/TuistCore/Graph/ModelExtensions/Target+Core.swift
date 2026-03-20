@@ -101,14 +101,18 @@ extension Target {
 
             let paths: [AbsolutePath]
 
-            do {
-                paths = try await fileSystem
-                    .throwingGlob(directory: .root, include: [String(sourcePath.pathString.dropFirst())])
-                    .collect()
-                    .filter { !$0.isInOpaqueDirectory }
-            } catch let GlobError.nonExistentDirectory(invalidGlob) {
-                paths = []
-                invalidGlobs.append(invalidGlob)
+            if fileSystem.isGlobPattern(source.glob) {
+                do {
+                    paths = try await fileSystem
+                        .throwingGlob(directory: .root, include: [String(sourcePath.pathString.dropFirst())])
+                        .collect()
+                        .filter { !$0.isInOpaqueDirectory }
+                } catch let GlobError.nonExistentDirectory(invalidGlob) {
+                    paths = []
+                    invalidGlobs.append(invalidGlob)
+                }
+            } else {
+                paths = [sourcePath]
             }
 
             Set(paths)

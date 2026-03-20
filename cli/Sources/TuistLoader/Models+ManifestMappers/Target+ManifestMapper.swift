@@ -326,7 +326,24 @@ extension XcodeGraph.Target {
                 )
             }
 
-        let allSources = globSources + (scriptGeneratedSources ?? [])
+        let checkedGlobSources = try await globSources.concurrentMap { sourceFile -> XcodeGraph.SourceFile in
+            if try await !fileSystem.exists(sourceFile.path) {
+                // Generated files don't exist during project generation, so we provide a
+                // deterministic hash based on the file path to avoid file system access
+                let generatedFileHash = try contentHasher.hash("generated-file-\(sourceFile.path.pathString)")
+                return XcodeGraph.SourceFile(
+                    path: sourceFile.path,
+                    compilerFlags: sourceFile.compilerFlags,
+                    contentHash: generatedFileHash,
+                    codeGen: sourceFile.codeGen,
+                    compilationCondition: sourceFile.compilationCondition
+                )
+            } else {
+                return sourceFile
+            }
+        }
+
+        let allSources = checkedGlobSources + (scriptGeneratedSources ?? [])
 
         for sourceFile in allSources {
             if sourceFile.path.extension == "playground" {

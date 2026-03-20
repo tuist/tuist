@@ -130,11 +130,6 @@ extension XcodeGraph.TargetScript {
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming
     ) async throws -> [String] {
-        // For relativeToManifest paths that are not glob patterns, keep them as strings
-        if path.type == .relativeToManifest, !fileSystem.isGlobPattern(path) {
-            return [path.pathString]
-        }
-
         // avoid globbing paths that contain variables
         if path.pathString.contains("$") {
             return [path.pathString]

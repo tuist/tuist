@@ -225,7 +225,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_relativeToManifest_paths_are_kept_as_strings() async throws {
+    func test_relativeToManifest_paths_are_resolved_to_absolute_paths() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let rootDirectory = temporaryPath
@@ -261,10 +261,13 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        // relativeToManifest paths should be kept as strings
-        XCTAssertTrue(model.inputFileListPaths.contains("relative/to/manifest.txt"))
-        XCTAssertTrue(model.outputPaths.contains("output/manifest.txt"))
-        XCTAssertTrue(model.outputFileListPaths.contains("output_list/manifest.txt"))
+        let expectedManifestPath = temporaryPath.appending(try RelativePath(validating: "relative/to/manifest.txt")).pathString
+        let expectedOutputManifestPath = temporaryPath.appending(try RelativePath(validating: "output/manifest.txt")).pathString
+        let expectedOutputListManifestPath = temporaryPath.appending(try RelativePath(validating: "output_list/manifest.txt")).pathString
+
+        XCTAssertTrue(model.inputFileListPaths.contains(expectedManifestPath))
+        XCTAssertTrue(model.outputPaths.contains(expectedOutputManifestPath))
+        XCTAssertTrue(model.outputFileListPaths.contains(expectedOutputListManifestPath))
 
         // relativeToRoot and relativeToCurrentFile should be resolved to absolute paths
         let expectedRootPath = temporaryPath.appending(try RelativePath(validating: "relative/to/root.txt")).pathString
@@ -273,6 +276,45 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertTrue(model.inputFileListPaths.contains(expectedRootPath))
         XCTAssertTrue(model.outputPaths.contains(expectedOutputRootPath))
     }
+
+    func test_doesntGlob_whenPointsToMissingFile() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        try await createFiles([
+            "foo/bar/a.swift",
+        ])
+
+        let manifest = ProjectDescription.TargetScript.test(
+            name: "MyScript",
+            tool: "my_tool",
+            order: .pre,
+            outputPaths: ["foo/bar/a.swift", "foo/bar/b.swift"]
+        )
+        
+        // When
+        let model = try await XcodeGraph.TargetScript.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertEqual(model.name, "MyScript")
+        XCTAssertEqual(model.order, .pre)
+        XCTAssertEqual(
+            model.outputPaths,
+            [
+                temporaryPath.appending(try RelativePath(validating: "foo/bar/a.swift")).pathString,
+                temporaryPath.appending(try RelativePath(validating: "foo/bar/b.swift")).pathString,
+            ]
+        )
+    }
+
 
     func test_inputPaths_with_build_variables_are_kept_as_strings() async throws {
         // Given

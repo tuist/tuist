@@ -209,4 +209,49 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
             .hash(Parameter<String>.value("generated-file-Scripts/GeneratedFile.swift"))
             .called(1)
     }
+
+    func test_missingSpecificSourceFiles_areRetainedAndHaveContentHash() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let missingFilePath = "Scripts/MissingFile.swift"
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: try temporaryPath(),
+            rootDirectory: rootDirectory
+        )
+
+        // When
+        let mockContentHasher = MockContentHashing()
+        let expectedHash = "mock-missing-hash"
+        let resolvedPath = try generatorPaths.resolve(path: .relativeToRoot(missingFilePath))
+
+        given(mockContentHasher)
+            .hash(Parameter<String>.any)
+            .willReturn(expectedHash)
+
+        let target = try await XcodeGraph.Target.from(
+            manifest: .test(
+                name: "TestTarget",
+                sources: .sourceFilesList(
+                    globs: [
+                        .glob(.relativeToRoot(missingFilePath)),
+                    ]
+                ),
+                resources: .resources([]),
+                scripts: []
+            ),
+            generatorPaths: generatorPaths,
+            externalDependencies: [:],
+            fileSystem: fileSystem,
+            contentHasher: mockContentHasher,
+            type: .local
+        )
+
+        // Then
+        XCTAssertEqual(target.sources.map(\.path), [resolvedPath])
+        XCTAssertEqual(target.sources.map(\.contentHash), [expectedHash])
+
+        verify(mockContentHasher)
+            .hash(Parameter<String>.value("generated-file-\(resolvedPath.pathString)"))
+            .called(1)
+    }
 }
