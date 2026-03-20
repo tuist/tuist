@@ -1328,5 +1328,4 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp target_counts_by_shard(_), do: %{}
-
 end
