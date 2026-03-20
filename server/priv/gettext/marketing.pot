@@ -2298,11 +2298,6 @@ msgstr ""
 msgid "Flaky tests dashboard showing test history and automation creation modal"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:370
-#, elixir-autogen, elixir-format
-msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:280
 #: lib/tuist_web/marketing/live/marketing_selective_testing_live.ex:36
 #: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:14
@@ -2370,4 +2365,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:383
 #, elixir-autogen, elixir-format
 msgid "Open the %{feature} feature page"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:370
+#, elixir-autogen, elixir-format
+msgid "From code to feedback in minutes. Instant previews close the loop between building and validating."
 msgstr ""
