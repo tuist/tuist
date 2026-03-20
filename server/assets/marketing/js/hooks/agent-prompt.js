@@ -5,6 +5,7 @@ const SELECTORS = {
   promptCursor: "[data-part='prompt-cursor']",
   responseCursor: "[data-part='response-cursor']",
   trigger: "[data-part='trigger']",
+  triggerContainer: "[data-part='trigger-container']",
   responseSection: "[data-part='response-section']",
 };
 
@@ -88,14 +89,14 @@ const AgentPrompt = {
     this.abort();
     this.started = false;
 
-    const { code, prompt, response, promptCursor, responseCursor, responseSection, trigger } = this.elements;
+    const { code, prompt, response, promptCursor, responseCursor, responseSection, trigger, triggerContainer } = this.elements;
     prompt.textContent = "";
     response.textContent = "";
     responseSection.style.display = "none";
     promptCursor.style.visibility = "hidden";
     responseCursor.style.visibility = "hidden";
     trigger.disabled = false;
-    trigger.removeAttribute("data-played");
+    triggerContainer.removeAttribute("data-played");
     code.scrollTop = 0;
   },
 
@@ -104,7 +105,7 @@ const AgentPrompt = {
 
     this.started = true;
     this.elements.trigger.disabled = true;
-    this.elements.trigger.setAttribute("data-played", "true");
+    this.elements.triggerContainer.setAttribute("data-played", "true");
 
     if (this.prefersReducedMotion) {
       this.renderInstant();

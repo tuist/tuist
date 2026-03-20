@@ -48,8 +48,15 @@
     content: "";
   }
 
-  & [data-part="trigger"][data-played] {
-    opacity: 0.55;
+  & [data-part="trigger-container"] {
+    display: flex;
+    flex: 1;
+    justify-content: center;
+    align-items: center;
+  }
+
+  & [data-part="trigger-container"][data-played] {
+    display: none;
   }
 
   & [data-part="response-text"] {

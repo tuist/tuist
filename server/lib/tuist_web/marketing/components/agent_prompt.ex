@@ -7,6 +7,7 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
   attr :title, :string, default: "bash"
   attr :prompt, :string, required: true
   attr :response, :any, required: true
+  attr :action, :string, required: true
   attr :current_user, :any, default: nil
 
   def agent_prompt(assigns) do
@@ -25,16 +26,6 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
     >
       <div data-part="bar">
         <div data-part="language">{@title}</div>
-        <button
-          class="noora-neutral-button"
-          id={@id <> "-trigger"}
-          type="button"
-          data-size="medium"
-          data-part="trigger"
-          aria-label="Play agent prompt"
-        >
-          <.player_play />
-        </button>
       </div>
       <div data-part="code">
         <div data-part="terminal-line">
@@ -46,6 +37,17 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
             style="visibility: hidden;"
           >
           </span>
+        </div>
+        <div data-part="trigger-container">
+          <.button
+            label={@action}
+            variant="primary"
+            size="medium"
+            data-part="trigger"
+            id={@id <> "-trigger"}
+          >
+            <:icon_left><.player_play /></:icon_left>
+          </.button>
         </div>
         <div data-part="response-section" data-response-steps={@response_steps_json}>
           <span data-part="response-text"></span><span
