@@ -66,7 +66,7 @@ class CacheEndpointResolverTest {
         val fastServer = MockWebServer()
         val slowServer = MockWebServer()
         fastServer.enqueue(MockResponse().setBody("ok"))
-        slowServer.enqueue(MockResponse().setBody("ok").setBodyDelay(500, TimeUnit.MILLISECONDS))
+        slowServer.enqueue(MockResponse().setBody("ok").setBodyDelay(3, TimeUnit.SECONDS))
         fastServer.start()
         slowServer.start()
 
