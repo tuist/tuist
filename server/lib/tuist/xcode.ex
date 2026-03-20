@@ -220,6 +220,14 @@ defmodule Tuist.Xcode do
     )
   end
 
+  def xcode_targets_preload_query(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
+    from(xt in XcodeTarget,
+      where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt
+    )
+  end
+
   # Returns a ±1 day date range around the event's created_at for use as an
   # inserted_at filter. The xcode_targets table is partitioned by
   # toYYYYMMDD(inserted_at), so adding this filter lets ClickHouse prune

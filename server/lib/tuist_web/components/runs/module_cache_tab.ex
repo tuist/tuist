@@ -476,7 +476,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   defp binary_cache_targets_json(nil), do: "[]"
 
   defp binary_cache_targets_json(run) do
-    run = Tuist.ClickHouseRepo.preload(run, [:xcode_targets])
+    run = Tuist.ClickHouseRepo.preload(run, xcode_targets: Tuist.Xcode.xcode_targets_preload_query(run))
 
     run.xcode_targets
     |> Enum.filter(&(&1.binary_cache_hash != nil))
