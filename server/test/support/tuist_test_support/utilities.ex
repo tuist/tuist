@@ -36,11 +36,7 @@ defmodule TuistTestSupport.Utilities do
       "TRUNCATE TABLE IF EXISTS build_runs",
       "TRUNCATE TABLE IF EXISTS gradle_builds",
       "TRUNCATE TABLE IF EXISTS gradle_tasks",
-      "TRUNCATE TABLE IF EXISTS gradle_cache_events",
-      "TRUNCATE TABLE IF EXISTS shard_plans",
-      "TRUNCATE TABLE IF EXISTS shard_plan_modules",
-      "TRUNCATE TABLE IF EXISTS shard_plan_test_suites",
-      "TRUNCATE TABLE IF EXISTS shard_runs"
+      "TRUNCATE TABLE IF EXISTS gradle_cache_events"
     ]
 
     for command <- commands do
