@@ -546,7 +546,15 @@ defmodule Tuist.Tests do
           end
 
         project_id ->
-          where(query, [tcr], tcr.project_id == ^project_id)
+          query = where(query, [tcr], tcr.project_id == ^project_id)
+
+          case uuidv7_to_yyyymm(id) do
+            {:ok, month} ->
+              where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
+
+            :error ->
+              query
+          end
       end
 
     case ClickHouseRepo.one(query) do
