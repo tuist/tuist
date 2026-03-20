@@ -1150,6 +1150,93 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_tests_stores_only_test_target_hashes_not_dependency_hashes() async throws {
+        try await withMockedDependencies {
+            // Given
+            // TargetATests (.unitTests) depends on FrameworkA (.framework).
+            // targetTestHashes contains hashes for both. Only the test target's hash
+            // should be stored — the framework hash is already encoded in the test target hash.
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.default)
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+
+            let projectPath = try temporaryPath().appending(component: "Project")
+            let scheme = Scheme.test(
+                name: "UnitTests",
+                testAction: .test(
+                    targets: [
+                        .test(target: TargetReference(projectPath: projectPath, name: "TargetATests")),
+                    ]
+                )
+            )
+
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(.test())
+
+            let testsTarget = Target.test(name: "TargetATests", product: .unitTests)
+            let frameworkTarget = Target.test(name: "FrameworkA", product: .framework)
+            let initialGraph = Graph.test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [testsTarget, frameworkTarget],
+                        schemes: [scheme]
+                    ),
+                ],
+                dependencies: [
+                    .target(name: testsTarget.name, path: projectPath): [
+                        .target(name: frameworkTarget.name, path: projectPath),
+                    ],
+                ]
+            )
+
+            var environment = MapperEnvironment()
+            environment.initialGraph = initialGraph
+            environment.targetTestHashes = [
+                projectPath: [
+                    "TargetATests": "hash-tests",
+                    "FrameworkA": "hash-fw",
+                ],
+            ]
+
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in (path, initialGraph, environment) }
+
+            // When
+            try await testRun(path: try temporaryPath())
+
+            // Then: only the test target hash is stored, not the framework dependency
+            verify(cacheStorage)
+                .store(
+                    .value([CacheStorableItem(name: "TargetATests", hash: "hash-tests"): []]),
+                    cacheCategory: .value(.selectiveTests)
+                )
+                .called(1)
+            verify(cacheStorage)
+                .store(
+                    .value([CacheStorableItem(name: "FrameworkA", hash: "hash-fw"): []]),
+                    cacheCategory: .value(.selectiveTests)
+                )
+                .called(0)
+        }
+    }
+
     func test_run_tests_caches_passing_targets_when_some_targets_fail() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "ProjectOne")

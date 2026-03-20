@@ -51,7 +51,6 @@
         private let gitController: GitControlling
         private let ciController: CIControlling
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
-        private let machineMetricsReader: MachineMetricsReader
 
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -67,8 +66,7 @@
             serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
             gitController: GitControlling = GitController(),
             ciController: CIControlling = CIController(),
-            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
-            machineMetricsReader: MachineMetricsReader = MachineMetricsReader()
+            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator()
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
@@ -84,7 +82,6 @@
             self.gitController = gitController
             self.ciController = ciController
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
-            self.machineMetricsReader = machineMetricsReader
         }
 
         func run(
@@ -137,30 +134,10 @@
                 referenceDate: referenceDate
             )
 
-            let useRemoteProcessing = Environment.current.variables["TUIST_INSPECT_BUILD_MODE"] == "remote"
-            if useRemoteProcessing {
-                do {
-                    try await createRemoteBuild(
-                        mostRecentActivityLogPath: mostRecentActivityLogPath,
-                        projectPath: projectPath
-                    )
-                } catch {
-                    AlertController.current.warning(
-                        .alert(
-                            "Remote build upload failed: \(error.localizedDescription). Falling back to local mode."
-                        )
-                    )
-                    try await createLocalBuild(
-                        mostRecentActivityLogPath: mostRecentActivityLogPath,
-                        projectPath: projectPath
-                    )
-                }
-            } else {
-                try await createLocalBuild(
-                    mostRecentActivityLogPath: mostRecentActivityLogPath,
-                    projectPath: projectPath
-                )
-            }
+            try await createRemoteBuild(
+                mostRecentActivityLogPath: mostRecentActivityLogPath,
+                projectPath: projectPath
+            )
         }
 
         private func mostRecentActivityLogPath(
@@ -199,68 +176,6 @@
             return mostRecentActivityLogPath
         }
 
-        private func createLocalBuild(
-            mostRecentActivityLogPath: AbsolutePath,
-            projectPath: AbsolutePath
-        ) async throws {
-            let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
-            let config =
-                try await configLoader
-                    .loadConfig(path: projectPath)
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            guard let fullHandle = config.fullHandle else {
-                throw InspectBuildCommandServiceError.missingFullHandle
-            }
-
-            let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
-            let ciInfo = ciController.ciInfo()
-            let customMetadata = readCustomMetadata()
-
-            let buildStartDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStartedRecording)
-            let buildEndDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStoppedRecording)
-            let machineMetrics = try await machineMetricsReader.readSamples(
-                startDate: buildStartDate,
-                endDate: buildEndDate
-            )
-
-            let build = try await createBuildService.createBuild(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                id: xcactivityLog.mainSection.uniqueIdentifier,
-                category: xcactivityLog.category,
-                configuration: Environment.current.variables["CONFIGURATION"],
-                customMetadata: customMetadata,
-                duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
-                    - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
-                files: xcactivityLog.files,
-                gitBranch: gitInfo.branch,
-                gitCommitSHA: gitInfo.sha,
-                gitRef: gitInfo.ref,
-                gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
-                isCI: Environment.current.isCI,
-                issues: truncateIssuesIfNeeded(xcactivityLog.issues),
-                modelIdentifier: machineEnvironment.modelIdentifier(),
-                macOSVersion: machineEnvironment.macOSVersion,
-                scheme: Environment.current.schemeName,
-                targets: xcactivityLog.targets,
-                xcodeCacheUploadEnabled: config.cache.upload,
-                xcodeVersion: try await xcodeBuildController.version()?.description,
-                status: xcactivityLog.buildStep.errorCount == 0 ? .success : .failure,
-                ciRunId: ciInfo?.runId,
-                ciProjectHandle: ciInfo?.projectHandle,
-                ciHost: ciInfo?.host,
-                ciProvider: ciInfo?.provider,
-                cacheableTasks: xcactivityLog.cacheableTasks,
-                casOutputs: config.cache.upload ? xcactivityLog.casOutputs :
-                    xcactivityLog.casOutputs.filter { $0.operation != .upload },
-                machineMetrics: machineMetrics
-            )
-            AlertController.current.success(
-                .alert("View the analyzed build at \(build.url.absoluteString)")
-            )
-        }
-
-        // swiftlint:disable:next function_body_length
         private func createRemoteBuild(
             mostRecentActivityLogPath: AbsolutePath,
             projectPath: AbsolutePath
@@ -273,7 +188,7 @@
                 throw InspectBuildCommandServiceError.missingFullHandle
             }
 
-            let buildId = UUID().uuidString
+            let buildId = mostRecentActivityLogPath.basenameWithoutExt
 
             let build: ServerBuild = try await fileSystem.runInTemporaryDirectory(prefix: "build") { tempDirectory in
                 let archivePath = try await bundleBuild(
@@ -365,18 +280,6 @@
             let zipPath = tempDirectory.appending(component: "build.zip")
             try await fileSystem.zipFileOrDirectoryContent(at: buildDirectory, to: zipPath)
             return zipPath
-        }
-
-        private func truncateIssuesIfNeeded(_ issues: [XCActivityIssue]) -> [XCActivityIssue] {
-            issues
-                .prefix(1000)
-                .map {
-                    var issue = $0
-                    if let message = issue.message, message.count > 1000 {
-                        issue.message = message.prefix(1000) + "..."
-                    }
-                    return issue
-                }
         }
 
         private func path(_ path: String?) async throws -> AbsolutePath {

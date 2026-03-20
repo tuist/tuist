@@ -239,10 +239,22 @@ public struct GitController: GitControlling {
             )
         }
 
-        // SHA
+        // SHA — if CI checked out a PR merge ref (e.g. refs/pull/N/merge),
+        // HEAD is an ephemeral merge commit. Use the second parent (the actual
+        // PR branch tip) instead, since the merge commit doesn't exist on the remote.
         let commitSHA: String?
         if hasCurrentBranchCommits(workingDirectory: workingDirectory) {
-            commitSHA = try? currentCommitSHA(workingDirectory: workingDirectory)
+            let isPullRequestMergeRef = gitRef?.hasPrefix("refs/pull/") == true
+            if isPullRequestMergeRef,
+               let secondParent = try? capture(
+                   command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2"
+               ).trimmingCharacters(in: .whitespacesAndNewlines),
+               !secondParent.isEmpty
+            {
+                commitSHA = secondParent
+            } else {
+                commitSHA = try? currentCommitSHA(workingDirectory: workingDirectory)
+            }
         } else {
             commitSHA = nil
         }

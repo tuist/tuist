@@ -6,6 +6,7 @@ import Path
 import Testing
 import TuistCache
 import TuistCAS
+import TuistConfig
 import TuistConstants
 import TuistCore
 import TuistEnvironment
@@ -104,6 +105,23 @@ struct CacheStorageFactoryTests {
             // Then
             #expect((got as? CacheStorage)?.remoteStorage != nil)
         }
+    }
+
+    @Test
+    func when_storages_local_only() async throws {
+        // Given: no server mocks needed — serverURL should never be resolved
+
+        // When
+        let got = try await subject.cacheStorage(
+            config: .test(
+                project: .generated(.test(cacheOptions: .test(storages: [.local]))),
+                fullHandle: "tuist/tuist",
+                url: Constants.URLs.production
+            )
+        )
+
+        // Then
+        #expect((got as? CacheStorage)?.remoteStorage == nil)
     }
 
     @Test

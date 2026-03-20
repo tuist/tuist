@@ -4,6 +4,7 @@ defmodule Tuist.Tests.TestCaseRunRepetition do
   When tests are run with retry-on-failure, each attempt is stored as a repetition.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 

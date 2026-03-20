@@ -5,7 +5,6 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Accounts
   alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems
-  alias Tuist.CacheActionItems.CacheActionItem
   alias Tuist.Projects.Workers.CleanProjectWorker
   alias Tuist.Repo
   alias Tuist.Storage
@@ -414,7 +413,7 @@ defmodule TuistWeb.API.CacheControllerTest do
              }
     end
 
-    test "returns created with the cache action item when the CLI version is 4.28.0", %{
+    test "returns created even if the cache action item already exists", %{
       conn: conn,
       cache: cache
     } do
@@ -422,55 +421,27 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-        |> put_req_header("x-tuist-cli-version", "4.28.0")
-
-      CacheActionItems.create_cache_action_item(%{
-        hash: "hash",
-        project: project
-      })
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> assign(:cache, cache)
-        |> post(
-          ~p"/api/projects/#{account.name}/#{project.name}/cache/ac",
-          %{
-            hash: "hash"
-          }
-        )
-
-      # Then
-      cache_action_item = Repo.one(CacheActionItem)
-      response = json_response(conn, :created)
-
-      assert response == %{
-               "hash" => "hash"
-             }
-
-      assert cache_action_item.hash == response["hash"]
-    end
-
-    test "returns ok if the cache action item already exists", %{conn: conn, cache: cache} do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      project_id = project.id
+      date = DateTime.utc_now(:second)
+      stub(DateTime, :utc_now, fn :second -> date end)
+      hash = "hash"
 
       conn = Authentication.put_current_user(conn, user)
 
-      hash = "hash"
+      CacheActionItems.create_cache_action_item(%{
+        hash: hash,
+        project: project
+      })
 
-      cache_action_item =
-        CacheActionItems.create_cache_action_item(%{
-          hash: hash,
-          project: project
-        })
+      expect(Pipeline, :async_push, 1, fn {:create_cache_action_item,
+                                           %{
+                                             project_id: ^project_id,
+                                             hash: ^hash,
+                                             inserted_at: ^date,
+                                             updated_at: ^date
+                                           }} ->
+        :ok
+      end)
 
       # When
       conn =
@@ -480,18 +451,14 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> post(
           ~p"/api/projects/#{account.name}/#{project.name}/cache/ac",
           %{
-            hash: "hash"
+            hash: hash
           }
         )
 
       # Then
-      response = json_response(conn, :ok)
+      response = json_response(conn, :created)
 
-      assert response == %{
-               "hash" => "hash"
-             }
-
-      assert cache_action_item.hash == response["hash"]
+      assert response == %{"hash" => hash}
     end
 
     test "returns a payment_required method if the account doesn't have a subscription and has gone above the threshold",

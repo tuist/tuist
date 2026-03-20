@@ -18,8 +18,8 @@ defmodule Tuist.Xcode do
       prepare_xcode_graph(xcode_graph, command_event_id)
 
     XcodeGraphBuffer.insert(xcode_graph_data)
-    XcodeProjectBuffer.insert(projects_data)
-    XcodeTargetBuffer.insert(targets_data)
+    XcodeProjectBuffer.insert_all(projects_data)
+    XcodeTargetBuffer.insert_all(targets_data)
 
     xcode_graph = %{id: xcode_graph_id, name: name, command_event_id: command_event_id}
     {:ok, xcode_graph}
