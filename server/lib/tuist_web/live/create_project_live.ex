@@ -19,19 +19,20 @@ defmodule TuistWeb.CreateProjectLive do
     organization_accounts =
       current_user |> Accounts.get_user_organization_accounts() |> Enum.map(& &1.account)
 
-    all_accounts = [current_user.account | organization_accounts]
-
     selected_account =
       case Map.get(params, "account_id") do
         account_id when is_binary(account_id) ->
           account_id = String.to_integer(account_id)
 
-          if Enum.any?(all_accounts, &(&1.id == account_id)),
+          if Enum.any?(organization_accounts, &(&1.id == account_id)),
             do: account_id,
-            else: current_user.account.id
+            else: List.first(organization_accounts) && List.first(organization_accounts).id
 
         _ ->
-          current_user.account.id
+          case organization_accounts do
+            [first | _] -> first.id
+            [] -> nil
+          end
       end
 
     socket =
@@ -39,7 +40,7 @@ defmodule TuistWeb.CreateProjectLive do
         form: form,
         selected_account: selected_account,
         selected_build_system: "xcode",
-        accounts: all_accounts
+        accounts: organization_accounts
       )
 
     {:ok, socket}
@@ -64,15 +65,35 @@ defmodule TuistWeb.CreateProjectLive do
             <div data-part="header">
               <h1 data-part="title">{dgettext("dashboard_projects", "Create a project")}</h1>
               <span data-part="subtitle">
-                {dgettext("dashboard_projects", "Create a Tuist project to continue")}
+                {dgettext("dashboard_projects", "Create a Tuist project")}
               </span>
             </div>
             <.form data-part="form" for={@form} id="create-project-form" phx-submit="create_project">
+              <div data-part="dropdown">
+                <.label
+                  label={dgettext("dashboard_projects", "Select organization")}
+                  required
+                />
+                <.select
+                  id="account-selection"
+                  name="account_id"
+                  label={dgettext("dashboard_projects", "Organization")}
+                  value={@selected_account}
+                  on_value_change="select_account"
+                >
+                  <:item
+                    :for={account <- @accounts}
+                    value={account.id}
+                    label={account.name}
+                    icon="building"
+                  />
+                </.select>
+              </div>
               <.text_input
                 field={@form[:name]}
                 type="basic"
                 label={dgettext("dashboard_projects", "Name")}
-                show_required={false}
+                show_required
                 required
               />
               <div data-part="dropdown">
@@ -91,40 +112,10 @@ defmodule TuistWeb.CreateProjectLive do
                   <:item value="gradle" label="Gradle" />
                 </.select>
               </div>
-              <div data-part="dropdown">
-                <.label label={dgettext("dashboard_projects", "Select account")} />
-                <.select
-                  id="account-selection"
-                  name="account_id"
-                  label={dgettext("dashboard_projects", "Account")}
-                  hint={
-                    dgettext(
-                      "dashboard_projects",
-                      "Choose an account to create your project or set up a new organization."
-                    )
-                  }
-                  value={@selected_account}
-                  on_value_change="select_account"
-                >
-                  <:item
-                    :for={account <- @accounts}
-                    value={account.id}
-                    label={account.name}
-                    icon={if is_nil(account.organization_id), do: "user", else: "building"}
-                  />
-                </.select>
-              </div>
-
               <.button
                 variant="primary"
                 label={dgettext("dashboard_projects", "Continue")}
                 type="submit"
-              />
-              <.line_divider text={dgettext("dashboard_projects", "Or set up a new organization")} />
-              <.button
-                label={dgettext("dashboard_projects", "Create organization")}
-                variant="secondary"
-                navigate={~p"/organizations/new"}
               />
             </.form>
           </div>
@@ -170,7 +161,6 @@ defmodule TuistWeb.CreateProjectLive do
         {:noreply, assign(socket, form: to_form(changeset))}
 
       _error ->
-        # TODO: Error handling
         {:noreply, socket}
     end
   end

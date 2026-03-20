@@ -38,11 +38,6 @@ msgstr ""
 msgid "%{selective_tests_effectiveness}%"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:99
-#, elixir-autogen, elixir-format
-msgid "Account"
-msgstr ""
-
 #: lib/tuist_web/live/projects_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "All projects"
@@ -170,19 +165,9 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:101
-#, elixir-autogen, elixir-format
-msgid "Choose an account to create your project or set up a new organization."
-msgstr ""
-
-#: lib/tuist_web/live/create_project_live.ex:120
+#: lib/tuist_web/live/create_project_live.ex:117
 #, elixir-autogen, elixir-format
 msgid "Continue"
-msgstr ""
-
-#: lib/tuist_web/live/create_project_live.ex:67
-#, elixir-autogen, elixir-format
-msgid "Create a Tuist project to continue"
 msgstr ""
 
 #: lib/tuist_web/live/projects_live.ex:351
@@ -190,14 +175,9 @@ msgstr ""
 msgid "Create a new project"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:65
+#: lib/tuist_web/live/create_project_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "Create a project"
-msgstr ""
-
-#: lib/tuist_web/live/create_project_live.ex:125
-#, elixir-autogen, elixir-format
-msgid "Create organization"
 msgstr ""
 
 #: lib/tuist_web/live/projects_live.ex:337
@@ -300,7 +280,7 @@ msgstr ""
 msgid "Local"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:74
+#: lib/tuist_web/live/create_project_live.ex:95
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:107
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:171
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:216
@@ -345,11 +325,6 @@ msgstr ""
 #: lib/tuist_web/live/project_settings_live.html.heex:67
 #, elixir-autogen, elixir-format
 msgid "Only organization members"
-msgstr ""
-
-#: lib/tuist_web/live/create_project_live.ex:123
-#, elixir-autogen, elixir-format
-msgid "Or set up a new organization"
 msgstr ""
 
 #: lib/tuist_web/live/overview_live.ex:15
@@ -435,11 +410,6 @@ msgstr ""
 msgid "Search projects..."
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:95
-#, elixir-autogen, elixir-format
-msgid "Select account"
-msgstr ""
-
 #: lib/tuist_web/live/xcode_overview_live.html.heex:123
 #: lib/tuist_web/live/xcode_overview_live.html.heex:239
 #: lib/tuist_web/live/xcode_overview_live.html.heex:324
@@ -482,7 +452,7 @@ msgstr ""
 msgid "This action cannot be undone."
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:57
+#: lib/tuist_web/live/create_project_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr ""
@@ -906,13 +876,13 @@ msgstr ""
 msgid "Tests will be marked as flaky after the specified number of flaky occurrences within the last 30 days"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:86
+#: lib/tuist_web/live/create_project_live.ex:107
 #: lib/tuist_web/live/projects_live.ex:370
 #, elixir-autogen, elixir-format
 msgid "Build system"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:80
+#: lib/tuist_web/live/create_project_live.ex:101
 #: lib/tuist_web/live/projects_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Select build system"
@@ -1104,4 +1074,19 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Cooldown period (days)"
+msgstr ""
+
+#: lib/tuist_web/live/create_project_live.ex:68
+#, elixir-autogen, elixir-format
+msgid "Create a Tuist project"
+msgstr ""
+
+#: lib/tuist_web/live/create_project_live.ex:80
+#, elixir-autogen, elixir-format
+msgid "Organization"
+msgstr ""
+
+#: lib/tuist_web/live/create_project_live.ex:74
+#, elixir-autogen, elixir-format
+msgid "Select organization"
 msgstr ""

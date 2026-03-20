@@ -503,7 +503,7 @@ msgstr ""
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:289
+#: lib/tuist_web/controllers/auth_controller.ex:295
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate."
 msgstr ""
@@ -523,7 +523,7 @@ msgstr ""
 msgid "Authentication failed"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:280
+#: lib/tuist_web/controllers/auth_controller.ex:286
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""

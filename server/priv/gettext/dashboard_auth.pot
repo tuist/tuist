@@ -66,11 +66,6 @@ msgstr ""
 msgid "Choose a username"
 msgstr ""
 
-#: lib/tuist_web/live/choose_username_live.ex:52
-#, elixir-autogen, elixir-format
-msgid "Choose a username for your personal account"
-msgstr ""
-
 #: lib/tuist_web/live/user_reset_password_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Confirm password"
@@ -454,4 +449,9 @@ msgstr ""
 #: lib/tuist_web/live/user_login_live.ex:195
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
+msgstr ""
+
+#: lib/tuist_web/live/choose_username_live.ex:52
+#, elixir-autogen, elixir-format
+msgid "Choose a username for your account"
 msgstr ""
