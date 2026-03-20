@@ -89,7 +89,8 @@ const AgentPrompt = {
     this.abort();
     this.started = false;
 
-    const { code, prompt, response, promptCursor, responseCursor, responseSection, trigger, triggerContainer } = this.elements;
+    const { code, prompt, response, promptCursor, responseCursor, responseSection, trigger, triggerContainer } =
+      this.elements;
     prompt.textContent = "";
     response.textContent = "";
     responseSection.style.display = "none";
@@ -182,7 +183,14 @@ const AgentPrompt = {
     if (signal?.aborted) return Promise.reject(signal.reason);
     return new Promise((resolve, reject) => {
       const id = setTimeout(resolve, ms);
-      signal?.addEventListener("abort", () => { clearTimeout(id); reject(signal.reason); }, { once: true });
+      signal?.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(id);
+          reject(signal.reason);
+        },
+        { once: true },
+      );
     });
   },
 
