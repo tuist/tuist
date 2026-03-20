@@ -127,6 +127,7 @@ if Enum.member?([:prod, :stag, :can], env) do
     queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
     settings: [
       readonly: 1,
+      max_threads: Tuist.Environment.clickhouse_max_threads(secrets),
       # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
       # parallel_hash (good for medium tables), and hash (fallback for large tables)
       join_algorithm: "direct,parallel_hash,hash"
@@ -145,6 +146,9 @@ if Enum.member?([:prod, :stag, :can], env) do
     flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
     max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
     pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
+    settings: [
+      max_threads: Tuist.Environment.clickhouse_max_threads(secrets)
+    ],
     transport_opts: [
       keepalive: true,
       show_econnreset: true,
