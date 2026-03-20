@@ -2291,7 +2291,21 @@ msgstr ""
 msgid "Flaky tests dashboard showing test history and automation creation modal"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:280
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:374
+#, elixir-autogen, elixir-format
+msgid "Instantly generate and share app previews so your team can test changes and give feedback faster."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:401
+#, elixir-autogen, elixir-format
+msgid "App preview interface showing share preview button and platform options"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:369
+#, elixir-autogen, elixir-format
+msgid "Quality assurance"
+msgstr ""
+
 #: lib/tuist_web/marketing/live/marketing_selective_testing_live.ex:36
 #: lib/tuist_web/marketing/live/marketing_selective_testing_live.html.heex:14
 #, elixir-autogen, elixir-format

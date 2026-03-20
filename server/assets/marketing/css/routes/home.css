@@ -572,8 +572,7 @@
       border-left: none;
       padding: var(--noora-spacing-5) 0;
 
-      &[data-variant="cache"],
-      &[data-variant="previews"] {
+      &[data-variant="cache"] {
         border-bottom: 1px solid var(--noora-surface-border-primary);
       }
 
