@@ -29,6 +29,7 @@ struct CIControllerTests {
         #expect(ciInfo == CIInfo(
             provider: .github,
             runId: "123456789",
+            attemptNumber: "1",
             projectHandle: "owner/repo",
             host: nil
         ))
@@ -190,6 +191,7 @@ struct CIControllerTests {
         #expect(ciInfo == CIInfo(
             provider: .github,
             runId: "123456789",
+            attemptNumber: "1",
             projectHandle: nil,
             host: nil
         ))
@@ -211,6 +213,7 @@ struct CIControllerTests {
         #expect(ciInfo == CIInfo(
             provider: .github,
             runId: nil,
+            attemptNumber: "1",
             projectHandle: "owner/repo",
             host: nil
         ))
