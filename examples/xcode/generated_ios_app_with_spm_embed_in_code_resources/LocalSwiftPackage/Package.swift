@@ -11,7 +11,7 @@ let package = Package(
         .target(
             name: "LocalSwiftPackage",
             dependencies: [],
-            resources: [.process("Resources")]
+            resources: [.embedInCode("Resources")]
         ),
     ]
 )
