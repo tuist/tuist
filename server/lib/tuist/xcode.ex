@@ -220,6 +220,25 @@ defmodule Tuist.Xcode do
     )
   end
 
+  @doc """
+  Returns a preload query for xcode_targets scoped to the run's date range.
+
+  The xcode_targets table is partitioned by toYYYYMMDD(inserted_at). A plain
+  `preload(run, [:xcode_targets])` generates `WHERE command_event_id = ?`
+  without inserted_at bounds, causing ClickHouse to scan all partitions
+  (~887K rows). Use this function instead to add a ±1 day inserted_at filter
+  so ClickHouse can prune to 1-3 daily partitions.
+
+  Usage: `ClickHouseRepo.preload(run, xcode_targets: Xcode.xcode_targets_preload_query(run))`
+  """
+  def xcode_targets_preload_query(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
+    from(xt in XcodeTarget,
+      where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt
+    )
+  end
+
   # Returns a ±1 day date range around the event's created_at for use as an
   # inserted_at filter. The xcode_targets table is partitioned by
   # toYYYYMMDD(inserted_at), so adding this filter lets ClickHouse prune
