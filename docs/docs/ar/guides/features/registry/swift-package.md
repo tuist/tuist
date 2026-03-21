@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in a Swift package."
 }
 ---
-# حزم سويفت {#حزم سويفت}
+# حزمة Swift {#swift-package}
 
 إذا كنت تعمل على حزمة Swift، يمكنك استخدام علامة `--replace-scm-with-registry`
 لحل التبعيات من السجل إذا كانت متوفرة:
