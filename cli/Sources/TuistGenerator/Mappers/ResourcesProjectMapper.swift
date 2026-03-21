@@ -360,7 +360,10 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
 
             [NSException raise:@"BundleNotFound" format:nil];
         }
-        """
+      if external && target.settings?.base["GCC_PREFIX_HEADER"] != nil {
+            return nil
+        }
+      
     }
 
     private static func publicBundleAccessorString(for target: Target) -> String {
