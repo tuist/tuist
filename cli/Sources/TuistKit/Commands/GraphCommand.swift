@@ -41,7 +41,7 @@ public struct GraphCommand: AsyncParsableCommand {
 
     @Option(
         name: [.customShort("f"), .long],
-        help: "Available formats: dot, json, png, svg",
+        help: "Available formats: dot, json, png, svg, html",
         envKey: .graphFormat
     )
     var format: GraphFormat = .png
@@ -81,6 +81,18 @@ public struct GraphCommand: AsyncParsableCommand {
     )
     var outputPath: String?
 
+    @Option(
+        help: "The port to use for the html graph server.",
+        envKey: .graphPort
+    )
+    var port: Int = 8081
+
+    public mutating func validate() throws {
+        guard (1 ... 65535).contains(port) else {
+            throw ValidationError("Invalid value for '--port': \(port). Expected a value in the range 1...65535.")
+        }
+    }
+
     public func run() async throws {
         try await GraphService().run(
             format: format,
@@ -93,13 +105,14 @@ public struct GraphCommand: AsyncParsableCommand {
             path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
             outputPath: outputPath
                 .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
-                .currentPath
+                .currentPath,
+            port: port
         )
     }
 }
 
 enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
-    case dot, json, legacyJSON, png, svg
+    case dot, json, legacyJSON, png, svg, html
 }
 
 extension GraphViz.LayoutAlgorithm: ArgumentParser.ExpressibleByArgument {

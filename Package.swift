@@ -15,6 +15,7 @@ let commandDependency: Target.Dependency = .product(name: "Command", package: "t
 let xcodeGraphDependency: Target.Dependency = "XcodeGraph"
 let xcodeMetadataDependency: Target.Dependency = "XcodeMetadata"
 let xcodeGraphMapperDependency: Target.Dependency = "XcodeGraphMapper"
+let tuistGraphServerDependency: Target.Dependency = "TuistGraphServer"
 let xcodeProjDependency: Target.Dependency = .product(name: "XcodeProj", package: "tuist.XcodeProj")
 let mockableDependency: Target.Dependency = .product(name: "Mockable", package: "kolos65.Mockable")
 let zipFoundationDependency: Target.Dependency = .product(name: "ZIPFoundation", package: "tuist.ZIPFoundation")
@@ -480,6 +481,15 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistGraphServer",
+        dependencies: [
+            .product(name: "NIO", package: "apple.swift-nio"),
+            .product(name: "NIOHTTP1", package: "apple.swift-nio"),
+            .product(name: "NIOWebSocket", package: "apple.swift-nio"),
+        ],
+        path: "cli/Sources/TuistGraphServer"
+    ),
+    .target(
         name: "TuistEnvironment",
         dependencies: [
             pathDependency,
@@ -892,6 +902,17 @@ var targets: [Target] = [
         path: "cli/Tests/TuistCASTests"
     ),
     .testTarget(
+        name: "TuistGraphServerTests",
+        dependencies: [
+            "TuistGraphServer",
+            .product(name: "NIO", package: "apple.swift-nio"),
+            .product(name: "NIOHTTP1", package: "apple.swift-nio"),
+            .product(name: "NIOWebSocket", package: "apple.swift-nio"),
+            .product(name: "NIOEmbedded", package: "apple.swift-nio"),
+        ],
+        path: "cli/Tests/TuistGraphServerTests"
+    ),
+    .testTarget(
         name: "TuistOIDCTests",
         dependencies: [
             "TuistOIDC",
@@ -1176,6 +1197,7 @@ targets.append(contentsOf: [
             xcodeGraphDependency,
             commandDependency,
             xcodeGraphMapperDependency,
+            tuistGraphServerDependency,
             anyCodableDependency,
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
             .product(name: "MCP", package: "modelcontextprotocol.swift-sdk"),
@@ -1554,6 +1576,10 @@ var products: [Product] = [
     .library(
         name: "TuistOIDC",
         targets: ["TuistOIDC"]
+    ),
+    .library(
+        name: "XcodeGraph",
+        targets: ["XcodeGraph"]
     ),
 ]
 
