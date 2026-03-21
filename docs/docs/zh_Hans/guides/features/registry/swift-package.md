@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in a Swift package."
 }
 ---
-# Swift 软件包 {#swift-packages}
+# Swift 套件{#swift-package}
 
 若处理Swift包，可使用`--replace-scm-with-registry` 参数从注册库解析依赖项（若可用）：
 
