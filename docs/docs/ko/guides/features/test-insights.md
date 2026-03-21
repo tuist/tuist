@@ -9,7 +9,8 @@
 
 ::: warning 요구 사항
 <!-- -->
-- 1}Tuist 계정 및 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및
+  프로젝트</LocalizedLink>
 <!-- -->
 :::
 
@@ -111,7 +112,7 @@ testAction: .testAction(
 )
 ```
 
-## 지속적 통합 {#continuous-integration}
+## 지속 통합 {#continuous-integration}
 
 CI에 대한 빌드 및 테스트 분석을 추적하려면 CI가
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">인증</LocalizedLink>되었는지
