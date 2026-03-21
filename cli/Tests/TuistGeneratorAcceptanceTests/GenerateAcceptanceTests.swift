@@ -1387,6 +1387,15 @@ struct GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies {
     }
 }
 
+struct GenerateAcceptanceTestAppWithLocalSPMEmbedInCodeResources {
+    @Test(.withFixture("generated_ios_app_with_spm_embed_in_code_resources"), .inTemporaryDirectory)
+    func app_with_local_spm_embed_in_code_resources() async throws {
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 struct GenerateAcceptanceTestAppWithNonLocalAppDependencies {
     @Test(.disabled(), .withFixture("generated_app_with_executable_non_local_dependencies"), .inTemporaryDirectory)
     func app_with_non_local_app_dependencies() async throws {
