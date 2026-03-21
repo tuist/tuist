@@ -33,8 +33,8 @@ inspect test` komutunu ekleyerek bu komuttan yararlanabilirsiniz:
 ![Testleri incelemek için sonradan yapılacak
 işlemler](/images/guides/features/insights/inspect-test-scheme-post-action.png)
 
-[Mise](https://mise.jdx.dev/) kullanıyorsanız, komut dosyanızın `tuist` komutunu
-post-action ortamında etkinleştirmesi gerekir:
+[Mise](https://mise.jdx.dev/) kullanıyorsanız, komut dosyanızın post-action
+ortamınd `'i` ile etkinleştirmesi gerekir:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
@@ -43,9 +43,9 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 
 ::: tip MISE & PROJECT PATHS
 <!-- -->
-Ortamınızın `PATH` ortam değişkeni, şema sonrası eylemi tarafından devralınmaz
-ve bu nedenle, Mise'yi nasıl yüklediğinize bağlı olarak Mise'nin mutlak yolunu
-kullanmanız gerekir. Ayrıca, Mise'yi $SRCROOT tarafından gösterilen dizinden
+Ortamınızın `PATH` ortam değişkeni, scheme post eylemi tarafından devralınmaz;
+bu nedenle, Mise'yi nasıl kurduğunuza bağlı olarak Mise'nin mutlak yolunu
+kullanmanız gerekir. Ayrıca, $SRCROOT tarafından işaret edilen dizinden Mise'yi
 çalıştırabilmeniz için, projenizdeki bir hedeften derleme ayarlarını devralmayı
 unutmayın.
 <!-- -->
@@ -133,7 +133,7 @@ Ayrıca, şunlardan birini yapmanız gerekecektir:
 - `xcodebuild` eylemlerini çağırırken
   <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
   xcodebuild`</LocalizedLink> komutunu kullanın.
-- `-resultBundlePath` ekleyin. `xcodebuild` çağrısına ekleyin.
+- `xcodebuild` çağrınıza `-resultBundlePath` ekleyin.
 
 `xcodebuild` komutları, `-resultBundlePath` olmadan projenizi test ettiğinde,
 gerekli sonuç paketi dosyaları oluşturulmaz. `tuist inspect test` post-action,
