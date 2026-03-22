@@ -12,7 +12,11 @@ defmodule Tuist.Ingestion.Buffer do
   end
 
   def insert(server, row_binary) do
-    GenServer.cast(server, {:insert, row_binary})
+    if sync_writes?() do
+      GenServer.call(server, {:insert_and_flush, row_binary}, :infinity)
+    else
+      GenServer.cast(server, {:insert, row_binary})
+    end
   end
 
   def flush(server) do
@@ -69,6 +73,18 @@ defmodule Tuist.Ingestion.Buffer do
   end
 
   @impl true
+  def handle_call({:insert_and_flush, row_binary}, _from, state) do
+    state = %{
+      state
+      | buffer: [state.buffer | row_binary],
+        buffer_size: state.buffer_size + IO.iodata_length(row_binary)
+    }
+
+    do_flush(state)
+    {:reply, :ok, %{state | buffer: [], buffer_size: 0}}
+  end
+
+  @impl true
   def handle_call(:flush, _from, state) do
     %{timer: timer, flush_interval_ms: flush_interval_ms} = state
     Process.cancel_timer(timer)
@@ -109,5 +125,12 @@ defmodule Tuist.Ingestion.Buffer do
 
   defp default_max_buffer_size do
     Keyword.fetch!(Application.get_env(:tuist, IngestRepo), :max_buffer_size)
+  end
+
+  defp sync_writes? do
+    case Application.get_env(:tuist, IngestRepo) do
+      config when is_list(config) -> Keyword.get(config, :sync_writes, false)
+      _ -> false
+    end
   end
 end

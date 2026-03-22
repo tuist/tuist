@@ -1,12 +1,13 @@
 defmodule Tuist.Marketing.MDExConverter do
   @moduledoc """
-  Custom NimblePublisher HTML converter that uses MDEx instead of Earmark.
-  Converts markdown to HTML at compile time with server-side syntax highlighting
-  and support for Phoenix HEEx components.
+  Compile-time MDEx helper for marketing blog content.
 
-  Code blocks are wrapped in a marketing window container with a language label
-  and copy button, matching the design used across the marketing site.
+  It converts markdown to HTML for all existing consumers and can also
+  precompile selected posts into a HEEx template that is rendered later with
+  runtime assigns from LiveView.
   """
+
+  use Noora
 
   alias Phoenix.HTML.Safe
 
@@ -34,12 +35,40 @@ defmodule Tuist.Marketing.MDExConverter do
     ]
   ]
 
-  def convert(_path, body, _attrs, _opts) do
-    [markdown: body]
+  def convert(_path, body, _attrs, _opts), do: body
+
+  def compile_markdown(markdown, path, live?) do
+    document = build_document(markdown)
+    html = MDEx.to_html!(document)
+
+    template =
+      if live? do
+        compile_heex_template(html, path)
+      end
+
+    {html, template}
+  end
+
+  defp build_document(markdown) do
+    [markdown: markdown]
     |> MDEx.new()
     |> MDEx.Document.put_options(@mdex_options)
     |> MDEx.Document.append_steps(wrap_code_blocks: &wrap_code_blocks/1)
-    |> MDEx.to_html!()
+  end
+
+  defp compile_heex_template(html, path) do
+    env = __ENV__
+
+    EEx.compile_string(
+      html,
+      engine: Phoenix.LiveView.TagEngine,
+      file: path,
+      line: 1,
+      caller: env,
+      indentation: 0,
+      source: html,
+      tag_handler: Phoenix.LiveView.HTMLEngine
+    )
   end
 
   defp wrap_code_blocks(document) do
@@ -55,7 +84,7 @@ defmodule Tuist.Marketing.MDExConverter do
 
         %MDEx.HtmlBlock{
           literal: """
-          <div id="marketing-window">\
+          <div class="marketing-window">\
           <div data-part="bar">\
           <div data-part="language">#{language}</div>\
           <div data-part="copy">\

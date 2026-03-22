@@ -18,8 +18,8 @@ defmodule Tuist.Xcode do
       prepare_xcode_graph(xcode_graph, command_event_id)
 
     XcodeGraphBuffer.insert(xcode_graph_data)
-    XcodeProjectBuffer.insert(projects_data)
-    XcodeTargetBuffer.insert(targets_data)
+    XcodeProjectBuffer.insert_all(projects_data)
+    XcodeTargetBuffer.insert_all(targets_data)
 
     xcode_graph = %{id: xcode_graph_id, name: name, command_event_id: command_event_id}
     {:ok, xcode_graph}
@@ -217,6 +217,25 @@ defmodule Tuist.Xcode do
         where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.binary_cache_hash)
       )
+    )
+  end
+
+  @doc """
+  Returns a preload query for xcode_targets scoped to the run's date range.
+
+  The xcode_targets table is partitioned by toYYYYMMDD(inserted_at). A plain
+  `preload(run, [:xcode_targets])` generates `WHERE command_event_id = ?`
+  without inserted_at bounds, causing ClickHouse to scan all partitions
+  (~887K rows). Use this function instead to add a ±1 day inserted_at filter
+  so ClickHouse can prune to 1-3 daily partitions.
+
+  Usage: `ClickHouseRepo.preload(run, xcode_targets: Xcode.xcode_targets_preload_query(run))`
+  """
+  def xcode_targets_preload_query(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
+    from(xt in XcodeTarget,
+      where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt
     )
   end
 

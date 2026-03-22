@@ -73,7 +73,8 @@ defmodule Tuist.PromEx do
         Tuist.Repo.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,
         Tuist.Authentication.PromExPlugin,
-        Tuist.HTTP.PromExPlugin
+        Tuist.HTTP.PromExPlugin,
+        TuistCommon.HTTP.TransportPromExPlugin
       ]
 
     plugins =

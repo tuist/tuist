@@ -25,7 +25,8 @@ defmodule Cache.PromEx do
       Cache.SQLiteBuffer.PromExPlugin,
       Cache.S3Transfers.PromExPlugin,
       Cache.S3.PromExPlugin,
-      Cache.Authentication.PromExPlugin
+      Cache.Authentication.PromExPlugin,
+      TuistCommon.HTTP.TransportPromExPlugin
     ]
   end
 end
