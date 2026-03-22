@@ -272,7 +272,9 @@ public class GraphTraverser: GraphTraversing {
         guard let target = graph.projects[path]?.targets[name] else { return [] }
 
         func canHostResources(target: Target) -> Bool {
-            target.supportsResources && (target.product != .staticFramework || target.containsResources)
+            let isStatic = target.product == .staticFramework
+            let isDelegatedToBundle = target.metadata.tags.contains("tuist:resourcesDelegatedToBundle")
+            return target.supportsResources && (!isStatic || (target.containsResources && !isDelegatedToBundle))
         }
 
         guard canHostResources(target: target) else { return [] }
@@ -1501,7 +1503,9 @@ public class GraphTraverser: GraphTraversing {
 
     private func isEmbeddableDependencyTarget(dependency: GraphDependency) -> Bool {
         testTarget(dependency: dependency) {
-            $0.product.isDynamic || $0.product == .staticFramework && $0.containsResources
+            let isStatic = $0.product == .staticFramework
+            let isDelegatedToBundle = $0.metadata.tags.contains("tuist:resourcesDelegatedToBundle")
+            return $0.product.isDynamic || isStatic && $0.containsResources && !isDelegatedToBundle
         }
     }
 

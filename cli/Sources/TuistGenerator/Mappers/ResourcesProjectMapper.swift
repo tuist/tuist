@@ -100,6 +100,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 }
             }
             modifiedTarget.resources.resources = []
+            modifiedTarget.metadata.tags.insert("tuist:resourcesDelegatedToBundle")
             modifiedTarget.copyFiles = []
             modifiedTarget.buildableFolders = remainingBuildableFolders
             modifiedTarget.dependencies.append(.target(

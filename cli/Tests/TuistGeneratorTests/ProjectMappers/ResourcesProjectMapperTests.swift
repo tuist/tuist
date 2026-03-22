@@ -563,6 +563,8 @@ struct ResourcesProjectMapperTests {
         #expect(gotTarget.name == target.name)
         #expect(gotTarget.product == target.product)
         #expect(gotTarget.resources.resources.count == 0)
+        #expect(gotTarget.coreDataModels == coreDataModels)
+        #expect(gotTarget.metadata.tags.contains("tuist:resourcesDelegatedToBundle"))
         #expect(gotTarget.sources.count == 2)
         #expect(gotTarget.sources.last?.path == expectedPath)
         #expect(gotTarget.sources.last?.contentHash != nil)

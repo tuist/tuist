@@ -777,6 +777,31 @@ struct GenerateAcceptanceTestiOSAppWithCoreData {
     }
 }
 
+struct GenerateAcceptanceTestiOSAppWithCoreDataInStaticFramework {
+    @Test(.withFixture("generated_ios_app_with_coredata_in_static_framework"), .inTemporaryDirectory)
+    func ios_app_with_coredata_in_static_framework() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(components: "App", "App.xcodeproj")
+
+        // When
+        try await run(GenerateCommand.self)
+
+        // Then: Framework is linked as static — must NOT be embedded in App
+        try TuistTest.expectFrameworkNotEmbedded("Framework", by: "App", inXcodeProj: xcodeprojPath)
+
+        // Then: build succeeds (CoreData model compiles and NSManagedObject subclass is generated)
+        try await run(BuildCommand.self, "App")
+
+        // Then: compiled CoreData model is inside the companion bundle, not the framework itself
+        try await XCTAssertProductWithDestinationContainsResource(
+            "Framework_Framework.bundle",
+            destination: "Debug-iphonesimulator",
+            resource: "Users.momd"
+        )
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithAppClip {
     @Test(.withFixture("generated_ios_app_with_appclip"), .inTemporaryDirectory)
     func ios_app_with_appclip() async throws {
