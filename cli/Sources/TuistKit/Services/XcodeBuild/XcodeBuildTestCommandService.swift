@@ -7,8 +7,8 @@ import TuistConfig
 import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
-import TuistGit
 import TuistLoader
+import TuistRootDirectoryLocator
 import TuistLogging
 import TuistServer
 import TuistSupport
@@ -27,7 +27,7 @@ struct XcodeBuildTestCommandService {
     private let xcActivityLogController: XCActivityLogControlling
     private let uploadResultBundleService: UploadResultBundleServicing
     private let xcResultService: XCResultServicing
-    private let gitController: GitControlling
+    private let rootDirectoryLocator: RootDirectoryLocating
     private let testQuarantineService: TestQuarantineServicing
 
     init(
@@ -41,7 +41,7 @@ struct XcodeBuildTestCommandService {
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
         xcResultService: XCResultServicing = XCResultService(),
-        gitController: GitControlling = GitController(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService()
     ) {
         self.fileSystem = fileSystem
@@ -54,7 +54,7 @@ struct XcodeBuildTestCommandService {
         self.xcActivityLogController = xcActivityLogController
         self.uploadResultBundleService = uploadResultBundleService
         self.xcResultService = xcResultService
-        self.gitController = gitController
+        self.rootDirectoryLocator = rootDirectoryLocator
         self.testQuarantineService = testQuarantineService
     }
 
@@ -209,14 +209,10 @@ struct XcodeBuildTestCommandService {
     }
 
     private func rootDirectory() async -> AbsolutePath? {
-        guard let currentWorkingDirectory = try? await Environment.current.currentWorkingDirectory() else {
+        guard let workingDirectory = try? await Environment.current.currentWorkingDirectory() else {
             return nil
         }
-        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
-            return try? gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
-        }
-        return nil
+        return try? await rootDirectoryLocator.locate(from: workingDirectory)
     }
 
     private func uploadResultBundleIfNeeded(
