@@ -127,7 +127,7 @@ internal class TestReportCollector {
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
             val testCases = buildTestCases(attempts)
-            val moduleStatus = if (testCases.any { it.status == "failure" }) "failure" else "success"
+            val moduleStatus = if (testCases.any { it.status == "failure" && !it.isQuarantined }) "failure" else "success"
             val moduleDuration = testCases.sumOf { it.duration }
 
             val testSuites = testCases
@@ -136,7 +136,7 @@ internal class TestReportCollector {
                 .map { (suiteName, cases) ->
                     TestSuite(
                         name = suiteName,
-                        status = if (cases.any { it.status == "failure" }) "failure" else "success",
+                        status = if (cases.any { it.status == "failure" && !it.isQuarantined }) "failure" else "success",
                         duration = cases.sumOf { it.duration }
                     )
                 }
@@ -150,8 +150,8 @@ internal class TestReportCollector {
             )
         }
 
-        val hasFailure = testModules.any { it.status == "failure" }
-        val overallStatus = if (hasFailure) "failure" else "success"
+        val hasNonQuarantinedFailure = testModules.any { it.status == "failure" }
+        val overallStatus = if (hasNonQuarantinedFailure) "failure" else "success"
 
         return TestReport(
             duration = totalDurationMs,
