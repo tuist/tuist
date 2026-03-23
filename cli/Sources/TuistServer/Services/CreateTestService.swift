@@ -142,11 +142,11 @@ import TuistHTTP
                         .test_casesPayloadPayload(
                             duration: testCase.duration ?? 0,
                             failures: failures,
-                            is_quarantined: testCase.isQuarantined,
                             name: testCase.name,
                             repetitions: repetitions,
                             status: testCaseStatusToServerStatus(testCase.status),
-                            test_suite_name: testCase.testSuite
+                            test_suite_name: testCase.testSuite,
+                            is_quarantined: testCase.isQuarantined
                         )
                 }
 

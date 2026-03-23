@@ -17567,6 +17567,11 @@ paths:
                               type: string
                               x-struct:
                               x-validate:
+                            is_quarantined:
+                              description: Whether this test case was quarantined when it ran.
+                              type: boolean
+                              x-struct:
+                              x-validate:
                           required:
                             - name
                             - status
