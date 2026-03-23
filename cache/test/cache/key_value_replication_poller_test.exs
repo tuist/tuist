@@ -15,6 +15,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
     stub(Config, :key_value_mode, fn -> :distributed end)
     stub(Config, :distributed_kv_enabled?, fn -> true end)
     stub(Config, :distributed_kv_node_name, fn -> "test-node" end)
+    stub(Config, :distributed_kv_sync_interval_ms, fn -> 60_000 end)
     :ok
   end
 
@@ -56,9 +57,10 @@ defmodule Cache.KeyValueReplicationPollerTest do
       0
     end)
 
-    stub(KeyValueEntries, :materialize_remote_entry, fn _attrs ->
-      Agent.update(materialized_agent, &(&1 + 1))
-      :payload_updated
+    stub(KeyValueEntries, :apply_remote_batch, fn rows ->
+      materialized_count = Enum.count(rows, fn row -> is_nil(row.deleted_at) end)
+      Agent.update(materialized_agent, &(&1 + materialized_count))
+      {:ok, batch_result(rows)}
     end)
 
     stub(KeyValueEntries, :put_distributed_watermark, fn updated_at, key ->
@@ -93,13 +95,13 @@ defmodule Cache.KeyValueReplicationPollerTest do
     total_calls = Agent.get(calls_agent, & &1)
 
     assert total_materialized == 2200
-    assert total_watermark_puts == 3
+    assert total_watermark_puts == 22
     assert total_calls == 3
   end
 
-  test "poller materializes alive rows and advances watermark" do
+  test "poller applies alive rows in chunks and advances watermark per committed chunk" do
     parent = self()
-    {:ok, watermark_agent} = Agent.start_link(fn -> nil end)
+    {:ok, watermark_agent} = Agent.start_link(fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
     {:ok, calls_agent} = Agent.start_link(fn -> 0 end)
 
     updated_at = DateTime.add(DateTime.utc_now(), -120, :second)
@@ -120,10 +122,10 @@ defmodule Cache.KeyValueReplicationPollerTest do
     stub(KeyValueEntries, :distributed_watermark, fn -> Agent.get(watermark_agent, & &1) end)
     stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
 
-    stub(KeyValueEntries, :materialize_remote_entry, fn attrs ->
-      assert attrs.key == row.key
-      send(parent, :materialized)
-      :payload_updated
+    stub(KeyValueEntries, :apply_remote_batch, fn [batch_row] ->
+      assert batch_row.key == row.key
+      send(parent, :chunk_applied)
+      {:ok, batch_result([batch_row])}
     end)
 
     stub(KeyValueEntries, :put_distributed_watermark, fn ^updated_at, key ->
@@ -138,30 +140,19 @@ defmodule Cache.KeyValueReplicationPollerTest do
     stub(Repo, :all, fn _query, _opts ->
       Agent.get_and_update(calls_agent, fn count ->
         next_count = count + 1
-
-        result =
-          case next_count do
-            1 -> [row]
-            2 -> [row]
-            _ -> []
-          end
-
+        result = if next_count == 1, do: [row], else: []
         {result, next_count}
       end)
     end)
 
-    stub(Repo, :one, fn _query, _opts -> row end)
-
     start_supervised!(KeyValueReplicationPoller)
 
-    assert_receive :materialized
-    assert_receive :watermark_updated
+    assert_receive :chunk_applied, 10_000
+    assert_receive :watermark_updated, 10_000
   end
 
   test "throttles local store size measurement across repeated polls" do
     parent = self()
-
-    stub(Config, :distributed_kv_sync_interval_ms, fn -> 60_000 end)
 
     stub(KeyValueEntries, :distributed_watermark, fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
 
@@ -185,45 +176,43 @@ defmodule Cache.KeyValueReplicationPollerTest do
     parent = self()
     {:ok, watermark_agent} = Agent.start_link(fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
 
-    first_updated_at = DateTime.add(DateTime.utc_now(), -120, :second)
-    second_updated_at = DateTime.add(first_updated_at, 1, :second)
+    base_time = DateTime.add(DateTime.utc_now(), -240, :second)
 
-    first_row = %Entry{
-      key: "keyvalue:acme:ios:cas-1",
-      account_handle: "acme",
-      project_handle: "ios",
-      cas_id: "cas-1",
-      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact-1"}]}),
-      source_node: "node-a",
-      source_updated_at: first_updated_at,
-      last_accessed_at: first_updated_at,
-      updated_at: first_updated_at,
-      deleted_at: nil
-    }
+    rows =
+      Enum.map(1..150, fn i ->
+        updated_at = DateTime.add(base_time, i, :second)
 
-    second_row = %{
-      first_row
-      | key: "keyvalue:acme:ios:cas-2",
-        cas_id: "cas-2",
-        source_updated_at: second_updated_at,
-        last_accessed_at: second_updated_at,
-        updated_at: second_updated_at
-    }
+        %Entry{
+          key: "keyvalue:acme:ios:cas-#{i}",
+          account_handle: "acme",
+          project_handle: "ios",
+          cas_id: "cas-#{i}",
+          json_payload: Jason.encode!(%{entries: [%{"value" => "artifact-#{i}"}]}),
+          source_node: "node-a",
+          source_updated_at: updated_at,
+          last_accessed_at: updated_at,
+          updated_at: updated_at,
+          deleted_at: nil
+        }
+      end)
 
-    first_key = first_row.key
-    second_key = second_row.key
+    first_chunk = Enum.take(rows, 100)
+    second_chunk = Enum.drop(rows, 100)
+    last_committed_row = List.last(first_chunk)
+    last_committed_key = last_committed_row.key
+    last_committed_updated_at = last_committed_row.updated_at
 
     stub(KeyValueEntries, :distributed_watermark, fn -> Agent.get(watermark_agent, & &1) end)
     stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
 
-    stub(KeyValueEntries, :materialize_remote_entry, fn attrs ->
-      case attrs.key do
-        ^first_key ->
-          send(parent, :first_row_materialized)
-          :payload_updated
+    stub(KeyValueEntries, :apply_remote_batch, fn chunk ->
+      cond do
+        chunk == first_chunk ->
+          send(parent, :first_chunk_applied)
+          {:ok, batch_result(chunk)}
 
-        ^second_key ->
-          raise %Exqlite.Error{message: "Database busy"}
+        chunk == second_chunk ->
+          {:error, :busy}
       end
     end)
 
@@ -235,16 +224,84 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
     stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
 
-    stub(Repo, :all, fn _query, _opts -> [first_row, second_row] end)
+    stub(Repo, :all, fn _query, _opts -> rows end)
 
     start_supervised!(KeyValueReplicationPoller)
 
-    assert_receive :first_row_materialized, 10_000
-    assert_receive {:watermark_updated, ^first_key}, 10_000
+    assert_receive :first_chunk_applied, 10_000
+    assert_receive {:watermark_updated, ^last_committed_key}, 10_000
 
-    assert %{updated_at_value: ^first_updated_at, key_value: ^first_key} =
+    assert %{updated_at_value: ^last_committed_updated_at, key_value: ^last_committed_key} =
              Agent.get(watermark_agent, & &1)
 
     assert Process.whereis(KeyValueReplicationPoller)
+  end
+
+  test "does not advance the watermark when post-commit side effects fail" do
+    parent = self()
+    sentinel_watermark = %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""}
+    {:ok, watermark_agent} = Agent.start_link(fn -> sentinel_watermark end)
+
+    updated_at = DateTime.add(DateTime.utc_now(), -120, :second)
+
+    row = %Entry{
+      key: "keyvalue:acme:ios:cas",
+      account_handle: "acme",
+      project_handle: "ios",
+      cas_id: "cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+      source_node: "node-a",
+      source_updated_at: updated_at,
+      last_accessed_at: updated_at,
+      updated_at: updated_at,
+      deleted_at: nil
+    }
+
+    stub(KeyValueEntries, :distributed_watermark, fn -> Agent.get(watermark_agent, & &1) end)
+    stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
+
+    stub(KeyValueEntries, :apply_remote_batch, fn [batch_row] ->
+      {:ok, batch_result([batch_row], %{mark_lineage_keys: [batch_row.key]})}
+    end)
+
+    stub(KeyValueEntries, :put_distributed_watermark, fn updated_at, key ->
+      Agent.update(watermark_agent, fn _ -> %{updated_at_value: updated_at, key_value: key} end)
+      send(parent, :watermark_updated)
+      :ok
+    end)
+
+    stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key ->
+      send(parent, :lineage_attempted)
+      raise "boom"
+    end)
+
+    stub(Repo, :all, fn _query, _opts -> [row] end)
+
+    start_supervised!(KeyValueReplicationPoller)
+
+    assert_receive :lineage_attempted, 10_000
+    refute_receive :watermark_updated, 200
+    assert Agent.get(watermark_agent, & &1) == sentinel_watermark
+    assert Process.whereis(KeyValueReplicationPoller)
+  end
+
+  defp batch_result(rows, overrides \\ %{}) do
+    alive_rows = Enum.filter(rows, &is_nil(&1.deleted_at))
+    deleted_rows = Enum.reject(rows, &is_nil(&1.deleted_at))
+
+    Map.merge(
+      %{
+        processed_count: length(rows),
+        inserted_count: 0,
+        payload_updated_count: length(alive_rows),
+        access_updated_count: 0,
+        deleted_count: length(deleted_rows),
+        last_processed_row: List.last(rows),
+        invalidate_keys: [],
+        mark_lineage_keys: Enum.map(alive_rows, & &1.key),
+        clear_lineage_keys: Enum.map(deleted_rows, & &1.key)
+      },
+      overrides
+    )
   end
 end

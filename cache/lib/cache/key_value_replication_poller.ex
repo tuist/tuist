@@ -16,6 +16,7 @@ defmodule Cache.KeyValueReplicationPoller do
   @lag_event [:cache, :kv, :replication, :poll, :lag_ms]
   @local_store_event [:cache, :kv, :replication, :local_store, :size_bytes]
   @page_size 1000
+  @apply_chunk_size 100
   @bootstrap_page_size 500
   @max_poll_run_ms 10_000
   @local_store_emit_interval_ms 10 * 60_000
@@ -103,24 +104,23 @@ defmodule Cache.KeyValueReplicationPoller do
 
     rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
 
-    {processed_count, materialized_count, deleted_count, last_processed_row} =
-      Enum.reduce_while(rows, {0, 0, 0, nil}, fn row, {processed_acc, materialized_acc, deleted_acc, last_row} ->
-        case apply_remote_row(row) do
-          {:ok, {:materialized, _status}} ->
-            {:cont, {processed_acc + 1, materialized_acc + 1, deleted_acc, row}}
-
-          {:ok, {:deleted, deleted_rows}} ->
-            {:cont, {processed_acc + 1, materialized_acc, deleted_acc + deleted_rows, row}}
+    {processed_count, materialized_count, deleted_count} =
+      rows
+      |> Enum.chunk_every(@apply_chunk_size)
+      |> Enum.reduce_while({0, 0, 0}, fn chunk, {processed_acc, materialized_acc, deleted_acc} ->
+        case apply_remote_chunk(chunk) do
+          {:ok, result} ->
+            {:cont,
+             {processed_acc + result.processed_count, materialized_acc + alive_row_count(chunk),
+              deleted_acc + result.deleted_count}}
 
           {:error, :busy} ->
-            {:halt, {processed_acc, materialized_acc, deleted_acc, last_row}}
+            {:halt, {processed_acc, materialized_acc, deleted_acc}}
+
+          {:error, :post_commit_failed} ->
+            {:halt, {processed_acc, materialized_acc, deleted_acc}}
         end
       end)
-
-    if last_processed_row do
-      :ok = KeyValueEntries.put_distributed_watermark(last_processed_row.updated_at, last_processed_row.key)
-      emit_lag(last_processed_row.updated_at)
-    end
 
     {processed_count, {total_materialized + materialized_count, total_deleted + deleted_count}}
   end
@@ -189,31 +189,59 @@ defmodule Cache.KeyValueReplicationPoller do
     end
   end
 
-  defp apply_remote_row(%Entry{deleted_at: nil} = row) do
-    case materialize_remote_row(row) do
-      {:ok, status} ->
-        if status in [:inserted, :payload_updated] do
-          Cachex.del(:cache_keyvalue_store, row.key)
+  defp apply_remote_chunk(rows) do
+    case KeyValueEntries.apply_remote_batch(rows) do
+      {:ok, result} ->
+        with :ok <- run_chunk_side_effects(result),
+             :ok <- persist_chunk_watermark(result.last_processed_row) do
+          emit_chunk_lag(result.last_processed_row)
+          {:ok, result}
         end
 
-        KeyValueAccessTracker.mark_shared_lineage(row.key)
-        {:ok, {:materialized, status}}
-
       {:error, :busy} ->
         {:error, :busy}
+
+      {:error, reason} ->
+        raise "unexpected remote batch apply error: #{inspect(reason)}"
     end
+  rescue
+    error ->
+      if SQLiteHelpers.busy_error?(error) do
+        {:error, :busy}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
-  defp apply_remote_row(row) do
-    case delete_remote_row(row) do
-      {:ok, deleted_rows} ->
-        Cachex.del(:cache_keyvalue_store, row.key)
-        KeyValueAccessTracker.clear(row.key)
-        {:ok, {:deleted, deleted_rows}}
+  defp run_chunk_side_effects(result) do
+    Enum.each(result.invalidate_keys, fn key ->
+      _ = Cachex.del(:cache_keyvalue_store, key)
+    end)
 
-      {:error, :busy} ->
-        {:error, :busy}
-    end
+    Enum.each(result.mark_lineage_keys, &KeyValueAccessTracker.mark_shared_lineage/1)
+    Enum.each(result.clear_lineage_keys, &KeyValueAccessTracker.clear/1)
+
+    :ok
+  rescue
+    _error ->
+      {:error, :post_commit_failed}
+  end
+
+  defp persist_chunk_watermark(nil), do: :ok
+
+  defp persist_chunk_watermark(last_processed_row) do
+    :ok = KeyValueEntries.put_distributed_watermark(last_processed_row.updated_at, last_processed_row.key)
+    :ok
+  rescue
+    _error ->
+      {:error, :post_commit_failed}
+  end
+
+  defp emit_chunk_lag(nil), do: :ok
+  defp emit_chunk_lag(last_processed_row), do: emit_lag(last_processed_row.updated_at)
+
+  defp alive_row_count(rows) do
+    Enum.count(rows, &is_nil(&1.deleted_at))
   end
 
   defp materialize_remote_row(row) do
@@ -225,17 +253,6 @@ defmodule Cache.KeyValueReplicationPoller do
        source_updated_at: row.source_updated_at,
        source_node: row.source_node
      })}
-  rescue
-    error ->
-      if SQLiteHelpers.busy_error?(error) do
-        {:error, :busy}
-      else
-        reraise error, __STACKTRACE__
-      end
-  end
-
-  defp delete_remote_row(row) do
-    {:ok, KeyValueEntries.delete_local_entry_if_not_pending(row.key)}
   rescue
     error ->
       if SQLiteHelpers.busy_error?(error) do

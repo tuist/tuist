@@ -16,6 +16,13 @@ defmodule Cache.KeyValueEntries do
   @default_max_duration_ms 300_000
   @batch_sleep_ms 10
   @poller_watermark "poller_watermark"
+  @remote_apply_conflict_fields [
+    :json_payload,
+    :last_accessed_at,
+    :source_updated_at,
+    :replication_enqueued_at,
+    :updated_at
+  ]
 
   @doc """
   Deletes expired entries and returns `{grouped_hashes, deleted_count, status}`.
@@ -105,29 +112,25 @@ defmodule Cache.KeyValueEntries do
     :ok
   end
 
-  def materialize_remote_entry(attrs) when is_map(attrs) do
+  def apply_remote_batch(rows) when is_list(rows) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
+    {alive_rows, deleted_rows} = Enum.split_with(rows, &is_nil(&1.deleted_at))
+    tombstone_keys = Enum.map(deleted_rows, & &1.key)
 
-    attrs =
-      Map.merge(
-        %{
-          inserted_at: now,
-          updated_at: now,
-          replication_enqueued_at: nil
-        },
-        attrs
-      )
+    with {:ok, result} <- apply_remote_batch_transaction(rows, alive_rows, tombstone_keys, now) do
+      {:ok,
+       %{
+         result
+         | invalidate_keys: result.invalidate_keys ++ tombstone_keys,
+           mark_lineage_keys: Enum.map(alive_rows, & &1.key),
+           clear_lineage_keys: tombstone_keys
+       }}
+    end
+  end
 
-    persisted_attrs =
-      Map.take(attrs, [
-        :key,
-        :json_payload,
-        :last_accessed_at,
-        :source_updated_at,
-        :replication_enqueued_at,
-        :inserted_at,
-        :updated_at
-      ])
+  def materialize_remote_entry(attrs) when is_map(attrs) do
+    attrs = remote_materialization_attrs(attrs)
+    persisted_attrs = persisted_remote_attrs(attrs)
 
     {:ok, status} =
       KeyValueRepo.transaction(fn ->
@@ -167,6 +170,173 @@ defmodule Cache.KeyValueEntries do
       )
 
     count
+  end
+
+  defp apply_remote_batch_transaction(rows, alive_rows, tombstone_keys, now) do
+    case KeyValueRepo.transaction(fn ->
+           local_entries_by_key = fetch_local_entries_by_key(Enum.map(rows, & &1.key))
+
+           {upsert_rows, stats} = build_remote_upsert_rows(alive_rows, local_entries_by_key, now)
+           upsert_remote_rows(upsert_rows)
+
+           %{
+             processed_count: length(rows),
+             inserted_count: stats.inserted_count,
+             payload_updated_count: stats.payload_updated_count,
+             access_updated_count: stats.access_updated_count,
+             deleted_count: delete_tombstoned_rows(tombstone_keys),
+             last_processed_row: List.last(rows),
+             invalidate_keys: stats.invalidate_keys,
+             mark_lineage_keys: [],
+             clear_lineage_keys: []
+           }
+         end) do
+      {:ok, result} -> {:ok, result}
+      {:error, reason} -> {:error, reason}
+    end
+  rescue
+    error ->
+      if SQLiteHelpers.busy_error?(error) do
+        {:error, :busy}
+      else
+        reraise error, __STACKTRACE__
+      end
+  end
+
+  defp fetch_local_entries_by_key([]), do: %{}
+
+  defp fetch_local_entries_by_key(keys) do
+    KeyValueEntry
+    |> where([entry], entry.key in ^keys)
+    |> KeyValueRepo.all()
+    |> Map.new(&{&1.key, &1})
+  end
+
+  defp build_remote_upsert_rows(rows, local_entries_by_key, now) do
+    rows
+    |> Enum.reduce({[], empty_remote_batch_stats()}, fn row, {row_maps, stats} ->
+      attrs =
+        row
+        |> Map.take([:key, :json_payload, :last_accessed_at, :source_updated_at, :source_node])
+        |> remote_materialization_attrs(now)
+
+      persisted_attrs = persisted_remote_attrs(attrs)
+
+      case Map.get(local_entries_by_key, row.key) do
+        nil ->
+          {[persisted_attrs | row_maps], record_remote_batch_status(stats, row.key, :inserted)}
+
+        local_entry ->
+          merged_attrs = merge_remote_into_local(local_entry, attrs)
+          status = merged_remote_status(local_entry, merged_attrs)
+          upsert_row = build_remote_upsert_row(local_entry, merged_attrs, persisted_attrs)
+
+          {[upsert_row | row_maps], record_remote_batch_status(stats, row.key, status)}
+      end
+    end)
+    |> then(fn {row_maps, stats} ->
+      {Enum.reverse(row_maps), %{stats | invalidate_keys: Enum.reverse(stats.invalidate_keys)}}
+    end)
+  end
+
+  defp empty_remote_batch_stats do
+    %{
+      inserted_count: 0,
+      payload_updated_count: 0,
+      access_updated_count: 0,
+      invalidate_keys: []
+    }
+  end
+
+  defp record_remote_batch_status(stats, key, :inserted) do
+    %{
+      stats
+      | inserted_count: stats.inserted_count + 1,
+        invalidate_keys: [key | stats.invalidate_keys]
+    }
+  end
+
+  defp record_remote_batch_status(stats, key, :payload_updated) do
+    %{
+      stats
+      | payload_updated_count: stats.payload_updated_count + 1,
+        invalidate_keys: [key | stats.invalidate_keys]
+    }
+  end
+
+  defp record_remote_batch_status(stats, _key, :access_updated) do
+    %{stats | access_updated_count: stats.access_updated_count + 1}
+  end
+
+  defp build_remote_upsert_row(local_entry, merged_attrs, persisted_attrs) do
+    persisted_attrs
+    |> Map.put(:inserted_at, local_entry.inserted_at)
+    |> Map.put(:json_payload, Map.get(merged_attrs, :json_payload, local_entry.json_payload))
+    |> Map.put(:last_accessed_at, Map.get(merged_attrs, :last_accessed_at, local_entry.last_accessed_at))
+    |> Map.put(:source_updated_at, Map.get(merged_attrs, :source_updated_at, local_entry.source_updated_at))
+    |> Map.put(
+      :replication_enqueued_at,
+      Map.get(merged_attrs, :replication_enqueued_at, local_entry.replication_enqueued_at)
+    )
+  end
+
+  defp merged_remote_status(local_entry, merged_attrs) do
+    case merged_attrs do
+      %{json_payload: json_payload, source_updated_at: source_updated_at}
+      when json_payload != local_entry.json_payload or source_updated_at != local_entry.source_updated_at ->
+        :payload_updated
+
+      _ ->
+        :access_updated
+    end
+  end
+
+  defp upsert_remote_rows([]), do: :ok
+
+  defp upsert_remote_rows(rows) do
+    KeyValueRepo.insert_all(KeyValueEntry, rows,
+      conflict_target: :key,
+      on_conflict: {:replace, @remote_apply_conflict_fields}
+    )
+
+    :ok
+  end
+
+  defp delete_tombstoned_rows([]), do: 0
+
+  defp delete_tombstoned_rows(keys) do
+    {count, _} =
+      KeyValueRepo.delete_all(
+        from(entry in KeyValueEntry,
+          where: entry.key in ^keys,
+          where: is_nil(entry.replication_enqueued_at)
+        )
+      )
+
+    count
+  end
+
+  defp remote_materialization_attrs(attrs, now \\ DateTime.truncate(DateTime.utc_now(), :second)) do
+    Map.merge(
+      %{
+        inserted_at: now,
+        updated_at: now,
+        replication_enqueued_at: nil
+      },
+      attrs
+    )
+  end
+
+  defp persisted_remote_attrs(attrs) do
+    Map.take(attrs, [
+      :key,
+      :json_payload,
+      :last_accessed_at,
+      :source_updated_at,
+      :replication_enqueued_at,
+      :inserted_at,
+      :updated_at
+    ])
   end
 
   def delete_local_entry_if_before_or_equal(key, cutoff) when is_binary(key) do
