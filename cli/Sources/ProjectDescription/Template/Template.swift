@@ -39,6 +39,30 @@ public struct Template: Codable, Equatable, Sendable {
         public static func item(path: String, contents: Contents) -> Self {
             self.init(path: path, contents: contents)
         }
+
+        /// - Parameters:
+        ///     - path: Path where to generate file
+        ///     - contents: String Contents
+        /// - Returns: `Template.Item` that is `.string`
+        public static func string(path: String, contents: String) -> Template.Item {
+            Template.Item(path: path, contents: .string(contents))
+        }
+
+        /// - Parameters:
+        ///     - path: Path where to generate file
+        ///     - templatePath: Path of file where the template is defined
+        /// - Returns: `Template.Item` that is `.file`
+        public static func file(path: String, templatePath: Path) -> Template.Item {
+            Template.Item(path: path, contents: .file(templatePath))
+        }
+
+        /// - Parameters:
+        ///     - path: Path where will be copied the folder
+        ///     - sourcePath: Path of folder which will be copied
+        /// - Returns: `Template.Item` that is `.directory`
+        public static func directory(path: String, sourcePath: Path) -> Template.Item {
+            Template.Item(path: path, contents: .directory(sourcePath))
+        }
     }
 
     /// Attribute to be passed to `tuist scaffold` for generating with `Template`
@@ -47,86 +71,49 @@ public struct Template: Codable, Equatable, Sendable {
         case required(String)
         /// Optional attribute with a given name and a default value used when attribute not provided by user
         case optional(String, default: Value)
-    }
-}
 
-extension Template.Attribute {
-    /// This represents the default value type of Attribute
-    public indirect enum Value: Codable, Equatable, Sendable {
-        /// It represents a string value.
-        case string(String)
-        /// It represents an integer value.
-        case integer(Int)
-        /// It represents a floating value.
-        case real(Double)
-        /// It represents a boolean value.
-        case boolean(Bool)
-        /// It represents a dictionary value.
-        case dictionary([String: Value])
-        /// It represents an array value.
-        case array([Value])
-    }
-}
+        /// This represents the default value type of Attribute
+        public indirect enum Value: Codable, Equatable, Sendable, ExpressibleByStringLiteral,
+            ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral, ExpressibleByBooleanLiteral,
+            ExpressibleByDictionaryLiteral, ExpressibleByArrayLiteral
+        {
+            /// It represents a string value.
+            case string(String)
+            /// It represents an integer value.
+            case integer(Int)
+            /// It represents a floating value.
+            case real(Double)
+            /// It represents a boolean value.
+            case boolean(Bool)
+            /// It represents a dictionary value.
+            case dictionary([String: Value])
+            /// It represents an array value.
+            case array([Value])
 
-extension Template.Attribute.Value: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
-        self = .string(value)
-    }
-}
+            public init(stringLiteral value: String) {
+                self = .string(value)
+            }
 
-extension Template.Attribute.Value: ExpressibleByIntegerLiteral {
-    public init(integerLiteral value: Int) {
-        self = .integer(value)
-    }
-}
+            public init(integerLiteral value: Int) {
+                self = .integer(value)
+            }
 
-extension Template.Attribute.Value: ExpressibleByFloatLiteral {
-    public init(floatLiteral value: Double) {
-        self = .real(value)
-    }
-}
+            public init(floatLiteral value: Double) {
+                self = .real(value)
+            }
 
-extension Template.Attribute.Value: ExpressibleByBooleanLiteral {
-    public init(booleanLiteral value: Bool) {
-        self = .boolean(value)
-    }
-}
+            public init(booleanLiteral value: Bool) {
+                self = .boolean(value)
+            }
 
-extension Template.Attribute.Value: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, Template.Attribute.Value)...) {
-        self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
-    }
-}
+            public init(dictionaryLiteral elements: (String, Template.Attribute.Value)...) {
+                self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
+            }
 
-extension Template.Attribute.Value: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: Template.Attribute.Value...) {
-        self = .array(elements)
-    }
-}
-
-extension Template.Item {
-    /// - Parameters:
-    ///     - path: Path where to generate file
-    ///     - contents: String Contents
-    /// - Returns: `Template.Item` that is `.string`
-    public static func string(path: String, contents: String) -> Template.Item {
-        Template.Item(path: path, contents: .string(contents))
-    }
-
-    /// - Parameters:
-    ///     - path: Path where to generate file
-    ///     - templatePath: Path of file where the template is defined
-    /// - Returns: `Template.Item` that is `.file`
-    public static func file(path: String, templatePath: Path) -> Template.Item {
-        Template.Item(path: path, contents: .file(templatePath))
-    }
-
-    /// - Parameters:
-    ///     - path: Path where will be copied the folder
-    ///     - sourcePath: Path of folder which will be copied
-    /// - Returns: `Template.Item` that is `.directory`
-    public static func directory(path: String, sourcePath: Path) -> Template.Item {
-        Template.Item(path: path, contents: .directory(sourcePath))
+            public init(arrayLiteral elements: Template.Attribute.Value...) {
+                self = .array(elements)
+            }
+        }
     }
 }
 

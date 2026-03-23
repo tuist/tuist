@@ -52,10 +52,8 @@ public struct WorkspaceDescriptor {
         self.schemeDescriptors = schemeDescriptors
         self.sideEffectDescriptors = sideEffectDescriptors
     }
-}
 
-#if DEBUG
-    extension WorkspaceDescriptor {
+    #if DEBUG
         public static func test(
             path: AbsolutePath = try! AbsolutePath(validating: "/Test"), // swiftlint:disable:this force_try
             // swiftlint:disable:next force_try
@@ -73,5 +71,5 @@ public struct WorkspaceDescriptor {
                 sideEffectDescriptors: sideEffects
             )
         }
-    }
-#endif
+    #endif
+}

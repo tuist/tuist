@@ -1,5 +1,5 @@
 /// A glob pattern configuration representing source files and its compiler flags, if any.
-public struct SourceFileGlob: Codable, Equatable, Sendable {
+public struct SourceFileGlob: Codable, Equatable, Sendable, ExpressibleByStringInterpolation {
     /// Type of the source file.
     public enum FileType: String, Codable, Sendable {
         /// File is already present on disk before generating the project.
@@ -32,6 +32,22 @@ public struct SourceFileGlob: Codable, Equatable, Sendable {
 
     /// Type of the file.
     public var type: FileType
+
+    init(
+        glob: Path,
+        excluding: [Path],
+        compilerFlags: String?,
+        codeGen: FileCodeGen?,
+        compilationCondition: PlatformCondition?,
+        type: FileType
+    ) {
+        self.glob = glob
+        self.excluding = excluding
+        self.compilerFlags = compilerFlags
+        self.codeGen = codeGen
+        self.compilationCondition = compilationCondition
+        self.type = type
+    }
 
     /// Returns a source glob pattern configuration.
     /// Used for file there were already present during the generation.
@@ -99,9 +115,7 @@ public struct SourceFileGlob: Codable, Equatable, Sendable {
             type: .generated
         )
     }
-}
 
-extension SourceFileGlob: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self.init(
             glob: .path(value),
@@ -115,9 +129,13 @@ extension SourceFileGlob: ExpressibleByStringInterpolation {
 }
 
 /// A collection of source file globs.
-public struct SourceFilesList: Codable, Equatable, Sendable {
+public struct SourceFilesList: Codable, Equatable, Sendable, ExpressibleByStringInterpolation, ExpressibleByArrayLiteral {
     /// List glob patterns.
     public var globs: [SourceFileGlob]
+
+    public init(globs: [SourceFileGlob]) {
+        self.globs = globs
+    }
 
     /// Creates the source files list with the glob patterns.
     ///
@@ -138,17 +156,12 @@ public struct SourceFilesList: Codable, Equatable, Sendable {
     public static func paths(_ paths: [Path]) -> SourceFilesList {
         SourceFilesList(globs: paths.map { .glob($0) })
     }
-}
 
-/// Support file as single string
-extension SourceFilesList: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .sourceFilesList(globs: [value])
     }
-}
 
-extension SourceFilesList: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: SourceFileGlob...) {
-        self.init(globs: elements)
+        self.init(globs: Array(elements))
     }
 }

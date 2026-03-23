@@ -23,19 +23,15 @@ public struct ServerCacheArtifact: Codable {
 
     public let url: URL
     public let expiresAt: Int
-}
 
-extension ServerCacheArtifact {
     init(_ cacheArtifact: Components.Schemas.CacheArtifactDownloadURL) throws {
         guard let url = URL(string: cacheArtifact.data.url)
         else { throw ServerCacheArtifactError.invalidURL(cacheArtifact.data.url) }
         self.url = url
         expiresAt = Int(cacheArtifact.data.expires_at)
     }
-}
 
-#if DEBUG
-    extension ServerCacheArtifact {
+    #if DEBUG
         public static func test(
             url: URL = URL(string: "https://tuist.dev")!,
             expiresAt: Int = 0
@@ -45,5 +41,5 @@ extension ServerCacheArtifact {
                 expiresAt: expiresAt
             )
         }
-    }
-#endif
+    #endif
+}

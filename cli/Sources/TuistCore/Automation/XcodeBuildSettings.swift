@@ -1,4 +1,4 @@
-public struct XcodeBuildSettings {
+public struct XcodeBuildSettings: CustomStringConvertible, Collection {
     public typealias DictionaryType = [String: String]
     private let settings: DictionaryType
 
@@ -67,30 +67,18 @@ public struct XcodeBuildSettings {
     public var productBundleIdentifier: String? {
         settings["PRODUCT_BUNDLE_IDENTIFIER"]
     }
-}
 
-extension XcodeBuildSettings: CustomStringConvertible {
     public var description: String {
         "Build settings for target \(target) and configuration \(configuration):\n\(settings.map { "\($0)=\($1)" }.joined(separator: "\n"))"
     }
-}
-
-extension XcodeBuildSettings: Collection {
-    // Required nested types, that tell Swift what our collection contains
 
     public typealias Index = DictionaryType.Index
     public typealias Element = DictionaryType.Element
 
-    // The upper and lower bounds of the collection, used in iterations
-
     public var startIndex: Index { settings.startIndex }
     public var endIndex: Index { settings.endIndex }
 
-    // Required subscript, based on a dictionary index
-
     public subscript(index: Index) -> Iterator.Element { settings[index] }
-
-    // Method that returns the next index when iterating
 
     public func index(after i: Index) -> Index {
         settings.index(after: i)

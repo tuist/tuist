@@ -30,10 +30,8 @@ public enum TuistProject: Equatable, Hashable, Sendable {
     public static func defaultGeneratedProject() -> Self {
         return .generated(.default)
     }
-}
 
-#if DEBUG
-    extension TuistProject {
+    #if DEBUG
         public static func testGeneratedProject() -> Self {
             return defaultGeneratedProject()
         }
@@ -41,5 +39,5 @@ public enum TuistProject: Equatable, Hashable, Sendable {
         public static func testXcodeProject(options: TuistXcodeProjectOptions = .init()) -> Self {
             return .xcode(options)
         }
-    }
-#endif
+    #endif
+}

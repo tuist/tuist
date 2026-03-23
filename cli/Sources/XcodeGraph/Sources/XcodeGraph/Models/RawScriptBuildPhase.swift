@@ -37,10 +37,8 @@ public struct RawScriptBuildPhase: Equatable, Codable, Sendable {
         self.hashable = hashable
         self.shellPath = shellPath
     }
-}
 
-#if DEBUG
-    extension RawScriptBuildPhase {
+    #if DEBUG
         public static func test(
             name: String = "Test",
             script: String = "",
@@ -49,5 +47,5 @@ public struct RawScriptBuildPhase: Equatable, Codable, Sendable {
         ) -> RawScriptBuildPhase {
             RawScriptBuildPhase(name: name, script: script, showEnvVarsInLog: showEnvVarsInLog, hashable: hashable)
         }
-    }
-#endif
+    #endif
+}

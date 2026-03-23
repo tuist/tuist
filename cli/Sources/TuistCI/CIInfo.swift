@@ -28,10 +28,8 @@ public struct CIInfo: Equatable {
         }
         return "\(provider)-\(runId)"
     }
-}
 
-#if DEBUG
-    extension CIInfo {
+    #if DEBUG
         public static func test(
             provider: CIProvider = .github,
             runId: String? = "123",
@@ -47,5 +45,5 @@ public struct CIInfo: Equatable {
                 host: host
             )
         }
-    }
-#endif
+    #endif
+}

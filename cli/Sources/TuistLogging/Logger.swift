@@ -29,9 +29,7 @@ public struct LoggingConfig {
 
     public var loggerType: LoggerType
     public var verbose: Bool
-}
 
-extension LoggingConfig {
     public static func `default`() -> LoggingConfig {
         let env = Environment.current.variables
 
