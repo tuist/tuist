@@ -42,6 +42,9 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         } else {
             let currentDirectory = try await Environment.current.currentWorkingDirectory()
             let outputPath = currentDirectory.appending(component: ".tuist-shard-matrix.json")
+            if try await fileSystem.exists(outputPath) {
+                try await fileSystem.remove(outputPath)
+            }
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try await fileSystem.writeAsJSON(shardPlan, at: outputPath, encoder: encoder)
