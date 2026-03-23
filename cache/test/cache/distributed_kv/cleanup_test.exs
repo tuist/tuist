@@ -4,6 +4,7 @@ defmodule Cache.DistributedKV.CleanupTest do
 
   alias Cache.Config
   alias Cache.DistributedKV.Cleanup
+  alias Cache.DistributedKV.Entry
   alias Cache.DistributedKV.Project
   alias Cache.DistributedKV.Repo
 
@@ -115,5 +116,19 @@ defmodule Cache.DistributedKV.CleanupTest do
     end)
 
     assert {:error, :cleanup_lease_lost} = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
+  end
+
+  test "tombstone_project_entries keeps microsecond precision in updated_at" do
+    cutoff = ~U[2026-03-12 12:00:00.123456Z]
+
+    expect(Repo, :update_all, fn _query, updates ->
+      [set: set_values] = updates
+      assert set_values[:deleted_at] == cutoff
+      assert Entry.__schema__(:type, :updated_at) == :utc_datetime_usec
+      assert {:ok, _} = Ecto.Type.dump(Entry.__schema__(:type, :updated_at), set_values[:updated_at])
+      {1, nil}
+    end)
+
+    assert 1 == Cleanup.tombstone_project_entries("acme", "ios", cutoff)
   end
 end

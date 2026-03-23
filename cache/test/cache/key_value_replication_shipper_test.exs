@@ -20,6 +20,36 @@ defmodule Cache.KeyValueReplicationShipperTest do
     :ok
   end
 
+  test "shared entries keep microsecond precision in updated_at" do
+    now = ~U[2026-03-12 12:00:00.123456Z]
+
+    expect(Repo, :insert_all, fn Entry, rows, opts ->
+      assert [%{updated_at: ^now}] = rows
+      assert Entry.__schema__(:type, :updated_at) == :utc_datetime_usec
+      assert {:ok, _} = Ecto.Type.dump(Entry.__schema__(:type, :updated_at), now)
+      assert opts[:conflict_target] == :key
+      assert opts[:timeout]
+      {1, nil}
+    end)
+
+    assert :ok =
+             KeyValueReplicationShipper.upsert_shared_entries(
+               [
+                 %{
+                   key: "keyvalue:acme:ios:cas",
+                   account_handle: "acme",
+                   project_handle: "ios",
+                   cas_id: "cas",
+                   json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+                   source_node: "node-a",
+                   source_updated_at: now,
+                   last_accessed_at: now
+                 }
+               ],
+               now
+             )
+  end
+
   test "ships pending rows and clears the shipped token" do
     parent = self()
     token = DateTime.utc_now()
