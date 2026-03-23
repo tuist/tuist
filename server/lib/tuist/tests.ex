@@ -260,21 +260,20 @@ defmodule Tuist.Tests do
          |> IngestRepo.insert() do
       {:ok, test} ->
         {test_case_ids_with_flaky_run, test_case_runs} =
-          OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
-            create_test_modules(test, test_modules, shard_index, shard_plan)
-          end
+          create_test_modules(test, test_modules, shard_index, shard_plan)
 
-        test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
+        Tuist.Tasks.run_async(fn ->
+          mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
+          schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
-        schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
+          project = Tuist.Projects.get_project_by_id(test.project_id)
 
-        project = Tuist.Projects.get_project_by_id(test.project_id)
-
-        Tuist.PubSub.broadcast(
-          test,
-          "#{project.account.name}/#{project.name}",
-          :test_created
-        )
+          Tuist.PubSub.broadcast(
+            test,
+            "#{project.account.name}/#{project.name}",
+            :test_created
+          )
+        end)
 
         {:ok, %{test | test_case_runs: test_case_runs}}
 
@@ -340,16 +339,18 @@ defmodule Tuist.Tests do
 
           IngestRepo.insert_all(Test, [update_attrs])
 
-          updated_test = mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
-          schedule_flaky_threshold_check(updated_test.project_id, test_case_ids_with_flaky_run)
+          Tuist.Tasks.run_async(fn ->
+            mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
+            schedule_flaky_threshold_check(updated_test.project_id, test_case_ids_with_flaky_run)
 
-          project = Tuist.Projects.get_project_by_id(updated_test.project_id)
+            project = Tuist.Projects.get_project_by_id(updated_test.project_id)
 
-          Tuist.PubSub.broadcast(
-            updated_test,
-            "#{project.account.name}/#{project.name}",
-            :test_created
-          )
+            Tuist.PubSub.broadcast(
+              updated_test,
+              "#{project.account.name}/#{project.name}",
+              :test_created
+            )
+          end)
 
           {:ok, %{updated_test | test_case_runs: test_case_runs}}
       end

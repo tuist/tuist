@@ -274,11 +274,9 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
             category: .staticSideEffects
         )
     }
-}
 
-// MARK: - Helper Types
+    // MARK: - Helper Types
 
-extension StaticProductsGraphLinter {
     private struct StaticDependencyWarning: Hashable, Comparable {
         var staticProduct: GraphDependency
         var linkingDependencies: [GraphDependency]

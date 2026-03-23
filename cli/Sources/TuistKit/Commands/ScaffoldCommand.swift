@@ -24,7 +24,7 @@ enum ScaffoldCommandError: FatalError, Equatable {
     }
 }
 
-public struct ScaffoldCommand: AsyncParsableCommand {
+public struct ScaffoldCommand: AsyncParsableCommand, CustomReflectable {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "scaffold",
@@ -92,11 +92,9 @@ public struct ScaffoldCommand: AsyncParsableCommand {
             )
         }
     }
-}
 
-// MARK: - Preprocessing
+    // MARK: - Preprocessing
 
-extension ScaffoldCommand {
     public static var requiredTemplateOptions: [(name: String, option: Option<String>)] = []
     public static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
 
@@ -131,11 +129,9 @@ extension ScaffoldCommand {
             (name: $0, option: Option<String?>())
         }
     }
-}
 
-// MARK: - ScaffoldCommand.CodingKeys
+    // MARK: - ScaffoldCommand.CodingKeys
 
-extension ScaffoldCommand {
     enum CodingKeys: CodingKey {
         case template
         case json
@@ -182,11 +178,7 @@ extension ScaffoldCommand {
         var intValue: Int? { nil }
         init?(intValue _: Int) { nil }
     }
-}
 
-/// ArgumentParser library gets the list of options from a mirror
-/// Since we do not declare template's options in advance, we need to rewrite the mirror implementation and add them ourselves
-extension ScaffoldCommand: CustomReflectable {
     public var customMirror: Mirror {
         let requiredTemplateChildren = ScaffoldCommand.requiredTemplateOptions
             .map { Mirror.Child(label: $0.name, value: $0.option) }

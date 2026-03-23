@@ -25,7 +25,10 @@ public struct ResourceSynthesizer: Equatable, Hashable, Codable, Sendable {
         case yaml
         case files
 
-        public struct Option: Equatable, Hashable, Codable, Sendable {
+        public struct Option: Equatable, Hashable, Codable, Sendable, ExpressibleByStringInterpolation,
+            ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral, ExpressibleByBooleanLiteral,
+            ExpressibleByDictionaryLiteral, ExpressibleByArrayLiteral
+        {
             public var value: Any {
                 anyCodableValue.value
             }
@@ -34,6 +37,30 @@ public struct ResourceSynthesizer: Equatable, Hashable, Codable, Sendable {
 
             public init(value: some Any) {
                 anyCodableValue = AnyCodable(value)
+            }
+
+            public init(stringLiteral value: String) {
+                self = .init(value: value)
+            }
+
+            public init(integerLiteral value: Int) {
+                self = .init(value: value)
+            }
+
+            public init(floatLiteral value: Double) {
+                self = .init(value: value)
+            }
+
+            public init(booleanLiteral value: Bool) {
+                self = .init(value: value)
+            }
+
+            public init(dictionaryLiteral elements: (String, Self)...) {
+                self = .init(value: Dictionary(uniqueKeysWithValues: elements))
+            }
+
+            public init(arrayLiteral elements: Self...) {
+                self = .init(value: elements)
             }
         }
     }
@@ -49,58 +76,8 @@ public struct ResourceSynthesizer: Equatable, Hashable, Codable, Sendable {
         self.extensions = extensions
         self.template = template
     }
-}
 
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByStringInterpolation
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
-        self = .init(value: value)
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByIntegerLiteral
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByIntegerLiteral {
-    public init(integerLiteral value: Int) {
-        self = .init(value: value)
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByFloatLiteral
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByFloatLiteral {
-    public init(floatLiteral value: Double) {
-        self = .init(value: value)
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByBooleanLiteral
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByBooleanLiteral {
-    public init(booleanLiteral value: Bool) {
-        self = .init(value: value)
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByDictionaryLiteral
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, Self)...) {
-        self = .init(value: Dictionary(uniqueKeysWithValues: elements))
-    }
-}
-
-// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByArrayLiteral
-
-extension ResourceSynthesizer.Parser.Option: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: Self...) {
-        self = .init(value: elements)
-    }
-}
-
-#if DEBUG
-    extension XcodeGraph.ResourceSynthesizer {
+    #if DEBUG
         public static func test(
             parser: Parser = .assets,
             parserOptions: [String: Parser.Option] = [:],
@@ -109,5 +86,5 @@ extension ResourceSynthesizer.Parser.Option: ExpressibleByArrayLiteral {
         ) -> Self {
             ResourceSynthesizer(parser: parser, parserOptions: parserOptions, extensions: extensions, template: template)
         }
-    }
-#endif
+    #endif
+}

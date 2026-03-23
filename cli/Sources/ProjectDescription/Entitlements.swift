@@ -1,6 +1,6 @@
 // MARK: - Entitlements
 
-public enum Entitlements: Codable, Equatable, Sendable {
+public enum Entitlements: Codable, Equatable, Sendable, ExpressibleByStringInterpolation {
     /// The path to an existing .entitlements file.
     case file(path: Path)
 
@@ -78,11 +78,7 @@ public enum Entitlements: Codable, Equatable, Sendable {
             return nil
         }
     }
-}
 
-// MARK: - Entitlements - ExpressibleByStringInterpolation
-
-extension Entitlements: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         if value.hasPrefix("$(") {
             self = .variable(value)

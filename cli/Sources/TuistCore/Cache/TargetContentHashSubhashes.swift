@@ -72,10 +72,8 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         self.additionalStrings = additionalStrings
         self.external = external
     }
-}
 
-#if DEBUG
-    extension TargetContentHashSubhashes {
+    #if DEBUG
         public static func test(
             sources: String? = nil,
             resources: String? = nil,
@@ -113,5 +111,5 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
                 external: external
             )
         }
-    }
-#endif
+    #endif
+}

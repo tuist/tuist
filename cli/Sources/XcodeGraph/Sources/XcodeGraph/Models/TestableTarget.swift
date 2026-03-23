@@ -61,10 +61,8 @@ public struct TestableTarget: Equatable, Hashable, Codable, Sendable {
         isRandomExecutionOrdering = randomExecutionOrdering
         self.simulatedLocation = simulatedLocation
     }
-}
 
-#if DEBUG
-    extension TestableTarget {
+    #if DEBUG
         public static func test(
             // swiftlint:disable:next force_try
             target: TargetReference = TargetReference(projectPath: try! AbsolutePath(validating: "/Project"), name: "App"),
@@ -81,5 +79,5 @@ public struct TestableTarget: Equatable, Hashable, Codable, Sendable {
                 simulatedLocation: simulatedLocation
             )
         }
-    }
-#endif
+    #endif
+}

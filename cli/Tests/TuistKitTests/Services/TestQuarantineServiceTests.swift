@@ -343,7 +343,7 @@ struct TestQuarantineServiceTests {
     }
 }
 
-extension Components.Schemas.TestCase {
+private extension Components.Schemas.TestCase {
     static func test(
         id: String = "1",
         isQuarantined: Bool = true,
@@ -364,13 +364,13 @@ extension Components.Schemas.TestCase {
     }
 }
 
-extension Components.Schemas.TestCase.modulePayload {
+private extension Components.Schemas.TestCase.modulePayload {
     static func test(id: String = "1", name: String = "AppTests") -> Self {
         .init(id: id, name: name)
     }
 }
 
-extension Components.Schemas.TestCase.suitePayload {
+private extension Components.Schemas.TestCase.suitePayload {
     static func test(id: String = "1", name: String = "TestSuite") -> Self {
         .init(id: id, name: name)
     }

@@ -25,10 +25,8 @@ public struct ArchiveAction: Equatable, Codable, Sendable {
         self.preActions = preActions
         self.postActions = postActions
     }
-}
 
-#if DEBUG
-    extension ArchiveAction {
+    #if DEBUG
         public static func test(
             configurationName: String = "Beta Release",
             revealArchiveInOrganizer: Bool = true,
@@ -44,5 +42,5 @@ public struct ArchiveAction: Equatable, Codable, Sendable {
                 postActions: postActions
             )
         }
-    }
-#endif
+    #endif
+}

@@ -7,7 +7,9 @@ public enum Plist: Sendable {
     case infoPlist(InfoPlist)
     case entitlements(Entitlements)
 
-    public indirect enum Value: Equatable, Codable, Sendable {
+    public indirect enum Value: Equatable, Codable, Sendable, ExpressibleByStringLiteral, ExpressibleByIntegerLiteral,
+        ExpressibleByFloatLiteral, ExpressibleByBooleanLiteral, ExpressibleByDictionaryLiteral, ExpressibleByArrayLiteral
+    {
         case string(String)
         case integer(Int)
         case real(Double)
@@ -31,54 +33,30 @@ public enum Plist: Sendable {
                 return double
             }
         }
-    }
-}
 
-// MARK: - Plist.Value - ExpressibleByStringLiteral
+        public init(stringLiteral value: String) {
+            self = .string(value)
+        }
 
-extension Plist.Value: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
-        self = .string(value)
-    }
-}
+        public init(integerLiteral value: Int) {
+            self = .integer(value)
+        }
 
-// MARK: - Plist.Value - ExpressibleByIntegerLiteral
+        public init(floatLiteral value: Double) {
+            self = .real(value)
+        }
 
-extension Plist.Value: ExpressibleByIntegerLiteral {
-    public init(integerLiteral value: Int) {
-        self = .integer(value)
-    }
-}
+        public init(booleanLiteral value: Bool) {
+            self = .boolean(value)
+        }
 
-// MARK: - Plist.Value - ExpressibleByIntegerLiteral
+        public init(dictionaryLiteral elements: (String, Plist.Value)...) {
+            self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
+        }
 
-extension Plist.Value: ExpressibleByFloatLiteral {
-    public init(floatLiteral value: Double) {
-        self = .real(value)
-    }
-}
-
-// MARK: - Plist.Value - ExpressibleByBooleanLiteral
-
-extension Plist.Value: ExpressibleByBooleanLiteral {
-    public init(booleanLiteral value: Bool) {
-        self = .boolean(value)
-    }
-}
-
-// MARK: - Plist.Value - ExpressibleByDictionaryLiteral
-
-extension Plist.Value: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, Plist.Value)...) {
-        self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
-    }
-}
-
-// MARK: - Plist.Value - ExpressibleByArrayLiteral
-
-extension Plist.Value: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: Plist.Value...) {
-        self = .array(elements)
+        public init(arrayLiteral elements: Plist.Value...) {
+            self = .array(elements)
+        }
     }
 }
 
@@ -92,7 +70,7 @@ extension Dictionary where Value == Plist.Value {
 
 // MARK: - InfoPlist
 
-public enum InfoPlist: Equatable, Codable, Sendable {
+public enum InfoPlist: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
     /// Path to a user defined info.plist file (already exists on disk).
     case file(path: AbsolutePath, configuration: BuildConfiguration? = nil)
 
@@ -120,11 +98,7 @@ public enum InfoPlist: Equatable, Codable, Sendable {
             return nil
         }
     }
-}
 
-// MARK: - InfoPlist - ExpressibleByStringLiteral
-
-extension InfoPlist: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         let regexPattern = #"^\$\((.+)\)|^\$\{(.+)\}"#
         if let _ = value.range(of: regexPattern, options: .regularExpression) {
@@ -137,7 +111,7 @@ extension InfoPlist: ExpressibleByStringLiteral {
 
 // MARK: - Entitlements
 
-public enum Entitlements: Equatable, Codable, Sendable {
+public enum Entitlements: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
     /// Path to a user defined .entitlements file (already exists on disk).
     case file(path: AbsolutePath, configuration: BuildConfiguration? = nil)
 
@@ -161,11 +135,7 @@ public enum Entitlements: Equatable, Codable, Sendable {
             return nil
         }
     }
-}
 
-// MARK: - Entitlements - ExpressibleByStringLiteral
-
-extension Entitlements: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         if value.hasPrefix("$(") {
             self = .variable(value)

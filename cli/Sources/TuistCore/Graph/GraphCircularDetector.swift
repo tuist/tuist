@@ -1,12 +1,10 @@
 import Path
 import TSCBasic
 
-struct GraphCircularDetectorNode: Hashable {
+struct GraphCircularDetectorNode: Hashable, CustomDebugStringConvertible {
     let path: Path.AbsolutePath
     let name: String
-}
 
-extension GraphCircularDetectorNode: CustomDebugStringConvertible {
     var debugDescription: String {
         "\(path).\(name)"
     }

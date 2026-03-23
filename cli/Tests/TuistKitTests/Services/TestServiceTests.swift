@@ -133,6 +133,19 @@ final class TestServiceTests: TuistUnitTestCase {
             .onlyQuarantinedTestsFailed(testSummary: .any)
             .willReturn(false)
 
+        given(uploadResultBundleService)
+            .uploadResultBundle(testSummary: .any, projectDerivedDataDirectory: .any, config: .any, shardPlanId: .any, shardIndex: .any)
+            .willReturn(
+                Components.Schemas.RunsTest(
+                    duration: 0,
+                    id: "stub",
+                    project_id: 0,
+                    test_case_runs: [],
+                    _type: .test,
+                    url: ""
+                )
+            )
+
         subject = TestService(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
