@@ -256,29 +256,26 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         if action == .testWithoutBuilding,
-           let testProductsPath = testProductsPathFromArguments(passthroughXcodeBuildArguments)
+           let testProductsPath = testProductsPathFromArguments(passthroughXcodeBuildArguments),
+           try await fileSystem.exists(testProductsPath.appending(component: SelectiveTestingGraph.fileName))
         {
-            let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
-            if try await fileSystem.exists(selectiveTestingGraphPath) {
-                try await runTestWithoutBuildingFromBundle(
-                    testProductsPath: testProductsPath,
-                    selectiveTestingGraphPath: selectiveTestingGraphPath,
-                    config: config,
-                    deviceName: deviceName,
-                    platform: platform,
-                    osVersion: osVersion,
-                    rosetta: rosetta,
-                    resultBundlePath: resultBundlePath,
-                    derivedDataPath: derivedDataPath,
-                    retryCount: retryCount,
-                    testTargets: testTargets,
-                    skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration,
-                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                    runId: runId
-                )
-                return
-            }
+            try await runTestWithoutBuildingFromBundle(
+                testProductsPath: testProductsPath,
+                config: config,
+                deviceName: deviceName,
+                platform: platform,
+                osVersion: osVersion,
+                rosetta: rosetta,
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath,
+                retryCount: retryCount,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                testPlanConfiguration: testPlanConfiguration,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                runId: runId
+            )
+            return
         }
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
@@ -621,7 +618,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
     // swiftlint:disable:next function_body_length function_parameter_count
     private func runTestWithoutBuildingFromBundle(
         testProductsPath: AbsolutePath,
-        selectiveTestingGraphPath: AbsolutePath,
         config: Tuist,
         deviceName: String?,
         platform: String?,
@@ -641,6 +637,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             metadata: .section
         )
 
+        let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
         let selectiveTestingGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(
             at: selectiveTestingGraphPath
         )
