@@ -1801,26 +1801,62 @@ defmodule Tuist.Tests do
     stale_test_cases = ClickHouseRepo.all(query)
     now = NaiveDateTime.utc_now()
 
+    project_ids = stale_test_cases |> Enum.map(& &1.project_id) |> Enum.uniq()
+
+    auto_quarantine_project_ids =
+      from(p in Tuist.Projects.Project,
+        where: p.id in ^project_ids and p.auto_quarantine_flaky_tests == true,
+        select: p.id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
     test_cases_to_update =
       Enum.map(stale_test_cases, fn test_case ->
+        should_unquarantine =
+          test_case.is_quarantined and
+            MapSet.member?(auto_quarantine_project_ids, test_case.project_id)
+
+        updates = %{is_flaky: false, inserted_at: now}
+        updates = if should_unquarantine, do: Map.put(updates, :is_quarantined, false), else: updates
+
         test_case
         |> Map.from_struct()
         |> Map.delete(:__meta__)
-        |> Map.merge(%{is_flaky: false, inserted_at: now})
+        |> Map.merge(updates)
       end)
 
     TestCase.Buffer.insert_all(test_cases_to_update)
 
     if Enum.any?(stale_test_cases) do
       events =
-        Enum.map(stale_test_cases, fn test_case ->
-          %{
+        Enum.flat_map(stale_test_cases, fn test_case ->
+          should_unquarantine =
+            test_case.is_quarantined and
+              MapSet.member?(auto_quarantine_project_ids, test_case.project_id)
+
+          flaky_event = %{
             id: UUIDv7.generate(),
             test_case_id: test_case.id,
             event_type: "unmarked_flaky",
             actor_id: nil,
             inserted_at: now
           }
+
+          if should_unquarantine do
+            [
+              flaky_event,
+              %{
+                id: UUIDv7.generate(),
+                test_case_id: test_case.id,
+                event_type: "unquarantined",
+                actor_id: nil,
+                inserted_at: now
+              }
+            ]
+          else
+            [flaky_event]
+          end
         end)
 
       TestCaseEvent.Buffer.insert_all(events)
