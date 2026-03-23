@@ -10,6 +10,12 @@ defmodule Tuist.Accounts.Organization do
   alias Tuist.Accounts.Invitation
   alias Tuist.Vault.Binary
 
+  @custom_oauth2_endpoint_fields [
+    :custom_oauth2_authorize_url,
+    :custom_oauth2_token_url,
+    :custom_oauth2_user_info_url
+  ]
+
   schema "organizations" do
     field :sso_provider, Ecto.Enum, values: [okta: 1, google: 2, custom_oauth2: 3]
     field :sso_organization_id, :string
@@ -43,9 +49,10 @@ defmodule Tuist.Accounts.Organization do
       :custom_oauth2_user_info_url,
       :created_at
     ])
-    |> normalize_custom_oauth2_site()
+    |> normalize_custom_oauth2_urls()
     |> validate_inclusion(:sso_provider, [:okta, :google, :custom_oauth2])
-    |> validate_custom_oauth2_site()
+    |> validate_custom_oauth2_required_fields()
+    |> validate_custom_oauth2_urls()
     |> unique_constraint([:sso_provider, :sso_organization_id],
       message:
         "SSO provider and SSO organization ID must be unique. Make sure no other organization has the same SSO provider and SSO organization ID."
@@ -66,40 +73,84 @@ defmodule Tuist.Accounts.Organization do
       :custom_oauth2_token_url,
       :custom_oauth2_user_info_url
     ])
-    |> normalize_custom_oauth2_site()
+    |> normalize_custom_oauth2_urls()
     |> validate_inclusion(:sso_provider, [:okta, :google, :custom_oauth2])
-    |> validate_custom_oauth2_site()
+    |> validate_custom_oauth2_required_fields()
+    |> validate_custom_oauth2_urls()
     |> unique_constraint([:sso_provider, :sso_organization_id],
       message:
         "SSO provider and SSO organization ID must be unique. Make sure no other organization has the same SSO provider and SSO organization ID."
     )
   end
 
-  defp normalize_custom_oauth2_site(changeset) do
+  defp validate_custom_oauth2_required_fields(changeset) do
     if get_field(changeset, :sso_provider) == :custom_oauth2 do
-      update_change(changeset, :sso_organization_id, fn
+      changeset
+      |> validate_required([
+        :sso_organization_id,
+        :custom_oauth2_client_id,
+        :custom_oauth2_authorize_url,
+        :custom_oauth2_token_url,
+        :custom_oauth2_user_info_url
+      ])
+      |> validate_custom_oauth2_client_secret()
+    else
+      changeset
+    end
+  end
+
+  defp validate_custom_oauth2_client_secret(changeset) do
+    if is_nil(get_field(changeset, :custom_oauth2_encrypted_client_secret)) do
+      add_error(changeset, :custom_oauth2_encrypted_client_secret, "can't be blank")
+    else
+      changeset
+    end
+  end
+
+  defp normalize_custom_oauth2_urls(changeset) do
+    if get_field(changeset, :sso_provider) == :custom_oauth2 do
+      changeset
+      |> update_change(:sso_organization_id, fn
         nil -> nil
         site -> site |> String.trim() |> String.trim_trailing("/")
+      end)
+      |> then(fn changeset ->
+        Enum.reduce(@custom_oauth2_endpoint_fields, changeset, fn field, changeset ->
+          update_change(changeset, field, fn
+            nil -> nil
+            url -> String.trim(url)
+          end)
+        end)
       end)
     else
       changeset
     end
   end
 
-  defp validate_custom_oauth2_site(changeset) do
+  defp validate_custom_oauth2_urls(changeset) do
     if get_field(changeset, :sso_provider) == :custom_oauth2 do
-      validate_change(changeset, :sso_organization_id, fn :sso_organization_id, site ->
-        case URI.parse(site) do
-          %URI{scheme: scheme, host: host, query: nil, fragment: nil}
-          when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+      Enum.reduce([:sso_organization_id | @custom_oauth2_endpoint_fields], changeset, fn field, changeset ->
+        validate_change(changeset, field, fn ^field, url ->
+          if valid_custom_oauth2_url?(url) do
             []
-
-          _ ->
-            [sso_organization_id: "must be a valid URL"]
-        end
+          else
+            [{field, "must be a valid URL"}]
+          end
+        end)
       end)
     else
       changeset
+    end
+  end
+
+  defp valid_custom_oauth2_url?(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host, query: nil, fragment: nil}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        true
+
+      _ ->
+        false
     end
   end
 end

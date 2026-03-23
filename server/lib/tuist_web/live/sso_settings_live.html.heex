@@ -231,7 +231,9 @@
               <li>
                 {dgettext("dashboard_account", "Set the sign-in redirect URI to:")}
                 <div data-part="read-only-value">
-                  <code>{Tuist.Environment.app_url(path: "/users/auth/custom_oauth2/callback")}</code>
+                  <code>
+                    {Tuist.Environment.app_url(path: "/users/auth/custom_oauth2/callback")}
+                  </code>
                 </div>
               </li>
               <li>
@@ -284,7 +286,7 @@
           <span data-part="description">
             {dgettext(
               "dashboard_account",
-              "The authorization endpoint path or URL used to start the OAuth2 flow."
+              "The full authorization endpoint URL used to start the OAuth2 flow."
             )}
           </span>
         </div>
@@ -292,7 +294,7 @@
           <.text_input
             field={@form[:custom_oauth2_authorize_url]}
             type="basic"
-            placeholder="/oauth2/authorize"
+            placeholder="https://auth.example.com/oauth2/authorize"
           />
         </div>
       </div>
@@ -305,7 +307,7 @@
           <span data-part="description">
             {dgettext(
               "dashboard_account",
-              "The token endpoint path or URL used to exchange the authorization code."
+              "The full token endpoint URL used to exchange the authorization code."
             )}
           </span>
         </div>
@@ -313,7 +315,7 @@
           <.text_input
             field={@form[:custom_oauth2_token_url]}
             type="basic"
-            placeholder="/oauth2/token"
+            placeholder="https://auth.example.com/oauth2/token"
           />
         </div>
       </div>
@@ -326,7 +328,7 @@
           <span data-part="description">
             {dgettext(
               "dashboard_account",
-              "The user info endpoint path or URL that returns the authenticated user profile."
+              "The full user info endpoint URL that returns the authenticated user profile."
             )}
           </span>
         </div>
@@ -334,7 +336,7 @@
           <.text_input
             field={@form[:custom_oauth2_user_info_url]}
             type="basic"
-            placeholder="/oauth2/userinfo"
+            placeholder="https://auth.example.com/oauth2/userinfo"
           />
         </div>
       </div>

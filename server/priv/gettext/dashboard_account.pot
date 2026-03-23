@@ -271,7 +271,7 @@ msgstr ""
 
 #: lib/tuist_web/live/sso_settings_live.html.heex:194
 #, elixir-autogen, elixir-format
-msgid "The authorization endpoint path or URL used to start the OAuth2 flow."
+msgid "The full authorization endpoint URL used to start the OAuth2 flow."
 msgstr ""
 
 #: lib/tuist_web/live/sso_settings_live.html.heex:210
@@ -281,7 +281,7 @@ msgstr ""
 
 #: lib/tuist_web/live/sso_settings_live.html.heex:215
 #, elixir-autogen, elixir-format
-msgid "The token endpoint path or URL used to exchange the authorization code."
+msgid "The full token endpoint URL used to exchange the authorization code."
 msgstr ""
 
 #: lib/tuist_web/live/sso_settings_live.html.heex:231
@@ -291,7 +291,7 @@ msgstr ""
 
 #: lib/tuist_web/live/sso_settings_live.html.heex:236
 #, elixir-autogen, elixir-format
-msgid "The user info endpoint path or URL that returns the authenticated user profile."
+msgid "The full user info endpoint URL that returns the authenticated user profile."
 msgstr ""
 
 #: lib/tuist_web/live/sso_settings_live.html.heex:257

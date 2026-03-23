@@ -2,6 +2,7 @@ defmodule TuistWeb.AuthControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias OAuth2.AccessToken
   alias Tuist.Accounts.Oauth2Identity
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias Ueberauth.Auth.Info
@@ -200,9 +201,9 @@ defmodule TuistWeb.AuthControllerTest do
           sso_organization_id: "https://auth.example.com",
           custom_oauth2_client_id: UUIDv7.generate(),
           custom_oauth2_client_secret: UUIDv7.generate(),
-          custom_oauth2_authorize_url: "/oauth2/authorize",
-          custom_oauth2_token_url: "/oauth2/token",
-          custom_oauth2_user_info_url: "/oauth2/userinfo"
+          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
+          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
       conn = get(conn, "/users/auth/custom_oauth2?organization_id=#{organization.id}")
@@ -220,9 +221,9 @@ defmodule TuistWeb.AuthControllerTest do
           sso_organization_id: "https://auth.example.com",
           custom_oauth2_client_id: UUIDv7.generate(),
           custom_oauth2_client_secret: UUIDv7.generate(),
-          custom_oauth2_authorize_url: "/oauth2/authorize",
-          custom_oauth2_token_url: "/oauth2/token",
-          custom_oauth2_user_info_url: "/oauth2/userinfo"
+          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
+          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
       login_hint = "user@example.com"
@@ -245,6 +246,213 @@ defmodule TuistWeb.AuthControllerTest do
 
       assert_error_sent 401, fn ->
         get(conn, "/users/auth/custom_oauth2?organization_id=#{organization.id}")
+      end
+    end
+  end
+
+  describe "GET /users/auth/custom_oauth2/callback" do
+    test "links the custom OAuth2 identity to an existing user and logs them in", %{conn: conn} do
+      existing_user = AccountsFixtures.user_fixture(email: "existing@example.com")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: existing_user,
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "https://auth.example.com",
+          custom_oauth2_client_id: UUIDv7.generate(),
+          custom_oauth2_client_secret: UUIDv7.generate(),
+          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
+          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+        {:ok,
+         %OAuth2.Client{
+           token:
+             AccessToken.new(%{
+               "access_token" => "access-token",
+               "token_type" => "Bearer",
+               "scope" => "openid email profile"
+             })
+         }}
+      end)
+
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo" ->
+        {:ok,
+         %{
+           status_code: 200,
+           body: %{
+             "sub" => "custom-oauth2-user-123",
+             "email" => existing_user.email,
+             "name" => "Existing User"
+           }
+         }}
+      end)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          custom_oauth2_organization_id: organization.id,
+          custom_oauth2_state: "expected-state"
+        })
+        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) =~ "/#{existing_user.account.name}"
+
+      {:ok, oauth_identity} =
+        Tuist.Accounts.get_oauth2_identity(:custom_oauth2, "custom-oauth2-user-123")
+
+      assert oauth_identity.user.id == existing_user.id
+      assert oauth_identity.provider_organization_id == "https://auth.example.com"
+    end
+
+    test "raises unauthorized error when the callback state does not match", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "https://auth.example.com",
+          custom_oauth2_client_id: UUIDv7.generate(),
+          custom_oauth2_client_secret: UUIDv7.generate(),
+          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
+          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          custom_oauth2_organization_id: organization.id,
+          custom_oauth2_state: "expected-state"
+        })
+        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=wrong-state")
+      end
+    end
+
+    test "raises unauthorized error when the callback session is missing", %{conn: conn} do
+      assert_error_sent 401, fn ->
+        get(conn, "/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+      end
+    end
+
+    test "raises unauthorized error when the token exchange fails", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "https://auth.example.com",
+          custom_oauth2_client_id: UUIDv7.generate(),
+          custom_oauth2_client_secret: UUIDv7.generate(),
+          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
+          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+        {:error, :invalid_grant}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          custom_oauth2_organization_id: organization.id,
+          custom_oauth2_state: "expected-state"
+        })
+        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+      end
+    end
+
+    test "raises unauthorized error when user info does not include an email", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "https://auth.example.com",
+          custom_oauth2_client_id: UUIDv7.generate(),
+          custom_oauth2_client_secret: UUIDv7.generate(),
+          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
+          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+        {:ok,
+         %OAuth2.Client{
+           token:
+             AccessToken.new(%{
+               "access_token" => "access-token",
+               "token_type" => "Bearer",
+               "scope" => "openid email profile"
+             })
+         }}
+      end)
+
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo" ->
+        {:ok,
+         %{
+           status_code: 200,
+           body: %{
+             "sub" => "custom-oauth2-user-123",
+             "name" => "Missing Email User"
+           }
+         }}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          custom_oauth2_organization_id: organization.id,
+          custom_oauth2_state: "expected-state"
+        })
+        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
+      end
+    end
+
+    test "raises unauthorized error when the user info request fails", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "https://auth.example.com",
+          custom_oauth2_client_id: UUIDv7.generate(),
+          custom_oauth2_client_secret: UUIDv7.generate(),
+          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
+          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        )
+
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+        {:ok,
+         %OAuth2.Client{
+           token:
+             AccessToken.new(%{
+               "access_token" => "access-token",
+               "token_type" => "Bearer",
+               "scope" => "openid email profile"
+             })
+         }}
+      end)
+
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://auth.example.com/oauth2/userinfo" ->
+        {:ok, %{status_code: 401, body: %{"error" => "unauthorized"}}}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          custom_oauth2_organization_id: organization.id,
+          custom_oauth2_state: "expected-state"
+        })
+        |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
       end
     end
   end
