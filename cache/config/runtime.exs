@@ -129,8 +129,7 @@ if config_env() == :prod do
 
     config :cache, Repo,
       url: database_url,
-      ssl: true,
-      ssl_opts: Cache.Config.distributed_kv_ssl_opts(database_url),
+      ssl: Cache.Config.distributed_kv_ssl_opts(database_url),
       pool_size: String.to_integer(System.get_env("DISTRIBUTED_KV_POOL_SIZE") || "5"),
       timeout: String.to_integer(System.get_env("DISTRIBUTED_KV_DATABASE_TIMEOUT_MS") || "10000")
 
