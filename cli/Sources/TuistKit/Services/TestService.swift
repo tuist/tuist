@@ -637,7 +637,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         runId: String
     ) async throws {
         Logger.current.notice(
-            "Skipping project generation — using selective testing graph from .xctestproducts bundle",
+            "Skipping project generation, using selective testing graph from .xctestproducts bundle...",
             metadata: .section
         )
 
