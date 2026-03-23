@@ -2,7 +2,7 @@
 
 This service provides caching infrastructure for Tuist. It shares tooling and conventions with the Tuist Server.
 
-Local development uses the repo-level `.tuist-dev-instance` suffix to keep cache ports aligned with the matching local server clone.
+Local development uses the repo-level `.tuist-dev-instance` suffix via mise shell env to keep cache ports aligned with the matching local server clone.
 
 ## Key Boundaries
 - Web/API layer: `cache/lib/cache_web`

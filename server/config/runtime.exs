@@ -169,18 +169,24 @@ if env == :dev do
     for {env_var, key} <- [
           {"DATABASE_USERNAME", :username},
           {"DATABASE_PASSWORD", :password},
-          {"DATABASE_HOST", :hostname}
+          {"DATABASE_HOST", :hostname},
+          {"TUIST_SERVER_POSTGRES_DB", :database}
         ],
         value = System.get_env(env_var),
         do: {key, value}
 
   config :tuist, Tuist.Repo, dev_db_config
+
+  if clickhouse_database = System.get_env("TUIST_SERVER_CLICKHOUSE_DB") do
+    config :tuist, Tuist.ClickHouseRepo, database: clickhouse_database
+    config :tuist, Tuist.IngestRepo, database: clickhouse_database
+  end
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do
   port =
     if env == :dev do
-      Application.get_env(:tuist, :dev_instance, [])[:port] || 8080
+      String.to_integer(System.get_env("TUIST_SERVER_PORT") || "8080")
     else
       8080
     end

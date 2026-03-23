@@ -23,7 +23,7 @@ Contributions to the Tuist Server require signing a Contributor License Agreemen
 1. Install dependencies: `mise run install`
 1. Create and set up the database: `mise run db:setup`
 1. Run the server: `mise run dev`
-1. Open the clone-specific local URL in your browser and log in with the pre-made test user account. Each repo clone persists its own numeric suffix in `.tuist-dev-instance`, which scopes the local service ports and server databases. For example, a suffix of `443` yields `http://localhost:8523`:
+1. Open the clone-specific local URL in your browser and log in with the pre-made test user account. With `mise activate` enabled, each repo clone persists its own numeric suffix in `.tuist-dev-instance`, which scopes the local service ports, MinIO ports, and server databases. For example, a suffix of `443` yields `http://localhost:8523`:
 
 ```
 Email: tuistrocks@tuist.dev

@@ -1,30 +1,21 @@
 import Config
 
-alias Cache.Config.DevInstance
-
-Code.require_file("dev_instance.exs", __DIR__)
-
-dev_port = DevInstance.port(8087)
-dev_server_url = DevInstance.server_url(8080)
-dev_database = DevInstance.sqlite_database_name("dev.sqlite3")
-dev_key_value_database = DevInstance.sqlite_database_name("dev_key_value.sqlite3")
-
 config :cache, Cache.Guardian,
   issuer: "tuist",
   secret_key: "development_guardian_secret_key_at_least_64_characters_long_for_dev"
 
 config :cache, Cache.KeyValueRepo,
-  database: dev_key_value_database,
+  database: "dev_key_value.sqlite3",
   pool_size: 10,
   show_sensitive_data_on_connection_error: true
 
 config :cache, Cache.Repo,
-  database: dev_database,
+  database: "dev.sqlite3",
   pool_size: 10,
   show_sensitive_data_on_connection_error: true
 
 config :cache, CacheWeb.Endpoint,
-  http: [ip: {0, 0, 0, 0}, port: dev_port],
+  http: [ip: {0, 0, 0, 0}, port: 8087],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
@@ -34,7 +25,7 @@ config :cache, CacheWeb.Endpoint,
 config :cache, :oban_web_basic_auth, username: "admin", password: "admin"
 
 config :cache,
-  server_url: dev_server_url,
+  server_url: "http://localhost:8080",
   storage_dir: System.get_env("STORAGE_DIR") || "/tmp/cache",
   api_key: System.get_env("TUIST_CACHE_API_KEY")
 
