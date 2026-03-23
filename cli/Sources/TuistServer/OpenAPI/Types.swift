@@ -23,6 +23,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/get(getBuild)`.
     func getBuild(_ input: Operations.getBuild.Input) async throws -> Operations.getBuild.Output
+    /// Complete the multipart upload and trigger per-shard xctestrun creation.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/post(completeShardUpload)`.
+    func completeShardUpload(_ input: Operations.completeShardUpload.Input) async throws -> Operations.completeShardUpload.Output
     /// Create a a new command analytics event
     ///
     /// - Remark: HTTP `POST /api/analytics`.
@@ -66,6 +71,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/complete/post(completeAnalyticsArtifactMultipartUploadProject)`.
     func completeAnalyticsArtifactMultipartUploadProject(_ input: Operations.completeAnalyticsArtifactMultipartUploadProject.Input) async throws -> Operations.completeAnalyticsArtifactMultipartUploadProject.Output
+    /// Get a shard.
+    ///
+    /// Returns the test targets and download URLs for a specific shard.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)`.
+    func getShard(_ input: Operations.getShard.Input) async throws -> Operations.getShard.Output
     /// List build targets for a given build.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/targets`.
@@ -280,6 +292,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments/get(listTestCaseRunAttachments)`.
     func listTestCaseRunAttachments(_ input: Operations.listTestCaseRunAttachments.Input) async throws -> Operations.listTestCaseRunAttachments.Output
+    /// Generate a signed URL for uploading a part of the test bundle.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/post(generateShardUploadURL)`.
+    func generateShardUploadURL(_ input: Operations.generateShardUploadURL.Input) async throws -> Operations.generateShardUploadURL.Output
     /// Complete a multipart upload for a build archive.
     ///
     /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
@@ -341,6 +358,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/tokens/{token_name}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/tokens/{token_name}/delete(revokeAccountToken)`.
     func revokeAccountToken(_ input: Operations.revokeAccountToken.Input) async throws -> Operations.revokeAccountToken.Output
+    /// Start a multipart upload for the test products bundle.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/post(startShardUpload)`.
+    func startShardUpload(_ input: Operations.startShardUpload.Input) async throws -> Operations.startShardUpload.Output
     /// Creates an invitation
     ///
     /// Invites a user with a given email to a given organization.
@@ -579,6 +601,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/crash-reports`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)`.
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
+    /// Create a shard plan.
+    ///
+    /// Creates a new test sharding session that distributes test targets across multiple CI runners.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/post(createShardPlan)`.
+    func createShardPlan(_ input: Operations.createShardPlan.Input) async throws -> Operations.createShardPlan.Output
     /// Generate a signed URL for uploading a build archive part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
@@ -647,6 +676,21 @@ extension APIProtocol {
         try await getBuild(Operations.getBuild.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// Complete the multipart upload and trigger per-shard xctestrun creation.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/post(completeShardUpload)`.
+    public func completeShardUpload(
+        path: Operations.completeShardUpload.Input.Path,
+        headers: Operations.completeShardUpload.Input.Headers = .init(),
+        body: Operations.completeShardUpload.Input.Body? = nil
+    ) async throws -> Operations.completeShardUpload.Output {
+        try await completeShardUpload(Operations.completeShardUpload.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Create a a new command analytics event
@@ -754,6 +798,21 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// Get a shard.
+    ///
+    /// Returns the test targets and download URLs for a specific shard.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)`.
+    public func getShard(
+        path: Operations.getShard.Input.Path,
+        headers: Operations.getShard.Input.Headers = .init()
+    ) async throws -> Operations.getShard.Output {
+        try await getShard(Operations.getShard.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// List build targets for a given build.
@@ -1268,6 +1327,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Generate a signed URL for uploading a part of the test bundle.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/post(generateShardUploadURL)`.
+    public func generateShardUploadURL(
+        path: Operations.generateShardUploadURL.Input.Path,
+        headers: Operations.generateShardUploadURL.Input.Headers = .init(),
+        body: Operations.generateShardUploadURL.Input.Body? = nil
+    ) async throws -> Operations.generateShardUploadURL.Output {
+        try await generateShardUploadURL(Operations.generateShardUploadURL.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Complete a multipart upload for a build archive.
     ///
     /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
@@ -1421,6 +1495,21 @@ extension APIProtocol {
         try await revokeAccountToken(Operations.revokeAccountToken.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// Start a multipart upload for the test products bundle.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/post(startShardUpload)`.
+    public func startShardUpload(
+        path: Operations.startShardUpload.Input.Path,
+        headers: Operations.startShardUpload.Input.Headers = .init(),
+        body: Operations.startShardUpload.Input.Body? = nil
+    ) async throws -> Operations.startShardUpload.Output {
+        try await startShardUpload(Operations.startShardUpload.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Creates an invitation
@@ -2008,6 +2097,23 @@ extension APIProtocol {
         body: Operations.createCrashReport.Input.Body? = nil
     ) async throws -> Operations.createCrashReport.Output {
         try await createCrashReport(Operations.createCrashReport.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Create a shard plan.
+    ///
+    /// Creates a new test sharding session that distributes test targets across multiple CI runners.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/post(createShardPlan)`.
+    public func createShardPlan(
+        path: Operations.createShardPlan.Input.Path,
+        headers: Operations.createShardPlan.Input.Headers = .init(),
+        body: Operations.createShardPlan.Input.Body? = nil
+    ) async throws -> Operations.createShardPlan.Output {
+        try await createShardPlan(Operations.createShardPlan.Input(
             path: path,
             headers: headers,
             body: body
@@ -3824,6 +3930,88 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/PreviewIndexPage`.
         public typealias PreviewIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams`.
+        public struct CreateShardPlanParams: Codable, Hashable, Sendable {
+            /// Sharding granularity level.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/granularity`.
+            @frozen public enum granularityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case module = "module"
+                case suite = "suite"
+            }
+            /// Sharding granularity level.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/granularity`.
+            public var granularity: Components.Schemas.CreateShardPlanParams.granularityPayload?
+            /// Test module names (for module-level granularity).
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/modules`.
+            public var modules: [Swift.String]?
+            /// A unique shard plan reference, typically derived from CI environment.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/reference`.
+            public var reference: Swift.String
+            /// Maximum number of shards.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_max`.
+            public var shard_max: Swift.Int?
+            /// Target maximum duration per shard in milliseconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_max_duration`.
+            public var shard_max_duration: Swift.Int?
+            /// Minimum number of shards.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_min`.
+            public var shard_min: Swift.Int?
+            /// Exact number of shards.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_total`.
+            public var shard_total: Swift.Int?
+            /// Test suite names (for suite-level granularity).
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/test_suites`.
+            public var test_suites: [Swift.String]?
+            /// Creates a new `CreateShardPlanParams`.
+            ///
+            /// - Parameters:
+            ///   - granularity: Sharding granularity level.
+            ///   - modules: Test module names (for module-level granularity).
+            ///   - reference: A unique shard plan reference, typically derived from CI environment.
+            ///   - shard_max: Maximum number of shards.
+            ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
+            ///   - shard_min: Minimum number of shards.
+            ///   - shard_total: Exact number of shards.
+            ///   - test_suites: Test suite names (for suite-level granularity).
+            public init(
+                granularity: Components.Schemas.CreateShardPlanParams.granularityPayload? = nil,
+                modules: [Swift.String]? = nil,
+                reference: Swift.String,
+                shard_max: Swift.Int? = nil,
+                shard_max_duration: Swift.Int? = nil,
+                shard_min: Swift.Int? = nil,
+                shard_total: Swift.Int? = nil,
+                test_suites: [Swift.String]? = nil
+            ) {
+                self.granularity = granularity
+                self.modules = modules
+                self.reference = reference
+                self.shard_max = shard_max
+                self.shard_max_duration = shard_max_duration
+                self.shard_min = shard_min
+                self.shard_total = shard_total
+                self.test_suites = test_suites
+            }
+            public enum CodingKeys: String, CodingKey {
+                case granularity
+                case modules
+                case reference
+                case shard_max
+                case shard_max_duration
+                case shard_min
+                case shard_total
+                case test_suites
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/TestSuiteRunStatus`.
         @frozen public enum TestSuiteRunStatus: String, Codable, Hashable, Sendable, CaseIterable {
             case success = "success"
@@ -4532,6 +4720,71 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseRunsIndexPageSize`.
         public typealias TestCaseRunsIndexPageSize = Swift.Int
+        /// A shard with its assigned modules, suites, and download URLs.
+        ///
+        /// - Remark: Generated from `#/components/schemas/Shard`.
+        public struct Shard: Codable, Hashable, Sendable {
+            /// Presigned URL to download the shared test products bundle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/download_url`.
+            public var download_url: Swift.String
+            /// The test modules assigned to this shard.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/modules`.
+            public var modules: [Swift.String]
+            /// The UUID of the shard plan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/shard_plan_id`.
+            public var shard_plan_id: Swift.String
+            /// The test suites assigned to this shard, grouped by module name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/suites`.
+            public struct suitesPayload: Codable, Hashable, Sendable {
+                /// A container of undocumented properties.
+                public var additionalProperties: [String: [Swift.String]]
+                /// Creates a new `suitesPayload`.
+                ///
+                /// - Parameters:
+                ///   - additionalProperties: A container of undocumented properties.
+                public init(additionalProperties: [String: [Swift.String]] = .init()) {
+                    self.additionalProperties = additionalProperties
+                }
+                public init(from decoder: any Decoder) throws {
+                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                }
+                public func encode(to encoder: any Encoder) throws {
+                    try encoder.encodeAdditionalProperties(additionalProperties)
+                }
+            }
+            /// The test suites assigned to this shard, grouped by module name.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/suites`.
+            public var suites: Components.Schemas.Shard.suitesPayload
+            /// Creates a new `Shard`.
+            ///
+            /// - Parameters:
+            ///   - download_url: Presigned URL to download the shared test products bundle.
+            ///   - modules: The test modules assigned to this shard.
+            ///   - shard_plan_id: The UUID of the shard plan.
+            ///   - suites: The test suites assigned to this shard, grouped by module name.
+            public init(
+                download_url: Swift.String,
+                modules: [Swift.String],
+                shard_plan_id: Swift.String,
+                suites: Components.Schemas.Shard.suitesPayload
+            ) {
+                self.download_url = download_url
+                self.modules = modules
+                self.shard_plan_id = shard_plan_id
+                self.suites = suites
+            }
+            public enum CodingKeys: String, CodingKey {
+                case download_url
+                case modules
+                case shard_plan_id
+                case suites
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams`.
         public struct TestCaseRunAttachmentParams: Codable, Hashable, Sendable {
             /// The file name of the attachment.
@@ -7214,6 +7467,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/scheme`.
             public var scheme: Swift.String?
+            /// The zero-based shard index for this test result.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/shard_index`.
+            public var shard_index: Swift.Int?
+            /// The shard plan ID if this test run is part of a sharded execution.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/shard_plan_id`.
+            public var shard_plan_id: Swift.String?
             /// The status of the test run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/status`.
@@ -7542,6 +7803,8 @@ public enum Components {
             ///   - macos_version: The version of macOS used during the run.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
             ///   - scheme: The scheme used for the test run.
+            ///   - shard_index: The zero-based shard index for this test result.
+            ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
             ///   - status: The status of the test run.
             ///   - test_modules: The test modules associated with the test run.
             ///   - xcode_version: The version of Xcode used during the run.
@@ -7562,6 +7825,8 @@ public enum Components {
                 macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
                 scheme: Swift.String? = nil,
+                shard_index: Swift.Int? = nil,
+                shard_plan_id: Swift.String? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
                 test_modules: Components.Schemas.TestParams.test_modulesPayload,
                 xcode_version: Swift.String? = nil
@@ -7582,6 +7847,8 @@ public enum Components {
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
                 self.scheme = scheme
+                self.shard_index = shard_index
+                self.shard_plan_id = shard_plan_id
                 self.status = status
                 self.test_modules = test_modules
                 self.xcode_version = xcode_version
@@ -7603,6 +7870,8 @@ public enum Components {
                 case macos_version
                 case model_identifier
                 case scheme
+                case shard_index
+                case shard_plan_id
                 case status
                 case test_modules
                 case xcode_version
@@ -7696,6 +7965,90 @@ public enum Components {
                 case triggered_thread_frames
             }
         }
+        /// A shard plan with assignment details.
+        ///
+        /// - Remark: Generated from `#/components/schemas/ShardPlan`.
+        public struct ShardPlan: Codable, Hashable, Sendable {
+            /// The shard plan UUID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ShardPlan/id`.
+            public var id: Swift.String
+            /// A unique shard plan reference, typically derived from CI environment.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ShardPlan/reference`.
+            public var reference: Swift.String
+            /// The number of shards.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ShardPlan/shard_count`.
+            public var shard_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/ShardPlan/shardsPayload`.
+            public struct shardsPayloadPayload: Codable, Hashable, Sendable {
+                /// The estimated duration in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ShardPlan/shardsPayload/estimated_duration_ms`.
+                public var estimated_duration_ms: Swift.Int
+                /// The zero-based shard index.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ShardPlan/shardsPayload/index`.
+                public var index: Swift.Int
+                /// The test targets assigned to this shard.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ShardPlan/shardsPayload/test_targets`.
+                public var test_targets: [Swift.String]
+                /// Creates a new `shardsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - estimated_duration_ms: The estimated duration in milliseconds.
+                ///   - index: The zero-based shard index.
+                ///   - test_targets: The test targets assigned to this shard.
+                public init(
+                    estimated_duration_ms: Swift.Int,
+                    index: Swift.Int,
+                    test_targets: [Swift.String]
+                ) {
+                    self.estimated_duration_ms = estimated_duration_ms
+                    self.index = index
+                    self.test_targets = test_targets
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case estimated_duration_ms
+                    case index
+                    case test_targets
+                }
+            }
+            /// The shard assignments.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ShardPlan/shards`.
+            public typealias shardsPayload = [Components.Schemas.ShardPlan.shardsPayloadPayload]
+            /// The shard assignments.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ShardPlan/shards`.
+            public var shards: Components.Schemas.ShardPlan.shardsPayload
+            /// Creates a new `ShardPlan`.
+            ///
+            /// - Parameters:
+            ///   - id: The shard plan UUID.
+            ///   - reference: A unique shard plan reference, typically derived from CI environment.
+            ///   - shard_count: The number of shards.
+            ///   - shards: The shard assignments.
+            public init(
+                id: Swift.String,
+                reference: Swift.String,
+                shard_count: Swift.Int,
+                shards: Components.Schemas.ShardPlan.shardsPayload
+            ) {
+                self.id = id
+                self.reference = reference
+                self.shard_count = shard_count
+                self.shards = shards
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case reference
+                case shard_count
+                case shards
+            }
+        }
         /// List of available cache endpoints
         ///
         /// - Remark: Generated from `#/components/schemas/CacheEndpoints`.
@@ -7718,6 +8071,68 @@ public enum Components {
             case success = "success"
             case failure = "failure"
             case skipped = "skipped"
+        }
+        /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams`.
+        public struct CompleteShardUploadParams: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/partsPayload`.
+            public struct partsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/partsPayload/etag`.
+                public var etag: Swift.String
+                /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/partsPayload/part_number`.
+                public var part_number: Swift.Int
+                /// Creates a new `partsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - etag:
+                ///   - part_number:
+                public init(
+                    etag: Swift.String,
+                    part_number: Swift.Int
+                ) {
+                    self.etag = etag
+                    self.part_number = part_number
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case etag
+                    case part_number
+                }
+            }
+            /// The uploaded parts with their ETags.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/parts`.
+            public typealias partsPayload = [Components.Schemas.CompleteShardUploadParams.partsPayloadPayload]
+            /// The uploaded parts with their ETags.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/parts`.
+            public var parts: Components.Schemas.CompleteShardUploadParams.partsPayload
+            /// The shard plan reference.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/reference`.
+            public var reference: Swift.String
+            /// The multipart upload ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/upload_id`.
+            public var upload_id: Swift.String
+            /// Creates a new `CompleteShardUploadParams`.
+            ///
+            /// - Parameters:
+            ///   - parts: The uploaded parts with their ETags.
+            ///   - reference: The shard plan reference.
+            ///   - upload_id: The multipart upload ID.
+            public init(
+                parts: Components.Schemas.CompleteShardUploadParams.partsPayload,
+                reference: Swift.String,
+                upload_id: Swift.String
+            ) {
+                self.parts = parts
+                self.reference = reference
+                self.upload_id = upload_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case parts
+                case reference
+                case upload_id
+            }
         }
         /// A single test case run.
         ///
@@ -8038,6 +8453,23 @@ public enum Components {
             case miss = "miss"
             case local = "local"
             case remote = "remote"
+        }
+        /// - Remark: Generated from `#/components/schemas/StartShardUploadParams`.
+        public struct StartShardUploadParams: Codable, Hashable, Sendable {
+            /// The shard plan reference.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StartShardUploadParams/reference`.
+            public var reference: Swift.String
+            /// Creates a new `StartShardUploadParams`.
+            ///
+            /// - Parameters:
+            ///   - reference: The shard plan reference.
+            public init(reference: Swift.String) {
+                self.reference = reference
+            }
+            public enum CodingKeys: String, CodingKey {
+                case reference
+            }
         }
         /// The maximum number of generations to return in a single page.
         ///
@@ -9309,6 +9741,41 @@ public enum Components {
                 case scopes
             }
         }
+        /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams`.
+        public struct GenerateShardUploadURLParams: Codable, Hashable, Sendable {
+            /// The part number.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams/part_number`.
+            public var part_number: Swift.Int
+            /// The shard plan reference.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams/reference`.
+            public var reference: Swift.String
+            /// The multipart upload ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams/upload_id`.
+            public var upload_id: Swift.String
+            /// Creates a new `GenerateShardUploadURLParams`.
+            ///
+            /// - Parameters:
+            ///   - part_number: The part number.
+            ///   - reference: The shard plan reference.
+            ///   - upload_id: The multipart upload ID.
+            public init(
+                part_number: Swift.Int,
+                reference: Swift.String,
+                upload_id: Swift.String
+            ) {
+                self.part_number = part_number
+                self.reference = reference
+                self.upload_id = upload_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case part_number
+                case reference
+                case upload_id
+            }
+        }
         /// The maximum number of preview to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/PreviewIndexPageSize`.
@@ -10243,6 +10710,333 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Complete the multipart upload and trigger per-shard xctestrun creation.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/post(completeShardUpload)`.
+    public enum completeShardUpload {
+        public static let id: Swift.String = "completeShardUpload"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.completeShardUpload.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeShardUpload.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.completeShardUpload.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.completeShardUpload.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/partsPayload`.
+                    public struct partsPayloadPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/partsPayload/etag`.
+                        public var etag: Swift.String
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/partsPayload/part_number`.
+                        public var part_number: Swift.Int
+                        /// Creates a new `partsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - etag:
+                        ///   - part_number:
+                        public init(
+                            etag: Swift.String,
+                            part_number: Swift.Int
+                        ) {
+                            self.etag = etag
+                            self.part_number = part_number
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case etag
+                            case part_number
+                        }
+                    }
+                    /// The uploaded parts with their ETags.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/parts`.
+                    public typealias partsPayload = [Operations.completeShardUpload.Input.Body.jsonPayload.partsPayloadPayload]
+                    /// The uploaded parts with their ETags.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/parts`.
+                    public var parts: Operations.completeShardUpload.Input.Body.jsonPayload.partsPayload
+                    /// The shard plan reference.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/reference`.
+                    public var reference: Swift.String
+                    /// The multipart upload ID.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/upload_id`.
+                    public var upload_id: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - parts: The uploaded parts with their ETags.
+                    ///   - reference: The shard plan reference.
+                    ///   - upload_id: The multipart upload ID.
+                    public init(
+                        parts: Operations.completeShardUpload.Input.Body.jsonPayload.partsPayload,
+                        reference: Swift.String,
+                        upload_id: Swift.String
+                    ) {
+                        self.parts = parts
+                        self.reference = reference
+                        self.upload_id = upload_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case parts
+                        case reference
+                        case upload_id
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/content/application\/json`.
+                case json(Operations.completeShardUpload.Input.Body.jsonPayload)
+            }
+            public var body: Operations.completeShardUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.completeShardUpload.Input.Path,
+                headers: Operations.completeShardUpload.Input.Headers = .init(),
+                body: Operations.completeShardUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/responses/200/content/json/status`.
+                        public var status: Swift.String?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - status:
+                        public init(status: Swift.String? = nil) {
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case status
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/responses/200/content/application\/json`.
+                    case json(Operations.completeShardUpload.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.completeShardUpload.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeShardUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeShardUpload.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Upload completed
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/post(completeShardUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.completeShardUpload.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.completeShardUpload.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeShardUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeShardUpload.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/post(completeShardUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.completeShardUpload.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.completeShardUpload.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeShardUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeShardUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/post(completeShardUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.completeShardUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.completeShardUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }
@@ -13445,6 +14239,314 @@ public enum Operations {
             }
         }
     }
+    /// Get a shard.
+    ///
+    /// Returns the test targets and download URLs for a specific shard.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)`.
+    public enum getShard {
+        public static let id: Swift.String = "getShard"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The shard plan reference.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/path/reference`.
+                public var reference: Swift.String
+                /// The zero-based shard index.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/path/shard_index`.
+                public var shard_index: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                ///   - reference: The shard plan reference.
+                ///   - shard_index: The zero-based shard index.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    reference: Swift.String,
+                    shard_index: Swift.Int
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.reference = reference
+                    self.shard_index = shard_index
+                }
+            }
+            public var path: Operations.getShard.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getShard.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getShard.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getShard.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getShard.Input.Path,
+                headers: Operations.getShard.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.Shard)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.Shard {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getShard.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getShard.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The shard
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getShard.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getShard.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getShard.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getShard.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getShard.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getShard.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getShard.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getShard.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getShard.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getShard.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getShard.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getShard.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The session or shard was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getShard.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getShard.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List build targets for a given build.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/targets`.
@@ -14437,28 +15539,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
                     page: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
                     self.page = page
-                    self.git_branch = git_branch
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -26094,6 +27196,321 @@ public enum Operations {
             }
         }
     }
+    /// Generate a signed URL for uploading a part of the test bundle.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/post(generateShardUploadURL)`.
+    public enum generateShardUploadURL {
+        public static let id: Swift.String = "generateShardUploadURL"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.generateShardUploadURL.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generateShardUploadURL.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.generateShardUploadURL.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.generateShardUploadURL.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The part number.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody/json/part_number`.
+                    public var part_number: Swift.Int
+                    /// The shard plan reference.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody/json/reference`.
+                    public var reference: Swift.String
+                    /// The multipart upload ID.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody/json/upload_id`.
+                    public var upload_id: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - part_number: The part number.
+                    ///   - reference: The shard plan reference.
+                    ///   - upload_id: The multipart upload ID.
+                    public init(
+                        part_number: Swift.Int,
+                        reference: Swift.String,
+                        upload_id: Swift.String
+                    ) {
+                        self.part_number = part_number
+                        self.reference = reference
+                        self.upload_id = upload_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case part_number
+                        case reference
+                        case upload_id
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody/content/application\/json`.
+                case json(Operations.generateShardUploadURL.Input.Body.jsonPayload)
+            }
+            public var body: Operations.generateShardUploadURL.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.generateShardUploadURL.Input.Path,
+                headers: Operations.generateShardUploadURL.Input.Headers = .init(),
+                body: Operations.generateShardUploadURL.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/200/content/json/data`.
+                        public struct dataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/200/content/json/data/url`.
+                            public var url: Swift.String?
+                            /// Creates a new `dataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - url:
+                            public init(url: Swift.String? = nil) {
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/200/content/json/data`.
+                        public var data: Operations.generateShardUploadURL.Output.Ok.Body.jsonPayload.dataPayload?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - data:
+                        public init(data: Operations.generateShardUploadURL.Output.Ok.Body.jsonPayload.dataPayload? = nil) {
+                            self.data = data
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case data
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/200/content/application\/json`.
+                    case json(Operations.generateShardUploadURL.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.generateShardUploadURL.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateShardUploadURL.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.generateShardUploadURL.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The signed URL
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/post(generateShardUploadURL)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.generateShardUploadURL.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.generateShardUploadURL.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateShardUploadURL.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.generateShardUploadURL.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/post(generateShardUploadURL)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.generateShardUploadURL.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.generateShardUploadURL.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateShardUploadURL.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.generateShardUploadURL.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/post(generateShardUploadURL)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.generateShardUploadURL.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.generateShardUploadURL.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Complete a multipart upload for a build archive.
     ///
     /// Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.
@@ -29860,6 +31277,303 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Start a multipart upload for the test products bundle.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/start`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/post(startShardUpload)`.
+    public enum startShardUpload {
+        public static let id: Swift.String = "startShardUpload"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.startShardUpload.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startShardUpload.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startShardUpload.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.startShardUpload.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The shard plan reference.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/json/reference`.
+                    public var reference: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - reference: The shard plan reference.
+                    public init(reference: Swift.String) {
+                        self.reference = reference
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case reference
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/content/application\/json`.
+                case json(Operations.startShardUpload.Input.Body.jsonPayload)
+            }
+            public var body: Operations.startShardUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.startShardUpload.Input.Path,
+                headers: Operations.startShardUpload.Input.Headers = .init(),
+                body: Operations.startShardUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/200/content/json/data`.
+                        public struct dataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/200/content/json/data/upload_id`.
+                            public var upload_id: Swift.String?
+                            /// Creates a new `dataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - upload_id:
+                            public init(upload_id: Swift.String? = nil) {
+                                self.upload_id = upload_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case upload_id
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/200/content/json/data`.
+                        public var data: Operations.startShardUpload.Output.Ok.Body.jsonPayload.dataPayload?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - data:
+                        public init(data: Operations.startShardUpload.Output.Ok.Body.jsonPayload.dataPayload? = nil) {
+                            self.data = data
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case data
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/200/content/application\/json`.
+                    case json(Operations.startShardUpload.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.startShardUpload.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startShardUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startShardUpload.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The upload ID
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/post(startShardUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.startShardUpload.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.startShardUpload.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startShardUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startShardUpload.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/post(startShardUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startShardUpload.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.startShardUpload.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startShardUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startShardUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/post(startShardUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.startShardUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.startShardUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }
@@ -45592,6 +47306,442 @@ public enum Operations {
             }
         }
     }
+    /// Create a shard plan.
+    ///
+    /// Creates a new test sharding session that distributes test targets across multiple CI runners.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/post(createShardPlan)`.
+    public enum createShardPlan {
+        public static let id: Swift.String = "createShardPlan"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createShardPlan.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createShardPlan.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createShardPlan.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createShardPlan.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Sharding granularity level.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/granularity`.
+                    @frozen public enum granularityPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case module = "module"
+                        case suite = "suite"
+                    }
+                    /// Sharding granularity level.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/granularity`.
+                    public var granularity: Operations.createShardPlan.Input.Body.jsonPayload.granularityPayload?
+                    /// Test module names (for module-level granularity).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/modules`.
+                    public var modules: [Swift.String]?
+                    /// A unique shard plan reference, typically derived from CI environment.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/reference`.
+                    public var reference: Swift.String
+                    /// Maximum number of shards.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_max`.
+                    public var shard_max: Swift.Int?
+                    /// Target maximum duration per shard in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_max_duration`.
+                    public var shard_max_duration: Swift.Int?
+                    /// Minimum number of shards.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_min`.
+                    public var shard_min: Swift.Int?
+                    /// Exact number of shards.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_total`.
+                    public var shard_total: Swift.Int?
+                    /// Test suite names (for suite-level granularity).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/test_suites`.
+                    public var test_suites: [Swift.String]?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - granularity: Sharding granularity level.
+                    ///   - modules: Test module names (for module-level granularity).
+                    ///   - reference: A unique shard plan reference, typically derived from CI environment.
+                    ///   - shard_max: Maximum number of shards.
+                    ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
+                    ///   - shard_min: Minimum number of shards.
+                    ///   - shard_total: Exact number of shards.
+                    ///   - test_suites: Test suite names (for suite-level granularity).
+                    public init(
+                        granularity: Operations.createShardPlan.Input.Body.jsonPayload.granularityPayload? = nil,
+                        modules: [Swift.String]? = nil,
+                        reference: Swift.String,
+                        shard_max: Swift.Int? = nil,
+                        shard_max_duration: Swift.Int? = nil,
+                        shard_min: Swift.Int? = nil,
+                        shard_total: Swift.Int? = nil,
+                        test_suites: [Swift.String]? = nil
+                    ) {
+                        self.granularity = granularity
+                        self.modules = modules
+                        self.reference = reference
+                        self.shard_max = shard_max
+                        self.shard_max_duration = shard_max_duration
+                        self.shard_min = shard_min
+                        self.shard_total = shard_total
+                        self.test_suites = test_suites
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case granularity
+                        case modules
+                        case reference
+                        case shard_max
+                        case shard_max_duration
+                        case shard_min
+                        case shard_total
+                        case test_suites
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/content/application\/json`.
+                case json(Operations.createShardPlan.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createShardPlan.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createShardPlan.Input.Path,
+                headers: Operations.createShardPlan.Input.Headers = .init(),
+                body: Operations.createShardPlan.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.ShardPlan)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ShardPlan {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createShardPlan.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createShardPlan.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The shard plan
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/post(createShardPlan)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createShardPlan.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createShardPlan.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createShardPlan.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createShardPlan.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/post(createShardPlan)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createShardPlan.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createShardPlan.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createShardPlan.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createShardPlan.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/post(createShardPlan)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createShardPlan.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createShardPlan.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createShardPlan.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createShardPlan.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/post(createShardPlan)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createShardPlan.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createShardPlan.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createShardPlan.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createShardPlan.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/post(createShardPlan)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createShardPlan.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createShardPlan.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Generate a signed URL for uploading a build archive part.
     ///
     /// Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).
@@ -46437,6 +48587,14 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/scheme`.
                     public var scheme: Swift.String?
+                    /// The zero-based shard index for this test result.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_index`.
+                    public var shard_index: Swift.Int?
+                    /// The shard plan ID if this test run is part of a sharded execution.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/shard_plan_id`.
+                    public var shard_plan_id: Swift.String?
                     /// The status of the test run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/status`.
@@ -46773,6 +48931,8 @@ public enum Operations {
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
                     ///   - scheme: The scheme used for the test run.
+                    ///   - shard_index: The zero-based shard index for this test result.
+                    ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
                     ///   - status: The status of the test run.
                     ///   - test_modules: The test modules associated with the test run.
                     ///   - xcode_version: The version of Xcode used during the run.
@@ -46793,6 +48953,8 @@ public enum Operations {
                         macos_version: Swift.String? = nil,
                         model_identifier: Swift.String? = nil,
                         scheme: Swift.String? = nil,
+                        shard_index: Swift.Int? = nil,
+                        shard_plan_id: Swift.String? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
                         xcode_version: Swift.String? = nil
@@ -46813,6 +48975,8 @@ public enum Operations {
                         self.macos_version = macos_version
                         self.model_identifier = model_identifier
                         self.scheme = scheme
+                        self.shard_index = shard_index
+                        self.shard_plan_id = shard_plan_id
                         self.status = status
                         self.test_modules = test_modules
                         self.xcode_version = xcode_version
@@ -46834,6 +48998,8 @@ public enum Operations {
                         case macos_version
                         case model_identifier
                         case scheme
+                        case shard_index
+                        case shard_plan_id
                         case status
                         case test_modules
                         case xcode_version

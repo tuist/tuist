@@ -104,7 +104,9 @@
             let test = try await uploadResultBundleService.uploadResultBundle(
                 testSummary: testSummary,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
-                config: config
+                config: config,
+                shardPlanId: nil,
+                shardIndex: nil
             )
 
             AlertController.current.success(

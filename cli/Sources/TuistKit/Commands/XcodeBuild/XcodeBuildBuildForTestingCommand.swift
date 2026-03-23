@@ -1,5 +1,7 @@
 import ArgumentParser
 import Foundation
+import TuistCore
+import TuistEnvKey
 import TuistSupport
 import XcodeGraph
 
@@ -16,6 +18,48 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
 
     public init() {}
 
+    @Option(
+        name: .long,
+        help: "Maximum number of shards to distribute tests across.",
+        envKey: .testShardMax
+    )
+    var shardMax: Int?
+
+    @Option(
+        name: .long,
+        help: "Minimum number of shards.",
+        envKey: .testShardMin
+    )
+    var shardMin: Int?
+
+    @Option(
+        name: .long,
+        help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max).",
+        envKey: .testShardTotal
+    )
+    var shardTotal: Int?
+
+    @Option(
+        name: .long,
+        help: "Target maximum duration per shard in milliseconds.",
+        envKey: .testShardMaxDuration
+    )
+    var shardMaxDuration: Int?
+
+    @Option(
+        name: .long,
+        help: "Sharding granularity level: module (default) or suite.",
+        envKey: .testShardGranularity
+    )
+    var shardGranularity: ShardGranularity = .module
+
+    @Option(
+        name: .long,
+        help: "Explicit shard reference. Derived from environment variables for supported CI providers.",
+        envKey: .testShardReference
+    )
+    var shardReference: String?
+
     @Argument(
         parsing: .captureForPassthrough,
         help: "Arguments that will be passed through to the xcodebuild CLI. All arguments are forwarded to xcodebuild. Example: tuist xcodebuild build-for-testing -scheme MyAppTests -destination 'platform=iOS Simulator,name=iPhone 15'"
@@ -25,7 +69,13 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
     public func run() async throws {
         try await XcodeBuildBuildCommandService()
             .run(
-                passthroughXcodebuildArguments: ["build-for-testing"] + passthroughXcodebuildArguments
+                passthroughXcodebuildArguments: ["build-for-testing"] + passthroughXcodebuildArguments,
+                shardReference: shardReference,
+                shardGranularity: shardGranularity,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration
             )
     }
 }

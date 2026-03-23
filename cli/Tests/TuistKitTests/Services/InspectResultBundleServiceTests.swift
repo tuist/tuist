@@ -101,7 +101,9 @@ struct UploadResultBundleServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -175,7 +177,9 @@ struct UploadResultBundleServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
@@ -299,7 +303,9 @@ struct UploadResultBundleServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
@@ -369,7 +375,9 @@ struct UploadResultBundleServiceTests {
                 ciRunId: .value("19683527895"),
                 ciProjectHandle: .value("tuist/tuist"),
                 ciHost: .value("github.com"),
-                ciProvider: .value(.github)
+                ciProvider: .value(.github),
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
@@ -425,7 +433,9 @@ struct UploadResultBundleServiceTests {
                 ciRunId: .value(nil),
                 ciProjectHandle: .value(nil),
                 ciHost: .value(nil),
-                ciProvider: .value(nil)
+                ciProvider: .value(nil),
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
@@ -507,7 +517,9 @@ struct UploadResultBundleServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -661,7 +673,9 @@ struct UploadResultBundleServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(

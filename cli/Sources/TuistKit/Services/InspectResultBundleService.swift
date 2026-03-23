@@ -34,7 +34,9 @@ public protocol UploadResultBundleServicing {
     func uploadResultBundle(
         testSummary: TestSummary,
         projectDerivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        shardPlanId: String?,
+        shardIndex: Int?
     ) async throws -> Components.Schemas.RunsTest
 }
 
@@ -83,7 +85,9 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     public func uploadResultBundle(
         testSummary: TestSummary,
         projectDerivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil
     ) async throws -> Components.Schemas.RunsTest {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
@@ -122,7 +126,9 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             ciRunId: ciInfo?.runId,
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
-            ciProvider: ciInfo?.provider
+            ciProvider: ciInfo?.provider,
+            shardPlanId: shardPlanId,
+            shardIndex: shardIndex
         )
 
         let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)

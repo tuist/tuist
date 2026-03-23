@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistAutomation
+import TuistCI
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
@@ -29,6 +30,8 @@ struct XcodeBuildTestCommandService {
     private let xcResultService: XCResultServicing
     private let rootDirectoryLocator: RootDirectoryLocating
     private let testQuarantineService: TestQuarantineServicing
+    private let shardService: ShardServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -42,7 +45,9 @@ struct XcodeBuildTestCommandService {
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
         xcResultService: XCResultServicing = XCResultService(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        testQuarantineService: TestQuarantineServicing = TestQuarantineService()
+        testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
+        shardService: ShardServicing = ShardService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -56,16 +61,36 @@ struct XcodeBuildTestCommandService {
         self.xcResultService = xcResultService
         self.rootDirectoryLocator = rootDirectoryLocator
         self.testQuarantineService = testQuarantineService
+        self.shardService = shardService
+        self.serverEnvironmentService = serverEnvironmentService
     }
 
     func run(
         passthroughXcodebuildArguments: [String],
-        skipQuarantine: Bool = false
+        skipQuarantine: Bool = false,
+        shardIndex: Int? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
             contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         )
+
+        let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+        let config = try await configLoader.loadConfig(path: path)
+
+        var shardPlanId: String?
+        var shardTestProductsPath: AbsolutePath?
+        if let shardIndex, let fullHandle = config.fullHandle {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let shard = try await shardService.shard(
+                shardIndex: shardIndex,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+            shardTestProductsPath = shard.testProductsPath
+            passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
+            shardPlanId = shard.shardPlanId
+        }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
@@ -75,8 +100,6 @@ struct XcodeBuildTestCommandService {
             }
         }
 
-        let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
-        let config = try await configLoader.loadConfig(path: path)
         let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
 
         let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: skipQuarantine)
@@ -99,13 +122,21 @@ struct XcodeBuildTestCommandService {
             await uploadResultBundleIfNeeded(
                 testSummary: testSummary,
                 projectDerivedDataDirectory: derivedDataPath,
-                config: config
+                config: config,
+                shardPlanId: shardPlanId,
+                shardIndex: shardIndex
             )
 
             if let testSummary, testQuarantineService.onlyQuarantinedTestsFailed(testSummary: testSummary) {
+                if let shardTestProductsPath {
+                    try? await fileSystem.remove(shardTestProductsPath)
+                }
                 return
             }
 
+            if let shardTestProductsPath {
+                try? await fileSystem.remove(shardTestProductsPath)
+            }
             throw error
         }
 
@@ -123,8 +154,13 @@ struct XcodeBuildTestCommandService {
         await uploadResultBundleIfNeeded(
             testSummary: testSummary,
             projectDerivedDataDirectory: derivedDataPath,
-            config: config
+            config: config,
+            shardPlanId: shardPlanId,
+            shardIndex: shardIndex
         )
+        if let shardTestProductsPath {
+            try? await fileSystem.remove(shardTestProductsPath)
+        }
     }
 
     private func updateBuildRunId(projectDerivedDataDirectory: AbsolutePath) async {
@@ -218,10 +254,11 @@ struct XcodeBuildTestCommandService {
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
         projectDerivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil
     ) async {
         guard let testSummary,
-              let projectDerivedDataDirectory,
               config.fullHandle != nil
         else { return }
 
@@ -229,7 +266,9 @@ struct XcodeBuildTestCommandService {
             _ = try await uploadResultBundleService.uploadResultBundle(
                 testSummary: testSummary,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
-                config: config
+                config: config,
+                shardPlanId: shardPlanId,
+                shardIndex: shardIndex
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

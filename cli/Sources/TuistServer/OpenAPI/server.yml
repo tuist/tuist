@@ -1225,6 +1225,65 @@ components:
       type: integer
       x-struct:
       x-validate:
+    CreateShardPlanParams:
+      properties:
+        granularity:
+          description: Sharding granularity level.
+          enum:
+            - module
+            - suite
+          type: string
+          x-struct:
+          x-validate:
+        modules:
+          description: Test module names (for module-level granularity).
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        reference:
+          description: A unique shard plan reference, typically derived from CI environment.
+          type: string
+          x-struct:
+          x-validate:
+        shard_max:
+          description: Maximum number of shards.
+          type: integer
+          x-struct:
+          x-validate:
+        shard_max_duration:
+          description: Target maximum duration per shard in milliseconds.
+          type: integer
+          x-struct:
+          x-validate:
+        shard_min:
+          description: Minimum number of shards.
+          type: integer
+          x-struct:
+          x-validate:
+        shard_total:
+          description: Exact number of shards.
+          type: integer
+          x-struct:
+          x-validate:
+        test_suites:
+          description: Test suite names (for suite-level granularity).
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - reference
+      title: CreateShardPlanParams
+      type: object
+      x-struct:
+      x-validate:
     TestSuiteRunStatus:
       enum:
         - success
@@ -1775,6 +1834,51 @@ components:
       title: TestCaseRunsIndexPageSize
       type: integer
       x-struct:
+      x-validate:
+    Shard:
+      description: A shard with its assigned modules, suites, and download URLs.
+      properties:
+        download_url:
+          description: Presigned URL to download the shared test products bundle.
+          type: string
+          x-struct:
+          x-validate:
+        modules:
+          description: The test modules assigned to this shard.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        shard_plan_id:
+          description: The UUID of the shard plan.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        suites:
+          additionalProperties:
+            items:
+              type: string
+              x-struct:
+              x-validate:
+            type: array
+            x-struct:
+            x-validate:
+          description: The test suites assigned to this shard, grouped by module name.
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - shard_plan_id
+        - modules
+        - suites
+        - download_url
+      title: Shard
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Shards.Shard
       x-validate:
     TestCaseRunAttachmentParams:
       properties:
@@ -3612,6 +3716,17 @@ components:
           type: string
           x-struct:
           x-validate:
+        shard_index:
+          description: The zero-based shard index for this test result.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        shard_plan_id:
+          description: The shard plan ID if this test run is part of a sharded execution.
+          type: string
+          x-struct:
+          x-validate:
         status:
           description: The status of the test run.
           enum:
@@ -3869,6 +3984,67 @@ components:
       type: object
       x-struct:
       x-validate:
+    ShardPlan:
+      description: A shard plan with assignment details.
+      properties:
+        id:
+          description: The shard plan UUID.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        reference:
+          description: A unique shard plan reference, typically derived from CI environment.
+          type: string
+          x-struct:
+          x-validate:
+        shard_count:
+          description: The number of shards.
+          type: integer
+          x-struct:
+          x-validate:
+        shards:
+          description: The shard assignments.
+          items:
+            properties:
+              estimated_duration_ms:
+                description: The estimated duration in milliseconds.
+                type: integer
+                x-struct:
+                x-validate:
+              index:
+                description: The zero-based shard index.
+                type: integer
+                x-struct:
+                x-validate:
+              test_targets:
+                description: The test targets assigned to this shard.
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - index
+              - test_targets
+              - estimated_duration_ms
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - reference
+        - shard_count
+        - shards
+      title: ShardPlan
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Shards.ShardPlan
+      x-validate:
     CacheEndpoints:
       description: List of available cache endpoints
       properties:
@@ -3893,6 +4069,47 @@ components:
         - skipped
       title: TestRunStatus
       type: string
+      x-struct:
+      x-validate:
+    CompleteShardUploadParams:
+      properties:
+        parts:
+          description: The uploaded parts with their ETags.
+          items:
+            properties:
+              etag:
+                type: string
+                x-struct:
+                x-validate:
+              part_number:
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - part_number
+              - etag
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        reference:
+          description: The shard plan reference.
+          type: string
+          x-struct:
+          x-validate:
+        upload_id:
+          description: The multipart upload ID.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - reference
+        - upload_id
+        - parts
+      title: CompleteShardUploadParams
+      type: object
       x-struct:
       x-validate:
     TestCaseRun:
@@ -4164,6 +4381,19 @@ components:
         - remote
       title: CacheStatus
       type: string
+      x-struct:
+      x-validate:
+    StartShardUploadParams:
+      properties:
+        reference:
+          description: The shard plan reference.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - reference
+      title: StartShardUploadParams
+      type: object
       x-struct:
       x-validate:
     GenerationsIndexPageSize:
@@ -5058,6 +5288,31 @@ components:
       type: object
       x-struct:
       x-validate:
+    GenerateShardUploadURLParams:
+      properties:
+        part_number:
+          description: The part number.
+          type: integer
+          x-struct:
+          x-validate:
+        reference:
+          description: The shard plan reference.
+          type: string
+          x-struct:
+          x-validate:
+        upload_id:
+          description: The multipart upload ID.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - reference
+        - upload_id
+        - part_number
+      title: GenerateShardUploadURLParams
+      type: object
+      x-struct:
+      x-validate:
     PreviewIndexPageSize:
       default: 10
       description: The maximum number of preview to return in a single page.
@@ -5435,6 +5690,102 @@ paths:
       summary: Get a build by ID.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete:
+    post:
+      callbacks: {}
+      operationId: completeShardUpload
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                parts:
+                  description: The uploaded parts with their ETags.
+                  items:
+                    properties:
+                      etag:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      part_number:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - part_number
+                      - etag
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                reference:
+                  description: The shard plan reference.
+                  type: string
+                  x-struct:
+                  x-validate:
+                upload_id:
+                  description: The multipart upload ID.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - reference
+                - upload_id
+                - parts
+              title: CompleteShardUploadParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Complete upload params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  status:
+                    type: string
+                    x-struct:
+                    x-validate:
+                type: object
+                x-struct:
+                x-validate:
+          description: Upload completed
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+      summary: Complete the multipart upload and trigger per-shard xctestrun creation.
+      tags:
+        - Shards
   /api/analytics:
     post:
       callbacks: {}
@@ -6606,6 +6957,72 @@ paths:
       summary: It completes a multi-part upload
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}:
+    get:
+      callbacks: {}
+      description: Returns the test targets and download URLs for a specific shard.
+      operationId: getShard
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The shard plan reference.
+          in: path
+          name: reference
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The zero-based shard index.
+          in: path
+          name: shard_index
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Shard'
+          description: The shard
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The session or shard was not found
+      summary: Get a shard.
+      tags:
+        - Shards
   /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/targets:
     get:
       callbacks: {}
@@ -7040,14 +7457,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -7062,6 +7471,14 @@ paths:
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -10432,6 +10849,91 @@ paths:
       summary: List attachments for a test case run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url:
+    post:
+      callbacks: {}
+      operationId: generateShardUploadURL
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                part_number:
+                  description: The part number.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                reference:
+                  description: The shard plan reference.
+                  type: string
+                  x-struct:
+                  x-validate:
+                upload_id:
+                  description: The multipart upload ID.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - reference
+                - upload_id
+                - part_number
+              title: GenerateShardUploadURLParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Upload URL params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    properties:
+                      url:
+                        type: string
+                        x-struct:
+                        x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
+                type: object
+                x-struct:
+                x-validate:
+          description: The signed URL
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+      summary: Generate a signed URL for uploading a part of the test bundle.
+      tags:
+        - Shards
   /api/projects/{account_handle}/{project_handle}/builds/upload/complete:
     post:
       callbacks: {}
@@ -11645,6 +12147,79 @@ paths:
       summary: Revoke an account token.
       tags:
         - Account tokens
+  /api/projects/{account_handle}/{project_handle}/tests/shards/upload/start:
+    post:
+      callbacks: {}
+      operationId: startShardUpload
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                reference:
+                  description: The shard plan reference.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - reference
+              title: StartShardUploadParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Start upload params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    properties:
+                      upload_id:
+                        type: string
+                        x-struct:
+                        x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
+                type: object
+                x-struct:
+                x-validate:
+          description: The upload ID
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+      summary: Start a multipart upload for the test products bundle.
+      tags:
+        - Shards
   /api/organizations/{organization_name}/invitations:
     delete:
       callbacks: {}
@@ -17061,6 +17636,126 @@ paths:
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/tests/shards:
+    post:
+      callbacks: {}
+      description: Creates a new test sharding session that distributes test targets across multiple CI runners.
+      operationId: createShardPlan
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                granularity:
+                  description: Sharding granularity level.
+                  enum:
+                    - module
+                    - suite
+                  type: string
+                  x-struct:
+                  x-validate:
+                modules:
+                  description: Test module names (for module-level granularity).
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                reference:
+                  description: A unique shard plan reference, typically derived from CI environment.
+                  type: string
+                  x-struct:
+                  x-validate:
+                shard_max:
+                  description: Maximum number of shards.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                shard_max_duration:
+                  description: Target maximum duration per shard in milliseconds.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                shard_min:
+                  description: Minimum number of shards.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                shard_total:
+                  description: Exact number of shards.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                test_suites:
+                  description: Test suite names (for suite-level granularity).
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - reference
+              title: CreateShardPlanParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Shard plan params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShardPlan'
+          description: The shard plan
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: Create a shard plan.
+      tags:
+        - Shards
   /api/projects/{account_handle}/{project_handle}/builds/upload/generate-url:
     post:
       callbacks: {}
@@ -17432,6 +18127,17 @@ paths:
                   x-validate:
                 scheme:
                   description: The scheme used for the test run.
+                  type: string
+                  x-struct:
+                  x-validate:
+                shard_index:
+                  description: The zero-based shard index for this test result.
+                  nullable: true
+                  type: integer
+                  x-struct:
+                  x-validate:
+                shard_plan_id:
+                  description: The shard plan ID if this test run is part of a sharded execution.
                   type: string
                   x-struct:
                   x-validate:

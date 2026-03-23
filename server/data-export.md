@@ -44,6 +44,11 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Build targets** (`build_targets` table): Target/module build performance
 - **Cacheable tasks** (`cacheable_tasks` table): Xcode cache task analytics with hit/miss status
 - **CAS outputs** (`cas_outputs` table): Content-addressable storage upload/download records
+- **Shard plans** (`shard_plans` table): Test sharding plan data including reference, shard count, and granularity
+- **Shard plan modules** (`shard_plan_modules` table): Per-shard module assignments with estimated durations
+- **Shard plan test suites** (`shard_plan_test_suites` table): Per-shard test suite assignments with estimated durations
+- **Shard runs** (`shard_runs` table): Per-shard execution results with status and duration
+- **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan
 - Build performance metrics
 
 ### Non-Exportable Data
@@ -54,6 +59,7 @@ The following data is stored in ClickHouse for analytics purposes:
 All uploaded files associated with the account are included:
 - **Cache artifacts**: Build caches and compiled binaries
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
+- **Shard bundles**: Shared `.xctestproducts` bundles stored at `{account_id}/{project_id}/shards/{shard_plan_id}/`
 
 ## Export Process
 

@@ -48,7 +48,7 @@ struct InspectTestCommandServiceTests {
             .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 1000, testModules: []))
 
         given(uploadResultBundleService)
-            .uploadResultBundle(testSummary: .any, projectDerivedDataDirectory: .any, config: .any)
+            .uploadResultBundle(testSummary: .any, projectDerivedDataDirectory: .any, config: .any, shardPlanId: .any, shardIndex: .any)
             .willReturn(
                 Components.Schemas.RunsTest(
                     duration: 1000,
@@ -86,7 +86,9 @@ struct InspectTestCommandServiceTests {
             .uploadResultBundle(
                 testSummary: .any,
                 projectDerivedDataDirectory: .value(nil),
-                config: .any
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
@@ -122,7 +124,9 @@ struct InspectTestCommandServiceTests {
             .uploadResultBundle(
                 testSummary: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
-                config: .any
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
@@ -161,7 +165,9 @@ struct InspectTestCommandServiceTests {
             .uploadResultBundle(
                 testSummary: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
-                config: .any
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
@@ -226,7 +232,9 @@ struct InspectTestCommandServiceTests {
             .uploadResultBundle(
                 testSummary: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
-                config: .any
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }

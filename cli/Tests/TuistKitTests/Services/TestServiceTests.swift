@@ -2690,7 +2690,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 )
 
             given(uploadResultBundleService)
-                .uploadResultBundle(testSummary: .any, projectDerivedDataDirectory: .any, config: .any)
+                .uploadResultBundle(testSummary: .any, projectDerivedDataDirectory: .any, config: .any, shardPlanId: .any, shardIndex: .any)
                 .willThrow(TestError("Inspect failed"))
 
             // When
