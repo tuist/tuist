@@ -249,7 +249,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         let skipTestTargets = skipTestTargets
-        let quarantinedTests = await fetchQuarantinedTests(
+        let quarantinedTests = await quarantinedTests(
             skipQuarantine: skipQuarantine,
             config: config
         )
@@ -1046,7 +1046,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         await RunMetadataStorage.current.update(testRunId: test.id)
     }
 
-    private func fetchQuarantinedTests(
+    private func quarantinedTests(
         skipQuarantine: Bool,
         config: Tuist
     ) async -> [TestIdentifier] {
@@ -1059,7 +1059,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
         do {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let quarantinedTests = try await fetchQuarantinedTests(
+            let quarantinedTests = try await quarantinedTests(
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
@@ -1119,7 +1119,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return (quarantinedFailures: quarantinedFailures, realFailures: realFailures)
     }
 
-    private func fetchQuarantinedTests(
+    private func quarantinedTests(
         fullHandle: String,
         serverURL: URL
     ) async throws -> [TestIdentifier] {

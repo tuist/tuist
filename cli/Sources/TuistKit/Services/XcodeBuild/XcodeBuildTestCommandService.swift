@@ -81,7 +81,7 @@ struct XcodeBuildTestCommandService {
         let config = try await configLoader.loadConfig(path: path)
         let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
 
-        let quarantinedTests = await fetchQuarantinedTests(config: config)
+        let quarantinedTests = await quarantinedTests(config: config)
 
         do {
             try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
@@ -231,7 +231,7 @@ struct XcodeBuildTestCommandService {
         return arguments[valueIndex]
     }
 
-    private func fetchQuarantinedTests(config: Tuist) async -> [TestIdentifier] {
+    private func quarantinedTests(config: Tuist) async -> [TestIdentifier] {
         guard let fullHandle = config.fullHandle else { return [] }
         do {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
