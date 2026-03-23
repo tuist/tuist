@@ -652,13 +652,20 @@ defmodule Tuist.Tests do
       end)
 
     Tuist.Tasks.run_async(fn ->
-      TestCase.Buffer.insert_all(acc.test_case_rows)
-      TestCaseRun.Buffer.insert_all(acc.test_case_runs)
-      TestCaseFailure.Buffer.insert_all(acc.failures)
+      tasks = [
+        Task.async(fn -> TestCase.Buffer.insert_all(acc.test_case_rows) end),
+        Task.async(fn -> TestCaseRun.Buffer.insert_all(acc.test_case_runs) end),
+        Task.async(fn -> TestCaseFailure.Buffer.insert_all(acc.failures) end)
+      ]
 
-      if Enum.any?(acc.repetitions) do
-        TestCaseRunRepetition.Buffer.insert_all(acc.repetitions)
-      end
+      tasks =
+        if Enum.any?(acc.repetitions) do
+          [Task.async(fn -> TestCaseRunRepetition.Buffer.insert_all(acc.repetitions) end) | tasks]
+        else
+          tasks
+        end
+
+      Task.await_many(tasks, 30_000)
     end)
 
     {flaky_ids, acc.test_case_runs}
