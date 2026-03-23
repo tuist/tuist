@@ -96,11 +96,11 @@ struct TestQuarantineServiceTests {
 
         let result = await subject.quarantinedTests(config: config, skipQuarantine: false)
 
-        let expected0 = try TestIdentifier(target: "AppTests", class: "FooSuite", method: "testFoo()")
-        let expected1 = try TestIdentifier(target: "CoreTests", class: nil, method: "testBar()")
-        #expect(result.count == 2)
-        #expect(result[0] == expected0)
-        #expect(result[1] == expected1)
+        let expected = [
+            try TestIdentifier(target: "AppTests", class: "FooSuite", method: "testFoo()"),
+            try TestIdentifier(target: "CoreTests", class: nil, method: "testBar()"),
+        ]
+        #expect(result == expected)
     }
 
     // MARK: - markQuarantinedTests
