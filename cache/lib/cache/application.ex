@@ -26,28 +26,6 @@ defmodule Cache.Application do
     start_loki_logger()
     start_opentelemetry()
 
-    base_children = [
-      {DBConnection.TelemetryListener, name: TelemetryListener},
-      {Cache.Repo, connection_listeners: {[TelemetryListener], :cache}},
-      {Cache.KeyValueRepo, connection_listeners: {[TelemetryListener], :key_value}},
-      Cache.KeyValueBuffer,
-      Cache.CacheArtifactsBuffer,
-      Cache.S3TransfersBuffer,
-      {Phoenix.PubSub, name: Cache.PubSub},
-      Cache.Authentication,
-      Cache.S3,
-      Cache.MultipartUploads,
-      Cache.Registry.Metadata,
-      CacheWeb.Endpoint,
-      Cache.SocketLinker,
-      # Cannot alias Cache.Finch to Finch or it'll conflict with the top-level library
-      # credo:disable-for-next-line Credo.Check.Design.AliasUsage
-      {Finch, name: Cache.Finch, pools: Cache.Finch.Pools.config()},
-      Cache.PromEx,
-      {Oban, Application.get_env(:cache, Oban)},
-      Cache.KeyValueStore
-    ]
-
     distributed_children =
       if Cache.Config.distributed_kv_enabled?() do
         [
@@ -60,13 +38,39 @@ defmodule Cache.Application do
         []
       end
 
+    base_children = [
+      {DBConnection.TelemetryListener, name: TelemetryListener},
+      {Cache.Repo, connection_listeners: {[TelemetryListener], :cache}},
+      {Cache.KeyValueRepo, connection_listeners: {[TelemetryListener], :key_value}},
+      Cache.KeyValueBuffer,
+      Cache.CacheArtifactsBuffer,
+      Cache.S3TransfersBuffer,
+      {Phoenix.PubSub, name: Cache.PubSub},
+      Cache.Authentication,
+      Cache.S3,
+      Cache.MultipartUploads,
+      Cache.Registry.Metadata,
+      # Cannot alias Cache.Finch to Finch or it'll conflict with the top-level library
+      # credo:disable-for-next-line Credo.Check.Design.AliasUsage
+      {Finch, name: Cache.Finch, pools: Cache.Finch.Pools.config()},
+      Cache.PromEx,
+      {Oban, Application.get_env(:cache, Oban)}
+    ]
+
+    request_children = [
+      Cache.KeyValueStore,
+      CacheWeb.Endpoint,
+      Cache.SocketLinker
+    ]
+
     children =
       if Cache.Config.analytics_enabled?() do
         base_children ++
           distributed_children ++
-          [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline]
+          [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline] ++
+          request_children
       else
-        base_children ++ distributed_children
+        base_children ++ distributed_children ++ request_children
       end
 
     opts = [strategy: :one_for_one, name: Cache.Supervisor]
