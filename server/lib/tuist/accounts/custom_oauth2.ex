@@ -1,4 +1,4 @@
-defmodule Tuist.OAuth.CustomOAuth2 do
+defmodule Tuist.Accounts.CustomOAuth2 do
   @moduledoc """
   Custom OAuth2 configuration handler for customer-managed SSO integrations.
   """

@@ -8,8 +8,8 @@ defmodule TuistWeb.AuthController do
   alias OAuth2.Client
   alias OAuth2.Strategy.AuthCode
   alias Tuist.Accounts
+  alias Tuist.Accounts.CustomOAuth2
   alias Tuist.Accounts.Organization
-  alias Tuist.OAuth.CustomOAuth2
   alias Tuist.OAuth.Okta
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.UnauthorizedError

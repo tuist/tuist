@@ -1,8 +1,8 @@
-defmodule Tuist.OAuth.CustomOAuth2Test do
+defmodule Tuist.Accounts.CustomOAuth2Test do
   use TuistTestSupport.Cases.DataCase
 
+  alias Tuist.Accounts.CustomOAuth2
   alias Tuist.Accounts.Organization
-  alias Tuist.OAuth.CustomOAuth2
 
   describe "config_for_organization/1" do
     test "returns config for custom OAuth2 organization with database fields" do
