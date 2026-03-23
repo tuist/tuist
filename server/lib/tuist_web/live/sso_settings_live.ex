@@ -312,22 +312,35 @@ defmodule TuistWeb.SSOSettingsLive do
   end
 
   defp form_fields_valid?("custom_oauth2", params, organization) do
-    site = String.trim(params["custom_oauth2_site"] || "")
-    client_id = String.trim(params["custom_oauth2_client_id"] || "")
-    client_secret = String.trim(params["custom_oauth2_client_secret"] || "")
-    authorize_url = String.trim(params["custom_oauth2_authorize_url"] || "")
-    token_url = String.trim(params["custom_oauth2_token_url"] || "")
-    user_info_url = String.trim(params["custom_oauth2_user_info_url"] || "")
-
-    has_existing_secret =
-      organization.sso_provider == :custom_oauth2 and
-        not is_nil(organization.custom_oauth2_encrypted_client_secret)
-
-    site != "" and client_id != "" and authorize_url != "" and token_url != "" and
-      user_info_url != "" and (client_secret != "" or has_existing_secret)
+    required_fields_present?(
+      params,
+      [
+        "custom_oauth2_site",
+        "custom_oauth2_client_id",
+        "custom_oauth2_authorize_url",
+        "custom_oauth2_token_url",
+        "custom_oauth2_user_info_url"
+      ]
+    ) and custom_oauth2_secret_present?(params, organization)
   end
 
   defp form_fields_valid?(_provider, _params, _organization), do: true
+
+  defp required_fields_present?(params, fields) do
+    Enum.all?(fields, fn field ->
+      String.trim(params[field] || "") != ""
+    end)
+  end
+
+  defp custom_oauth2_secret_present?(params, organization) do
+    String.trim(params["custom_oauth2_client_secret"] || "") != "" or
+      has_existing_custom_oauth2_secret?(organization)
+  end
+
+  defp has_existing_custom_oauth2_secret?(organization) do
+    organization.sso_provider == :custom_oauth2 and
+      not is_nil(organization.custom_oauth2_encrypted_client_secret)
+  end
 
   defp compute_has_changes(socket) do
     saved = socket.assigns.saved_state

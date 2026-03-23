@@ -108,38 +108,28 @@ defmodule Tuist.Accounts.Organization do
   end
 
   defp normalize_custom_oauth2_urls(changeset) do
-    if get_field(changeset, :sso_provider) == :custom_oauth2 do
-      changeset
-      |> update_change(:sso_organization_id, fn
-        nil -> nil
-        site -> site |> String.trim() |> String.trim_trailing("/")
-      end)
-      |> then(fn changeset ->
-        Enum.reduce(@custom_oauth2_endpoint_fields, changeset, fn field, changeset ->
-          update_change(changeset, field, fn
-            nil -> nil
-            url -> String.trim(url)
-          end)
-        end)
-      end)
-    else
-      changeset
+    case get_field(changeset, :sso_provider) do
+      :custom_oauth2 ->
+        changeset
+        |> update_change(:sso_organization_id, &normalize_custom_oauth2_site/1)
+        |> normalize_custom_oauth2_endpoint_urls()
+
+      _ ->
+        changeset
     end
   end
 
   defp validate_custom_oauth2_urls(changeset) do
-    if get_field(changeset, :sso_provider) == :custom_oauth2 do
-      Enum.reduce([:sso_organization_id | @custom_oauth2_endpoint_fields], changeset, fn field, changeset ->
-        validate_change(changeset, field, fn ^field, url ->
-          if valid_custom_oauth2_url?(url) do
-            []
-          else
-            [{field, "must be a valid URL"}]
-          end
+    case get_field(changeset, :sso_provider) do
+      :custom_oauth2 ->
+        Enum.reduce([:sso_organization_id | @custom_oauth2_endpoint_fields], changeset, fn field, changeset ->
+          validate_change(changeset, field, fn ^field, url ->
+            invalid_url_error(field, url)
+          end)
         end)
-      end)
-    else
-      changeset
+
+      _ ->
+        changeset
     end
   end
 
@@ -151,6 +141,26 @@ defmodule Tuist.Accounts.Organization do
 
       _ ->
         false
+    end
+  end
+
+  defp normalize_custom_oauth2_endpoint_urls(changeset) do
+    Enum.reduce(@custom_oauth2_endpoint_fields, changeset, fn field, changeset ->
+      update_change(changeset, field, &trim_value/1)
+    end)
+  end
+
+  defp normalize_custom_oauth2_site(nil), do: nil
+  defp normalize_custom_oauth2_site(site), do: site |> String.trim() |> String.trim_trailing("/")
+
+  defp trim_value(nil), do: nil
+  defp trim_value(value), do: String.trim(value)
+
+  defp invalid_url_error(field, url) do
+    if valid_custom_oauth2_url?(url) do
+      []
+    else
+      [{field, "must be a valid URL"}]
     end
   end
 end
