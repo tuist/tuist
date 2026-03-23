@@ -625,7 +625,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         rosetta: Bool,
         resultBundlePath: AbsolutePath?,
         derivedDataPath: String?,
-        retryCount: Int,
+        retryCount _: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
