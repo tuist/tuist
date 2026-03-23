@@ -366,18 +366,17 @@ defmodule Tuist.Tests do
   end
 
   defp get_all_project_test_cases(project_id) do
-    IngestRepo.all(
-      from(test_case in TestCase,
-        hints: ["FINAL"],
-        where: test_case.project_id == ^project_id,
-        select: %{
-          id: test_case.id,
-          recent_durations: test_case.recent_durations,
-          is_flaky: test_case.is_flaky,
-          is_quarantined: test_case.is_quarantined
-        }
-      )
+    from(test_case in TestCase,
+      hints: ["FINAL"],
+      where: test_case.project_id == ^project_id,
+      select: %{
+        id: test_case.id,
+        recent_durations: test_case.recent_durations,
+        is_flaky: test_case.is_flaky,
+        is_quarantined: test_case.is_quarantined
+      }
     )
+    |> IngestRepo.all()
     |> Map.new(fn row -> {row.id, row} end)
   end
 
@@ -800,7 +799,15 @@ defmodule Tuist.Tests do
     suite_name_to_id
   end
 
-  defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name, test_case_run_data, existing_test_cases) do
+  defp create_test_cases_for_module(
+         test,
+         module_id,
+         test_cases,
+         suite_name_to_id,
+         module_name,
+         test_case_run_data,
+         existing_test_cases
+       ) do
     test_case_data_list =
       test_cases
       |> Enum.map(fn case_attrs ->
