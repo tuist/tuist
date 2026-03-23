@@ -277,11 +277,13 @@ jobs:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
-  cli-generator-acceptance-tests:
-    name: Generator Acceptance Tests
-    runs-on: macos-26
+  cli-generator-acceptance-tests-plan:
+    name: Generator Acceptance Tests (Plan)
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 60
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    outputs:
+      matrix: ${{ steps.shard.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -310,8 +312,9 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
-      - name: Run TuistGeneratorAcceptanceTests
-        run: tuist test TuistGeneratorAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+      - name: Plan shards
+        id: shard
+        run: tuist test --build-only --shard-max 4 TuistGeneratorAcceptanceTests
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save
@@ -319,6 +322,35 @@ jobs:
         with:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  cli-generator-acceptance-tests:
+    name: Generator Acceptance Tests
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 60
+    needs: cli-generator-acceptance-tests-plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.cli-generator-acceptance-tests-plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "tuist"
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Run shard ${{ matrix.shard }}
+        run: tuist test --without-building TuistGeneratorAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        env:
+          TUIST_SHARD_INDEX: ${{ matrix.shard }}
 
   cli-kit-acceptance-tests:
     name: Kit Acceptance Tests
