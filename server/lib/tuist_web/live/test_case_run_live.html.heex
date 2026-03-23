@@ -50,7 +50,7 @@
           size="large"
         />
         <.badge
-          :if={@test_case && @test_case.is_quarantined}
+          :if={@test_case_run.is_quarantined}
           label={dgettext("dashboard_tests", "Quarantined")}
           color="information"
           style="light-fill"

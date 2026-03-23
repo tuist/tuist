@@ -479,14 +479,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     skipTestTargets: skipTestTargets,
                     testPlanConfiguration: testPlanConfiguration,
                     passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                    config: config
+                    config: config,
+                    quarantinedTests: quarantinedTests
                 )
             }
         } catch {
             let rootDirectory = try await rootDirectory()
             guard action != .build, let resultBundlePath,
-                  let testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
+                  let parsedSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
             else { throw error }
+
+            let testSummary = testQuarantineService.markQuarantinedTests(
+                testSummary: parsedSummary,
+                quarantinedTests: quarantinedTests
+            )
 
             let testTargets = testActionTargets(
                 for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
@@ -510,10 +516,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 cacheStorage: uploadCacheStorage
             )
 
-            if testQuarantineService.handleQuarantinedFailures(
-                testSummary: testSummary,
-                quarantinedTests: quarantinedTests
-            ) {
+            if testQuarantineService.onlyQuarantinedTestsFailed(testSummary: testSummary) {
                 return
             }
 
@@ -797,7 +800,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
-        config: Tuist
+        config: Tuist,
+        quarantinedTests: [TestIdentifier]
     ) async throws {
         Logger.current.log(
             level: .notice, "\(action.description) scheme \(scheme.name)", metadata: .section
@@ -866,7 +870,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        let testSummary: TestSummary?
+        var testSummary: TestSummary?
         do {
             try await xcodebuildController.test(
                 .workspace(graphTraverser.workspace.xcWorkspacePath),
@@ -891,7 +895,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
             if let resultBundlePath {
                 let rootDir = try await rootDirectory()
-                testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir)
+                if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir) {
+                    testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+                } else {
+                    testSummary = nil
+                }
             } else {
                 testSummary = nil
             }
@@ -899,7 +907,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             var parsedSummary: TestSummary?
             if let resultBundlePath {
                 let rootDir = try? await rootDirectory()
-                parsedSummary = try? await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir)
+                if let parsed = try? await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir) {
+                    parsedSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+                }
             }
             await uploadResultBundleIfNeeded(
                 testSummary: parsedSummary,

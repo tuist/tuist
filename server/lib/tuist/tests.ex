@@ -178,14 +178,13 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
-  def get_failed_test_case_ids_for_run(test_run_id) do
+  def get_quarantined_failure_count_for_run(test_run_id) do
     query =
       from tcr in TestCaseRun,
-        where: tcr.test_run_id == ^test_run_id and tcr.status == "failure" and not is_nil(tcr.test_case_id),
-        select: tcr.test_case_id,
-        distinct: true
+        where: tcr.test_run_id == ^test_run_id and tcr.status == "failure" and tcr.is_quarantined == true,
+        select: count(tcr.id)
 
-    ClickHouseRepo.all(query)
+    ClickHouseRepo.one(query) || 0
   end
 
   def get_test_run_failures_count(test_run_id) do
@@ -425,22 +424,6 @@ defmodule Tuist.Tests do
     case ClickHouseRepo.one(query) do
       nil -> {:error, :not_found}
       test_case -> {:ok, test_case}
-    end
-  end
-
-  def quarantined_test_case_ids(test_case_ids) when is_list(test_case_ids) do
-    if Enum.empty?(test_case_ids) do
-      MapSet.new()
-    else
-      query =
-        from(tc in TestCase,
-          where: tc.id in ^test_case_ids and tc.is_quarantined == true,
-          select: tc.id
-        )
-
-      query
-      |> ClickHouseRepo.all()
-      |> MapSet.new()
     end
   end
 
@@ -889,6 +872,7 @@ defmodule Tuist.Tests do
           status: status,
           is_flaky: is_flaky,
           is_new: is_new,
+          is_quarantined: Map.get(case_attrs, :is_quarantined, false),
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,

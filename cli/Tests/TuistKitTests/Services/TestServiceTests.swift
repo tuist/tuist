@@ -127,7 +127,10 @@ final class TestServiceTests: TuistUnitTestCase {
             .quarantinedTests(config: .any, skipQuarantine: .any)
             .willReturn([])
         given(testQuarantineService)
-            .handleQuarantinedFailures(testSummary: .any, quarantinedTests: .any)
+            .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
+            .willProduce { summary, _ in summary }
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testSummary: .any)
             .willReturn(false)
 
         subject = TestService(
@@ -2723,7 +2726,10 @@ final class TestServiceTests: TuistUnitTestCase {
                 try TestIdentifier(target: "CoreTests", class: nil, method: "testAnotherQuarantined()"),
             ])
         given(testQuarantineService)
-            .handleQuarantinedFailures(testSummary: .any, quarantinedTests: .any)
+            .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
+            .willProduce { summary, _ in summary }
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testSummary: .any)
             .willReturn(false)
 
         buildGraphInspector.reset()
@@ -2973,7 +2979,10 @@ final class TestServiceTests: TuistUnitTestCase {
             .quarantinedTests(config: .any, skipQuarantine: .any)
             .willReturn([])
         given(testQuarantineService)
-            .handleQuarantinedFailures(testSummary: .any, quarantinedTests: .any)
+            .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
+            .willProduce { summary, _ in summary }
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testSummary: .any)
             .willReturn(false)
 
         buildGraphInspector.reset()

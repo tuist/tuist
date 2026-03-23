@@ -89,17 +89,10 @@ struct XcodeBuildTestCommandService {
 
             let rootDirectory = await rootDirectory()
             var testSummary: TestSummary?
-            if let resultBundlePath {
-                testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
-            }
-
-            let onlyQuarantinedFailures = if let testSummary {
-                testQuarantineService.handleQuarantinedFailures(
-                    testSummary: testSummary,
-                    quarantinedTests: quarantinedTests
-                )
-            } else {
-                false
+            if let resultBundlePath,
+               let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
+            {
+                testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
             }
 
             await uploadResultBundleIfNeeded(
@@ -108,7 +101,7 @@ struct XcodeBuildTestCommandService {
                 config: config
             )
 
-            if onlyQuarantinedFailures {
+            if let testSummary, testQuarantineService.onlyQuarantinedTestsFailed(testSummary: testSummary) {
                 return
             }
 
@@ -121,8 +114,10 @@ struct XcodeBuildTestCommandService {
 
         let rootDirectory = await rootDirectory()
         var testSummary: TestSummary?
-        if let resultBundlePath {
-            testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
+        if let resultBundlePath,
+           let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
+        {
+            testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
         }
         await uploadResultBundleIfNeeded(
             testSummary: testSummary,

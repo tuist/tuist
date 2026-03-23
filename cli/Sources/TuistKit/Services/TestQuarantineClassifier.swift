@@ -6,15 +6,6 @@ import TuistLogging
 import TuistServer
 import TuistXCResultService
 
-struct QuarantineClassificationResult {
-    let quarantinedFailures: [TestCase]
-    let realFailures: [TestCase]
-
-    var onlyQuarantinedFailures: Bool {
-        !quarantinedFailures.isEmpty && realFailures.isEmpty
-    }
-}
-
 @Mockable
 protocol TestQuarantineServicing {
     func quarantinedTests(
@@ -22,9 +13,13 @@ protocol TestQuarantineServicing {
         skipQuarantine: Bool
     ) async -> [TestIdentifier]
 
-    func handleQuarantinedFailures(
+    func markQuarantinedTests(
         testSummary: TestSummary,
         quarantinedTests: [TestIdentifier]
+    ) -> TestSummary
+
+    func onlyQuarantinedTestsFailed(
+        testSummary: TestSummary
     ) -> Bool
 }
 
@@ -79,59 +74,42 @@ struct TestQuarantineService: TestQuarantineServicing {
         }
     }
 
-    func handleQuarantinedFailures(
+    func markQuarantinedTests(
         testSummary: TestSummary,
         quarantinedTests: [TestIdentifier]
+    ) -> TestSummary {
+        guard !quarantinedTests.isEmpty else { return testSummary }
+        var result = testSummary
+        for moduleIndex in result.testModules.indices {
+            for caseIndex in result.testModules[moduleIndex].testCases.indices {
+                let testCase = result.testModules[moduleIndex].testCases[caseIndex]
+                let isQuarantined = quarantinedTests.contains { quarantined in
+                    guard testCase.module == quarantined.target else { return false }
+                    if let quarantinedClass = quarantined.class,
+                       testCase.testSuite != quarantinedClass
+                    {
+                        return false
+                    }
+                    if let quarantinedMethod = quarantined.method,
+                       testCase.name != quarantinedMethod
+                    {
+                        return false
+                    }
+                    return true
+                }
+                if isQuarantined {
+                    result.testModules[moduleIndex].testCases[caseIndex].isQuarantined = true
+                }
+            }
+        }
+        return result
+    }
+
+    func onlyQuarantinedTestsFailed(
+        testSummary: TestSummary
     ) -> Bool {
-        guard !quarantinedTests.isEmpty else { return false }
-
-        let failedTestCases = testSummary.testCases.filter { $0.status == .failed }
-        var quarantinedFailures: [TestCase] = []
-        var realFailures: [TestCase] = []
-
-        for testCase in failedTestCases {
-            let isQuarantined = quarantinedTests.contains { quarantined in
-                guard testCase.module == quarantined.target else { return false }
-                if let quarantinedClass = quarantined.class,
-                   testCase.testSuite != quarantinedClass
-                {
-                    return false
-                }
-                if let quarantinedMethod = quarantined.method,
-                   testCase.name != quarantinedMethod
-                {
-                    return false
-                }
-                return true
-            }
-            if isQuarantined {
-                quarantinedFailures.append(testCase)
-            } else {
-                realFailures.append(testCase)
-            }
-        }
-
-        if quarantinedFailures.isEmpty {
-            return false
-        }
-
-        if realFailures.isEmpty {
-            let failureNames = quarantinedFailures.map { testCase in
-                [testCase.module, testCase.testSuite, testCase.name]
-                    .compactMap { $0 }
-                    .joined(separator: "/")
-            }.joined(separator: ", ")
-            Logger.current.notice(
-                "\(quarantinedFailures.count) quarantined test(s) failed (exit code overridden to 0): \(failureNames)",
-                metadata: .subsection
-            )
-            return true
-        }
-
-        Logger.current.notice(
-            "\(quarantinedFailures.count) quarantined test(s) failed, \(realFailures.count) non-quarantined test(s) failed",
-            metadata: .subsection
-        )
-        return false
+        let failedTests = testSummary.testCases.filter { $0.status == .failed }
+        guard !failedTests.isEmpty else { return false }
+        return failedTests.allSatisfy(\.isQuarantined)
     }
 }

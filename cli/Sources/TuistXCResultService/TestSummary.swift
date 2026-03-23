@@ -4,7 +4,7 @@ public struct TestSummary {
     public let testPlanName: String?
     public let status: TestStatus
     public let duration: Int?
-    public let testModules: [TestModule]
+    public var testModules: [TestModule]
 
     public var testCases: [TestCase] {
         testModules.flatMap(\.testCases)
@@ -21,4 +21,5 @@ public struct TestSummary {
         self.duration = duration
         self.testModules = testModules
     }
+
 }

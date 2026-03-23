@@ -52,10 +52,7 @@ defmodule TuistWeb.TestRunLive do
     test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
     failures_count = Tests.get_test_run_failures_count(run.id)
 
-    # Check if failures are only from quarantined tests
-    {quarantined_failure_count, quarantined_run_test_case_ids} =
-      compute_quarantined_failures(run, failures_count)
-
+    quarantined_failure_count = compute_quarantined_failure_count(run, failures_count)
     non_quarantined_failures_count = failures_count - quarantined_failure_count
 
     display_run =
@@ -76,7 +73,6 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, display_metrics)
       |> assign(:failures_count, non_quarantined_failures_count)
-      |> assign(:quarantined_run_test_case_ids, quarantined_run_test_case_ids)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
       |> assign_initial_failures_state()
@@ -281,7 +277,6 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_cases_sort_order, "asc")
     |> assign(:test_cases_available_filters, define_test_cases_filters())
     |> assign(:test_cases_active_filters, [])
-    |> assign(:quarantined_test_case_ids, MapSet.new())
     |> assign(:test_suites, [])
     |> assign(:test_suites_meta, %{})
     |> assign(:test_suites_page, 1)
@@ -362,12 +357,8 @@ defmodule TuistWeb.TestRunLive do
 
     # Load failures data for the overview preview card, filtering out quarantined
     {failed_test_case_runs, failures_meta} = load_failures_data(socket.assigns.run, params)
-    quarantined_ids = socket.assigns.quarantined_run_test_case_ids
-
     failed_test_case_runs =
-      Enum.reject(failed_test_case_runs, fn tcr ->
-        tcr.test_case_id && MapSet.member?(quarantined_ids, tcr.test_case_id)
-      end)
+      Enum.reject(failed_test_case_runs, fn tcr -> tcr.is_quarantined end)
 
     # Load flaky runs data
     flaky_runs_grouped = Tests.get_flaky_runs_for_test_run(socket.assigns.run.id)
@@ -404,12 +395,8 @@ defmodule TuistWeb.TestRunLive do
 
   defp assign_tab_data(socket, "failures", params) do
     {failed_test_case_runs, meta} = load_failures_data(socket.assigns.run, params)
-    quarantined_ids = socket.assigns.quarantined_run_test_case_ids
-
     failed_test_case_runs =
-      Enum.reject(failed_test_case_runs, fn tcr ->
-        tcr.test_case_id && MapSet.member?(quarantined_ids, tcr.test_case_id)
-      end)
+      Enum.reject(failed_test_case_runs, fn tcr -> tcr.is_quarantined end)
 
     assign_failures_data(socket, failed_test_case_runs, meta, params)
   end
@@ -468,12 +455,6 @@ defmodule TuistWeb.TestRunLive do
     filters =
       Filter.Operations.decode_filters_from_query(params, socket.assigns.test_cases_available_filters)
 
-    quarantined_test_case_ids =
-      test_cases
-      |> Enum.map(& &1.test_case_id)
-      |> Enum.reject(&is_nil/1)
-      |> Tests.quarantined_test_case_ids()
-
     socket
     |> assign(:test_cases, test_cases)
     |> assign(:test_cases_meta, meta)
@@ -482,7 +463,6 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_cases_sort_by, params["test-cases-sort-by"] || "name")
     |> assign(:test_cases_sort_order, params["test-cases-sort-order"] || "asc")
     |> assign(:test_cases_active_filters, filters)
-    |> assign(:quarantined_test_case_ids, quarantined_test_case_ids)
   end
 
   defp assign_test_suites_data(socket, test_suites, meta, params) do
@@ -1230,15 +1210,11 @@ defmodule TuistWeb.TestRunLive do
     assign(socket, :text_attachment_urls, urls)
   end
 
-  defp compute_quarantined_failures(run, failures_count) do
+  defp compute_quarantined_failure_count(run, failures_count) do
     if failures_count == 0 do
-      {0, MapSet.new()}
+      0
     else
-      failed_test_case_ids =
-        Tests.get_failed_test_case_ids_for_run(run.id)
-
-      quarantined_ids = Tests.quarantined_test_case_ids(failed_test_case_ids)
-      {MapSet.size(quarantined_ids), quarantined_ids}
+      Tests.get_quarantined_failure_count_for_run(run.id)
     end
   end
 end
