@@ -20,7 +20,7 @@ public enum InitCommandServiceError: LocalizedError {
     }
 }
 
-public struct InitCommandService {
+public struct InitCommandService { // swiftlint:disable:this type_body_length
     private let fileSystem: FileSystem
     private let prompter: InitPrompting
     private let loginService: LoginCommandServicing

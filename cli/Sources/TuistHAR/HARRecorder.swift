@@ -4,7 +4,7 @@ import TuistConstants
 import TuistLogging
 
 /// An actor that manages HAR recording and persistence.
-public actor HARRecorder {
+public actor HARRecorder { // swiftlint:disable:this type_body_length
     /// The current HAR recorder instance for the session.
     @TaskLocal public static var current: HARRecorder?
 

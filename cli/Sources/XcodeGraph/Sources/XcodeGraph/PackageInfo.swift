@@ -3,7 +3,7 @@ import Foundation
 /// The Swift Package Manager package information.
 /// It decodes data encoded from Manifest.swift: https://github.com/apple/swift-package-manager/blob/06f9b30f4593940272f57f6284e5614d817d2f22/Sources/PackageModel/Manifest.swift#L372-L409
 /// Fields not needed by tuist are commented out and not decoded at all.
-public struct PackageInfo: Equatable, Hashable, Codable {
+public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:this type_body_length
     /// The name of the package.
     public let name: String
 
@@ -242,7 +242,7 @@ public struct PackageInfo: Equatable, Hashable, Codable {
 
     // MARK: - Target
 
-    public struct Target: Codable, Hashable {
+    public struct Target: Codable, Hashable { // swiftlint:disable:this type_body_length
         private enum CodingKeys: String, CodingKey {
             case name, path, url, sources, packageAccess, resources, exclude, dependencies, publicHeadersPath, type, settings,
                  checksum

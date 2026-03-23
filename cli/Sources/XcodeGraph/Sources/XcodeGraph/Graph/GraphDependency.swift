@@ -1,7 +1,7 @@
 import Foundation
 import Path
 
-public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Codable, Sendable {
+public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Codable, Sendable { // swiftlint:disable:this type_body_length
     public struct XCFramework: Hashable, CustomStringConvertible, Comparable, Codable, Sendable {
         public var path: AbsolutePath
         public var infoPlist: XCFrameworkInfoPlist
