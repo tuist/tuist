@@ -45,6 +45,8 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
 
+  require OpenTelemetry.Tracer
+
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def total_test_run_count do
@@ -257,7 +259,10 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        {test_case_ids_with_flaky_run, test_case_runs} = create_test_modules(test, test_modules, shard_index, shard_plan)
+        {test_case_ids_with_flaky_run, test_case_runs} =
+          OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
+            create_test_modules(test, test_modules, shard_index, shard_plan)
+          end
 
         test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
 
@@ -310,7 +315,9 @@ defmodule Tuist.Tests do
 
         existing_test ->
           {test_case_ids_with_flaky_run, test_case_runs} =
-            create_test_modules(existing_test, test_modules, shard_index, shard_plan)
+            OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
+              create_test_modules(existing_test, test_modules, shard_index, shard_plan)
+            end
 
           reported_count = count_reported_shards(existing_test.id) + 1
 
@@ -496,7 +503,7 @@ defmodule Tuist.Tests do
       |> Enum.reject(&Map.has_key?(existing_data, &1))
       |> MapSet.new()
 
-    TestCase.Buffer.insert_all(test_cases)
+    Tuist.Tasks.run_async(fn -> TestCase.Buffer.insert_all(test_cases) end)
 
     test_case_id_map =
       Map.new(test_cases, fn tc ->
@@ -721,8 +728,18 @@ defmodule Tuist.Tests do
   end
 
   defp create_test_modules(test, test_modules, shard_index, shard_plan) do
-    test_case_run_data = get_test_case_run_data(test, test_modules)
+    test_case_run_data =
+      OpenTelemetry.Tracer.with_span "tests.get_test_case_run_data" do
+        get_test_case_run_data(test, test_modules)
+      end
+
     existing_test_cases = get_all_project_test_cases(test.project_id)
+
+    test_case_run_data_by_module =
+      Enum.group_by(
+        test_case_run_data,
+        fn {{_name, mod_name, _suite}, _data} -> mod_name end
+      )
 
     Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
@@ -737,8 +754,8 @@ defmodule Tuist.Tests do
       avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
 
       module_test_case_run_data =
-        test_case_run_data
-        |> Enum.filter(fn {{_name, mod_name, _suite}, _data} -> mod_name == module_name end)
+        test_case_run_data_by_module
+        |> Map.get(module_name, [])
         |> Map.new()
 
       module_is_flaky = any_test_case_run_flaky?(Map.values(module_test_case_run_data))
@@ -1054,12 +1071,14 @@ defmodule Tuist.Tests do
         {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc}
       end)
 
-    TestCaseRun.Buffer.insert_all(test_case_runs)
-    TestCaseFailure.Buffer.insert_all(all_failures)
+    Tuist.Tasks.run_async(fn ->
+      TestCaseRun.Buffer.insert_all(test_case_runs)
+      TestCaseFailure.Buffer.insert_all(all_failures)
 
-    if Enum.any?(all_repetitions) do
-      TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
-    end
+      if Enum.any?(all_repetitions) do
+        TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
+      end
+    end)
 
     create_first_run_events(test_case_runs, new_test_case_ids)
 

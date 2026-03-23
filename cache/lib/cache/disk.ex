@@ -17,8 +17,6 @@ defmodule Cache.Disk do
 
   require Logger
 
-  @cleanup_progress_chunk_size 1_000
-
   @doc """
   Converts a cache key to an absolute file system path.
 
@@ -95,30 +93,11 @@ defmodule Cache.Disk do
   Returns :ok on success, {:error, reason} on failure.
   """
   def delete_project(account_handle, project_handle) do
-    case File.rm_rf(project_path(account_handle, project_handle)) do
+    path = Path.join(storage_dir(), "#{account_handle}/#{project_handle}")
+
+    case File.rm_rf(path) do
       {:ok, _} -> :ok
       {:error, reason, _} -> {:error, reason}
-    end
-  end
-
-  @doc """
-  Deletes project artifacts only when their current mtime is strictly before the
-  cutoff second.
-  """
-  def delete_project_files_before(account_handle, project_handle, cutoff, opts \\ []) do
-    path = project_path(account_handle, project_handle)
-    on_progress = Keyword.get(opts, :on_progress)
-
-    if File.exists?(path) do
-      files =
-        path
-        |> Path.join("**/*")
-        |> Path.wildcard(match_dot: true)
-        |> Enum.filter(&File.regular?/1)
-
-      delete_files_before(files, DateTime.truncate(cutoff, :second), on_progress)
-    else
-      {:ok, 0}
     end
   end
 
@@ -256,57 +235,4 @@ defmodule Cache.Disk do
   def format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 2)} KB"
   def format_bytes(bytes) when bytes < 1_073_741_824, do: "#{Float.round(bytes / 1_048_576, 2)} MB"
   def format_bytes(bytes), do: "#{Float.round(bytes / 1_073_741_824, 2)} GB"
-
-  defp stat_mtime_to_datetime({{year, month, day}, {hour, minute, second}}) do
-    year
-    |> NaiveDateTime.new(month, day, hour, minute, second)
-    |> case do
-      {:ok, naive} -> DateTime.from_naive(naive, "Etc/UTC")
-      error -> error
-    end
-  end
-
-  defp delete_files_before(files, safe_cutoff, on_progress) do
-    files
-    |> Enum.chunk_every(@cleanup_progress_chunk_size)
-    |> Enum.reduce_while({:ok, 0}, fn files_chunk, {:ok, deleted_acc} ->
-      with :ok <- maybe_call_progress(on_progress),
-           {:ok, chunk_deleted_count} <- delete_files_chunk_before(files_chunk, safe_cutoff) do
-        {:cont, {:ok, deleted_acc + chunk_deleted_count}}
-      else
-        {:error, reason} ->
-          {:halt, {:error, reason}}
-      end
-    end)
-  end
-
-  defp maybe_call_progress(nil), do: :ok
-  defp maybe_call_progress(fun) when is_function(fun, 0), do: fun.()
-
-  defp delete_files_chunk_before(files, safe_cutoff) do
-    Enum.reduce_while(files, {:ok, 0}, fn file_path, {:ok, deleted_acc} ->
-      case delete_file_if_before(file_path, safe_cutoff) do
-        :deleted -> {:cont, {:ok, deleted_acc + 1}}
-        :skipped -> {:cont, {:ok, deleted_acc}}
-        {:error, :enoent} -> {:cont, {:ok, deleted_acc}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
-  end
-
-  defp delete_file_if_before(file_path, safe_cutoff) do
-    with {:ok, %File.Stat{mtime: mtime}} <- File.stat(file_path, time: :universal),
-         {:ok, mtime_datetime} <- stat_mtime_to_datetime(mtime),
-         true <- DateTime.before?(mtime_datetime, safe_cutoff),
-         :ok <- File.rm(file_path) do
-      :deleted
-    else
-      false -> :skipped
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp project_path(account_handle, project_handle) do
-    Path.join(storage_dir(), "#{account_handle}/#{project_handle}")
-  end
 end
