@@ -259,7 +259,10 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        {test_case_ids_with_flaky_run, test_case_runs} = create_test_modules(test, test_modules, shard_index, shard_plan)
+        {test_case_ids_with_flaky_run, test_case_runs} =
+          OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
+            create_test_modules(test, test_modules, shard_index, shard_plan)
+          end
 
         test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
 
@@ -312,7 +315,9 @@ defmodule Tuist.Tests do
 
         existing_test ->
           {test_case_ids_with_flaky_run, test_case_runs} =
-            create_test_modules(existing_test, test_modules, shard_index, shard_plan)
+            OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
+              create_test_modules(existing_test, test_modules, shard_index, shard_plan)
+            end
 
           reported_count = count_reported_shards(existing_test.id) + 1
 
@@ -723,79 +728,77 @@ defmodule Tuist.Tests do
   end
 
   defp create_test_modules(test, test_modules, shard_index, shard_plan) do
-    OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
-      test_case_run_data =
-        OpenTelemetry.Tracer.with_span "tests.get_test_case_run_data" do
-          get_test_case_run_data(test, test_modules)
-        end
+    test_case_run_data =
+      OpenTelemetry.Tracer.with_span "tests.get_test_case_run_data" do
+        get_test_case_run_data(test, test_modules)
+      end
 
-      existing_test_cases = get_all_project_test_cases(test.project_id)
+    existing_test_cases = get_all_project_test_cases(test.project_id)
 
-      test_case_run_data_by_module =
-        Enum.group_by(
-          test_case_run_data,
-          fn {{_name, mod_name, _suite}, _data} -> mod_name end
+    test_case_run_data_by_module =
+      Enum.group_by(
+        test_case_run_data,
+        fn {{_name, mod_name, _suite}, _data} -> mod_name end
+      )
+
+    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
+      module_id = UUIDv7.generate()
+      module_name = Map.get(module_attrs, :name)
+
+      test_suites = Map.get(module_attrs, :test_suites, [])
+      test_cases = Map.get(module_attrs, :test_cases, [])
+
+      test_suite_count = length(test_suites)
+      test_case_count = length(test_cases)
+
+      avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
+
+      module_test_case_run_data =
+        test_case_run_data_by_module
+        |> Map.get(module_name, [])
+        |> Map.new()
+
+      module_is_flaky = any_test_case_run_flaky?(Map.values(module_test_case_run_data))
+
+      module_run_attrs = %{
+        id: module_id,
+        name: module_name,
+        test_run_id: test.id,
+        status: Map.get(module_attrs, :status),
+        is_flaky: module_is_flaky,
+        duration: Map.get(module_attrs, :duration, 0),
+        test_suite_count: test_suite_count,
+        test_case_count: test_case_count,
+        avg_test_case_duration: avg_test_case_duration,
+        shard_id: if(shard_plan, do: shard_plan.id),
+        shard_index: shard_index,
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      %TestModuleRun{}
+      |> TestModuleRun.create_changeset(module_run_attrs)
+      |> Ecto.Changeset.apply_action!(:insert)
+
+      TestModuleRun.Buffer.insert(module_run_attrs)
+
+      suite_name_to_id =
+        create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data, shard_plan, shard_index)
+
+      {flaky_ids, test_case_runs} =
+        create_test_cases_for_module(
+          test,
+          module_id,
+          test_cases,
+          suite_name_to_id,
+          module_name,
+          module_test_case_run_data,
+          shard_plan,
+          shard_index,
+          existing_test_cases
         )
 
-      Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
-        module_id = UUIDv7.generate()
-        module_name = Map.get(module_attrs, :name)
-
-        test_suites = Map.get(module_attrs, :test_suites, [])
-        test_cases = Map.get(module_attrs, :test_cases, [])
-
-        test_suite_count = length(test_suites)
-        test_case_count = length(test_cases)
-
-        avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
-
-        module_test_case_run_data =
-          test_case_run_data_by_module
-          |> Map.get(module_name, [])
-          |> Map.new()
-
-        module_is_flaky = any_test_case_run_flaky?(Map.values(module_test_case_run_data))
-
-        module_run_attrs = %{
-          id: module_id,
-          name: module_name,
-          test_run_id: test.id,
-          status: Map.get(module_attrs, :status),
-          is_flaky: module_is_flaky,
-          duration: Map.get(module_attrs, :duration, 0),
-          test_suite_count: test_suite_count,
-          test_case_count: test_case_count,
-          avg_test_case_duration: avg_test_case_duration,
-          shard_id: if(shard_plan, do: shard_plan.id),
-          shard_index: shard_index,
-          inserted_at: NaiveDateTime.utc_now()
-        }
-
-        %TestModuleRun{}
-        |> TestModuleRun.create_changeset(module_run_attrs)
-        |> Ecto.Changeset.apply_action!(:insert)
-
-        TestModuleRun.Buffer.insert(module_run_attrs)
-
-        suite_name_to_id =
-          create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data, shard_plan, shard_index)
-
-        {flaky_ids, test_case_runs} =
-          create_test_cases_for_module(
-            test,
-            module_id,
-            test_cases,
-            suite_name_to_id,
-            module_name,
-            module_test_case_run_data,
-            shard_plan,
-            shard_index,
-            existing_test_cases
-          )
-
-        {flaky_ids, acc_test_case_runs ++ test_case_runs}
-      end)
-    end
+      {flaky_ids, acc_test_case_runs ++ test_case_runs}
+    end)
   end
 
   defp get_test_case_run_data(test, test_modules) do
