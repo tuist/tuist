@@ -1,4 +1,5 @@
 [env]
+_.source = "{{config_root}}/../mise/utilities/dev_instance_env.sh"
 SECRET_KEY_BASE = "3QgyMMP1pcg9+d5Gn3n1/TMciiogjysBmPg1Dm+pT+Hfag38TUm0Q7pHfC7NpZpL"
 
 [tools]
