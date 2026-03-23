@@ -397,7 +397,7 @@ defmodule TuistWeb.AuthController do
       redirect_uri: redirect_uri
     ]
     |> Client.new()
-    |> Client.put_serializer("application/json", Jason)
+    |> Client.put_serializer("application/json", JSON)
   end
 
   defp custom_oauth2_auth(conn, config) do
@@ -405,8 +405,9 @@ defmodule TuistWeb.AuthController do
 
     with {:ok, %Client{token: token} = client} <-
            Client.get_token(custom_oauth2_client(config, custom_oauth2_callback_url()), params),
-         {:ok, %{status_code: 200, body: userinfo}} <- Client.get(client, config.user_info_url) do
-      {:ok, build_custom_oauth2_auth(token, userinfo, config.provider_organization_id)}
+         {:ok, %{status_code: 200, body: userinfo}} <- Client.get(client, config.user_info_url),
+         {:ok, uid, email} <- validate_custom_oauth2_userinfo(userinfo) do
+      {:ok, build_custom_oauth2_auth(token, userinfo, uid, email, config.provider_organization_id)}
     else
       {:ok, %{status_code: status_code, body: body}} -> {:error, {:userinfo_request_failed, status_code, body}}
       {:error, reason} -> {:error, reason}
@@ -414,19 +415,35 @@ defmodule TuistWeb.AuthController do
     end
   end
 
-  defp build_custom_oauth2_auth(token, userinfo, provider_organization_id) do
+  defp validate_custom_oauth2_userinfo(userinfo) do
+    uid = userinfo["sub"] || userinfo["id"] || userinfo["email"]
+    email = userinfo["email"]
+
+    cond do
+      is_nil(uid) or uid == "" ->
+        {:error, :missing_user_identifier}
+
+      is_nil(email) or email == "" ->
+        {:error, :missing_email}
+
+      true ->
+        {:ok, uid, email}
+    end
+  end
+
+  defp build_custom_oauth2_auth(token, userinfo, uid, email, provider_organization_id) do
     name = userinfo["name"] || userinfo["preferred_username"] || userinfo["email"] || userinfo["sub"]
 
     %Auth{
       provider: :custom_oauth2,
       strategy: AuthCode,
-      uid: userinfo["sub"] || userinfo["id"] || userinfo["email"],
+      uid: uid,
       info: %Info{
         name: name,
         first_name: userinfo["given_name"],
         last_name: userinfo["family_name"],
         nickname: userinfo["preferred_username"],
-        email: userinfo["email"]
+        email: email
       },
       credentials: %Credentials{
         token: token.access_token,

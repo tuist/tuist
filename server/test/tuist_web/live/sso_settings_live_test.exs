@@ -204,9 +204,9 @@ defmodule TuistWeb.SSOSettingsLiveTest do
             "custom_oauth2_site" => "https://auth.example.com",
             "custom_oauth2_client_id" => "test_client_id",
             "custom_oauth2_client_secret" => "test_client_secret",
-            "custom_oauth2_authorize_url" => "/oauth2/authorize",
-            "custom_oauth2_token_url" => "/oauth2/token",
-            "custom_oauth2_user_info_url" => "/oauth2/userinfo"
+            "custom_oauth2_authorize_url" => "https://auth.example.com/oauth2/authorize",
+            "custom_oauth2_token_url" => "https://auth.example.com/oauth2/token",
+            "custom_oauth2_user_info_url" => "https://auth.example.com/oauth2/userinfo"
           }
         })
         |> render_submit()
@@ -408,9 +408,9 @@ defmodule TuistWeb.SSOSettingsLiveTest do
           sso_organization_id: "https://auth.example.com",
           custom_oauth2_client_id: "test_client_id",
           custom_oauth2_client_secret: "test_secret",
-          custom_oauth2_authorize_url: "/oauth2/authorize",
-          custom_oauth2_token_url: "/oauth2/token",
-          custom_oauth2_user_info_url: "/oauth2/userinfo",
+          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
+          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo",
           preload: [:account]
         )
 
