@@ -20,32 +20,12 @@
 
     public enum XCTestEnumeratorError: LocalizedError, Equatable {
         case enumerationFailed(String)
-        case invalidOutput(String)
 
         public var errorDescription: String? {
             switch self {
             case let .enumerationFailed(message):
                 return "Test enumeration failed: \(message)"
-            case let .invalidOutput(message):
-                return "Could not parse test enumeration output: \(message)"
             }
-        }
-    }
-
-    private struct EnumeratedTests: Decodable {
-        let values: [Entry]
-
-        struct Entry: Decodable {
-            var subtests: [Target]?
-        }
-
-        struct Target: Decodable {
-            let name: String
-            var subtests: [Suite]?
-        }
-
-        struct Suite: Decodable {
-            let name: String
         }
     }
 
@@ -78,22 +58,12 @@
                     .enumerationFailed("\(testProductsPath.pathString): \(error.localizedDescription)")
             }
 
-            guard let data = output.data(using: .utf8) else {
-                throw XCTestEnumeratorError.invalidOutput("Output is not valid UTF-8")
-            }
-
-            if let enumerated = try? JSONDecoder().decode(EnumeratedTests.self, from: data) {
-                return enumerated.values
-                    .flatMap { $0.subtests ?? [] }
-                    .map { XCTestRun.TestTarget(blueprintName: $0.name, onlyTestIdentifiers: $0.subtests?.map(\.name)) }
-            }
-
-            return parseTextEnumeration(output)
+            return parseEnumerationOutput(output)
         }
 
-        /// Parses the text format output of `xcodebuild -enumerate-tests` when used with `-testProductsPath`.
+        /// Parses the text output of `xcodebuild -enumerate-tests -testProductsPath`.
         /// Format: tab-indented lines: `Target <name>` → `Class <name>` → `Test <name>()`
-        private func parseTextEnumeration(_ output: String) -> [XCTestRun.TestTarget] {
+        private func parseEnumerationOutput(_ output: String) -> [XCTestRun.TestTarget] {
             var targets: [String: [String]] = [:]
             var currentTarget: String?
 

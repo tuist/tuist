@@ -44,32 +44,20 @@
         }
 
         @Test(.inTemporaryDirectory)
-        func enumerateTests_parsesMultipleTargetsAndSuites() async throws {
+        func enumerateTests_parsesMultipleTargetsAndClasses() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            let jsonOutput = """
-            {
-                "values": [
-                    {
-                        "subtests": [
-                            {
-                                "name": "AppTests",
-                                "subtests": [
-                                    { "name": "LoginTests" },
-                                    { "name": "SignupTests" }
-                                ]
-                            },
-                            {
-                                "name": "CoreTests",
-                                "subtests": [
-                                    { "name": "NetworkTests" }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }
+            let textOutput = """
+            Plan MyScheme
+            \tTarget AppTests
+            \t\tClass LoginTests
+            \t\t\tTest testLogin()
+            \t\tClass SignupTests
+            \t\t\tTest testSignup()
+            \tTarget CoreTests
+            \t\tClass NetworkTests
+            \t\t\tTest testFetch()
             """
-            givenCommandOutput(jsonOutput)
+            givenCommandOutput(textOutput)
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
@@ -85,23 +73,13 @@
         @Test(.inTemporaryDirectory)
         func enumerateTests_withDestination() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            let jsonOutput = """
-            {
-                "values": [
-                    {
-                        "subtests": [
-                            {
-                                "name": "UITests",
-                                "subtests": [
-                                    { "name": "SnapshotTests" }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }
+            let textOutput = """
+            Plan MyScheme
+            \tTarget UITests
+            \t\tClass SnapshotTests
+            \t\t\tTest testSnapshot()
             """
-            givenCommandOutput(jsonOutput)
+            givenCommandOutput(textOutput)
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
@@ -113,30 +91,20 @@
         }
 
         @Test(.inTemporaryDirectory)
-        func enumerateTests_withEmptySubtests() async throws {
+        func enumerateTests_targetWithNoClasses() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            let jsonOutput = """
-            {
-                "values": [
-                    {
-                        "subtests": [
-                            {
-                                "name": "EmptyTarget"
-                            }
-                        ]
-                    }
-                ]
-            }
+            let textOutput = """
+            Plan MyScheme
+            \tTarget EmptyTarget
             """
-            givenCommandOutput(jsonOutput)
+            givenCommandOutput(textOutput)
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
                 destination: nil
             )
 
-            let emptyTarget = result.first { $0.blueprintName == "EmptyTarget" }
-            #expect(emptyTarget?.onlyTestIdentifiers == nil)
+            #expect(result.isEmpty)
         }
 
         @Test(.inTemporaryDirectory)
@@ -155,7 +123,7 @@
         @Test(.inTemporaryDirectory)
         func enumerateTests_returnsEmptyForUnrecognizedOutput() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            givenCommandOutput("not json")
+            givenCommandOutput("some random text")
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
@@ -166,31 +134,18 @@
         }
 
         @Test(.inTemporaryDirectory)
-        func enumerateTests_withMultipleValues() async throws {
+        func enumerateTests_multipleTargets() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            let jsonOutput = """
-            {
-                "values": [
-                    {
-                        "subtests": [
-                            {
-                                "name": "TargetA",
-                                "subtests": [{ "name": "SuiteA" }]
-                            }
-                        ]
-                    },
-                    {
-                        "subtests": [
-                            {
-                                "name": "TargetB",
-                                "subtests": [{ "name": "SuiteB" }]
-                            }
-                        ]
-                    }
-                ]
-            }
+            let textOutput = """
+            Plan MyScheme
+            \tTarget TargetA
+            \t\tClass SuiteA
+            \t\t\tTest testA()
+            \tTarget TargetB
+            \t\tClass SuiteB
+            \t\t\tTest testB()
             """
-            givenCommandOutput(jsonOutput)
+            givenCommandOutput(textOutput)
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
