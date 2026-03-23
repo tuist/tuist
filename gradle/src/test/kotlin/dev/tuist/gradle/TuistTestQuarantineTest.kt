@@ -244,4 +244,73 @@ class TuistTestQuarantineTest {
     fun `matchesQuarantinePattern wildcard does not match wrong method`() {
         assertFalse(matchesQuarantinePattern("com.example.LoginTest.testLogin", "*.testDynamic"))
     }
+
+    @Test
+    fun `getFailedTestIdentifiers returns empty for unknown module`() {
+        val collector = TestReportCollector()
+        assertEquals(emptyList(), collector.getFailedTestIdentifiers(":app"))
+    }
+
+    @Test
+    fun `getFailedTestIdentifiers returns only failed tests`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(":app", "testPass", "com.example.FooTest", TestResult.ResultType.SUCCESS, 0, 100, null)
+        collector.collectTestResult(":app", "testFail", "com.example.FooTest", TestResult.ResultType.FAILURE, 0, 100, null)
+        collector.collectTestResult(":app", "testSkip", "com.example.FooTest", TestResult.ResultType.SKIPPED, 0, 100, null)
+
+        val failed = collector.getFailedTestIdentifiers(":app")
+        assertEquals(listOf("com.example.FooTest.testFail"), failed)
+    }
+
+    @Test
+    fun `getFailedTestIdentifiers uses wildcard for null className`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(":app", "testDynamic", null, TestResult.ResultType.FAILURE, 0, 100, null)
+
+        val failed = collector.getFailedTestIdentifiers(":app")
+        assertEquals(listOf("*.testDynamic"), failed)
+    }
+
+    @Test
+    fun `getFailedTestIdentifiers deduplicates results`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(":app", "testFlaky", "com.example.FooTest", TestResult.ResultType.FAILURE, 0, 100, null)
+        collector.collectTestResult(":app", "testFlaky", "com.example.FooTest", TestResult.ResultType.FAILURE, 100, 200, null)
+
+        val failed = collector.getFailedTestIdentifiers(":app")
+        assertEquals(listOf("com.example.FooTest.testFlaky"), failed)
+    }
+
+    @Test
+    fun `real failures are detected when quarantine map matches some`() {
+        val allFailed = listOf(
+            "com.example.LoginTest.testLogin",
+            "com.example.SignupTest.testSignup"
+        )
+        val quarantinePatterns = listOf("com.example.LoginTest.testLogin")
+
+        val realFailures = allFailed.filter { testId ->
+            !quarantinePatterns.any { pattern -> matchesQuarantinePattern(testId, pattern) }
+        }
+
+        assertEquals(listOf("com.example.SignupTest.testSignup"), realFailures)
+    }
+
+    @Test
+    fun `no real failures when all failed tests are quarantined`() {
+        val allFailed = listOf(
+            "com.example.LoginTest.testLogin",
+            "com.example.LogoutTest.testLogout"
+        )
+        val quarantinePatterns = listOf(
+            "com.example.LoginTest.testLogin",
+            "com.example.LogoutTest.testLogout"
+        )
+
+        val realFailures = allFailed.filter { testId ->
+            !quarantinePatterns.any { pattern -> matchesQuarantinePattern(testId, pattern) }
+        }
+
+        assertTrue(realFailures.isEmpty())
+    }
 }
