@@ -29,10 +29,10 @@ defmodule Tuist.Tests do
   alias Tuist.Repo
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
+  alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
-  alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.TestCaseBranchPresence
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
