@@ -583,7 +583,14 @@ defmodule Tuist.Tests do
     test_case_run_data = get_test_case_run_data(test, test_modules)
     existing_test_cases = get_all_project_test_cases(test.project_id)
 
-    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
+    test_case_run_data_by_module =
+      Enum.group_by(
+        test_case_run_data,
+        fn {{_name, mod_name, _suite}, _data} -> mod_name end
+      )
+
+    test_modules
+    |> Enum.flat_map_reduce([], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
       module_name = Map.get(module_attrs, :name)
 
@@ -596,8 +603,8 @@ defmodule Tuist.Tests do
       avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
 
       module_test_case_run_data =
-        test_case_run_data
-        |> Enum.filter(fn {{_name, mod_name, _suite}, _data} -> mod_name == module_name end)
+        test_case_run_data_by_module
+        |> Map.get(module_name, [])
         |> Map.new()
 
       module_is_flaky = any_test_case_run_flaky?(Map.values(module_test_case_run_data))
@@ -634,8 +641,9 @@ defmodule Tuist.Tests do
           existing_test_cases
         )
 
-      {flaky_ids, acc_test_case_runs ++ test_case_runs}
+      {flaky_ids, Enum.reverse(test_case_runs, acc_test_case_runs)}
     end)
+    |> then(fn {flaky_ids, test_case_runs} -> {flaky_ids, Enum.reverse(test_case_runs)} end)
   end
 
   defp get_test_case_run_data(test, test_modules) do
