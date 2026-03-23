@@ -115,12 +115,13 @@
 
             var testSuites: [String]?
             if shardGranularity == .suite {
+                let destination = inferDestination(from: xcTestRunPath)
                 var allSuites: [String] = []
                 for scheme in schemes {
                     let targets = try await xcTestEnumerator.enumerateTests(
                         testProductsPath: xctestproductsPath,
                         scheme: scheme,
-                        destination: nil
+                        destination: destination
                     )
                     allSuites += targets.flatMap { $0.onlyTestIdentifiers ?? [] }
                 }
@@ -182,6 +183,28 @@
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
+        }
+        private func inferDestination(from xcTestRunPath: AbsolutePath) -> String? {
+            let binariesPath = xcTestRunPath
+                .parentDirectory // Tests/0/
+                .parentDirectory // Tests/
+                .parentDirectory // .xctestproducts/
+                .appending(components: "Binaries", "0")
+
+            guard let firstDir = try? FileManager.default.contentsOfDirectory(atPath: binariesPath.pathString).first
+            else { return nil }
+
+            if firstDir.contains("iphonesimulator") {
+                return "platform=iOS Simulator,name=iPhone"
+            } else if firstDir.contains("appletvsimulator") {
+                return "platform=tvOS Simulator,name=Apple TV"
+            } else if firstDir.contains("watchsimulator") {
+                return "platform=watchOS Simulator,name=Apple Watch"
+            } else if firstDir.contains("xrsimulator") {
+                return "platform=visionOS Simulator,name=Apple Vision Pro"
+            } else {
+                return "platform=macOS"
+            }
         }
     }
 #endif
