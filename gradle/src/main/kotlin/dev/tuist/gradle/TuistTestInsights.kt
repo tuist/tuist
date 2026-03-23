@@ -95,6 +95,11 @@ internal class TestReportCollector {
         return attempts.any { it.resultType == TestResult.ResultType.FAILURE && !it.isQuarantined }
     }
 
+    fun hasQuarantinedFailures(moduleName: String): Boolean {
+        val attempts = attemptsByModule[moduleName] ?: return false
+        return attempts.any { it.resultType == TestResult.ResultType.FAILURE && it.isQuarantined }
+    }
+
     fun collectTestResult(
         moduleName: String,
         testName: String,
@@ -299,6 +304,10 @@ abstract class TuistTestInsightsService :
         return collector.hasNonQuarantinedFailures(moduleName)
     }
 
+    internal fun hasQuarantinedFailures(moduleName: String): Boolean {
+        return collector.hasQuarantinedFailures(moduleName)
+    }
+
     @Synchronized
     internal fun onTestFinished(
         moduleName: String,
@@ -333,7 +342,7 @@ abstract class TuistTestInsightsService :
 
     override fun close() {
         if (!hasTests) {
-            logger.lifecycle("Tuist: No test results collected, skipping test insights upload.")
+            logger.debug("Tuist: No test results collected, skipping test insights upload.")
             return
         }
 
@@ -497,8 +506,11 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                     }
 
                     testTask.doLast {
-                        if (serviceProvider.get().hasNonQuarantinedFailures(moduleName)) {
+                        val service = serviceProvider.get()
+                        if (service.hasNonQuarantinedFailures(moduleName)) {
                             throw org.gradle.api.GradleException("There were failing tests in module $moduleName")
+                        } else if (service.hasQuarantinedFailures(moduleName)) {
+                            logger.lifecycle("Tuist: All failing tests in module $moduleName are quarantined")
                         }
                     }
                 }
