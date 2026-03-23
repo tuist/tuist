@@ -671,14 +671,16 @@ defmodule Tuist.Environment do
       # on-premis instance, it should point to the production routes.
       URI.to_string(%{URI.parse(get_url(:production)) | path: path})
     else
-      dev_app_url = System.get_env("TUIST_SERVER_URL")
-
-      url =
-        get([:app, :url], secrets) ||
-          if(dev?(), do: dev_app_url || "http://localhost:8080", else: "http://localhost:8080")
-
-      URI.to_string(%{URI.parse(url) | path: path})
+      URI.to_string(%{URI.parse(app_base_url(secrets)) | path: path})
     end
+  end
+
+  defp app_base_url(secrets) do
+    get([:app, :url], secrets) || default_app_url()
+  end
+
+  defp default_app_url do
+    if dev?(), do: System.get_env("TUIST_SERVER_URL") || "http://localhost:8080", else: "http://localhost:8080"
   end
 
   defp get_route_info(path) do
