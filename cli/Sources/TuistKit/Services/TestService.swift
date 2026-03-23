@@ -248,12 +248,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
-        var skipTestTargets = skipTestTargets
-        skipTestTargets.append(
-            contentsOf: await quarantinedTestsToSkip(
-                skipQuarantine: skipQuarantine,
-                config: config
-            )
+        let skipTestTargets = skipTestTargets
+        let quarantinedTests = await fetchQuarantinedTests(
+            skipQuarantine: skipQuarantine,
+            config: config
         )
 
         let graphTraverser = GraphTraverser(graph: graph)
@@ -386,7 +384,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                config: config
+                config: config,
+                quarantinedTests: quarantinedTests
             )
         } catch {
             try await copyResultBundlePathIfNeeded(
@@ -424,7 +423,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
-        config: Tuist
+        config: Tuist,
+        quarantinedTests: [TestIdentifier]
     ) async throws {
         let timer = clock.startTimer()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -484,7 +484,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
             }
         } catch {
-            // Check the test results and store successful test hashes for any targets that passed
             let rootDirectory = try await rootDirectory()
             guard action != .build, let resultBundlePath,
                   let testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
@@ -494,8 +493,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
             )
 
-            // Compute passing test target names from the test summary
-            // A target is passing if none of its tests failed
             let testCasesByModule = Dictionary(grouping: testSummary.testCases) { $0.module }
             let passingTestTargetNames = Set(
                 testCasesByModule.compactMap { module, testCases -> String? in
@@ -513,6 +510,30 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 mapperEnvironment: mapperEnvironment,
                 cacheStorage: uploadCacheStorage
             )
+
+            if !quarantinedTests.isEmpty {
+                let (quarantinedFailures, realFailures) = classifyFailures(
+                    testSummary: testSummary,
+                    quarantinedTests: quarantinedTests
+                )
+                if realFailures.isEmpty, !quarantinedFailures.isEmpty {
+                    let failureNames = quarantinedFailures.map { testCase in
+                        [testCase.module, testCase.testSuite, testCase.name]
+                            .compactMap { $0 }
+                            .joined(separator: "/")
+                    }.joined(separator: ", ")
+                    Logger.current.notice(
+                        "\(quarantinedFailures.count) quarantined test(s) failed (exit code overridden to 0): \(failureNames)",
+                        metadata: .subsection
+                    )
+                    return
+                } else if !realFailures.isEmpty, !quarantinedFailures.isEmpty {
+                    Logger.current.notice(
+                        "\(quarantinedFailures.count) quarantined test(s) failed, \(realFailures.count) non-quarantined test(s) failed",
+                        metadata: .subsection
+                    )
+                }
+            }
 
             throw error
         }
@@ -536,7 +557,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 "built"
             }
 
-        AlertController.current.success(.alert("The project tests \(verb) successfully"))
+        if !quarantinedTests.isEmpty {
+            AlertController.current.success(
+                .alert("The project tests \(verb) successfully (including \(quarantinedTests.count) quarantined test(s))")
+            )
+        } else {
+            AlertController.current.success(.alert("The project tests \(verb) successfully"))
+        }
     }
 
     private func updateTestServiceAnalytics(
@@ -1008,7 +1035,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         await RunMetadataStorage.current.update(testRunId: test.id)
     }
 
-    private func quarantinedTestsToSkip(
+    private func fetchQuarantinedTests(
         skipQuarantine: Bool,
         config: Tuist
     ) async -> [TestIdentifier] {
@@ -1031,7 +1058,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
             if !quarantinedTests.isEmpty {
                 Logger.current.notice(
-                    "Skipping \(quarantinedTests.count) quarantined test(s)",
+                    "Found \(quarantinedTests.count) quarantined test(s)",
                     metadata: .subsection
                 )
             }
@@ -1046,6 +1073,39 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
             return []
         }
+    }
+
+    func classifyFailures(
+        testSummary: TestSummary,
+        quarantinedTests: [TestIdentifier]
+    ) -> (quarantinedFailures: [TestCase], realFailures: [TestCase]) {
+        let failedTestCases = testSummary.testCases.filter { $0.status == .failed }
+        var quarantinedFailures: [TestCase] = []
+        var realFailures: [TestCase] = []
+
+        for testCase in failedTestCases {
+            let isQuarantined = quarantinedTests.contains { quarantined in
+                guard testCase.module == quarantined.target else { return false }
+                if let quarantinedClass = quarantined.class,
+                   testCase.testSuite != quarantinedClass
+                {
+                    return false
+                }
+                if let quarantinedMethod = quarantined.method,
+                   testCase.name != quarantinedMethod
+                {
+                    return false
+                }
+                return true
+            }
+            if isQuarantined {
+                quarantinedFailures.append(testCase)
+            } else {
+                realFailures.append(testCase)
+            }
+        }
+
+        return (quarantinedFailures: quarantinedFailures, realFailures: realFailures)
     }
 
     private func fetchQuarantinedTests(

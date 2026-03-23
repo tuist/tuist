@@ -178,6 +178,16 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
+  def get_failed_test_case_ids_for_run(test_run_id) do
+    query =
+      from tcr in TestCaseRun,
+        where: tcr.test_run_id == ^test_run_id and tcr.status == "failure" and not is_nil(tcr.test_case_id),
+        select: tcr.test_case_id,
+        distinct: true
+
+    ClickHouseRepo.all(query)
+  end
+
   def get_test_run_failures_count(test_run_id) do
     query =
       from tcr in TestCaseRun,
@@ -415,6 +425,22 @@ defmodule Tuist.Tests do
     case ClickHouseRepo.one(query) do
       nil -> {:error, :not_found}
       test_case -> {:ok, test_case}
+    end
+  end
+
+  def quarantined_test_case_ids(test_case_ids) when is_list(test_case_ids) do
+    if Enum.empty?(test_case_ids) do
+      MapSet.new()
+    else
+      query =
+        from(tc in TestCase,
+          where: tc.id in ^test_case_ids and tc.is_quarantined == true,
+          select: tc.id
+        )
+
+      query
+      |> ClickHouseRepo.all()
+      |> MapSet.new()
     end
   end
 
@@ -1262,7 +1288,8 @@ defmodule Tuist.Tests do
           module_name: test_case.module_name,
           suite_name: test_case.suite_name,
           last_ran_at: coalesce(stats.last_ran_at, test_case.last_ran_at),
-          last_run_id: stats.last_run_id
+          last_run_id: stats.last_run_id,
+          last_status: test_case.last_status
         }
       )
 
@@ -1428,7 +1455,8 @@ defmodule Tuist.Tests do
       quarantined_by_account_id: Map.get(quarantine_info, :actor_id),
       quarantined_by_account_name: Map.get(quarantine_info, :actor_name),
       last_ran_at: row.last_ran_at,
-      last_run_id: row.last_run_id
+      last_run_id: row.last_run_id,
+      last_status: row.last_status
     }
   end
 

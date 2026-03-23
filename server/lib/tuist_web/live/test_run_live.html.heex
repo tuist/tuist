@@ -835,6 +835,13 @@
                     style="light-fill"
                     size="large"
                   />
+                  <.badge
+                    :if={test_case.test_case_id && MapSet.member?(@quarantined_test_case_ids, test_case.test_case_id)}
+                    label={dgettext("dashboard_tests", "Quarantined")}
+                    color="information"
+                    style="light-fill"
+                    size="large"
+                  />
                 </span>
                 <span data-part="description">
                   {case {test_case.module_name, test_case.suite_name} do

@@ -7,11 +7,14 @@ import TuistConfig
 import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
+import TuistGit
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
+import TuistXCResultService
 
 struct XcodeBuildTestCommandService {
     private let fileSystem: FileSysteming
@@ -23,6 +26,10 @@ struct XcodeBuildTestCommandService {
     private let derivedDataLocator: DerivedDataLocating
     private let xcActivityLogController: XCActivityLogControlling
     private let inspectResultBundleService: InspectResultBundleServicing
+    private let listTestCasesService: ListTestCasesServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let xcResultService: XCResultServicing
+    private let gitController: GitControlling
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -33,7 +40,11 @@ struct XcodeBuildTestCommandService {
         xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
-        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService()
+        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
+        listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        xcResultService: XCResultServicing = XCResultService(),
+        gitController: GitControlling = GitController()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -44,6 +55,10 @@ struct XcodeBuildTestCommandService {
         self.derivedDataLocator = derivedDataLocator
         self.xcActivityLogController = xcActivityLogController
         self.inspectResultBundleService = inspectResultBundleService
+        self.listTestCasesService = listTestCasesService
+        self.serverEnvironmentService = serverEnvironmentService
+        self.xcResultService = xcResultService
+        self.gitController = gitController
     }
 
     func run(
@@ -66,6 +81,8 @@ struct XcodeBuildTestCommandService {
         let config = try await configLoader.loadConfig(path: path)
         let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
 
+        let quarantinedTests = await fetchQuarantinedTests(config: config)
+
         do {
             try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
         } catch {
@@ -77,6 +94,37 @@ struct XcodeBuildTestCommandService {
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config
             )
+
+            if !quarantinedTests.isEmpty, let resultBundlePath {
+                let rootDirectory = await rootDirectory()
+                if let testSummary = try await xcResultService.parse(
+                    path: resultBundlePath,
+                    rootDirectory: rootDirectory
+                ) {
+                    let (quarantinedFailures, realFailures) = classifyFailures(
+                        testSummary: testSummary,
+                        quarantinedTests: quarantinedTests
+                    )
+                    if realFailures.isEmpty, !quarantinedFailures.isEmpty {
+                        let failureNames = quarantinedFailures.map { testCase in
+                            [testCase.module, testCase.testSuite, testCase.name]
+                                .compactMap { $0 }
+                                .joined(separator: "/")
+                        }.joined(separator: ", ")
+                        Logger.current.notice(
+                            "\(quarantinedFailures.count) quarantined test(s) failed (exit code overridden to 0): \(failureNames)",
+                            metadata: .subsection
+                        )
+                        return
+                    } else if !realFailures.isEmpty, !quarantinedFailures.isEmpty {
+                        Logger.current.notice(
+                            "\(quarantinedFailures.count) quarantined test(s) failed, \(realFailures.count) non-quarantined test(s) failed",
+                            metadata: .subsection
+                        )
+                    }
+                }
+            }
+
             throw error
         }
 
@@ -169,6 +217,85 @@ struct XcodeBuildTestCommandService {
         let valueIndex = arguments.index(after: optionIndex)
         guard arguments.endIndex > valueIndex else { return nil }
         return arguments[valueIndex]
+    }
+
+    private func fetchQuarantinedTests(config: Tuist) async -> [TestIdentifier] {
+        guard let fullHandle = config.fullHandle else { return [] }
+        do {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let response = try await listTestCasesService.listTestCases(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                flaky: nil,
+                quarantined: true,
+                page: 1,
+                pageSize: 500
+            )
+            let tests = try response.test_cases.map { testCase in
+                try TestIdentifier(
+                    target: testCase.module.name,
+                    class: testCase.suite?.name,
+                    method: testCase.name
+                )
+            }
+            if !tests.isEmpty {
+                Logger.current.notice(
+                    "Found \(tests.count) quarantined test(s)",
+                    metadata: .subsection
+                )
+            }
+            return tests
+        } catch {
+            Logger.current.log(
+                level: .warning,
+                "Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests."
+            )
+            return []
+        }
+    }
+
+    private func classifyFailures(
+        testSummary: TestSummary,
+        quarantinedTests: [TestIdentifier]
+    ) -> (quarantinedFailures: [TestCase], realFailures: [TestCase]) {
+        let failedTestCases = testSummary.testCases.filter { $0.status == .failed }
+        var quarantinedFailures: [TestCase] = []
+        var realFailures: [TestCase] = []
+
+        for testCase in failedTestCases {
+            let isQuarantined = quarantinedTests.contains { quarantined in
+                guard testCase.module == quarantined.target else { return false }
+                if let quarantinedClass = quarantined.class,
+                   testCase.testSuite != quarantinedClass
+                {
+                    return false
+                }
+                if let quarantinedMethod = quarantined.method,
+                   testCase.name != quarantinedMethod
+                {
+                    return false
+                }
+                return true
+            }
+            if isQuarantined {
+                quarantinedFailures.append(testCase)
+            } else {
+                realFailures.append(testCase)
+            }
+        }
+
+        return (quarantinedFailures: quarantinedFailures, realFailures: realFailures)
+    }
+
+    private func rootDirectory() async -> AbsolutePath? {
+        guard let currentWorkingDirectory = try? await Environment.current.currentWorkingDirectory() else {
+            return nil
+        }
+        let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+        if gitController.isInGitRepository(workingDirectory: workingDirectory) {
+            return try? gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+        }
+        return nil
     }
 
     private func inspectResultBundleIfNeeded(

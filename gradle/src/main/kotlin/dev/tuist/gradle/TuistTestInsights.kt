@@ -88,6 +88,17 @@ internal data class TestAttempt(
 internal class TestReportCollector {
     private val attemptsByModule = mutableMapOf<String, MutableList<TestAttempt>>()
 
+    fun getFailedTestIdentifiers(moduleName: String): List<String> {
+        val attempts = attemptsByModule[moduleName] ?: return emptyList()
+        return attempts
+            .filter { it.resultType == TestResult.ResultType.FAILURE }
+            .map { attempt ->
+                val className = attempt.className
+                if (className != null) "$className.${attempt.testName}" else "*.${attempt.testName}"
+            }
+            .distinct()
+    }
+
     fun collectTestResult(
         moduleName: String,
         testName: String,
@@ -283,6 +294,10 @@ abstract class TuistTestInsightsService :
     private var latestEndTime: Long = Long.MIN_VALUE
     @Volatile private var hasTests = false
 
+    internal fun getFailedTests(moduleName: String): List<String> {
+        return collector.getFailedTestIdentifiers(moduleName)
+    }
+
     @Synchronized
     internal fun onTestFinished(
         moduleName: String,
@@ -460,13 +475,36 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                 })
 
                 if (quarantineService != null) {
+                    testTask.ignoreFailures = true
+
                     testTask.doFirst {
-                        val exclusions = quarantineService.getQuarantinedTests()
-                        val moduleExclusions = exclusions[moduleName] ?: return@doFirst
-                        for (pattern in moduleExclusions) {
-                            testTask.filter.excludeTestsMatching(pattern)
+                        val quarantineMap = quarantineService.getQuarantinedTests()
+                        val modulePatterns = quarantineMap[moduleName]
+                        if (modulePatterns != null) {
+                            logger.lifecycle("Tuist: Found ${modulePatterns.size} quarantined test(s) in module $moduleName")
                         }
-                        logger.lifecycle("Tuist: Quarantined ${moduleExclusions.size} test(s) in module $moduleName")
+                    }
+
+                    testTask.doLast {
+                        val quarantineMap = quarantineService.getQuarantinedTests()
+                        val failedTests = serviceProvider.get().getFailedTests(moduleName)
+                        if (failedTests.isEmpty()) return@doLast
+
+                        val modulePatterns = quarantineMap[moduleName] ?: emptyList()
+                        val realFailures = failedTests.filter { testId ->
+                            !modulePatterns.any { pattern -> matchesQuarantinePattern(testId, pattern) }
+                        }
+                        val quarantinedFailureCount = failedTests.size - realFailures.size
+
+                        if (quarantinedFailureCount > 0) {
+                            logger.lifecycle("Tuist: $quarantinedFailureCount quarantined test(s) failed in module $moduleName")
+                        }
+
+                        if (realFailures.isNotEmpty()) {
+                            throw org.gradle.api.GradleException(
+                                "Tuist: ${realFailures.size} non-quarantined test(s) failed in module $moduleName: ${realFailures.joinToString(", ")}"
+                            )
+                        }
                     }
                 }
             }
@@ -484,4 +522,12 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         }
 
     }
+}
+
+internal fun matchesQuarantinePattern(testId: String, pattern: String): Boolean {
+    if (pattern.startsWith("*.")) {
+        val methodName = pattern.removePrefix("*.")
+        return testId.endsWith(".$methodName")
+    }
+    return testId == pattern
 }

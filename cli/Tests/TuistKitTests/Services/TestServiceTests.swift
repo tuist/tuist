@@ -2720,7 +2720,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run_fetches_quarantined_tests_and_skips_them() async throws {
+    func test_run_fetches_quarantined_tests_and_runs_them() async throws {
         // Given
         givenGenerator()
         let path = try temporaryPath()
@@ -2820,11 +2820,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // When
         try await testRun(path: path)
 
-        // Then
-        let expectedSkipTestTargets = [
-            try TestIdentifier(target: "AppTests", class: "QuarantinedSuite", method: "testQuarantined()"),
-            try TestIdentifier(target: "CoreTests", class: nil, method: "testAnotherQuarantined()"),
-        ]
+        // Then - quarantined tests are NOT skipped, they run normally
         verify(xcodebuildController)
             .test(
                 .any,
@@ -2838,7 +2834,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 arguments: .any,
                 retryCount: .any,
                 testTargets: .any,
-                skipTestTargets: .value(expectedSkipTestTargets),
+                skipTestTargets: .value([]),
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )

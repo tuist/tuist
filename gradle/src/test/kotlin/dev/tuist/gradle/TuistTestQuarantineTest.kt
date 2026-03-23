@@ -7,6 +7,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class TuistTestQuarantineTest {
@@ -222,5 +223,25 @@ class TuistTestQuarantineTest {
         val exclusions = service.getQuarantinedTests()
 
         assertTrue(exclusions.isEmpty())
+    }
+
+    @Test
+    fun `matchesQuarantinePattern matches exact pattern`() {
+        assertTrue(matchesQuarantinePattern("com.example.LoginTest.testLogin", "com.example.LoginTest.testLogin"))
+    }
+
+    @Test
+    fun `matchesQuarantinePattern does not match different pattern`() {
+        assertFalse(matchesQuarantinePattern("com.example.LoginTest.testLogin", "com.example.LoginTest.testLogout"))
+    }
+
+    @Test
+    fun `matchesQuarantinePattern matches wildcard pattern`() {
+        assertTrue(matchesQuarantinePattern("com.example.LoginTest.testDynamic", "*.testDynamic"))
+    }
+
+    @Test
+    fun `matchesQuarantinePattern wildcard does not match wrong method`() {
+        assertFalse(matchesQuarantinePattern("com.example.LoginTest.testLogin", "*.testDynamic"))
     }
 }

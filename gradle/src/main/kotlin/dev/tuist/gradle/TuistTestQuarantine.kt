@@ -68,7 +68,7 @@ class TuistTestQuarantineService(
                         ).use { reader ->
                             Gson().fromJson(reader, QuarantinedTestCasesResponse::class.java)
                         }
-                        buildExclusionMap(response.testCases)
+                        buildQuarantineMap(response.testCases)
                     }
                     HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
                     else -> {
@@ -87,7 +87,7 @@ class TuistTestQuarantineService(
         }
     }
 
-    private fun buildExclusionMap(testCases: List<QuarantinedTestCase>): Map<String, List<String>> {
+    private fun buildQuarantineMap(testCases: List<QuarantinedTestCase>): Map<String, List<String>> {
         return testCases.groupBy(
             keySelector = { it.module.name },
             valueTransform = { testCase ->
