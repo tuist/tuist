@@ -450,11 +450,12 @@ defmodule Tuist.Tests.Analytics do
   """
   def test_runs_metrics(test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
+    project_ids = test_runs |> Enum.map(& &1.project_id) |> Enum.uniq()
 
     test_case_counts =
       ClickHouseRepo.all(
         from(t in TestCaseRun,
-          where: t.test_run_id in ^test_run_ids,
+          where: t.project_id in ^project_ids and t.test_run_id in ^test_run_ids,
           group_by: t.test_run_id,
           select: %{
             test_run_id: t.test_run_id,
