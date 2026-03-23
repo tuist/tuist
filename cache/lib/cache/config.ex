@@ -144,6 +144,19 @@ defmodule Cache.Config do
     Application.get_env(:cache, Repo)[:url]
   end
 
+  def distributed_kv_ssl_opts(database_url) when is_binary(database_url) do
+    hostname = distributed_kv_database_hostname(database_url)
+
+    [
+      verify: :verify_peer,
+      cacertfile: CAStore.file_path(),
+      server_name_indication: String.to_charlist(hostname),
+      customize_hostname_check: [
+        match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+      ]
+    ]
+  end
+
   def distributed_kv_pool_size do
     Application.get_env(:cache, Repo)[:pool_size] || 5
   end
@@ -204,6 +217,13 @@ defmodule Cache.Config do
     |> to_string()
     |> String.split("@")
     |> List.last()
+  end
+
+  defp distributed_kv_database_hostname(database_url) do
+    case URI.parse(database_url) do
+      %URI{host: host} when is_binary(host) and host != "" -> host
+      _ -> raise ArgumentError, "DISTRIBUTED_KV_DATABASE_URL must include a hostname"
+    end
   end
 
   defp parse_float(nil, default), do: default
