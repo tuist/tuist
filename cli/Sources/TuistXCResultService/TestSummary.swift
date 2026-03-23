@@ -2,7 +2,7 @@ import Foundation
 
 public struct TestSummary {
     public let testPlanName: String?
-    public let status: TestStatus
+    public var status: TestStatus
     public let duration: Int?
     public var testModules: [TestModule]
 

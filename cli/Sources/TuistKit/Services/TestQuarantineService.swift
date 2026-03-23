@@ -89,6 +89,9 @@ struct TestQuarantineService: TestQuarantineServicing {
             }
             return module
         }
+        if result.status == .failed, onlyQuarantinedTestsFailed(testSummary: result) {
+            result.status = .passed
+        }
         return result
     }
 
