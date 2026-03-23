@@ -189,6 +189,66 @@ defmodule TuistWeb.AuthControllerTest do
     end
   end
 
+  describe "GET /users/auth/custom_oauth2" do
+    test "redirects to the custom OAuth2 provider when organization is found and configured", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "https://auth.example.com",
+          custom_oauth2_client_id: UUIDv7.generate(),
+          custom_oauth2_client_secret: UUIDv7.generate(),
+          custom_oauth2_authorize_url: "/oauth2/authorize",
+          custom_oauth2_token_url: "/oauth2/token",
+          custom_oauth2_user_info_url: "/oauth2/userinfo"
+        )
+
+      conn = get(conn, "/users/auth/custom_oauth2?organization_id=#{organization.id}")
+
+      assert redirected_to(conn) =~ "https://auth.example.com/oauth2/authorize"
+    end
+
+    test "includes login_hint in the custom OAuth2 redirect when provided", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "https://auth.example.com",
+          custom_oauth2_client_id: UUIDv7.generate(),
+          custom_oauth2_client_secret: UUIDv7.generate(),
+          custom_oauth2_authorize_url: "/oauth2/authorize",
+          custom_oauth2_token_url: "/oauth2/token",
+          custom_oauth2_user_info_url: "/oauth2/userinfo"
+        )
+
+      login_hint = "user@example.com"
+      conn = get(conn, "/users/auth/custom_oauth2?organization_id=#{organization.id}&login_hint=#{login_hint}")
+
+      redirect_url = redirected_to(conn)
+      assert redirect_url =~ "https://auth.example.com/oauth2/authorize"
+      assert redirect_url =~ "login_hint=user%40example.com"
+    end
+
+    test "raises unauthorized error when organization is not configured for custom OAuth2", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com"
+        )
+
+      assert_error_sent 401, fn ->
+        get(conn, "/users/auth/custom_oauth2?organization_id=#{organization.id}")
+      end
+    end
+  end
+
   describe "callback/2 with OAuth" do
     test "links OAuth identity to existing user with same email and logs them in", %{conn: conn} do
       # Given: A user already exists with a specific email

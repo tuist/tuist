@@ -758,6 +758,40 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "update_custom_oauth2_configuration/2" do
+    test "updates custom OAuth2 configuration for an existing organization" do
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      assert {:ok, updated_org} =
+               Accounts.update_custom_oauth2_configuration(organization.id, %{
+                 custom_oauth2_client_id: "test_client_id",
+                 custom_oauth2_client_secret: "test_secret",
+                 custom_oauth2_authorize_url: "/oauth2/authorize",
+                 custom_oauth2_token_url: "/oauth2/token",
+                 custom_oauth2_user_info_url: "/oauth2/userinfo",
+                 sso_organization_id: "https://auth.example.com/"
+               })
+
+      assert updated_org.custom_oauth2_client_id == "test_client_id"
+      assert updated_org.custom_oauth2_authorize_url == "/oauth2/authorize"
+      assert updated_org.custom_oauth2_token_url == "/oauth2/token"
+      assert updated_org.custom_oauth2_user_info_url == "/oauth2/userinfo"
+      assert updated_org.custom_oauth2_encrypted_client_secret
+      assert updated_org.sso_provider == :custom_oauth2
+      assert updated_org.sso_organization_id == "https://auth.example.com"
+    end
+
+    test "returns error when organization doesn't exist" do
+      result =
+        Accounts.update_custom_oauth2_configuration(999_999, %{
+          custom_oauth2_client_id: "test_client_id"
+        })
+
+      assert result == {:error, :not_found}
+    end
+  end
+
   describe "get_invitation_by_id/1" do
     test "returns a given invitation" do
       # Given

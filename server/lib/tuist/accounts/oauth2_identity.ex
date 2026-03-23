@@ -7,7 +7,7 @@ defmodule Tuist.Accounts.Oauth2Identity do
   import Ecto.Changeset
 
   schema "oauth2_identities" do
-    field :provider, Ecto.Enum, values: [github: 0, okta: 1, google: 2, apple: 3]
+    field :provider, Ecto.Enum, values: [github: 0, okta: 1, google: 2, apple: 3, custom_oauth2: 4]
     field :id_in_provider, :string
     field :provider_organization_id, :string
     belongs_to :user, Tuist.Accounts.User
@@ -20,7 +20,7 @@ defmodule Tuist.Accounts.Oauth2Identity do
     |> unique_constraint([:provider, :id_in_provider],
       name: "index_oauth2_identities_on_provider_and_id_in_provider"
     )
-    |> validate_inclusion(:provider, [:github, :okta, :google, :apple])
+    |> validate_inclusion(:provider, [:github, :okta, :google, :apple, :custom_oauth2])
     |> foreign_key_constraint(:user_id)
   end
 end

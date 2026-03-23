@@ -214,6 +214,11 @@ msgstr ""
 msgid "Log in to your enterprise account via Okta"
 msgstr ""
 
+#: lib/tuist_web/live/sso_login_live.ex:56
+#, elixir-autogen, elixir-format
+msgid "Log in to your enterprise account via SSO"
+msgstr ""
+
 #: lib/tuist_web/live/user_okta_login_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "Logging in via Okta failed"

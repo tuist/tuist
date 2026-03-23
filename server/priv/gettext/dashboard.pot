@@ -11,6 +11,15 @@
 msgid ""
 msgstr ""
 
+#: lib/tuist_web/controllers/auth_controller.ex:137
+#: lib/tuist_web/controllers/auth_controller.ex:145
+#: lib/tuist_web/controllers/auth_controller.ex:157
+#: lib/tuist_web/controllers/auth_controller.ex:172
+#: lib/tuist_web/controllers/auth_controller.ex:178
+#, elixir-autogen, elixir-format
+msgid "Failed to authenticate with the custom OAuth2 provider."
+msgstr ""
+
 #: lib/tuist_web/components/previews/app_preview.ex:24
 #, elixir-autogen, elixir-format
 msgid "%{app_name} icon"

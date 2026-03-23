@@ -51,6 +51,16 @@ defmodule Tuist.OrganizationTest do
 
       assert changeset.valid? == true
     end
+
+    test "changeset is valid when sso_provider is custom_oauth2" do
+      changeset =
+        Organization.create_changeset(%Organization{}, %{
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "https://auth.example.com"
+        })
+
+      assert changeset.valid? == true
+    end
   end
 
   describe "update_changeset/2" do
@@ -108,6 +118,16 @@ defmodule Tuist.OrganizationTest do
         Organization.update_changeset(%Organization{}, %{
           sso_provider: :okta,
           sso_organization_id: "dev.okta.com"
+        })
+
+      assert changeset.valid? == true
+    end
+
+    test "changeset is valid when sso_provider is custom_oauth2" do
+      changeset =
+        Organization.update_changeset(%Organization{}, %{
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "https://auth.example.com"
         })
 
       assert changeset.valid? == true

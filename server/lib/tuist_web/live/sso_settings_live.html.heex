@@ -55,6 +55,7 @@
           >
             <:item value="google" label="Google" />
             <:item value="okta" label="Okta" />
+            <:item value="custom_oauth2" label={dgettext("dashboard_account", "Custom OAuth2")} />
           </.select>
         </div>
       </div>
@@ -199,6 +200,186 @@
             placeholder={
               if @organization.sso_provider == :okta and
                    @organization.okta_encrypted_client_secret,
+                 do: "••••••••••••",
+                 else: nil
+            }
+          />
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Setup instructions")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Configure your OAuth2 provider to redirect users back to Tuist after authentication."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <div data-part="setup-steps">
+            <ol>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Create an OAuth2 application in your identity provider."
+                )}
+              </li>
+              <li>
+                {dgettext("dashboard_account", "Set the sign-in redirect URI to:")}
+                <div data-part="read-only-value">
+                  <code>{Tuist.Environment.app_url(path: "/users/auth/custom_oauth2/callback")}</code>
+                </div>
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Copy the provider URL, authorize URL, token URL, user info URL, client ID, and client secret into the fields below."
+                )}
+              </li>
+              <li>
+                {dgettext("dashboard_account", "Set the initiate login URI to:")}
+                <div data-part="read-only-value">
+                  <code>
+                    {Tuist.Environment.app_url(
+                      path: "/users/auth/custom_oauth2?organization_id=#{@organization.id}"
+                    )}
+                  </code>
+                </div>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Provider URL")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The base URL of your identity provider, for example https://auth.example.com."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:custom_oauth2_site]}
+            type="basic"
+            placeholder="https://auth.example.com"
+          />
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Authorize URL")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The authorization endpoint path or URL used to start the OAuth2 flow."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:custom_oauth2_authorize_url]}
+            type="basic"
+            placeholder="/oauth2/authorize"
+          />
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Token URL")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The token endpoint path or URL used to exchange the authorization code."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:custom_oauth2_token_url]}
+            type="basic"
+            placeholder="/oauth2/token"
+          />
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "User info URL")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The user info endpoint path or URL that returns the authenticated user profile."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:custom_oauth2_user_info_url]}
+            type="basic"
+            placeholder="/oauth2/userinfo"
+          />
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Client ID")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The client ID from your OAuth2 application."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:custom_oauth2_client_id]}
+            type="basic"
+            placeholder={dgettext("dashboard_account", "OAuth2 application client ID")}
+          />
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Client secret")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The client secret from your OAuth2 application."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:custom_oauth2_client_secret]}
+            type="password"
+            input_type="password"
+            placeholder={
+              if @organization.sso_provider == :custom_oauth2 and
+                   @organization.custom_oauth2_encrypted_client_secret,
                  do: "••••••••••••",
                  else: nil
             }

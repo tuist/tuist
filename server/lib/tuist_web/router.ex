@@ -677,6 +677,8 @@ defmodule TuistWeb.Router do
     pipe_through :browser_app
     get "/okta", AuthController, :okta_request
     get "/okta/callback", AuthController, :okta_callback
+    get "/custom_oauth2", AuthController, :custom_oauth2_request
+    get "/custom_oauth2/callback", AuthController, :custom_oauth2_callback
   end
 
   scope "/users/auth", TuistWeb do
