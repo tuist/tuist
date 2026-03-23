@@ -16,6 +16,7 @@
         func plan(
             xctestproductsPath: AbsolutePath,
             schemes: [String],
+            destination: String?,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -86,6 +87,7 @@
         public func plan(
             xctestproductsPath: AbsolutePath,
             schemes: [String],
+            destination: String? = nil,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -120,7 +122,7 @@
                     let targets = try await xcTestEnumerator.enumerateTests(
                         testProductsPath: xctestproductsPath,
                         scheme: scheme,
-                        destination: nil
+                        destination: destination
                     )
                     allSuites += targets.flatMap { $0.onlyTestIdentifiers ?? [] }
                 }
