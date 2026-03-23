@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistEnvKey
 import TuistSupport
 
 public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, TrackableParsableCommand,
@@ -23,10 +24,14 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
     )
     public var passthroughXcodebuildArguments: [String] = []
 
+    @Option(name: .long, help: "The zero-based shard index to execute.")
+    var shardIndex: Int?
+
     public func run() async throws {
         try await XcodeBuildTestCommandService()
             .run(
-                passthroughXcodebuildArguments: ["test-without-building"] + passthroughXcodebuildArguments
+                passthroughXcodebuildArguments: ["test-without-building"] + passthroughXcodebuildArguments,
+                shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue()
             )
     }
 }

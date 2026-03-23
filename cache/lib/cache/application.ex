@@ -4,7 +4,6 @@ defmodule Cache.Application do
   use Application
 
   alias Cache.DBConnection.TelemetryListener
-  alias Cache.DistributedKV.Repo
   alias TuistCommon.HTTP.TransportLogger
 
   require Logger
@@ -35,6 +34,7 @@ defmodule Cache.Application do
       {Phoenix.PubSub, name: Cache.PubSub},
       Cache.Authentication,
       Cache.S3,
+      Cache.KeyValueStore,
       Cache.MultipartUploads,
       Cache.Registry.Metadata,
       CacheWeb.Endpoint,
@@ -43,29 +43,15 @@ defmodule Cache.Application do
       # credo:disable-for-next-line Credo.Check.Design.AliasUsage
       {Finch, name: Cache.Finch, pools: Cache.Finch.Pools.config()},
       Cache.PromEx,
-      {Oban, Application.get_env(:cache, Oban)},
-      Cache.KeyValueStore
+      {Oban, Application.get_env(:cache, Oban)}
     ]
-
-    distributed_children =
-      if Cache.Config.distributed_kv_enabled?() do
-        [
-          Repo,
-          Cache.KeyValueAccessTracker,
-          Cache.KeyValueReplicationShipper,
-          Cache.KeyValueReplicationPoller
-        ]
-      else
-        []
-      end
 
     children =
       if Cache.Config.analytics_enabled?() do
         base_children ++
-          distributed_children ++
           [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline]
       else
-        base_children ++ distributed_children
+        base_children
       end
 
     opts = [strategy: :one_for_one, name: Cache.Supervisor]
@@ -73,7 +59,7 @@ defmodule Cache.Application do
   end
 
   defp migrate do
-    repos = [Cache.Repo, Cache.KeyValueRepo] ++ if(Cache.Config.distributed_kv_enabled?(), do: [Repo], else: [])
+    repos = Application.fetch_env!(:cache, :ecto_repos)
 
     for repo <- repos do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))

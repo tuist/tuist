@@ -6,16 +6,19 @@ defmodule Cache.XcodeCleanupWorkerTest do
 
   alias Cache.CacheArtifacts
   alias Cache.Disk
+  alias Cache.KeyValueEntries
   alias Cache.Xcode
   alias Cache.XcodeCleanupWorker
-
-  setup :set_mimic_from_context
 
   describe "perform/1" do
     test "deletes Xcode cache artifacts from disk and metadata" do
       account_handle = "test_account"
       project_handle = "test_project"
       cas_hashes = ["abcd1234", "efgh5678"]
+
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        cas_hashes
+      end)
 
       expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/xcode/ab/cd/abcd1234"
@@ -36,7 +39,11 @@ defmodule Cache.XcodeCleanupWorkerTest do
       end)
 
       job = %Oban.Job{
-        args: %{"account_handle" => account_handle, "project_handle" => project_handle, "cas_hashes" => cas_hashes}
+        args: %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "cas_hashes" => cas_hashes
+        }
       }
 
       capture_log(fn ->
@@ -49,6 +56,10 @@ defmodule Cache.XcodeCleanupWorkerTest do
       project_handle = "test_project"
       cas_hashes = ["abcd1234"]
 
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        cas_hashes
+      end)
+
       expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/xcode/ab/cd/abcd1234"
       end)
@@ -58,7 +69,54 @@ defmodule Cache.XcodeCleanupWorkerTest do
       end)
 
       job = %Oban.Job{
-        args: %{"account_handle" => account_handle, "project_handle" => project_handle, "cas_hashes" => cas_hashes}
+        args: %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "cas_hashes" => cas_hashes
+        }
+      }
+
+      log =
+        capture_log(fn ->
+          assert {:error, {:disk_delete_failed, 1}} = XcodeCleanupWorker.perform(job)
+        end)
+
+      assert log =~ "Failed to delete Xcode cache artifact"
+    end
+
+    test "cleans up metadata for successful deletes even when some fail" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      cas_hashes = ["abcd1234", "efgh5678"]
+
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        cas_hashes
+      end)
+
+      expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+        "test_account/test_project/xcode/ab/cd/abcd1234"
+      end)
+
+      expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "efgh5678" ->
+        "test_account/test_project/xcode/ef/gh/efgh5678"
+      end)
+
+      expect(Disk, :delete_artifact, fn "test_account/test_project/xcode/ab/cd/abcd1234" -> :ok end)
+
+      expect(Disk, :delete_artifact, fn "test_account/test_project/xcode/ef/gh/efgh5678" ->
+        {:error, :eacces}
+      end)
+
+      expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/xcode/ab/cd/abcd1234"] ->
+        :ok
+      end)
+
+      job = %Oban.Job{
+        args: %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "cas_hashes" => cas_hashes
+        }
       }
 
       log =
@@ -74,6 +132,10 @@ defmodule Cache.XcodeCleanupWorkerTest do
       project_handle = "test_project"
       cas_hashes = ["abcd1234"]
 
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        cas_hashes
+      end)
+
       expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/xcode/ab/cd/abcd1234"
       end)
@@ -87,7 +149,11 @@ defmodule Cache.XcodeCleanupWorkerTest do
       end)
 
       job = %Oban.Job{
-        args: %{"account_handle" => account_handle, "project_handle" => project_handle, "cas_hashes" => cas_hashes}
+        args: %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "cas_hashes" => cas_hashes
+        }
       }
 
       log =
@@ -96,6 +162,77 @@ defmodule Cache.XcodeCleanupWorkerTest do
         end)
 
       refute log =~ "Failed to delete Xcode cache artifact"
+    end
+
+    test "handles empty cas_hashes gracefully" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+
+      job = %Oban.Job{
+        args: %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "cas_hashes" => []
+        }
+      }
+
+      capture_log(fn ->
+        assert :ok = XcodeCleanupWorker.perform(job)
+      end)
+    end
+
+    test "skips hashes still referenced by other key-value entries" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      cas_hashes = ["abcd1234", "efgh5678"]
+
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        ["abcd1234"]
+      end)
+
+      expect(Xcode.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+        "test_account/test_project/xcode/ab/cd/abcd1234"
+      end)
+
+      expect(Disk, :delete_artifact, fn "test_account/test_project/xcode/ab/cd/abcd1234" -> :ok end)
+
+      expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/xcode/ab/cd/abcd1234"] ->
+        :ok
+      end)
+
+      job = %Oban.Job{
+        args: %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "cas_hashes" => cas_hashes
+        }
+      }
+
+      capture_log(fn ->
+        assert :ok = XcodeCleanupWorker.perform(job)
+      end)
+    end
+
+    test "skips all cleanup when all hashes are still referenced" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      cas_hashes = ["abcd1234"]
+
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        []
+      end)
+
+      job = %Oban.Job{
+        args: %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "cas_hashes" => cas_hashes
+        }
+      }
+
+      capture_log(fn ->
+        assert :ok = XcodeCleanupWorker.perform(job)
+      end)
     end
   end
 end

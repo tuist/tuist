@@ -1,26 +1,22 @@
 defmodule Cache.KeyValueEntriesTest do
-  use ExUnit.Case, async: false
-  use Mimic
+  use ExUnit.Case, async: true
 
   import Ecto.Query
 
-  alias Cache.Config
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
+  alias Cache.KeyValueEntryHash
   alias Cache.KeyValueRepo
   alias Ecto.Adapters.SQL.Sandbox
 
-  setup :set_mimic_from_context
-
   setup do
     :ok = Sandbox.checkout(KeyValueRepo)
-    stub(Config, :key_value_mode, fn -> :local end)
-    stub(Config, :distributed_kv_enabled?, fn -> false end)
     :ok
   end
 
-  test "delete_expired deletes expired entries" do
-    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+  test "delete_expired deletes expired entries and returns grouped hashes" do
+    now = DateTime.utc_now()
+    old_time = DateTime.add(now, -31, :day)
 
     entry =
       KeyValueRepo.insert!(%KeyValueEntry{
@@ -31,213 +27,386 @@ defmodule Cache.KeyValueEntriesTest do
 
     {grouped_hashes, count, status} = KeyValueEntries.delete_expired(30)
 
-    assert grouped_hashes == %{}
     assert count == 1
+    assert grouped_hashes == %{}
+    assert status == :complete
+
+    assert KeyValueRepo.get(KeyValueEntry, entry.id) == nil
+  end
+
+  test "delete_expired does not return or delete fresh entries" do
+    now = DateTime.utc_now()
+    recent_time = DateTime.add(now, -10, :day)
+
+    entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "fresh-entry",
+        json_payload: ~s({"hash": "def"}),
+        last_accessed_at: recent_time
+      })
+
+    {grouped_hashes, count, status} = KeyValueEntries.delete_expired(30)
+
+    assert count == 0
+    assert grouped_hashes == %{}
+    assert status == :complete
+
+    assert KeyValueRepo.get(KeyValueEntry, entry.id)
+  end
+
+  test "delete_expired deletes entries with nil last_accessed_at" do
+    entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "nil-accessed-entry",
+        json_payload: ~s({"hash": "ghi"}),
+        last_accessed_at: nil
+      })
+
+    {grouped_hashes, count, status} = KeyValueEntries.delete_expired(30)
+
+    assert count == 1
+    assert grouped_hashes == %{}
+    assert status == :complete
+
+    assert KeyValueRepo.get(KeyValueEntry, entry.id) == nil
+  end
+
+  test "delete_expired returns empty list when no entries are expired" do
+    now = DateTime.utc_now()
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "recent-entry",
+      json_payload: ~s({"hash": "jkl"}),
+      last_accessed_at: now
+    })
+
+    {grouped_hashes, count, status} = KeyValueEntries.delete_expired(30)
+
+    assert count == 0
+    assert grouped_hashes == %{}
+    assert status == :complete
+  end
+
+  test "delete_expired respects max_age_days parameter" do
+    now = DateTime.utc_now()
+    eight_days_ago = DateTime.add(now, -8, :day)
+    five_days_ago = DateTime.add(now, -5, :day)
+
+    old_entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "older-than-7-days",
+        json_payload: ~s({"hash": "mno"}),
+        last_accessed_at: eight_days_ago
+      })
+
+    fresh_entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "within-7-days",
+        json_payload: ~s({"hash": "pqr"}),
+        last_accessed_at: five_days_ago
+      })
+
+    {grouped_hashes, count, status} = KeyValueEntries.delete_expired(7)
+
+    assert count == 1
+    assert grouped_hashes == %{}
+    assert status == :complete
+
+    assert KeyValueRepo.get(KeyValueEntry, old_entry.id) == nil
+    assert KeyValueRepo.get(KeyValueEntry, fresh_entry.id)
+  end
+
+  test "delete_expired processes all expired entries across batches" do
+    now = DateTime.utc_now()
+    old_time = DateTime.add(now, -31, :day)
+
+    for i <- 1..10_050 do
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "entry-#{i}",
+        json_payload: ~s({"hash": "#{i}"}),
+        last_accessed_at: old_time
+      })
+    end
+
+    {grouped_hashes, count, status} = KeyValueEntries.delete_expired(30, batch_size: 500)
+
+    assert count == 10_050
+    assert grouped_hashes == %{}
+    assert status == :complete
+
+    remaining = KeyValueRepo.aggregate(KeyValueEntry, :count)
+    assert remaining == 0
+  end
+
+  test "delete_expired returns grouped hashes for keyvalue scoped entries" do
+    now = DateTime.utc_now()
+    old_time = DateTime.add(now, -31, :day)
+
+    entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT_HASH",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: old_time
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
+
+    {grouped_hashes, count, status} = KeyValueEntries.delete_expired(30)
+
+    assert count == 1
+    assert grouped_hashes == %{{"acme", "ios"} => ["ABCD1234"]}
+    assert status == :complete
+  end
+
+  test "delete_expired groups and deduplicates hashes across batches" do
+    now = DateTime.utc_now()
+    old_time = DateTime.add(now, -31, :day)
+
+    first_entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"A"},{"value":"B"}]}),
+        last_accessed_at: old_time
+      })
+
+    second_entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT2",
+        json_payload: ~s({"entries":[{"value":"B"},{"value":"C"}]}),
+        last_accessed_at: old_time
+      })
+
+    third_entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:android:ROOT3",
+        json_payload: ~s({"entries":[{"value":"D"}]}),
+        last_accessed_at: old_time
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([first_entry, second_entry, third_entry])
+
+    {grouped_hashes, count, status} = KeyValueEntries.delete_expired(30, batch_size: 1)
+
+    assert count == 3
+    assert status == :complete
+    assert grouped_hashes == %{{"acme", "android"} => ["D"], {"acme", "ios"} => ["A", "B", "C"]}
+  end
+
+  test "delete_expired returns time_limit_reached when no time remains" do
+    {_grouped_hashes, count, status} =
+      KeyValueEntries.delete_expired(30, batch_size: 100, max_duration_ms: 0)
+
+    assert status == :time_limit_reached
+    assert count == 0
+  end
+
+  test "delete_expired returns 3 element tuple" do
+    result = KeyValueEntries.delete_expired(30)
+
+    assert tuple_size(result) == 3
+    assert match?({%{}, 0, :complete}, result)
+  end
+
+  test "delete_one_expired_batch deletes one batch and returns hashes" do
+    now = DateTime.utc_now()
+    old_time = DateTime.add(now, -31, :day)
+
+    entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:OLD_BATCH",
+        json_payload: ~s({"entries":[{"value":"BATCH_HASH"}]}),
+        last_accessed_at: old_time
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
+
+    {grouped_hashes, count, status} = KeyValueEntries.delete_one_expired_batch(30, batch_size: 10)
+
+    assert count == 1
+    assert grouped_hashes == %{{"acme", "ios"} => ["BATCH_HASH"]}
     assert status == :complete
     assert KeyValueRepo.get(KeyValueEntry, entry.id) == nil
   end
 
-  test "distributed eviction skips pending replication rows" do
-    stub(Config, :key_value_mode, fn -> :distributed end)
-    stub(Config, :distributed_kv_enabled?, fn -> true end)
+  test "delete_one_expired_batch returns empty when nothing to delete" do
+    now = DateTime.utc_now()
 
-    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "fresh-entry",
+      json_payload: ~s({"hash": "abc"}),
+      last_accessed_at: now
+    })
 
-    pending_entry =
+    {grouped_hashes, count, status} = KeyValueEntries.delete_one_expired_batch(30, batch_size: 10)
+
+    assert count == 0
+    assert grouped_hashes == %{}
+    assert status == :complete
+  end
+
+  test "delete_one_expired_batch evicts null last_accessed_at entries first" do
+    now = DateTime.utc_now()
+    old_time = DateTime.add(now, -31, :day)
+
+    null_entry =
       KeyValueRepo.insert!(%KeyValueEntry{
-        key: "pending-entry",
-        json_payload: ~s({"hash": "pending"}),
-        last_accessed_at: old_time,
-        source_updated_at: old_time,
-        replication_enqueued_at: DateTime.utc_now()
+        key: "keyvalue:acme:ios:NULL_ENTRY",
+        json_payload: ~s({"entries":[{"value":"NULL_HASH"}]}),
+        last_accessed_at: nil
       })
 
-    expired_entry =
+    old_entry =
       KeyValueRepo.insert!(%KeyValueEntry{
-        key: "expired-entry",
-        json_payload: ~s({"hash": "expired"}),
-        last_accessed_at: old_time,
-        source_updated_at: old_time
+        key: "keyvalue:acme:ios:OLD_ENTRY",
+        json_payload: ~s({"entries":[{"value":"OLD_HASH"}]}),
+        last_accessed_at: old_time
       })
 
-    {_grouped_hashes, count, status} = KeyValueEntries.delete_expired(30)
+    :ok = KeyValueEntries.replace_entry_hashes([null_entry, old_entry])
 
+    {grouped_hashes, count, status} = KeyValueEntries.delete_one_expired_batch(30, batch_size: 1)
+
+    assert count == 1
+    assert grouped_hashes == %{{"acme", "ios"} => ["NULL_HASH"]}
+    assert status == :complete
+    assert KeyValueRepo.get(KeyValueEntry, null_entry.id) == nil
+    assert KeyValueRepo.get(KeyValueEntry, old_entry.id)
+  end
+
+  test "unreferenced_hashes excludes hashes still present in other KV entries" do
+    entry_1 =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: DateTime.utc_now()
+      })
+
+    entry_2 =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT2",
+        json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
+        last_accessed_at: DateTime.utc_now()
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry_1, entry_2])
+
+    result = KeyValueEntries.unreferenced_hashes(["ABCD1234", "EFGH5678", "MISSING"], "acme", "ios")
+
+    assert result == ["MISSING"]
+  end
+
+  test "unreferenced_hashes returns all hashes when no entries reference them" do
+    entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: DateTime.utc_now()
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
+
+    assert KeyValueEntries.unreferenced_hashes(["MISSING"], "acme", "ios") == ["MISSING"]
+  end
+
+  test "unreferenced_hashes scopes to account and project" do
+    entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: DateTime.utc_now()
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
+
+    assert KeyValueEntries.unreferenced_hashes(["ABCD1234"], "other_account", "ios") == ["ABCD1234"]
+    assert KeyValueEntries.unreferenced_hashes(["ABCD1234"], "acme", "android") == ["ABCD1234"]
+  end
+
+  test "unreferenced_hashes checks all entries in the payload, not just the first" do
+    entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"FIRST"},{"value":"SECOND"},{"value":"THIRD"}]}),
+        last_accessed_at: DateTime.utc_now()
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
+
+    assert KeyValueEntries.unreferenced_hashes(["SECOND"], "acme", "ios") == []
+    assert KeyValueEntries.unreferenced_hashes(["THIRD"], "acme", "ios") == []
+    assert KeyValueEntries.unreferenced_hashes(["FIRST", "THIRD", "MISSING"], "acme", "ios") == ["MISSING"]
+  end
+
+  test "unreferenced_hashes returns empty list for empty input" do
+    assert KeyValueEntries.unreferenced_hashes([], "acme", "ios") == []
+  end
+
+  test "delete_expired handles mixed old and fresh entries correctly" do
+    now = DateTime.utc_now()
+    old_time = DateTime.add(now, -31, :day)
+    recent_time = DateTime.add(now, -10, :day)
+
+    old_entry_1 =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "old-1",
+        json_payload: ~s({"hash": "old1"}),
+        last_accessed_at: old_time
+      })
+
+    fresh_entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "fresh",
+        json_payload: ~s({"hash": "fresh"}),
+        last_accessed_at: recent_time
+      })
+
+    old_entry_2 =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "old-2",
+        json_payload: ~s({"hash": "old2"}),
+        last_accessed_at: old_time
+      })
+
+    {grouped_hashes, count, status} = KeyValueEntries.delete_expired(30)
+
+    assert count == 2
+    assert grouped_hashes == %{}
+    assert status == :complete
+
+    assert KeyValueRepo.get(KeyValueEntry, old_entry_1.id) == nil
+    assert KeyValueRepo.get(KeyValueEntry, fresh_entry.id)
+    assert KeyValueRepo.get(KeyValueEntry, old_entry_2.id) == nil
+  end
+
+  test "delete_expired removes hash references for deleted entries" do
+    now = DateTime.utc_now()
+    old_time = DateTime.add(now, -31, :day)
+
+    old_entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:OLD",
+        json_payload: ~s({"entries":[{"value":"OLD_HASH"}]}),
+        last_accessed_at: old_time
+      })
+
+    fresh_entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:FRESH",
+        json_payload: ~s({"entries":[{"value":"FRESH_HASH"}]}),
+        last_accessed_at: now
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([old_entry, fresh_entry])
+
+    {_expired_entries, count, status} = KeyValueEntries.delete_expired(30)
     assert count == 1
     assert status == :complete
-    assert KeyValueRepo.get(KeyValueEntry, expired_entry.id) == nil
-    assert KeyValueRepo.get(KeyValueEntry, pending_entry.id)
-  end
 
-  test "materialize_remote_entry inserts new rows and updates watermark" do
-    source_updated_at = DateTime.utc_now()
+    old_refs = KeyValueRepo.all(from(h in KeyValueEntryHash, where: h.key_value_entry_id == ^old_entry.id))
+    fresh_refs = KeyValueRepo.all(from(h in KeyValueEntryHash, where: h.key_value_entry_id == ^fresh_entry.id))
 
-    assert :inserted =
-             KeyValueEntries.materialize_remote_entry(%{
-               key: "keyvalue:acme:ios:cas",
-               json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
-               last_accessed_at: source_updated_at,
-               source_updated_at: source_updated_at,
-               source_node: "node-a"
-             })
-
-    record = KeyValueRepo.get_by!(KeyValueEntry, key: "keyvalue:acme:ios:cas")
-    assert record.source_updated_at == source_updated_at
-
-    assert :ok = KeyValueEntries.put_distributed_watermark(source_updated_at, record.key)
-    watermark = KeyValueEntries.distributed_watermark()
-    assert watermark.updated_at_value == source_updated_at
-    assert watermark.key_value == record.key
-  end
-
-  test "materialize_remote_entry preserves newer local pending payloads" do
-    local_source_updated_at = DateTime.utc_now()
-    remote_source_updated_at = DateTime.add(local_source_updated_at, -60, :second)
-
-    KeyValueRepo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:cas",
-      json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
-      last_accessed_at: local_source_updated_at,
-      source_updated_at: local_source_updated_at,
-      replication_enqueued_at: local_source_updated_at
-    })
-
-    assert :access_updated =
-             KeyValueEntries.materialize_remote_entry(%{
-               key: "keyvalue:acme:ios:cas",
-               json_payload: Jason.encode!(%{entries: [%{"value" => "remote"}]}),
-               last_accessed_at: DateTime.utc_now(),
-               source_updated_at: remote_source_updated_at,
-               source_node: "node-b"
-             })
-
-    record = KeyValueRepo.get_by!(KeyValueEntry, key: "keyvalue:acme:ios:cas")
-    assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "local"}]
-    assert record.replication_enqueued_at == local_source_updated_at
-  end
-
-  test "delete_project_entries_before does not match handles containing SQL wildcards" do
-    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
-
-    KeyValueRepo.insert!(%KeyValueEntry{
-      key: "keyvalue:a_b:ios:target",
-      json_payload: "{}",
-      last_accessed_at: old_time,
-      source_updated_at: old_time
-    })
-
-    KeyValueRepo.insert!(%KeyValueEntry{
-      key: "keyvalue:axb:ios:bystander",
-      json_payload: "{}",
-      last_accessed_at: old_time,
-      source_updated_at: old_time
-    })
-
-    KeyValueRepo.insert!(%KeyValueEntry{
-      key: "keyvalue:a%b:mac:target",
-      json_payload: "{}",
-      last_accessed_at: old_time,
-      source_updated_at: old_time
-    })
-
-    {keys, count} = KeyValueEntries.delete_project_entries_before("a_b", "ios", old_time)
-
-    assert count == 1
-    assert keys == ["keyvalue:a_b:ios:target"]
-
-    remaining_keys = KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key))
-    assert Enum.sort(remaining_keys) == ["keyvalue:a%b:mac:target", "keyvalue:axb:ios:bystander"]
-  end
-
-  test "delete_project_entries_before only returns keys that were actually deleted" do
-    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
-    new_time = DateTime.utc_now()
-
-    KeyValueRepo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:old",
-      json_payload: "{}",
-      last_accessed_at: old_time,
-      source_updated_at: old_time
-    })
-
-    KeyValueRepo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:new",
-      json_payload: "{}",
-      last_accessed_at: new_time,
-      source_updated_at: new_time
-    })
-
-    KeyValueRepo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:pending",
-      json_payload: "{}",
-      last_accessed_at: old_time,
-      source_updated_at: old_time,
-      replication_enqueued_at: old_time
-    })
-
-    {keys, count} = KeyValueEntries.delete_project_entries_before("acme", "ios", old_time)
-
-    assert count == 1
-    assert keys == ["keyvalue:acme:ios:old"]
-
-    remaining_keys = KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key))
-    assert Enum.sort(remaining_keys) == ["keyvalue:acme:ios:new", "keyvalue:acme:ios:pending"]
-  end
-
-  test "delete_project_entries_before respects exact lexicographic key bounds" do
-    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
-
-    KeyValueRepo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:target",
-      json_payload: "{}",
-      last_accessed_at: old_time,
-      source_updated_at: old_time
-    })
-
-    KeyValueRepo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios",
-      json_payload: "{}",
-      last_accessed_at: old_time,
-      source_updated_at: old_time
-    })
-
-    KeyValueRepo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios;",
-      json_payload: "{}",
-      last_accessed_at: old_time,
-      source_updated_at: old_time
-    })
-
-    {keys, count} = KeyValueEntries.delete_project_entries_before("acme", "ios", old_time)
-
-    assert count == 1
-    assert keys == ["keyvalue:acme:ios:target"]
-
-    remaining_keys = KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key))
-    assert Enum.sort(remaining_keys) == ["keyvalue:acme:ios", "keyvalue:acme:ios;"]
-  end
-
-  test "delete_project_entries_before handles large candidate sets" do
-    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
-    timestamp = DateTime.truncate(old_time, :second)
-
-    rows =
-      for i <- 1..1000 do
-        %{
-          key: "keyvalue:acme:ios:artifact-#{i}",
-          json_payload: "{}",
-          last_accessed_at: old_time,
-          source_updated_at: old_time,
-          inserted_at: timestamp,
-          updated_at: timestamp
-        }
-      end
-
-    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
-
-    {keys, count} = KeyValueEntries.delete_project_entries_before("acme", "ios", old_time)
-
-    assert count == 1000
-    assert length(keys) == 1000
-    assert KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key)) == []
+    assert old_refs == []
+    assert length(fresh_refs) == 1
+    assert hd(fresh_refs).cas_hash == "FRESH_HASH"
   end
 end

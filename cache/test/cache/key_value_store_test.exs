@@ -6,8 +6,6 @@ defmodule Cache.KeyValueStoreTest do
   import Ecto.Query
   import ExUnit.CaptureLog
 
-  alias Cache.Config
-  alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
@@ -19,16 +17,9 @@ defmodule Cache.KeyValueStoreTest do
 
   setup context do
     :ok = Sandbox.checkout(KeyValueRepo)
-    stub(Config, :key_value_mode, fn -> :local end)
-    stub(Config, :distributed_kv_enabled?, fn -> false end)
 
     context = Cache.BufferTestHelpers.setup_key_value_buffer(context)
     suffix = context.unique_suffix
-
-    stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
-    stub(KeyValueAccessTracker, :shared_lineage?, fn _key -> false end)
-    stub(KeyValueAccessTracker, :allow_access_bump?, fn _key -> false end)
-    stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
 
     cache_name = :"kv_cache_test_#{suffix}"
     start_supervised!({Cachex, name: cache_name})
@@ -738,7 +729,15 @@ defmodule Cache.KeyValueStoreTest do
       KeyValueEvictionWorker.perform(%Oban.Job{})
 
       assert KeyValueRepo.get_by(KeyValueEntry, key: key) == nil
-      assert all_enqueued() == []
+
+      assert_enqueued(
+        worker: Cache.XcodeCleanupWorker,
+        args: %{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          cas_hashes: values
+        }
+      )
     end
   end
 end

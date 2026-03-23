@@ -20,6 +20,7 @@ public struct CIController: CIControlling {
             return CIInfo(
                 provider: .github,
                 runId: env["GITHUB_RUN_ID"],
+                attemptNumber: env["GITHUB_RUN_ATTEMPT"] ?? "1",
                 projectHandle: env["GITHUB_REPOSITORY"]
             )
         }

@@ -1,7 +1,5 @@
 import Config
 
-alias Cache.DistributedKV.Repo
-
 if config_env() == :dev do
   cache_port = String.to_integer(System.get_env("TUIST_CACHE_PORT") || "8087")
   server_url = System.get_env("TUIST_CACHE_SERVER_URL") || "http://localhost:8080"
@@ -12,7 +10,6 @@ if config_env() == :dev do
 
   config :cache, server_url: server_url
 end
-
 if config_env() == :prod do
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
@@ -111,12 +108,6 @@ if config_env() == :prod do
 
   s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
 
-  key_value_mode =
-    case System.get_env("KEY_VALUE_MODE", "local") do
-      "distributed" -> :distributed
-      _ -> :local
-    end
-
   config :cache, Cache.Guardian,
     issuer: "tuist",
     secret_key: System.get_env("GUARDIAN_SECRET_KEY")
@@ -125,27 +116,6 @@ if config_env() == :prod do
     database: System.get_env("KEY_VALUE_DATABASE_PATH") || "/data/key_value.sqlite",
     pool_size: String.to_integer(System.get_env("KEY_VALUE_POOL_SIZE") || System.get_env("POOL_SIZE") || "2"),
     show_sensitive_data_on_connection_error: false
-
-  if key_value_mode == :distributed do
-    database_url = System.get_env("DISTRIBUTED_KV_DATABASE_URL")
-    node_name = System.get_env("DISTRIBUTED_KV_NODE_NAME") || System.get_env("HOSTNAME")
-
-    if is_nil(database_url) or database_url == "" do
-      raise "DISTRIBUTED_KV_DATABASE_URL is required when KEY_VALUE_MODE=distributed"
-    end
-
-    if is_nil(node_name) or node_name == "" do
-      raise "DISTRIBUTED_KV_NODE_NAME or HOSTNAME is required when KEY_VALUE_MODE=distributed"
-    end
-
-    config :cache, Repo,
-      url: database_url,
-      ssl: Cache.Config.distributed_kv_ssl_opts(database_url),
-      pool_size: String.to_integer(System.get_env("DISTRIBUTED_KV_POOL_SIZE") || "5"),
-      timeout: String.to_integer(System.get_env("DISTRIBUTED_KV_DATABASE_TIMEOUT_MS") || "10000")
-
-    config :cache, :ecto_repos, [Cache.Repo, Cache.KeyValueRepo, Repo]
-  end
 
   config :cache, Cache.Repo,
     database: "/data/repo.sqlite",
@@ -182,23 +152,10 @@ if config_env() == :prod do
     key_value_read_busy_timeout_ms: String.to_integer(System.get_env("KEY_VALUE_READ_BUSY_TIMEOUT_MS") || "2000"),
     key_value_maintenance_busy_timeout_ms:
       String.to_integer(System.get_env("KEY_VALUE_MAINTENANCE_BUSY_TIMEOUT_MS") || "50"),
-    key_value_mode: key_value_mode,
     key_value_eviction_max_duration_ms:
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MAX_DURATION_MS") || "300000"),
     key_value_eviction_hysteresis_release_bytes:
-      String.to_integer(System.get_env("KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES") || "#{23 * 1024 * 1024 * 1024}"),
-    distributed_kv_database_timeout_ms:
-      String.to_integer(System.get_env("DISTRIBUTED_KV_DATABASE_TIMEOUT_MS") || "10000"),
-    distributed_kv_sync_interval_ms: String.to_integer(System.get_env("DISTRIBUTED_KV_SYNC_INTERVAL_MS") || "30000"),
-    distributed_kv_poll_lag_ms: String.to_integer(System.get_env("DISTRIBUTED_KV_POLL_LAG_MS") || "30000"),
-    distributed_kv_ship_interval_ms: String.to_integer(System.get_env("DISTRIBUTED_KV_SHIP_INTERVAL_MS") || "200"),
-    distributed_kv_ship_batch_size: String.to_integer(System.get_env("DISTRIBUTED_KV_SHIP_BATCH_SIZE") || "1000"),
-    distributed_kv_access_throttle_ms:
-      String.to_integer(System.get_env("DISTRIBUTED_KV_ACCESS_THROTTLE_MS") || "30000"),
-    distributed_kv_tombstone_retention_days:
-      String.to_integer(System.get_env("DISTRIBUTED_KV_TOMBSTONE_RETENTION_DAYS") || "7"),
-    distributed_kv_cleanup_lease_ms: String.to_integer(System.get_env("DISTRIBUTED_KV_CLEANUP_LEASE_MS") || "300000"),
-    distributed_kv_node_name: System.get_env("DISTRIBUTED_KV_NODE_NAME") || System.get_env("HOSTNAME")
+      String.to_integer(System.get_env("KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES") || "#{23 * 1024 * 1024 * 1024}")
 
   # Note: connect_options cannot be used with Finch
   # Connection settings are handled at the Finch pool level

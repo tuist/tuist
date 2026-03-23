@@ -3,20 +3,7 @@ import Config
 alias Ecto.Adapters.SQL.Sandbox
 
 test_port = String.to_integer(System.get_env("TUIST_CACHE_TEST_PORT") || "4002")
-test_postgres_db = System.get_env("TUIST_CACHE_TEST_POSTGRES_DB") || "cache_test"
 test_storage_dir = System.get_env("TUIST_CACHE_TEST_STORAGE_DIR") || "/tmp/test_cas"
-
-config :cache, Cache.DistributedKV.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: test_postgres_db,
-  pool: Sandbox,
-  pool_size: System.schedulers_online() * 2 + 10,
-  timeout: 45_000,
-  queue_target: 45_000,
-  queue_interval: 45_000
-
 config :cache, Cache.Guardian,
   issuer: "tuist",
   secret_key: "test_guardian_secret_key_at_least_64_characters_long_for_test_purposes"
@@ -63,9 +50,7 @@ config :cache, :s3,
 config :cache,
   server_url: "http://localhost:8080",
   storage_dir: test_storage_dir,
-  api_key: "test-secret-key",
-  key_value_mode: :local,
-  distributed_kv_node_name: "test-node"
+  api_key: "test-secret-key"
 
 config :logger, level: :warning
 
