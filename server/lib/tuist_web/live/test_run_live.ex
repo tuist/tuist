@@ -50,27 +50,16 @@ defmodule TuistWeb.TestRunLive do
       end
 
     test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
-    failure_counts = Tests.get_test_run_failure_counts(run.id)
-    non_quarantined_failures_count = failure_counts.total - failure_counts.quarantined
-
-    display_run =
-      if run.status == "failure" and non_quarantined_failures_count == 0 and failure_counts.quarantined > 0 do
-        Map.put(run, :status, "success")
-      else
-        run
-      end
-
-    display_metrics =
-      Map.put(test_metrics, :failed_count, non_quarantined_failures_count)
+    failures_count = Tests.get_test_run_failures_count(run.id)
 
     socket =
       socket
       |> assign(:selected_project, project)
-      |> assign(:run, display_run)
+      |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
-      |> assign(:test_metrics, display_metrics)
-      |> assign(:failures_count, non_quarantined_failures_count)
+      |> assign(:test_metrics, test_metrics)
+      |> assign(:failures_count, failures_count)
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
       |> assign_initial_failures_state()
@@ -353,10 +342,7 @@ defmodule TuistWeb.TestRunLive do
   defp assign_tab_data(socket, "overview", params) do
     selected_test_tab = params["test-tab"] || "test-cases"
 
-    # Load failures data for the overview preview card, filtering out quarantined
     {failed_test_case_runs, failures_meta} = load_failures_data(socket.assigns.run, params)
-    failed_test_case_runs =
-      Enum.reject(failed_test_case_runs, fn tcr -> tcr.is_quarantined end)
 
     # Load flaky runs data
     flaky_runs_grouped = Tests.get_flaky_runs_for_test_run(socket.assigns.run.id)
@@ -393,9 +379,6 @@ defmodule TuistWeb.TestRunLive do
 
   defp assign_tab_data(socket, "failures", params) do
     {failed_test_case_runs, meta} = load_failures_data(socket.assigns.run, params)
-    failed_test_case_runs =
-      Enum.reject(failed_test_case_runs, fn tcr -> tcr.is_quarantined end)
-
     assign_failures_data(socket, failed_test_case_runs, meta, params)
   end
 
