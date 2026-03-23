@@ -115,7 +115,7 @@ mise run dev
 ## Important Notes
 - Run `mix ecto.migrate` after pulling migrations.
 - Use `mise run install` after dependency changes.
-- Local development uses a clone-local persisted suffix in `.tuist-dev-instance` via mise shell env to scope service ports, MinIO ports, and dev database names.
+- Local development connects to `http://localhost:8080` for Tuist CLI integration.
 
 ## Data Export Documentation
 Update `server/data-export.md` whenever you change stored customer data (schema, storage, retention, or new data collection). This is required for legal compliance.
