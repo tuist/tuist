@@ -59,7 +59,8 @@ struct XcodeBuildTestCommandService {
     }
 
     func run(
-        passthroughXcodebuildArguments: [String]
+        passthroughXcodebuildArguments: [String],
+        skipQuarantine: Bool = false
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
@@ -78,7 +79,7 @@ struct XcodeBuildTestCommandService {
         let config = try await configLoader.loadConfig(path: path)
         let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
 
-        let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: false)
+        let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: skipQuarantine)
 
         do {
             try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
