@@ -642,24 +642,24 @@ defmodule Tuist.Tests do
           )
 
         acc = %{
-          test_case_runs: Enum.reverse(test_case_runs, acc.test_case_runs),
-          test_case_rows: Enum.reverse(test_case_rows, acc.test_case_rows),
-          failures: Enum.reverse(failures, acc.failures),
-          repetitions: Enum.reverse(repetitions, acc.repetitions)
+          test_case_runs: acc.test_case_runs ++ test_case_runs,
+          test_case_rows: acc.test_case_rows ++ test_case_rows,
+          failures: acc.failures ++ failures,
+          repetitions: acc.repetitions ++ repetitions
         }
 
         {flaky_ids, acc}
       end)
 
-    TestCase.Buffer.insert_all(Enum.reverse(acc.test_case_rows))
-    TestCaseRun.Buffer.insert_all(Enum.reverse(acc.test_case_runs))
-    TestCaseFailure.Buffer.insert_all(Enum.reverse(acc.failures))
+    TestCase.Buffer.insert_all(acc.test_case_rows)
+    TestCaseRun.Buffer.insert_all(acc.test_case_runs)
+    TestCaseFailure.Buffer.insert_all(acc.failures)
 
     if Enum.any?(acc.repetitions) do
-      TestCaseRunRepetition.Buffer.insert_all(Enum.reverse(acc.repetitions))
+      TestCaseRunRepetition.Buffer.insert_all(acc.repetitions)
     end
 
-    {flaky_ids, Enum.reverse(acc.test_case_runs)}
+    {flaky_ids, acc.test_case_runs}
   end
 
   defp get_test_case_run_data(test, test_modules) do
