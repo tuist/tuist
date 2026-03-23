@@ -1,15 +1,19 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.162.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.163.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* add test sharding support by [@fortmarek](https://github.com/fortmarek) in [#9796](https://github.com/tuist/tuist/pull/9796)
 ### 🐛 Bug Fixes
 
+* always copy macro executable on incremental builds by [@ffittschen](https://github.com/ffittschen) in [#9962](https://github.com/tuist/tuist/pull/9962)
 * fix static framework resource bundle crash when using xcstrings by [@pepicrft](https://github.com/pepicrft) in [#9953](https://github.com/tuist/tuist/pull/9953)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.162.0...4.162.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.162.0...4.163.0
 
 ## What's Changed in 4.162.0<!-- RELEASE NOTES START -->
 
