@@ -298,7 +298,7 @@ abstract class TuistTestInsightsService :
     @Volatile private var hasTests = false
 
     @Volatile
-    internal var quarantineMap: Map<String, List<String>> = emptyMap()
+    internal var quarantineMap: Map<String, List<QuarantinedTestIdentifier>> = emptyMap()
 
     internal fun hasNonQuarantinedFailures(moduleName: String): Boolean {
         return collector.hasNonQuarantinedFailures(moduleName)
@@ -325,15 +325,8 @@ abstract class TuistTestInsightsService :
             result.successfulTestCount > 0 -> TestResult.ResultType.SUCCESS
             else -> result.resultType
         }
-        val modulePatterns = quarantineMap[moduleName] ?: emptyList()
-        val testId = if (descriptor.className != null) {
-            "${descriptor.className}.${descriptor.name}"
-        } else {
-            "*.${descriptor.name}"
-        }
-        val isQuarantined = modulePatterns.any { pattern ->
-            pattern == testId || (pattern.startsWith("*.") && testId.endsWith(pattern.removePrefix("*")))
-        }
+        val quarantinedIds = quarantineMap[moduleName] ?: emptyList()
+        val isQuarantined = quarantinedIds.any { it.matches(descriptor.className, descriptor.name) }
         collector.collectTestResult(
             moduleName, descriptor.name, descriptor.className,
             actualResultType, result.startTime, result.endTime, result.exception, isQuarantined

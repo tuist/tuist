@@ -28,16 +28,26 @@ data class QuarantinedSuite(
     val name: String
 )
 
+data class QuarantinedTestIdentifier(
+    val suiteName: String?,
+    val testName: String
+) {
+    fun matches(className: String?, name: String): Boolean {
+        if (suiteName != null && suiteName != className) return false
+        return testName == name
+    }
+}
+
 class TuistTestQuarantineService(
     private val httpClient: TuistHttpClient,
     private val baseUrl: String
 ) {
     private val logger = Logging.getLogger(TuistTestQuarantineService::class.java)
 
-    private var cachedExclusions: Map<String, List<String>>? = null
+    private var cachedExclusions: Map<String, List<QuarantinedTestIdentifier>>? = null
 
     @Synchronized
-    fun getQuarantinedTests(): Map<String, List<String>> {
+    fun getQuarantinedTests(): Map<String, List<QuarantinedTestIdentifier>> {
         cachedExclusions?.let { return it }
 
         val result = try {
@@ -87,16 +97,14 @@ class TuistTestQuarantineService(
         }
     }
 
-    private fun buildQuarantineMap(testCases: List<QuarantinedTestCase>): Map<String, List<String>> {
+    private fun buildQuarantineMap(testCases: List<QuarantinedTestCase>): Map<String, List<QuarantinedTestIdentifier>> {
         return testCases.groupBy(
             keySelector = { it.module.name },
             valueTransform = { testCase ->
-                val suiteName = testCase.suite?.name?.takeIf { it.isNotBlank() }
-                if (suiteName != null) {
-                    "$suiteName.${testCase.name}"
-                } else {
-                    "*.${testCase.name}"
-                }
+                QuarantinedTestIdentifier(
+                    suiteName = testCase.suite?.name?.takeIf { it.isNotBlank() },
+                    testName = testCase.name
+                )
             }
         )
     }

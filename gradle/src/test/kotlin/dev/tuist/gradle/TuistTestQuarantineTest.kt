@@ -74,17 +74,20 @@ class TuistTestQuarantineTest {
 
         assertEquals(2, exclusions.size)
         assertEquals(
-            listOf("com.example.LoginTest.testLogin", "com.example.LogoutTest.testLogout"),
+            listOf(
+                QuarantinedTestIdentifier("com.example.LoginTest", "testLogin"),
+                QuarantinedTestIdentifier("com.example.LogoutTest", "testLogout")
+            ),
             exclusions[":app"]
         )
         assertEquals(
-            listOf("com.example.ParserTest.testParse"),
+            listOf(QuarantinedTestIdentifier("com.example.ParserTest", "testParse")),
             exclusions[":lib"]
         )
     }
 
     @Test
-    fun `getQuarantinedTests uses wildcard for null suite`() {
+    fun `getQuarantinedTests uses null suite for null suite`() {
         val service = createService()
 
         val responseBody = Gson().toJson(
@@ -102,11 +105,11 @@ class TuistTestQuarantineTest {
 
         val exclusions = service.getQuarantinedTests()
 
-        assertEquals(listOf("*.testDynamic"), exclusions[":app"])
+        assertEquals(listOf(QuarantinedTestIdentifier(null, "testDynamic")), exclusions[":app"])
     }
 
     @Test
-    fun `getQuarantinedTests uses wildcard for blank suite name`() {
+    fun `getQuarantinedTests uses null suite for blank suite name`() {
         val service = createService()
 
         val responseBody = Gson().toJson(
@@ -124,7 +127,7 @@ class TuistTestQuarantineTest {
 
         val exclusions = service.getQuarantinedTests()
 
-        assertEquals(listOf("*.testBlank"), exclusions[":app"])
+        assertEquals(listOf(QuarantinedTestIdentifier(null, "testBlank")), exclusions[":app"])
     }
 
     @Test
@@ -147,7 +150,7 @@ class TuistTestQuarantineTest {
         val exclusions = service.getQuarantinedTests()
 
         assertEquals(1, exclusions.size)
-        assertEquals(listOf("com.example.FlakyTest.testFlaky"), exclusions[":app"])
+        assertEquals(listOf(QuarantinedTestIdentifier("com.example.FlakyTest", "testFlaky")), exclusions[":app"])
 
         val request = mockWebServer.takeRequest()
         assertEquals("GET", request.method)
@@ -224,6 +227,22 @@ class TuistTestQuarantineTest {
         val exclusions = service.getQuarantinedTests()
 
         assertTrue(exclusions.isEmpty())
+    }
+
+    @Test
+    fun `QuarantinedTestIdentifier matches by suite and name`() {
+        val id = QuarantinedTestIdentifier("com.example.FooTest", "testLogin")
+        assertTrue(id.matches("com.example.FooTest", "testLogin"))
+        assertFalse(id.matches("com.example.BarTest", "testLogin"))
+        assertFalse(id.matches("com.example.FooTest", "testLogout"))
+    }
+
+    @Test
+    fun `QuarantinedTestIdentifier with null suite matches any class`() {
+        val id = QuarantinedTestIdentifier(null, "testLogin")
+        assertTrue(id.matches("com.example.FooTest", "testLogin"))
+        assertTrue(id.matches("com.example.BarTest", "testLogin"))
+        assertFalse(id.matches("com.example.FooTest", "testLogout"))
     }
 
     @Test
