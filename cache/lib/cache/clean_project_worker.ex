@@ -94,7 +94,7 @@ defmodule Cache.CleanProjectWorker do
   end
 
   defp delete_disk_with_cutoff(account_handle, project_handle, cutoff, on_progress) do
-    case Disk.delete_project_before(account_handle, project_handle, cutoff, on_progress: on_progress) do
+    case Disk.delete_project_files_before(account_handle, project_handle, cutoff, on_progress: on_progress) do
       {:ok, count} ->
         Logger.info("Cleaned #{count} disk artifacts for project #{account_handle}/#{project_handle} with cutoff")
         :ok

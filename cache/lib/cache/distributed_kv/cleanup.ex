@@ -5,37 +5,37 @@ defmodule Cache.DistributedKV.Cleanup do
 
   alias Cache.Config
   alias Cache.DistributedKV.Entry
-  alias Cache.DistributedKV.ProjectCleanup
+  alias Cache.DistributedKV.Project
   alias Cache.DistributedKV.Repo
 
   def begin_project_cleanup(account_handle, project_handle) do
     now = DateTime.utc_now()
-    lease_expires_at = DateTime.add(now, Config.distributed_kv_cleanup_lease_ms(), :millisecond)
+    cleanup_lease_expires_at = DateTime.add(now, Config.distributed_kv_cleanup_lease_ms(), :millisecond)
 
     on_conflict =
-      from(pc in ProjectCleanup,
+      from(project in Project,
         update: [
           set: [
-            cleanup_started_at:
+            last_cleanup_at:
               fragment(
-                "CASE WHEN ? > ? THEN ? ELSE EXCLUDED.cleanup_started_at END",
-                pc.lease_expires_at,
+                "CASE WHEN ? > ? THEN ? ELSE EXCLUDED.last_cleanup_at END",
+                project.cleanup_lease_expires_at,
                 ^now,
-                pc.cleanup_started_at
+                project.last_cleanup_at
               ),
-            lease_expires_at:
+            cleanup_lease_expires_at:
               fragment(
-                "CASE WHEN ? > ? THEN ? ELSE EXCLUDED.lease_expires_at END",
-                pc.lease_expires_at,
+                "CASE WHEN ? > ? THEN ? ELSE EXCLUDED.cleanup_lease_expires_at END",
+                project.cleanup_lease_expires_at,
                 ^now,
-                pc.lease_expires_at
+                project.cleanup_lease_expires_at
               ),
             updated_at:
               fragment(
                 "CASE WHEN ? > ? THEN ? ELSE EXCLUDED.updated_at END",
-                pc.lease_expires_at,
+                project.cleanup_lease_expires_at,
                 ^now,
-                pc.updated_at
+                project.updated_at
               )
           ]
         ]
@@ -43,11 +43,11 @@ defmodule Cache.DistributedKV.Cleanup do
 
     {:ok, result} =
       Repo.insert(
-        %ProjectCleanup{
+        %Project{
           account_handle: account_handle,
           project_handle: project_handle,
-          cleanup_started_at: now,
-          lease_expires_at: lease_expires_at,
+          last_cleanup_at: now,
+          cleanup_lease_expires_at: cleanup_lease_expires_at,
           updated_at: now
         },
         on_conflict: on_conflict,
@@ -55,21 +55,21 @@ defmodule Cache.DistributedKV.Cleanup do
         returning: true
       )
 
-    {:ok, result.cleanup_started_at}
+    {:ok, result.last_cleanup_at}
   end
 
   def renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
     now = DateTime.utc_now()
-    lease_expires_at = DateTime.add(now, Config.distributed_kv_cleanup_lease_ms(), :millisecond)
+    cleanup_lease_expires_at = DateTime.add(now, Config.distributed_kv_cleanup_lease_ms(), :millisecond)
 
     {count, _} =
       Repo.update_all(
-        from(pc in ProjectCleanup,
+        from(project in Project,
           where:
-            pc.account_handle == ^account_handle and pc.project_handle == ^project_handle and
-              pc.cleanup_started_at == ^cleanup_started_at and pc.lease_expires_at > ^now
+            project.account_handle == ^account_handle and project.project_handle == ^project_handle and
+              project.last_cleanup_at == ^cleanup_started_at and project.cleanup_lease_expires_at > ^now
         ),
-        set: [lease_expires_at: lease_expires_at, updated_at: now]
+        set: [cleanup_lease_expires_at: cleanup_lease_expires_at, updated_at: now]
       )
 
     if count == 1 do
@@ -97,14 +97,14 @@ defmodule Cache.DistributedKV.Cleanup do
   end
 
   def latest_project_cleanup_cutoff(account_handle, project_handle) do
-    ProjectCleanup
-    |> where([cleanup], cleanup.account_handle == ^account_handle)
-    |> where([cleanup], cleanup.project_handle == ^project_handle)
-    |> select([cleanup], cleanup.cleanup_started_at)
+    Project
+    |> where([project], project.account_handle == ^account_handle)
+    |> where([project], project.project_handle == ^project_handle)
+    |> select([project], project.last_cleanup_at)
     |> Repo.one()
     |> case do
       nil -> nil
-      cleanup_started_at -> DateTime.truncate(cleanup_started_at, :second)
+      last_cleanup_at -> DateTime.truncate(last_cleanup_at, :second)
     end
   end
 
@@ -128,12 +128,12 @@ defmodule Cache.DistributedKV.Cleanup do
             )
           end)
 
-        ProjectCleanup
+        Project
         |> where(^scope_filter)
-        |> select([cleanup], {cleanup.account_handle, cleanup.project_handle, cleanup.cleanup_started_at})
+        |> select([project], {project.account_handle, project.project_handle, project.last_cleanup_at})
         |> Repo.all()
-        |> Map.new(fn {account_handle, project_handle, cleanup_started_at} ->
-          {{account_handle, project_handle}, DateTime.truncate(cleanup_started_at, :second)}
+        |> Map.new(fn {account_handle, project_handle, last_cleanup_at} ->
+          {{account_handle, project_handle}, DateTime.truncate(last_cleanup_at, :second)}
         end)
     end
   end

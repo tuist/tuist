@@ -149,35 +149,35 @@ defmodule Cache.Config do
   end
 
   def distributed_kv_database_timeout_ms do
-    Application.get_env(:cache, :distributed_kv_database_timeout_ms, 10_000)
+    Application.fetch_env!(:cache, :distributed_kv_database_timeout_ms)
   end
 
   def distributed_kv_sync_interval_ms do
-    Application.get_env(:cache, :distributed_kv_sync_interval_ms, 30_000)
+    Application.fetch_env!(:cache, :distributed_kv_sync_interval_ms)
   end
 
   def distributed_kv_poll_lag_ms do
-    Application.get_env(:cache, :distributed_kv_poll_lag_ms, 30_000)
+    Application.fetch_env!(:cache, :distributed_kv_poll_lag_ms)
   end
 
   def distributed_kv_ship_interval_ms do
-    Application.get_env(:cache, :distributed_kv_ship_interval_ms, 200)
+    Application.fetch_env!(:cache, :distributed_kv_ship_interval_ms)
   end
 
   def distributed_kv_ship_batch_size do
-    Application.get_env(:cache, :distributed_kv_ship_batch_size, 1_000)
+    Application.fetch_env!(:cache, :distributed_kv_ship_batch_size)
   end
 
   def distributed_kv_access_throttle_ms do
-    Application.get_env(:cache, :distributed_kv_access_throttle_ms, 30_000)
+    Application.fetch_env!(:cache, :distributed_kv_access_throttle_ms)
   end
 
   def distributed_kv_tombstone_retention_days do
-    Application.get_env(:cache, :distributed_kv_tombstone_retention_days, 7)
+    Application.fetch_env!(:cache, :distributed_kv_tombstone_retention_days)
   end
 
   def distributed_kv_cleanup_lease_ms do
-    Application.get_env(:cache, :distributed_kv_cleanup_lease_ms, 300_000)
+    Application.fetch_env!(:cache, :distributed_kv_cleanup_lease_ms)
   end
 
   def distributed_kv_node_name do

@@ -182,14 +182,9 @@ defmodule Cache.KeyValueEntries do
   end
 
   def delete_project_entries_before(account_handle, project_handle, cutoff) do
-    prefix = "keyvalue:#{account_handle}:#{project_handle}:"
+    {prefix, prefix_upper_bound} = project_key_bounds(account_handle, project_handle)
 
-    query =
-      from(entry in KeyValueEntry,
-        where: fragment("instr(?, ?) = 1", entry.key, ^prefix),
-        where: is_nil(entry.replication_enqueued_at),
-        where: is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff
-      )
+    query = prefix_project_entries_query(prefix, prefix_upper_bound, cutoff)
 
     {:ok, {deleted_keys, count}} =
       KeyValueRepo.transaction(fn ->
@@ -198,21 +193,9 @@ defmodule Cache.KeyValueEntries do
           |> select([entry], entry.key)
           |> KeyValueRepo.all()
 
-        {count, _} = KeyValueRepo.delete_all(query)
-
-        remaining_keys =
-          case candidate_keys do
-            [] ->
-              []
-
-            _ ->
-              KeyValueEntry
-              |> where([entry], entry.key in ^candidate_keys)
-              |> select([entry], entry.key)
-              |> KeyValueRepo.all()
-          end
-
-        deleted_keys = candidate_keys -- remaining_keys
+        count = delete_project_candidate_keys(candidate_keys, cutoff)
+        remaining_key_set = candidate_keys |> existing_project_keys() |> MapSet.new()
+        deleted_keys = Enum.reject(candidate_keys, &MapSet.member?(remaining_key_set, &1))
         {deleted_keys, count}
       end)
 
@@ -393,6 +376,68 @@ defmodule Cache.KeyValueEntries do
 
   defp time_limit_reached?(deadline_ms) do
     System.monotonic_time(:millisecond) >= deadline_ms
+  end
+
+  defp prefix_project_entries_query(prefix, prefix_upper_bound, cutoff) do
+    from(entry in KeyValueEntry,
+      where: entry.key >= ^prefix,
+      where: entry.key < ^prefix_upper_bound,
+      where: is_nil(entry.replication_enqueued_at),
+      where: is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff
+    )
+  end
+
+  defp delete_project_candidate_keys([], _cutoff), do: 0
+
+  defp delete_project_candidate_keys(candidate_keys, cutoff) do
+    candidate_keys
+    |> Enum.chunk_every(@id_chunk_size)
+    |> Enum.reduce(0, fn keys_chunk, count_acc ->
+      {chunk_count, _} =
+        KeyValueRepo.delete_all(
+          from(entry in KeyValueEntry,
+            where: entry.key in ^keys_chunk,
+            where: is_nil(entry.replication_enqueued_at),
+            where: is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff
+          )
+        )
+
+      count_acc + chunk_count
+    end)
+  end
+
+  defp existing_project_keys([]), do: []
+
+  defp existing_project_keys(candidate_keys) do
+    candidate_keys
+    |> Enum.chunk_every(@id_chunk_size)
+    |> Enum.flat_map(fn keys_chunk ->
+      KeyValueEntry
+      |> where([entry], entry.key in ^keys_chunk)
+      |> select([entry], entry.key)
+      |> KeyValueRepo.all()
+    end)
+  end
+
+  defp project_key_bounds(account_handle, project_handle) do
+    prefix = "keyvalue:#{account_handle}:#{project_handle}:"
+    {prefix, next_lexicographic_string(prefix)}
+  end
+
+  defp next_lexicographic_string(value) do
+    value
+    |> String.to_charlist()
+    |> Enum.reverse()
+    |> increment_reversed_codepoints()
+    |> Enum.reverse()
+    |> List.to_string()
+  end
+
+  defp increment_reversed_codepoints([codepoint | rest]) when codepoint < 0x10FFFF, do: [codepoint + 1 | rest]
+  defp increment_reversed_codepoints([_codepoint | rest]), do: increment_reversed_codepoints(rest)
+
+  defp increment_reversed_codepoints([]) do
+    raise ArgumentError, "value has no lexicographic successor"
   end
 
   defp apply_evictable_filter(query) do

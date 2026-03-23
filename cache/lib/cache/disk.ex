@@ -105,7 +105,7 @@ defmodule Cache.Disk do
   Deletes project artifacts only when their current mtime is strictly before the
   cutoff second.
   """
-  def delete_project_before(account_handle, project_handle, cutoff, opts \\ []) do
+  def delete_project_files_before(account_handle, project_handle, cutoff, opts \\ []) do
     path = project_path(account_handle, project_handle)
     on_progress = Keyword.get(opts, :on_progress)
 

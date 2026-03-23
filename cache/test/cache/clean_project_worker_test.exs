@@ -62,7 +62,7 @@ defmodule Cache.CleanProjectWorkerTest do
         {["keyvalue:test_account:test_project:cas"], 1}
       end)
 
-      expect(Disk, :delete_project_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
+      expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
         assert :ok = Keyword.fetch!(opts, :on_progress).()
         {:ok, 4}
       end)
@@ -107,7 +107,7 @@ defmodule Cache.CleanProjectWorkerTest do
         {[], 0}
       end)
 
-      expect(Disk, :delete_project_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
+      expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
         assert :ok = Keyword.fetch!(opts, :on_progress).()
         {:error, :cleanup_lease_lost}
       end)
@@ -139,7 +139,7 @@ defmodule Cache.CleanProjectWorkerTest do
         {[], 0}
       end)
 
-      expect(Disk, :delete_project_before, fn ^account_handle, ^project_handle, ^safe_cutoff, opts ->
+      expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^safe_cutoff, opts ->
         assert :ok = Keyword.fetch!(opts, :on_progress).()
         {:ok, 0}
       end)
@@ -177,7 +177,7 @@ defmodule Cache.CleanProjectWorkerTest do
         {[], 0}
       end)
 
-      expect(Disk, :delete_project_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
+      expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
         assert :ok = Keyword.fetch!(opts, :on_progress).()
         {:ok, 0}
       end)

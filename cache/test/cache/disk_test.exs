@@ -110,7 +110,7 @@ defmodule Cache.DiskIntegrationTest do
     end
   end
 
-  describe "delete_project_before/3" do
+  describe "delete_project_files_before/3" do
     test "skips files whose mtime matches the cutoff second" do
       account = unique_account()
       project = "cutoff_project"
@@ -124,7 +124,7 @@ defmodule Cache.DiskIntegrationTest do
       unix_seconds = DateTime.to_unix(cutoff, :second)
       assert :ok = File.touch(artifact_path, unix_seconds)
 
-      assert {:ok, 0} = Disk.delete_project_before(account, project, cutoff)
+      assert {:ok, 0} = Disk.delete_project_files_before(account, project, cutoff)
       assert File.exists?(artifact_path)
     end
 
@@ -141,7 +141,7 @@ defmodule Cache.DiskIntegrationTest do
       unix_seconds = DateTime.to_unix(DateTime.add(cutoff, -1, :second), :second)
       assert :ok = File.touch(artifact_path, unix_seconds)
 
-      assert {:ok, 1} = Disk.delete_project_before(account, project, cutoff)
+      assert {:ok, 1} = Disk.delete_project_files_before(account, project, cutoff)
       refute File.exists?(artifact_path)
     end
 
@@ -161,7 +161,7 @@ defmodule Cache.DiskIntegrationTest do
       assert :ok = File.chmod(artifact_dir, 0o555)
 
       try do
-        assert {:error, reason} = Disk.delete_project_before(account, project, cutoff)
+        assert {:error, reason} = Disk.delete_project_files_before(account, project, cutoff)
         assert reason in [:eacces, :eperm]
       after
         assert :ok = File.chmod(artifact_dir, 0o755)
