@@ -1795,7 +1795,6 @@ defmodule Tuist.Tests do
       from(test_case in TestCase,
         hints: ["FINAL"],
         where: test_case.is_flaky == true,
-        where: test_case.is_quarantined == false,
         where: test_case.id not in subquery(recent_flaky_subquery)
       )
 

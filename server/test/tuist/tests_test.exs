@@ -4867,7 +4867,7 @@ defmodule Tuist.TestsTest do
       assert fetched_test_case.is_flaky == false
     end
 
-    test "does not clear flaky flag for quarantined test cases" do
+    test "clears flaky flag for quarantined test cases with no recent flaky runs" do
       project = ProjectsFixtures.project_fixture()
       test_case_id = Ecto.UUID.generate()
 
@@ -4884,7 +4884,7 @@ defmodule Tuist.TestsTest do
       {:ok, _count} = Tests.clear_stale_flaky_flags()
 
       {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
-      assert fetched_test_case.is_flaky == true
+      assert fetched_test_case.is_flaky == false
       assert fetched_test_case.is_quarantined == true
     end
   end
