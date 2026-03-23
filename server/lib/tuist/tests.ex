@@ -29,6 +29,7 @@ defmodule Tuist.Tests do
   alias Tuist.Repo
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
+  alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
@@ -1781,10 +1782,10 @@ defmodule Tuist.Tests do
     fourteen_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
 
     recent_flaky_subquery =
-      from(test_case_run in TestCaseRun,
-        where: test_case_run.is_flaky == true and test_case_run.inserted_at >= ^fourteen_days_ago,
-        group_by: test_case_run.test_case_id,
-        select: test_case_run.test_case_id
+      from(flaky_run in FlakyTestCaseRun,
+        where: flaky_run.inserted_at >= ^fourteen_days_ago,
+        group_by: flaky_run.test_case_id,
+        select: flaky_run.test_case_id
       )
 
     query =
