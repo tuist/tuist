@@ -75,7 +75,7 @@ enum RunCommandServiceError: LocalizedError, Equatable {
                 return "No compatible app build found for destination: \(destination)"
             case let .unspecifiedPlatform(target, platforms):
                 return
-                    "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
+                    "The target \(target) supports multiple platforms (\(platforms.joined(separator: ", "))). Use --platform to specify which one to run on."
         #endif
         }
     }
@@ -250,6 +250,7 @@ struct RunCommandService {
             clean: Bool,
             configuration: String?,
             device: String?,
+            platform: XcodeGraph.Platform?,
             osVersion: String?,
             rosetta: Bool,
             arguments: [String]
@@ -279,6 +280,7 @@ struct RunCommandService {
                     clean: clean,
                     configuration: configuration,
                     device: device,
+                    platform: platform,
                     version: osVersion,
                     rosetta: rosetta,
                     arguments: arguments
@@ -621,6 +623,7 @@ struct RunCommandService {
             clean: Bool,
             configuration: String?,
             device: String?,
+            platform: XcodeGraph.Platform?,
             version: Version?,
             rosetta: Bool,
             arguments: [String]
@@ -665,12 +668,17 @@ struct RunCommandService {
 
             try targetRunner.assertCanRunTarget(graphTarget.target)
 
-            guard let buildPlatform = graphTarget.target.destinations.first?.platform,
-                  graphTarget.target.destinations.platforms.count == 1
-            else {
+            let buildPlatform: XcodeGraph.Platform
+            if let platform {
+                buildPlatform = platform
+            } else if let resolvedPlatform = graphTarget.target.destinations.first?.platform,
+                      graphTarget.target.destinations.platforms.count == 1
+            {
+                buildPlatform = resolvedPlatform
+            } else {
                 throw RunCommandServiceError.unspecifiedPlatform(
                     target: graphTarget.target.name,
-                    platforms: graphTarget.target.supportedPlatforms.map(\.rawValue)
+                    platforms: graphTarget.target.supportedPlatforms.map(\.rawValue).sorted()
                 )
             }
 

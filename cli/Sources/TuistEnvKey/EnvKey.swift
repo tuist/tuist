@@ -143,6 +143,7 @@ public enum EnvKey: String, CaseIterable {
     case runConfiguration = "TUIST_RUN_CONFIGURATION"
     case runDevice = "TUIST_RUN_DEVICE"
     case runOS = "TUIST_RUN_OS"
+    case runPlatform = "TUIST_RUN_PLATFORM"
     case runRosetta = "TUIST_RUN_ROSETTA"
     case runScheme = "TUIST_RUN_SCHEME"
 

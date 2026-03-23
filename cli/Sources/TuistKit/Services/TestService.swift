@@ -28,7 +28,6 @@ public enum TestServiceError: FatalError, Equatable {
     case duplicatedTestTargets(Set<TestIdentifier>)
     case nothingToSkip(skipped: [TestIdentifier], included: [TestIdentifier])
     case actionInvalid
-    case unspecifiedPlatform(target: String, platforms: [String])
 
     // Error description
 
@@ -67,9 +66,6 @@ public enum TestServiceError: FatalError, Equatable {
                 "Some of the targets specified in --skip-test-targets (\(skippedTargets.map(\.description).joined(separator: ", "))) will always be skipped as they are not included in the targets specified (\(includedTargets.map(\.description).joined(separator: ", ")))"
         case .actionInvalid:
             return "Cannot specify both --build-only and --without-building"
-        case let .unspecifiedPlatform(target, platforms):
-            return
-                "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
         }
     }
 
@@ -79,7 +75,7 @@ public enum TestServiceError: FatalError, Equatable {
         switch self {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound,
              .testIdentifierInvalid, .duplicatedTestTargets,
-             .nothingToSkip, .actionInvalid, .unspecifiedPlatform:
+             .nothingToSkip, .actionInvalid:
             return .abort
         }
     }
@@ -379,6 +375,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 platform: platform,
                 action: action,
                 rosetta: rosetta,
+                runResultBundlePath: runResultBundlePath,
                 resultBundlePath: resultBundlePath,
                 derivedDataPath: derivedDataPath,
                 retryCount: retryCount,
@@ -417,6 +414,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         platform: String?,
         action: XcodeBuildTestAction,
         rosetta: Bool,
+        runResultBundlePath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         retryCount: Int,
@@ -473,6 +471,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     platform: platform,
                     action: action,
                     rosetta: rosetta,
+                    runResultBundlePath: runResultBundlePath,
                     resultBundlePath: resultBundlePath,
                     derivedDataPath: derivedDataPath,
                     retryCount: retryCount,
@@ -781,6 +780,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         platform: String?,
         action: XcodeBuildTestAction,
         rosetta: Bool,
+        runResultBundlePath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         retryCount: Int,
@@ -817,35 +817,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        let buildPlatform: XcodeGraph.Platform
-
-        if let platform {
-            buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
-        } else if let resolvedPlatform = buildableTarget.target.destinations.first?.platform,
-                  buildableTarget.target.destinations.platforms.count == 1
-        {
-            buildPlatform = resolvedPlatform
+        let platformsToTest: [XcodeGraph.Platform] = if let platform {
+            [try XcodeGraph.Platform.from(commandLineValue: platform)]
         } else {
-            throw TestServiceError.unspecifiedPlatform(
-                target: buildableTarget.target.name,
-                platforms: buildableTarget.target.supportedPlatforms.map(\.rawValue)
-            )
-        }
-
-        let destination: XcodeBuildDestination?
-
-        if passthroughXcodeBuildArguments.contains("-destination") {
-            destination = nil
-        } else {
-            destination = try await XcodeBuildDestination.find(
-                for: buildableTarget.target,
-                on: buildPlatform,
-                scheme: scheme,
-                version: version,
-                deviceName: deviceName,
-                graphTraverser: graphTraverser,
-                simulatorController: simulatorController
-            )
+            buildableTarget.target.destinations.platforms.sorted { $0.rawValue < $1.rawValue }
         }
 
         let projectDerivedDataDirectory: AbsolutePath?
@@ -857,43 +832,124 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        do {
-            try await xcodebuildController.test(
-                .workspace(graphTraverser.workspace.xcWorkspacePath),
-                scheme: scheme.name,
-                clean: clean,
-                destination: destination,
-                action: action,
-                rosetta: rosetta,
-                derivedDataPath: derivedDataPath,
-                resultBundlePath: resultBundlePath,
-                arguments: buildGraphInspector.buildArguments(
-                    project: buildableTarget.project,
-                    target: buildableTarget.target,
-                    configuration: configuration,
-                    skipSigning: false
-                ),
-                retryCount: retryCount,
-                testTargets: testTargets,
-                skipTestTargets: skipTestTargets,
-                testPlanConfiguration: testPlanConfiguration,
-                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-            )
-        } catch {
+        var isFirstPlatform = true
+        for buildPlatform in platformsToTest {
+            let platformResultBundlePath: AbsolutePath? = if platformsToTest.count > 1,
+                let path = resultBundlePath
+            {
+                path.parentDirectory.appending(
+                    component: platformSuffixedBundleName(path, platform: buildPlatform)
+                )
+            } else {
+                resultBundlePath
+            }
+
+            let destination: XcodeBuildDestination?
+
+            if passthroughXcodeBuildArguments.contains("-destination") {
+                destination = nil
+            } else {
+                destination = try await XcodeBuildDestination.find(
+                    for: buildableTarget.target,
+                    on: buildPlatform,
+                    scheme: scheme,
+                    version: version,
+                    deviceName: deviceName,
+                    graphTraverser: graphTraverser,
+                    simulatorController: simulatorController
+                )
+            }
+
+            do {
+                try await xcodebuildController.test(
+                    .workspace(graphTraverser.workspace.xcWorkspacePath),
+                    scheme: scheme.name,
+                    clean: isFirstPlatform && clean,
+                    destination: destination,
+                    action: action,
+                    rosetta: rosetta,
+                    derivedDataPath: derivedDataPath,
+                    resultBundlePath: platformResultBundlePath,
+                    arguments: buildGraphInspector.buildArguments(
+                        project: buildableTarget.project,
+                        target: buildableTarget.target,
+                        configuration: configuration,
+                        skipSigning: false
+                    ),
+                    retryCount: retryCount,
+                    testTargets: testTargets,
+                    skipTestTargets: skipTestTargets,
+                    testPlanConfiguration: testPlanConfiguration,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                )
+            } catch {
+                await inspectResultBundleIfNeeded(
+                    resultBundlePath: platformResultBundlePath,
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    config: config,
+                    action: action
+                )
+                // Copy the first platform's bundle for analytics even on failure.
+                if isFirstPlatform, platformsToTest.count > 1,
+                   let path = platformResultBundlePath, let runResultBundlePath
+                {
+                    try await copyPlatformResultBundleIfNeeded(
+                        platformResultBundlePath: path,
+                        runResultBundlePath: runResultBundlePath
+                    )
+                }
+                throw error
+            }
+
             await inspectResultBundleIfNeeded(
-                resultBundlePath: resultBundlePath,
+                resultBundlePath: platformResultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 action: action
             )
-            throw error
+            // For multi-platform runs, copy the first platform's bundle to the canonical
+            // result-bundle.xcresult location so UploadAnalyticsService can find it.
+            // Each platform's bundle is individually uploaded to the Tuist test analytics
+            // server via inspectResultBundleIfNeeded above.
+            if isFirstPlatform, platformsToTest.count > 1,
+               let path = platformResultBundlePath, let runResultBundlePath
+            {
+                try await copyPlatformResultBundleIfNeeded(
+                    platformResultBundlePath: path,
+                    runResultBundlePath: runResultBundlePath
+                )
+            }
+            isFirstPlatform = false
         }
+    }
 
-        await inspectResultBundleIfNeeded(
-            resultBundlePath: resultBundlePath,
-            projectDerivedDataDirectory: projectDerivedDataDirectory,
-            config: config,
-            action: action
+    private func platformSuffixedBundleName(_ path: AbsolutePath, platform: XcodeGraph.Platform) -> String {
+        let ext = path.extension.map { "." + $0 } ?? ""
+        let stem = ext.isEmpty ? path.basename : String(path.basename.dropLast(ext.count))
+        return "\(stem)-\(platform.rawValue)\(ext)"
+    }
+
+    private func copyPlatformResultBundleIfNeeded(
+        platformResultBundlePath: AbsolutePath,
+        runResultBundlePath: AbsolutePath
+    ) async throws {
+        // xcodebuild appends .xcresult when the path has no extension
+        let actualBundlePath: AbsolutePath =
+            if platformResultBundlePath.extension == "xcresult" {
+                platformResultBundlePath
+            } else {
+                platformResultBundlePath.parentDirectory
+                    .appending(component: platformResultBundlePath.basename + ".xcresult")
+            }
+        guard try await fileSystem.exists(actualBundlePath) else { return }
+        let destination = runResultBundlePath.parentDirectory
+            .appending(component: "\(Constants.resultBundleName).xcresult")
+        if try await !fileSystem.exists(destination.parentDirectory) {
+            try await fileSystem.makeDirectory(at: destination.parentDirectory)
+        }
+        try await fileSystem.copy(
+            try await fileSystem.resolveSymbolicLink(actualBundlePath),
+            to: destination
         )
     }
 

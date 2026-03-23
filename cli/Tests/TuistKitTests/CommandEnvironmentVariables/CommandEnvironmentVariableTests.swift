@@ -400,6 +400,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.runGenerate, value: "true")
         setVariable(.runClean, value: "true")
         setVariable(.runOS, value: "14.5")
+        setVariable(.runPlatform, value: "ios")
         setVariable(.runScheme, value: "MyScheme")
         setVariable(.runArguments, value: "arg1,arg2,arg3")
 
@@ -408,6 +409,7 @@ struct CommandEnvironmentVariableTests {
         #expect(runCommandWithEnvVars.generate == true)
         #expect(runCommandWithEnvVars.clean == true)
         #expect(runCommandWithEnvVars.os == "14.5")
+        #expect(runCommandWithEnvVars.platform == .iOS)
         #expect(runCommandWithEnvVars.runnable == .scheme("MyScheme"))
         #expect(runCommandWithEnvVars.arguments == ["arg1", "arg2", "arg3"])
 
@@ -418,6 +420,7 @@ struct CommandEnvironmentVariableTests {
             "--path", "/new/run/path",
             "--configuration", "Release",
             "--device", "iPhone 12",
+            "--platform", "macos",
             "--os", "15.0",
             "--rosetta",
             "AnotherScheme",
@@ -428,6 +431,7 @@ struct CommandEnvironmentVariableTests {
         #expect(runCommandWithArgs.path == "/new/run/path")
         #expect(runCommandWithArgs.configuration == "Release")
         #expect(runCommandWithArgs.device == "iPhone 12")
+        #expect(runCommandWithArgs.platform == .macOS)
         #expect(runCommandWithArgs.os == "15.0")
         #expect(runCommandWithArgs.rosetta == true)
         #expect(runCommandWithArgs.runnable == .scheme("AnotherScheme"))

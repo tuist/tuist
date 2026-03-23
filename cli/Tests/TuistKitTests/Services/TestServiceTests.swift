@@ -2934,6 +2934,137 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_runs_tests_for_each_platform_when_target_supports_multiple_platforms() async throws {
+        // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, .test(workspace: .test(schemes: [.test(name: "AppTests")])), MapperEnvironment())
+            }
+
+        buildGraphInspector.reset()
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "AppTests")])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any, action: .any
+            )
+            .willReturn(
+                GraphTarget.test(
+                    target: Target.test(
+                        name: "AppTests",
+                        destinations: [.iPhone, .mac]
+                    )
+                )
+            )
+
+        let resultBundlePath = try temporaryPath().appending(component: "results.xcresult")
+        var capturedCleans: [Bool] = []
+        var capturedResultBundlePaths: [AbsolutePath?] = []
+
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+                derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+                testTargets: .any, skipTestTargets: .any, testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, clean, _, _, _, _, bundlePath, _, _, _, _, _, _ in
+                self.testedSchemes.append(scheme)
+                capturedCleans.append(clean)
+                capturedResultBundlePaths.append(bundlePath)
+            }
+
+        // When
+        try await testRun(
+            schemeName: "AppTests",
+            clean: true,
+            path: try temporaryPath(),
+            resultBundlePath: resultBundlePath
+        )
+
+        // Then: xcodebuild called once per platform (ios then macos, sorted by rawValue)
+        XCTAssertEqual(testedSchemes, ["AppTests", "AppTests"])
+        // Clean only on first platform
+        XCTAssertEqual(capturedCleans, [true, false])
+        // Result bundle paths are platform-suffixed
+        XCTAssertEqual(
+            capturedResultBundlePaths,
+            [
+                resultBundlePath.parentDirectory.appending(component: "results-ios.xcresult"),
+                resultBundlePath.parentDirectory.appending(component: "results-macos.xcresult"),
+            ]
+        )
+    }
+
+    func test_runs_tests_only_for_specified_platform_when_platform_flag_is_set() async throws {
+        // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, .test(workspace: .test(schemes: [.test(name: "AppTests")])), MapperEnvironment())
+            }
+
+        buildGraphInspector.reset()
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "AppTests")])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any, action: .any
+            )
+            .willReturn(
+                GraphTarget.test(
+                    target: Target.test(
+                        name: "AppTests",
+                        destinations: [.iPhone, .mac]
+                    )
+                )
+            )
+
+        // When: specify only macOS
+        try await testRun(
+            schemeName: "AppTests",
+            path: try temporaryPath(),
+            platform: "macos"
+        )
+
+        // Then: xcodebuild called only once, for macOS
+        XCTAssertEqual(testedSchemes, ["AppTests"])
+        verify(xcodebuildController)
+            .test(
+                .any, scheme: .any, clean: .any, destination: .any, action: .any, rosetta: .any,
+                derivedDataPath: .any, resultBundlePath: .any, arguments: .any, retryCount: .any,
+                testTargets: .any, skipTestTargets: .any, testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
+    }
+
     func test_run_does_not_fetch_quarantined_tests_when_fullHandle_is_nil() async throws {
         // Given
         givenGenerator()

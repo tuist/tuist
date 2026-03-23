@@ -362,6 +362,96 @@ struct BuildServiceTests {
         }
     }
 
+    @Test func run_builds_for_each_platform_when_target_supports_multiple_platforms() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
+            // Given
+            let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+            let graph = Graph.test()
+            let scheme = Scheme.test()
+            let project = Project.test()
+            let target = Target.test(destinations: [.iPhone, .iPad, .mac])
+
+            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
+                .test(project: .testGeneratedProject())
+            )
+            given(generator)
+                .load(path: .value(temporaryDirectory), options: .any)
+                .willReturn(graph)
+            given(buildGraphInspector)
+                .buildableSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            given(buildGraphInspector)
+                .buildableTarget(scheme: .value(scheme), graphTraverser: .any)
+                .willReturn(GraphTarget.test(path: project.path, target: target, project: project))
+            given(buildGraphInspector)
+                .workspacePath(directory: .value(temporaryDirectory))
+                .willReturn(workspacePath)
+            given(buildGraphInspector)
+                .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+                .willReturn([])
+
+            var buildCallCount = 0
+            targetBuilder.buildTargetStub = {
+                _, _, _, clean, _, _, _, _, _, _, _, _ in
+                buildCallCount += 1
+                if buildCallCount == 1 {
+                    XCTAssertTrue(clean)
+                } else {
+                    XCTAssertFalse(clean)
+                }
+            }
+
+            // When
+            try await subject.testRun(schemeName: scheme.name, path: temporaryDirectory)
+
+            // Then - built once per platform (iOS + macOS = 2)
+            XCTAssertEqual(buildCallCount, 2)
+        }
+    }
+
+    @Test func run_builds_only_specified_platform_when_platform_flag_is_set() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
+            // Given
+            let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+            let graph = Graph.test()
+            let scheme = Scheme.test()
+            let project = Project.test()
+            let target = Target.test(destinations: [.iPhone, .iPad, .mac])
+
+            given(configLoader).loadConfig(path: .value(temporaryDirectory)).willReturn(
+                .test(project: .testGeneratedProject())
+            )
+            given(generator)
+                .load(path: .value(temporaryDirectory), options: .any)
+                .willReturn(graph)
+            given(buildGraphInspector)
+                .buildableSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            given(buildGraphInspector)
+                .buildableTarget(scheme: .value(scheme), graphTraverser: .any)
+                .willReturn(GraphTarget.test(path: project.path, target: target, project: project))
+            given(buildGraphInspector)
+                .workspacePath(directory: .value(temporaryDirectory))
+                .willReturn(workspacePath)
+            given(buildGraphInspector)
+                .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+                .willReturn([])
+
+            var buildCallCount = 0
+            targetBuilder.buildTargetStub = { _, _, _, _, _, _, _, _, _, _, _, _ in
+                buildCallCount += 1
+            }
+
+            // When - specify only iOS
+            try await subject.testRun(schemeName: scheme.name, path: temporaryDirectory, platform: .iOS)
+
+            // Then - built only once despite target supporting two platforms
+            XCTAssertEqual(buildCallCount, 1)
+        }
+    }
+
     @Test(.withMockedNoora, .withMockedLogger(), .inTemporaryDirectory) func run_lists_schemes() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

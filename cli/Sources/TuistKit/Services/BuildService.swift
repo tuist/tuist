@@ -15,7 +15,6 @@ enum BuildServiceError: LocalizedError {
     case workspaceNotFound(path: String)
     case schemeWithoutBuildableTargets(scheme: String)
     case schemeNotFound(scheme: String, existing: [String])
-    case unspecifiedPlatform(target: String, platforms: [String])
 
     var errorDescription: String? {
         switch self {
@@ -26,9 +25,6 @@ enum BuildServiceError: LocalizedError {
         case let .schemeNotFound(scheme, existing):
             return
                 "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
-        case let .unspecifiedPlatform(target, platforms):
-            return
-                "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
         }
     }
 }
@@ -140,36 +136,31 @@ public struct BuildService {
                 throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
             }
 
-            let buildPlatform: XcodeGraph.Platform
-
-            if let platform {
-                buildPlatform = platform
-            } else if let resolvedPlatform = graphTarget.target.destinations.first?.platform,
-                      graphTarget.target.destinations.platforms.count == 1
-            {
-                buildPlatform = resolvedPlatform
+            let platformsToBuild: [XcodeGraph.Platform] = if let platform {
+                [platform]
             } else {
-                throw BuildServiceError.unspecifiedPlatform(
-                    target: graphTarget.target.name,
-                    platforms: graphTarget.target.supportedPlatforms.map(\.rawValue)
-                )
+                graphTarget.target.destinations.platforms.sorted { $0.rawValue < $1.rawValue }
             }
 
-            try await targetBuilder.buildTarget(
-                graphTarget,
-                platform: buildPlatform,
-                workspacePath: workspacePath,
-                scheme: scheme,
-                clean: clean,
-                configuration: configuration,
-                buildOutputPath: buildOutputPath,
-                derivedDataPath: derivedDataPath,
-                device: device,
-                osVersion: osVersion?.version().map { .init(stringLiteral: $0.description) },
-                rosetta: rosetta,
-                graphTraverser: graphTraverser,
-                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-            )
+            var hasCleaned = false
+            for buildPlatform in platformsToBuild {
+                try await targetBuilder.buildTarget(
+                    graphTarget,
+                    platform: buildPlatform,
+                    workspacePath: workspacePath,
+                    scheme: scheme,
+                    clean: !hasCleaned && clean,
+                    configuration: configuration,
+                    buildOutputPath: buildOutputPath,
+                    derivedDataPath: derivedDataPath,
+                    device: device,
+                    osVersion: osVersion?.version().map { .init(stringLiteral: $0.description) },
+                    rosetta: rosetta,
+                    graphTraverser: graphTraverser,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                )
+                hasCleaned = true
+            }
         } else {
             var cleaned = false
             // Build only buildable entry schemes when specific schemes has not been passed
@@ -184,37 +175,30 @@ public struct BuildService {
                     throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
                 }
 
-                let buildPlatform: XcodeGraph.Platform
-
-                if let platform {
-                    buildPlatform = platform
-                } else if let resolvedPlatform = graphTarget.target.destinations.first?.platform,
-                          graphTarget.target.destinations.platforms.count == 1
-                {
-                    buildPlatform = resolvedPlatform
+                let platformsToBuild: [XcodeGraph.Platform] = if let platform {
+                    [platform]
                 } else {
-                    throw BuildServiceError.unspecifiedPlatform(
-                        target: graphTarget.target.name,
-                        platforms: graphTarget.target.supportedPlatforms.map(\.rawValue)
-                    )
+                    graphTarget.target.destinations.platforms.sorted { $0.rawValue < $1.rawValue }
                 }
 
-                try await targetBuilder.buildTarget(
-                    graphTarget,
-                    platform: buildPlatform,
-                    workspacePath: workspacePath,
-                    scheme: scheme,
-                    clean: !cleaned && clean,
-                    configuration: configuration,
-                    buildOutputPath: buildOutputPath,
-                    derivedDataPath: derivedDataPath,
-                    device: device,
-                    osVersion: osVersion?.version().map { .init(stringLiteral: $0.description) },
-                    rosetta: rosetta,
-                    graphTraverser: graphTraverser,
-                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
-                )
-                cleaned = true
+                for buildPlatform in platformsToBuild {
+                    try await targetBuilder.buildTarget(
+                        graphTarget,
+                        platform: buildPlatform,
+                        workspacePath: workspacePath,
+                        scheme: scheme,
+                        clean: !cleaned && clean,
+                        configuration: configuration,
+                        buildOutputPath: buildOutputPath,
+                        derivedDataPath: derivedDataPath,
+                        device: device,
+                        osVersion: osVersion?.version().map { .init(stringLiteral: $0.description) },
+                        rosetta: rosetta,
+                        graphTraverser: graphTraverser,
+                        passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                    )
+                    cleaned = true
+                }
             }
         }
 
