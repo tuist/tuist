@@ -33,6 +33,15 @@ defmodule Tuist.OAuth.OktaTest do
       assert {:error, :okta_not_configured} = Okta.config_for_organization(organization)
     end
 
+    test "returns error for custom OAuth2 organization" do
+      organization = %Organization{
+        sso_provider: :custom_oauth2,
+        sso_organization_id: "https://auth.example.com"
+      }
+
+      assert {:error, :okta_not_configured} = Okta.config_for_organization(organization)
+    end
+
     test "returns error for organization without SSO provider" do
       organization = %Organization{
         sso_provider: nil,

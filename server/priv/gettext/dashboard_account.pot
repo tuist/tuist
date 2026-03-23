@@ -229,6 +229,81 @@ msgstr ""
 msgid "Delete account"
 msgstr ""
 
+#: lib/tuist_web/live/sso_settings_live.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Custom OAuth2"
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:232
+#, elixir-autogen, elixir-format
+msgid "OAuth2 application client ID"
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:129
+#, elixir-autogen, elixir-format
+msgid "Configure your OAuth2 provider to redirect users back to Tuist after authentication."
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:142
+#, elixir-autogen, elixir-format
+msgid "Create an OAuth2 application in your identity provider."
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:152
+#, elixir-autogen, elixir-format
+msgid "Copy the provider URL, authorize URL, token URL, user info URL, client ID, and client secret into the fields below."
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:168
+#, elixir-autogen, elixir-format
+msgid "Provider URL"
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:173
+#, elixir-autogen, elixir-format
+msgid "The base URL of your identity provider, for example https://auth.example.com."
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:189
+#, elixir-autogen, elixir-format
+msgid "Authorize URL"
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:194
+#, elixir-autogen, elixir-format
+msgid "The authorization endpoint path or URL used to start the OAuth2 flow."
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:210
+#, elixir-autogen, elixir-format
+msgid "Token URL"
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:215
+#, elixir-autogen, elixir-format
+msgid "The token endpoint path or URL used to exchange the authorization code."
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:231
+#, elixir-autogen, elixir-format
+msgid "User info URL"
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:236
+#, elixir-autogen, elixir-format
+msgid "The user info endpoint path or URL that returns the authenticated user profile."
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:257
+#, elixir-autogen, elixir-format
+msgid "The client ID from your OAuth2 application."
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:278
+#, elixir-autogen, elixir-format
+msgid "The client secret from your OAuth2 application."
+msgstr ""
+
 #: lib/tuist_web/live/account_settings_live.html.heex:90
 #: lib/tuist_web/live/account_settings_live.html.heex:111
 #, elixir-autogen, elixir-format

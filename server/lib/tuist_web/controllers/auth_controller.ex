@@ -5,11 +5,18 @@ defmodule TuistWeb.AuthController do
 
   use TuistWeb, :controller
 
+  alias OAuth2.Client
+  alias OAuth2.Strategy.AuthCode
   alias Tuist.Accounts
   alias Tuist.Accounts.Organization
+  alias Tuist.OAuth.CustomOAuth2
   alias Tuist.OAuth.Okta
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.UnauthorizedError
+  alias Ueberauth.Auth
+  alias Ueberauth.Auth.Credentials
+  alias Ueberauth.Auth.Extra
+  alias Ueberauth.Auth.Info
   alias Ueberauth.Failure.Error
 
   require Logger
@@ -104,6 +111,77 @@ defmodule TuistWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
+    complete_oauth_callback(conn, auth)
+  end
+
+  def custom_oauth2_request(conn, params) do
+    case params do
+      %{"organization_id" => organization_id} ->
+        with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
+             {:ok, config} <- CustomOAuth2.config_for_organization(organization) do
+          state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+
+          authorize_params =
+            maybe_put_login_hint(
+              [scope: "openid email profile", state: state],
+              params["login_hint"]
+            )
+
+          url =
+            config
+            |> custom_oauth2_client(custom_oauth2_callback_url())
+            |> Client.authorize_url!(authorize_params)
+
+          conn
+          |> put_session(:custom_oauth2_organization_id, organization_id)
+          |> put_session(:custom_oauth2_state, state)
+          |> redirect(external: url)
+        else
+          _ ->
+            raise UnauthorizedError,
+                  dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
+        end
+
+      _ ->
+        raise UnauthorizedError,
+              dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
+    end
+  end
+
+  def custom_oauth2_callback(conn, _params) do
+    case {get_session(conn, :custom_oauth2_organization_id), get_session(conn, :custom_oauth2_state)} do
+      {organization_id, state} when not is_nil(organization_id) and not is_nil(state) ->
+        if conn.params["state"] != state do
+          raise UnauthorizedError,
+                dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
+        end
+
+        with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
+             {:ok, config} <- CustomOAuth2.config_for_organization(organization),
+             {:ok, auth} <- custom_oauth2_auth(conn, config) do
+          conn
+          |> delete_session(:custom_oauth2_organization_id)
+          |> delete_session(:custom_oauth2_state)
+          |> complete_oauth_callback(auth)
+        else
+          {:error, reason} ->
+            log(:error, "Failed custom OAuth2 callback: #{inspect(reason)}")
+
+            raise UnauthorizedError,
+                  dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
+
+          _ ->
+            raise UnauthorizedError,
+                  dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
+        end
+
+      _ ->
+        raise UnauthorizedError,
+              dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
+    end
+  end
+
+  defp complete_oauth_callback(conn, auth) do
     auth_params = %{auth_method: auth.provider}
 
     case Accounts.get_oauth2_identity(auth.provider, auth.uid) do
@@ -311,4 +389,72 @@ defmodule TuistWeb.AuthController do
         strategy_options
     end
   end
+
+  defp custom_oauth2_client(config, redirect_uri) do
+    [
+      strategy: AuthCode,
+      client_id: config.client_id,
+      client_secret: config.client_secret,
+      site: config.site,
+      authorize_url: config.authorize_url,
+      token_url: config.token_url,
+      redirect_uri: redirect_uri
+    ]
+    |> Client.new()
+    |> Client.put_serializer("application/json", Jason)
+  end
+
+  defp custom_oauth2_auth(conn, config) do
+    params = [code: conn.params["code"]]
+
+    with {:ok, %Client{token: token} = client} <-
+           Client.get_token(custom_oauth2_client(config, custom_oauth2_callback_url()), params),
+         {:ok, %{status_code: 200, body: userinfo}} <- Client.get(client, config.user_info_url) do
+      {:ok, build_custom_oauth2_auth(token, userinfo, config.provider_organization_id)}
+    else
+      {:ok, %{status_code: status_code, body: body}} -> {:error, {:userinfo_request_failed, status_code, body}}
+      {:error, reason} -> {:error, reason}
+      error -> {:error, error}
+    end
+  end
+
+  defp build_custom_oauth2_auth(token, userinfo, provider_organization_id) do
+    name = userinfo["name"] || userinfo["preferred_username"] || userinfo["email"] || userinfo["sub"]
+
+    %Auth{
+      provider: :custom_oauth2,
+      strategy: AuthCode,
+      uid: userinfo["sub"] || userinfo["id"] || userinfo["email"],
+      info: %Info{
+        name: name,
+        first_name: userinfo["given_name"],
+        last_name: userinfo["family_name"],
+        nickname: userinfo["preferred_username"],
+        email: userinfo["email"]
+      },
+      credentials: %Credentials{
+        token: token.access_token,
+        refresh_token: token.refresh_token,
+        expires_at: token.expires_at,
+        token_type: token.token_type,
+        expires: !!token.expires_at,
+        scopes: token.other_params["scope"]
+      },
+      extra: %Extra{
+        raw_info: %{
+          token: token,
+          user: userinfo,
+          provider_organization_id: provider_organization_id
+        }
+      }
+    }
+  end
+
+  defp custom_oauth2_callback_url, do: TuistWeb.Endpoint.url() <> ~p"/users/auth/custom_oauth2/callback"
+
+  defp maybe_put_login_hint(params, login_hint) when is_binary(login_hint) and login_hint != "" do
+    Keyword.put(params, :login_hint, login_hint)
+  end
+
+  defp maybe_put_login_hint(params, _login_hint), do: params
 end

@@ -38,6 +38,11 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
     okta_client_id = Keyword.get(opts, :okta_client_id)
     okta_client_secret = Keyword.get(opts, :okta_client_secret)
+    custom_oauth2_client_id = Keyword.get(opts, :custom_oauth2_client_id)
+    custom_oauth2_client_secret = Keyword.get(opts, :custom_oauth2_client_secret)
+    custom_oauth2_authorize_url = Keyword.get(opts, :custom_oauth2_authorize_url)
+    custom_oauth2_token_url = Keyword.get(opts, :custom_oauth2_token_url)
+    custom_oauth2_user_info_url = Keyword.get(opts, :custom_oauth2_user_info_url)
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     customer_id =
@@ -55,6 +60,11 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         sso_organization_id: sso_organization_id,
         okta_client_id: okta_client_id,
         okta_client_secret: okta_client_secret,
+        custom_oauth2_client_id: custom_oauth2_client_id,
+        custom_oauth2_client_secret: custom_oauth2_client_secret,
+        custom_oauth2_authorize_url: custom_oauth2_authorize_url,
+        custom_oauth2_token_url: custom_oauth2_token_url,
+        custom_oauth2_user_info_url: custom_oauth2_user_info_url,
         created_at: created_at,
         customer_id: customer_id,
         setup_billing: setup_billing,

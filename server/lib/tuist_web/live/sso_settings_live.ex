@@ -94,6 +94,7 @@ defmodule TuistWeb.SSOSettingsLive do
         case socket.assigns.selected_provider do
           "google" -> save_google_sso(socket, params)
           "okta" -> save_okta_sso(socket, params)
+          "custom_oauth2" -> save_custom_oauth2_sso(socket, params)
         end
 
       {:error, message} ->
@@ -111,7 +112,12 @@ defmodule TuistWeb.SSOSettingsLive do
           sso_organization_id: nil,
           sso_enforced: false,
           okta_client_id: nil,
-          okta_encrypted_client_secret: nil
+          okta_encrypted_client_secret: nil,
+          custom_oauth2_client_id: nil,
+          custom_oauth2_encrypted_client_secret: nil,
+          custom_oauth2_authorize_url: nil,
+          custom_oauth2_token_url: nil,
+          custom_oauth2_user_info_url: nil
         })
 
       {:noreply,
@@ -172,6 +178,38 @@ defmodule TuistWeb.SSOSettingsLive do
      |> assign(flash_message: nil)}
   end
 
+  defp save_custom_oauth2_sso(%{assigns: %{organization: organization}} = socket, params) do
+    site = String.trim(params["sso"]["custom_oauth2_site"] || "")
+    client_id = String.trim(params["sso"]["custom_oauth2_client_id"] || "")
+    client_secret = String.trim(params["sso"]["custom_oauth2_client_secret"] || "")
+    authorize_url = String.trim(params["sso"]["custom_oauth2_authorize_url"] || "")
+    token_url = String.trim(params["sso"]["custom_oauth2_token_url"] || "")
+    user_info_url = String.trim(params["sso"]["custom_oauth2_user_info_url"] || "")
+
+    attrs = %{
+      sso_organization_id: site,
+      sso_enforced: socket.assigns.sso_enforced,
+      custom_oauth2_client_id: client_id,
+      custom_oauth2_authorize_url: authorize_url,
+      custom_oauth2_token_url: token_url,
+      custom_oauth2_user_info_url: user_info_url
+    }
+
+    attrs =
+      if client_secret == "",
+        do: attrs,
+        else: Map.put(attrs, :custom_oauth2_client_secret, client_secret)
+
+    {:ok, updated_organization} = Accounts.update_custom_oauth2_configuration(organization.id, attrs)
+
+    {:noreply,
+     socket
+     |> assign(organization: updated_organization)
+     |> assign_form_from_organization(updated_organization)
+     |> assign_saved_state()
+     |> assign(flash_message: nil)}
+  end
+
   defp validate_sso_enforcement(%{assigns: %{sso_enforced: false}}), do: :ok
 
   defp validate_sso_enforcement(%{assigns: %{current_user: current_user}} = socket) do
@@ -181,6 +219,7 @@ defmodule TuistWeb.SSOSettingsLive do
       case socket.assigns.selected_provider do
         "google" -> String.trim(socket.assigns.current_form_params["google_domain"] || "")
         "okta" -> String.trim(socket.assigns.current_form_params["okta_domain"] || "")
+        "custom_oauth2" -> String.trim(socket.assigns.current_form_params["custom_oauth2_site"] || "")
       end
 
     has_identity =
@@ -272,6 +311,22 @@ defmodule TuistWeb.SSOSettingsLive do
     domain != "" and client_id != "" and (client_secret != "" or has_existing_secret)
   end
 
+  defp form_fields_valid?("custom_oauth2", params, organization) do
+    site = String.trim(params["custom_oauth2_site"] || "")
+    client_id = String.trim(params["custom_oauth2_client_id"] || "")
+    client_secret = String.trim(params["custom_oauth2_client_secret"] || "")
+    authorize_url = String.trim(params["custom_oauth2_authorize_url"] || "")
+    token_url = String.trim(params["custom_oauth2_token_url"] || "")
+    user_info_url = String.trim(params["custom_oauth2_user_info_url"] || "")
+
+    has_existing_secret =
+      organization.sso_provider == :custom_oauth2 and
+        not is_nil(organization.custom_oauth2_encrypted_client_secret)
+
+    site != "" and client_id != "" and authorize_url != "" and token_url != "" and
+      user_info_url != "" and (client_secret != "" or has_existing_secret)
+  end
+
   defp form_fields_valid?(_provider, _params, _organization), do: true
 
   defp compute_has_changes(socket) do
@@ -292,7 +347,13 @@ defmodule TuistWeb.SSOSettingsLive do
       "google_domain" => organization.sso_organization_id || "",
       "okta_domain" => "",
       "okta_client_id" => "",
-      "okta_client_secret" => ""
+      "okta_client_secret" => "",
+      "custom_oauth2_site" => "",
+      "custom_oauth2_client_id" => "",
+      "custom_oauth2_client_secret" => "",
+      "custom_oauth2_authorize_url" => "",
+      "custom_oauth2_token_url" => "",
+      "custom_oauth2_user_info_url" => ""
     }
   end
 
@@ -302,7 +363,29 @@ defmodule TuistWeb.SSOSettingsLive do
       "google_domain" => "",
       "okta_domain" => organization.sso_organization_id || "",
       "okta_client_id" => organization.okta_client_id || "",
-      "okta_client_secret" => ""
+      "okta_client_secret" => "",
+      "custom_oauth2_site" => "",
+      "custom_oauth2_client_id" => "",
+      "custom_oauth2_client_secret" => "",
+      "custom_oauth2_authorize_url" => "",
+      "custom_oauth2_token_url" => "",
+      "custom_oauth2_user_info_url" => ""
+    }
+  end
+
+  defp build_form_data("custom_oauth2", organization) do
+    %{
+      "provider" => "custom_oauth2",
+      "google_domain" => "",
+      "okta_domain" => "",
+      "okta_client_id" => "",
+      "okta_client_secret" => "",
+      "custom_oauth2_site" => organization.sso_organization_id || "",
+      "custom_oauth2_client_id" => organization.custom_oauth2_client_id || "",
+      "custom_oauth2_client_secret" => "",
+      "custom_oauth2_authorize_url" => organization.custom_oauth2_authorize_url || "",
+      "custom_oauth2_token_url" => organization.custom_oauth2_token_url || "",
+      "custom_oauth2_user_info_url" => organization.custom_oauth2_user_info_url || ""
     }
   end
 
@@ -312,7 +395,13 @@ defmodule TuistWeb.SSOSettingsLive do
       "google_domain" => "",
       "okta_domain" => "",
       "okta_client_id" => "",
-      "okta_client_secret" => ""
+      "okta_client_secret" => "",
+      "custom_oauth2_site" => "",
+      "custom_oauth2_client_id" => "",
+      "custom_oauth2_client_secret" => "",
+      "custom_oauth2_authorize_url" => "",
+      "custom_oauth2_token_url" => "",
+      "custom_oauth2_user_info_url" => ""
     }
   end
 end
