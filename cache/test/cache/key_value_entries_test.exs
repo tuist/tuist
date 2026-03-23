@@ -183,6 +183,39 @@ defmodule Cache.KeyValueEntriesTest do
     assert Enum.sort(remaining_keys) == ["keyvalue:acme:ios:new", "keyvalue:acme:ios:pending"]
   end
 
+  test "delete_project_entries_before respects exact lexicographic key bounds" do
+    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:target",
+      json_payload: "{}",
+      last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios",
+      json_payload: "{}",
+      last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios;",
+      json_payload: "{}",
+      last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    {keys, count} = KeyValueEntries.delete_project_entries_before("acme", "ios", old_time)
+
+    assert count == 1
+    assert keys == ["keyvalue:acme:ios:target"]
+
+    remaining_keys = KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key))
+    assert Enum.sort(remaining_keys) == ["keyvalue:acme:ios", "keyvalue:acme:ios;"]
+  end
+
   test "delete_project_entries_before handles large candidate sets" do
     old_time = DateTime.add(DateTime.utc_now(), -1, :day)
     timestamp = DateTime.truncate(old_time, :second)
