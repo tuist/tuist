@@ -237,10 +237,12 @@ defmodule Cache.KeyValueEntries do
       %State{key_value: key_value} ->
         %{signature: pending_signature, result: result} = decode_replication_state_payload!(key_value)
 
-        if pending_signature == signature do
-          result
-        else
-          raise "pending remote batch does not match the current poller chunk"
+        case pending_signature do
+          ^signature -> result
+          # The local batch and pending state were committed together. If the upstream page changed
+          # before we advanced the watermark, we still have to finish committing the already-applied
+          # local batch before polling the newer upstream mutation.
+          _ -> result
         end
     end
   end
@@ -641,12 +643,11 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp prefix_project_entries_query(prefix, prefix_upper_bound, cutoff) do
-    from(entry in KeyValueEntry,
-      where: entry.key >= ^prefix,
-      where: entry.key < ^prefix_upper_bound,
-      where: is_nil(entry.replication_enqueued_at),
-      where: is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff
-    )
+    KeyValueEntry
+    |> where([entry], entry.key >= ^prefix)
+    |> where([entry], entry.key < ^prefix_upper_bound)
+    |> where([entry], is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff)
+    |> apply_evictable_filter()
   end
 
   defp delete_project_candidate_keys([], _cutoff), do: 0
@@ -656,13 +657,11 @@ defmodule Cache.KeyValueEntries do
     |> Enum.chunk_every(@id_chunk_size)
     |> Enum.reduce(0, fn keys_chunk, count_acc ->
       {chunk_count, _} =
-        KeyValueRepo.delete_all(
-          from(entry in KeyValueEntry,
-            where: entry.key in ^keys_chunk,
-            where: is_nil(entry.replication_enqueued_at),
-            where: is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff
-          )
-        )
+        KeyValueEntry
+        |> where([entry], entry.key in ^keys_chunk)
+        |> where([entry], is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff)
+        |> apply_evictable_filter()
+        |> KeyValueRepo.delete_all()
 
       count_acc + chunk_count
     end)

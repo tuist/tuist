@@ -74,6 +74,31 @@ defmodule Cache.SQLiteBufferTest do
     assert record.replication_enqueued_at
   end
 
+  test "local writes clear distributed replication fields" do
+    key = "keyvalue:account:project:local"
+    payload = Jason.encode!(%{entries: [%{"value" => "value"}]})
+    timestamp = DateTime.truncate(DateTime.utc_now(), :second)
+    distributed_time = DateTime.add(DateTime.utc_now(), -120, :second)
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: key,
+      json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
+      last_accessed_at: distributed_time,
+      source_updated_at: distributed_time,
+      replication_enqueued_at: distributed_time,
+      inserted_at: timestamp,
+      updated_at: timestamp
+    })
+
+    :ok = KeyValueBuffer.enqueue(key, payload)
+    :ok = KeyValueBuffer.flush()
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+    assert record.json_payload == payload
+    assert is_nil(record.source_updated_at)
+    assert is_nil(record.replication_enqueued_at)
+  end
+
   test "access-only entry updates last_accessed_at without changing payload" do
     key = "keyvalue:access-only:account:project"
     payload = JSON.encode!(%{entries: [%{"value" => "original"}]})
@@ -132,6 +157,27 @@ defmodule Cache.SQLiteBufferTest do
 
     assert is_nil(legacy_record.replication_enqueued_at)
     assert shared_record.replication_enqueued_at
+  end
+
+  test "local access does not enqueue replication for legacy shared rows" do
+    key = "keyvalue:shared:account:project"
+    timestamp = DateTime.truncate(DateTime.utc_now(), :second)
+    initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: key,
+      json_payload: Jason.encode!(%{entries: []}),
+      last_accessed_at: initial_time,
+      source_updated_at: initial_time,
+      inserted_at: timestamp,
+      updated_at: timestamp
+    })
+
+    :ok = KeyValueBuffer.enqueue_access(key)
+    :ok = KeyValueBuffer.flush()
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+    assert is_nil(record.replication_enqueued_at)
   end
 
   test "flush handles access batches at sqlite parameter limits" do

@@ -5,6 +5,7 @@ defmodule Cache.KeyValueBuffer do
 
   import Ecto.Query
 
+  alias Cache.Config
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
   alias Cache.SQLiteBuffer
@@ -94,6 +95,7 @@ defmodule Cache.KeyValueBuffer do
   def write_batch(:key_values, entries) do
     now = DateTime.utc_now()
     now_truncated = DateTime.truncate(now, :second)
+    distributed? = Config.distributed_kv_enabled?()
 
     rows =
       Enum.map(entries, fn {_key, entry} ->
@@ -103,8 +105,8 @@ defmodule Cache.KeyValueBuffer do
           last_accessed_at: now,
           inserted_at: now_truncated,
           updated_at: now_truncated,
-          source_updated_at: now,
-          replication_enqueued_at: now
+          source_updated_at: if(distributed?, do: now),
+          replication_enqueued_at: if(distributed?, do: now)
         }
       end)
 
@@ -124,6 +126,7 @@ defmodule Cache.KeyValueBuffer do
     now = DateTime.utc_now()
     now_truncated = DateTime.truncate(now, :second)
     keys = Enum.map(entries, fn {_key, entry} -> entry.key end)
+    distributed? = Config.distributed_kv_enabled?()
 
     keys
     |> Enum.chunk_every(@query_chunk_size)
@@ -132,10 +135,12 @@ defmodule Cache.KeyValueBuffer do
         set: [last_accessed_at: now, updated_at: now_truncated]
       )
 
-      KeyValueRepo.update_all(
-        from(e in KeyValueEntry, where: e.key in ^keys_chunk, where: not is_nil(e.source_updated_at)),
-        set: [replication_enqueued_at: now]
-      )
+      if distributed? do
+        KeyValueRepo.update_all(
+          from(e in KeyValueEntry, where: e.key in ^keys_chunk, where: not is_nil(e.source_updated_at)),
+          set: [replication_enqueued_at: now]
+        )
+      end
     end)
   end
 end

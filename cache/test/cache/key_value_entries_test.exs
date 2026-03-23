@@ -205,6 +205,51 @@ defmodule Cache.KeyValueEntriesTest do
     assert third_result.invalidate_keys == []
   end
 
+  test "apply_remote_batch reuses a pending committed chunk even when the upstream page mutates" do
+    original_time = DateTime.add(DateTime.utc_now(), -180, :second)
+    first_update_time = DateTime.add(original_time, 60, :second)
+    second_update_time = DateTime.add(first_update_time, 60, :second)
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:update",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
+      last_accessed_at: original_time,
+      source_updated_at: original_time
+    })
+
+    first_row =
+      remote_row("keyvalue:acme:ios:update",
+        json_payload: Jason.encode!(%{entries: [%{"value" => "new"}]}),
+        last_accessed_at: first_update_time,
+        source_updated_at: first_update_time,
+        updated_at: first_update_time
+      )
+
+    second_row =
+      remote_row("keyvalue:acme:ios:update",
+        json_payload: Jason.encode!(%{entries: [%{"value" => "newer"}]}),
+        last_accessed_at: second_update_time,
+        source_updated_at: second_update_time,
+        updated_at: second_update_time
+      )
+
+    assert {:ok, first_result} = KeyValueEntries.apply_remote_batch([first_row])
+    assert first_result.payload_updated_count == 1
+
+    assert {:ok, replayed_result} = KeyValueEntries.apply_remote_batch([second_row])
+    assert replayed_result == first_result
+
+    :ok = KeyValueEntries.commit_remote_batch(first_result.last_processed_row)
+
+    assert {:ok, second_result} = KeyValueEntries.apply_remote_batch([second_row])
+    assert second_result.payload_updated_count == 1
+    assert second_result.last_processed_row.updated_at == second_update_time
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: second_row.key)
+    assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "newer"}]
+    assert record.source_updated_at == second_update_time
+  end
+
   test "apply_remote_batch preserves newer local pending payloads and merges access time" do
     local_source_updated_at = DateTime.utc_now()
     remote_source_updated_at = DateTime.add(local_source_updated_at, -60, :second)
@@ -375,7 +420,45 @@ defmodule Cache.KeyValueEntriesTest do
     assert Enum.sort(remaining_keys) == ["keyvalue:a%b:mac:target", "keyvalue:axb:ios:bystander"]
   end
 
-  test "delete_project_entries_before only returns keys that were actually deleted" do
+  test "delete_project_entries_before deletes legacy locally-enqueued rows in local mode" do
+    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
+    new_time = DateTime.utc_now()
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:old",
+      json_payload: "{}",
+      last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:new",
+      json_payload: "{}",
+      last_accessed_at: new_time,
+      source_updated_at: new_time
+    })
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:legacy-pending",
+      json_payload: "{}",
+      last_accessed_at: old_time,
+      source_updated_at: old_time,
+      replication_enqueued_at: old_time
+    })
+
+    {keys, count} = KeyValueEntries.delete_project_entries_before("acme", "ios", old_time)
+
+    assert count == 2
+    assert Enum.sort(keys) == ["keyvalue:acme:ios:legacy-pending", "keyvalue:acme:ios:old"]
+
+    remaining_keys = KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key))
+    assert remaining_keys == ["keyvalue:acme:ios:new"]
+  end
+
+  test "delete_project_entries_before only returns keys that were actually deleted in distributed mode" do
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
+
     old_time = DateTime.add(DateTime.utc_now(), -1, :day)
     new_time = DateTime.utc_now()
 

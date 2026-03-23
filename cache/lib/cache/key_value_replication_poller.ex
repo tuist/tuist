@@ -127,9 +127,9 @@ defmodule Cache.KeyValueReplicationPoller do
       cutoff = latest_cutoff()
       budget = Application.get_env(:cache, :key_value_max_db_size_bytes, 25 * 1024 * 1024 * 1024)
       current_size = KeyValueEntries.estimated_size_bytes()
-      bootstrap_rows(current_size, budget, nil)
+      bootstrap_status = bootstrap_rows(current_size, budget, nil)
 
-      if cutoff do
+      if cutoff && bootstrap_status == :complete do
         :ok = KeyValueEntries.put_distributed_watermark(cutoff.updated_at, cutoff.key)
       end
     end
@@ -142,7 +142,7 @@ defmodule Cache.KeyValueReplicationPoller do
     |> Repo.one(timeout: Config.distributed_kv_database_timeout_ms())
   end
 
-  defp bootstrap_rows(current_size, budget, _cursor) when current_size >= budget, do: :ok
+  defp bootstrap_rows(current_size, budget, _cursor) when current_size >= budget, do: :complete
 
   defp bootstrap_rows(current_size, budget, cursor) do
     query =
@@ -156,7 +156,7 @@ defmodule Cache.KeyValueReplicationPoller do
 
     case rows do
       [] ->
-        :ok
+        :complete
 
       _ ->
         {status, size_after_page} =
@@ -166,7 +166,7 @@ defmodule Cache.KeyValueReplicationPoller do
           last_row = List.last(rows)
           bootstrap_rows(size_after_page, budget, {last_row.last_accessed_at, last_row.key})
         else
-          :ok
+          :busy
         end
     end
   end

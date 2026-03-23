@@ -253,6 +253,54 @@ defmodule Cache.KeyValueReplicationPollerTest do
     assert Process.whereis(KeyValueReplicationPoller)
   end
 
+  test "does not advance the bootstrap watermark when bootstrap stops on a busy local store" do
+    parent = self()
+    {:ok, repo_calls_agent} = Agent.start_link(fn -> 0 end)
+    updated_at = DateTime.add(DateTime.utc_now(), -120, :second)
+
+    row = %Entry{
+      key: "keyvalue:acme:ios:bootstrap",
+      account_handle: "acme",
+      project_handle: "ios",
+      cas_id: "bootstrap",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+      source_node: "node-a",
+      source_updated_at: updated_at,
+      last_accessed_at: updated_at,
+      updated_at: updated_at,
+      deleted_at: nil
+    }
+
+    stub(KeyValueEntries, :distributed_watermark, fn -> nil end)
+    stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
+
+    stub(KeyValueEntries, :materialize_remote_entry, fn %{key: key} ->
+      send(parent, {:bootstrap_attempted, key})
+      raise %Exqlite.Error{message: "Database busy"}
+    end)
+
+    stub(KeyValueEntries, :put_distributed_watermark, fn _updated_at, _key ->
+      send(parent, :watermark_advanced)
+      :ok
+    end)
+
+    stub(Repo, :one, fn _query, _opts -> row end)
+
+    stub(Repo, :all, fn _query, _opts ->
+      Agent.get_and_update(repo_calls_agent, fn count ->
+        next_count = count + 1
+        result = if next_count == 1, do: [row], else: []
+        {result, next_count}
+      end)
+    end)
+
+    start_supervised!(KeyValueReplicationPoller)
+
+    row_key = row.key
+    assert_receive {:bootstrap_attempted, ^row_key}, 10_000
+    refute_receive :watermark_advanced, 200
+  end
+
   @tag capture_log: true
   test "crashes on repeated post-commit invalidation failures and eventually clears stale cache entries" do
     capture_log(fn ->
