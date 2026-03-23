@@ -959,7 +959,6 @@ defmodule Tuist.Tests do
          shard_index,
          existing_test_cases
        ) do
-
     test_case_data_list =
       test_cases
       |> Enum.map(fn case_attrs ->
