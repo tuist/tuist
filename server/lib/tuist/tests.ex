@@ -775,9 +775,8 @@ defmodule Tuist.Tests do
           suite_name_to_id,
           module_name,
           module_test_case_run_data,
-          shard_plan,
-          shard_index,
-          existing_test_cases
+          existing_test_cases,
+          shard: {shard_plan, shard_index}
         )
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
@@ -954,10 +953,11 @@ defmodule Tuist.Tests do
          suite_name_to_id,
          module_name,
          test_case_run_data,
-         shard_plan,
-         shard_index,
-         existing_test_cases
+         existing_test_cases,
+         opts \\ []
        ) do
+    {shard_plan, shard_index} = Keyword.get(opts, :shard, {nil, nil})
+
     test_case_data_list =
       test_cases
       |> Enum.map(fn case_attrs ->
