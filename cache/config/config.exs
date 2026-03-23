@@ -1,10 +1,5 @@
 import Config
 
-config :cache, Cache.DistributedKV.Repo,
-  migration_primary_key: [type: :string],
-  migration_timestamps: [type: :utc_datetime_usec],
-  priv: "priv/distributed_kv_repo"
-
 config :cache, Cache.KeyValueRepo,
   busy_timeout: 30_000,
   journal_mode: :wal,
@@ -70,7 +65,6 @@ config :cache, Oban,
        {"*/10 * * * *", Cache.DiskEvictionWorker},
        {"0 * * * *", Cache.OrphanCleanupWorker},
        {"*/15 * * * *", Cache.KeyValueEvictionWorker},
-       {"0 2 * * *", Cache.TombstonePurgeWorker},
        {"* * * * *", Cache.S3TransferWorker},
        {"*/10 * * * *", Cache.Registry.SyncWorker},
        {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}
@@ -90,21 +84,12 @@ config :cache,
   events_batch_size: 100,
   events_batch_timeout: 5_000,
   key_value_eviction_max_age_days: 30,
-  key_value_mode: :local,
   key_value_max_db_size_bytes: 25 * 1024 * 1024 * 1024,
   key_value_eviction_min_retention_days: 1,
   key_value_read_busy_timeout_ms: 2_000,
   key_value_maintenance_busy_timeout_ms: 50,
   key_value_eviction_max_duration_ms: 300_000,
   key_value_eviction_hysteresis_release_bytes: 23 * 1024 * 1024 * 1024,
-  distributed_kv_database_timeout_ms: 10_000,
-  distributed_kv_sync_interval_ms: 30_000,
-  distributed_kv_poll_lag_ms: 30_000,
-  distributed_kv_ship_interval_ms: 200,
-  distributed_kv_ship_batch_size: 1_000,
-  distributed_kv_access_throttle_ms: 30_000,
-  distributed_kv_tombstone_retention_days: 7,
-  distributed_kv_cleanup_lease_ms: 300_000,
   registry_sync_limit: 1_000
 
 config :ex_aws, http_client: TuistCommon.AWS.Client

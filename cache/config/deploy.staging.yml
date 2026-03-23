@@ -9,4 +9,3 @@ env:
     SERVER_URL: https://staging.tuist.dev
     SENTRY_ENV: stag
     DEPLOY_ENV: stag
-    KEY_VALUE_MODE: distributed
