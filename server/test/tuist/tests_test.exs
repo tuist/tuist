@@ -480,7 +480,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "get_test_run_failures_count/1" do
+  describe "get_test_run_failure_counts/1" do
     test "returns count of failed test case runs" do
       # Given
       {:ok, test} =
@@ -529,10 +529,10 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      count = Tests.get_test_run_failures_count(test.id)
+      failure_counts = Tests.get_test_run_failure_counts(test.id)
 
       # Then — counts failed test case runs, not individual failure records
-      assert count == 2
+      assert failure_counts.total == 2
     end
 
     test "returns 0 when no failures exist for test run" do
@@ -552,10 +552,10 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      count = Tests.get_test_run_failures_count(test.id)
+      failure_counts = Tests.get_test_run_failure_counts(test.id)
 
       # Then
-      assert count == 0
+      assert failure_counts.total == 0
     end
 
     test "does not count retried test cases that ultimately passed" do
@@ -591,10 +591,10 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      count = Tests.get_test_run_failures_count(test.id)
+      failure_counts = Tests.get_test_run_failure_counts(test.id)
 
       # Then — test case run status is "success", so not counted
-      assert count == 0
+      assert failure_counts.total == 0
     end
   end
 
@@ -1160,8 +1160,8 @@ defmodule Tuist.TestsTest do
       assert test.status == "failure"
 
       # Verify failure was recorded
-      count = Tests.get_test_run_failures_count(test.id)
-      assert count == 1
+      failure_counts = Tests.get_test_run_failure_counts(test.id)
+      assert failure_counts.total == 1
 
       {failed_runs, _meta} =
         Tests.list_test_case_runs(
@@ -3287,7 +3287,7 @@ defmodule Tuist.TestsTest do
       {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
       count = Tests.get_flaky_runs_groups_count_for_test_case(test_case.id)
-      assert count == 0
+      assert failure_counts.total == 0
     end
 
     test "returns count of unique scheme + commit_sha groups" do
@@ -3357,7 +3357,7 @@ defmodule Tuist.TestsTest do
       count = Tests.get_flaky_runs_groups_count_for_test_case(test_case.id)
 
       # 2 groups: (default_scheme, commit1) and (default_scheme, commit2)
-      assert count == 2
+      assert failure_counts.total == 2
     end
   end
 

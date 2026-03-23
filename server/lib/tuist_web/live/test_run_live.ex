@@ -50,13 +50,11 @@ defmodule TuistWeb.TestRunLive do
       end
 
     test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
-    failures_count = Tests.get_test_run_failures_count(run.id)
-
-    quarantined_failure_count = compute_quarantined_failure_count(run, failures_count)
-    non_quarantined_failures_count = failures_count - quarantined_failure_count
+    failure_counts = Tests.get_test_run_failure_counts(run.id)
+    non_quarantined_failures_count = failure_counts.total - failure_counts.quarantined
 
     display_run =
-      if run.status == "failure" and non_quarantined_failures_count == 0 and quarantined_failure_count > 0 do
+      if run.status == "failure" and non_quarantined_failures_count == 0 and failure_counts.quarantined > 0 do
         Map.put(run, :status, "success")
       else
         run
@@ -1210,11 +1208,4 @@ defmodule TuistWeb.TestRunLive do
     assign(socket, :text_attachment_urls, urls)
   end
 
-  defp compute_quarantined_failure_count(run, failures_count) do
-    if failures_count == 0 do
-      0
-    else
-      Tests.get_quarantined_failure_count_for_run(run.id)
-    end
-  end
 end

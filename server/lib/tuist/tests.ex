@@ -178,22 +178,19 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
-  def get_quarantined_failure_count_for_run(test_run_id) do
-    query =
-      from tcr in TestCaseRun,
-        where: tcr.test_run_id == ^test_run_id and tcr.status == "failure" and tcr.is_quarantined == true,
-        select: count(tcr.id)
-
-    ClickHouseRepo.one(query) || 0
-  end
-
-  def get_test_run_failures_count(test_run_id) do
+  def get_test_run_failure_counts(test_run_id) do
     query =
       from tcr in TestCaseRun,
         where: tcr.test_run_id == ^test_run_id and tcr.status == "failure",
-        select: count(tcr.id)
+        select: %{
+          total: count(tcr.id),
+          quarantined: fragment("countIf(?)", tcr.is_quarantined)
+        }
 
-    ClickHouseRepo.one(query) || 0
+    case ClickHouseRepo.one(query) do
+      nil -> %{total: 0, quarantined: 0}
+      result -> result
+    end
   end
 
   def list_test_suite_runs(attrs) do
