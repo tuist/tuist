@@ -5,6 +5,7 @@ defmodule Tuist.Tests.TestCase do
   Uses ReplacingMergeTree to keep the most recent values for last_status, last_duration, last_ran_at.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 

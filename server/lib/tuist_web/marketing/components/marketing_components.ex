@@ -426,9 +426,8 @@ defmodule TuistWeb.Marketing.MarketingComponents do
         </h2>
         <nav data-part="actions" aria-label="Primary actions">
           <.button
-            href={@docs_href}
+            href={~p"/users/register"}
             label={dgettext("marketing", "Get started")}
-            target="_blank"
           />
           <.button
             href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"

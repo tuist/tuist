@@ -11,10 +11,10 @@
     <section data-part="hero">
       <header data-part="title">
         <div data-part="title">
-          <h1>{dgettext("marketing", "Make mobile")}</h1>
+          <h1>{dgettext("marketing", "Your mobile platform team,")}</h1>
         </div>
         <div data-part="title">
-          <h1>{dgettext("marketing", "your competitive advantage")}</h1>
+          <h1>{dgettext("marketing", "as a service")}</h1>
         </div>
       </header>
 
@@ -22,16 +22,14 @@
         <p>
           {dgettext(
             "marketing",
-            "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+            "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
           )}
         </p>
       </div>
 
       <nav data-part="actions" aria-label="Primary actions">
         <.button
-          href={localized_href("https://docs.tuist.dev/")}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={~p"/users/register"}
           label={dgettext("marketing", "Get started")}
         >
         </.button>
@@ -170,11 +168,9 @@
         <div data-part="feature-block" data-variant="cache">
           <a
             data-part="overlay-link"
-            href={localized_href("https://docs.tuist.dev/guides/features/cache")}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={localized_href("/cache")}
             aria-label={
-              dgettext("marketing", "Open the %{feature} feature documentation",
+              dgettext("marketing", "Open the %{feature} feature page",
                 feature: dgettext("marketing", "Cache")
               )
             }
@@ -206,11 +202,9 @@
         <div data-part="feature-block" data-variant="insights">
           <a
             data-part="overlay-link"
-            href={localized_href("https://docs.tuist.dev/guides/features/insights")}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={localized_href("/build-insights")}
             aria-label={
-              dgettext("marketing", "Open the %{feature} feature documentation",
+              dgettext("marketing", "Open the %{feature} feature page",
                 feature: dgettext("marketing", "Insights")
               )
             }
@@ -258,11 +252,9 @@
         <div data-part="feature-block" data-variant="selective-testing">
           <a
             data-part="overlay-link"
-            href={localized_href("https://docs.tuist.dev/guides/features/selective-testing")}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={localized_href("/selective-testing")}
             aria-label={
-              dgettext("marketing", "Open the %{feature} feature documentation",
+              dgettext("marketing", "Open the %{feature} feature page",
                 feature: dgettext("marketing", "Selective Testing")
               )
             }
@@ -297,11 +289,9 @@
           <div data-part="feature-block" data-variant="flaky-tests">
             <a
               data-part="overlay-link"
-              href={localized_href("https://docs.tuist.dev/guides/features/flaky-tests")}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={localized_href("/flaky-tests")}
               aria-label={
-                dgettext("marketing", "Open the %{feature} feature documentation",
+                dgettext("marketing", "Open the %{feature} feature page",
                   feature: dgettext("marketing", "Flaky Tests")
                 )
               }
@@ -335,11 +325,9 @@
           <div data-part="feature-block" data-variant="test-insights">
             <a
               data-part="overlay-link"
-              href={localized_href("https://docs.tuist.dev/guides/features/test-insights")}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={localized_href("/test-insights")}
               aria-label={
-                dgettext("marketing", "Open the %{feature} feature documentation",
+                dgettext("marketing", "Open the %{feature} feature page",
                   feature: dgettext("marketing", "Test Insights")
                 )
               }
@@ -381,7 +369,7 @@
         <p data-part="description">
           {dgettext(
             "marketing",
-            "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+            "From code to feedback in minutes. Instant previews close the loop between building and validating."
           )}
         </p>
       </header>
@@ -390,11 +378,9 @@
         <div data-part="feature-block" data-variant="previews">
           <a
             data-part="overlay-link"
-            href={localized_href("https://docs.tuist.dev/guides/features/previews")}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={localized_href("/previews")}
             aria-label={
-              dgettext("marketing", "Open the %{feature} feature documentation",
+              dgettext("marketing", "Open the %{feature} feature page",
                 feature: dgettext("marketing", "Previews")
               )
             }

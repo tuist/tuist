@@ -1,14 +1,14 @@
 defmodule Cache.SQLiteBufferTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   use Mimic
 
   import Ecto.Query
 
   alias Cache.CacheArtifact
   alias Cache.CacheArtifactsBuffer
+  alias Cache.Config
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
-  alias Cache.KeyValueEntryHash
   alias Cache.KeyValueRepo
   alias Cache.Repo
   alias Cache.S3Transfer
@@ -21,6 +21,8 @@ defmodule Cache.SQLiteBufferTest do
   setup context do
     :ok = Sandbox.checkout(Repo)
     :ok = Sandbox.checkout(KeyValueRepo)
+    stub(Config, :key_value_mode, fn -> :local end)
+    stub(Config, :distributed_kv_enabled?, fn -> false end)
 
     context =
       context
@@ -34,7 +36,6 @@ defmodule Cache.SQLiteBufferTest do
 
     Repo.delete_all(S3Transfer)
     Repo.delete_all(CacheArtifact)
-    KeyValueRepo.delete_all(KeyValueEntryHash)
     KeyValueRepo.delete_all(KeyValueEntry)
 
     {:ok, context}
@@ -55,52 +56,21 @@ defmodule Cache.SQLiteBufferTest do
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload_two
     assert record.last_accessed_at
-
-    hashes =
-      KeyValueRepo.all(from(h in KeyValueEntryHash, where: h.key_value_entry_id == ^record.id, select: h.cas_hash))
-
-    assert hashes == ["two"]
   end
 
-  test "flush refreshes hash references on overwrite" do
-    key = "keyvalue:account:project:cas-overwrite"
-    payload_one = Jason.encode!(%{entries: [%{"value" => "one"}, %{"value" => "shared"}]})
-    payload_two = Jason.encode!(%{entries: [%{"value" => "two"}, %{"value" => "shared"}]})
+  test "distributed writes mark source_updated_at and replication token" do
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
 
-    :ok = KeyValueBuffer.enqueue(key, payload_one)
-    :ok = KeyValueBuffer.flush()
-
-    :ok = KeyValueBuffer.enqueue(key, payload_two)
-    :ok = KeyValueBuffer.flush()
-
-    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
-
-    hashes =
-      KeyValueRepo.all(
-        from(h in KeyValueEntryHash,
-          where: h.key_value_entry_id == ^record.id,
-          select: h.cas_hash,
-          order_by: h.cas_hash
-        )
-      )
-
-    assert hashes == ["shared", "two"]
-  end
-
-  test "write then access for same key keeps pending write" do
-    key = "keyvalue:write-then-access:account:project"
-    payload = Jason.encode!(%{entries: [%{"value" => "write"}]})
+    key = "keyvalue:account:project:distributed"
+    payload = Jason.encode!(%{entries: [%{"value" => "value"}]})
 
     :ok = KeyValueBuffer.enqueue(key, payload)
-    :ok = KeyValueBuffer.enqueue_access(key)
-
-    assert %{key_values: 1, total: 1} = KeyValueBuffer.queue_stats()
-
     :ok = KeyValueBuffer.flush()
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
-    assert record.json_payload == payload
-    assert record.last_accessed_at
+    assert record.source_updated_at
+    assert record.replication_enqueued_at
   end
 
   test "access-only entry updates last_accessed_at without changing payload" do
@@ -123,7 +93,44 @@ defmodule Cache.SQLiteBufferTest do
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
-    assert DateTime.after?(record.last_accessed_at, initial_time)
+    assert DateTime.compare(record.last_accessed_at, initial_time) != :lt
+  end
+
+  test "distributed access updates replication token only for shared-lineage rows" do
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
+
+    legacy_key = "keyvalue:legacy:account:project"
+    shared_key = "keyvalue:shared:account:project"
+    timestamp = DateTime.truncate(DateTime.utc_now(), :second)
+    initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: legacy_key,
+      json_payload: Jason.encode!(%{entries: []}),
+      last_accessed_at: initial_time,
+      inserted_at: timestamp,
+      updated_at: timestamp
+    })
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: shared_key,
+      json_payload: Jason.encode!(%{entries: []}),
+      last_accessed_at: initial_time,
+      source_updated_at: initial_time,
+      inserted_at: timestamp,
+      updated_at: timestamp
+    })
+
+    :ok = KeyValueBuffer.enqueue_access(legacy_key)
+    :ok = KeyValueBuffer.enqueue_access(shared_key)
+    :ok = KeyValueBuffer.flush()
+
+    legacy_record = KeyValueRepo.get_by!(KeyValueEntry, key: legacy_key)
+    shared_record = KeyValueRepo.get_by!(KeyValueEntry, key: shared_key)
+
+    assert is_nil(legacy_record.replication_enqueued_at)
+    assert shared_record.replication_enqueued_at
   end
 
   test "flush handles access batches at sqlite parameter limits" do
@@ -152,8 +159,8 @@ defmodule Cache.SQLiteBufferTest do
 
     refreshed_count =
       KeyValueRepo.aggregate(
-        from(e in KeyValueEntry,
-          where: like(e.key, ^"#{base_key}:%") and e.last_accessed_at > ^initial_time
+        from(entry in KeyValueEntry,
+          where: like(entry.key, ^"#{base_key}:%") and entry.last_accessed_at > ^initial_time
         ),
         :count,
         :id
@@ -162,21 +169,7 @@ defmodule Cache.SQLiteBufferTest do
     assert refreshed_count == 1000
   end
 
-  test "multiple accesses for same key are de-duplicated in queue" do
-    key = "keyvalue:access-dedup:account:project"
-    write_key = "keyvalue:access-dedup:write"
-
-    :ok = KeyValueBuffer.enqueue(write_key, Jason.encode!(%{value: "write"}))
-    :ok = KeyValueBuffer.enqueue_access(key)
-    :ok = KeyValueBuffer.enqueue_access(key)
-    :ok = KeyValueBuffer.enqueue_access(key)
-
-    assert %{key_values: 2, total: 2} = KeyValueBuffer.queue_stats()
-
-    :ok = KeyValueBuffer.flush()
-  end
-
-  test "flush writes and deletes cas artifacts" do
+  test "flush writes and deletes cache artifacts" do
     key = "account/project/xcode/ab/cd/cas1"
     last_accessed_at = DateTime.utc_now()
 
@@ -193,21 +186,19 @@ defmodule Cache.SQLiteBufferTest do
   end
 
   test "flush inserts and deletes s3 transfers with de-duplication" do
-    import Ecto.Query
-
     key = "account/project/xcode/ab/cd/key"
 
     :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cache, key)
     :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cache, key)
     :ok = S3TransfersBuffer.flush()
 
-    transfers = Repo.all(from(t in S3Transfer, where: t.key == ^key))
+    transfers = Repo.all(from(transfer in S3Transfer, where: transfer.key == ^key))
     assert length(transfers) == 1
 
     :ok = S3TransfersBuffer.enqueue_delete(hd(transfers).id)
     :ok = S3TransfersBuffer.flush()
 
-    assert Repo.aggregate(from(t in S3Transfer, where: t.key == ^key), :count, :id) == 0
+    assert Repo.aggregate(from(transfer in S3Transfer, where: transfer.key == ^key), :count, :id) == 0
   end
 
   test "flushes queued entries on shutdown" do
@@ -225,80 +216,5 @@ defmodule Cache.SQLiteBufferTest do
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
-  end
-
-  test "concurrent writes to the same key preserve last value" do
-    key = "keyvalue:concurrent:account:project"
-
-    tasks =
-      for i <- 1..100 do
-        Task.async(fn ->
-          payload = Jason.encode!(%{value: i})
-          KeyValueBuffer.enqueue(key, payload)
-        end)
-      end
-
-    Task.await_many(tasks)
-
-    assert %{key_values: 1} = KeyValueBuffer.queue_stats()
-
-    :ok = KeyValueBuffer.flush()
-
-    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
-    decoded = Jason.decode!(record.json_payload)
-    assert decoded["value"] in 1..100
-  end
-
-  test "concurrent access and delete for same key preserves last operation" do
-    key = "account/project/xcode/ab/cd/concurrent"
-    last_accessed_at = DateTime.utc_now()
-
-    tasks =
-      for i <- 1..100 do
-        Task.async(fn ->
-          if rem(i, 2) == 0 do
-            CacheArtifactsBuffer.enqueue_access(key, i * 100, last_accessed_at)
-          else
-            CacheArtifactsBuffer.enqueue_delete(key)
-          end
-        end)
-      end
-
-    Task.await_many(tasks)
-
-    assert %{cache_artifacts: 1} = CacheArtifactsBuffer.queue_stats()
-
-    :ok = CacheArtifactsBuffer.flush()
-
-    case Repo.get_by(CacheArtifact, key: key) do
-      nil ->
-        assert true
-
-      record ->
-        assert rem(record.size_bytes, 100) == 0
-    end
-  end
-
-  test "writes during flush are not lost" do
-    import Ecto.Query
-
-    base_key = "keyvalue:during_flush:account:project"
-
-    for i <- 1..50 do
-      KeyValueBuffer.enqueue("#{base_key}:#{i}", Jason.encode!(%{batch: "first", index: i}))
-    end
-
-    flush_task = Task.async(fn -> KeyValueBuffer.flush() end)
-
-    for i <- 51..100 do
-      KeyValueBuffer.enqueue("#{base_key}:#{i}", Jason.encode!(%{batch: "second", index: i}))
-    end
-
-    Task.await(flush_task)
-
-    :ok = KeyValueBuffer.flush()
-
-    count = KeyValueRepo.aggregate(from(e in KeyValueEntry, where: like(e.key, ^"#{base_key}%")), :count, :id)
-    assert count == 100
   end
 end

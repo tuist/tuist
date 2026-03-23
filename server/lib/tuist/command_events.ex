@@ -192,7 +192,7 @@ defmodule Tuist.CommandEvents do
 
     event_attrs = Event.changeset(processed_event)
     command_event = struct(Event, event_attrs)
-    {:ok, _} = Tuist.CommandEvents.Buffer.insert(command_event)
+    {:ok, _} = Event.Buffer.insert(command_event)
 
     project = Repo.get!(Project, command_event.project_id)
     account = Repo.get!(Account, project.account_id)

@@ -5,14 +5,23 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias Tuist.Builds.Build
+  alias Tuist.Cache.CASEvent
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
+  alias Tuist.Tests.TestCase
+  alias Tuist.Tests.TestCaseEvent
+  alias Tuist.Tests.TestCaseFailure
+  alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunRepetition
+  alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestSuiteRun
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
+  alias TuistCommon.HTTP.TransportLogger
 
   require Logger
 
@@ -59,6 +68,7 @@ defmodule Tuist.Application do
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     ReqTelemetry.attach_default_logger(:pipeline)
+    TransportLogger.attach(:tuist)
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
@@ -66,6 +76,10 @@ defmodule Tuist.Application do
       OpentelemetryPhoenix.setup(adapter: :bandit)
       OpentelemetryFinch.setup()
       OpentelemetryBroadway.setup()
+      ecto_skip_metrics = [additional_span_attributes: %{:"metrics.skip" => true}]
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
     end
   end
 
@@ -107,16 +121,24 @@ defmodule Tuist.Application do
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
-        {Tuist.Repo, connection_listeners: [TelemetryListener]},
-        Tuist.ClickHouseRepo,
-        Tuist.IngestRepo,
-        Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
+        {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
+        {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
+        {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
+        Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
         Supervisor.child_spec(Buffer, id: Buffer),
         Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+        Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
+        Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
+        Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
+        Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
+        Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
+        Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
+        Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
+        Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},

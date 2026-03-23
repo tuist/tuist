@@ -91,7 +91,7 @@ struct VerboseLoggingMiddlewareTests {
             body: nil,
             baseURL: url,
             operationID: "test-op"
-        ) { req, body, baseURL in
+        ) { req, body, _ in
             #expect(req.headerFields[.authorization] == "Bearer secret")
             return (response, body)
         }

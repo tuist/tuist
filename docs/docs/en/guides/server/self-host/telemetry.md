@@ -466,10 +466,34 @@ A set of metrics related to the database connection.
 
 The number of database queries that are sitting in a queue waiting to be assigned to a database connection.
 
+#### Tags {#tuist_repo_pool_checkout_queue_length-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
 ### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
 
 The number of database connections that are ready to be assigned to a database query.
 
+#### Tags {#tuist_repo_pool_ready_conn_count-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
+### `tuist_repo_pool_size` (last_value) {#tuist_repo_pool_size-last_value}
+
+The configured number of connections in the pool.
+
+#### Tags {#tuist_repo_pool_size-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
 
 ### `tuist_repo_pool_db_connection_connected` (counter) {#tuist_repo_pool_db_connection_connected-counter}
 
@@ -478,6 +502,12 @@ The number of connections that have been established to the database.
 ### `tuist_repo_pool_db_connection_disconnected` (counter) {#tuist_repo_pool_db_connection_disconnected-counter}
 
 The number of connections that have been disconnected from the database.
+
+#### Tags {#tuist_repo_pool_db_connection_connected_and_disconnected-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `tag` | The DBConnection listener tag that identifies the emitting repository. |
 
 ## HTTP metrics {#http-metrics}
 

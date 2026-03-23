@@ -5,9 +5,13 @@ This directory contains core cache domain logic, storage backends, and auth help
 ## Responsibilities
 - CAS storage and eviction logic.
 - Key-value storage and cache metadata.
+- Distributed KV replication and cleanup coordination under `cache/lib/cache/distributed_kv`.
 - Authentication against the Tuist Server.
 - Registry metadata and artifact storage helpers.
 
 ## Related Context
 - Web/API layer: `cache/lib/cache_web/AGENTS.md`
+- Distributed KV internals: `cache/lib/cache/distributed_kv/AGENTS.md`
 - Cache service overview: `cache/README.md`
+- Repo monitoring wrappers: `cache/lib/cache/repo/AGENTS.md`
+- Shared repo monitoring: `tuist_common/AGENTS.md`

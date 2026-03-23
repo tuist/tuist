@@ -10,7 +10,7 @@ defmodule TuistWeb.API.ProjectTokensController do
   alias TuistWeb.Authentication
 
   plug(
-    OpenApiSpex.Plug.CastAndValidate,
+    TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )

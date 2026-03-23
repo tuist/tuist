@@ -40,7 +40,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       dgettext(
         "marketing",
-        "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+        "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
       )
     )
     |> assign(

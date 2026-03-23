@@ -3,6 +3,10 @@ defmodule Cache.Application do
 
   use Application
 
+  alias Cache.DBConnection.TelemetryListener
+  alias Cache.DistributedKV.Repo
+  alias TuistCommon.HTTP.TransportLogger
+
   require Logger
 
   @impl true
@@ -16,20 +20,21 @@ defmodule Cache.Application do
     end
 
     Oban.Telemetry.attach_default_logger()
+    TransportLogger.attach(:cache)
     start_sentry_logger()
     start_loki_logger()
     start_opentelemetry()
 
     base_children = [
-      Cache.Repo,
-      Cache.KeyValueRepo,
+      {DBConnection.TelemetryListener, name: TelemetryListener},
+      {Cache.Repo, connection_listeners: {[TelemetryListener], :cache}},
+      {Cache.KeyValueRepo, connection_listeners: {[TelemetryListener], :key_value}},
       Cache.KeyValueBuffer,
       Cache.CacheArtifactsBuffer,
       Cache.S3TransfersBuffer,
       {Phoenix.PubSub, name: Cache.PubSub},
       Cache.Authentication,
       Cache.S3,
-      Cache.KeyValueStore,
       Cache.MultipartUploads,
       Cache.Registry.Metadata,
       CacheWeb.Endpoint,
@@ -38,15 +43,29 @@ defmodule Cache.Application do
       # credo:disable-for-next-line Credo.Check.Design.AliasUsage
       {Finch, name: Cache.Finch, pools: Cache.Finch.Pools.config()},
       Cache.PromEx,
-      {Oban, Application.get_env(:cache, Oban)}
+      {Oban, Application.get_env(:cache, Oban)},
+      Cache.KeyValueStore
     ]
+
+    distributed_children =
+      if Cache.Config.distributed_kv_enabled?() do
+        [
+          Repo,
+          Cache.KeyValueAccessTracker,
+          Cache.KeyValueReplicationShipper,
+          Cache.KeyValueReplicationPoller
+        ]
+      else
+        []
+      end
 
     children =
       if Cache.Config.analytics_enabled?() do
         base_children ++
+          distributed_children ++
           [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline]
       else
-        base_children
+        base_children ++ distributed_children
       end
 
     opts = [strategy: :one_for_one, name: Cache.Supervisor]
@@ -54,7 +73,7 @@ defmodule Cache.Application do
   end
 
   defp migrate do
-    repos = Application.fetch_env!(:cache, :ecto_repos)
+    repos = [Cache.Repo, Cache.KeyValueRepo] ++ if(Cache.Config.distributed_kv_enabled?(), do: [Repo], else: [])
 
     for repo <- repos do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))

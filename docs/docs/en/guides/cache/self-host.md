@@ -90,6 +90,7 @@ STORAGE_DIR=/storage
 # Optional dedicated KV SQLite database path.
 # Defaults to /data/key_value.sqlite.
 KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
+
 ```
 
 | Variable | Required | Default | Description |
@@ -185,6 +186,15 @@ graph TD
 
 Once configured, the Tuist CLI will use your self-hosted cache.
 
+## S3 lifecycle policies {#s3-lifecycle-policies}
+
+If you back the cache with S3, configure lifecycle policies on the bucket yourself.
+
+- KV eviction now deletes only SQLite metadata.
+- Background artifact expiration is handled by `DiskEvictionWorker`, `OrphanCleanupWorker`, and your S3 lifecycle rules.
+- The cache service only performs explicit S3 deletes for user-initiated project cleanup flows such as `tuist cache clean --remote`.
+- If you use a dedicated `S3_XCODE_CACHE_BUCKET`, configure lifecycle policies there too.
+
 ## Volumes {#volumes}
 
 The Docker Compose configuration uses three volumes:
@@ -200,7 +210,7 @@ The Docker Compose configuration uses three volumes:
 The cache service runs several background maintenance loops that keep disk and database usage within bounds. You can tune their behavior through the environment variables listed in the [configuration table](#environment-variables) above.
 
 - **CAS disk eviction** — When disk usage exceeds `DISK_HIGH_WATERMARK_PERCENT` (default 85%), the service removes the least-recently-used local artifacts until usage drops to `DISK_TARGET_PERCENT` (default 70%). Evicted artifacts remain in S3.
-- **KV eviction** — Entries not accessed within 30 days are always removed regardless of database size. Additionally, when the KV database exceeds `KEY_VALUE_MAX_DB_SIZE_BYTES` (default 25 GiB), the service removes entries older than `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` until the database shrinks to `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES`. Each pass is capped at `KEY_VALUE_EVICTION_MAX_DURATION_MS`.
+- **KV eviction** — Entries not accessed within 30 days are always removed regardless of database size. Additionally, when the KV database exceeds `KEY_VALUE_MAX_DB_SIZE_BYTES` (default 25 GiB), the service removes entries older than `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` until the database shrinks to `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES`. Each pass is capped at `KEY_VALUE_EVICTION_MAX_DURATION_MS`. KV eviction no longer deletes local or S3 artifacts directly.
 - **Orphan cleanup** — Scans the disk storage tree for files without a matching `cache_artifacts` row and removes them. This depends on the primary metadata database, not the KV database.
 
 For a detailed explanation of how each process works internally, see the <LocalizedLink href="/guides/cache/architecture">architecture guide</LocalizedLink>.
@@ -215,6 +225,19 @@ For a detailed explanation of how each process works internally, see the <Locali
 ### Prometheus metrics {#prometheus-metrics}
 
 The cache service exposes Prometheus-compatible metrics at `/metrics`.
+
+Database pool metrics exposed by the cache service include:
+
+- `cache_repo_pool_checkout_queue_length`
+- `cache_repo_pool_ready_conn_count`
+- `cache_repo_pool_size`
+- `cache_repo_pool_db_connection_connected_total`
+- `cache_repo_pool_db_connection_disconnected_total`
+
+The pool `last_value` metrics are labeled with:
+
+- `repo` — `cache` or `key_value`
+- `database` — `sqlite`
 
 If you use Grafana, you can import the [reference dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
 

@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
 import ejs from "ejs";
 import { localizedString } from "../i18n.mjs";
-import { localizedDocsPath } from "../paths.mjs";
 
 const CLI_CONTENT_LOCALE = "en";
 
@@ -139,21 +138,21 @@ export async function cliSidebar(locale) {
               locale,
               "sidebars.cli.items.cli.items.debugging.text",
             ),
-            link: localizedDocsPath(linkLocale, "/cli/debugging"),
+            link: `/${linkLocale}/cli/debugging`,
           },
           {
             text: localizedString(
               locale,
               "sidebars.cli.items.cli.items.directories.text",
             ),
-            link: localizedDocsPath(linkLocale, "/cli/directories"),
+            link: `/${linkLocale}/cli/directories`,
           },
           {
             text: localizedString(
               locale,
               "sidebars.cli.items.cli.items.shell-completions.text",
             ),
-            link: localizedDocsPath(linkLocale, "/cli/shell-completions"),
+            link: `/${linkLocale}/cli/shell-completions`,
           },
         ],
       },
@@ -166,7 +165,7 @@ export async function loadData(locale, linkLocale = locale) {
   function parseCommand(
     command,
     parentCommand = "tuist",
-    parentPath = localizedDocsPath(linkLocale, "/cli/"),
+    parentPath = `/${linkLocale}/cli/`,
   ) {
     const output = {
       text: command.commandName,

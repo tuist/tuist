@@ -7,7 +7,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
-  alias Tuist.CommandEvents.Buffer
+  alias Tuist.CommandEvents.Event.Buffer
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Storage

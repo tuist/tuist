@@ -1,0 +1,104 @@
+[id^="agent_prompt_window-"] {
+  --agent-prompt-height: 12lh;
+  --agent-prompt-line-height: 1.45;
+  --agent-prompt-response-color: var(--noora-azure-500);
+
+  display: block;
+  margin-block: var(--noora-spacing-8);
+
+  & > [data-part="code"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    padding-top: var(--noora-spacing-4);
+    padding-bottom: var(--noora-spacing-6);
+    height: var(--agent-prompt-height);
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+
+  & [data-part="terminal-line"] {
+    flex-shrink: 0;
+    min-height: 1lh;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+    line-height: var(--agent-prompt-line-height);
+    text-align: left;
+    white-space: pre-line;
+    word-break: break-word;
+  }
+
+  & [data-part="shell-prompt"] {
+    color: var(--noora-surface-label-secondary);
+  }
+
+  & [data-part="response-section"] {
+    flex-shrink: 0;
+    min-height: 1lh;
+    color: var(--agent-prompt-response-color);
+    font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+    line-height: var(--agent-prompt-line-height);
+    text-align: left;
+  }
+
+  & [data-part="response-section"]::after {
+    display: block;
+    height: var(--noora-spacing-6);
+    content: "";
+  }
+
+  & [data-part="trigger-container"] {
+    display: flex;
+    flex: 1;
+    justify-content: center;
+    align-items: center;
+  }
+
+  & [data-part="trigger-container"][data-played] {
+    display: none;
+  }
+
+  & [data-part="response-text"] {
+    display: inline;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  & [data-part="response-text"] a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 0.14em;
+  }
+
+  & [data-part="prompt-cursor"],
+  & [data-part="response-cursor"] {
+    display: inline-block;
+    vertical-align: text-bottom;
+    visibility: hidden;
+    animation: agent-prompt-blink 0.8s step-end infinite;
+    margin-left: var(--noora-spacing-1);
+    border-radius: var(--noora-radius-xsmall);
+    width: 0.65ch;
+    height: 1em;
+  }
+
+  & [data-part="prompt-cursor"] {
+    background: var(--noora-surface-label-secondary);
+  }
+
+  & [data-part="response-cursor"] {
+    background: var(--agent-prompt-response-color);
+  }
+}
+
+@keyframes agent-prompt-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}

@@ -251,11 +251,31 @@ defmodule Tuist.VCSTest do
               name: "AppTests",
               status: "failure",
               duration: 1000,
+              test_suites: [
+                %{
+                  name: "AppSuite",
+                  status: "failure",
+                  duration: 1000
+                }
+              ],
               test_cases: [
-                %{name: "test1", status: "success", duration: 250},
-                %{name: "test2", status: "success", duration: 250},
-                %{name: "test3", status: "success", duration: 250},
-                %{name: "test4", status: "failure", duration: 250}
+                %{name: "test1", test_suite_name: "AppSuite", status: "success", duration: 250},
+                %{name: "test2", test_suite_name: "AppSuite", status: "success", duration: 250},
+                %{name: "test3", test_suite_name: "AppSuite", status: "success", duration: 250},
+                %{
+                  name: "test4",
+                  test_suite_name: "AppSuite",
+                  status: "failure",
+                  duration: 250,
+                  failures: [
+                    %{
+                      message: ~s{XCTAssertEqual failed: ("snapshot") is not equal to ("expected")},
+                      path: "Tests/AppTests/SnapshotTests.swift",
+                      line_number: 42,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
               ]
             }
           ]
@@ -283,6 +303,23 @@ defmodule Tuist.VCSTest do
         {:ok, %Req.Response{status: 200, body: []}}
       end)
 
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      {[failed_test_case_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test_run_two.id},
+            %{field: :status, op: :==, value: "failure"}
+          ],
+          page: 1,
+          page_size: 10
+        })
+
+      failed_test_case_id = failed_test_case_run.test_case_id
+
       commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
 
       expected_body =
@@ -303,6 +340,14 @@ defmodule Tuist.VCSTest do
         |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
         | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 4 | 3 | 1 | #{commit_link} |
+
+
+        #### Failed Tests ❌
+
+        - **test App**: 1 failed test ([View all](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run_two.id}?tab=failures))
+
+        - [**test4**](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test_case_id}) · AppTests · AppSuite\\
+        [`Tests/AppTests/SnapshotTests.swift:42`](https://github.com/tuist/tuist/blob/#{@git_commit_sha}/Tests/AppTests/SnapshotTests.swift#L42): XCTAssertEqual failed: ("snapshot") is not equal to ("expected")
 
         """
 
@@ -1017,6 +1062,126 @@ defmodule Tuist.VCSTest do
         assert opts[:finch] == Tuist.Finch
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
+      })
+    end
+
+    test "excludes processing builds from the comment" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      {:ok, _processing_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "MyApp",
+          status: "processing",
+          duration: 0,
+          git_commit_sha: @git_commit_sha,
+          git_ref: @git_ref
+        )
+
+      {:ok, _failed_processing_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "OtherApp",
+          status: "failed_processing",
+          duration: 0,
+          git_commit_sha: @git_commit_sha,
+          git_ref: @git_ref
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      reject(&Req.post/1)
+
+      # When / Then — no comment is posted because there is no reportable data
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "includes only finished builds and excludes processing builds from the comment" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      {:ok, finished_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "MyApp",
+          status: "success",
+          duration: 45_000,
+          git_commit_sha: @git_commit_sha,
+          git_ref: @git_ref
+        )
+
+      {:ok, _processing_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "OtherApp",
+          status: "processing",
+          duration: 0,
+          git_commit_sha: @git_commit_sha,
+          git_ref: @git_ref
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Builds 🔨
+
+        | Scheme | Status | Duration | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [MyApp](https://tuist.dev/build-runs/#{finished_build.id}) | ✅ | 45.0s | #{commit_link} |
+
+        """
+
+      expect(Req, :post, fn opts ->
         assert opts[:json] == %{body: expected_body}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
@@ -1870,6 +2035,418 @@ defmodule Tuist.VCSTest do
         assert String.contains?(body, "**test2**: 2 flaky tests")
         assert String.contains?(body, "tab=flaky-runs")
 
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "creates a comment with failed tests" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          status: "failure",
+          scheme: "test",
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: [
+            %{
+              name: "MyModule",
+              status: "failure",
+              duration: 1000,
+              test_suites: [
+                %{
+                  name: "MySuite",
+                  status: "failure",
+                  duration: 1000
+                }
+              ],
+              test_cases: [
+                %{
+                  name: "test_passing",
+                  test_suite_name: "MySuite",
+                  status: "success",
+                  duration: 250
+                },
+                %{
+                  name: "test_failing",
+                  test_suite_name: "MySuite",
+                  status: "failure",
+                  duration: 250,
+                  failures: [
+                    %{
+                      message: "Expected true, got false",
+                      path: "Tests/MyModule/MyTests.swift",
+                      line_number: 10,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      {[failed_test_case_run], _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test_run.id},
+            %{field: :status, op: :==, value: "failure"}
+          ],
+          page: 1,
+          page_size: 10
+        })
+
+      test_case_id = failed_test_case_run.test_case_id
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tests 🧪
+
+        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 2 | 0 | 2 | #{commit_link} |
+
+
+        #### Failed Tests ❌
+
+        - **test**: 1 failed test ([View all](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures))
+
+        - [**test_failing**](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{test_case_id}) · MyModule · MySuite\\
+        [`Tests/MyModule/MyTests.swift:10`](https://github.com/tuist/tuist/blob/#{@git_commit_sha}/Tests/MyModule/MyTests.swift#L10): Expected true, got false
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "limits failed tests to 5 in comment and shows truncation note" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      failed_test_cases =
+        for i <- 1..7 do
+          %{
+            name: "test_failed_#{i}",
+            test_suite_name: "MySuite",
+            status: "failure",
+            duration: 250,
+            failures: [
+              %{
+                message: "Failure in test #{i}",
+                path: "Tests/MyModule/Test#{i}.swift",
+                line_number: i * 10,
+                issue_type: "assertion_failure"
+              }
+            ]
+          }
+        end
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "test",
+          status: "failure",
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: [
+            %{
+              name: "MyModule",
+              status: "failure",
+              duration: 1000,
+              test_suites: [
+                %{
+                  name: "MySuite",
+                  status: "failure",
+                  duration: 1000
+                }
+              ],
+              test_cases: failed_test_cases
+            }
+          ]
+        )
+
+      {failed_test_case_runs, _meta} =
+        Tests.list_test_case_runs(
+          %{
+            filters: [
+              %{field: :test_run_id, op: :==, value: test_run.id},
+              %{field: :status, op: :==, value: "failure"},
+              %{field: :is_flaky, op: :==, value: false}
+            ],
+            page: 1,
+            page_size: 5,
+            order_by: [:ran_at],
+            order_directions: [:desc]
+          },
+          preload: [:failures]
+        )
+
+      displayed_failed_tests =
+        Enum.map(failed_test_case_runs, fn tcr ->
+          %{
+            test_case_id: tcr.test_case_id,
+            name: tcr.name,
+            failure: List.first(tcr.failures)
+          }
+        end)
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      failed_tests_list =
+        Enum.map_join(displayed_failed_tests, "", fn failed_test ->
+          failure = failed_test.failure
+
+          location =
+            "[`#{failure.path}:#{failure.line_number}`](https://github.com/tuist/tuist/blob/#{@git_commit_sha}/#{failure.path}#L#{failure.line_number})"
+
+          "- [**#{failed_test.name}**](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{failed_test.test_case_id}) · MyModule · MySuite\\\n#{location}: #{failure.message}\n"
+        end)
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tests 🧪
+
+        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 7 | 0 | 7 | #{commit_link} |
+
+
+        #### Failed Tests ❌
+
+        - **test**: 7 failed tests ([View all](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures))
+
+        #{failed_tests_list}
+        > Showing 5 of 7 failed tests. See links above for full details.
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "does not show failed tests section when all tests pass" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "test",
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: [
+            %{
+              name: "MyModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "test_passing", status: "success", duration: 250}
+              ]
+            }
+          ]
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      expect(Req, :post, fn opts ->
+        body = opts[:json][:body]
+        refute String.contains?(body, "Failed Tests")
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "does not include flaky tests in failed tests section" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "test",
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: [
+            %{
+              name: "MyModule",
+              status: "success",
+              duration: 1000,
+              test_suites: [
+                %{
+                  name: "MySuite",
+                  status: "success",
+                  duration: 1000
+                }
+              ],
+              test_cases: [
+                %{
+                  name: "test_flaky_behavior",
+                  test_suite_name: "MySuite",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "test_flaky_behavior", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "test_flaky_behavior", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      expect(Req, :post, fn opts ->
+        body = opts[:json][:body]
+        refute String.contains?(body, "Failed Tests")
+        assert String.contains?(body, "Flaky Tests")
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
 
