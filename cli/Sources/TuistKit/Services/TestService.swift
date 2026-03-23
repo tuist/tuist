@@ -256,7 +256,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         if action == .testWithoutBuilding,
-           let testProductsPath = testProductsPathFromArguments(passthroughXcodeBuildArguments),
+           let testProductsPath = await testProductsPathFromArguments(passthroughXcodeBuildArguments),
            try await fileSystem.exists(testProductsPath.appending(component: SelectiveTestingGraph.fileName))
         {
             try await runTestWithoutBuildingFromBundle(
@@ -710,11 +710,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
         AlertController.current.success(.alert("The project tests ran successfully"))
     }
 
-    private func testProductsPathFromArguments(_ arguments: [String]) -> AbsolutePath? {
+    private func testProductsPathFromArguments(_ arguments: [String]) async -> AbsolutePath? {
         guard let index = arguments.firstIndex(of: "-testProductsPath"),
               arguments.indices.contains(index + 1)
         else { return nil }
-        return try? AbsolutePath(validating: arguments[index + 1])
+        let value = arguments[index + 1]
+        if let absolute = try? AbsolutePath(validating: value) {
+            return absolute
+        }
+        guard let cwd = try? await Environment.current.currentWorkingDirectory() else { return nil }
+        return try? AbsolutePath(validating: value, relativeTo: cwd)
     }
 
     private func buildTestWithoutBuildingArguments(
