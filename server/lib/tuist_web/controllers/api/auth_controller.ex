@@ -9,7 +9,7 @@ defmodule TuistWeb.API.AuthController do
   alias Tuist.Time
   alias TuistWeb.API.Schemas.AuthenticationTokens
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.InstrumentedCastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )

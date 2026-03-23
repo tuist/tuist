@@ -9,7 +9,7 @@ defmodule TuistWeb.API.TestCasesController do
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.TestCase
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.InstrumentedCastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )

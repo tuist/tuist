@@ -20,7 +20,7 @@ defmodule TuistWeb.API.PreviewsController do
 
   plug(TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms])
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.InstrumentedCastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
