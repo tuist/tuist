@@ -775,6 +775,8 @@ defmodule Tuist.Tests do
           suite_name_to_id,
           module_name,
           module_test_case_run_data,
+          shard_plan,
+          shard_index,
           existing_test_cases
         )
 
@@ -952,6 +954,8 @@ defmodule Tuist.Tests do
          suite_name_to_id,
          module_name,
          test_case_run_data,
+         shard_plan,
+         shard_index,
          existing_test_cases
        ) do
     test_case_data_list =
