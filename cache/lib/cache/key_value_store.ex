@@ -7,6 +7,7 @@ defmodule Cache.KeyValueStore do
   import Cachex.Spec, only: [expiration: 1, limit: 1]
 
   alias Cache.Config
+  alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
@@ -45,6 +46,7 @@ defmodule Cache.KeyValueStore do
 
     with :ok <- persist_entry(key, json),
          {:ok, _} <- Cachex.put(cache, key, json) do
+      if Config.distributed_kv_enabled?(), do: KeyValueAccessTracker.mark_shared_lineage(key)
       :ok
     end
   end
@@ -77,6 +79,7 @@ defmodule Cache.KeyValueStore do
         load_from_persistence(key, cache)
 
       {:ok, json} when is_binary(json) ->
+        if Config.distributed_kv_enabled?(), do: maybe_track_access(key)
         {:ok, json}
 
       {:ok, _} ->
@@ -99,7 +102,12 @@ defmodule Cache.KeyValueStore do
 
         record ->
           Cachex.put(cache, key, record.json_payload)
-          KeyValueBuffer.enqueue_access(key)
+
+          if Config.distributed_kv_enabled?() and not is_nil(record.source_updated_at) do
+            KeyValueAccessTracker.mark_shared_lineage(key)
+          end
+
+          maybe_track_access(key)
           {:ok, record.json_payload}
       end
     end)
@@ -115,6 +123,15 @@ defmodule Cache.KeyValueStore do
 
   defp with_repo_busy_timeout(timeout_ms, fun) do
     SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout_ms, fun)
+  end
+
+  defp maybe_track_access(key) do
+    if not Config.distributed_kv_enabled?() or
+         (KeyValueAccessTracker.shared_lineage?(key) and KeyValueAccessTracker.allow_access_bump?(key)) do
+      KeyValueBuffer.enqueue_access(key)
+    end
+
+    :ok
   end
 
   defp encode_entries(values) do

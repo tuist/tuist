@@ -109,4 +109,64 @@ defmodule Cache.DiskIntegrationTest do
       assert :ok = Disk.delete_project("nonexistent_account", "nonexistent_project")
     end
   end
+
+  describe "delete_project_files_before/3" do
+    test "skips files whose mtime matches the cutoff second" do
+      account = unique_account()
+      project = "cutoff_project"
+      artifact_key = "#{account}/#{project}/xcode/AB/CD/equal-cutoff"
+      artifact_path = Disk.artifact_path(artifact_key)
+
+      assert :ok = Disk.ensure_directory(artifact_path)
+      File.write!(artifact_path, "content")
+
+      cutoff = DateTime.truncate(DateTime.utc_now(), :second)
+      unix_seconds = DateTime.to_unix(cutoff, :second)
+      assert :ok = File.touch(artifact_path, unix_seconds)
+
+      assert {:ok, 0} = Disk.delete_project_files_before(account, project, cutoff)
+      assert File.exists?(artifact_path)
+    end
+
+    test "deletes files whose mtime is older than the cutoff second" do
+      account = unique_account()
+      project = "older_cutoff_project"
+      artifact_key = "#{account}/#{project}/xcode/AB/CD/older-than-cutoff"
+      artifact_path = Disk.artifact_path(artifact_key)
+
+      assert :ok = Disk.ensure_directory(artifact_path)
+      File.write!(artifact_path, "content")
+
+      cutoff = DateTime.truncate(DateTime.utc_now(), :second)
+      unix_seconds = DateTime.to_unix(DateTime.add(cutoff, -1, :second), :second)
+      assert :ok = File.touch(artifact_path, unix_seconds)
+
+      assert {:ok, 1} = Disk.delete_project_files_before(account, project, cutoff)
+      refute File.exists?(artifact_path)
+    end
+
+    test "returns an error when file removal fails" do
+      account = unique_account()
+      project = "protected_project"
+      artifact_key = "#{account}/#{project}/xcode/AB/CD/protected-artifact"
+      artifact_path = Disk.artifact_path(artifact_key)
+      artifact_dir = Path.dirname(artifact_path)
+
+      assert :ok = Disk.ensure_directory(artifact_path)
+      File.write!(artifact_path, "content")
+
+      cutoff = DateTime.truncate(DateTime.utc_now(), :second)
+      unix_seconds = DateTime.to_unix(DateTime.add(cutoff, -1, :second), :second)
+      assert :ok = File.touch(artifact_path, unix_seconds)
+      assert :ok = File.chmod(artifact_dir, 0o555)
+
+      try do
+        assert {:error, reason} = Disk.delete_project_files_before(account, project, cutoff)
+        assert reason in [:eacces, :eperm]
+      after
+        assert :ok = File.chmod(artifact_dir, 0o755)
+        _ = File.rm(artifact_path)
+      end
+    end
+  end
 end
