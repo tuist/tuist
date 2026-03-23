@@ -582,8 +582,6 @@ defmodule Tuist.Tests do
   end
 
   defp create_test_modules(test, test_modules) do
-    OpenTelemetry.Tracer.set_attributes([{"test.module_count", length(test_modules)}])
-
     test_case_run_data =
       OpenTelemetry.Tracer.with_span "tests.get_test_case_run_data" do
         get_test_case_run_data(test, test_modules)
