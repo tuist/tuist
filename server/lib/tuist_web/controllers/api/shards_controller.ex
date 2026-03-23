@@ -69,7 +69,7 @@ defmodule TuistWeb.API.ShardsController do
              description: "Sharding granularity level."
            }
          },
-         required: [:reference, :modules]
+         required: [:reference]
        }},
     responses: %{
       ok: {"The shard plan", "application/json", ShardPlan},
@@ -150,14 +150,19 @@ defmodule TuistWeb.API.ShardsController do
         %{assigns: %{selected_project: selected_project}, body_params: %{reference: reference}} = conn,
         _params
       ) do
-    {:ok, upload_id} =
-      Shards.start_upload(
-        selected_project,
-        selected_project.account,
-        reference
-      )
+    case Shards.start_upload(
+           selected_project,
+           selected_project.account,
+           reference
+         ) do
+      {:ok, upload_id} ->
+        json(conn, %{data: %{upload_id: upload_id}})
 
-    json(conn, %{data: %{upload_id: upload_id}})
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "The shard plan was not found."})
+    end
   end
 
   operation(:show,
@@ -286,16 +291,21 @@ defmodule TuistWeb.API.ShardsController do
         } = conn,
         _params
       ) do
-    {:ok, url} =
-      Shards.generate_upload_url(
-        selected_project,
-        selected_project.account,
-        reference,
-        upload_id,
-        part_number
-      )
+    case Shards.generate_upload_url(
+           selected_project,
+           selected_project.account,
+           reference,
+           upload_id,
+           part_number
+         ) do
+      {:ok, url} ->
+        json(conn, %{data: %{url: url}})
 
-    json(conn, %{data: %{url: url}})
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "The shard plan was not found."})
+    end
   end
 
   operation(:complete,
@@ -362,15 +372,20 @@ defmodule TuistWeb.API.ShardsController do
         {part.part_number, part.etag}
       end)
 
-    :ok =
-      Shards.complete_upload(
-        selected_project,
-        selected_project.account,
-        reference,
-        upload_id,
-        parts_list
-      )
+    case Shards.complete_upload(
+           selected_project,
+           selected_project.account,
+           reference,
+           upload_id,
+           parts_list
+         ) do
+      :ok ->
+        json(conn, %{status: "success"})
 
-    json(conn, %{status: "success"})
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "The shard plan was not found."})
+    end
   end
 end

@@ -261,7 +261,7 @@ defmodule Tuist.Shards.Analytics do
         group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
         select: %{
           date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
-          count: count(t.id)
+          count: fragment("uniq(?)", t.shard_plan_id)
         },
         order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
       )
@@ -276,7 +276,7 @@ defmodule Tuist.Shards.Analytics do
         where: not is_nil(t.shard_plan_id),
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
-        select: count(t.id)
+        select: fragment("uniq(?)", t.shard_plan_id)
       )
     ) || 0
   end
