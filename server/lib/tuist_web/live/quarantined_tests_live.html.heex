@@ -270,27 +270,24 @@
             <% end %>
           </:col>
           <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
-            <.badge
-              :if={test_case.last_status == "success"}
-              label={dgettext("dashboard_tests", "Passed")}
-              color="success"
-              style="light-fill"
-              size="large"
-            />
-            <.badge
-              :if={test_case.last_status == "failure"}
-              label={dgettext("dashboard_tests", "Failed")}
-              color="destructive"
-              style="light-fill"
-              size="large"
-            />
-            <.badge
-              :if={test_case.last_status == "skipped"}
-              label={dgettext("dashboard_tests", "Skipped")}
-              color="warning"
-              style="light-fill"
-              size="large"
-            />
+            <%= case test_case.last_status do %>
+              <% "success" -> %>
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Passed")}
+                  status="success"
+                />
+              <% "failure" -> %>
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Failed")}
+                  status="error"
+                />
+              <% "skipped" -> %>
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Skipped")}
+                  status="warning"
+                />
+              <% _ -> %>
+            <% end %>
           </:col>
           <:col
             :let={test_case}
