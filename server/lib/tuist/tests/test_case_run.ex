@@ -23,7 +23,9 @@ defmodule Tuist.Tests.TestCaseRun do
       :duration,
       :is_ci,
       :account_id,
-      :scheme
+      :scheme,
+      :shard_id,
+      :shard_index
     ],
     sortable: [:inserted_at, :duration, :name, :ran_at]
   }
@@ -49,6 +51,8 @@ defmodule Tuist.Tests.TestCaseRun do
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :module_name, Ch, type: "String"
     field :suite_name, Ch, type: "String"
+    field :shard_id, Ch, type: "Nullable(UUID)"
+    field :shard_index, Ch, type: "Nullable(Int32)"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
 
@@ -80,7 +84,9 @@ defmodule Tuist.Tests.TestCaseRun do
       :duration,
       :inserted_at,
       :module_name,
-      :suite_name
+      :suite_name,
+      :shard_id,
+      :shard_index
     ])
     |> validate_required([
       :id,

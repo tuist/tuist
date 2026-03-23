@@ -19,6 +19,10 @@ alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.Repo
+alias Tuist.Shards.ShardPlan
+alias Tuist.Shards.ShardPlanModule
+alias Tuist.Shards.ShardPlanTestSuite
+alias Tuist.Shards.ShardRun
 alias Tuist.Slack.Installation
 alias Tuist.Tests.Test
 alias Tuist.Tests.TestCaseEvent
@@ -1235,6 +1239,250 @@ IO.puts("  - Module runs: #{:counters.get(module_run_counter, 1)}")
 IO.puts("  - Suite runs: #{:counters.get(suite_run_counter, 1)}")
 IO.puts("  - Case runs: #{:counters.get(case_run_counter, 1)}")
 IO.puts("  - Failures: #{:counters.get(failure_counter, 1)}")
+
+# =============================================================================
+# Shard Plans and Shard Runs
+# =============================================================================
+# ~10% of test runs are sharded. Each sharded run has a shard plan with
+# 2-4 shards, shard_plan_modules (or shard_plan_test_suites for suite
+# granularity), and shard_runs tracking per-shard execution.
+
+IO.puts("Generating shard plans and shard runs...")
+
+recent_test_runs =
+  IngestRepo.all(
+    from(t in Test,
+      where: t.project_id == ^tuist_project.id,
+      where: t.is_ci == true,
+      order_by: [desc: t.ran_at],
+      limit: 200
+    )
+  )
+
+sharded_test_runs = Enum.take_random(recent_test_runs, recent_test_runs |> length() |> div(10) |> max(5))
+
+shard_plan_count = 0
+shard_run_count = 0
+shard_module_count = 0
+shard_suite_count = 0
+
+# Group test runs into shard plans (2-4 test runs per plan = 2-4 shards)
+sharded_test_runs
+|> Enum.chunk_every(Enum.random(2..4))
+|> Enum.each(fn test_run_group ->
+  shard_count = length(test_run_group)
+  granularity = Enum.random(["module", "module", "module", "suite"])
+  plan_id = Ecto.UUID.generate()
+  reference = "github-#{Enum.random(10_000..99_999)}-1"
+  now = NaiveDateTime.utc_now()
+
+  IngestRepo.insert_all(ShardPlan, [
+    %{
+      id: plan_id,
+      reference: reference,
+      project_id: project_id,
+      shard_count: shard_count,
+      granularity: granularity,
+      inserted_at: now
+    }
+  ])
+
+  shard_plan_count = shard_plan_count + 1
+
+  # Update test runs to link to this shard plan
+  test_run_group
+  |> Enum.with_index()
+  |> Enum.each(fn {test_run, shard_index} ->
+    updated = %{test_run | shard_plan_id: plan_id, inserted_at: NaiveDateTime.utc_now()}
+
+    attrs =
+      updated
+      |> Map.from_struct()
+      |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+
+    IngestRepo.insert_all(Test, [attrs])
+
+    # Create shard run
+    IngestRepo.insert_all(ShardRun, [
+      %{
+        shard_plan_id: plan_id,
+        project_id: project_id,
+        test_run_id: test_run.id,
+        shard_index: shard_index,
+        status: test_run.status || "success",
+        duration: test_run.duration || 0,
+        ran_at: test_run.ran_at || now,
+        inserted_at: now
+      }
+    ])
+
+    shard_run_count = shard_run_count + 1
+
+    # Create shard target assignments
+    if granularity == "suite" do
+      suite_names =
+        Enum.take_random(
+          [
+            "LoginTests",
+            "SignupTests",
+            "ProfileTests",
+            "SettingsTests",
+            "NetworkTests",
+            "DatabaseTests",
+            "CacheTests",
+            "AnalyticsTests",
+            "PaymentTests",
+            "SearchTests"
+          ],
+          Enum.random(2..4)
+        )
+
+      suite_rows =
+        Enum.map(suite_names, fn suite_name ->
+          module = Enum.random(module_names)
+
+          %{
+            shard_plan_id: plan_id,
+            project_id: project_id,
+            shard_index: shard_index,
+            module_name: module,
+            test_suite_name: suite_name,
+            estimated_duration_ms: Enum.random(2_000..15_000),
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(ShardPlanTestSuite, suite_rows)
+      shard_suite_count = shard_suite_count + length(suite_rows)
+    else
+      assigned_modules = Enum.take_random(module_names, Enum.random(1..3))
+
+      module_rows =
+        Enum.map(assigned_modules, fn module ->
+          %{
+            shard_plan_id: plan_id,
+            project_id: project_id,
+            shard_index: shard_index,
+            module_name: module,
+            estimated_duration_ms: Enum.random(5_000..30_000),
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(ShardPlanModule, module_rows)
+      shard_module_count = shard_module_count + length(module_rows)
+    end
+  end)
+end)
+
+IO.puts("  - Shard plans: #{shard_plan_count}")
+IO.puts("  - Shard runs: #{shard_run_count}")
+IO.puts("  - Shard plan modules: #{shard_module_count}")
+IO.puts("  - Shard plan test suites: #{shard_suite_count}")
+
+# Create a few in-progress sharded test runs (some shards haven't reported yet)
+IO.puts("Generating in-progress sharded test runs...")
+
+for i <- 1..3 do
+  plan_id = Ecto.UUID.generate()
+  shard_count = Enum.random(3..5)
+  reported_shards = Enum.random(1..(shard_count - 1))
+  now = NaiveDateTime.utc_now()
+  reference = "github-inprogress-#{i}"
+
+  IngestRepo.insert_all(ShardPlan, [
+    %{
+      id: plan_id,
+      reference: reference,
+      project_id: project_id,
+      shard_count: shard_count,
+      granularity: "module",
+      inserted_at: now
+    }
+  ])
+
+  test_run_id = UUIDv7.generate()
+
+  IngestRepo.insert_all(Test, [
+    %{
+      id: test_run_id,
+      duration: Enum.random(10_000..30_000),
+      macos_version: "15.3",
+      xcode_version: "16.2",
+      is_ci: true,
+      is_flaky: false,
+      model_identifier: "MacBookPro14,2",
+      scheme: "AppTests",
+      status: "in_progress",
+      git_branch: "main",
+      git_commit_sha: "abc123def456",
+      git_ref: "refs/heads/main",
+      ran_at: now,
+      project_id: project_id,
+      account_id: org_account_id,
+      shard_plan_id: plan_id,
+      inserted_at: now,
+      ci_run_id: "#{Enum.random(19_000_000_000..20_000_000_000)}",
+      ci_project_handle: "tuist/tuist",
+      ci_host: "",
+      ci_provider: "github"
+    }
+  ])
+
+  # Only some shards have reported
+  for shard_index <- 0..(reported_shards - 1) do
+    IngestRepo.insert_all(ShardRun, [
+      %{
+        shard_plan_id: plan_id,
+        project_id: project_id,
+        test_run_id: test_run_id,
+        shard_index: shard_index,
+        status: Enum.random(["success", "success", "success", "failure"]),
+        duration: Enum.random(5_000..20_000),
+        ran_at: now,
+        inserted_at: now
+      }
+    ])
+
+    # Add module assignments for each shard
+    assigned_modules = Enum.take_random(module_names, Enum.random(1..3))
+
+    module_rows =
+      Enum.map(assigned_modules, fn module ->
+        %{
+          shard_plan_id: plan_id,
+          project_id: project_id,
+          shard_index: shard_index,
+          module_name: module,
+          estimated_duration_ms: Enum.random(5_000..30_000),
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(ShardPlanModule, module_rows)
+  end
+
+  # Add module assignments for pending shards too (plan assigned them, they just haven't run)
+  for shard_index <- reported_shards..(shard_count - 1) do
+    assigned_modules = Enum.take_random(module_names, Enum.random(1..3))
+
+    module_rows =
+      Enum.map(assigned_modules, fn module ->
+        %{
+          shard_plan_id: plan_id,
+          project_id: project_id,
+          shard_index: shard_index,
+          module_name: module,
+          estimated_duration_ms: Enum.random(5_000..30_000),
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(ShardPlanModule, module_rows)
+  end
+end
+
+IO.puts("  - Created 3 in-progress sharded test runs")
 
 # Generate command events with module cache data linked to test runs
 # This ensures test runs have binary cache analytics available

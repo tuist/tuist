@@ -96,7 +96,9 @@
             let test = try await inspectResultBundleService.inspectResultBundle(
                 resultBundlePath: resolvedResultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
-                config: config
+                config: config,
+                shardPlanId: nil,
+                shardIndex: nil
             )
 
             AlertController.current.success(

@@ -437,6 +437,14 @@ defmodule TuistWeb.Router do
           post "/", TestsController, :create
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
+
+          scope "/shards" do
+            post "/", ShardsController, :create
+            post "/upload/start", ShardsController, :start_upload
+            post "/upload/generate-url", ShardsController, :generate_url
+            post "/upload/complete", ShardsController, :complete
+            get "/:reference/:shard_index", ShardsController, :show
+          end
         end
 
         scope "/builds" do
@@ -814,6 +822,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-cases/runs/:test_case_run_id", TestCaseRunLive
       live "/tests/flaky-tests", FlakyTestsLive
       live "/tests/quarantined-tests", QuarantinedTestsLive
+      live "/tests/shards", ShardsLive
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive
