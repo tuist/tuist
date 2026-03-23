@@ -355,12 +355,14 @@ defmodule Tuist.Tests do
       |> Enum.reject(&Map.has_key?(existing_data, &1))
       |> MapSet.new()
 
+    Tuist.Tasks.run_async(fn -> TestCase.Buffer.insert_all(test_cases) end)
+
     test_case_id_map =
       Map.new(test_cases, fn tc ->
         {{tc.name, tc.module_name, tc.suite_name}, tc.id}
       end)
 
-    {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids, test_cases}
+    {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids}
   end
 
   defp get_all_project_test_cases(project_id) do
@@ -587,81 +589,59 @@ defmodule Tuist.Tests do
         fn {{_name, mod_name, _suite}, _data} -> mod_name end
       )
 
-    acc_init = %{test_case_runs: [], test_case_rows: [], failures: [], repetitions: []}
+    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
+      module_id = UUIDv7.generate()
+      module_name = Map.get(module_attrs, :name)
 
-    {flaky_ids, acc} =
-      Enum.flat_map_reduce(test_modules, acc_init, fn module_attrs, acc ->
-        module_id = UUIDv7.generate()
-        module_name = Map.get(module_attrs, :name)
+      test_suites = Map.get(module_attrs, :test_suites, [])
+      test_cases = Map.get(module_attrs, :test_cases, [])
 
-        test_suites = Map.get(module_attrs, :test_suites, [])
-        test_cases = Map.get(module_attrs, :test_cases, [])
+      test_suite_count = length(test_suites)
+      test_case_count = length(test_cases)
 
-        test_suite_count = length(test_suites)
-        test_case_count = length(test_cases)
+      avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
 
-        avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
+      module_test_case_run_data =
+        test_case_run_data_by_module
+        |> Map.get(module_name, [])
+        |> Map.new()
 
-        module_test_case_run_data =
-          test_case_run_data_by_module
-          |> Map.get(module_name, [])
-          |> Map.new()
+      module_is_flaky = any_test_case_run_flaky?(Map.values(module_test_case_run_data))
 
-        module_is_flaky = any_test_case_run_flaky?(Map.values(module_test_case_run_data))
+      module_run_attrs = %{
+        id: module_id,
+        name: module_name,
+        test_run_id: test.id,
+        status: Map.get(module_attrs, :status),
+        is_flaky: module_is_flaky,
+        duration: Map.get(module_attrs, :duration, 0),
+        test_suite_count: test_suite_count,
+        test_case_count: test_case_count,
+        avg_test_case_duration: avg_test_case_duration,
+        inserted_at: NaiveDateTime.utc_now()
+      }
 
-        module_run_attrs = %{
-          id: module_id,
-          name: module_name,
-          test_run_id: test.id,
-          status: Map.get(module_attrs, :status),
-          is_flaky: module_is_flaky,
-          duration: Map.get(module_attrs, :duration, 0),
-          test_suite_count: test_suite_count,
-          test_case_count: test_case_count,
-          avg_test_case_duration: avg_test_case_duration,
-          inserted_at: NaiveDateTime.utc_now()
-        }
+      %TestModuleRun{}
+      |> TestModuleRun.create_changeset(module_run_attrs)
+      |> Ecto.Changeset.apply_action!(:insert)
 
-        %TestModuleRun{}
-        |> TestModuleRun.create_changeset(module_run_attrs)
-        |> Ecto.Changeset.apply_action!(:insert)
+      TestModuleRun.Buffer.insert(module_run_attrs)
 
-        TestModuleRun.Buffer.insert(module_run_attrs)
+      suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
 
-        suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
+      {flaky_ids, test_case_runs} =
+        create_test_cases_for_module(
+          test,
+          module_id,
+          test_cases,
+          suite_name_to_id,
+          module_name,
+          module_test_case_run_data,
+          existing_test_cases
+        )
 
-        {flaky_ids, test_case_runs, test_case_rows, failures, repetitions} =
-          create_test_cases_for_module(
-            test,
-            module_id,
-            test_cases,
-            suite_name_to_id,
-            module_name,
-            module_test_case_run_data,
-            existing_test_cases
-          )
-
-        acc = %{
-          test_case_runs: acc.test_case_runs ++ test_case_runs,
-          test_case_rows: acc.test_case_rows ++ test_case_rows,
-          failures: acc.failures ++ failures,
-          repetitions: acc.repetitions ++ repetitions
-        }
-
-        {flaky_ids, acc}
-      end)
-
-    Tuist.Tasks.run_async(fn ->
-      TestCase.Buffer.insert_all(acc.test_case_rows)
-      TestCaseRun.Buffer.insert_all(acc.test_case_runs)
-      TestCaseFailure.Buffer.insert_all(acc.failures)
-
-      if Enum.any?(acc.repetitions) do
-        TestCaseRunRepetition.Buffer.insert_all(acc.repetitions)
-      end
+      {flaky_ids, acc_test_case_runs ++ test_case_runs}
     end)
-
-    {flaky_ids, acc.test_case_runs}
   end
 
   defp get_test_case_run_data(test, test_modules) do
@@ -854,7 +834,7 @@ defmodule Tuist.Tests do
       end)
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
-    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids, test_case_rows} =
+    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
       create_test_cases(test.project_id, test_case_data_list, existing_test_cases)
 
     {test_case_runs, all_failures, all_repetitions} =
@@ -927,9 +907,18 @@ defmodule Tuist.Tests do
         {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc}
       end)
 
+    Tuist.Tasks.run_async(fn ->
+      TestCaseRun.Buffer.insert_all(test_case_runs)
+      TestCaseFailure.Buffer.insert_all(all_failures)
+
+      if Enum.any?(all_repetitions) do
+        TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
+      end
+    end)
+
     create_first_run_events(test_case_runs, new_test_case_ids)
 
-    {test_case_ids_with_flaky_run, test_case_runs, test_case_rows, all_failures, all_repetitions}
+    {test_case_ids_with_flaky_run, test_case_runs}
   end
 
   defp create_first_run_events(test_case_runs, new_test_case_ids) do
