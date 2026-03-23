@@ -870,7 +870,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        var testSummary: TestSummary?
         do {
             try await xcodebuildController.test(
                 .workspace(graphTraverser.workspace.xcWorkspacePath),
@@ -893,26 +892,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
-            if let resultBundlePath {
-                let rootDir = try await rootDirectory()
-                if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir) {
-                    testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
-                } else {
-                    testSummary = nil
-                }
-            } else {
-                testSummary = nil
-            }
         } catch {
-            var parsedSummary: TestSummary?
-            if let resultBundlePath {
-                let rootDir = try? await rootDirectory()
-                if let parsed = try? await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir) {
-                    parsedSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
-                }
-            }
+            let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
             await uploadResultBundleIfNeeded(
-                testSummary: parsedSummary,
+                testSummary: summary,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 action: action
@@ -920,12 +903,24 @@ public struct TestService { // swiftlint:disable:this type_body_length
             throw error
         }
 
+        let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
         await uploadResultBundleIfNeeded(
-            testSummary: testSummary,
+            testSummary: summary,
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config,
             action: action
         )
+    }
+
+    private func testSummary(
+        resultBundlePath: AbsolutePath?,
+        quarantinedTests: [TestIdentifier]
+    ) async -> TestSummary? {
+        guard let resultBundlePath,
+              let rootDir = try? await rootDirectory(),
+              let parsed = try? await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir)
+        else { return nil }
+        return testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
     }
 
     private func uploadResultBundleIfNeeded(
