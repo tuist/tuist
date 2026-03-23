@@ -89,12 +89,8 @@ struct XcodeBuildTestCommandService {
             if let derivedDataPath {
                 await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
             }
-            await inspectResultBundleIfNeeded(
-                resultBundlePath: resultBundlePath,
-                projectDerivedDataDirectory: derivedDataPath,
-                config: config
-            )
 
+            var onlyQuarantinedFailures = false
             if !quarantinedTests.isEmpty, let resultBundlePath {
                 let rootDirectory = await rootDirectory()
                 if let testSummary = try await xcResultService.parse(
@@ -106,6 +102,7 @@ struct XcodeBuildTestCommandService {
                         quarantinedTests: quarantinedTests
                     )
                     if realFailures.isEmpty, !quarantinedFailures.isEmpty {
+                        onlyQuarantinedFailures = true
                         let failureNames = quarantinedFailures.map { testCase in
                             [testCase.module, testCase.testSuite, testCase.name]
                                 .compactMap { $0 }
@@ -115,7 +112,6 @@ struct XcodeBuildTestCommandService {
                             "\(quarantinedFailures.count) quarantined test(s) failed (exit code overridden to 0): \(failureNames)",
                             metadata: .subsection
                         )
-                        return
                     } else if !realFailures.isEmpty, !quarantinedFailures.isEmpty {
                         Logger.current.notice(
                             "\(quarantinedFailures.count) quarantined test(s) failed, \(realFailures.count) non-quarantined test(s) failed",
@@ -123,6 +119,17 @@ struct XcodeBuildTestCommandService {
                         )
                     }
                 }
+            }
+
+            // inspectResultBundleIfNeeded will re-parse the xcresult internally for uploading
+            await inspectResultBundleIfNeeded(
+                resultBundlePath: resultBundlePath,
+                projectDerivedDataDirectory: derivedDataPath,
+                config: config
+            )
+
+            if onlyQuarantinedFailures {
+                return
             }
 
             throw error
