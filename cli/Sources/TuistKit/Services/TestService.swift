@@ -466,15 +466,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
             try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
-            let shardDestination: String? =
-                if let idx = passthroughXcodeBuildArguments.firstIndex(of: "-destination"),
-                passthroughXcodeBuildArguments.indices.contains(idx + 1) {
-                    passthroughXcodeBuildArguments[idx + 1]
-                } else if let platform {
-                    "platform=\(platform)"
-                } else {
-                    nil
-                }
+            let shardDestination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments)
+                ?? platform.map { "platform=\($0)" }
 
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             _ = try await shardPlanService.plan(
@@ -1433,4 +1426,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
     }
+}
+
+private func passedValue(for option: String, arguments: [String]) -> String? {
+    guard let optionIndex = arguments.firstIndex(of: option) else { return nil }
+    let valueIndex = arguments.index(after: optionIndex)
+    guard arguments.endIndex > valueIndex else { return nil }
+    return arguments[valueIndex]
 }
