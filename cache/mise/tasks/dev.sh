@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-#MISE description="Sets up the database"
+#MISE description="Devs the cache application"
 
 set -euo pipefail
 
 "${MISE_PROJECT_ROOT}/mise/utilities/ensure_dev_instance.sh"
 
-mix ecto.load
+mix phx.server

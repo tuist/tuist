@@ -46,7 +46,7 @@ This service provides:
 
 3. Start the server:
    ```bash
-   mix phx.server
+   mise run dev
    ```
 
 ## Testing
@@ -58,7 +58,7 @@ mix test
 
 ## Development
 
-The service runs on port 4000 by default in development mode.
+The service uses a clone-local suffix from `.tuist-dev-instance` in development mode. That suffix scopes the cache port and the main server URL it talks to, so one repo clone can run its own paired `server/` and `cache/` instances without colliding with other clones.
 
 ## Architecture
 

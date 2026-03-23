@@ -3,4 +3,6 @@
 
 set -euo pipefail
 
- mix ecto.migrate
+"${MISE_PROJECT_ROOT}/mise/utilities/ensure_dev_instance.sh"
+
+mix ecto.migrate

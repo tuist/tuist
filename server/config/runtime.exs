@@ -178,7 +178,13 @@ if env == :dev do
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do
-  port = "8080"
+  port =
+    if env == :dev do
+      Application.get_env(:tuist, :dev_instance, [])[:port] || 8080
+    else
+      8080
+    end
+
   app_url = Tuist.Environment.app_url([route_type: :app], secrets)
   %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
 

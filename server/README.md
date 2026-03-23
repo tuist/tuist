@@ -23,7 +23,7 @@ Contributions to the Tuist Server require signing a Contributor License Agreemen
 1. Install dependencies: `mise run install`
 1. Create and set up the database: `mise run db:setup`
 1. Run the server: `mise run dev`
-1. Open `http://localhost:8080` in your browser and log in with the pre-made test user account:
+1. Open the clone-specific local URL in your browser and log in with the pre-made test user account. Each repo clone persists its own numeric suffix in `.tuist-dev-instance`, which scopes the local service ports and server databases. For example, a suffix of `443` yields `http://localhost:8523`:
 
 ```
 Email: tuistrocks@tuist.dev
@@ -36,8 +36,6 @@ Pass: tuistrocks
 #### To run additional features
 1. Clone the repository: `https://github.com/tuist/tuist.git`.
 1. Go to `tuist/examples/xcode/generated_ios_app_with_frameworks`.
-1. Change the url in `Tuist/Config.swift` to `http://localhost:8080`.
+1. Change the url in `Tuist/Config.swift` to the clone-specific local URL, for example `http://localhost:8523`.
 1. Run `tuist auth` to authenticate.
 1. You are now connected to the local Tuist Server!  You can try running `tuist cache` and see the binaries being uploaded.
-
-
