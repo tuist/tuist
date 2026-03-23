@@ -4,6 +4,11 @@ public struct ServerProjectToken {
     public let id: String
     public let insertedAt: Date
 
+    init(id: String, insertedAt: Date) {
+        self.id = id
+        self.insertedAt = insertedAt
+    }
+
     init(_ projectToken: Components.Schemas.ProjectToken) {
         id = projectToken.id
         insertedAt = projectToken.inserted_at

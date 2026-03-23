@@ -8,6 +8,22 @@ public struct ServerPaginationMetadata: Equatable {
     public let totalCount: Int
     public let totalPages: Int?
 
+    init(
+        hasNextPage: Bool,
+        hasPreviousPage: Bool,
+        currentPage: Int?,
+        pageSize: Int,
+        totalCount: Int,
+        totalPages: Int?
+    ) {
+        self.hasNextPage = hasNextPage
+        self.hasPreviousPage = hasPreviousPage
+        self.currentPage = currentPage
+        self.pageSize = pageSize
+        self.totalCount = totalCount
+        self.totalPages = totalPages
+    }
+
     init(_ paginationMetadata: Components.Schemas.PaginationMetadata) {
         hasNextPage = paginationMetadata.has_next_page
         hasPreviousPage = paginationMetadata.has_previous_page

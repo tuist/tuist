@@ -9,6 +9,13 @@
         public let supportedPlatforms: [DestinationType]
         public let type: AppBuildType
 
+        init(id: String, url: URL, supportedPlatforms: [DestinationType], type: AppBuildType) {
+            self.id = id
+            self.url = url
+            self.supportedPlatforms = supportedPlatforms
+            self.type = type
+        }
+
         init?(_ appBuild: Components.Schemas.AppBuild) {
             id = appBuild.id
             guard let url = URL(string: appBuild.url)

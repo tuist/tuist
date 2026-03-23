@@ -117,6 +117,10 @@ public struct SourceFilesList: Codable, Equatable, Sendable, ExpressibleByString
     /// List glob patterns.
     public var globs: [SourceFileGlob]
 
+    public init(globs: [SourceFileGlob]) {
+        self.globs = globs
+    }
+
     /// Creates the source files list with the glob patterns.
     ///
     /// - Parameter globs: Glob patterns.
