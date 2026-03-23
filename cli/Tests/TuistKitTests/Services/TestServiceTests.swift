@@ -150,6 +150,10 @@ final class TestServiceTests: TuistUnitTestCase {
                 )
             )
 
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+
         subject = TestService(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
