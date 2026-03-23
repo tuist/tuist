@@ -2,27 +2,21 @@ import Foundation
 import TSCBasic
 import TuistSupport
 import TuistSupportTesting
-import XCTest
+import Testing
 @testable import TuistEnvKit
 
-final class BuildCopierTests: XCTestCase {
-    var subject: BuildCopier!
-    var fileManager: FileManager!
-
-    override func setUp() {
-        super.setUp()
+struct BuildCopierTests {
+    let subject: BuildCopier
+    let fileManager: FileManager
+    init() {
         fileManager = .default
         subject = BuildCopier()
     }
 
-    override func tearDown() {
-        fileManager = nil
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_files() {
-        XCTAssertEqual(BuildCopier.files, [
+        #expect(BuildCopier.files == [
             "tuist",
             "Templates",
             "vendor",
@@ -33,6 +27,7 @@ final class BuildCopierTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_copy() throws {
         let fromDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let fromPath = fromDir.path
@@ -50,10 +45,11 @@ final class BuildCopierTests: XCTestCase {
 
         try subject.copy(from: fromPath, to: toPath)
 
-        XCTAssertEqual(toPath.glob("*").count, BuildCopier.files.count)
-        XCTAssertFalse(fileManager.fileExists(atPath: toPath.appending(component: "test").pathString))
+        #expect(toPath.glob("*").count == BuildCopier.files.count)
+        #expect(!fileManager.fileExists(atPath: toPath.appending(component: "test").pathString))
     }
 
+    @Test
     func test_copy_without_templates() throws {
         let fromDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let fromPath = fromDir.path
@@ -74,7 +70,7 @@ final class BuildCopierTests: XCTestCase {
 
         try subject.copy(from: fromPath, to: toPath)
 
-        XCTAssertEqual(toPath.glob("*").count, BuildCopier.files.count - 1)
-        XCTAssertFalse(fileManager.fileExists(atPath: toPath.appending(component: "test").pathString))
+        #expect(toPath.glob("*").count == BuildCopier.files.count - 1)
+        #expect(!fileManager.fileExists(atPath: toPath.appending(component: "test").pathString))
     }
 }

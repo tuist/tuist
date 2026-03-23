@@ -1,9 +1,9 @@
 import ProjectDescription
-import TuistSupportTesting
-import XCTest
+import Testing
+import TuistTesting
 
-class TemplateTests: XCTestCase {
-    func test_template_codable() throws {
+struct TemplateTests {
+    @Test func test_template_codable() throws {
         // Given
         let template = Template(
             description: "",
@@ -20,6 +20,6 @@ class TemplateTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(template)
+        #expect(try isCodableRoundTripable(template))
     }
 }

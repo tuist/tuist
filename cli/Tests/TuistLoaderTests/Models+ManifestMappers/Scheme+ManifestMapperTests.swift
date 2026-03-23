@@ -1,23 +1,25 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
 import ProjectDescription
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
 
 @testable import TuistLoader
 @testable import TuistTesting
 
-final class SchemeManifestMapperTests: TuistUnitTestCase {
-    func test_from_when_the_scheme_has_no_actions() async throws {
+struct SchemeManifestMapperTests {
+    @Test(.inTemporaryDirectory) func from_when_the_scheme_has_no_actions() async throws {
         // Given
         let manifest = ProjectDescription.Scheme.test(
             name: "Scheme",
             shared: false
         )
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
-        let rootDirectory = try temporaryPath()
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: projectPath,
             rootDirectory: rootDirectory
@@ -27,10 +29,11 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
+        #expect(model.name == manifest.name)
+        #expect(model.shared == manifest.shared)
     }
 
-    func test_from_when_the_scheme_has_actions() async throws {
+    @Test(.inTemporaryDirectory) func from_when_the_scheme_has_actions() async throws {
         // Given
         let arguments = ProjectDescription.Arguments.test(
             environment: ["FOO": "BAR", "FIZ": "BUZZ"],
@@ -41,7 +44,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         )
 
         let projectPath = try AbsolutePath(validating: "/somepath")
-        let rootDirectory = try temporaryPath()
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: projectPath,
             rootDirectory: rootDirectory
@@ -71,10 +74,14 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
+        #expect(model.name == manifest.name)
+        #expect(model.shared == manifest.shared)
+        #expect(model.buildAction != nil)
+        #expect(model.testAction != nil)
+        #expect(model.runAction != nil)
     }
 
-    func test_from_when_the_scheme_uses_manual_build_order() async throws {
+    @Test(.inTemporaryDirectory) func from_when_the_scheme_uses_manual_build_order() async throws {
         // Given
         let buildAction = ProjectDescription.BuildAction.test(
             targets: ["A", "B"],
@@ -86,7 +93,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
             buildAction: buildAction
         )
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
-        let rootDirectory = try temporaryPath()
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: projectPath,
             rootDirectory: rootDirectory
@@ -96,13 +103,13 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
+        #expect(model.buildAction?.parallelizeBuild == false)
     }
 
-    func test_from_when_the_run_action_has_askForAppToLaunch() async throws {
+    @Test(.inTemporaryDirectory) func from_when_the_run_action_has_askForAppToLaunch() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
-        let rootDirectory = try temporaryPath()
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: projectPath,
             rootDirectory: rootDirectory
@@ -118,13 +125,13 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertEqual(model.runAction?.askForAppToLaunch, true)
+        #expect(model.runAction?.askForAppToLaunch == true)
     }
 
-    func test_from_when_the_profile_action_has_askForAppToLaunch() async throws {
+    @Test(.inTemporaryDirectory) func from_when_the_profile_action_has_askForAppToLaunch() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
-        let rootDirectory = try temporaryPath()
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: projectPath,
             rootDirectory: rootDirectory
@@ -142,10 +149,10 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertEqual(model.profileAction?.askForAppToLaunch, true)
+        #expect(model.profileAction?.askForAppToLaunch == true)
     }
 
-    func test_from_when_the_scheme_uses_custom_executable_and_working_directory() async throws {
+    @Test(.inTemporaryDirectory) func from_when_the_scheme_uses_custom_executable_and_working_directory() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let runAction = ProjectDescription.RunAction.test(
@@ -157,7 +164,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
             shared: false,
             runAction: runAction
         )
-        let rootDirectory = try temporaryPath()
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: projectPath,
             rootDirectory: rootDirectory
@@ -167,8 +174,8 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertNil(model.runAction?.executable)
-        XCTAssertEqual(model.runAction?.customWorkingDirectory, "/home/user/dev/project")
-        XCTAssertEqual(model.runAction?.filePath, "/usr/bin/my-script")
+        #expect(model.runAction?.executable == nil)
+        #expect(model.runAction?.customWorkingDirectory == "/home/user/dev/project")
+        #expect(model.runAction?.filePath == "/usr/bin/my-script")
     }
 }

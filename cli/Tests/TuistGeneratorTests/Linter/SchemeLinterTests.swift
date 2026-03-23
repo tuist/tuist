@@ -1,25 +1,21 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class SchemeLinterTests: TuistUnitTestCase {
-    private var subject: SchemeLinter!
-
-    override func setUp() {
-        super.setUp()
+struct SchemeLinterTests {
+    private let subject: SchemeLinter
+    init() {
         subject = SchemeLinter()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_lint_missingConfigurations() async throws {
         // Given
         let settings = Settings(configurations: [
@@ -36,18 +32,13 @@ final class SchemeLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(project: project)
 
         // Then
-        XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(got.last?.severity, .error)
-        XCTAssertEqual(
-            got.first?.reason,
-            "The build configuration 'CustomDebug' specified in the scheme's run action isn't defined in the project."
-        )
-        XCTAssertEqual(
-            got.last?.reason,
-            "The build configuration 'Alpha' specified in the scheme's test action isn't defined in the project."
-        )
+        #expect(got.first?.severity == .error)
+        #expect(got.last?.severity == .error)
+        #expect(got.first?.reason == "The build configuration 'CustomDebug' specified in the scheme's run action isn't defined in the project.")
+        #expect(got.last?.reason == "The build configuration 'Alpha' specified in the scheme's test action isn't defined in the project.")
     }
 
+    @Test
     func test_lint_referenceLocalTarget() async throws {
         // Given
         let project = Project.test(schemes: [
@@ -62,9 +53,10 @@ final class SchemeLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(project: project)
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 
+    @Test
     func test_lint_referenceRemoteTargetBuildAction() async throws {
         // Given
         let project = Project.test(schemes: [
@@ -82,13 +74,11 @@ final class SchemeLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(project: project)
 
         // Then
-        XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(
-            got.first?.reason,
-            "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project."
-        )
+        #expect(got.first?.severity == .error)
+        #expect(got.first?.reason == "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
     }
 
+    @Test
     func test_lint_referenceRemoteTargetTestAction() async throws {
         // Given
         let settings = Settings(configurations: [
@@ -124,13 +114,11 @@ final class SchemeLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(project: project)
 
         // Then
-        XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(
-            got.first?.reason,
-            "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project."
-        )
+        #expect(got.first?.severity == .error)
+        #expect(got.first?.reason == "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
     }
 
+    @Test
     func test_lint_referenceRemoteTargetExecutionAction() async throws {
         // Given
         let project = Project.test(schemes: [
@@ -153,13 +141,11 @@ final class SchemeLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(project: project)
 
         // Then
-        XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(
-            got.first?.reason,
-            "The target 'Target2' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project."
-        )
+        #expect(got.first?.severity == .error)
+        #expect(got.first?.reason == "The target 'Target2' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
     }
 
+    @Test
     func test_lint_missingStoreKitConfiguration() async throws {
         // Given
         let project = Project.test(
@@ -181,16 +167,14 @@ final class SchemeLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(project: project)
 
         // Then
-        XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(
-            got.first?.reason,
-            "StoreKit configuration file not found at path /non/existing/path/configuration.storekit"
-        )
+        #expect(got.first?.severity == .error)
+        #expect(got.first?.reason == "StoreKit configuration file not found at path /non/existing/path/configuration.storekit")
     }
 
+    @Test(.inTemporaryDirectory)
     func test_lint_existingStoreKitConfiguration() async throws {
         // Given
-        let storeKitConfigurationPath = try temporaryPath().appending(component: "configuration.storekit")
+        let storeKitConfigurationPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "configuration.storekit")
         let project = Project.test(
             settings: Settings(configurations: [
                 BuildConfiguration.debug: Configuration(settings: .init(), xcconfig: nil),
@@ -206,12 +190,12 @@ final class SchemeLinterTests: TuistUnitTestCase {
             ]
         )
 
-        try await fileSystem.touch(storeKitConfigurationPath)
+        try await FileSystem().touch(storeKitConfigurationPath)
 
         // When
         let got = try await subject.lint(project: project)
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty)
     }
 }

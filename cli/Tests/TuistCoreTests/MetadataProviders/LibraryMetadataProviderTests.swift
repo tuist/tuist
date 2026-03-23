@@ -1,25 +1,19 @@
 import Path
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistCore
 @testable import TuistTesting
 
-final class LibraryMetadataProviderTests: XCTestCase {
-    var subject: LibraryMetadataProvider!
+struct LibraryMetadataProviderTests {
+    let subject: LibraryMetadataProvider
 
-    override func setUp() {
-        super.setUp()
+    init() {
         subject = LibraryMetadataProvider()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_loadMetadata() async throws {
+    @Test func test_loadMetadata() async throws {
         // Given
-        let libraryPath = fixturePath(path: try RelativePath(validating: "libStaticLibrary.a"))
+        let libraryPath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "libStaticLibrary.a"))
 
         // When
         let metadata = try await subject.loadMetadata(
@@ -29,7 +23,7 @@ final class LibraryMetadataProviderTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(metadata, LibraryMetadata(
+        #expect(metadata == LibraryMetadata(
             path: libraryPath,
             publicHeaders: libraryPath.parentDirectory,
             swiftModuleMap: nil,

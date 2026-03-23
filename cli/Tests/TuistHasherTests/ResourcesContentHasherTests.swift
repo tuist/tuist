@@ -5,29 +5,24 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistHasher
 
-final class ResourcesContentHasherTests: TuistUnitTestCase {
-    private var subject: ResourcesContentHasher!
-    private var contentHasher: ContentHasher!
-
-    override func setUp() {
-        super.setUp()
+struct ResourcesContentHasherTests {
+    private let subject: ResourcesContentHasher
+    private let contentHasher: ContentHasher
+    init() {
         contentHasher = ContentHasher()
         subject = ResourcesContentHasher(contentHasher: contentHasher)
     }
 
-    override func tearDown() {
-        subject = nil
-        contentHasher = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_hash_is_deterministic() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
         let resource1 = temporaryDirectory.appending(component: "1.png")
         let resource2 = temporaryDirectory.appending(component: "referenced-folder").appending(component: "2.png")
@@ -52,12 +47,13 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertEqual(hashes.count, 1)
+        #expect(hashes.count == 1)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_hash_changes_after_resource_rename() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
         let resource1 = temporaryDirectory.appending(component: "1.png")
         let resource2 = temporaryDirectory.appending(component: "2.png")
@@ -81,12 +77,13 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         let hash2 = try await subject.hash(identifier: "resources", resources: resourceFileElements2).hash
 
         // Then
-        XCTAssertNotEqual(hash1, hash2)
+        #expect(hash1 != hash2)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_hash_returnsTheRightMerkleNode() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
         let resource1 = temporaryDirectory.appending(component: "1.png")
         let resource2 = temporaryDirectory.appending(component: "referenced-folder").appending(component: "2.png")
@@ -108,8 +105,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         let got = try await subject.hash(identifier: "resources", resources: resourceFileElements)
 
         // Then
-        // Children are sorted by hash for determinism
-        XCTAssertEqual(got, MerkleNode(
+        #expect(got == MerkleNode(
             hash: "6c5f573450d379898ffa415402ad349c",
             identifier: "resources",
             children: [

@@ -1,28 +1,34 @@
 import TSCUtility
-import XCTest
+import Testing
 @testable import TuistSupport
 
-final class TSCUtilityVersionTests: XCTestCase {
+struct TSCUtilityVersionTests {
+    @Test
     func test_version_when_allTagsPresent() {
-        XCTAssertEqual(Version(unformattedString: "11.2.3"), Version(11, 2, 3))
+        #expect(Version(unformattedString: "11.2.3") == Version(11, 2, 3))
     }
 
+    @Test
     func test_version_when_moreTagsPresent() {
-        XCTAssertNil(Version(unformattedString: "11.2.3.3"))
+        #expect(Version(unformattedString: "11.2.3.3") == nil)
     }
 
+    @Test
     func test_version_when_noTagsPresent() {
-        XCTAssertNil(Version(unformattedString: "."))
+        #expect(Version(unformattedString: ".") == nil)
     }
 
+    @Test
     func test_version_when_patchTagOmitted() {
-        XCTAssertEqual(Version(unformattedString: "11.2"), Version(11, 2, 0))
+        #expect(Version(unformattedString: "11.2") == Version(11, 2, 0))
     }
 
+    @Test
     func test_version_when_minorTagOmitted() {
-        XCTAssertEqual(Version(unformattedString: "11"), Version(11, 0, 0))
+        #expect(Version(unformattedString: "11") == Version(11, 0, 0))
     }
 
+    @Test
     func test_xcode_string_value() {
         // Given
         let subject = Version(12, 5, 1)
@@ -31,6 +37,6 @@ final class TSCUtilityVersionTests: XCTestCase {
         let got = subject.xcodeStringValue
 
         // Then
-        XCTAssertEqual(got, "1251")
+        #expect(got == "1251")
     }
 }

@@ -1,13 +1,18 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class BuildRuleCompilerSpecTests: XCTestCase {
-    func test_codable() {
+struct BuildRuleCompilerSpecTests {
+    @Test func test_codable() throws {
         // Given
         let subject = BuildRule.CompilerSpec.customScript
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(BuildRule.self, from: data)
+        #expect(subject == decoded)
     }
 }

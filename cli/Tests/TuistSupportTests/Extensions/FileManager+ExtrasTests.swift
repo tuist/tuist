@@ -1,10 +1,12 @@
 import Foundation
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class FileManagerExtrasTests: TuistUnitTestCase {
+struct FileManagerExtrasTests {
+    @Test(.inTemporaryDirectory)
     func testSubdirectoriesResolvingSymbolicLinks_whenNoSymbolicLinks() throws {
         // Given
         let fileManager = FileManager.default
@@ -17,7 +19,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         //     - Subfolder
         //       - File2
 
-        let rootPath = try temporaryPath()
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
         let folderPath = rootPath.appending(component: "Folder")
         let file1Path = folderPath.appending(component: "File1")
         let subfolderPath = folderPath.appending(component: "Subfolder")
@@ -28,9 +30,10 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got.sorted(), ["Subfolder"])
+        #expect(got.sorted() == ["Subfolder"])
     }
 
+    @Test(.inTemporaryDirectory)
     func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinksToFiles() throws {
         // Given
         let fileManager = FileManager.default
@@ -44,7 +47,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         //     - Subfolder
         //       - File
 
-        let rootPath = try temporaryPath()
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
         let outsideFile = rootPath.appending(component: "OutsideFile")
         let folderPath = rootPath.appending(component: "Folder")
         let symlinkPath = folderPath.appending(component: "Symlink")
@@ -58,9 +61,10 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got.sorted(), ["Subfolder"])
+        #expect(got.sorted() == ["Subfolder"])
     }
 
+    @Test(.inTemporaryDirectory)
     func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinksToDirectory() throws {
         // Given
         let fileManager = FileManager.default
@@ -73,7 +77,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         //   - Folder
         //     - SymlinkFolder -> OutsideFolder
 
-        let rootPath = try temporaryPath()
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
         let outsideFolderPath = rootPath.appending(component: "OutsideFolder")
         let filePath = outsideFolderPath.appending(component: "File")
         let folderPath = rootPath.appending(component: "Folder")
@@ -86,9 +90,10 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got.sorted(), ["SymlinkFolder"])
+        #expect(got.sorted() == ["SymlinkFolder"])
     }
 
+    @Test(.inTemporaryDirectory)
     func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinkAndOriginalInSameSubtree() throws {
         // Given
         let fileManager = FileManager.default
@@ -100,7 +105,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         //     - Subfolder
         //     - SymlinkFolder -> Subfolder
 
-        let rootPath = try temporaryPath()
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
         let folderPath = rootPath.appending(component: "Folder")
         let subfolderPath = folderPath.appending(component: "Subfolder")
         let symlinkFolderPath = folderPath.appending(component: "SymlinkFolder")
@@ -111,9 +116,10 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got.sorted(), ["Subfolder", "SymlinkFolder"])
+        #expect(got.sorted() == ["Subfolder", "SymlinkFolder"])
     }
 
+    @Test(.inTemporaryDirectory)
     func testSubdirectoriesResolvingSymbolicLinks_whenNestedDirectories() throws {
         // Given
         let fileManager = FileManager.default
@@ -128,7 +134,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         //       - SubSubfolder
         //         - SubSubFile
 
-        let rootPath = try temporaryPath()
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
         let folderPath = rootPath.appending(component: "Folder")
         let filePath = folderPath.appending(component: "File")
         let subFolderPath = folderPath.appending(component: "SubFolder")
@@ -150,9 +156,10 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
             "Folder/SubFolder",
             "Folder/SubFolder/SubSubFolder",
         ]
-        XCTAssertEqual(got.sorted(), expected)
+        #expect(got.sorted() == expected)
     }
 
+    @Test(.inTemporaryDirectory)
     func testSubdirectoriesResolvingSymbolicLinks_whenNestedSymlinks() throws {
         // Given
         let fileManager = FileManager.default
@@ -167,7 +174,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         //   - Folder
         //     - SymlinkFolder -> OutsideFolder
 
-        let rootPath = try temporaryPath()
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
         let otherOutsideFolderPath = rootPath.appending(component: "OtherOutsideFolder")
         let subFolderPath = otherOutsideFolderPath.appending(component: "Subfolder")
         let outsideFolderPath = rootPath.appending(component: "OutsideFolder")
@@ -189,9 +196,10 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
             "SymlinkFolder/SubSymlinkFolder",
             "SymlinkFolder/SubSymlinkFolder/Subfolder",
         ]
-        XCTAssertEqual(got.sorted(), expected)
+        #expect(got.sorted() == expected)
     }
 
+    @Test(.inTemporaryDirectory)
     func testSubdirectoriesResolvingSymbolicLinks_whenRelativeSymlink() throws {
         // Given
         let fileManager = FileManager.default
@@ -204,7 +212,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         //   - Folder
         //     - SymlinkFolder -> [Relative] OutsideFolder
 
-        let rootPath = try temporaryPath()
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
         let outsideFolderPath = rootPath.appending(component: "OutsideFolder")
         let subfolderPath = outsideFolderPath.appending(component: "Subfolder")
         let folderPath = rootPath.appending(component: "Folder")
@@ -221,6 +229,6 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
             "SymlinkFolder",
             "SymlinkFolder/Subfolder",
         ]
-        XCTAssertEqual(got.sorted(), expected)
+        #expect(got.sorted() == expected)
     }
 }

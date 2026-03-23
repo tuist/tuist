@@ -1,18 +1,23 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class PackageTests: XCTestCase {
-    func test_codable_local() throws {
+struct PackageTests {
+    @Test func test_codable_local() throws {
         // Given
         let subject = Package.local(path: try AbsolutePath(validating: "/path/to/workspace"))
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Package.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_codable_remote() {
+    @Test func test_codable_remote() throws {
         // Given
         let subject = Package.remote(
             url: "/url/to/package",
@@ -20,18 +25,23 @@ final class PackageTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Package.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_is_remote_local() throws {
+    @Test func test_is_remote_local() throws {
         // Given
         let subject = Package.local(path: try AbsolutePath(validating: "/path/to/package"))
 
         // Then
-        XCTAssertFalse(subject.isRemote)
+        #expect(!subject.isRemote)
     }
 
-    func test_is_remote_remote() {
+    @Test func test_is_remote_remote() {
         // Given
         let subject = Package.remote(
             url: "/url/to/package",
@@ -39,6 +49,6 @@ final class PackageTests: XCTestCase {
         )
 
         // Then
-        XCTAssertTrue(subject.isRemote)
+        #expect(subject.isRemote)
     }
 }

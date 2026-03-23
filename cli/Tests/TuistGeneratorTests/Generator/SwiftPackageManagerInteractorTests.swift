@@ -6,36 +6,29 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class SwiftPackageManagerInteractorTests: TuistTestCase {
-    private var subject: SwiftPackageManagerInteractor!
-    private var system: MockSystem!
-    private var fileSystem: FileSysteming!
-
-    override func setUp() {
-        super.setUp()
+struct SwiftPackageManagerInteractorTests {
+    private let subject: SwiftPackageManagerInteractor
+    private let system: MockSystem
+    private let fileSystem: FileSysteming
+    init() {
         system = MockSystem()
         fileSystem = FileSystem()
         subject = SwiftPackageManagerInteractor(
-            fileSystem: fileSystem,
-            system: system
+        fileSystem: fileSystem,
+        system: system
         )
     }
 
-    override func tearDown() {
-        system = nil
-        fileSystem = nil
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test(.inTemporaryDirectory)
     func test_generate_addsPackageDependencyManager_withRemotePackageDependency() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = anyTarget(dependencies: [
             .package(product: "Example", type: .runtime),
         ])
@@ -63,12 +56,13 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
 
         // Then
         let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_addsPackageDependencyManager_withLocalPackageDependency() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = anyTarget(dependencies: [
             .package(product: "Example", type: .runtime),
         ])
@@ -96,12 +90,13 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
 
         // Then
         let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_usesSystemGitCredentials() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
         let target = anyTarget(dependencies: [
             .package(product: "Example", type: .runtime),
@@ -146,12 +141,13 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
 
         // Then
         let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_linksRootPackageResolved_before_resolving() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = anyTarget(dependencies: [
             .package(product: "Example", type: .runtime),
         ])
@@ -188,20 +184,15 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         // Then
         let workspacePackageResolvedPath = temporaryPath
             .appending(try RelativePath(validating: "\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(workspacePackageResolvedPath),
-            "package"
-        )
+        #expect(try FileHandler.shared.readTextFile(workspacePackageResolvedPath) == "package")
         try FileHandler.shared.write("changedPackage", path: rootPackageResolvedPath, atomically: false)
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(workspacePackageResolvedPath),
-            "changedPackage"
-        )
+        #expect(try FileHandler.shared.readTextFile(workspacePackageResolvedPath) == "changedPackage")
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_doesNotAddPackageDependencyManager() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = anyTarget()
         let project = Project.test(
             path: temporaryPath,
@@ -220,12 +211,13 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
 
         // Then
         let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
-        XCTAssertFalse(exists)
+        #expect(!exists)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_sets_cloned_source_packages_dir_path() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let spmPath = temporaryPath.appending(component: "spm")
         let target = anyTarget(dependencies: [
             .package(product: "Example", type: .runtime),
@@ -269,7 +261,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
 
         // Then
         let exists = try await fileSystem.exists(temporaryPath.appending(component: ".package.resolved"))
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 
     // MARK: - Helpers

@@ -1,16 +1,16 @@
 import Foundation
-import TuistSupportTesting
-import XCTest
+import Testing
+import TuistTesting
 
 @testable import ProjectDescription
 
-final class WorkspaceTests: XCTestCase {
-    func test_codable() throws {
+struct WorkspaceTests {
+    @Test func test_codable() throws {
         let subject = Workspace(name: "name", projects: ["/path/to/project"])
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_codable_withAdditionalFiles() throws {
+    @Test func test_codable_withAdditionalFiles() throws {
         let subject = Workspace(
             name: "name",
             projects: ["ProjectA"],
@@ -18,16 +18,16 @@ final class WorkspaceTests: XCTestCase {
                 .glob(pattern: "Documentation/**"),
             ]
         )
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_codable_withGenerationOptions() throws {
+    @Test func test_codable_withGenerationOptions() throws {
         let subject = Workspace(
             name: "name",
             projects: ["ProjectA"],
             generationOptions: .options(enableAutomaticXcodeSchemes: true)
         )
 
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 }

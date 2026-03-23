@@ -1,13 +1,18 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class DependenciesGraphTests: XCTestCase {
-    func test_codable_xcframework() {
+struct DependenciesGraphTests {
+    @Test func test_codable_xcframework() throws {
         // Given
         let subject = DependenciesGraph.test()
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(DependenciesGraph.self, from: data)
+        #expect(subject == decoded)
     }
 }

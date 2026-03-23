@@ -1,9 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class SettingsDictionaryExtrasTest: XCTestCase {
-    func testOverlay_addsPlatformSpecifierWhenSettingsDiffer() {
+struct SettingsDictionaryExtrasTest {
+    @Test func testOverlay_addsPlatformSpecifierWhenSettingsDiffer() {
         // Given
         var settings: [String: SettingValue] = [
             "A": "a value",
@@ -18,7 +18,7 @@ final class SettingsDictionaryExtrasTest: XCTestCase {
         ], for: .macOS)
 
         // Then
-        XCTAssertEqual(settings, [
+        #expect(settings == [
             "A[sdk=macosx*]": "overlayed value",
             "A": "a value",
             "B": "b value",

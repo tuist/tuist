@@ -2,12 +2,12 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-class ArrayExtrasTests: TuistUnitTestCase {
+struct ArrayExtrasTests {
     actor ActorArray<T> {
         var items: [T] = []
         func insert(_ item: T) {
@@ -15,6 +15,7 @@ class ArrayExtrasTests: TuistUnitTestCase {
         }
     }
 
+    @Test
     func test_concurrentForEach() async throws {
         // Given
         var randomNumbers: [Int] = []
@@ -31,6 +32,6 @@ class ArrayExtrasTests: TuistUnitTestCase {
 
         // Then
         let gotValues = await collectedNumbers.items
-        XCTAssertEqual(Set(gotValues), Set(randomNumbers))
+        #expect(Set(gotValues) == Set(randomNumbers))
     }
 }

@@ -4,16 +4,14 @@ import TSCUtility
 import TuistCore
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistSupport
 
-final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
-    private var subject: SwiftPackageManagerController!
-    private var commandRunner: MockCommandRunning!
-
-    override func setUp() {
-        super.setUp()
-
+struct SwiftPackageManagerControllerTests {
+    private let subject: SwiftPackageManagerController
+    private let commandRunner: MockCommandRunning
+    init() {
         commandRunner = MockCommandRunning()
         subject = SwiftPackageManagerController(
             system: system,
@@ -22,15 +20,11 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        subject = nil
 
-        super.tearDown()
-    }
-
+    @Test(.inTemporaryDirectory)
     func test_resolve() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         system.succeedCommand([
             "swift",
             "package",
@@ -41,18 +35,17 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(
-            try subject.resolve(
+        try subject.resolve(
                 at: path,
                 arguments: ["--replace-scm-with-registry"],
                 printOutput: false
             )
-        )
     }
 
+    @Test(.inTemporaryDirectory)
     func test_update() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         system.succeedCommand([
             "swift",
             "package",
@@ -63,18 +56,17 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(
-            try subject.update(
+        try subject.update(
                 at: path,
                 arguments: ["--replace-scm-with-registry"],
                 printOutput: false
             )
-        )
     }
 
+    @Test(.inTemporaryDirectory)
     func test_setToolsVersion_specificVersion() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let version = Version("5.4.0")
         system.succeedCommand([
             "swift",
@@ -87,15 +79,16 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version!))
+        try subject.setToolsVersion(at: path, to: version!)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_buildFatReleaseBinary() async throws {
         // Given
-        let packagePath = try temporaryPath()
+        let packagePath = try #require(FileSystem.temporaryTestDirectory)
         let product = "my-product"
-        let buildPath = try temporaryPath()
-        let outputPath = try temporaryPath()
+        let buildPath = try #require(FileSystem.temporaryTestDirectory)
+        let outputPath = try #require(FileSystem.temporaryTestDirectory)
 
         system.succeedCommand([
             "swift", "build",
@@ -132,9 +125,10 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
 
         // Then
         // Assert that `outputPath` was created
-        XCTAssertTrue(fileHandler.isFolder(outputPath))
+        #expect(fileHandler.isFolder(outputPath))
     }
 
+    @Test
     func test_package_registry_login() async throws {
         // Given
         given(commandRunner)
@@ -171,6 +165,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test
     func test_package_registry_logout() async throws {
         // Given
         given(commandRunner)

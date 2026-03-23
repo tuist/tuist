@@ -5,26 +5,25 @@ import TuistCore
 import TuistServer
 import TuistSupport
 import TuistTesting
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistServer
 
-final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
-    private var subject: AnalyticsArtifactUploadService!
-    private var xcresultToolController: MockXCResultToolControlling!
-    private var fileArchiverFactory: MockFileArchivingFactorying!
-    private var multipartUploadStartAnalyticsService: MockMultipartUploadStartAnalyticsServicing!
-    private var multipartUploadGenerateURLAnalyticsService:
+struct AnalyticsArtifactUploadServiceTests {
+    private let subject: AnalyticsArtifactUploadService
+    private let xcresultToolController: MockXCResultToolControlling
+    private let fileArchiverFactory: MockFileArchivingFactorying
+    private let multipartUploadStartAnalyticsService: MockMultipartUploadStartAnalyticsServicing
+    private let multipartUploadGenerateURLAnalyticsService:
         MockMultipartUploadGenerateURLAnalyticsServicing!
-    private var multipartUploadArtifactService: MockMultipartUploadArtifactServicing!
-    private var multipartUploadCompleteAnalyticsService:
+    private let multipartUploadArtifactService: MockMultipartUploadArtifactServicing
+    private let multipartUploadCompleteAnalyticsService:
         MockMultipartUploadCompleteAnalyticsServicing!
-    private var completeAnalyticsArtifactsUploadsService:
+    private let completeAnalyticsArtifactsUploadsService:
         MockCompleteAnalyticsArtifactsUploadsServicing!
 
-    override func setUp() {
-        super.setUp()
-
+    init() {
         let fileSystem = FileSystem()
         xcresultToolController = .init()
         fileArchiverFactory = .init()
@@ -33,7 +32,6 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         multipartUploadArtifactService = .init()
         multipartUploadCompleteAnalyticsService = .init()
         completeAnalyticsArtifactsUploadsService = .init()
-
         subject = AnalyticsArtifactUploadService(
             fileSystem: fileSystem,
             xcresultToolController: xcresultToolController,
@@ -47,20 +45,11 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         )
     }
 
-    override func tearDown() {
-        fileArchiverFactory = nil
-        multipartUploadStartAnalyticsService = nil
-        multipartUploadGenerateURLAnalyticsService = nil
-        multipartUploadArtifactService = nil
-        multipartUploadCompleteAnalyticsService = nil
-        completeAnalyticsArtifactsUploadsService = nil
 
-        super.tearDown()
-    }
-
+    @Test(.inTemporaryDirectory)
     func test_upload_analytics_artifact() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let resultBundle = temporaryDirectory.appending(component: "artifact.bundle")
         try FileHandler.shared.touch(resultBundle)
         let accountHandle = "account-\(UUID().uuidString)"
@@ -201,12 +190,13 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         let gotUploadPartURL = try await generateUploadURLCallback(
             .init(number: 1, contentLength: 20)
         )
-        XCTAssertEqual(gotUploadPartURL, uploadPartURL)
+        #expect(gotUploadPartURL == uploadPartURL)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_upload_session() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let sessionDirectory = temporaryDirectory.appending(component: "session")
         try FileHandler.shared.createFolder(sessionDirectory)
         try FileHandler.shared.touch(sessionDirectory.appending(component: "logs.txt"))

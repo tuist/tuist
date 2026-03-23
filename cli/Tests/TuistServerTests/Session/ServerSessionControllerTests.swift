@@ -3,22 +3,20 @@ import Mockable
 import TuistOpener
 import TuistSupport
 import TuistUniqueIDGenerator
-import XCTest
+import Testing
 
 @testable import TuistServer
 @testable import TuistTesting
 
-final class ServerSessionControllerTests: TuistUnitTestCase {
-    private var credentialsStore: MockServerCredentialsStoring!
-    private var opener: MockOpening!
-    private var serverURL: URL!
-    private var getAuthTokenService: MockGetAuthTokenServicing!
-    private var uniqueIDGenerator: MockUniqueIDGenerating!
-    private var serverAuthenticationController: MockServerAuthenticationControlling!
-    private var subject: ServerSessionController!
-
-    override func setUp() {
-        super.setUp()
+struct ServerSessionControllerTests {
+    private let credentialsStore: MockServerCredentialsStoring
+    private let opener: MockOpening
+    private let serverURL: URL
+    private let getAuthTokenService: MockGetAuthTokenServicing
+    private let uniqueIDGenerator: MockUniqueIDGenerating
+    private let serverAuthenticationController: MockServerAuthenticationControlling
+    private let subject: ServerSessionController
+    init() {
         credentialsStore = .init()
         serverURL = URL.test()
         getAuthTokenService = MockGetAuthTokenServicing()
@@ -31,22 +29,13 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             uniqueIDGenerator: uniqueIDGenerator,
             serverAuthenticationController: serverAuthenticationController
         )
-
         given(opener)
             .open(url: .any)
             .willReturn()
     }
 
-    override func tearDown() {
-        credentialsStore = nil
-        opener = nil
-        serverURL = nil
-        uniqueIDGenerator = nil
-        serverAuthenticationController = nil
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_authenticate_when_tokenAndAccountParametersAreIncluded() async throws {
         // Given
         given(getAuthTokenService)
@@ -78,9 +67,10 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(authURLOpened, authURL())
+        #expect(authURLOpened == authURL())
     }
 
+    @Test
     func test_whoami_when_logged_in() async throws {
         // Given
         given(serverAuthenticationController)
@@ -102,9 +92,10 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         let got = try await subject.whoami(serverURL: serverURL)
 
         // Then
-        XCTAssertEqual(got, "tuist")
+        #expect(got == "tuist")
     }
 
+    @Test
     func test_whoami_when_logged_out() async throws {
         // Given
         given(serverAuthenticationController)
@@ -117,9 +108,10 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         let got = try await subject.whoami(serverURL: serverURL)
 
         // Then
-        XCTAssertEqual(got, nil)
+        #expect(got == nil)
     }
 
+    @Test
     func test_get_authenticated_handle_when_logged_in() async throws {
         // Given
         given(serverAuthenticationController)
@@ -141,9 +133,10 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
         let got = try await subject.whoami(serverURL: serverURL)
 
         // Then
-        XCTAssertEqual(got, "tuist")
+        #expect(got == "tuist")
     }
 
+    @Test
     func test_get_authenticated_handle_when_logged_out() async throws {
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
@@ -152,16 +145,14 @@ final class ServerSessionControllerTests: TuistUnitTestCase {
             )
 
         // Then
-        await XCTAssertThrowsSpecific(
-            try await subject.authenticatedHandle(serverURL: serverURL),
-            ServerSessionControllerError.unauthenticated
-        )
+        await #expect(throws: ServerSessionControllerError.unauthenticated) { try await subject.authenticatedHandle(serverURL: serverURL) }
     }
 
+    @Test
     func test_logout_deletesCredentials() async throws {
         try await withMockedDependencies {
             // Given
-            let serverCredentialsStore = try XCTUnwrap(ServerCredentialsStore.mocked)
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
             given(serverCredentialsStore)
                 .delete(serverURL: .any)
                 .willReturn()

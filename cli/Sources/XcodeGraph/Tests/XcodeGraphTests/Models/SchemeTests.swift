@@ -1,13 +1,18 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class SchemeTests: XCTestCase {
-    func test_codable() {
+struct SchemeTests {
+    @Test func test_codable() throws {
         // Given
         let subject = Scheme.test(name: "name", shared: true)
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Scheme.self, from: data)
+        #expect(subject == decoded)
     }
 }

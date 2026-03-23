@@ -1,9 +1,10 @@
-import XCTest
+import Testing
+import TuistTesting
 @testable import ProjectDescription
 
-final class PluginTests: XCTestCase {
-    func test_codable() throws {
+struct PluginTests {
+    @Test func test_codable() throws {
         let subject = Plugin(name: "TestPlugin")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 }

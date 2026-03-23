@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class TargetReferenceTests: XCTestCase {
-    func test_codable() throws {
+struct TargetReferenceTests {
+    @Test func test_codable() throws {
         // Given
         let subject = TargetReference(
             projectPath: try AbsolutePath(validating: "/path/to/project"),
@@ -12,6 +12,11 @@ final class TargetReferenceTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(TargetReference.self, from: data)
+        #expect(subject == decoded)
     }
 }

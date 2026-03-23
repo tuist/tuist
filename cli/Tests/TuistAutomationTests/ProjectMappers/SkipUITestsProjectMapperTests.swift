@@ -3,24 +3,19 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistAutomation
 @testable import TuistTesting
 
-final class SkipUITestsProjectMapperTests: TuistUnitTestCase {
-    private var subject: SkipUITestsProjectMapper!
-
-    override func setUp() {
-        super.setUp()
+struct SkipUITestsProjectMapperTests {
+    private let subject: SkipUITestsProjectMapper
+    init() {
         subject = .init()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_prune_is_set_to_ui_targets() throws {
         // Given
         let project = Project.test(
@@ -33,16 +28,13 @@ final class SkipUITestsProjectMapperTests: TuistUnitTestCase {
 
         // When
         let (gotProject, gotSideEffects) = try subject.map(project: project)
-        XCTAssertEqual(
-            gotProject,
-            Project.test(
+        #expect(gotProject == Project.test(
                 targets: [
                     .test(name: "App", product: .app),
                     .test(name: "UnitTests", product: .unitTests),
                     .test(name: "UITests", product: .uiTests, prune: true),
                 ]
-            )
-        )
-        XCTAssertEmpty(gotSideEffects)
+            ))
+        #expect(gotSideEffects.isEmpty)
     }
 }

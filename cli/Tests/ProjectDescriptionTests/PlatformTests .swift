@@ -1,14 +1,26 @@
 import Foundation
-import TuistSupportTesting
-import XCTest
+import Testing
 
 @testable import ProjectDescription
 
-final class PlatformTests: XCTestCase {
-    func test_toJSON() {
-        XCTAssertCodableEqualToJson([Platform.iOS], "[\"ios\"]")
-        XCTAssertCodableEqualToJson([Platform.macOS], "[\"macos\"]")
-        XCTAssertCodableEqualToJson([Platform.watchOS], "[\"watchos\"]")
-        XCTAssertCodableEqualToJson([Platform.tvOS], "[\"tvos\"]")
+struct PlatformTests {
+    @Test func test_toJSON() throws {
+        let decoder = JSONDecoder()
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+
+        let subjects: [(subject: [Platform], json: String)] = [
+            ([.iOS], "[\"ios\"]"),
+            ([.macOS], "[\"macos\"]"),
+            ([.watchOS], "[\"watchos\"]"),
+            ([.tvOS], "[\"tvos\"]"),
+        ]
+
+        for (subject, json) in subjects {
+            let decoded = try decoder.decode([Platform].self, from: json.data(using: .utf8)!)
+            let jsonData = try encoder.encode(decoded)
+            let subjectData = try encoder.encode(subject)
+            #expect(jsonData == subjectData)
+        }
     }
 }

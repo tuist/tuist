@@ -16,12 +16,13 @@ import TuistServer
 import TuistSupport
 import TuistXCResultService
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistKit
 @testable import TuistTesting
 
-final class TestServiceTests: TuistUnitTestCase {
+struct TestServiceTests {
     private var subject: TestService!
     private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!
@@ -48,8 +49,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var shardPlanService: MockShardPlanServicing!
     private var shardService: MockShardServicing!
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    init() throws {
         generator = .init()
         xcodebuildController = .init()
         buildGraphInspector = .init()
@@ -226,90 +226,62 @@ final class TestServiceTests: TuistUnitTestCase {
             }
     }
 
-    override func tearDown() {
-        generator = nil
-        xcodebuildController = nil
-        buildGraphInspector = nil
-        simulatorController = nil
-        testsCacheTemporaryDirectory = nil
-        generatorFactory = nil
-        contentHasher = nil
-        cacheStorageFactory = nil
-        cacheStorage = nil
-        testedSchemes = []
-        runMetadataStorage = nil
-        uploadResultBundleService = nil
-        derivedDataLocator = nil
-        createTestService = nil
-        gitController = nil
-        ciController = nil
-        testQuarantineService = nil
-        serverEnvironmentService = nil
-        shardPlanService = nil
-        shardService = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_validateParameters_noParameters() throws {
+    @Test func test_validateParameters_noParameters() throws {
         try TestService.validateParameters(testTargets: [], skipTestTargets: [])
     }
 
-    func test_validateParameters_nonConflictingParameters_target() throws {
+    @Test func test_validateParameters_nonConflictingParameters_target() throws {
         try TestService.validateParameters(
             testTargets: [TestIdentifier(string: "test1")],
             skipTestTargets: [TestIdentifier(string: "test1/class1")]
         )
     }
 
-    func test_validateParameters_with_testTargets_and_no_skipTestTargets() throws {
+    @Test func test_validateParameters_with_testTargets_and_no_skipTestTargets() throws {
         try TestService.validateParameters(
             testTargets: [TestIdentifier(target: "TestTarget", class: "TestClass")],
             skipTestTargets: []
         )
     }
 
-    func test_validateParameters_nonConflictingParameters_targetClass() throws {
+    @Test func test_validateParameters_nonConflictingParameters_targetClass() throws {
         try TestService.validateParameters(
             testTargets: [TestIdentifier(string: "test1/class1")],
             skipTestTargets: [TestIdentifier(string: "test1/class1/method1")]
         )
     }
 
-    func test_validateParameters_conflictingParameters_target_doesNotThrow() throws {
+    @Test func test_validateParameters_conflictingParameters_target_doesNotThrow() throws {
         let testTargets = try [TestIdentifier(string: "test1")]
         let skipTestTargets = try [TestIdentifier(string: "test2")]
-        XCTAssertNoThrow(
-            try TestService.validateParameters(
+        try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             )
         )
     }
 
-    func test_validateParameters_conflictingParameters_targetClass_doesNotThrow() throws {
+    @Test func test_validateParameters_conflictingParameters_targetClass_doesNotThrow() throws {
         let testTargets = try [TestIdentifier(string: "test1/class1")]
         let skipTestTargets = try [TestIdentifier(string: "test1/class2")]
-        XCTAssertNoThrow(
-            try TestService.validateParameters(
+        try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             )
         )
     }
 
-    func test_validateParameters_conflictingParameters_targetClassMethod_doesNotThrow() throws {
+    @Test func test_validateParameters_conflictingParameters_targetClassMethod_doesNotThrow() throws {
         let testTargets = try [TestIdentifier(string: "test1/class1/method1")]
         let skipTestTargets = try [TestIdentifier(string: "test1/class2/method2")]
-        XCTAssertNoThrow(
-            try TestService.validateParameters(
+        try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
             )
         )
     }
 
-    func test_validateParameters_duplicatedParameters_target() throws {
+    @Test func test_validateParameters_duplicatedParameters_target() throws {
         let testTargets = try [TestIdentifier(string: "test1")]
         let skipTestTargets = try [TestIdentifier(string: "test1")]
         let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
@@ -322,7 +294,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_validateParameters_duplicatedParameters_targetClass() throws {
+    @Test func test_validateParameters_duplicatedParameters_targetClass() throws {
         let testTargets = try [TestIdentifier(string: "test1/class1")]
         let skipTestTargets = try [TestIdentifier(string: "test1/class1")]
         let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
@@ -335,7 +307,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_validateParameters_duplicatedParameters_targetClassMethod() throws {
+    @Test func test_validateParameters_duplicatedParameters_targetClassMethod() throws {
         let testTargets = try [TestIdentifier(string: "test1/class1/method1")]
         let skipTestTargets = try [TestIdentifier(string: "test1/class1/method1")]
         let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
@@ -348,7 +320,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_throws_an_error_when_config_is_not_for_generated_project() async throws {
+    @Test func test_throws_an_error_when_config_is_not_for_generated_project() async throws {
         // Given
         givenGenerator()
         let path = try temporaryPath()
@@ -374,7 +346,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_generates_project() async throws {
+    @Test func test_run_generates_project() async throws {
         // Given
         givenGenerator()
         let path = try temporaryPath()
@@ -391,7 +363,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_tests_with_specified_arch() async throws {
+    @Test func test_run_tests_with_specified_arch() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -453,7 +425,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_tests_with_passthrough_destination() async throws {
+    @Test func test_run_tests_with_passthrough_destination() async throws {
         // Given
         givenGenerator()
         given(configLoader)
@@ -522,7 +494,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_tests_for_only_specified_scheme() async throws {
+    @Test func test_run_tests_for_only_specified_scheme() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -565,10 +537,10 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        #expect(testedSchemes == ["TestScheme"])
     }
 
-    func test_run_tests_all_project_schemes() async throws {
+    @Test func test_run_tests_all_project_schemes() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -616,7 +588,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_uploads_to_local_cache_storage_when_no_upload() async throws {
+    @Test func test_run_uploads_to_local_cache_storage_when_no_upload() async throws {
         // Given
         givenGenerator()
 
@@ -710,7 +682,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
-    func test_run_tests_individual_scheme() async throws {
+    @Test func test_run_tests_individual_scheme() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -758,10 +730,10 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
+        #expect(testedSchemes == ["ProjectSchemeOne"])
     }
 
-    func test_run_tests_individual_scheme_with_no_test_actions() async throws {
+    @Test func test_run_tests_individual_scheme_with_no_test_actions() async throws {
         // Given
         try await withMockedDependencies {
             givenGenerator()
@@ -802,11 +774,11 @@ final class TestServiceTests: TuistUnitTestCase {
                 pattern:
                 "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
             )
-            XCTAssertEmpty(testedSchemes)
+            #expect(testedSchemes.isEmpty)
         }
     }
 
-    func test_throws_when_scheme_does_not_exist_and_initial_graph_is_nil() async throws {
+    @Test func test_throws_when_scheme_does_not_exist_and_initial_graph_is_nil() async throws {
         // Given
         givenGenerator()
         given(generator)
@@ -841,7 +813,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_throws_scheme_does_not_exist_in_initial_graph() async throws {
+    @Test func test_throws_scheme_does_not_exist_in_initial_graph() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -885,7 +857,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_skips_running_tests_when_scheme_is_in_initial_graph_only() async throws {
+    @Test func test_skips_running_tests_when_scheme_is_in_initial_graph_only() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
@@ -915,7 +887,7 @@ final class TestServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEmpty(testedSchemes)
+            #expect(testedSchemes.isEmpty)
             XCTAssertStandardOutput(
                 pattern:
                 "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
@@ -923,7 +895,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_skips_running_tests_when_all_tests_are_cached() async throws {
+    @Test func test_skips_running_tests_when_all_tests_are_cached() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
@@ -952,12 +924,12 @@ final class TestServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEmpty(testedSchemes)
+            #expect(testedSchemes.isEmpty)
             XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
         }
     }
 
-    func test_skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path()
+    @Test func test_skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path()
         async throws
     {
         try await withMockedDependencies {
@@ -992,12 +964,12 @@ final class TestServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEmpty(testedSchemes)
+            #expect(testedSchemes.isEmpty)
             XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
         }
     }
 
-    func test_run_tests_when_part_is_cached() async throws {
+    @Test func test_run_tests_when_part_is_cached() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
@@ -1128,7 +1100,7 @@ final class TestServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
+            #expect(testedSchemes == ["ProjectSchemeOne"])
             XCTAssertStandardOutput(
                 pattern:
                 "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
@@ -1168,7 +1140,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run_tests_stores_only_test_target_hashes_not_dependency_hashes() async throws {
+    @Test func test_run_tests_stores_only_test_target_hashes_not_dependency_hashes() async throws {
         try await withMockedDependencies {
             // Given
             // TargetATests (.unitTests) depends on FrameworkA (.framework).
@@ -1255,7 +1227,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run_tests_caches_passing_targets_when_some_targets_fail() async throws {
+    @Test func test_run_tests_caches_passing_targets_when_some_targets_fail() async throws {
         // Given
         let projectPath = try temporaryPath().appending(component: "ProjectOne")
         givenGenerator()
@@ -1388,7 +1360,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 path: try temporaryPath(),
                 resultBundlePath: xcresultPath
             )
-            XCTFail("Should throw")
+            Issue.record("Should throw")
         } catch {}
         XCTAssertEqual(
             testedSchemes,
@@ -1420,7 +1392,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_tests_when_part_is_cached_and_scheme_is_passed() async throws {
+    @Test func test_run_tests_when_part_is_cached_and_scheme_is_passed() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
@@ -1547,7 +1519,7 @@ final class TestServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEqual(testedSchemes, ["ProjectSchemeTwo"])
+            #expect(testedSchemes == ["ProjectSchemeTwo"])
             XCTAssertStandardOutput(
                 pattern:
                 "The following targets have not changed since the last successful run and will be skipped: TargetC"
@@ -1565,7 +1537,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run_tests_with_skipped_targets() async throws {
+    @Test func test_run_tests_with_skipped_targets() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -1612,10 +1584,10 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
+        #expect(testedSchemes == ["ProjectSchemeOneTests"])
     }
 
-    func test_run_filters_test_targets_not_in_scheme() async throws {
+    @Test func test_run_filters_test_targets_not_in_scheme() async throws {
         // Given
         // Scheme has only "TargetA" in its test action — "PrunedTarget" was removed by selective testing
         let projectPath = try temporaryPath().appending(component: "Project")
@@ -1714,11 +1686,11 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then — only TargetA should be passed to xcodebuild, PrunedTarget should be filtered out
-        XCTAssertEqual(testedSchemes, ["App-Workspace"])
-        XCTAssertEqual(capturedTestTargets, [try TestIdentifier(target: "TargetA", class: nil)])
+        #expect(testedSchemes == ["App-Workspace"])
+        #expect(capturedTestTargets == [try TestIdentifier(target: "TargetA", class: nil)])
     }
 
-    func test_run_tests_all_project_schemes_when_fails() async throws {
+    @Test func test_run_tests_all_project_schemes_when_fails() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -1770,7 +1742,7 @@ final class TestServiceTests: TuistUnitTestCase {
             try await testRun(
                 path: try temporaryPath()
             )
-            XCTFail("Should throw")
+            Issue.record("Should throw")
         } catch {}
         XCTAssertEqual(
             testedSchemes,
@@ -1778,12 +1750,12 @@ final class TestServiceTests: TuistUnitTestCase {
                 "ProjectScheme",
             ]
         )
-        //        XCTAssertFalse(
+        //        #expect(!
         //            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .selectiveTests).appending(component: "A"))
         //        )
     }
 
-    func test_run_tests_when_no_project_schemes_present() async throws {
+    @Test func test_run_tests_when_no_project_schemes_present() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
@@ -1806,12 +1778,12 @@ final class TestServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEmpty(testedSchemes)
+            #expect(testedSchemes.isEmpty)
             XCTAssertPrinterOutputContains("There are no tests to run, finishing early")
         }
     }
 
-    func test_run_uses_resource_bundle_path() async throws {
+    @Test func test_run_uses_resource_bundle_path() async throws {
         // Given
         givenGenerator()
         let expectedResourceBundlePath = try temporaryPath()
@@ -1870,7 +1842,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_uses_resource_bundle_path_when_not_a_symlink() async throws {
+    @Test func test_run_uses_resource_bundle_path_when_not_a_symlink() async throws {
         // Given
         givenGenerator()
         let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
@@ -1919,7 +1891,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_saves_resource_bundle_when_cloud_is_configured() async throws {
+    @Test func test_run_saves_resource_bundle_when_cloud_is_configured() async throws {
         // Given
         givenGenerator()
         configLoader.reset()
@@ -1982,7 +1954,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_uses_resource_bundle_path_with_given_scheme() async throws {
+    @Test func test_run_uses_resource_bundle_path_with_given_scheme() async throws {
         // Given
         givenGenerator()
         let expectedResourceBundlePath = try temporaryPath()
@@ -2052,10 +2024,10 @@ final class TestServiceTests: TuistUnitTestCase {
                 .appending(components: "run-id", "\(Constants.resultBundleName).xcresult"),
             isDirectory: true
         )
-        XCTAssertTrue(existsResultBundlePathInCacheDirectory)
+        #expect(existsResultBundlePathInCacheDirectory)
     }
 
-    func test_run_passes_retry_count_as_argument() async throws {
+    @Test func test_run_passes_retry_count_as_argument() async throws {
         // Given
         givenGenerator()
         given(configLoader)
@@ -2112,7 +2084,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_defaults_retry_count_to_zero() async throws {
+    @Test func test_run_defaults_retry_count_to_zero() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -2187,7 +2159,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_test_plan_success() async throws {
+    @Test func test_run_test_plan_success() async throws {
         // Given
         givenGenerator()
         let testPlan = "TestPlan"
@@ -2311,7 +2283,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        #expect(testedSchemes == ["TestScheme"])
         verify(cacheStorage)
             .store(
                 .value(
@@ -2338,7 +2310,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_test_plan_with_no_explicit_targets() async throws {
+    @Test func test_run_test_plan_with_no_explicit_targets() async throws {
         // Given
         givenGenerator()
         let testPlan = "TestPlan"
@@ -2453,7 +2425,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(testedSchemes, ["TestScheme"])
+        #expect(testedSchemes == ["TestScheme"])
         let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
         XCTAssertEqual(
             selectiveTestingCacheItems,
@@ -2469,7 +2441,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_build_scheme_with_test_plans_and_no_explicit_targets() async throws {
+    @Test func test_build_scheme_with_test_plans_and_no_explicit_targets() async throws {
         // Given
         givenGenerator()
         let testPlan = "TestPlan1"
@@ -2618,7 +2590,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_test_plan_failure() async throws {
+    @Test func test_run_test_plan_failure() async throws {
         // Given
         givenGenerator()
         let testPlan = "TestPlan"
@@ -2683,14 +2655,14 @@ final class TestServiceTests: TuistUnitTestCase {
             )
         } catch let TestServiceError.testPlanNotFound(_, passedTestPlan, existing) {
             // Then
-            XCTAssertEqual(passedTestPlan, notDefinedTestPlan)
-            XCTAssertEqual(existing, [testPlan])
+            #expect(passedTestPlan == notDefinedTestPlan)
+            #expect(existing == [testPlan])
         } catch {
             throw error
         }
     }
 
-    func test_run_logsWarningWhenInspectResultBundleFails() async throws {
+    @Test func test_run_logsWarningWhenInspectResultBundleFails() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
@@ -2743,14 +2715,14 @@ final class TestServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEqual(testedSchemes, ["ProjectScheme"])
+            #expect(testedSchemes == ["ProjectScheme"])
             let warnings = AlertController.current.warnings()
-            XCTAssertEqual(warnings.count, 1)
-            XCTAssertTrue(warnings.first?.message.plain().contains("Failed to upload test results") == true)
+            #expect(warnings.count == 1)
+            #expect(warnings.first?.message.plain().contains("Failed to upload test results") == true)
         }
     }
 
-    func test_run_fetches_quarantined_tests_and_runs_them() async throws {
+    @Test func test_run_fetches_quarantined_tests_and_runs_them() async throws {
         // Given
         givenGenerator()
         let path = try temporaryPath()
@@ -2843,7 +2815,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_does_not_fetch_quarantined_tests_when_skipQuarantine_is_true() async throws {
+    @Test func test_run_does_not_fetch_quarantined_tests_when_skipQuarantine_is_true() async throws {
         // Given
         givenGenerator()
         let path = try temporaryPath()
@@ -2925,7 +2897,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_does_not_fetch_quarantined_tests_when_fullHandle_is_nil() async throws {
+    @Test func test_run_does_not_fetch_quarantined_tests_when_fullHandle_is_nil() async throws {
         // Given
         givenGenerator()
         let path = try temporaryPath()
@@ -3006,7 +2978,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_run_logs_warning_when_fetching_quarantined_tests_fails() async throws {
+    @Test func test_run_logs_warning_when_fetching_quarantined_tests_fails() async throws {
         // Given
         givenGenerator()
         let path = try temporaryPath()

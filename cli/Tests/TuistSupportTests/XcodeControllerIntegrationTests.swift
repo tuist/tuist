@@ -1,25 +1,20 @@
-import XCTest
+import Testing
 @testable import TuistSupport
 @testable import TuistTesting
 
-class XcodeControllerIntegrationTests: TuistTestCase {
-    var subject: XcodeController!
-
-    override func setUp() {
-        super.setUp()
+struct XcodeControllerIntegrationTests {
+    let subject: XcodeController
+    init() {
         subject = XcodeController()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_selected_version_succeeds() async throws {
         // When
         let got = try await subject.selectedVersion()
 
         // Then
-        XCTAssertNoThrow(got)
+        got
     }
 }

@@ -7,26 +7,21 @@ import TuistCore
 import TuistHasher
 import TuistServer
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-final class TestsCacheMapperTests: TuistUnitTestCase {
-    private var hashesCacheDirectory: AbsolutePath!
-    private var testsCacheDirectory: AbsolutePath!
-    private var graphContentHasher: MockGraphContentHashing!
-    private var subject: TestsCacheGraphMapper!
-    private var cacheStorage: MockCacheStoring!
-    private var cacheDirectoriesProvider: CacheDirectoriesProvider!
-
-    override func setUpWithError() throws {
-        try super.setUpWithError()
-        hashesCacheDirectory = try temporaryPath()
+struct TestsCacheMapperTests {
+    private let graphContentHasher: MockGraphContentHashing
+    private let subject: TestsCacheGraphMapper
+    private let cacheStorage: MockCacheStoring
+    private let cacheDirectoriesProvider: CacheDirectoriesProvider
+    init() {
         graphContentHasher = .init()
         cacheStorage = MockCacheStoring()
         cacheDirectoriesProvider = CacheDirectoriesProvider()
-
         subject = TestsCacheGraphMapper(
             testPlan: nil,
             includedTargets: [],
@@ -39,17 +34,10 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        hashesCacheDirectory = nil
-        graphContentHasher = nil
-        cacheDirectoriesProvider = nil
-        cacheStorage = nil
-        subject = nil
-        super.tearDown()
-    }
 
     // SchemeA: UnitTestsA -> FrameworkA (both cached)
     // SchemeB: UnitTestsA -> FrameworkA, UnitTestsB (UnitTestsB not cached)
+    @Test(.inTemporaryDirectory)
     func test_map_when_only_one_unit_test_target_is_cached() async throws {
         let frameworkATarget = Target.test(
             name: "FrameworkA"
@@ -163,7 +151,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 }
             )
 
-        let cachePath = try temporaryPath()
+        let cachePath = try #require(FileSystem.temporaryTestDirectory)
         let unitTestsAStorableItem = CacheStorableItem(name: "UnitTestsA", hash: "UnitTestsA")
         let unitTestsBStorableItem = CacheStorableItem(name: "UnitTestsB", hash: "UnitTestsB")
         let frameworkAStorableItem = CacheStorableItem(name: "FrameworkA", hash: "FrameworkA")
@@ -186,43 +174,32 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         // Then
 
         // The graphs are equal here because `prune` is not taken into account when testing equality of `XcodeGraph.Target`
-        XCTAssertEqual(
-            gotGraph,
-            graph
-        )
-        XCTAssertEqual(
-            gotMapperEnvironment.targetTestHashes,
-            [
+        #expect(gotGraph == graph)
+        #expect(gotMapperEnvironment.targetTestHashes == [
                 project.path: [
                     "UnitTestsA": "UnitTestsA",
                     "UnitTestsB": "UnitTestsB",
                     "FrameworkA": "FrameworkA",
                 ],
-            ]
-        )
-        XCTAssertEqual(
-            gotMapperEnvironment.targetTestCacheItems,
-            [
+            ])
+        #expect(gotMapperEnvironment.targetTestCacheItems == [
                 project.path: [
                     "UnitTestsA": unitTestsACacheItem,
                     "FrameworkA": frameworkACacheItem,
                 ],
-            ]
-        )
+            ])
         let targetsToPrune = gotGraph.projects.values
             .flatMap(\.targets.values)
             .filter { $0.metadata.tags.contains("tuist:prunable") }
             .sorted(by: { $0.name < $1.name })
-        XCTAssertEqual(
-            targetsToPrune,
-            [
+        #expect(targetsToPrune == [
                 unitTestsATarget,
-            ]
-        )
+            ])
     }
 
     // SchemeA: UITestsA -> FrameworkA (both cached)
     // SchemeB: UITestsA -> FrameworkA, UITestsB (UITestsB not cached)
+    @Test(.inTemporaryDirectory)
     func test_map_when_only_one_ui_test_target_is_cached() async throws {
         let frameworkATarget = Target.test(
             name: "FrameworkA"
@@ -338,7 +315,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 }
             )
 
-        let cachePath = try temporaryPath()
+        let cachePath = try #require(FileSystem.temporaryTestDirectory)
         let uiTestsAStorableItem = CacheStorableItem(name: "UITestsA", hash: "UITestsA")
         let uiTestsBStorableItem = CacheStorableItem(name: "UITestsB", hash: "UITestsB")
         let frameworkAStorableItem = CacheStorableItem(name: "FrameworkA", hash: "FrameworkA")
@@ -361,42 +338,31 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         // Then
 
         // The graphs are equal here because `prune` is not taken into account when testing equality of `XcodeGraph.Target`
-        XCTAssertEqual(
-            gotGraph,
-            graph
-        )
-        XCTAssertEqual(
-            gotMapperEnvironment.targetTestHashes,
-            [
+        #expect(gotGraph == graph)
+        #expect(gotMapperEnvironment.targetTestHashes == [
                 project.path: [
                     "UITestsA": "UITestsA",
                     "UITestsB": "UITestsB",
                     "FrameworkA": "FrameworkA",
                 ],
-            ]
-        )
-        XCTAssertEqual(
-            gotMapperEnvironment.targetTestCacheItems,
-            [
+            ])
+        #expect(gotMapperEnvironment.targetTestCacheItems == [
                 project.path: [
                     "UITestsA": uiTestsACacheItem,
                     "FrameworkA": frameworkACacheItem,
                 ],
-            ]
-        )
+            ])
         let targetsToPrune = gotGraph.projects.values
             .flatMap(\.targets.values)
             .filter { $0.metadata.tags.contains("tuist:prunable") }
             .sorted(by: { $0.name < $1.name })
-        XCTAssertEqual(
-            targetsToPrune,
-            [
+        #expect(targetsToPrune == [
                 uiTestsATarget,
-            ]
-        )
+            ])
     }
 
     // SchemeA: UnitTestsA -> FrameworkA (only UnitTestsA cached)
+    @Test(.inTemporaryDirectory)
     func test_map_only_tests_cached() async throws {
         let frameworkATarget = Target.test(
             name: "FrameworkA"
@@ -474,7 +440,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         let frameworkAStorableItem = CacheStorableItem(name: "FrameworkA", hash: "FrameworkA")
         let unitTestsACacheItem: CacheItem = .test(name: "UnitTestsA", hash: "UnitTestsA")
 
-        let cachePath = try temporaryPath()
+        let cachePath = try #require(FileSystem.temporaryTestDirectory)
         given(cacheStorage).fetch(
             .value(Set([unitTestsAStorableItem, frameworkAStorableItem])),
             cacheCategory: .value(.selectiveTests)
@@ -490,32 +456,24 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            gotGraph,
-            graph
-        )
-        XCTAssertEqual(
-            gotMapperEnvironment.targetTestHashes,
-            [
+        #expect(gotGraph == graph)
+        #expect(gotMapperEnvironment.targetTestHashes == [
                 project.path: [
                     "UnitTestsA": "UnitTestsA",
                     "FrameworkA": "FrameworkA",
                 ],
-            ]
-        )
-        XCTAssertEqual(
-            gotMapperEnvironment.targetTestCacheItems,
-            [
+            ])
+        #expect(gotMapperEnvironment.targetTestCacheItems == [
                 project.path: [
                     "UnitTestsA": unitTestsACacheItem,
                 ],
-            ]
-        )
+            ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_preserves_prune() async throws {
         // Given
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let graph = Graph.test(
             projects: [
                 projectPath: .test(
@@ -553,24 +511,19 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         let (gotGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEqual(
-            gotGraph,
-            graph
-        )
-        XCTAssertEqual(
-            gotGraph
+        #expect(gotGraph == graph)
+        #expect(gotGraph
                 .projects
                 .flatMap(\.value.targets.values)
-                .filter { $0.metadata.tags.contains("tuist:prunable") },
-            [
+                .filter { $0.metadata.tags.contains("tuist:prunable") } == [
                 .test(name: "UITests", product: .uiTests, prune: true),
-            ]
-        )
+            ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_when_ignore_selective_testing() async throws {
         // Given
-        subject = TestsCacheGraphMapper(
+        let subject = TestsCacheGraphMapper(
             testPlan: nil,
             includedTargets: [],
             excludedTargets: [],
@@ -650,7 +603,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 }
             )
 
-        let cachePath = try temporaryPath()
+        let cachePath = try #require(FileSystem.temporaryTestDirectory)
         let unitTestsAStorableItem = CacheStorableItem(name: "UnitTestsA", hash: "UnitTestsA")
         let frameworkAStorableItem = CacheStorableItem(name: "FrameworkA", hash: "FrameworkA")
         let unitTestsACacheItem: CacheItem = .test(name: "UnitTestsA", hash: "UnitTestsA")
@@ -672,27 +625,18 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         // Then
 
         // The graphs are equal here because `prune` is not taken into account when testing equality of `XcodeGraph.Target`
-        XCTAssertEqual(
-            gotGraph,
-            graph
-        )
-        XCTAssertEqual(
-            gotMapperEnvironment.targetTestHashes,
-            [
+        #expect(gotGraph == graph)
+        #expect(gotMapperEnvironment.targetTestHashes == [
                 project.path: [
                     "UnitTestsA": "UnitTestsA",
                     "FrameworkA": "FrameworkA",
                 ],
-            ]
-        )
-        XCTAssertEqual(
-            gotMapperEnvironment.targetTestCacheItems,
-            [:]
-        )
+            ])
+        #expect(gotMapperEnvironment.targetTestCacheItems == [:])
         let targetsToPrune = gotGraph.projects.values
             .flatMap(\.targets.values)
             .filter { $0.metadata.tags.contains("tuist:prunable") }
             .sorted(by: { $0.name < $1.name })
-        XCTAssertEmpty(targetsToPrune)
+        #expect(targetsToPrune.isEmpty)
     }
 }

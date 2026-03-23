@@ -12,12 +12,13 @@ import TuistLoader
 import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistKit
 @testable import TuistTesting
 
-final class CleanServiceTests: TuistUnitTestCase {
+struct CleanServiceTests {
     private var subject: CleanService!
     private var rootDirectoryLocator: MockRootDirectoryLocating!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
@@ -29,7 +30,7 @@ final class CleanServiceTests: TuistUnitTestCase {
     private var getCacheEndpointsService: MockGetCacheEndpointsServicing!
     private var serverAuthenticationController: MockServerAuthenticationControlling!
 
-    override func setUpWithError() throws {
+    init() throws {
         super.setUp()
         rootDirectoryLocator = .init()
         cacheDirectoriesProvider = .init()
@@ -56,21 +57,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        rootDirectoryLocator = nil
-        cacheDirectoriesProvider = nil
-        manifestFilesLocator = nil
-        configLoader = nil
-        serverEnvironmentService = nil
-        cleanCacheService = nil
-        cleanProjectCacheService = nil
-        getCacheEndpointsService = nil
-        serverAuthenticationController = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_run_with_category_cleans_category() async throws {
+    @Test func test_run_with_category_cleans_category() async throws {
         // Given
         let rootDirectory = try temporaryPath()
         let cachePaths = try await createFiles([
@@ -101,11 +88,11 @@ final class CleanServiceTests: TuistUnitTestCase {
         let cachePathsExists = try await cachePaths.concurrentMap {
             try await self.fileSystem.exists($0)
         }
-        XCTAssertFalse(cachePathsExists[0])
-        XCTAssertTrue(cachePathsExists[1])
+        #expect(!cachePathsExists[0])
+        #expect(cachePathsExists[1])
     }
 
-    func test_run_with_dependencies_cleans_dependencies() async throws {
+    @Test func test_run_with_dependencies_cleans_dependencies() async throws {
         // Given
         let rootDirectory = try temporaryPath()
         let localPaths = try await createFiles([
@@ -138,11 +125,11 @@ final class CleanServiceTests: TuistUnitTestCase {
         let localPathsExists = try await localPaths.concurrentMap {
             try await self.fileSystem.exists($0)
         }
-        XCTAssertFalse(localPathsExists[0])
-        XCTAssertTrue(localPathsExists[1])
+        #expect(!localPathsExists[0])
+        #expect(localPathsExists[1])
     }
 
-    func test_run_with_dependencies_cleans_dependencies_when_package_is_in_root() async throws {
+    @Test func test_run_with_dependencies_cleans_dependencies_when_package_is_in_root() async throws {
         // Given
         let rootDirectory = try temporaryPath()
         let localPaths = try await createFiles([
@@ -175,11 +162,11 @@ final class CleanServiceTests: TuistUnitTestCase {
         let localPathsExists = try await localPaths.concurrentMap {
             try await self.fileSystem.exists($0)
         }
-        XCTAssertFalse(localPathsExists[0])
-        XCTAssertTrue(localPathsExists[1])
+        #expect(!localPathsExists[0])
+        #expect(localPathsExists[1])
     }
 
-    func test_run_without_category_cleans_all() async throws {
+    @Test func test_run_without_category_cleans_all() async throws {
         // Given
         let cachePaths = try await createFiles(["tuist/Manifests/hash"])
 
@@ -213,14 +200,14 @@ final class CleanServiceTests: TuistUnitTestCase {
 
         // Then
         let cachePathExists = try await fileSystem.exists(cachePaths[0])
-        XCTAssertFalse(cachePathExists)
+        #expect(!cachePathExists)
         let swiftPackageManagerBuildFileExists = try await fileSystem.exists(
             swiftPackageManagerBuildFile
         )
-        XCTAssertFalse(swiftPackageManagerBuildFileExists)
+        #expect(!swiftPackageManagerBuildFileExists)
     }
 
-    func test_run_with_remote_legacy() async throws {
+    @Test func test_run_with_remote_legacy() async throws {
         try await withMockedEnvironment {
             try await withMockedDependencies {
                 Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
@@ -275,7 +262,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run_with_remote() async throws {
+    @Test func test_run_with_remote() async throws {
         try await withMockedEnvironment {
             try await withMockedDependencies {
                 Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "0"

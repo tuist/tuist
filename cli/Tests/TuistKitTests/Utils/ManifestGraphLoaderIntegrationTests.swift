@@ -2,15 +2,15 @@ import Foundation
 import TuistCore
 import TuistLoader
 import TuistSupport
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistKit
 @testable import TuistTesting
 
-final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
+struct ManifestGraphLoaderIntegrationTests {
     var subject: ManifestGraphLoader!
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    init() throws {
         let manifestLoader = ManifestLoader()
         let workspaceMapper = SequentialWorkspaceMapper(mappers: [])
         let graphMapper = SequentialGraphMapper([])
@@ -21,14 +21,9 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
         )
     }
 
-    override func tearDownWithError() throws {
-        subject = nil
-        try super.tearDownWithError()
-    }
-
     // MARK: - Tests
 
-    func test_load_workspace() async throws {
+    @Test func test_load_workspace() async throws {
         // Given
         let path = try await temporaryFixture("WorkspaceWithPlugins")
 
@@ -36,15 +31,15 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
         let (result, _, _, _) = try await subject.load(path: path, disableSandbox: true)
 
         // Then
-        XCTAssertEqual(result.workspace.name, "Workspace")
-        XCTAssertEqual(result.projects.values.map(\.name).sorted(), [
+        #expect(result.workspace.name == "Workspace")
+        #expect(result.projects.values.map(\.name).sorted() == [
             "App",
             "FrameworkA",
             "FrameworkB",
         ])
     }
 
-    func test_load_project() async throws {
+    @Test func test_load_project() async throws {
         // Given
         let path = try await temporaryFixture("WorkspaceWithPlugins")
             .appending(component: "App")
@@ -53,8 +48,8 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
         let (result, _, _, _) = try await subject.load(path: path, disableSandbox: true)
 
         // Then
-        XCTAssertEqual(result.workspace.name, "App")
-        XCTAssertEqual(result.projects.values.map(\.name).sorted(), [
+        #expect(result.workspace.name == "App")
+        #expect(result.projects.values.map(\.name).sorted() == [
             "App",
             "FrameworkA",
             "FrameworkB",

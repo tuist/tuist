@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class ProjectTests: XCTestCase {
-    func test_codable() {
+struct ProjectTests {
+    @Test func test_codable() throws {
         // Given
         let framework = Target.test(name: "Framework", product: .framework)
         let app = Target.test(name: "App", product: .app)
@@ -15,10 +15,15 @@ final class ProjectTests: XCTestCase {
         ])
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Project.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_defaultDebugBuildConfigurationName_when_defaultDebugConfigExists() {
+    @Test func test_defaultDebugBuildConfigurationName_when_defaultDebugConfigExists() {
         // Given
         let project = Project.test(settings: Settings.test())
 
@@ -26,10 +31,10 @@ final class ProjectTests: XCTestCase {
         let got = project.defaultDebugBuildConfigurationName
 
         // Then
-        XCTAssertEqual(got, "Debug")
+        #expect(got == "Debug")
     }
 
-    func test_defaultDebugBuildConfigurationName_when_defaultDebugConfigDoesntExist() {
+    @Test func test_defaultDebugBuildConfigurationName_when_defaultDebugConfigDoesntExist() {
         // Given
         let settings = Settings.test(base: [:], configurations: [.debug("Test"): Configuration.test()])
         let project = Project.test(settings: settings)
@@ -38,6 +43,6 @@ final class ProjectTests: XCTestCase {
         let got = project.defaultDebugBuildConfigurationName
 
         // Then
-        XCTAssertEqual(got, "Test")
+        #expect(got == "Test")
     }
 }

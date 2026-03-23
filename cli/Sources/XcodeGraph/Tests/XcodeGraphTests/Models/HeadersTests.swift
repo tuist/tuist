@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class HeadersTests: XCTestCase {
-    func test_codable() throws {
+struct HeadersTests {
+    @Test func test_codable() throws {
         // Given
         let subject = Headers(
             public: [
@@ -19,6 +19,11 @@ final class HeadersTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Headers.self, from: data)
+        #expect(subject == decoded)
     }
 }

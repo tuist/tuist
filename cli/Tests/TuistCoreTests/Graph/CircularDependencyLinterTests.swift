@@ -1,15 +1,15 @@
 import Foundation
 import TuistSupport
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistCore
 @testable import TuistTesting
 
-final class CircularDependencyLinterTests: TuistUnitTestCase {
+struct CircularDependencyLinterTests {
     // MARK: - Dependency Cycle
 
-    func test_loadWorkspace_differentProjectDependencyCycle() throws {
+    @Test func test_loadWorkspace_differentProjectDependencyCycle() throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "B", path: "/B")])
         let targetB = Target.test(name: "B", dependencies: [.project(target: "C", path: "/C")])
@@ -21,7 +21,11 @@ final class CircularDependencyLinterTests: TuistUnitTestCase {
         let subject = CircularDependencyLinter()
 
         // When / Then
-        XCTAssertThrowsSpecific(
+        #expect(throws: GraphLoadingError.circularDependency([
+            .init(path: "/A", name: "A"),
+            .init(path: "/B", name: "B"),
+            .init(path: "/C", name: "C"),
+        ])) {
             try subject.lintWorkspace(
                 workspace: workspace,
                 projects: [
@@ -29,16 +33,11 @@ final class CircularDependencyLinterTests: TuistUnitTestCase {
                     projectB,
                     projectC,
                 ]
-            ),
-            GraphLoadingError.circularDependency([
-                .init(path: "/A", name: "A"),
-                .init(path: "/B", name: "B"),
-                .init(path: "/C", name: "C"),
-            ])
-        )
+            )
+        }
     }
 
-    func test_loadWorkspace_crossProjectsReferenceWithNoDependencyCycle() throws {
+    @Test func test_loadWorkspace_crossProjectsReferenceWithNoDependencyCycle() throws {
         // Given
         let targetA1 = Target.test(name: "A1", dependencies: [.project(target: "B1", path: "/B")])
         let targetA2 = Target.test(name: "A2", dependencies: [.project(target: "B2", path: "/B")])
@@ -52,19 +51,17 @@ final class CircularDependencyLinterTests: TuistUnitTestCase {
         let subject = CircularDependencyLinter()
 
         // When / Then
-        XCTAssertNoThrow(
-            try subject.lintWorkspace(
-                workspace: workspace,
-                projects: [
-                    projectA,
-                    projectB,
-                    projectC,
-                ]
-            )
+        try subject.lintWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+                projectB,
+                projectC,
+            ]
         )
     }
 
-    func test_loadWorkspace_crossProjectsReferenceWithDependencyCycle() throws {
+    @Test func test_loadWorkspace_crossProjectsReferenceWithDependencyCycle() throws {
         // Given
         let targetA1 = Target.test(name: "A1", dependencies: [.project(target: "B1", path: "/B")])
         let targetA2 = Target.test(name: "A2", dependencies: [.project(target: "B2", path: "/B")])
@@ -79,7 +76,7 @@ final class CircularDependencyLinterTests: TuistUnitTestCase {
         let subject = CircularDependencyLinter()
 
         // When / Then
-        XCTAssertThrowsError(
+        #expect(throws: (any Error).self) {
             try subject.lintWorkspace(
                 workspace: workspace,
                 projects: [
@@ -88,11 +85,6 @@ final class CircularDependencyLinterTests: TuistUnitTestCase {
                     projectC,
                 ]
             )
-        ) { error in
-            // need to manually inspect the error as depending on traversal order may result in different nodes getting listed
-            let graphError = error as? GraphLoadingError
-            XCTAssertNotNil(graphError)
-            XCTAssertTrue(graphError?.isCycleError == true)
         }
     }
 }

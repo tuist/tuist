@@ -4,16 +4,14 @@ import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
-    var infoPlistContentProvider: MockInfoPlistContentProvider!
-    var subject: GenerateInfoPlistProjectMapper!
-
-    override public func setUp() {
-        super.setUp()
+struct GenerateInfoPlistProjectMapperTests {
+    let infoPlistContentProvider: MockInfoPlistContentProvider
+    let subject: GenerateInfoPlistProjectMapper
+    init() {
         infoPlistContentProvider = MockInfoPlistContentProvider()
         subject = GenerateInfoPlistProjectMapper(
             infoPlistContentProvider: infoPlistContentProvider,
@@ -22,12 +20,7 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
         )
     }
 
-    override public func tearDown() {
-        infoPlistContentProvider = nil
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_map() throws {
         // Given
         let targetA = Target.test(name: "A", infoPlist: .dictionary(["A": "A_VALUE"]))
@@ -38,26 +31,26 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
         let (mappedProject, sideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(sideEffects.count, 2)
-        XCTAssertEqual(mappedProject.targets.count, 2)
+        #expect(sideEffects.count == 2)
+        #expect(mappedProject.targets.count == 2)
 
-        try XCTAssertSideEffectsCreateDerivedInfoPlist(
+        try assertSideEffectsCreateDerivedInfoPlist(
             named: "A-Info.plist",
             content: ["A": "A_VALUE"],
             projectPath: project.path,
             sideEffects: sideEffects
         )
-        try XCTAssertSideEffectsCreateDerivedInfoPlist(
+        try assertSideEffectsCreateDerivedInfoPlist(
             named: "B-Info.plist",
             content: ["B": "B_VALUE"],
             projectPath: project.path,
             sideEffects: sideEffects
         )
-        XCTAssertTargetExistsWithDerivedInfoPlist(
+        assertTargetExistsWithDerivedInfoPlist(
             named: "A-Info.plist",
             project: mappedProject
         )
-        XCTAssertTargetExistsWithDerivedInfoPlist(
+        assertTargetExistsWithDerivedInfoPlist(
             named: "B-Info.plist",
             project: mappedProject
         )
@@ -65,13 +58,11 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
 
     // MARK: - Helpers
 
-    private func XCTAssertSideEffectsCreateDerivedInfoPlist(
+    private func assertSideEffectsCreateDerivedInfoPlist(
         named: String,
         content: [String: String],
         projectPath: AbsolutePath,
-        sideEffects: [SideEffectDescriptor],
-        file: StaticString = #file,
-        line: UInt = #line
+        sideEffects: [SideEffectDescriptor]
     ) throws {
         let data = try PropertyListSerialization.data(
             fromPropertyList: content,
@@ -79,26 +70,24 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
             options: 0
         )
 
-        XCTAssertNotNil(sideEffects.first(where: { sideEffect in
+        #expect(sideEffects.first(where: { sideEffect in
             guard case let SideEffectDescriptor.file(file) = sideEffect else { return false }
             return file.path == projectPath
                 .appending(component: Constants.DerivedDirectory.name)
                 .appending(component: Constants.DerivedDirectory.infoPlists)
                 .appending(component: named) && file.contents == data
-        }), file: file, line: line)
+        }) != nil)
     }
 
-    private func XCTAssertTargetExistsWithDerivedInfoPlist(
+    private func assertTargetExistsWithDerivedInfoPlist(
         named: String,
-        project: Project,
-        file: StaticString = #file,
-        line: UInt = #line
+        project: Project
     ) {
-        XCTAssertNotNil(project.targets.values.first(where: { (target: Target) in
+        #expect(project.targets.values.first(where: { (target: Target) in
             target.infoPlist?.path == project.path
                 .appending(component: Constants.DerivedDirectory.name)
                 .appending(component: Constants.DerivedDirectory.infoPlists)
                 .appending(component: named)
-        }), file: file, line: line)
+        }) != nil)
     }
 }

@@ -5,23 +5,21 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistHasher
 
-final class TargetScriptsContentHasherTests: TuistUnitTestCase {
-    private var subject: TargetScriptsContentHasher!
-    private var contentHasher: MockContentHashing!
-    private var temporaryDirectory: TemporaryDirectory!
-
-    override func setUp() {
-        super.setUp()
+struct TargetScriptsContentHasherTests {
+    private let subject: TargetScriptsContentHasher
+    private let contentHasher: MockContentHashing
+    private let temporaryDirectory: TemporaryDirectory
+    init() {
         contentHasher = .init()
         subject = TargetScriptsContentHasher(contentHasher: contentHasher)
         do {
             temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         } catch {
-            XCTFail("Error while creating temporary directory")
+            Issue.record("Error while creating temporary directory")
         }
         given(contentHasher)
             .hash(Parameter<String>.any)
@@ -31,13 +29,6 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .willProduce { $0.joined(separator: ";") }
     }
 
-    override func tearDown() {
-        subject = nil
-        temporaryDirectory = nil
-        contentHasher = nil
-
-        super.tearDown()
-    }
 
     private func makeTargetScript(
         name: String = "1",
@@ -64,6 +55,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
+    @Test
     func test_hash_targetAction_withBuildVariables_callsMockHasherWithOnlyPathWithoutBuildVariable() async throws {
         // Given
         let inputFileListPaths1 = "inputFileListPaths1-hash"
@@ -108,6 +100,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test
     func test_hash_targetAction_callsMockHasherWithExpectedStrings() async throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
@@ -145,6 +138,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test
     func test_hash_targetAction_when_path_nil_callsMockHasherWithExpectedStrings() async throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
@@ -183,6 +177,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test
     func test_hash_targetAction_valuesAreNotHardcoded() async throws {
         // Given
         let inputPaths2Hash = "inputPaths2-hash"
@@ -230,6 +225,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test
     func test_hash_isIndependentFromInputFilesOrder() async throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
@@ -287,7 +283,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(2)
     }
 
-    func test_hash_targetAction_embeddedScriptTextIsHashed() async throws {
+    @Test func hash_targetAction_embeddedScriptTextIsHashed() async throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
         given(contentHasher)
@@ -321,7 +317,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_hash_targetAction_differentEmbeddedScriptProducesDifferentHash() async throws {
+    @Test func hash_targetAction_differentEmbeddedScriptProducesDifferentHash() async throws {
         // Given
         let targetScript1 = TargetScript(
             name: "Script",
@@ -349,9 +345,10 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let hash2 = try await subject.hash(targetScripts: [targetScript2], sourceRootPath: "/")
 
         // Then
-        XCTAssertNotEqual(hash1, hash2)
+        #expect(hash1 != hash2)
     }
 
+    @Test
     func test_hash_targetAction_withRelativePathsAndSRCROOTReplacement() async throws {
         // Given
         let sourceRootPath = try AbsolutePath(validating: "/project/root")

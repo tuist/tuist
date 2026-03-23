@@ -1,61 +1,54 @@
+import FileSystemTesting
 import Mockable
 import TuistSupport
 import XcodeGraph
 import XcodeMetadata
-import XCTest
+import Testing
 
 @testable import TuistCore
 @testable import TuistTesting
 
-final class XCFrameworkLoaderErrorTests: TuistUnitTestCase {
-    func test_type_when_xcframeworkNotFound() {
+struct XCFrameworkLoaderErrorTests {
+    @Test func test_type_when_xcframeworkNotFound() {
         // Given
         let subject = XCFrameworkLoaderError.xcframeworkNotFound("/frameworks/tuist.xcframework")
 
         // Then
-        XCTAssertEqual(subject.type, .abort)
+        #expect(subject.type == .abort)
     }
 
-    func test_description_when_xcframeworkNotFound() {
+    @Test func test_description_when_xcframeworkNotFound() {
         // Given
         let subject = XCFrameworkLoaderError.xcframeworkNotFound("/frameworks/tuist.xcframework")
 
         // Then
-        XCTAssertEqual(subject.description, "Couldn't find xcframework at /frameworks/tuist.xcframework")
+        #expect(subject.description == "Couldn't find xcframework at /frameworks/tuist.xcframework")
     }
 }
 
-final class XCFrameworkLoaderTests: TuistUnitTestCase {
-    var xcframeworkMetadataProvider: MockXCFrameworkMetadataProviding!
-    var subject: XCFrameworkLoader!
+struct XCFrameworkLoaderTests {
+    let xcframeworkMetadataProvider: MockXCFrameworkMetadataProviding
+    let subject: XCFrameworkLoader
 
-    override func setUp() {
-        super.setUp()
+    init() {
         xcframeworkMetadataProvider = MockXCFrameworkMetadataProviding()
         subject = XCFrameworkLoader(xcframeworkMetadataProvider: xcframeworkMetadataProvider)
     }
 
-    override func tearDown() {
-        xcframeworkMetadataProvider = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_load_throws_when_the_xcframework_doesnt_exist() async throws {
+    @Test(.inTemporaryDirectory) func test_load_throws_when_the_xcframework_doesnt_exist() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
 
         // Then
-        await XCTAssertThrowsSpecific(
-            try await subject.load(path: xcframeworkPath, expectedSignature: nil, status: .required),
-            XCFrameworkLoaderError.xcframeworkNotFound(xcframeworkPath)
-        )
+        await #expect(throws: XCFrameworkLoaderError.xcframeworkNotFound(xcframeworkPath)) {
+            try await subject.load(path: xcframeworkPath, expectedSignature: nil, status: .required)
+        }
     }
 
-    func test_load_when_the_xcframework_exists() async throws {
+    @Test(.inTemporaryDirectory) func test_load_when_the_xcframework_exists() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
         let linking: BinaryLinking = .dynamic
 
@@ -79,8 +72,8 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         let got = try await subject.load(path: xcframeworkPath, expectedSignature: nil, status: .required)
 
         // Then
-        XCTAssertEqual(
-            got,
+        #expect(
+            got ==
             .testXCFramework(
                 path: xcframeworkPath,
                 infoPlist: infoPlist,

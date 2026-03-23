@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class WorkspaceTests: XCTestCase {
-    func test_codable() throws {
+struct WorkspaceTests {
+    @Test func test_codable() throws {
         // Given
         let subject = Workspace.test(
             path: try AbsolutePath(validating: "/path/to/workspace"),
@@ -12,6 +12,11 @@ final class WorkspaceTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Workspace.self, from: data)
+        #expect(subject == decoded)
     }
 }

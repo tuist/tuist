@@ -1,39 +1,39 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import ProjectDescription
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
 
 @testable import TuistLoader
 @testable import TuistTesting
 
-final class ConfigurationManifestMapperTests: TuistUnitTestCase {
-    func test_from_returns_nil_when_manifest_is_nil() throws {
+struct ConfigurationManifestMapperTests {
+    @Test(.inTemporaryDirectory) func from_returns_nil_when_manifest_is_nil() throws {
         // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
+            rootDirectory: temporaryPath
         )
 
         // When
         let got = try XcodeGraph.Configuration.from(manifest: nil, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertNil(got)
+        #expect(got == nil)
     }
 
-    func test_from_returns_the_correct_value_when_manifest_is_not_nil() throws {
+    @Test(.inTemporaryDirectory) func from_returns_the_correct_value_when_manifest_is_not_nil() throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let xcconfigPath = temporaryPath.appending(component: "Config.xcconfig")
         let settings: [String: ProjectDescription.SettingValue] = ["A": "B"]
-        let rootDirectory = temporaryPath
         let generatorPaths = GeneratorPaths(
             manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
+            rootDirectory: temporaryPath
         )
         let manifest: ProjectDescription.Configuration = .debug(
             name: .debug,
@@ -48,16 +48,13 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        guard let aSetting = got?.settings["A"] else {
-            XCTFail("Expected A to be defined")
-            return
-        }
+        let aSetting = try #require(got?.settings["A"])
 
         guard case let XcodeGraph.SettingValue.string(aString) = aSetting else {
-            XCTFail("Expected A to be a string")
+            Issue.record("Expected A to be a string")
             return
         }
-        XCTAssertEqual(aString, "B")
-        XCTAssertEqual(got?.xcconfig?.pathString, xcconfigPath.pathString)
+        #expect(aString == "B")
+        #expect(got?.xcconfig?.pathString == xcconfigPath.pathString)
     }
 }

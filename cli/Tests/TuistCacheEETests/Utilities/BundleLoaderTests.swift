@@ -1,11 +1,13 @@
 import Path
 import TuistSupport
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-final class BundleLoaderErrorTests: TuistUnitTestCase {
+struct BundleLoaderErrorTests {
+    @Test
     func test_type_when_bundleNotFound() throws {
         // Given
         let path = try AbsolutePath(validating: "/bundles/tuist.bundle")
@@ -15,9 +17,10 @@ final class BundleLoaderErrorTests: TuistUnitTestCase {
         let got = subject.type
 
         // Then
-        XCTAssertEqual(got, .abort)
+        #expect(got == .abort)
     }
 
+    @Test
     func test_description_when_bundleNotFound() throws {
         // Given
         let path = try AbsolutePath(validating: "/bundles/tuist.bundle")
@@ -27,40 +30,33 @@ final class BundleLoaderErrorTests: TuistUnitTestCase {
         let got = subject.description
 
         // Then
-        XCTAssertEqual(got, "Couldn't find bundle at \(path.pathString)")
+        #expect(got == "Couldn't find bundle at \(path.pathString)")
     }
 }
 
-final class BundleLoaderTests: TuistUnitTestCase {
-    private var subject: BundleLoader!
-
-    override func setUp() {
-        super.setUp()
+struct BundleLoaderTests {
+    private let subject: BundleLoader
+    init() {
         subject = BundleLoader(
             fileSystem: fileSystem
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_load_when_the_framework_doesnt_exist() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let bundlePath = path.appending(component: "tuist.bundle")
 
         // Then
-        await XCTAssertThrowsSpecific(
-            try await subject.load(path: bundlePath),
-            BundleLoaderError.bundleNotFound(bundlePath)
-        )
+        await #expect(throws: BundleLoaderError.bundleNotFound(bundlePath)) { try await subject.load(path: bundlePath) }
     }
 
+    @Test(.inTemporaryDirectory)
     func test_load_when_the_framework_exists() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let bundlePath = path.appending(component: "tuist.bundle")
 
         try FileHandler.shared.touch(bundlePath)
@@ -69,9 +65,6 @@ final class BundleLoaderTests: TuistUnitTestCase {
         let got = try await subject.load(path: bundlePath)
 
         // Then
-        XCTAssertEqual(
-            got,
-            .bundle(path: bundlePath)
-        )
+        #expect(got == .bundle(path: bundlePath))
     }
 }

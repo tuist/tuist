@@ -5,31 +5,25 @@ import Path
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistAutomation
 
-final class AppBundleLoaderTests: TuistUnitTestCase {
-    private var subject: AppBundleLoader!
-
-    override func setUp() {
-        super.setUp()
-
+struct AppBundleLoaderTests {
+    private let subject: AppBundleLoader
+    init() {
         subject = AppBundleLoader(
             fileSystem: FileSystem()
         )
     }
 
-    override func tearDown() {
-        subject = nil
 
-        super.tearDown()
-    }
-
+    @Test(.inTemporaryDirectory)
     func test_load_ipa_when_it_does_not_contain_any_app_bundle() async throws {
         // Given
-        let ipaPath = try temporaryPath().appending(components: "App.ipa")
-        let payloadPath = try temporaryPath().appending(components: "Payload")
+        let ipaPath = try #require(FileSystem.temporaryTestDirectory).appending(components: "App.ipa")
+        let payloadPath = try #require(FileSystem.temporaryTestDirectory).appending(components: "Payload")
         try await fileSystem.touch(ipaPath)
         let fileArchiverFactory = MockFileArchivingFactorying()
         let fileUnarchiver = MockFileUnarchiving()
@@ -39,31 +33,27 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         given(fileUnarchiver)
             .unzip()
             .willReturn(payloadPath)
-        subject = AppBundleLoader(
+        let subject = AppBundleLoader(
             fileSystem: fileSystem,
             fileArchiverFactory: fileArchiverFactory
         )
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.load(
+        await #expect(throws: AppBundleLoaderError.appBundleInIPANotFound(ipaPath)) { try await subject.load(
                 ipa: ipaPath
-            ),
-            AppBundleLoaderError.appBundleInIPANotFound(ipaPath)
-        )
+            ) }
     }
 
+    @Test
     func test_load_ipa() async throws {
         // Given
-        let ipaPath = fixturePath(path: try RelativePath(validating: "App.ipa"))
+        let ipaPath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "App.ipa"))
 
         // When
         let appBundle = try await subject.load(ipa: ipaPath)
 
         // Then
-        XCTAssertBetterEqual(
-            appBundle,
-            AppBundle(
+        #expect(appBundle == AppBundle(
                 path: ipaPath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "0.9.0",
@@ -80,21 +70,19 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                         )
                     )
                 )
-            )
-        )
+            ))
     }
 
+    @Test
     func test_load_app_bundle() async throws {
         // Given
-        let appBundlePath = fixturePath(path: try RelativePath(validating: "App.app"))
+        let appBundlePath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "App.app"))
 
         // When
         let appBundle = try await subject.load(appBundlePath)
 
         // Then
-        XCTAssertBetterEqual(
-            appBundle,
-            AppBundle(
+        #expect(appBundle == AppBundle(
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
@@ -111,10 +99,10 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                         )
                     )
                 )
-            )
-        )
+            ))
     }
 
+    @Test
     func test_load_iphoneos_app_bundle() async throws {
         // Given
         let appBundlePath = fixturePath(
@@ -125,9 +113,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         let appBundle = try await subject.load(appBundlePath)
 
         // Then
-        XCTAssertBetterEqual(
-            appBundle,
-            AppBundle(
+        #expect(appBundle == AppBundle(
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
@@ -139,13 +125,13 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                     supportedPlatforms: [.device(.iOS)],
                     bundleIcons: nil
                 )
-            )
-        )
+            ))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_load_appletv_info_plist() async throws {
         // Given
-        let appBundlePath = try temporaryPath()
+        let appBundlePath = try #require(FileSystem.temporaryTestDirectory)
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
         try fileHandler.write("""
         <?xml version="1.0" encoding="UTF-8"?>
@@ -179,9 +165,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         let appBundle = try await subject.load(appBundlePath)
 
         // Then
-        XCTAssertBetterEqual(
-            appBundle,
-            AppBundle(
+        #expect(appBundle == AppBundle(
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
@@ -198,13 +182,13 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                         )
                     )
                 )
-            )
-        )
+            ))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_load_info_plist_with_primary_icon_and_and_no_bundle_icon_name() async throws {
         // Given
-        let appBundlePath = try temporaryPath()
+        let appBundlePath = try #require(FileSystem.temporaryTestDirectory)
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
         try fileHandler.write("""
         <?xml version="1.0" encoding="UTF-8"?>
@@ -245,9 +229,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         let appBundle = try await subject.load(appBundlePath)
 
         // Then
-        XCTAssertBetterEqual(
-            appBundle,
-            AppBundle(
+        #expect(appBundle == AppBundle(
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
@@ -264,13 +246,13 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                         )
                     )
                 )
-            )
-        )
+            ))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_load_macos_app_bundle() async throws {
         // Given
-        let appBundlePath = try temporaryPath().appending(component: "App.app")
+        let appBundlePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "App.app")
         let contentsPath = appBundlePath.appending(component: "Contents")
         try await fileSystem.makeDirectory(at: contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
@@ -303,9 +285,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         let appBundle = try await subject.load(appBundlePath)
 
         // Then
-        XCTAssertBetterEqual(
-            appBundle,
-            AppBundle(
+        #expect(appBundle == AppBundle(
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
@@ -317,31 +297,26 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                     supportedPlatforms: [.device(.macOS)],
                     bundleIcons: nil
                 )
-            )
-        )
+            ))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_load_app_bundle_when_info_plist_is_missing_does_not_exist() async throws {
         // Given
-        let appBundlePath = try temporaryPath()
+        let appBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.load(appBundlePath),
-            AppBundleLoaderError.missingInfoPlist(appBundlePath.appending(component: "Info.plist"))
-        )
+        await #expect(throws: AppBundleLoaderError.missingInfoPlist(appBundlePath.appending(component: "Info.plist"))) { try await subject.load(appBundlePath) }
     }
 
+    @Test(.inTemporaryDirectory)
     func test_load_app_bundle_when_decoding_info_plist_failed() async throws {
         // Given
-        let appBundlePath = try temporaryPath()
+        let appBundlePath = try #require(FileSystem.temporaryTestDirectory)
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
         try fileHandler.write("{}", path: infoPlistPath, atomically: true)
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.load(appBundlePath),
-            AppBundleLoaderError.failedDecodingInfoPlist(infoPlistPath, "The data couldn’t be read because it is missing.")
-        )
+        await #expect(throws: AppBundleLoaderError.failedDecodingInfoPlist(infoPlistPath, "The data couldn’t be read because it is missing.")) { try await subject.load(appBundlePath) }
     }
 }

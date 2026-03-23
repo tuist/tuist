@@ -1,10 +1,11 @@
 import TuistCore
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class TargetActionDisableShowEnvVarsProjectMapperTests: TuistUnitTestCase {
+struct TargetActionDisableShowEnvVarsProjectMapperTests {
+    @Test
     func test_map_environmentLoggingDisables() throws {
         // Given
         let subject = TargetActionDisableShowEnvVarsProjectMapper()
@@ -19,16 +20,17 @@ final class TargetActionDisableShowEnvVarsProjectMapperTests: TuistUnitTestCase 
         let updatedTargets = updatedProject.targets.values.sorted()
 
         // Then
-        XCTAssertFalse(updatedTargets[1].scripts[0].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[1].scripts[1].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[0].scripts[0].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[0].scripts[1].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[1].scripts[0].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[1].scripts[1].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[0].scripts[0].showEnvVarsInLog)
-        XCTAssertFalse(updatedTargets[0].scripts[1].showEnvVarsInLog)
+        #expect(!updatedTargets[1].scripts[0].showEnvVarsInLog)
+        #expect(!updatedTargets[1].scripts[1].showEnvVarsInLog)
+        #expect(!updatedTargets[0].scripts[0].showEnvVarsInLog)
+        #expect(!updatedTargets[0].scripts[1].showEnvVarsInLog)
+        #expect(!updatedTargets[1].scripts[0].showEnvVarsInLog)
+        #expect(!updatedTargets[1].scripts[1].showEnvVarsInLog)
+        #expect(!updatedTargets[0].scripts[0].showEnvVarsInLog)
+        #expect(!updatedTargets[0].scripts[1].showEnvVarsInLog)
     }
 
+    @Test
     func test_map_environmentLoggingEnables() throws {
         // Given
         let subject = TargetActionDisableShowEnvVarsProjectMapper()
@@ -43,13 +45,13 @@ final class TargetActionDisableShowEnvVarsProjectMapperTests: TuistUnitTestCase 
         let updatedTargets = updatedProject.targets.values.sorted()
 
         // Then
-        XCTAssertTrue(updatedTargets[0].scripts[0].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[0].scripts[1].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[1].scripts[0].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[1].scripts[1].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[0].scripts[0].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[0].scripts[1].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[1].scripts[0].showEnvVarsInLog)
-        XCTAssertTrue(updatedTargets[1].scripts[1].showEnvVarsInLog)
+        #expect(updatedTargets[0].scripts[0].showEnvVarsInLog)
+        #expect(updatedTargets[0].scripts[1].showEnvVarsInLog)
+        #expect(updatedTargets[1].scripts[0].showEnvVarsInLog)
+        #expect(updatedTargets[1].scripts[1].showEnvVarsInLog)
+        #expect(updatedTargets[0].scripts[0].showEnvVarsInLog)
+        #expect(updatedTargets[0].scripts[1].showEnvVarsInLog)
+        #expect(updatedTargets[1].scripts[0].showEnvVarsInLog)
+        #expect(updatedTargets[1].scripts[1].showEnvVarsInLog)
     }
 }

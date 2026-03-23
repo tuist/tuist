@@ -6,12 +6,13 @@ import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistKit
 @testable import TuistTesting
 
-final class ScaffoldServiceTests: TuistUnitTestCase {
+struct ScaffoldServiceTests {
     var subject: ScaffoldService!
     var templateLoader: MockTemplateLoading!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
@@ -19,8 +20,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
     var configLoader: MockConfigLoading!
     var pluginService: MockPluginService!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         templateLoader = MockTemplateLoading()
         templatesDirectoryLocator = MockTemplatesDirectoryLocating()
         templateGenerator = MockTemplateGenerating()
@@ -38,15 +38,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        templateLoader = nil
-        templatesDirectoryLocator = nil
-        templateGenerator = nil
-        super.tearDown()
-    }
-
-    func test_load_template_options() async throws {
+    @Test func test_load_template_options() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -74,11 +66,11 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(options.required, expectedOptions.required)
-        XCTAssertEqual(options.optional, expectedOptions.optional)
+        #expect(options.required == expectedOptions.required)
+        #expect(options.optional == expectedOptions.optional)
     }
 
-    func test_load_template_plugin_options() async throws {
+    @Test func test_load_template_plugin_options() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -115,11 +107,11 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(options.required, expectedOptions.required)
-        XCTAssertEqual(options.optional, expectedOptions.optional)
+        #expect(options.required == expectedOptions.required)
+        #expect(options.optional == expectedOptions.optional)
     }
 
-    func test_fails_when_template_not_found() async throws {
+    @Test func test_fails_when_template_not_found() async throws {
         let templateName = "template"
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -136,7 +128,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_fails_when_required_attribute_not_provided() async throws {
+    @Test func test_fails_when_required_attribute_not_provided() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -155,7 +147,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_optional_attribute_is_taken_from_template() async throws {
+    @Test func test_optional_attribute_is_taken_from_template() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -188,7 +180,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_optional_dictionary_attribute_is_taken_from_template() async throws {
+    @Test func test_optional_dictionary_attribute_is_taken_from_template() async throws {
         // Given
         let context: Template.Attribute.Value = .dictionary([
             "key1": .string("value1"),
@@ -226,7 +218,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_optional_integer_attribute_is_taken_from_template() async throws {
+    @Test func test_optional_integer_attribute_is_taken_from_template() async throws {
         // Given
         let defaultIntegerValue: Template.Attribute.Value = .integer(999)
 
@@ -261,7 +253,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_attributes_are_passed_to_generator() async throws {
+    @Test func test_attributes_are_passed_to_generator() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -310,7 +302,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 }
 
 extension ScaffoldService {
-    func testRun(
+    @Test func testRun(
         path: String? = nil,
         templateName: String = "template",
         requiredTemplateOptions: [String: String] = [:],

@@ -2,28 +2,23 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistCacheEE
 
-final class ArtifactSignaturePayloadProviderTests: TuistUnitTestCase {
-    var subject: ArtifactSignaturePayloadProvider!
-
-    override func setUp() {
-        super.setUp()
+struct ArtifactSignaturePayloadProviderTests {
+    let subject: ArtifactSignaturePayloadProvider
+    init() {
         subject = ArtifactSignaturePayloadProvider()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_fetch_returnsAPayloadWithNonEmptyMacAddress() throws {
         // Given/When
         let got = try subject.fetch()
 
         // Then
-        XCTAssertNotEqual(got.macAddress, "")
+        #expect(got.macAddress != "")
     }
 }

@@ -1,9 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import TuistSupport
 
-final class StringMD5Tests: XCTestCase {
+struct StringMD5Tests {
+    @Test
     func test_md5() {
         // Given
         let string = "abc"
@@ -12,6 +13,6 @@ final class StringMD5Tests: XCTestCase {
         let md5 = string.md5
 
         // Then
-        XCTAssertEqual(md5, "900150983cd24fb0d6963f7d28e17f72")
+        #expect(md5 == "900150983cd24fb0d6963f7d28e17f72")
     }
 }

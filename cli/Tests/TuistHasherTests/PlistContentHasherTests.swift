@@ -5,17 +5,16 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistHasher
 
-final class InfoPlistContentHasherTests: TuistUnitTestCase {
-    private var subject: PlistContentHasher!
-    private var contentHasher: MockContentHashing!
+struct InfoPlistContentHasherTests {
+    private let subject: PlistContentHasher
+    private let contentHasher: MockContentHashing
     private let filePath1 = try! AbsolutePath(validating: "/file1")
 
-    override func setUp() {
-        super.setUp()
+    init() {
         contentHasher = .init()
         subject = PlistContentHasher(contentHasher: contentHasher)
         given(contentHasher)
@@ -23,12 +22,8 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
             .willProduce { $0 + "-hash" }
     }
 
-    override func tearDown() {
-        subject = nil
-        contentHasher = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_hash_whenPlistIsFile_tellsContentHasherToHashFileContent() async throws {
         // Given
         let infoPlist = InfoPlist.file(path: filePath1)
@@ -43,14 +38,15 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         verify(contentHasher)
             .hash(path: .any)
             .called(1)
-        XCTAssertEqual(hash, "stubHash")
+        #expect(hash == "stubHash")
     }
 
+    @Test
     func test_hash_whenPlistIsGeneratedFile_tellsContentHasherToHashFileContent() async throws {
         // Given
         let infoPlist = InfoPlist.generatedFile(
             path: filePath1,
-            data: try XCTUnwrap(Data(base64Encoded: "stubHash"))
+            data: try #require(Data(base64Encoded: "stubHash"))
         )
         given(contentHasher)
             .hash(Parameter<Data>.any)
@@ -63,9 +59,10 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         verify(contentHasher)
             .hash(Parameter<Data>.any)
             .called(1)
-        XCTAssertEqual(hash, "stubHash-hash")
+        #expect(hash == "stubHash-hash")
     }
 
+    @Test
     func test_hash_whenPlistIsDictionary_allDictionaryValuesAreConsideredForHash() async throws {
         // Given
         let infoPlist = InfoPlist.dictionary([
@@ -83,12 +80,10 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         verify(contentHasher)
             .hash(Parameter<String>.any)
             .called(1)
-        XCTAssertEqual(
-            hash,
-            "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([XcodeGraph.Plist.Value.string(\"5a\"), XcodeGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": XcodeGraph.Plist.Value.string(\"6value\")]);-hash"
-        )
+        #expect(hash == "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([XcodeGraph.Plist.Value.string(\"5a\"), XcodeGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": XcodeGraph.Plist.Value.string(\"6value\")]);-hash")
     }
 
+    @Test
     func test_hash_whenPlistIsExtendingDefault_allDictionaryValuesAreConsideredForHash() async throws {
         // Given
         let infoPlist = InfoPlist.extendingDefault(with: [
@@ -107,9 +102,6 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         verify(contentHasher)
             .hash(Parameter<String>.any)
             .called(1)
-        XCTAssertEqual(
-            hash,
-            "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([XcodeGraph.Plist.Value.string(\"5a\"), XcodeGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": XcodeGraph.Plist.Value.string(\"6value\")]);-hash"
-        )
+        #expect(hash == "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([XcodeGraph.Plist.Value.string(\"5a\"), XcodeGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": XcodeGraph.Plist.Value.string(\"6value\")]);-hash")
     }
 }

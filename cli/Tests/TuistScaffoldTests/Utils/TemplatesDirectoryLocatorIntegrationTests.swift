@@ -2,28 +2,24 @@ import Foundation
 import Path
 import TuistRootDirectoryLocator
 import TuistSupport
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistCore
 @testable import TuistScaffold
 @testable import TuistTesting
 
-final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
-    var subject: TemplatesDirectoryLocator!
-
-    override func setUp() {
-        super.setUp()
+struct TemplatesDirectoryLocatorIntegrationTests {
+    let subject: TemplatesDirectoryLocator
+    init() {
         subject = TemplatesDirectoryLocator(rootDirectoryLocator: RootDirectoryLocator())
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_locate_when_a_templates_and_git_directory_exists() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git"])
 
         // When
@@ -34,12 +30,13 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
             )
 
         // Then
-        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/is/Tuist/Templates")))
+        #expect(got == temporaryDirectory.appending(try RelativePath(validating: "this/is/Tuist/Templates")))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_locate_when_a_templates_directory_exists() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates"])
 
         // When
@@ -50,12 +47,13 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
             )
 
         // Then
-        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/is/Tuist/Templates")))
+        #expect(got == temporaryDirectory.appending(try RelativePath(validating: "this/is/Tuist/Templates")))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_locate_when_a_git_directory_exists() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Templates"])
 
         // When
@@ -66,12 +64,13 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
             )
 
         // Then
-        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/Tuist/Templates")))
+        #expect(got == temporaryDirectory.appending(try RelativePath(validating: "this/Tuist/Templates")))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_locate_when_multiple_tuist_directories_exists() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try createFolders(["this/is/a/very/nested/Tuist/Templates", "this/is/Tuist/Templates"])
         let paths = [
             "this/is/a/very/directory",
@@ -86,7 +85,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         }
 
         // Then
-        XCTAssertEqual(got, try [
+        #expect(got == try [
             "this/is/Tuist/Templates",
             "this/is/a/very/nested/Tuist/Templates",
         ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })

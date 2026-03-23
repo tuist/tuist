@@ -1,15 +1,16 @@
 import TuistCore
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistHasher
 
-class PlistrExtrasTests: XCTestCase {
+struct PlistrExtrasTests {
+    @Test
     func test_normalize() throws {
-        XCTAssertEqual(Plist.Value.string("test").normalize() as? String, "test")
-        XCTAssertEqual(Plist.Value.integer(1).normalize() as? Int, 1)
-        XCTAssertEqual(Plist.Value.real(1).normalize() as? Double, 1)
-        XCTAssertEqual(Plist.Value.boolean(true).normalize() as? Bool, true)
-        XCTAssertEqual(Plist.Value.array([.string("test")]).normalize() as? [String], ["test"])
-        XCTAssertEqual(Plist.Value.dictionary(["test": .string("tuist")]).normalize() as? [String: String], ["test": "tuist"])
+        #expect(Plist.Value.string("test").normalize() as? String == "test")
+        #expect(Plist.Value.integer(1).normalize() as? Int == 1)
+        #expect(Plist.Value.real(1).normalize() as? Double == 1)
+        #expect(Plist.Value.boolean(true).normalize() as? Bool == true)
+        #expect(Plist.Value.array([.string("test")]).normalize() as? [String] == ["test"])
+        #expect(Plist.Value.dictionary(["test": .string("tuist")]).normalize() as? [String: String] == ["test": "tuist"])
     }
 }

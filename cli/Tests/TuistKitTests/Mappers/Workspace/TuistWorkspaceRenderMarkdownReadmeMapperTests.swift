@@ -2,27 +2,22 @@ import Foundation
 import Path
 import TuistCore
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistKit
 @testable import TuistTesting
 
-final class TuistWorkspaceRenderMarkdownReadmeMapperTests: TuistUnitTestCase {
+struct TuistWorkspaceRenderMarkdownReadmeMapperTests {
     private var subject: TuistWorkspaceRenderMarkdownReadmeMapper!
     private var workspaceDirectory: AbsolutePath!
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    init() throws {
         workspaceDirectory = try temporaryPath()
         subject = .init()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_map_with_readme_rendered() throws {
+    @Test func test_map_with_readme_rendered() throws {
         // Given
         let workspace = Workspace.test(generationOptions: Workspace.GenerationOptions(
             enableAutomaticXcodeSchemes: false,
@@ -46,10 +41,10 @@ final class TuistWorkspaceRenderMarkdownReadmeMapperTests: TuistUnitTestCase {
             .map(workspace: workspaceWithProjects)
 
         // Then
-        XCTAssertTrue(
+        #expect(
             gotWorkspaceWithProjects.workspace.generationOptions.renderMarkdownReadme
         )
-        XCTAssertTrue(gotWorkspaceWithProjects.workspace.projects.isEmpty)
+        #expect(gotWorkspaceWithProjects.workspace.projects.isEmpty)
         XCTAssertEqual(
             sideEffects,
             [
@@ -58,7 +53,7 @@ final class TuistWorkspaceRenderMarkdownReadmeMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_without_readme_rendered() throws {
+    @Test func test_map_without_readme_rendered() throws {
         // Given
         let workspace = Workspace.test(generationOptions: Workspace.GenerationOptions(
             enableAutomaticXcodeSchemes: false,
@@ -82,10 +77,10 @@ final class TuistWorkspaceRenderMarkdownReadmeMapperTests: TuistUnitTestCase {
             .map(workspace: workspaceWithProjects)
 
         // Then
-        XCTAssertFalse(
+        #expect(!
             gotWorkspaceWithProjects.workspace.generationOptions.renderMarkdownReadme
         )
-        XCTAssertTrue(gotWorkspaceWithProjects.workspace.projects.isEmpty)
+        #expect(gotWorkspaceWithProjects.workspace.projects.isEmpty)
         XCTAssertEqual(
             sideEffects,
             [

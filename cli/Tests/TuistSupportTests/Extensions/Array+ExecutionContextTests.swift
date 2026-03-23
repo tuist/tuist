@@ -1,9 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import TuistSupport
 
-final class ArrayExecutionContextTests: XCTestCase {
+struct ArrayExecutionContextTests {
+    @Test
     func test_concurrentMap_success() {
         // Given
         let numbers = Array(0 ... 1000)
@@ -13,9 +14,10 @@ final class ArrayExecutionContextTests: XCTestCase {
         let results = numbers.map(context: .concurrent, transform)
 
         // Then
-        XCTAssertEqual(results, numbers.map(transform))
+        #expect(results == numbers.map(transform))
     }
 
+    @Test
     func test_concurrentMap_errors() throws {
         // Given
         let numbers = Array(0 ... 1000)
@@ -27,9 +29,10 @@ final class ArrayExecutionContextTests: XCTestCase {
         }
 
         // When / Then
-        XCTAssertThrowsSpecific(try numbers.map(context: .concurrent, transform), TestError.someError)
+        #expect(throws: TestError.someError) { try numbers.map(context: .concurrent, transform) }
     }
 
+    @Test
     func test_concurrentForEach_success() {
         // Given
         let numbers = Array(0 ... 1000)
@@ -48,9 +51,10 @@ final class ArrayExecutionContextTests: XCTestCase {
         let resuls = queue.sync {
             performedNumbers
         }
-        XCTAssertEqual(resuls, Set(numbers))
+        #expect(resuls == Set(numbers))
     }
 
+    @Test
     func test_concurrentForEach_error() {
         // Given
         let numbers = Array(0 ... 1000)
@@ -61,7 +65,7 @@ final class ArrayExecutionContextTests: XCTestCase {
         }
 
         // When / Then
-        XCTAssertThrowsSpecific(try numbers.forEach(context: .concurrent, perform), TestError.someError)
+        #expect(throws: TestError.someError) { try numbers.forEach(context: .concurrent, perform) }
     }
 
     // MARK: - Helpers

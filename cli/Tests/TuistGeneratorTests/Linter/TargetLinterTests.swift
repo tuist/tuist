@@ -3,23 +3,18 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class TargetLinterTests: TuistUnitTestCase {
-    var subject: TargetLinter!
-
-    override func setUp() {
-        super.setUp()
+struct TargetLinterTests {
+    let subject: TargetLinter
+    init() {
         subject = TargetLinter()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_lint_when_target_has_invalid_product_name() async throws {
         let XCTAssertInvalidProductNameApp: (Target) async throws -> Void = { target in
             let got = try await self.subject.lint(target: target, options: .test())
@@ -33,12 +28,12 @@ final class TargetLinterTests: TuistUnitTestCase {
                     "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), hyphen (-), and underscore (_) characters."
             }
 
-            XCTAssertTrue(got.contains(LintingIssue(reason: reason, severity: .warning)))
+            #expect(got.contains(LintingIssue(reason: reason, severity: .warning)))
         }
 
         let XCTAssertValidProductNameApp: (Target) async throws -> Void = { target in
             let got = try await self.subject.lint(target: target, options: .test())
-            XCTAssertNil(got.first(where: { $0.description.contains("Invalid product name") }))
+            #expect(got.first(where: { $0.description.contains("Invalid product name") }) == nil)
         }
 
         try await XCTAssertValidProductNameApp(Target.test(product: .app, productName: "MyApp.iOS"))
@@ -54,6 +49,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         try await XCTAssertInvalidProductNameApp(Target.test(productName: "ؼFramework"))
     }
 
+    @Test
     func test_lint_when_inconsistentProductNameBuildSettingAcrossConfigurations() async throws {
         // Given
         let target = Target.test(settings: .test(
@@ -66,12 +62,13 @@ final class TargetLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(target: target, options: .test())
 
         // Then
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "The target '\(target.name)' has a PRODUCT_NAME build setting that is different across configurations and might cause unpredictable behaviours.",
             severity: .warning
         )))
     }
 
+    @Test
     func test_lint_when_productNameBuildSettingWithVariables() async throws {
         // Given
         let target = Target.test(settings: .test(
@@ -84,24 +81,25 @@ final class TargetLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(target: target, options: .test())
 
         // Then
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "The target '\(target.name)' has a PRODUCT_NAME build setting containing variables that are resolved at build time, and might cause unpredictable behaviours.",
             severity: .warning
         )))
     }
 
+    @Test
     func test_lint_when_target_has_invalid_bundle_identifier() async throws {
         let XCTAssertInvalidBundleId: (String) async throws -> Void = { bundleId in
             let target = Target.test(bundleId: bundleId)
             let got = try await self.subject.lint(target: target, options: .test())
             let reason =
                 "Invalid bundle identifier '\(bundleId)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
-            XCTAssertTrue(got.contains(LintingIssue(reason: reason, severity: .error)))
+            #expect(got.contains(LintingIssue(reason: reason, severity: .error)))
         }
         let XCTAssertValidBundleId: (String) async throws -> Void = { bundleId in
             let target = Target.test(bundleId: bundleId)
             let got = try await self.subject.lint(target: target, options: .test())
-            XCTAssertNil(got.first(where: { $0.description.contains("Invalid bundle identifier") }))
+            #expect(got.first(where: { $0.description.contains("Invalid bundle identifier") }) == nil)
         }
 
         try await XCTAssertInvalidBundleId("_.company.app")
@@ -111,6 +109,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         try await XCTAssertValidBundleId("com.company.MyModule${BUNDLE_SUFFIX}")
     }
 
+    @Test
     func test_lint_when_target_no_source_files_but_remote() async throws {
         let target = Target(
             name: "Target",
@@ -123,27 +122,30 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
         let got = try await subject.lint(target: target, options: .test())
 
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty)
     }
 
+    @Test
     func test_lint_when_target_no_source_files_but_has_dependency() async throws {
         let target = Target.test(sources: [], dependencies: [
             TargetDependency.sdk(name: "libc++.tbd", status: .optional),
         ])
         let got = try await subject.lint(target: target, options: .test())
 
-        XCTAssertEqual(0, got.count)
+        #expect(0 == got.count)
     }
 
+    @Test
     func test_lint_when_target_no_source_files_but_has_actions() async throws {
         let target = Target.test(sources: [], scripts: [
             TargetScript(name: "Test script", order: .post, script: .embedded("echo 'This is a test'")),
         ])
         let got = try await subject.lint(target: target, options: .test())
 
-        XCTAssertEqual(0, got.count)
+        #expect(0 == got.count)
     }
 
+    @Test
     func test_lint_when_a_infoplist_file_is_being_copied() async throws {
         let infoPlistPath = try! AbsolutePath(validating: "/Info.plist")
         let googeServiceInfoPlistPath = try! AbsolutePath(validating: "/GoogleService-Info.plist")
@@ -160,56 +162,60 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         let got = try await subject.lint(target: target, options: .test())
 
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "Info.plist at path \(infoPlistPath.pathString) being copied into the target \(target.name) product.",
             severity: .warning
         )))
-        XCTAssertFalse(got.contains(LintingIssue(
+        #expect(!got.contains(LintingIssue(
             reason: "Info.plist at path \(googeServiceInfoPlistPath.pathString) being copied into the target \(target.name) product.",
             severity: .warning
         )))
     }
 
+    @Test
     func test_lint_when_a_entitlements_file_is_being_copied() async throws {
         let path = try! AbsolutePath(validating: "/App.entitlements")
         let target = Target.test(resources: .init([.file(path: path)]))
 
         let got = try await subject.lint(target: target, options: .test())
 
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "Entitlements file at path \(path.pathString) being copied into the target \(target.name) product.",
             severity: .warning
         )))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_lint_when_entitlements_not_missing() async throws {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "Info.plist")
         let target = Target.test(infoPlist: .file(path: path))
 
         let got = try await subject.lint(target: target, options: .test())
 
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "Info.plist file not found at path \(path.pathString)",
             severity: .error
         )))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_lint_when_infoplist_not_found() async throws {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "App.entitlements")
         let target = Target.test(entitlements: .file(path: path))
 
         let got = try await subject.lint(target: target, options: .test())
 
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "Entitlements file not found at path \(path.pathString)",
             severity: .error
         )))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_lint_when_library_has_resources() async throws {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "Image.png")
         let element = ResourceFileElement.file(path: path)
 
@@ -220,7 +226,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             target: staticLibrary,
             options: .test()
         )
-        XCTAssertFalse(staticLibraryResult.contains(LintingIssue(
+        #expect(!staticLibraryResult.contains(LintingIssue(
             reason: "Target \(staticLibrary.name) cannot contain resources. For \(staticLibrary.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
             severity: .error
         )))
@@ -229,14 +235,15 @@ final class TargetLinterTests: TuistUnitTestCase {
             target: dynamicLibrary,
             options: .test()
         )
-        XCTAssertFalse(dynamicLibraryResult.contains(LintingIssue(
+        #expect(!dynamicLibraryResult.contains(LintingIssue(
             reason: "Target \(dynamicLibrary.name) cannot contain resources. For \(dynamicLibrary.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
             severity: .error
         )))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_lint_when_library_has_resources_with_disable_bundle_accessors() async throws {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "Image.png")
         let element = ResourceFileElement.file(path: path)
 
@@ -247,7 +254,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             target: staticLibrary,
             options: .test(disableBundleAccessors: true)
         )
-        XCTAssertTrue(staticLibraryResult.contains(LintingIssue(
+        #expect(staticLibraryResult.contains(LintingIssue(
             reason: "Target \(staticLibrary.name) cannot contain resources. For \(staticLibrary.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
             severity: .error
         )))
@@ -256,7 +263,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             target: dynamicLibrary,
             options: .test(disableBundleAccessors: true)
         )
-        XCTAssertTrue(
+        #expect(
             dynamicLibraryResult.contains(LintingIssue(
                 reason: "Target \(dynamicLibrary.name) cannot contain resources. For \(dynamicLibrary.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
                 severity: .error
@@ -264,8 +271,9 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
     }
 
+    @Test(.inTemporaryDirectory)
     func test_lint_when_framework_has_resources() async throws {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "Image.png")
         let element = ResourceFileElement.file(path: path)
 
@@ -276,7 +284,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             target: staticFramework,
             options: .test()
         )
-        XCTAssertFalse(staticFrameworkResult.contains(LintingIssue(
+        #expect(!staticFrameworkResult.contains(LintingIssue(
             reason: "Target \(staticFramework.name) cannot contain resources. For \(staticFramework.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
             severity: .error
         )))
@@ -285,12 +293,13 @@ final class TargetLinterTests: TuistUnitTestCase {
             target: dynamicFramework,
             options: .test()
         )
-        XCTAssertFalse(dynamicFrameworkResult.contains(LintingIssue(
+        #expect(!dynamicFrameworkResult.contains(LintingIssue(
             reason: "Target \(dynamicFramework.name) cannot contain resources. For \(dynamicFramework.product) targets to support resources, 'Bundle Accessors' feature should be enabled.",
             severity: .error
         )))
     }
 
+    @Test
     func test_lint_when_macos_bundle_has_no_sources() async throws {
         // Given
         let bundle = Target.empty(
@@ -304,9 +313,10 @@ final class TargetLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(target: bundle, options: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty)
     }
 
+    @Test
     func test_lint_valid_ios_bundle() async throws {
         // Given
         let bundle = Target.empty(
@@ -323,9 +333,10 @@ final class TargetLinterTests: TuistUnitTestCase {
         let result = try await subject.lint(target: bundle, options: .test())
 
         // Then
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty)
     }
 
+    @Test
     func test_lint_when_deployment_target_version_is_valid() async throws {
         let validVersions = ["10.0", "9.0.1"]
         for version in validVersions {
@@ -336,10 +347,11 @@ final class TargetLinterTests: TuistUnitTestCase {
             let got = try await subject.lint(target: target, options: .test())
 
             // Then
-            XCTAssertFalse(got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
+            #expect(!got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
         }
     }
 
+    @Test
     func test_lint_when_visionos_iPad_designed_deployment_target_is_valid() async throws {
         let targets = [
             Target(
@@ -366,13 +378,14 @@ final class TargetLinterTests: TuistUnitTestCase {
             let got = try await subject.lint(target: target, options: .test())
 
             // Then
-            XCTAssertFalse(got.contains(LintingIssue(
+            #expect(!got.contains(LintingIssue(
                 reason: "Found an inconsistency between target destinations `[XcodeGraph.Destination.appleVisionWithiPadDesign, XcodeGraph.Destination.iPad, XcodeGraph.Destination.iPhone]` and deployment target `visionOS`",
                 severity: .error
             )))
         }
     }
 
+    @Test
     func test_lint_when_deployment_target_version_is_invalid() async throws {
         let validVersions = ["tuist", "tuist9.0.1", "1.0tuist", "10_0", "1_1_3"]
         for version in validVersions {
@@ -383,10 +396,11 @@ final class TargetLinterTests: TuistUnitTestCase {
             let got = try await subject.lint(target: target, options: .test())
 
             // Then
-            XCTAssertTrue(got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
+            #expect(got.contains(LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)))
         }
     }
 
+    @Test
     func test_lint_when_target_platform_and_deployment_target_property_mismatch() async throws {
         let invalidCombinations: [(Platform, DeploymentTargets)] = [
             (.iOS, .macOS("10.0.0")),
@@ -401,15 +415,16 @@ final class TargetLinterTests: TuistUnitTestCase {
             // When
             let got = try await subject.lint(target: target, options: .test())
 
-            let expectedPlatform = try XCTUnwrap(combinations.1.configuredVersions.first?.platform.caseValue)
+            let expectedPlatform = try #require(combinations.1.configuredVersions.first?.platform.caseValue)
             // Then
-            XCTAssertTrue(got.contains(LintingIssue(
+            #expect(got.contains(LintingIssue(
                 reason: "Found deployment platforms (\(expectedPlatform)) missing corresponding destination",
                 severity: .error
             )))
         }
     }
 
+    @Test
     func test_lint_invalidProductPlatformCombinations() async throws {
         // Given
         let invalidTargets: [Target] = [
@@ -433,9 +448,10 @@ final class TargetLinterTests: TuistUnitTestCase {
                 severity: .error
             ),
         ]
-        XCTAssertTrue(expectedIssues.allSatisfy { got.contains($0) })
+        #expect(expectedIssues.allSatisfy { got.contains($0) })
     }
 
+    @Test
     func test_lint_when_target_has_duplicate_dependencies_specified() async throws {
         let testDependency: TargetDependency = .sdk(name: "libc++.tbd", status: .optional)
 
@@ -446,15 +462,16 @@ final class TargetLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(target: target, options: .test())
 
         // Then
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "Target '\(target.name)' has duplicate sdk dependency specified: 'libc++.tbd'",
             severity: .warning
         )))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_lint_when_target_has_non_existing_core_data_models() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let dataModelPath = path.appending(component: "Model.xcdatamodeld")
         let target = Target.test(coreDataModels: [
             CoreDataModel(path: dataModelPath, versions: [], currentVersion: "1.0.0"),
@@ -464,15 +481,16 @@ final class TargetLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(target: target, options: .test())
 
         // Then
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "The Core Data model at path \(dataModelPath.pathString) does not exist",
             severity: .error
         )))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_lint_when_target_has_core_data_models_with_default_versions_that_dont_exist() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let dataModelPath = path.appending(component: "Model.xcdatamodeld")
         try FileHandler.shared.createFolder(dataModelPath)
 
@@ -484,12 +502,13 @@ final class TargetLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(target: target, options: .test())
 
         // Then
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "The default version of the Core Data model at path \(dataModelPath.pathString), 1.0.0, does not exist. There should be a file at \(dataModelPath.appending(component: "1.0.0.xcdatamodel").pathString)",
             severity: .error
         )))
     }
 
+    @Test
     func test_lint_when_target_has_valid_codegen_sources() async throws {
         // Given
         let target = Target.empty(
@@ -507,12 +526,13 @@ final class TargetLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(target: target, options: .test())
 
         // Then
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "Target '\(target.name)' has a source file at path \(target.sources[1].path) with unsupported `codeGen` attributes. Only intentdefinition and mlmodel are known to support this.",
             severity: .warning
         )))
     }
 
+    @Test
     func test_lint_when_target_has_invalid_on_demand_resources_tags() async throws {
         // Given
         let target = Target.empty(
@@ -526,7 +546,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let got = try await subject.lint(target: target, options: .test())
 
         // Then
-        XCTAssertTrue(got.contains(LintingIssue(
+        #expect(got.contains(LintingIssue(
             reason: "Prefetched Order Tag \"tag2\" is already assigned to Initial Install Tags category for the target \(target.name) and will be ignored by Xcode",
             severity: .warning
         )))

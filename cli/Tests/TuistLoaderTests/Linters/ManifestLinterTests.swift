@@ -1,26 +1,18 @@
 import ProjectDescription
+import Testing
 import TuistCore
 import TuistSupport
-import XCTest
 
 @testable import TuistLoader
 
-class ManifestLinterTests: XCTestCase {
-    var subject: ManifestLinter!
+struct ManifestLinterTests {
+    let subject: ManifestLinter
 
-    override func setUp() {
-        super.setUp()
+    init() {
         subject = ManifestLinter()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    // MARK: - Tests
-
-    func test_lint_project_duplicateConfigurationNames() {
+    @Test func lint_project_duplicateConfigurationNames() {
         // Given
         let settings: Settings = .settings(configurations: [
             .debug(name: "A"),
@@ -36,17 +28,17 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(project: project)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: "The configuration 'A' is declared multiple times within 'MyProject' settings. The last declared configuration will be used.",
             severity: .warning
         )))
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: "The configuration 'B' is declared multiple times within 'MyProject' settings. The last declared configuration will be used.",
             severity: .warning
         )))
     }
 
-    func test_lint_target_duplicateConfigurationNames() {
+    @Test func lint_target_duplicateConfigurationNames() {
         // Given
         let settings: Settings = .settings(configurations: [
             .debug(name: "A"),
@@ -62,17 +54,17 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(project: project)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: "The configuration 'A' is declared multiple times within 'MyFramework' settings. The last declared configuration will be used.",
             severity: .warning
         )))
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: "The configuration 'B' is declared multiple times within 'MyFramework' settings. The last declared configuration will be used.",
             severity: .warning
         )))
     }
 
-    func test_lint_project_duplicateTargetNames() throws {
+    @Test func lint_project_duplicateTargetNames() throws {
         // Given
         let targetA = Target.test(name: "A")
         let targetADuplicated = Target.test(name: "A")
@@ -83,13 +75,13 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(project: project)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: "The target 'A' is declared multiple times within 'Project' project.",
             severity: .error
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInBuildAction() {
+    @Test func lint_workspace_scheme_missingProjectPathInBuildAction() {
         // Given
 
         let buildAction = BuildAction.buildAction(targets: [.target("TargetA")])
@@ -100,7 +92,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the buildAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
@@ -109,7 +101,7 @@ class ManifestLinterTests: XCTestCase {
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInRunAction() {
+    @Test func lint_workspace_scheme_missingProjectPathInRunAction() {
         // Given
         let runAction = RunAction.runAction(expandVariableFromTarget: .target("TargetA"))
         let scheme = Scheme.scheme(name: "MyScheme", runAction: runAction)
@@ -119,7 +111,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the runAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
@@ -128,7 +120,7 @@ class ManifestLinterTests: XCTestCase {
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInProfileAction() {
+    @Test func lint_workspace_scheme_missingProjectPathInProfileAction() {
         // Given
         let profileAction = ProfileAction.profileAction(executable: .target("TargetA"))
         let scheme = Scheme.scheme(name: "MyScheme", profileAction: profileAction)
@@ -138,7 +130,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the profileAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
@@ -147,7 +139,7 @@ class ManifestLinterTests: XCTestCase {
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInTestAction() {
+    @Test func lint_workspace_scheme_missingProjectPathInTestAction() {
         // Given
         let testAction = TestAction.test(targets: [.testableTarget(target: .target("TargetA"))])
         let scheme = Scheme.scheme(name: "MyScheme", testAction: testAction)
@@ -157,7 +149,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the testAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
@@ -166,7 +158,7 @@ class ManifestLinterTests: XCTestCase {
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInBuildActionPreActions() {
+    @Test func lint_workspace_scheme_missingProjectPathInBuildActionPreActions() {
         // Given
         let preActions = [ExecutionAction.executionAction(scriptText: "", target: .target("TargetA"))]
         let buildAction = BuildAction.buildAction(targets: [], preActions: preActions)
@@ -177,7 +169,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the buildAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
@@ -186,7 +178,7 @@ class ManifestLinterTests: XCTestCase {
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInRunActionPreActions() {
+    @Test func lint_workspace_scheme_missingProjectPathInRunActionPreActions() {
         // Given
         let preActions = [ExecutionAction.executionAction(scriptText: "", target: .target("TargetA"))]
         let runAction = RunAction.runAction(preActions: preActions)
@@ -197,7 +189,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the runAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
@@ -206,7 +198,7 @@ class ManifestLinterTests: XCTestCase {
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInProfileActionPreActions() {
+    @Test func lint_workspace_scheme_missingProjectPathInProfileActionPreActions() {
         // Given
         let preActions = [ExecutionAction.executionAction(scriptText: "", target: .target("TargetA"))]
         let profileAction = ProfileAction.profileAction(preActions: preActions)
@@ -217,7 +209,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the profileAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
@@ -226,7 +218,7 @@ class ManifestLinterTests: XCTestCase {
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInTestActionPreActions() {
+    @Test func lint_workspace_scheme_missingProjectPathInTestActionPreActions() {
         // Given
         let preActions = [ExecutionAction.executionAction(scriptText: "", target: .target("TargetA"))]
         let testAction = TestAction.targets([], preActions: preActions)
@@ -237,7 +229,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the testAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
@@ -246,7 +238,7 @@ class ManifestLinterTests: XCTestCase {
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInRunActionPostActions() {
+    @Test func lint_workspace_scheme_missingProjectPathInRunActionPostActions() {
         // Given
         let postActions = [ExecutionAction.executionAction(scriptText: "", target: .target("TargetA"))]
         let runAction = RunAction.runAction(postActions: postActions)
@@ -257,7 +249,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the runAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
@@ -266,7 +258,7 @@ class ManifestLinterTests: XCTestCase {
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInProfileActionPostActions() {
+    @Test func lint_workspace_scheme_missingProjectPathInProfileActionPostActions() {
         // Given
         let postActions = [ExecutionAction.executionAction(scriptText: "", target: .target("TargetA"))]
         let profileAction = ProfileAction.profileAction(postActions: postActions)
@@ -277,7 +269,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the profileAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).
@@ -286,7 +278,7 @@ class ManifestLinterTests: XCTestCase {
         )))
     }
 
-    func test_lint_workspace_scheme_missingProjectPathInTestActionPostActions() {
+    @Test func lint_workspace_scheme_missingProjectPathInTestActionPostActions() {
         // Given
         let postActions = [ExecutionAction.executionAction(scriptText: "", target: .target("TargetA"))]
         let testAction = TestAction.targets([], preActions: postActions)
@@ -297,7 +289,7 @@ class ManifestLinterTests: XCTestCase {
         let results = subject.lint(workspace: workspace)
 
         // Then
-        XCTAssertTrue(results.contains(LintingIssue(
+        #expect(results.contains(LintingIssue(
             reason: """
             Workspace.swift: The target 'TargetA' in the testAction of the scheme 'MyScheme' is missing the project path.
             Please specify the project path using .project(path:, target:).

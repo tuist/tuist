@@ -4,18 +4,18 @@ import Path
 import TuistCore
 import XcodeGraph
 import XcodeProj
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class ProjectFileElementsTests: TuistUnitTestCase {
-    private var subject: ProjectFileElements!
-    private var groups: ProjectGroups!
-    private var pbxproj: PBXProj!
-    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
+struct ProjectFileElementsTests {
+    private let subject: ProjectFileElements
+    private let groups: ProjectGroups
+    private let pbxproj: PBXProj
+    private let cacheDirectoriesProvider: MockCacheDirectoriesProviding
 
-    override func setUpWithError() throws {
-        super.setUp()
+    init() {
         cacheDirectoriesProvider = .init()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(
@@ -25,19 +25,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         given(cacheDirectoriesProvider)
             .cacheDirectory()
-            .willReturn(try! temporaryPath())
+            .willReturn(try! AbsolutePath(validating: "/tmp"))
 
         subject = ProjectFileElements(cacheDirectoriesProvider: cacheDirectoriesProvider)
     }
 
-    override func tearDown() {
-        cacheDirectoriesProvider = nil
-        pbxproj = nil
-        groups = nil
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_projectFiles() {
         // Given
         let settings = Settings(
@@ -68,7 +61,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let files = subject.projectFiles(project: project)
 
         // Then
-        XCTAssertTrue(files.isSuperset(of: [
+        #expect(files.isSuperset(of: [
             GroupFileElement.file(path: "/project/debug.xcconfig", group: project.filesGroup),
             GroupFileElement.file(path: "/project/release.xcconfig", group: project.filesGroup),
             GroupFileElement.file(path: "/path/to/file", group: project.filesGroup),
@@ -77,6 +70,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ]))
     }
 
+    @Test
     func test_addElement() throws {
         // Given
         let element = GroupFileElement.file(
@@ -94,11 +88,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
+        #expect(projectGroup?.flattenedChildren == [
             "myfolder/resources/a.png",
         ])
     }
 
+    @Test
     func test_addElement_withDotFolders() throws {
         // Given
         let element = GroupFileElement.file(
@@ -116,11 +111,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
+        #expect(projectGroup?.flattenedChildren == [
             "my.folder/resources/a.png",
         ])
     }
 
+    @Test
     func test_addElement_fileReference() throws {
         // Given
         let element = GroupFileElement.folder(
@@ -138,11 +134,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
+        #expect(projectGroup?.flattenedChildren == [
             "myfolder/resources/generated_images",
         ])
     }
 
+    @Test
     func test_addElement_parentDirectories() throws {
         // Given
         let element = GroupFileElement.file(
@@ -160,11 +157,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
+        #expect(projectGroup?.flattenedChildren == [
             "another/path/resources/a.png",
         ])
     }
 
+    @Test
     func test_addElement_xcassets() throws {
         // Given
         let element = GroupFileElement.file(
@@ -182,11 +180,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
+        #expect(projectGroup?.flattenedChildren == [
             "myfolder/resources/assets.xcassets",
         ])
     }
 
+    @Test
     func test_addElement_docc() throws {
         // Given
         let element = GroupFileElement.file(
@@ -204,11 +203,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
+        #expect(projectGroup?.flattenedChildren == [
             "myfolder/resources/ImportantDocumentation.docc",
         ])
     }
 
+    @Test
     func test_addElement_scnassets() throws {
         // Given
         let element = GroupFileElement.file(
@@ -226,14 +226,15 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
+        #expect(projectGroup?.flattenedChildren == [
             "myfolder/resources/assets.scnassets",
         ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_addElement_lproj_multiple_files() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources = try await createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/App.stringsdict",
@@ -262,7 +263,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
+        #expect(projectGroup?.flattenedChildren == [
             "resources/App.strings/en",
             "resources/App.strings/fr",
             "resources/App.stringsdict/en",
@@ -271,16 +272,17 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             "resources/Extension.strings/fr",
         ])
 
-        XCTAssertEqual(projectGroup?.debugVariantGroupPaths, [
+        #expect(projectGroup?.debugVariantGroupPaths == [
             "resources/App.strings",
             "resources/App.stringsdict",
             "resources/Extension.strings",
         ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_addElement_lproj_variant_groups() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources = try await createFiles([
             "resources/Base.lproj/Controller.xib",
             "resources/Base.lproj/Intents.intentdefinition",
@@ -312,7 +314,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
+        #expect(projectGroup?.flattenedChildren == [
             "resources/Controller.xib/Base",
             "resources/Controller.xib/en",
             "resources/Controller.xib/fr",
@@ -324,16 +326,17 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             "resources/Storyboard.storyboard/fr",
         ])
 
-        XCTAssertEqual(projectGroup?.debugVariantGroupPaths, [
+        #expect(projectGroup?.debugVariantGroupPaths == [
             "resources/Controller.xib",
             "resources/Intents.intentdefinition",
             "resources/Storyboard.storyboard",
         ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_addElement_lproj_knownRegions() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources = try await createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
@@ -362,13 +365,14 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
 
-        XCTAssertEqual(subject.knownRegions, Set([
+        #expect(subject.knownRegions == Set([
             "en",
             "fr",
             "Base",
         ]))
     }
 
+    @Test
     func test_targetFiles() throws {
         // Given
         let settings = Settings.test(
@@ -435,7 +439,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let files = try subject.targetFiles(target: target, project: Project.test())
 
         // Then
-        XCTAssertTrue(files.isSuperset(of: [
+        #expect(files.isSuperset(of: [
             GroupFileElement.file(path: "/project/debug.xcconfig", group: target.filesGroup),
             GroupFileElement.file(path: "/project/release.xcconfig", group: target.filesGroup),
             GroupFileElement.file(path: "/project/file.swift", group: target.filesGroup),
@@ -454,6 +458,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ]))
     }
 
+    @Test
     func test_generateProduct() throws {
         // Given
         let pbxproj = PBXProj()
@@ -480,13 +485,14 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.products.flattenedChildren, [
+        #expect(groups.products.flattenedChildren == [
             "App.app",
             "Framework.framework",
             "libLibrary.a",
         ])
     }
 
+    @Test
     func test_generateProducts_stableOrder() throws {
         for _ in 0 ..< 5 {
             let pbxproj = PBXProj()
@@ -519,7 +525,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEqual(groups.products.flattenedChildren, [
+            #expect(groups.products.flattenedChildren == [
                 "App1.app",
                 "App2.app",
                 "Framework1.framework",
@@ -530,6 +536,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
     }
 
+    @Test
     func test_generateProduct_fileReferencesProperties() throws {
         // Given
         let pbxproj = PBXProj()
@@ -555,9 +562,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let fileReference = subject.product(target: "App")
-        XCTAssertEqual(fileReference?.sourceTree, .buildProductsDir)
+        #expect(fileReference?.sourceTree == .buildProductsDir)
     }
 
+    @Test
     func test_generateDependencies_whenPrecompiledNode() throws {
         let pbxproj = PBXProj()
         let sourceRootPath = try AbsolutePath(validating: "/")
@@ -585,11 +593,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         let fileReference = groups.sortedMain.group(named: projectGroupName)?.children.first as? PBXFileReference
-        XCTAssertEqual(fileReference?.path, "waka.framework")
-        XCTAssertEqual(fileReference?.path, "waka.framework")
-        XCTAssertNil(fileReference?.name)
+        #expect(fileReference?.path == "waka.framework")
+        #expect(fileReference?.path == "waka.framework")
+        #expect(fileReference?.name == nil)
     }
 
+    @Test
     func test_generateDependencies_whenPrecompiledNodeFromSPMBuildDirectory() throws {
         let pbxproj = PBXProj()
         let sourceRootPath = try AbsolutePath(validating: "/path/to/project")
@@ -619,16 +628,17 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         let frameworksGroup = groups.frameworks
         let fileReference = frameworksGroup.children.first as? PBXFileReference
-        XCTAssertEqual(fileReference?.name, "StytchCore.xcframework")
-        XCTAssertEqual(fileReference?.sourceTree, .absolute)
+        #expect(fileReference?.name == "StytchCore.xcframework")
+        #expect(fileReference?.sourceTree == .absolute)
 
         let projectGroupChildren = groups.sortedMain.group(named: projectGroupName)?.children ?? []
         let projectGroupHasXCFramework = projectGroupChildren.contains { element in
             (element as? PBXFileReference)?.name == "StytchCore.xcframework"
         }
-        XCTAssertFalse(projectGroupHasXCFramework, "XCFramework from .build/ should not appear in the project group")
+        #expect(!projectGroupHasXCFramework, "XCFramework from .build/ should not appear in the project group")
     }
 
+    @Test
     func test_generatePath_whenGroupIsSpecified() throws {
         // Given
         let pbxproj = PBXProj()
@@ -655,21 +665,22 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let group = groups.sortedMain.group(named: "SomeGroup")
 
         let bGroup: PBXGroup = group?.children.first! as! PBXGroup
-        XCTAssertEqual(bGroup.name, "b")
-        XCTAssertEqual(bGroup.path, "../b")
-        XCTAssertEqual(bGroup.sourceTree, .group)
+        #expect(bGroup.name == "b")
+        #expect(bGroup.path == "../b")
+        #expect(bGroup.sourceTree == .group)
 
         let cGroup: PBXGroup = bGroup.children.first! as! PBXGroup
-        XCTAssertEqual(cGroup.path, "c")
-        XCTAssertNil(cGroup.name)
-        XCTAssertEqual(cGroup.sourceTree, .group)
+        #expect(cGroup.path == "c")
+        #expect(cGroup.name == nil)
+        #expect(cGroup.sourceTree == .group)
 
         let file: PBXFileReference = cGroup.children.first! as! PBXFileReference
-        XCTAssertEqual(file.path, "file.swift")
-        XCTAssertNil(file.name)
-        XCTAssertEqual(file.sourceTree, .group)
+        #expect(file.path == "file.swift")
+        #expect(file.name == nil)
+        #expect(file.sourceTree == .group)
     }
 
+    @Test
     func test_addLocalizedFile() throws {
         // Given
         let pbxproj = PBXProj()
@@ -685,15 +696,16 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let variantGroup = group.children.first as? PBXVariantGroup
-        XCTAssertEqual(variantGroup?.name, "App.strings")
-        XCTAssertNil(variantGroup?.path)
-        XCTAssertEqual(variantGroup?.children.map(\.name), ["en"])
-        XCTAssertEqual(variantGroup?.children.map(\.path), ["en.lproj/App.strings"])
-        XCTAssertEqual(variantGroup?.children.map { ($0 as? PBXFileReference)?.lastKnownFileType }, [
+        #expect(variantGroup?.name == "App.strings")
+        #expect(variantGroup?.path == nil)
+        #expect(variantGroup?.children.map(\.name) == ["en"])
+        #expect(variantGroup?.children.map(\.path) == ["en.lproj/App.strings"])
+        #expect(variantGroup?.children.map { ($0 as? PBXFileReference)?.lastKnownFileType } == [
             Xcode.filetype(extension: "strings"),
         ])
     }
 
+    @Test
     func test_addPlayground() throws {
         // Given
         let from = try AbsolutePath(validating: "/project/")
@@ -715,12 +727,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let file: PBXFileReference? = group.children.first as? PBXFileReference
-        XCTAssertEqual(file?.path, "MyPlayground.playground")
-        XCTAssertEqual(file?.sourceTree, .group)
-        XCTAssertNil(file?.name)
-        XCTAssertEqual(file?.lastKnownFileType, Xcode.filetype(extension: fileAbsolutePath.extension!))
+        #expect(file?.path == "MyPlayground.playground")
+        #expect(file?.sourceTree == .group)
+        #expect(file?.name == nil)
+        #expect(file?.lastKnownFileType == Xcode.filetype(extension: fileAbsolutePath.extension!))
     }
 
+    @Test
     func test_addVersionGroupElement() throws {
         // Given
         let from = try AbsolutePath(validating: "/project/")
@@ -741,13 +754,14 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        let versionGroup = try XCTUnwrap(group.children.first as? XCVersionGroup)
-        XCTAssertEqual(versionGroup.path, "model.xcdatamodeld")
-        XCTAssertEqual(versionGroup.sourceTree, .group)
-        XCTAssertNil(versionGroup.name)
-        XCTAssertEqual(versionGroup.versionGroupType, "wrapper.xcdatamodel")
+        let versionGroup = try #require(group.children.first as? XCVersionGroup)
+        #expect(versionGroup.path == "model.xcdatamodeld")
+        #expect(versionGroup.sourceTree == .group)
+        #expect(versionGroup.name == nil)
+        #expect(versionGroup.versionGroupType == "wrapper.xcdatamodel")
     }
 
+    @Test
     func test_addFileElement() throws {
         let from = try AbsolutePath(validating: "/project/")
         let fileAbsolutePath = try AbsolutePath(validating: "/project/file.swift")
@@ -764,55 +778,63 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             pbxproj: pbxproj
         )
         let file: PBXFileReference? = group.children.first as? PBXFileReference
-        XCTAssertEqual(file?.path, "file.swift")
-        XCTAssertEqual(file?.sourceTree, .group)
-        XCTAssertNil(file?.name)
-        XCTAssertEqual(file?.lastKnownFileType, Xcode.filetype(extension: "swift"))
+        #expect(file?.path == "file.swift")
+        #expect(file?.sourceTree == .group)
+        #expect(file?.name == nil)
+        #expect(file?.lastKnownFileType == Xcode.filetype(extension: "swift"))
     }
 
+    @Test
     func test_group() {
         let group = PBXGroup()
         let path = try! AbsolutePath(validating: "/path/to/folder")
         subject.elements[path] = group
-        XCTAssertEqual(subject.group(path: path), group)
+        #expect(subject.group(path: path) == group)
     }
 
+    @Test
     func test_file() {
         let file = PBXFileReference()
         let path = try! AbsolutePath(validating: "/path/to/folder")
         subject.elements[path] = file
-        XCTAssertEqual(subject.file(path: path), file)
+        #expect(subject.file(path: path) == file)
     }
 
+    @Test
     func test_isLocalized() {
         let path = try! AbsolutePath(validating: "/path/to/es.lproj")
-        XCTAssertTrue(subject.isLocalized(path: path))
+        #expect(subject.isLocalized(path: path))
     }
 
+    @Test
     func test_isVersionGroup() {
         let path = try! AbsolutePath(validating: "/path/to/model.xcdatamodeld")
-        XCTAssertTrue(subject.isVersionGroup(path: path))
+        #expect(subject.isVersionGroup(path: path))
     }
 
+    @Test
     func test_normalize_whenLocalized() {
         let path = try! AbsolutePath(validating: "/test/es.lproj/Main.storyboard")
         let normalized = subject.normalize(path)
-        XCTAssertEqual(normalized, try AbsolutePath(validating: "/test/es.lproj"))
+        #expect(normalized == try AbsolutePath(validating: "/test/es.lproj"))
     }
 
+    @Test
     func test_normalize() {
         let path = try! AbsolutePath(validating: "/test/file.swift")
         let normalized = subject.normalize(path)
-        XCTAssertEqual(normalized, path)
+        #expect(normalized == path)
     }
 
+    @Test
     func test_closestRelativeElementPath() throws {
         let pathRelativeToSourceRoot = try! AbsolutePath(validating: "/a/framework/framework.framework")
             .relative(to: try! AbsolutePath(validating: "/a/b/c/project"))
         let got = try subject.closestRelativeElementPath(pathRelativeToSourceRoot: pathRelativeToSourceRoot)
-        XCTAssertEqual(got, try RelativePath(validating: "../../../framework"))
+        #expect(got == try RelativePath(validating: "../../../framework"))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generateDependencies_sdks() throws {
         // Given
         let pbxproj = PBXProj()
@@ -824,7 +846,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
+        let sdkPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "ARKit.framework")
         let sdkStatus: LinkingStatus = .required
         let sdkSource: SDKSource = .developer
         let sdkDependency = GraphDependencyReference.sdk(
@@ -843,17 +865,18 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.frameworks.flattenedChildren, [
+        #expect(groups.frameworks.flattenedChildren == [
             "ARKit.framework",
         ])
 
         let sdkElement = subject.compiled[sdkPath]
-        XCTAssertNotNil(sdkElement)
-        XCTAssertEqual(sdkElement?.sourceTree, .developerDir)
-        XCTAssertEqual(sdkElement?.path, sdkPath.relative(to: "/").pathString)
-        XCTAssertEqual(sdkElement?.name, sdkPath.basename)
+        #expect(sdkElement != nil)
+        #expect(sdkElement?.sourceTree == .developerDir)
+        #expect(sdkElement?.path == sdkPath.relative(to: "/").pathString)
+        #expect(sdkElement?.name == sdkPath.basename)
     }
 
+    @Test
     func test_generateDependencies_when_cacheCompiledArtifacts() throws {
         // Given
         let pbxproj = PBXProj()
@@ -890,17 +913,18 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.cachedFrameworks.flattenedChildren, [
+        #expect(groups.cachedFrameworks.flattenedChildren == [
             "Test.framework",
         ])
 
         let frameworkElement = subject.compiled[frameworkPath]
-        XCTAssertNotNil(frameworkElement)
-        XCTAssertEqual(frameworkElement?.sourceTree, .absolute)
-        XCTAssertEqual(frameworkElement?.path, frameworkPath.pathString)
-        XCTAssertEqual(frameworkElement?.name, frameworkPath.basename)
+        #expect(frameworkElement != nil)
+        #expect(frameworkElement?.sourceTree == .absolute)
+        #expect(frameworkElement?.path == frameworkPath.pathString)
+        #expect(frameworkElement?.name == frameworkPath.basename)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generateDependencies_when_cacheCompiledArtifacts_and_sdk() throws {
         // Given
         let pbxproj = PBXProj()
@@ -926,7 +950,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             status: .required
         )
 
-        let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
+        let sdkPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "ARKit.framework")
         let sdkStatus: LinkingStatus = .required
         let sdkSource: SDKSource = .developer
         let sdkDependency = GraphDependencyReference.sdk(
@@ -945,28 +969,29 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.cachedFrameworks.flattenedChildren, [
+        #expect(groups.cachedFrameworks.flattenedChildren == [
             "Test.framework",
         ])
 
         let frameworkElement = subject.compiled[frameworkPath]
-        XCTAssertNotNil(frameworkElement)
-        XCTAssertEqual(frameworkElement?.sourceTree, .absolute)
-        XCTAssertEqual(frameworkElement?.path, frameworkPath.pathString)
-        XCTAssertEqual(frameworkElement?.name, frameworkPath.basename)
+        #expect(frameworkElement != nil)
+        #expect(frameworkElement?.sourceTree == .absolute)
+        #expect(frameworkElement?.path == frameworkPath.pathString)
+        #expect(frameworkElement?.name == frameworkPath.basename)
 
         // Then
-        XCTAssertEqual(groups.frameworks.flattenedChildren, [
+        #expect(groups.frameworks.flattenedChildren == [
             "ARKit.framework",
         ])
 
         let sdkElement = subject.compiled[sdkPath]
-        XCTAssertNotNil(sdkElement)
-        XCTAssertEqual(sdkElement?.sourceTree, .developerDir)
-        XCTAssertEqual(sdkElement?.path, sdkPath.relative(to: "/").pathString)
-        XCTAssertEqual(sdkElement?.name, sdkPath.basename)
+        #expect(sdkElement != nil)
+        #expect(sdkElement?.sourceTree == .developerDir)
+        #expect(sdkElement?.path == sdkPath.relative(to: "/").pathString)
+        #expect(sdkElement?.name == sdkPath.basename)
     }
 
+    @Test
     func test_generateDependencies_remoteSwiftPackage_doNotGenerateElements() throws {
         // Given
         let pbxproj = PBXProj()
@@ -1011,9 +1036,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [])
+        #expect(projectGroup?.flattenedChildren == [])
     }
 
+    @Test
     func test_gpxFilesForRunAction() {
         // Given
         let schemes: [Scheme] = [
@@ -1037,13 +1063,14 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let gpxFiles = subject.gpxFilesForRunAction(in: schemes, filesGroup: filesGroup)
 
         // Then
-        XCTAssertEqual(gpxFiles, [
+        #expect(gpxFiles == [
             GroupFileElement.file(path: "/gpx/A", group: filesGroup),
             GroupFileElement.file(path: "/gpx/B", group: filesGroup),
             GroupFileElement.file(path: "/gpx/C", group: filesGroup),
         ])
     }
 
+    @Test
     func test_gpxFilesForTestAction() {
         // Given
         let schemes: [Scheme] = [
@@ -1066,7 +1093,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let gpxFiles = subject.gpxFilesForTestAction(in: schemes, filesGroup: filesGroup)
 
         // Then
-        XCTAssertEqual(gpxFiles, [
+        #expect(gpxFiles == [
             GroupFileElement.file(path: "/gpx/A", group: filesGroup),
             GroupFileElement.file(path: "/gpx/B", group: filesGroup),
             GroupFileElement.file(path: "/gpx/C", group: filesGroup),
@@ -1074,6 +1101,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    @Test
     func test_generateDependencies_localSwiftPackageEmbedded_doNotGenerateElements() throws {
         // Given
         let pbxproj = PBXProj()
@@ -1119,7 +1147,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [])
+        #expect(projectGroup?.flattenedChildren == [])
     }
 }
 

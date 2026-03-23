@@ -9,11 +9,12 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import TuistTesting
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistKit
 
-final class InstallServiceTests: TuistUnitTestCase {
+struct InstallServiceTests {
     private var pluginService: MockPluginService!
     private var configLoader: MockConfigLoading!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
@@ -21,8 +22,7 @@ final class InstallServiceTests: TuistUnitTestCase {
 
     private var subject: InstallService!
 
-    override func setUp() {
-        super.setUp()
+    init() {
 
         pluginService = MockPluginService()
         configLoader = MockConfigLoading()
@@ -37,18 +37,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        subject = nil
-
-        pluginService = nil
-        configLoader = nil
-        swiftPackageManagerController = nil
-        manifestFilesLocator = nil
-
-        super.tearDown()
-    }
-
-    func test_run_when_updating_dependencies() async throws {
+    @Test func test_run_when_updating_dependencies() async throws {
         // Given
         let stubbedPath = try temporaryPath()
         let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
@@ -98,10 +87,10 @@ final class InstallServiceTests: TuistUnitTestCase {
         verify(swiftPackageManagerController)
             .resolve(at: .any, arguments: .any, printOutput: .any)
             .called(0)
-        XCTAssertEqual(savedPackageResolvedContents, "resolved")
+        #expect(savedPackageResolvedContents == "resolved")
     }
 
-    func test_run_when_installing_plugins() async throws {
+    @Test func test_run_when_installing_plugins() async throws {
         // Given
         let config = Tuist.test(project: .generated(.test(plugins: [
             .git(url: "url", gitReference: .tag("tag"), directory: nil, releaseUrl: nil),
@@ -127,10 +116,10 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(invokedConfig, config.project.generatedProject)
+        #expect(invokedConfig == config.project.generatedProject)
     }
 
-    func test_run_when_installing_dependencies() async throws {
+    @Test func test_run_when_installing_dependencies() async throws {
         // Given
         let stubbedPath = try temporaryPath()
         let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
@@ -178,10 +167,10 @@ final class InstallServiceTests: TuistUnitTestCase {
         verify(swiftPackageManagerController)
             .resolve(at: .any, arguments: .any, printOutput: .any)
             .called(1)
-        XCTAssertEqual(savedPackageResolvedContents, "resolved")
+        #expect(savedPackageResolvedContents == "resolved")
     }
 
-    func test_run_when_installing_dependencies_passing_additional_arguments() async throws {
+    @Test func test_run_when_installing_dependencies_passing_additional_arguments() async throws {
         // Given
         let stubbedPath = try temporaryPath()
         let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
@@ -229,10 +218,10 @@ final class InstallServiceTests: TuistUnitTestCase {
         verify(swiftPackageManagerController)
             .resolve(at: .any, arguments: .value(["--force-resolved-versions"]), printOutput: .any)
             .called(1)
-        XCTAssertEqual(savedPackageResolvedContents, "resolved")
+        #expect(savedPackageResolvedContents == "resolved")
     }
 
-    func test_install_when_from_a_tuist_project_directory() async throws {
+    @Test func test_install_when_from_a_tuist_project_directory() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         let expectedFoundPackageLocation = temporaryDirectory.appending(
@@ -273,10 +262,10 @@ final class InstallServiceTests: TuistUnitTestCase {
         let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
 
         // Then
-        XCTAssertEqual(savedPackageResolvedContents, "resolved")
+        #expect(savedPackageResolvedContents == "resolved")
     }
 
-    func test_resolve_with_spm_arguments_from_config() async throws {
+    @Test func test_resolve_with_spm_arguments_from_config() async throws {
         // Given
         let stubbedPath = try temporaryPath()
 
@@ -326,7 +315,7 @@ final class InstallServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
-    func test_update_with_spm_arguments_from_config() async throws {
+    @Test func test_update_with_spm_arguments_from_config() async throws {
         // Given
         let stubbedPath = try temporaryPath()
 
@@ -376,7 +365,7 @@ final class InstallServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
-    func test_update_with_config_and_passthrough_arguments() async throws {
+    @Test func test_update_with_config_and_passthrough_arguments() async throws {
         // Given
         let stubbedPath = try temporaryPath()
 

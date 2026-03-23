@@ -1,14 +1,19 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class GraphTests: XCTestCase {
-    func test_codable() throws {
+struct GraphTests {
+    @Test func test_codable() throws {
         // Given
         let subject = Graph.test(name: "name", path: try AbsolutePath(validating: "/path/to"))
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Graph.self, from: data)
+        #expect(subject == decoded)
     }
 }

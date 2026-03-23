@@ -1,24 +1,24 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class PlatformFilterTests: XCTestCase {
-    func test_xcodeprojValue() {
-        XCTAssertEqual(PlatformFilter.catalyst.xcodeprojValue, "maccatalyst")
-        XCTAssertEqual(PlatformFilter.ios.xcodeprojValue, "ios")
-        XCTAssertEqual(PlatformFilter.driverkit.xcodeprojValue, "driverkit")
-        XCTAssertEqual(PlatformFilter.macos.xcodeprojValue, "macos")
-        XCTAssertEqual(PlatformFilter.tvos.xcodeprojValue, "tvos")
-        XCTAssertEqual(PlatformFilter.watchos.xcodeprojValue, "watchos")
+struct PlatformFilterTests {
+    @Test func test_xcodeprojValue() {
+        #expect(PlatformFilter.catalyst.xcodeprojValue == "maccatalyst")
+        #expect(PlatformFilter.ios.xcodeprojValue == "ios")
+        #expect(PlatformFilter.driverkit.xcodeprojValue == "driverkit")
+        #expect(PlatformFilter.macos.xcodeprojValue == "macos")
+        #expect(PlatformFilter.tvos.xcodeprojValue == "tvos")
+        #expect(PlatformFilter.watchos.xcodeprojValue == "watchos")
     }
 
-    func test_platformfilters_xcodeprojValue() {
+    @Test func test_platformfilters_xcodeprojValue() {
         func xcodeProjValueFor(_ filters: PlatformFilters) -> [String] {
             filters.xcodeprojValue
         }
 
-        XCTAssertEqual(xcodeProjValueFor([.ios, .macos]), ["ios", "macos"])
-        XCTAssertEqual(xcodeProjValueFor([.macos, .ios]), ["ios", "macos"])
-        XCTAssertEqual(xcodeProjValueFor([.tvos, .macos, .ios]), ["ios", "macos", "tvos"])
+        #expect(xcodeProjValueFor([.ios, .macos]) == ["ios", "macos"])
+        #expect(xcodeProjValueFor([.macos, .ios]) == ["ios", "macos"])
+        #expect(xcodeProjValueFor([.tvos, .macos, .ios]) == ["ios", "macos", "tvos"])
     }
 }

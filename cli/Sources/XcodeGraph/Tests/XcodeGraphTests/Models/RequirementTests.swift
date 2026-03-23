@@ -1,21 +1,31 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class RequirementTests: XCTestCase {
-    func test_codable_range() {
+struct RequirementTests {
+    @Test func test_codable_range() throws {
         // Given
         let subject = Requirement.range(from: "1.0.0", to: "2.0.0")
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Requirement.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_codable_upToNextMajor() {
+    @Test func test_codable_upToNextMajor() throws {
         // Given
         let subject = Requirement.upToNextMajor("1.2.3")
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Requirement.self, from: data)
+        #expect(subject == decoded)
     }
 }

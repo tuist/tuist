@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class RunActionTests: XCTestCase {
-    func test_codable() throws {
+struct RunActionTests {
+    @Test func test_codable() throws {
         // Given
         let subject = RunAction(
             configurationName: "name",
@@ -36,6 +36,11 @@ final class RunActionTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(RunAction.self, from: data)
+        #expect(subject == decoded)
     }
 }

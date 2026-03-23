@@ -1,22 +1,16 @@
 import Foundation
 import TuistCore
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistGenerator
 
-final class InfoPlistContentProviderTests: XCTestCase {
-    var subject: InfoPlistContentProvider!
-
-    override func setUp() {
-        super.setUp()
+struct InfoPlistContentProviderTests {
+    let subject: InfoPlistContentProvider
+    init() {
         subject = InfoPlistContentProvider()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_content_wheniOSApp_withiPadSupport() {
         // Given
         let target = Target.test(
@@ -63,6 +57,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_content_wheniOSApp_withoutiPadSupport() {
         // Given
         let target = Target.test(
@@ -103,6 +98,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_content_whenMacosApp() {
         // Given
         let target = Target.test(destinations: .macOS, product: .app)
@@ -133,6 +129,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_content_whenMacosFrameworkWithSources() {
         // Given
         let target = Target.test(destinations: .macOS, product: .framework, sources: ["/Example.swift"])
@@ -159,6 +156,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_content_whenMacosFrameworkWithoutSources() {
         // Given
         let target = Target.test(destinations: .macOS, product: .framework)
@@ -185,6 +183,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_content_whenMacosBundleWithoutSources() {
         // Given
         let target = Target.test(destinations: .macOS, product: .bundle)
@@ -210,6 +209,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_content_whenMacosStaticLibrary() {
         // Given
         let target = Target.test(destinations: .macOS, product: .staticLibrary)
@@ -222,9 +222,10 @@ final class InfoPlistContentProviderTests: XCTestCase {
         )
 
         // Then
-        XCTAssertNil(got)
+        #expect(got == nil)
     }
 
+    @Test
     func test_content_whenMacosDynamicLibrary() {
         // Given
         let target = Target.test(destinations: .macOS, product: .dynamicLibrary)
@@ -237,9 +238,10 @@ final class InfoPlistContentProviderTests: XCTestCase {
         )
 
         // Then
-        XCTAssertNil(got)
+        #expect(got == nil)
     }
 
+    @Test
     func test_content_wheniOSResourceBundle() {
         // Given
         let target = Target.test(destinations: .iOS, product: .bundle)
@@ -264,6 +266,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_content_whenwatchOSResourceBundle() {
         // Given
         let target = Target.test(destinations: .watchOS, product: .bundle)
@@ -288,6 +291,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_contentPackageType() {
         func content(for target: Target) -> [String: Any]? {
             subject.content(
@@ -307,6 +311,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         assertPackageType(content(for: .test(product: .appClip)), "APPL")
     }
 
+    @Test
     func test_content_whenWatchOSApp() {
         // Given
         let watchApp = Target.test(
@@ -358,6 +363,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_content_whenWatchOSAppExtension() {
         // Given
         let watchAppExtension = Target.test(
@@ -414,41 +420,43 @@ final class InfoPlistContentProviderTests: XCTestCase {
     fileprivate func assertPackageType(
         _ lhs: [String: Any]?,
         _ packageType: String?,
-        file: StaticString = #file,
-        line: UInt = #line
+        sourceLocation: SourceLocation = #_sourceLocation
     ) {
         let value = lhs?["CFBundlePackageType"] as? String
 
         if let packageType {
-            XCTAssertEqual(
-                value,
-                packageType,
+            #expect(
+                value == packageType,
                 "Expected package type \(packageType) but got \(value ?? "")",
-                file: file,
-                line: line
+                sourceLocation: sourceLocation
             )
         } else {
-            XCTAssertNil(value, "Expected package type to be nil and got \(value ?? "")", file: file, line: line)
+            #expect(
+                value == nil,
+                "Expected package type to be nil and got \(value ?? "")",
+                sourceLocation: sourceLocation
+            )
         }
     }
 
     fileprivate func assertEqual(
         _ lhs: [String: Any]?,
         _ rhs: [String: Any],
-        file: StaticString = #file,
-        line: UInt = #line
+        sourceLocation: SourceLocation = #_sourceLocation
     ) {
         let lhsNSDictionary = NSDictionary(dictionary: lhs ?? [:])
         let rhsNSDictionary = NSDictionary(dictionary: rhs)
-        let message = """
 
-        The dictionary:
-        \(lhs ?? [:])
+        #expect(
+            lhsNSDictionary.isEqual(rhsNSDictionary),
+            """
+            The dictionary:
+            \(lhs ?? [:])
 
-        Is not equal to the expected dictionary:
-        \(rhs)
-        """
-
-        XCTAssertTrue(lhsNSDictionary.isEqual(rhsNSDictionary), message, file: file, line: line)
+            Is not equal to the expected dictionary:
+            \(rhs)
+            """,
+            sourceLocation: sourceLocation
+        )
     }
 }

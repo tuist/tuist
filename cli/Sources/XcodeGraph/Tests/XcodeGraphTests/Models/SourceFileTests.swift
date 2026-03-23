@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class SourceFileTests: XCTestCase {
-    func test_codable() throws {
+struct SourceFileTests {
+    @Test func test_codable() throws {
         // Given
         let subject = SourceFile(
             path: try AbsolutePath(validating: "/path/to/file"),
@@ -13,6 +13,11 @@ final class SourceFileTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(SourceFile.self, from: data)
+        #expect(subject == decoded)
     }
 }

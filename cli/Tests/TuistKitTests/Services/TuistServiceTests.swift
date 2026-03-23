@@ -4,17 +4,17 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import TuistTesting
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistKit
 
-final class TuistServiceTests: TuistUnitTestCase {
+struct TuistServiceTests {
     private var subject: TuistService!
     private var pluginService: MockPluginService!
     private var configLoader: MockConfigLoading!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         pluginService = MockPluginService()
         configLoader = MockConfigLoading()
         subject = TuistService(
@@ -23,14 +23,7 @@ final class TuistServiceTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        pluginService = nil
-        configLoader = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_run_when_command_not_found() async throws {
+    @Test func test_run_when_command_not_found() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -43,7 +36,7 @@ final class TuistServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_when_plugin_executable() async throws {
+    @Test func test_run_when_plugin_executable() async throws {
         // Given
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project")
@@ -74,7 +67,7 @@ final class TuistServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_when_command_is_global() async throws {
+    @Test func test_run_when_command_is_global() async throws {
         // Given
         var whichCommand: String?
         system.whichStub = { invokedWhichCommand in
@@ -93,7 +86,7 @@ final class TuistServiceTests: TuistUnitTestCase {
         } catch {
             _error = error
         }
-        XCTAssertNil(_error)
-        XCTAssertEqual(whichCommand, "tuist-my-command")
+        #expect(_error == nil)
+        #expect(whichCommand == "tuist-my-command")
     }
 }

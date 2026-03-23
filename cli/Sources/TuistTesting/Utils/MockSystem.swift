@@ -1,7 +1,6 @@
 import Foundation
 import Path
 import TSCBasic
-import XCTest
 @testable import TuistSupport
 
 public final class MockSystem: Systeming {

@@ -1,29 +1,24 @@
 import Foundation
 import Path
 import TuistSupport
-import XCTest
+import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-final class MacAddressProviderTests: TuistUnitTestCase {
-    var subject: MacAddressProvider!
-
-    override func setUp() {
-        super.setUp()
+struct MacAddressProviderTests {
+    let subject: MacAddressProvider
+    init() {
         subject = MacAddressProvider()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_macAddress_returnsANonEmptyAddress() throws {
         // When/Given
         let got = try subject.macAddress()
 
         // Then
-        XCTAssertNotEqual(got, "")
+        #expect(got != "")
     }
 }

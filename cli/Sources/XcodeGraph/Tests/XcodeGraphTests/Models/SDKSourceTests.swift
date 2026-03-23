@@ -1,21 +1,31 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class SDKSourceTests: XCTestCase {
-    func test_codable_developer() {
+struct SDKSourceTests {
+    @Test func test_codable_developer() throws {
         // Given
         let subject = SDKSource.developer
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(SDKSource.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_codable_system() {
+    @Test func test_codable_system() throws {
         // Given
         let subject = SDKSource.system
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(SDKSource.self, from: data)
+        #expect(subject == decoded)
     }
 }

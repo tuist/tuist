@@ -7,11 +7,11 @@ import TuistOpener
 import TuistPlugin
 import TuistSupport
 import XcodeProj
-import XCTest
+import Testing
 @testable import TuistKit
 @testable import TuistTesting
 
-final class EditServiceTests: XCTestCase {
+struct EditServiceTests {
     var subject: EditService!
     var opener: MockOpening!
     var configLoader: MockConfigLoading!
@@ -19,7 +19,7 @@ final class EditServiceTests: XCTestCase {
     var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
     var projectEditor: MockProjectEditing!
 
-    override func setUpWithError() throws {
+    init() throws {
         super.setUp()
         opener = MockOpening()
         configLoader = MockConfigLoading()
@@ -45,7 +45,7 @@ final class EditServiceTests: XCTestCase {
         )
     }
 
-    func test_edit_uses_caches_directory() async throws {
+    @Test func test_edit_uses_caches_directory() async throws {
         // Given
         let path: AbsolutePath = "/private/tmp"
         let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
@@ -80,7 +80,7 @@ final class EditServiceTests: XCTestCase {
             .called(1)
     }
 
-    func test_edit_permanent_does_not_open_workspace() async throws {
+    @Test func test_edit_permanent_does_not_open_workspace() async throws {
         // Given
         let path: AbsolutePath = "/private/tmp"
         let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)

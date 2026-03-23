@@ -2,23 +2,18 @@ import Foundation
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class TargetScriptLinterTests: TuistUnitTestCase {
-    var subject: TargetScriptLinter!
-
-    override func setUp() {
-        super.setUp()
+struct TargetScriptLinterTests {
+    let subject: TargetScriptLinter
+    init() {
         subject = TargetScriptLinter()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_lint_whenTheToolDoesntExist() async throws {
         let action = TargetScript(
             name: "name",
@@ -31,11 +26,12 @@ final class TargetScriptLinterTests: TuistUnitTestCase {
             reason: "The script tool 'randomtool' was not found in the environment",
             severity: .error
         )
-        XCTAssertTrue(got.contains(expected))
+        #expect(got.contains(expected))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_lint_whenPathDoesntExist() async throws {
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let action = TargetScript(
             name: "name",
             order: .pre,
@@ -47,9 +43,10 @@ final class TargetScriptLinterTests: TuistUnitTestCase {
             reason: "The script path \(action.path!.pathString) doesn't exist",
             severity: .error
         )
-        XCTAssertTrue(got.contains(expected))
+        #expect(got.contains(expected))
     }
 
+    @Test
     func test_lint_succeeds_when_embedded() async throws {
         let action = TargetScript(
             name: "name",
@@ -59,9 +56,10 @@ final class TargetScriptLinterTests: TuistUnitTestCase {
 
         let got = try await subject.lint(action)
         let expected = [LintingIssue]()
-        XCTAssertTrue(got.elementsEqual(expected))
+        #expect(got.elementsEqual(expected))
     }
 
+    @Test
     func test_lint_warns_when_embedded_script_empty() async throws {
         let action = TargetScript(
             name: "name",
@@ -71,6 +69,6 @@ final class TargetScriptLinterTests: TuistUnitTestCase {
 
         let got = try await subject.lint(action)
         let expected = LintingIssue(reason: "The embedded script is empty", severity: .warning)
-        XCTAssertTrue(got.contains(expected))
+        #expect(got.contains(expected))
     }
 }

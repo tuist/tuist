@@ -2,40 +2,29 @@ import Foundation
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistGenerator
 
-final class ProjectLinterTests: XCTestCase {
-    var targetLinter: MockTargetLinter!
-    var schemeLinter: MockSchemeLinter!
-    var settingsLinter: MockSettingsLinter!
-    var packageLinter: MockPackageLinter!
-
-    var subject: ProjectLinter!
-
-    override func setUp() {
-        super.setUp()
+struct ProjectLinterTests {
+    let targetLinter: MockTargetLinter
+    let schemeLinter: MockSchemeLinter
+    let settingsLinter: MockSettingsLinter
+    let packageLinter: MockPackageLinter
+    let subject: ProjectLinter
+    init() {
         targetLinter = MockTargetLinter()
         schemeLinter = MockSchemeLinter()
         settingsLinter = MockSettingsLinter()
         packageLinter = MockPackageLinter()
         subject = ProjectLinter(
-            targetLinter: targetLinter,
-            settingsLinter: settingsLinter,
-            schemeLinter: schemeLinter,
-            packageLinter: packageLinter
+        targetLinter: targetLinter,
+        settingsLinter: settingsLinter,
+        schemeLinter: schemeLinter,
+        packageLinter: packageLinter
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        settingsLinter = nil
-        schemeLinter = nil
-        targetLinter = nil
-        packageLinter = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_lint_valid_watchTargetBundleIdentifiers() async throws {
         // Given
         let app = Target.test(name: "App", product: .app, bundleId: "app")
@@ -51,6 +40,6 @@ final class ProjectLinterTests: XCTestCase {
         let got = try await subject.lint(project)
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 }

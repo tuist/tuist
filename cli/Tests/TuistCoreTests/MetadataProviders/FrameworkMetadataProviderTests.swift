@@ -1,25 +1,19 @@
 import Path
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistCore
 @testable import TuistTesting
 
-final class FrameworkMetadataProviderTests: XCTestCase {
-    var subject: FrameworkMetadataProvider!
+struct FrameworkMetadataProviderTests {
+    let subject: FrameworkMetadataProvider
 
-    override func setUp() {
-        super.setUp()
+    init() {
         subject = FrameworkMetadataProvider()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_loadMetadata() async throws {
+    @Test func test_loadMetadata() async throws {
         // Given
-        let frameworkPath = fixturePath(path: try RelativePath(validating: "xpm.framework"))
+        let frameworkPath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "xpm.framework"))
 
         // When
         let metadata = try await subject.loadMetadata(at: frameworkPath, status: .required)
@@ -27,7 +21,7 @@ final class FrameworkMetadataProviderTests: XCTestCase {
         // Then
         let expectedBinaryPath = frameworkPath.appending(component: frameworkPath.basenameWithoutExt)
         let expectedDsymPath = frameworkPath.parentDirectory.appending(component: "xpm.framework.dSYM")
-        XCTAssertEqual(metadata, FrameworkMetadata(
+        #expect(metadata == FrameworkMetadata(
             path: frameworkPath,
             binaryPath: expectedBinaryPath,
             dsymPath: expectedDsymPath,

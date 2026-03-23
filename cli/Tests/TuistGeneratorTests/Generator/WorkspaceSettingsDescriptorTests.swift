@@ -1,9 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import TuistGenerator
 
-final class WorkspaceSettingsDescriptorTests: XCTestCase {
+struct WorkspaceSettingsDescriptorTests {
+    @Test
     func test_xcsettingsFilePath() {
         // Given
         let basePath = try! AbsolutePath(validating: "/temp")
@@ -12,9 +13,6 @@ final class WorkspaceSettingsDescriptorTests: XCTestCase {
         let actual = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: basePath)
 
         // Then
-        XCTAssertEqual(
-            actual,
-            try AbsolutePath(validating: "/temp/xcshareddata/WorkspaceSettings.xcsettings")
-        )
+        #expect(actual == try AbsolutePath(validating: "/temp/xcshareddata/WorkspaceSettings.xcsettings"))
     }
 }

@@ -1,19 +1,21 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
-import XCTest
+import Testing
 
 @testable import TuistLoader
 @testable import TuistTesting
 
-final class ManifestTests: TuistUnitTestCase {
-    func test_fileName() throws {
-        let temporaryPath = try temporaryPath().appending(component: "folder")
+struct ManifestTests {
+    @Test(.inTemporaryDirectory) func test_fileName() throws {
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "folder")
 
-        XCTAssertEqual(Manifest.project.fileName(temporaryPath), "Project.swift")
-        XCTAssertEqual(Manifest.workspace.fileName(temporaryPath), "Workspace.swift")
-        XCTAssertEqual(Manifest.config.fileName(temporaryPath), "Config.swift")
-        XCTAssertEqual(Manifest.package.fileName(temporaryPath), "Package.swift")
-        XCTAssertEqual(Manifest.packageSettings.fileName(temporaryPath), "Package.swift")
-        XCTAssertEqual(Manifest.plugin.fileName(temporaryPath), "Plugin.swift")
-        XCTAssertEqual(Manifest.template.fileName(temporaryPath), "folder.swift")
+        #expect(Manifest.project.fileName(temporaryPath) == "Project.swift")
+        #expect(Manifest.workspace.fileName(temporaryPath) == "Workspace.swift")
+        #expect(Manifest.config.fileName(temporaryPath) == "Config.swift")
+        #expect(Manifest.package.fileName(temporaryPath) == "Package.swift")
+        #expect(Manifest.packageSettings.fileName(temporaryPath) == "Package.swift")
+        #expect(Manifest.plugin.fileName(temporaryPath) == "Plugin.swift")
+        #expect(Manifest.template.fileName(temporaryPath) == "folder.swift")
     }
 }

@@ -1,12 +1,12 @@
 import Foundation
-import TuistSupportTesting
-import XCTest
+import Testing
+import TuistTesting
 
 @testable import ProjectDescription
 
-final class ConfigurationNameTests: XCTestCase {
-    func test_codable() {
-        XCTAssertCodable(ConfigurationName.debug)
-        XCTAssertCodable(ConfigurationName.release)
+struct ConfigurationNameTests {
+    @Test func test_codable() throws {
+        #expect(try isCodableRoundTripable(ConfigurationName.debug))
+        #expect(try isCodableRoundTripable(ConfigurationName.release))
     }
 }

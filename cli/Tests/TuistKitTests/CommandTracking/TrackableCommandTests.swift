@@ -8,18 +8,17 @@ import TuistLogging
 import TuistProcess
 import TuistServer
 import TuistSupport
-import XCTest
+import Testing
 
 @testable import TuistKit
 @testable import TuistTesting
 
-final class TrackableCommandTests: TuistTestCase {
+struct TrackableCommandTests {
     private var subject: TrackableCommand!
     private var backgroundProcessRunner: MockBackgroundProcessRunning!
     private var gitController: MockGitControlling!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         gitController = MockGitControlling()
         backgroundProcessRunner = MockBackgroundProcessRunning()
         given(backgroundProcessRunner)
@@ -32,13 +31,6 @@ final class TrackableCommandTests: TuistTestCase {
         given(gitController)
             .gitInfo(workingDirectory: .any)
             .willReturn(.test())
-    }
-
-    override func tearDown() {
-        subject = nil
-        gitController = nil
-        backgroundProcessRunner = nil
-        super.tearDown()
     }
 
     private func makeSubject(
@@ -65,7 +57,7 @@ final class TrackableCommandTests: TuistTestCase {
 
     // MARK: - Tests
 
-    func test_whenCommandFails_uploadsEventWithExpectedInfo() async throws {
+    @Test func test_whenCommandFails_uploadsEventWithExpectedInfo() async throws {
         // Given
         makeSubject(flag: false, shouldFail: true)
         // When
@@ -89,7 +81,7 @@ final class TrackableCommandTests: TuistTestCase {
             .called(1)
     }
 
-    func test_whenPathIsInArguments() async throws {
+    @Test func test_whenPathIsInArguments() async throws {
         // Given
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
@@ -105,7 +97,7 @@ final class TrackableCommandTests: TuistTestCase {
             .called(1)
     }
 
-    func test_whenPathIsInArguments_and_no_fullHandle_is_set() async throws {
+    @Test func test_whenPathIsInArguments_and_no_fullHandle_is_set() async throws {
         // Given
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
@@ -121,7 +113,7 @@ final class TrackableCommandTests: TuistTestCase {
             .called(0)
     }
 
-    func test_whenPathIsNotInArguments() async throws {
+    @Test func test_whenPathIsNotInArguments() async throws {
         // Given
         makeSubject(commandArguments: ["cache", "warm"])
 

@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class ProfileActionTests: XCTestCase {
-    func test_codable() throws {
+struct ProfileActionTests {
+    @Test func test_codable() throws {
         // Given
         let subject = ProfileAction(
             configurationName: "name",
@@ -27,6 +27,11 @@ final class ProfileActionTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(ProfileAction.self, from: data)
+        #expect(subject == decoded)
     }
 }

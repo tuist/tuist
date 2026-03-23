@@ -1,29 +1,23 @@
 import TuistCore
 import TuistGenerator
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistTesting
 
-final class ModuleMapMapperTests: TuistUnitTestCase {
-    var subject: ModuleMapMapper!
-
-    override func setUp() {
-        super.setUp()
-
+struct ModuleMapMapperTests {
+    let subject: ModuleMapMapper
+    init() {
         subject = ModuleMapMapper()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test(.inTemporaryDirectory)
     func test_maps_modulemap_build_flag_to_setting() throws {
         // Given
         let workspace = Workspace.test()
-        let projectAPath = try temporaryPath().appending(component: "A")
-        let projectBPath = try temporaryPath().appending(component: "B")
+        let projectAPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "A")
+        let projectBPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "B")
 
         let targetA = Target.test(
             name: "A",
@@ -147,9 +141,9 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertBetterEqual(
+        #expect(
             Graph.test(
-                workspace: workspace,
+                workspace: workspace ==
                 projects: [
                     projectAPath: mappedProjectA,
                     projectBPath: mappedProjectB,
@@ -165,14 +159,15 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ),
             gotGraph
         )
-        XCTAssertEqual(gotSideEffects, [])
+        #expect(gotSideEffects == [])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_maps_modulemap_build_flag_to_target_with_empty_settings() throws {
         // Given
         let workspace = Workspace.test()
-        let projectAPath = try temporaryPath().appending(component: "A")
-        let projectBPath = try temporaryPath().appending(component: "B")
+        let projectAPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "A")
+        let projectBPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "B")
 
         let targetA = Target.test(
             name: "A",
@@ -268,9 +263,9 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertBetterEqual(
+        #expect(
             Graph.test(
-                workspace: workspace,
+                workspace: workspace ==
                 projects: [
                     projectAPath: mappedProjectA,
                     projectBPath: mappedProjectB,
@@ -283,14 +278,15 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ),
             gotGraph
         )
-        XCTAssertEqual(gotSideEffects, [])
+        #expect(gotSideEffects == [])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_maps_modulemap_flags_to_configurations_that_override_other_swift_flags() throws {
         // Given
         let workspace = Workspace.test()
-        let projectAPath = try temporaryPath().appending(component: "A")
-        let projectBPath = try temporaryPath().appending(component: "B")
+        let projectAPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "A")
+        let projectBPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "B")
 
         let debugConfig = BuildConfiguration(name: "Debug", variant: .debug)
         let releaseConfig = BuildConfiguration(name: "Release", variant: .release)
@@ -357,19 +353,19 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        let gotTargetA = try XCTUnwrap(gotGraph.projects[projectAPath]?.targets["A"])
+        let gotTargetA = try #require(gotGraph.projects[projectAPath]?.targets["A"])
 
         // Base settings should have the module map flags
-        XCTAssertBetterEqual(
-            gotTargetA.settings?.base["OTHER_SWIFT_FLAGS"],
+        #expect(
+            gotTargetA.settings?.base["OTHER_SWIFT_FLAGS"] ==
             .array([
                 "Other",
                 "-Xcc",
                 "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
             ])
         )
-        XCTAssertBetterEqual(
-            gotTargetA.settings?.base["OTHER_CFLAGS"],
+        #expect(
+            gotTargetA.settings?.base["OTHER_CFLAGS"] ==
             .array([
                 "Other",
                 "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
@@ -377,9 +373,9 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Debug configuration overrides OTHER_SWIFT_FLAGS and OTHER_CFLAGS, so it should also get the flags
-        let debugConfiguration = try XCTUnwrap(gotTargetA.settings?.configurations[debugConfig] as? Configuration)
-        XCTAssertBetterEqual(
-            debugConfiguration.settings["OTHER_SWIFT_FLAGS"],
+        let debugConfiguration = try #require(gotTargetA.settings?.configurations[debugConfig] as? Configuration)
+        #expect(
+            debugConfiguration.settings["OTHER_SWIFT_FLAGS"] ==
             .array([
                 "-D",
                 "DEBUG",
@@ -389,8 +385,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
             ])
         )
-        XCTAssertBetterEqual(
-            debugConfiguration.settings["OTHER_CFLAGS"],
+        #expect(
+            debugConfiguration.settings["OTHER_CFLAGS"] ==
             .array([
                 "-DDEBUG",
                 "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
@@ -398,12 +394,12 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Release configuration does not override these keys, so it should remain unchanged
-        let releaseConfiguration = try XCTUnwrap(
+        let releaseConfiguration = try #require(
             gotTargetA.settings?.configurations[releaseConfig] as? Configuration
         )
-        XCTAssertNil(releaseConfiguration.settings["OTHER_SWIFT_FLAGS"])
-        XCTAssertNil(releaseConfiguration.settings["OTHER_CFLAGS"])
+        #expect(releaseConfiguration.settings["OTHER_SWIFT_FLAGS"] == nil)
+        #expect(releaseConfiguration.settings["OTHER_CFLAGS"] == nil)
 
-        XCTAssertEqual(gotSideEffects, [])
+        #expect(gotSideEffects == [])
     }
 }

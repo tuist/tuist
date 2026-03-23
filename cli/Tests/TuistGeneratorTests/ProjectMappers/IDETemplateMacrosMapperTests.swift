@@ -4,22 +4,15 @@ import TuistCore
 import TuistGenerator
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 
-final class IDETemplateMacrosMapperTests: XCTestCase {
-    var subject: IDETemplateMacrosMapper!
-
-    override func setUp() {
-        super.setUp()
-
+struct IDETemplateMacrosMapperTests {
+    let subject: IDETemplateMacrosMapper
+    init() {
         subject = IDETemplateMacrosMapper()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_project_map_template_macros_creates_macros_plist() throws {
         // Given
         let templateMacros = IDETemplateMacros.test()
@@ -29,9 +22,9 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         let (got, sideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(got, project)
+        #expect(got == project)
 
-        XCTAssertEqual(sideEffects, [
+        #expect(sideEffects == [
             .file(
                 .init(
                     path: project.xcodeProjPath.appending(try RelativePath(validating: "xcshareddata/IDETemplateMacros.plist")),
@@ -42,6 +35,7 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_project_map_empty_template_macros() throws {
         // Given
         let project = Project.empty()
@@ -50,10 +44,11 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         let (got, sideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(got, project)
-        XCTAssertEmpty(sideEffects)
+        #expect(got == project)
+        #expect(sideEffects.isEmpty)
     }
 
+    @Test
     func test_workspace_map_template_macros_creates_macros_plist() throws {
         // Given
         let templateMacros = IDETemplateMacros.test()
@@ -64,9 +59,9 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         let (got, sideEffects) = try subject.map(workspace: workspaceWithProjects)
 
         // Then
-        XCTAssertEqual(got, workspaceWithProjects)
+        #expect(got == workspaceWithProjects)
 
-        XCTAssertEqual(sideEffects, [
+        #expect(sideEffects == [
             .file(
                 .init(
                     path: workspace.xcWorkspacePath
@@ -78,6 +73,7 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_workspace_map_empty_template_macros() throws {
         // Given
         let workspace = Workspace.test(ideTemplateMacros: nil)
@@ -87,7 +83,7 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         let (got, sideEffects) = try subject.map(workspace: workspaceWithProjects)
 
         // Then
-        XCTAssertEqual(got, workspaceWithProjects)
-        XCTAssertEmpty(sideEffects)
+        #expect(got == workspaceWithProjects)
+        #expect(sideEffects.isEmpty)
     }
 }

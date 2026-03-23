@@ -12,11 +12,12 @@ import TuistSupport
 import TuistTesting
 import XcodeGraph
 import XcodeProj
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistKit
 
-final class GraphServiceTests: TuistUnitTestCase {
+struct GraphServiceTests {
     private var manifestGraphLoader: MockManifestGraphLoading!
     private var manifestLoader: MockManifestLoading!
     private var graphVizMapper: MockGraphToGraphVizMapper!
@@ -24,8 +25,7 @@ final class GraphServiceTests: TuistUnitTestCase {
     private var configLoader: MockConfigLoading!
     private var subject: GraphService!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         graphVizMapper = MockGraphToGraphVizMapper()
         manifestGraphLoader = MockManifestGraphLoading()
         manifestLoader = MockManifestLoading()
@@ -41,16 +41,7 @@ final class GraphServiceTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        graphVizMapper = nil
-        manifestGraphLoader = nil
-        manifestLoader = nil
-        xcodeGraphMapper = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_run_whenDot() async throws {
+    @Test func test_run_whenDot() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
@@ -88,11 +79,11 @@ final class GraphServiceTests: TuistUnitTestCase {
             let got = try await fileSystem.readTextFile(at: graphPath)
             let expected = "graph { }"
             // Then
-            XCTAssertEqual(got, expected)
+            #expect(got == expected)
         }
     }
 
-    func test_run_when_legacyJSON() async throws {
+    @Test func test_run_when_legacyJSON() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
@@ -132,11 +123,11 @@ final class GraphServiceTests: TuistUnitTestCase {
                 ProjectAutomation.Graph.self, from: got.data(using: .utf8)!
             )
             // Then
-            XCTAssertEqual(result, ProjectAutomation.Graph(name: "graph", path: "/", projects: [:]))
+            #expect(result == ProjectAutomation.Graph(name: "graph", path: "/", projects: [:]))
         }
     }
 
-    func test_run_when_json() async throws {
+    @Test func test_run_when_json() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
@@ -176,11 +167,11 @@ final class GraphServiceTests: TuistUnitTestCase {
                 XcodeGraph.Graph.self, from: got.data(using: .utf8)!
             )
             // Then
-            XCTAssertEqual(result, .test())
+            #expect(result == .test())
         }
     }
 
-    func test_run_when_json_and_has_no_root_manifest() async throws {
+    @Test func test_run_when_json_and_has_no_root_manifest() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
@@ -219,7 +210,7 @@ final class GraphServiceTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEqual(result, .test())
+            #expect(result == .test())
 
             XCTAssertEqual(
                 ui(),

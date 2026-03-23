@@ -1,19 +1,18 @@
 import Foundation
 import Path
 import ProjectDescription
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
 
 @testable import TuistLoader
 @testable import TuistTesting
 
-final class DependencyManifestMapperTests: TuistUnitTestCase {
-    func test_from_when_external_xcframework() throws {
+struct DependencyManifestMapperTests {
+    @Test func from_when_external_xcframework() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "library")
-
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
 
         // When
@@ -28,16 +27,16 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .xcframework(path, _, status, _) = got[0] else {
-            XCTFail("Dependency should be xcframework")
+            Issue.record("Dependency should be xcframework")
             return
         }
-        XCTAssertEqual(path, "/path.xcframework")
-        XCTAssertEqual(status, .required)
+        #expect(path == "/path.xcframework")
+        #expect(status == .required)
     }
 
-    func test_from_when_external_project() throws {
+    @Test func from_when_external_project() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "library")
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
@@ -50,16 +49,16 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .project(target, path, _, _) = got[0] else {
-            XCTFail("Dependency should be project")
+            Issue.record("Dependency should be project")
             return
         }
-        XCTAssertEqual(target, "Target")
-        XCTAssertEqual(path, "/Project")
+        #expect(target == "Target")
+        #expect(path == "/Project")
     }
 
-    func test_from_when_external_multiple() throws {
+    @Test func from_when_external_multiple() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "library")
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
@@ -77,23 +76,23 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 2)
+        #expect(got.count == 2)
         guard case let .xcframework(frameworkPath, _, status, _) = got[0] else {
-            XCTFail("First dependency should be xcframework")
+            Issue.record("First dependency should be xcframework")
             return
         }
-        XCTAssertEqual(frameworkPath, "/path.xcframework")
-        XCTAssertEqual(status, .required)
+        #expect(frameworkPath == "/path.xcframework")
+        #expect(status == .required)
 
         guard case let .project(target, path, _, _) = got[1] else {
-            XCTFail("Dependency should be project")
+            Issue.record("Dependency should be project")
             return
         }
-        XCTAssertEqual(target, "Target")
-        XCTAssertEqual(path, "/Project")
+        #expect(target == "Target")
+        #expect(path == "/Project")
     }
 
-    func test_from_when_package_runtime() throws {
+    @Test func from_when_package_runtime() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.package(product: "RuntimePackageProduct", type: .runtime)
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
@@ -106,16 +105,16 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .package(product, type, _) = got[0] else {
-            XCTFail("Dependency should be package")
+            Issue.record("Dependency should be package")
             return
         }
-        XCTAssertEqual(product, "RuntimePackageProduct")
-        XCTAssertEqual(type, .runtime)
+        #expect(product == "RuntimePackageProduct")
+        #expect(type == .runtime)
     }
 
-    func test_from_when_package_runtimeEmbedded() throws {
+    @Test func from_when_package_runtimeEmbedded() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.package(
             product: "RuntimeEmbeddedPackageProduct",
@@ -131,16 +130,16 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .package(product, type, _) = got[0] else {
-            XCTFail("Dependency should be package")
+            Issue.record("Dependency should be package")
             return
         }
-        XCTAssertEqual(product, "RuntimeEmbeddedPackageProduct")
-        XCTAssertEqual(type, .runtimeEmbedded)
+        #expect(product == "RuntimeEmbeddedPackageProduct")
+        #expect(type == .runtimeEmbedded)
     }
 
-    func test_from_when_package_macro() throws {
+    @Test func from_when_package_macro() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.package(product: "MacroPackageProduct", type: .macro)
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
@@ -153,16 +152,16 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .package(product, type, _) = got[0] else {
-            XCTFail("Dependency should be package")
+            Issue.record("Dependency should be package")
             return
         }
-        XCTAssertEqual(product, "MacroPackageProduct")
-        XCTAssertEqual(type, .macro)
+        #expect(product == "MacroPackageProduct")
+        #expect(type == .macro)
     }
 
-    func test_from_when_package_plugin() throws {
+    @Test func from_when_package_plugin() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.package(product: "PluginPackageProduct", type: .plugin)
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
@@ -175,16 +174,16 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .package(product, type, _) = got[0] else {
-            XCTFail("Dependency should be package")
+            Issue.record("Dependency should be package")
             return
         }
-        XCTAssertEqual(product, "PluginPackageProduct")
-        XCTAssertEqual(type, .plugin)
+        #expect(product == "PluginPackageProduct")
+        #expect(type == .plugin)
     }
 
-    func test_from_when_macro() throws {
+    @Test func from_when_macro() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.macro(name: "MacroProduct")
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
@@ -197,16 +196,16 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .target(name, linkerStatus, _) = got[0] else {
-            XCTFail("Dependency should be package")
+            Issue.record("Dependency should be target")
             return
         }
-        XCTAssertEqual(name, "MacroProduct")
-        XCTAssertEqual(linkerStatus, .required)
+        #expect(name == "MacroProduct")
+        #expect(linkerStatus == .required)
     }
 
-    func test_from_when_sdkLibrary() throws {
+    @Test func from_when_sdkLibrary() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.sdk(name: "c++", type: .library, status: .required)
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
@@ -219,16 +218,16 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .sdk(name, status, _) = got[0] else {
-            XCTFail("Dependency should be sdk")
+            Issue.record("Dependency should be sdk")
             return
         }
-        XCTAssertEqual(name, "libc++.tbd")
-        XCTAssertEqual(status, .required)
+        #expect(name == "libc++.tbd")
+        #expect(status == .required)
     }
 
-    func test_from_when_sdkSwiftLibrary() throws {
+    @Test func from_when_sdkSwiftLibrary() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.sdk(name: "Observation", type: .swiftLibrary, status: .required)
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
@@ -241,16 +240,16 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .sdk(name, status, _) = got[0] else {
-            XCTFail("Dependency should be sdk")
+            Issue.record("Dependency should be sdk")
             return
         }
-        XCTAssertEqual(name, "libswiftObservation.tbd")
-        XCTAssertEqual(status, .required)
+        #expect(name == "libswiftObservation.tbd")
+        #expect(status == .required)
     }
 
-    func test_from_when_sdkFramework() throws {
+    @Test func from_when_sdkFramework() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.sdk(name: "ARKit", type: .framework, status: .required)
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
@@ -263,16 +262,16 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .sdk(name, status, _) = got[0] else {
-            XCTFail("Dependency should be sdk")
+            Issue.record("Dependency should be sdk")
             return
         }
-        XCTAssertEqual(name, "ARKit.framework")
-        XCTAssertEqual(status, .required)
+        #expect(name == "ARKit.framework")
+        #expect(status == .required)
     }
 
-    func test_from_when_external_target_casing_differs() throws {
+    @Test func from_when_external_target_casing_differs() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "MyLibrary")
         let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
@@ -285,12 +284,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then - should resolve successfully with case-insensitive lookup
-        XCTAssertEqual(got.count, 1)
+        #expect(got.count == 1)
         guard case let .project(target, path, _, _) = got[0] else {
-            XCTFail("Dependency should be project")
+            Issue.record("Dependency should be project")
             return
         }
-        XCTAssertEqual(target, "MyLibrary")
-        XCTAssertEqual(path, "/Project")
+        #expect(target == "MyLibrary")
+        #expect(path == "/Project")
     }
 }

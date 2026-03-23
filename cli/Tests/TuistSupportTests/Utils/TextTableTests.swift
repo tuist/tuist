@@ -1,9 +1,10 @@
-import XCTest
+import Testing
 
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class TextTableTests: TuistUnitTestCase {
+struct TextTableTests {
+    @Test
     func test_renders_data() throws {
         // Given
         let columns = [
@@ -33,9 +34,10 @@ final class TextTableTests: TuistUnitTestCase {
         let rendered = table.render(data)
 
         // Then
-        XCTAssertTrue(expectedOutput == rendered)
+        #expect(expectedOutput == rendered)
     }
 
+    @Test
     func test_renders_empty_string_when_data_is_empty() throws {
         // Given
         let table = TextTable<Record> { [
@@ -47,7 +49,7 @@ final class TextTableTests: TuistUnitTestCase {
         let rendered = table.render([])
 
         // Then
-        XCTAssertTrue(rendered.isEmpty)
+        #expect(rendered.isEmpty)
     }
 }
 

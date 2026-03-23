@@ -1,46 +1,61 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class ProductTests: XCTestCase {
-    func test_codable_app() {
+struct ProductTests {
+    @Test func test_codable_app() throws {
         // Given
         let subject = Product.app
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Product.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_codable_staticFramework() {
+    @Test func test_codable_staticFramework() throws {
         // Given
         let subject = Product.staticFramework
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Product.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_codable_watch2AppContainer() {
+    @Test func test_codable_watch2AppContainer() throws {
         // Given
         let subject = Product.watch2AppContainer
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Product.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_description() {
-        XCTAssertEqual(Product.app.description, "application")
-        XCTAssertEqual(Product.staticLibrary.description, "static library")
-        XCTAssertEqual(Product.dynamicLibrary.description, "dynamic library")
-        XCTAssertEqual(Product.framework.description, "dynamic framework")
-        XCTAssertEqual(Product.unitTests.description, "unit tests")
-        XCTAssertEqual(Product.uiTests.description, "ui tests")
-        XCTAssertEqual(Product.appExtension.description, "app extension")
-        XCTAssertEqual(Product.stickerPackExtension.description, "sticker pack extension")
-        XCTAssertEqual(Product.appClip.description, "appClip")
-        XCTAssertEqual(Product.watch2AppContainer.description, "watch 2 app container")
+    @Test func test_description() {
+        #expect(Product.app.description == "application")
+        #expect(Product.staticLibrary.description == "static library")
+        #expect(Product.dynamicLibrary.description == "dynamic library")
+        #expect(Product.framework.description == "dynamic framework")
+        #expect(Product.unitTests.description == "unit tests")
+        #expect(Product.uiTests.description == "ui tests")
+        #expect(Product.appExtension.description == "app extension")
+        #expect(Product.stickerPackExtension.description == "sticker pack extension")
+        #expect(Product.appClip.description == "appClip")
+        #expect(Product.watch2AppContainer.description == "watch 2 app container")
     }
 
-    func test_forPlatform_when_ios() {
+    @Test func test_forPlatform_when_ios() {
         let got = Product.forPlatform(.iOS)
         let expected: [Product] = [
             .app,
@@ -55,10 +70,10 @@ final class ProductTests: XCTestCase {
             .uiTests,
             .appClip,
         ]
-        XCTAssertEqual(Set(got), Set(expected))
+        #expect(Set(got) == Set(expected))
     }
 
-    func test_forPlatform_when_macOS() {
+    @Test func test_forPlatform_when_macOS() {
         let got = Product.forPlatform(.macOS)
         let expected: [Product] = [
             .app,
@@ -72,10 +87,10 @@ final class ProductTests: XCTestCase {
             .systemExtension,
             .macro,
         ]
-        XCTAssertEqual(got, Set(expected))
+        #expect(got == Set(expected))
     }
 
-    func test_forPlatform_when_tvOS() {
+    @Test func test_forPlatform_when_tvOS() {
         let got = Product.forPlatform(.tvOS)
         let expected: [Product] = [
             .app,
@@ -86,10 +101,10 @@ final class ProductTests: XCTestCase {
             .unitTests,
             .uiTests,
         ]
-        XCTAssertEqual(got, Set(expected))
+        #expect(got == Set(expected))
     }
 
-    func test_runnable() {
+    @Test func test_runnable() {
         let runnables: [Product] = [
             .app,
             .appClip,
@@ -105,98 +120,98 @@ final class ProductTests: XCTestCase {
         ]
         for product in Product.allCases {
             if runnables.contains(product) {
-                XCTAssertTrue(product.runnable)
+                #expect(product.runnable)
             } else {
-                XCTAssertFalse(product.runnable)
+                #expect(!product.runnable)
             }
         }
     }
 
-    func test_testsBundle() {
+    @Test func test_testsBundle() {
         for product in Product.allCases {
             if product == .uiTests || product == .unitTests {
-                XCTAssertTrue(product.testsBundle)
+                #expect(product.testsBundle)
             } else {
-                XCTAssertFalse(product.testsBundle)
+                #expect(!product.testsBundle)
             }
         }
     }
 
-    func test_can_host_tests() {
+    @Test func test_can_host_tests() {
         // App
         var subject = Product.app
-        XCTAssert(subject.canHostTests())
+        #expect(subject.canHostTests())
 
         // App Clip
         subject = Product.appClip
-        XCTAssert(subject.canHostTests())
+        #expect(subject.canHostTests())
 
         // App Extension
         subject = Product.appExtension
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // Watch App
         subject = Product.appClip
-        XCTAssert(subject.canHostTests())
+        #expect(subject.canHostTests())
 
         // Watch2Extension
         subject = Product.watch2Extension
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // UITests
         subject = Product.uiTests
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // UnitTests
         subject = Product.unitTests
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // Framework
         subject = Product.framework
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // Static Framework
         subject = Product.staticFramework
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // Static Library
         subject = Product.staticLibrary
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // Dynamic Library
         subject = Product.dynamicLibrary
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // Bundle
         subject = Product.bundle
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // Command Line Tool
         subject = Product.commandLineTool
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // Messages Extension
         subject = Product.messagesExtension
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // Sticker Pack Extension
         subject = Product.stickerPackExtension
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // TV Top Shelf Extension
         subject = Product.tvTopShelfExtension
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // XPC
         subject = Product.xpc
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // System Extension
         subject = Product.systemExtension
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
 
         // Watch 2 App Container
         subject = Product.watch2AppContainer
-        XCTAssertFalse(subject.canHostTests())
+        #expect(!subject.canHostTests())
     }
 }

@@ -5,15 +5,14 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistHasher
 
-final class CopyFilesContentHasherTests: TuistUnitTestCase {
-    private var subject: CopyFilesContentHasher!
-
-    override func setUp() {
-        super.setUp()
+struct CopyFilesContentHasherTests {
+    private let subject: CopyFilesContentHasher
+    init() {
         let contentHasher = ContentHasher()
         subject = CopyFilesContentHasher(
             contentHasher: contentHasher,
@@ -21,17 +20,14 @@ final class CopyFilesContentHasherTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
     // MARK: - Tests
 
+    @Test(.inTemporaryDirectory)
     func test_hash_isDeterministicAcrossRuns() async throws {
         // Given
         let fileSystem = FileSystem()
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let filePath = temporaryDirectory.appending(component: "file")
         try await fileSystem.touch(filePath)
         let copyFilesAction = CopyFilesAction(
@@ -54,13 +50,14 @@ final class CopyFilesContentHasherTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertEqual(results.count, 1)
+        #expect(results.count == 1)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_hash_returnsTheRightContent() async throws {
         // Given
         let fileSystem = FileSystem()
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let filePath = temporaryDirectory.appending(component: "file")
         try await fileSystem.touch(filePath)
         let copyFilesAction = CopyFilesAction(
@@ -80,7 +77,7 @@ final class CopyFilesContentHasherTests: TuistUnitTestCase {
         let got = try await subject.hash(identifier: "copyFilesActions", copyFiles: [copyFilesAction])
 
         // Then
-        XCTAssertEqual(got, MerkleNode(
+        #expect(got == MerkleNode(
             hash: "bee08a6b2a62c3722cd4f95b4e6366e2",
 
             identifier: "copyFilesActions",

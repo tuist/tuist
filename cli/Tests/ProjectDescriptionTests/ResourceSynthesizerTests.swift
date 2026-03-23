@@ -1,35 +1,36 @@
 import Foundation
-import XCTest
+import Testing
+import TuistTesting
 
 @testable import ProjectDescription
 
-final class ResourceSynthesizerTests: XCTestCase {
-    func test_codable_when_plugin() {
-        XCTAssertCodable(
+struct ResourceSynthesizerTests {
+    @Test func test_codable_when_plugin() throws {
+        #expect(try isCodableRoundTripable(
             ResourceSynthesizer.assets(plugin: "Plugin")
-        )
+        ))
     }
 
-    func test_codable_when_default() {
-        XCTAssertCodable(
+    @Test func test_codable_when_default() throws {
+        #expect(try isCodableRoundTripable(
             ResourceSynthesizer.strings()
-        )
+        ))
     }
 
-    func test_codable_when_parserOptions() {
-        XCTAssertCodable(
+    @Test func test_codable_when_parserOptions() throws {
+        #expect(try isCodableRoundTripable(
             ResourceSynthesizer.strings(parserOptions: ["separator": "/"])
-        )
+        ))
     }
 
-    func test_codable_when_custom() {
-        XCTAssertCodable(
+    @Test func test_codable_when_custom() throws {
+        #expect(try isCodableRoundTripable(
             ResourceSynthesizer.custom(
                 name: "Custom",
                 parser: .json,
                 parserOptions: ["key": "value"],
                 extensions: ["lottie"]
             )
-        )
+        ))
     }
 }

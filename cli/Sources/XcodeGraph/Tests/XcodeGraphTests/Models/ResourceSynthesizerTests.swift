@@ -1,9 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class ResourceSynthesizerTests: XCTestCase {
-    func test_codable() {
+struct ResourceSynthesizerTests {
+    @Test func test_codable() throws {
         // Given
         let subject = ResourceSynthesizer(
             parser: .coreData,
@@ -16,6 +16,11 @@ final class ResourceSynthesizerTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(ResourceSynthesizer.self, from: data)
+        #expect(subject == decoded)
     }
 }

@@ -1,42 +1,47 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class TargetTests: XCTestCase {
-    func test_codable() {
+struct TargetTests {
+    @Test func test_codable() throws {
         // Given
         let subject = Target.test(name: "Test", product: .staticLibrary)
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Target.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_sequence_testBundles() {
+    @Test func test_sequence_testBundles() {
         let app = Target.test(product: .app)
         let tests = Target.test(product: .unitTests)
         let targets = [app, tests]
 
-        XCTAssertEqual(targets.testBundles, [tests])
+        #expect(targets.testBundles == [tests])
     }
 
-    func test_sequence_apps() {
+    @Test func test_sequence_apps() {
         let app = Target.test(product: .app)
         let tests = Target.test(product: .unitTests)
         let targets = [app, tests]
 
-        XCTAssertEqual(targets.apps, [app])
+        #expect(targets.apps == [app])
     }
 
-    func test_sequence_appClips() {
+    @Test func test_sequence_appClips() {
         let appClip = Target.test(product: .appClip)
         let tests = Target.test(product: .unitTests)
         let targets = [appClip, tests]
 
-        XCTAssertEqual(targets.apps, [appClip])
+        #expect(targets.apps == [appClip])
     }
 
-    func test_dependencyPlatformFilters_when_iOS_targets_mac() {
+    @Test func test_dependencyPlatformFilters_when_iOS_targets_mac() {
         // Given
         let target = Target.test(destinations: [.macCatalyst])
 
@@ -44,10 +49,10 @@ final class TargetTests: XCTestCase {
         let got = target.dependencyPlatformFilters
 
         // Then
-        XCTAssertEqual(got, [PlatformFilter.catalyst])
+        #expect(got == [PlatformFilter.catalyst])
     }
 
-    func test_dependencyPlatformFilters_when_iOS_and_doesnt_target_mac() {
+    @Test func test_dependencyPlatformFilters_when_iOS_and_doesnt_target_mac() {
         // Given
         let target = Target.test(destinations: .iOS)
 
@@ -55,10 +60,10 @@ final class TargetTests: XCTestCase {
         let got = target.dependencyPlatformFilters
 
         // Then
-        XCTAssertEqual(got, [PlatformFilter.ios])
+        #expect(got == [PlatformFilter.ios])
     }
 
-    func test_dependencyPlatformFilters_when_iOS_and_catalyst() {
+    @Test func test_dependencyPlatformFilters_when_iOS_and_catalyst() {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .macCatalyst])
 
@@ -66,10 +71,10 @@ final class TargetTests: XCTestCase {
         let got = target.dependencyPlatformFilters
 
         // Then
-        XCTAssertEqual(got, [PlatformFilter.ios, PlatformFilter.catalyst])
+        #expect(got == [PlatformFilter.ios, PlatformFilter.catalyst])
     }
 
-    func test_dependencyPlatformFilters_when_using_many_destinations() {
+    @Test func test_dependencyPlatformFilters_when_using_many_destinations() {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .macCatalyst, .mac, .appleVision])
 
@@ -77,10 +82,10 @@ final class TargetTests: XCTestCase {
         let got = target.dependencyPlatformFilters
 
         // Then
-        XCTAssertEqual(got, [PlatformFilter.ios, PlatformFilter.catalyst, PlatformFilter.macos, PlatformFilter.visionos])
+        #expect(got == [PlatformFilter.ios, PlatformFilter.catalyst, PlatformFilter.macos, PlatformFilter.visionos])
     }
 
-    func test_supportsCatalyst_returns_true_when_the_destinations_include_macCatalyst() {
+    @Test func test_supportsCatalyst_returns_true_when_the_destinations_include_macCatalyst() {
         // Given
         let target = Target.test(destinations: [.macCatalyst])
 
@@ -88,10 +93,10 @@ final class TargetTests: XCTestCase {
         let got = target.supportsCatalyst
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got)
     }
 
-    func test_supportsCatalyst_returns_false_when_the_destinations_include_macCatalyst() {
+    @Test func test_supportsCatalyst_returns_false_when_the_destinations_include_macCatalyst() {
         // Given
         let target = Target.test(destinations: [.iPad])
 
@@ -99,10 +104,10 @@ final class TargetTests: XCTestCase {
         let got = target.supportsCatalyst
 
         // Then
-        XCTAssertFalse(got)
+        #expect(!got)
     }
 
-    func test_supportsResources_returns_true_for_static_frameworks() {
+    @Test func test_supportsResources_returns_true_for_static_frameworks() {
         // Given
         let target = Target.test(product: .staticFramework)
 
@@ -110,10 +115,10 @@ final class TargetTests: XCTestCase {
         let got = target.supportsResources
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got)
     }
 
-    func test_supportsResources_returns_true_for_command_line_tools() {
+    @Test func test_supportsResources_returns_true_for_command_line_tools() {
         // Given
         let target = Target.test(destinations: .macOS, product: .commandLineTool)
 
@@ -121,10 +126,10 @@ final class TargetTests: XCTestCase {
         let got = target.supportsResources
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got)
     }
 
-    func test_supportsResources_returns_true_for_macros() {
+    @Test func test_supportsResources_returns_true_for_macros() {
         // Given
         let target = Target.test(destinations: .macOS, product: .macro)
 
@@ -132,10 +137,10 @@ final class TargetTests: XCTestCase {
         let got = target.supportsResources
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got)
     }
 
-    func test_supportsResources_returns_true_for_xpc_services() {
+    @Test func test_supportsResources_returns_true_for_xpc_services() {
         // Given
         let target = Target.test(destinations: .macOS, product: .xpc)
 
@@ -143,10 +148,10 @@ final class TargetTests: XCTestCase {
         let got = target.supportsResources
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got)
     }
 
-    func test_supportsResources_returns_false_for_static_libraries() {
+    @Test func test_supportsResources_returns_false_for_static_libraries() {
         // Given
         let target = Target.test(product: .staticLibrary)
 
@@ -154,10 +159,10 @@ final class TargetTests: XCTestCase {
         let got = target.supportsResources
 
         // Then
-        XCTAssertFalse(got)
+        #expect(!got)
     }
 
-    func test_supportsResources_returns_false_for_dynamic_libraries() {
+    @Test func test_supportsResources_returns_false_for_dynamic_libraries() {
         // Given
         let target = Target.test(product: .dynamicLibrary)
 
@@ -165,6 +170,6 @@ final class TargetTests: XCTestCase {
         let got = target.supportsResources
 
         // Then
-        XCTAssertFalse(got)
+        #expect(!got)
     }
 }

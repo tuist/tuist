@@ -4,26 +4,20 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import XCTest
+import Testing
 
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class SchemeDescriptorsGeneratorTests: XCTestCase {
-    var subject: SchemeDescriptorsGenerator!
-
-    override func setUp() {
-        super.setUp()
+struct SchemeDescriptorsGeneratorTests {
+    let subject: SchemeDescriptorsGenerator
+    init() {
         subject = SchemeDescriptorsGenerator()
-    }
-
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
     }
 
     // MARK: - Build Action Tests
 
+    @Test
     func test_schemeBuildAction_whenSingleProject() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
@@ -54,21 +48,22 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // When
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildActionEntries.count, 1)
-        let entry = try XCTUnwrap(result.buildActionEntries.first)
+        let result = try #require(got)
+        #expect(result.buildActionEntries.count == 1)
+        let entry = try #require(result.buildActionEntries.first)
         let buildableReference = entry.buildableReference
-        XCTAssertEqual(entry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
+        #expect(entry.buildFor == [.analyzing, .archiving, .profiling, .running, .testing])
 
-        XCTAssertEqual(buildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")
-        XCTAssertEqual(buildableReference.buildableName, "App.app")
-        XCTAssertEqual(buildableReference.blueprintName, "App")
-        XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
+        #expect(buildableReference.referencedContainer == "container:Projects/Project/Project.xcodeproj")
+        #expect(buildableReference.buildableName == "App.app")
+        #expect(buildableReference.blueprintName == "App")
+        #expect(buildableReference.buildableIdentifier == "primary")
 
-        XCTAssertEqual(result.parallelizeBuild, true)
-        XCTAssertEqual(result.buildImplicitDependencies, true)
+        #expect(result.parallelizeBuild == true)
+        #expect(result.buildImplicitDependencies == true)
     }
 
+    @Test
     func test_schemeBuildAction_findImplicitDependenciesFalse() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
@@ -104,10 +99,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildImplicitDependencies, false)
+        let result = try #require(got)
+        #expect(result.buildImplicitDependencies == false)
     }
 
+    @Test
     func test_schemeBuildAction_whenSingleProjectAndXcodeProjPathDiffers() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
@@ -138,21 +134,22 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildActionEntries.count, 1)
-        let entry = try XCTUnwrap(result.buildActionEntries.first)
+        let result = try #require(got)
+        #expect(result.buildActionEntries.count == 1)
+        let entry = try #require(result.buildActionEntries.first)
         let buildableReference = entry.buildableReference
-        XCTAssertEqual(entry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
+        #expect(entry.buildFor == [.analyzing, .archiving, .profiling, .running, .testing])
 
-        XCTAssertEqual(buildableReference.referencedContainer, "container:project.xcodeproj")
-        XCTAssertEqual(buildableReference.buildableName, "App.app")
-        XCTAssertEqual(buildableReference.blueprintName, "App")
-        XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
+        #expect(buildableReference.referencedContainer == "container:project.xcodeproj")
+        #expect(buildableReference.buildableName == "App.app")
+        #expect(buildableReference.blueprintName == "App")
+        #expect(buildableReference.buildableIdentifier == "primary")
 
-        XCTAssertEqual(result.parallelizeBuild, true)
-        XCTAssertEqual(result.buildImplicitDependencies, true)
+        #expect(result.parallelizeBuild == true)
+        #expect(result.buildImplicitDependencies == true)
     }
 
+    @Test
     func test_schemeBuildAction_whenMultipleProject() throws {
         // Given
         let projectAPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/ProjectA")
@@ -200,31 +197,32 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // When
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildActionEntries.count, 2)
+        let result = try #require(got)
+        #expect(result.buildActionEntries.count == 2)
 
-        let firstEntry = try XCTUnwrap(result.buildActionEntries[0])
+        let firstEntry = try #require(result.buildActionEntries[0])
         let firstBuildableReference = firstEntry.buildableReference
-        XCTAssertEqual(firstEntry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
+        #expect(firstEntry.buildFor == [.analyzing, .archiving, .profiling, .running, .testing])
 
-        let secondEntry = try XCTUnwrap(result.buildActionEntries[1])
+        let secondEntry = try #require(result.buildActionEntries[1])
         let secondBuildableReference = secondEntry.buildableReference
-        XCTAssertEqual(secondEntry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
+        #expect(secondEntry.buildFor == [.analyzing, .archiving, .profiling, .running, .testing])
 
-        XCTAssertEqual(firstBuildableReference.referencedContainer, "container:Projects/ProjectA/project.xcodeproj")
-        XCTAssertEqual(firstBuildableReference.buildableName, "FrameworkA.framework")
-        XCTAssertEqual(firstBuildableReference.blueprintName, "FrameworkA")
-        XCTAssertEqual(firstBuildableReference.buildableIdentifier, "primary")
+        #expect(firstBuildableReference.referencedContainer == "container:Projects/ProjectA/project.xcodeproj")
+        #expect(firstBuildableReference.buildableName == "FrameworkA.framework")
+        #expect(firstBuildableReference.blueprintName == "FrameworkA")
+        #expect(firstBuildableReference.buildableIdentifier == "primary")
 
-        XCTAssertEqual(secondBuildableReference.referencedContainer, "container:Projects/ProjectB/project.xcodeproj")
-        XCTAssertEqual(secondBuildableReference.buildableName, "FrameworkB.framework")
-        XCTAssertEqual(secondBuildableReference.blueprintName, "FrameworkB")
-        XCTAssertEqual(secondBuildableReference.buildableIdentifier, "primary")
+        #expect(secondBuildableReference.referencedContainer == "container:Projects/ProjectB/project.xcodeproj")
+        #expect(secondBuildableReference.buildableName == "FrameworkB.framework")
+        #expect(secondBuildableReference.blueprintName == "FrameworkB")
+        #expect(secondBuildableReference.buildableIdentifier == "primary")
 
-        XCTAssertEqual(result.parallelizeBuild, true)
-        XCTAssertEqual(result.buildImplicitDependencies, true)
+        #expect(result.parallelizeBuild == true)
+        #expect(result.buildImplicitDependencies == true)
     }
 
+    @Test
     func test_schemeBuildAction_with_executionAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -270,30 +268,31 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         // Pre Action
-        XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
-        XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
-        XCTAssertEqual(got?.preActions.first?.shellToInvoke, "/bin/sh")
+        #expect(got?.preActions.first?.title == "Pre Action")
+        #expect(got?.preActions.first?.scriptText == "echo Pre Actions")
+        #expect(got?.preActions.first?.shellToInvoke == "/bin/sh")
 
         let preBuildableReference = got?.preActions.first?.environmentBuildable
 
-        XCTAssertEqual(preBuildableReference?.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(preBuildableReference?.buildableName, "App.app")
-        XCTAssertEqual(preBuildableReference?.blueprintName, "App")
-        XCTAssertEqual(preBuildableReference?.buildableIdentifier, "primary")
+        #expect(preBuildableReference?.referencedContainer == "container:Project.xcodeproj")
+        #expect(preBuildableReference?.buildableName == "App.app")
+        #expect(preBuildableReference?.blueprintName == "App")
+        #expect(preBuildableReference?.buildableIdentifier == "primary")
 
         // Post Action
-        XCTAssertEqual(got?.postActions.first?.title, "Post Action")
-        XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
-        XCTAssertEqual(got?.postActions.first?.shellToInvoke, "/bin/sh")
+        #expect(got?.postActions.first?.title == "Post Action")
+        #expect(got?.postActions.first?.scriptText == "echo Post Actions")
+        #expect(got?.postActions.first?.shellToInvoke == "/bin/sh")
 
         let postBuildableReference = got?.postActions.first?.environmentBuildable
 
-        XCTAssertEqual(postBuildableReference?.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(postBuildableReference?.buildableName, "App.app")
-        XCTAssertEqual(postBuildableReference?.blueprintName, "App")
-        XCTAssertEqual(postBuildableReference?.buildableIdentifier, "primary")
+        #expect(postBuildableReference?.referencedContainer == "container:Project.xcodeproj")
+        #expect(postBuildableReference?.buildableName == "App.app")
+        #expect(postBuildableReference?.blueprintName == "App")
+        #expect(postBuildableReference?.buildableIdentifier == "primary")
     }
 
+    @Test
     func test_buildAction_parallelizedBuild() throws {
         // Given
         let schemeA = Scheme(
@@ -324,12 +323,13 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let buildActions = schemeDescriptors.compactMap(\.xcScheme.buildAction)
-        XCTAssertEqual(buildActions.map(\.parallelizeBuild), [
+        #expect(buildActions.map(\.parallelizeBuild) == [
             true,
             false,
         ])
     }
 
+    @Test
     func test_buildAction_runPostActionsOnFailure() throws {
         // Given
         let schemeA = Scheme(
@@ -361,12 +361,13 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         // `runPostActionsOnFailure` is omitted when not enabled (Xcode automatically removes it)
         let buildActions = schemeDescriptors.compactMap(\.xcScheme.buildAction)
-        XCTAssertEqual(buildActions.map(\.runPostActionsOnFailure), [
+        #expect(buildActions.map(\.runPostActionsOnFailure) == [
             true,
             nil,
         ])
     }
 
+    @Test
     func test_buildAction_workspaceScheme_executionActionTargetContainerPath() throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/workspace")
@@ -408,16 +409,17 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         // Pre Action
 
-        let preBuildableReference = try XCTUnwrap(got?.preActions.first?.environmentBuildable)
+        let preBuildableReference = try #require(got?.preActions.first?.environmentBuildable)
 
-        XCTAssertEqual(preBuildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")
-        XCTAssertEqual(preBuildableReference.buildableName, "App.app")
-        XCTAssertEqual(preBuildableReference.blueprintName, "App")
-        XCTAssertEqual(preBuildableReference.buildableIdentifier, "primary")
+        #expect(preBuildableReference.referencedContainer == "container:Projects/Project/Project.xcodeproj")
+        #expect(preBuildableReference.buildableName == "App.app")
+        #expect(preBuildableReference.blueprintName == "App")
+        #expect(preBuildableReference.buildableIdentifier == "primary")
     }
 
     // MARK: - Test Action Tests
 
+    @Test
     func test_schemeTestAction_when_testsTarget() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
@@ -456,24 +458,25 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
-        XCTAssertNil(result.macroExpansion)
-        let testable = try XCTUnwrap(result.testables.first)
+        let result = try #require(got)
+        #expect(result.buildConfiguration == "Debug")
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.shouldUseLaunchSchemeArgsEnv == true)
+        #expect(result.macroExpansion == nil)
+        let testable = try #require(result.testables.first)
         let buildableReference = testable.buildableReference
 
-        XCTAssertEqual(testable.skipped, false)
-        XCTAssertEqual(testable.locationScenarioReference?.referenceType, "1")
-        XCTAssertEqual(testable.locationScenarioReference?.identifier, "Rio de Janeiro, Brazil")
-        XCTAssertEqual(buildableReference.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(buildableReference.buildableName, "AppTests.xctest")
-        XCTAssertEqual(buildableReference.blueprintName, "AppTests")
-        XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
+        #expect(testable.skipped == false)
+        #expect(testable.locationScenarioReference?.referenceType == "1")
+        #expect(testable.locationScenarioReference?.identifier == "Rio de Janeiro, Brazil")
+        #expect(buildableReference.referencedContainer == "container:Project.xcodeproj")
+        #expect(buildableReference.buildableName == "AppTests.xctest")
+        #expect(buildableReference.blueprintName == "AppTests")
+        #expect(buildableReference.buildableIdentifier == "primary")
     }
 
+    @Test
     func test_schemeTestAction_with_expandVariable() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
@@ -508,27 +511,28 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
-        let testable = try XCTUnwrap(result.testables.first)
+        let result = try #require(got)
+        #expect(result.buildConfiguration == "Debug")
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.shouldUseLaunchSchemeArgsEnv == true)
+        let testable = try #require(result.testables.first)
         let buildableReference = testable.buildableReference
 
-        XCTAssertEqual(result.macroExpansion?.buildableName, "App.app")
-        XCTAssertEqual(result.macroExpansion?.blueprintName, "App")
-        XCTAssertEqual(result.macroExpansion?.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
+        #expect(result.macroExpansion?.buildableName == "App.app")
+        #expect(result.macroExpansion?.blueprintName == "App")
+        #expect(result.macroExpansion?.referencedContainer == "container:Project.xcodeproj")
+        #expect(result.macroExpansion?.buildableIdentifier == "primary")
 
-        XCTAssertEqual(testable.skipped, false)
+        #expect(testable.skipped == false)
 
-        XCTAssertEqual(buildableReference.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(buildableReference.buildableName, "AppTests.xctest")
-        XCTAssertEqual(buildableReference.blueprintName, "AppTests")
-        XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
+        #expect(buildableReference.referencedContainer == "container:Project.xcodeproj")
+        #expect(buildableReference.buildableName == "AppTests.xctest")
+        #expect(buildableReference.blueprintName == "AppTests")
+        #expect(buildableReference.buildableIdentifier == "primary")
     }
 
+    @Test
     func test_schemeLaunchAction_with_expandVariable() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
@@ -562,18 +566,19 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
+        let result = try #require(got)
 
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.buildConfiguration == "Debug")
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
 
-        XCTAssertEqual(result.macroExpansion?.buildableName, "Framework.framework")
-        XCTAssertEqual(result.macroExpansion?.blueprintName, "Framework")
-        XCTAssertEqual(result.macroExpansion?.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
+        #expect(result.macroExpansion?.buildableName == "Framework.framework")
+        #expect(result.macroExpansion?.blueprintName == "Framework")
+        #expect(result.macroExpansion?.referencedContainer == "container:Project.xcodeproj")
+        #expect(result.macroExpansion?.buildableIdentifier == "primary")
     }
 
+    @Test
     func test_schemeLaunchAction_with_customWorkingDirectoryEnabled() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
@@ -608,11 +613,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.customWorkingDirectory, projectPath.pathString)
-        XCTAssertEqual(result.useCustomWorkingDirectory, true)
+        let result = try #require(got)
+        #expect(result.customWorkingDirectory == projectPath.pathString)
+        #expect(result.useCustomWorkingDirectory == true)
     }
 
+    @Test
     func test_schemeLaunchAction_with_launchStyle() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
@@ -647,19 +653,20 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
+        let result = try #require(got)
 
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(result.launchStyle, .wait)
+        #expect(result.buildConfiguration == "Debug")
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.launchStyle == .wait)
 
-        XCTAssertEqual(result.macroExpansion?.buildableName, "Framework.framework")
-        XCTAssertEqual(result.macroExpansion?.blueprintName, "Framework")
-        XCTAssertEqual(result.macroExpansion?.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
+        #expect(result.macroExpansion?.buildableName == "Framework.framework")
+        #expect(result.macroExpansion?.blueprintName == "Framework")
+        #expect(result.macroExpansion?.referencedContainer == "container:Project.xcodeproj")
+        #expect(result.macroExpansion?.buildableIdentifier == "primary")
     }
 
+    @Test
     func test_schemeLaunchAction_with_appClips() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
@@ -695,20 +702,21 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
+        let result = try #require(got)
 
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(result.launchStyle, .wait)
-        XCTAssertEqual(result.appClipInvocationURLString, "https://app-clips.com/example")
+        #expect(result.buildConfiguration == "Debug")
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.launchStyle == .wait)
+        #expect(result.appClipInvocationURLString == "https://app-clips.com/example")
 
-        XCTAssertEqual(result.macroExpansion?.buildableName, "Framework.framework")
-        XCTAssertEqual(result.macroExpansion?.blueprintName, "Framework")
-        XCTAssertEqual(result.macroExpansion?.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
+        #expect(result.macroExpansion?.buildableName == "Framework.framework")
+        #expect(result.macroExpansion?.blueprintName == "Framework")
+        #expect(result.macroExpansion?.referencedContainer == "container:Project.xcodeproj")
+        #expect(result.macroExpansion?.buildableIdentifier == "primary")
     }
 
+    @Test
     func test_schemeTestAction_with_codeCoverageTargets() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -745,15 +753,16 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        let codeCoverageTargetsBuildableReference = try XCTUnwrap(result.codeCoverageTargets)
-        XCTAssertEqual(result.onlyGenerateCoverageForSpecifiedTargets, true)
-        XCTAssertEqual(codeCoverageTargetsBuildableReference.count, 1)
-        XCTAssertEqual(codeCoverageTargetsBuildableReference.first?.buildableName, "App.app")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        let codeCoverageTargetsBuildableReference = try #require(result.codeCoverageTargets)
+        #expect(result.onlyGenerateCoverageForSpecifiedTargets == true)
+        #expect(codeCoverageTargetsBuildableReference.count == 1)
+        #expect(codeCoverageTargetsBuildableReference.first?.buildableName == "App.app")
     }
 
+    @Test
     func test_schemeTestAction_when_notTestsTarget() throws {
         // Given
         let scheme = Scheme.test()
@@ -773,15 +782,16 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // When
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, false)
-        XCTAssertNil(result.macroExpansion)
-        XCTAssertEqual(result.testables.count, 0)
+        let result = try #require(got)
+        #expect(result.buildConfiguration == "Debug")
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.shouldUseLaunchSchemeArgsEnv == false)
+        #expect(result.macroExpansion == nil)
+        #expect(result.testables.count == 0)
     }
 
+    @Test
     func test_schemeTestAction_when_usingTestPlans() throws {
         // Given
         let project = Project.test()
@@ -803,13 +813,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // When
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(result.testPlans?.count, 1)
-        XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.testPlans?.count == 1)
+        #expect(result.testPlans?.first?.reference == "container:folder/Plan.xctestplan")
     }
 
+    @Test
     func test_schemeTestAction_when_usingTestPlans_with_disabled_attachDebugger() throws {
         // Given
         let project = Project.test()
@@ -831,13 +842,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // When
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
-        XCTAssertEqual(result.testPlans?.count, 1)
-        XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "")
+        #expect(result.selectedLauncherIdentifier == "Xcode.IDEFoundation.Launcher.PosixSpawn")
+        #expect(result.testPlans?.count == 1)
+        #expect(result.testPlans?.first?.reference == "container:folder/Plan.xctestplan")
     }
 
+    @Test
     func test_schemeTestAction_with_testable_info() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
@@ -872,17 +884,18 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             generatedProjects: createGeneratedProjects(projects: [project])
         )
 
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
 
         // Then
         let testableTargetReference = result.testables[0]
-        XCTAssertEqual(testableTargetReference.skipped, false)
-        XCTAssertEqual(testableTargetReference.parallelization, .all)
-        XCTAssertEqual(testableTargetReference.randomExecutionOrdering, true)
+        #expect(testableTargetReference.skipped == false)
+        #expect(testableTargetReference.parallelization == .all)
+        #expect(testableTargetReference.randomExecutionOrdering == true)
     }
 
+    @Test
     func test_schemeTestAction_with_disabled_attachDebugger() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
@@ -916,11 +929,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "")
+        #expect(result.selectedLauncherIdentifier == "Xcode.IDEFoundation.Launcher.PosixSpawn")
     }
 
+    @Test
     func test_schemeTestAction_with_preferredScreenCaptureFormat() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -956,10 +970,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.preferredScreenCaptureFormat, .screenshots)
+        let result = try #require(got)
+        #expect(result.preferredScreenCaptureFormat == .screenshots)
     }
 
+    @Test
     func test_schemeBuildAction() throws {
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
@@ -993,22 +1008,23 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
-        XCTAssertNil(result.macroExpansion)
-        let testable = try XCTUnwrap(result.testables.first)
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.buildConfiguration == "Debug")
+        #expect(result.shouldUseLaunchSchemeArgsEnv == true)
+        #expect(result.macroExpansion == nil)
+        let testable = try #require(result.testables.first)
         let buildableReference = testable.buildableReference
 
-        XCTAssertEqual(testable.skipped, false)
-        XCTAssertEqual(buildableReference.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(buildableReference.buildableName, "AppTests.xctest")
-        XCTAssertEqual(buildableReference.blueprintName, "AppTests")
-        XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
+        #expect(testable.skipped == false)
+        #expect(buildableReference.referencedContainer == "container:Project.xcodeproj")
+        #expect(buildableReference.buildableName == "AppTests.xctest")
+        #expect(buildableReference.blueprintName == "AppTests")
+        #expect(buildableReference.buildableIdentifier == "primary")
     }
 
+    @Test
     func test_schemeTestAction_with_executionAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -1057,36 +1073,37 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         // Pre Action
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.language, "es")
-        XCTAssertEqual(result.region, "ES")
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+        let result = try #require(got)
+        #expect(result.language == "es")
+        #expect(result.region == "ES")
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
 
-        XCTAssertEqual(result.preActions.first?.title, "Pre Action")
-        XCTAssertEqual(result.preActions.first?.scriptText, "echo Pre Actions")
-        XCTAssertEqual(result.preActions.first?.shellToInvoke, "/bin/sh")
+        #expect(result.preActions.first?.title == "Pre Action")
+        #expect(result.preActions.first?.scriptText == "echo Pre Actions")
+        #expect(result.preActions.first?.shellToInvoke == "/bin/sh")
 
-        let preBuildableReference = try XCTUnwrap(result.preActions.first?.environmentBuildable)
+        let preBuildableReference = try #require(result.preActions.first?.environmentBuildable)
 
-        XCTAssertEqual(preBuildableReference.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(preBuildableReference.buildableName, "AppTests.xctest")
-        XCTAssertEqual(preBuildableReference.blueprintName, "AppTests")
-        XCTAssertEqual(preBuildableReference.buildableIdentifier, "primary")
+        #expect(preBuildableReference.referencedContainer == "container:Project.xcodeproj")
+        #expect(preBuildableReference.buildableName == "AppTests.xctest")
+        #expect(preBuildableReference.blueprintName == "AppTests")
+        #expect(preBuildableReference.buildableIdentifier == "primary")
 
         // Post Action
-        XCTAssertEqual(result.postActions.first?.title, "Post Action")
-        XCTAssertEqual(result.postActions.first?.scriptText, "echo Post Actions")
-        XCTAssertEqual(result.postActions.first?.shellToInvoke, "/bin/sh")
+        #expect(result.postActions.first?.title == "Post Action")
+        #expect(result.postActions.first?.scriptText == "echo Post Actions")
+        #expect(result.postActions.first?.shellToInvoke == "/bin/sh")
 
-        let postBuildableReference = try XCTUnwrap(result.postActions.first?.environmentBuildable)
+        let postBuildableReference = try #require(result.postActions.first?.environmentBuildable)
 
-        XCTAssertEqual(postBuildableReference.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(postBuildableReference.buildableName, "AppTests.xctest")
-        XCTAssertEqual(postBuildableReference.blueprintName, "AppTests")
-        XCTAssertEqual(postBuildableReference.buildableIdentifier, "primary")
+        #expect(postBuildableReference.referencedContainer == "container:Project.xcodeproj")
+        #expect(postBuildableReference.buildableName == "AppTests.xctest")
+        #expect(postBuildableReference.blueprintName == "AppTests")
+        #expect(postBuildableReference.buildableIdentifier == "primary")
     }
 
+    @Test
     func test_schemeTestAction_when_testsTarget_with_skippedTests() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
@@ -1121,25 +1138,26 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
-        XCTAssertNil(result.macroExpansion)
-        let testable = try XCTUnwrap(result.testables.first)
+        let result = try #require(got)
+        #expect(result.buildConfiguration == "Debug")
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.shouldUseLaunchSchemeArgsEnv == true)
+        #expect(result.macroExpansion == nil)
+        let testable = try #require(result.testables.first)
         let buildableReference = testable.buildableReference
 
-        XCTAssertEqual(testable.skipped, false)
-        XCTAssertEqual(buildableReference.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(buildableReference.buildableName, "AppTests.xctest")
-        XCTAssertEqual(buildableReference.blueprintName, "AppTests")
-        XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
-        XCTAssertEqual(testable.skippedTests, [XCScheme.TestItem(identifier: "AppTests/test_twoPlusTwo_isFour")])
+        #expect(testable.skipped == false)
+        #expect(buildableReference.referencedContainer == "container:Project.xcodeproj")
+        #expect(buildableReference.buildableName == "AppTests.xctest")
+        #expect(buildableReference.blueprintName == "AppTests")
+        #expect(buildableReference.buildableIdentifier == "primary")
+        #expect(testable.skippedTests == [XCScheme.TestItem(identifier: "AppTests/test_twoPlusTwo_isFour")])
     }
 
     // MARK: - Launch Action Tests
 
+    @Test
     func test_schemeLaunchAction() throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/somepath/Workspace")
@@ -1201,44 +1219,42 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertNil(result.macroExpansion)
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.macroExpansion == nil)
 
-        let buildableReference = try XCTUnwrap(result.runnable?.buildableReference)
+        let buildableReference = try #require(result.runnable?.buildableReference)
 
-        XCTAssertEqual(result.buildConfiguration, "Release")
-        XCTAssertEqual(result.commandlineArguments, XCScheme.CommandLineArguments(arguments: [
+        #expect(result.buildConfiguration == "Release")
+        #expect(result.commandlineArguments == XCScheme.CommandLineArguments(arguments: [
             XCScheme.CommandLineArguments.CommandLineArgument(name: "arg1", enabled: true),
             XCScheme.CommandLineArguments.CommandLineArgument(name: "arg2", enabled: true),
             XCScheme.CommandLineArguments.CommandLineArgument(name: "arg3", enabled: false),
             XCScheme.CommandLineArguments.CommandLineArgument(name: "arg4", enabled: true),
         ]))
-        XCTAssertEqual(result.environmentVariables, [
+        #expect(result.environmentVariables == [
             XCScheme.EnvironmentVariable(variable: "env1", value: "1", enabled: true),
             XCScheme.EnvironmentVariable(variable: "env2", value: "2", enabled: true),
             XCScheme.EnvironmentVariable(variable: "env3", value: "3", enabled: true),
             XCScheme.EnvironmentVariable(variable: "env4", value: "4", enabled: true),
         ])
-        XCTAssertNil(result.askForAppToLaunch)
-        XCTAssertNil(result.launchAutomaticallySubstyle)
-        XCTAssertEqual(result.customLLDBInitFile, "$(SRCROOT)/../etc/path/to/lldbinit")
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(buildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")
-        XCTAssertEqual(buildableReference.buildableName, "App.app")
-        XCTAssertEqual(buildableReference.blueprintName, "App")
-        XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
-        XCTAssertEqual(
-            result.storeKitConfigurationFileReference,
-            .init(identifier: "../Projects/Project/nested/configuration/configuration.storekit")
-        )
-        XCTAssertEqual(result.locationScenarioReference?.referenceType, "1")
-        XCTAssertEqual(result.locationScenarioReference?.identifier, "New York, NY, USA")
-        XCTAssertEqual(result.language, "pl")
+        #expect(result.askForAppToLaunch == nil)
+        #expect(result.launchAutomaticallySubstyle == nil)
+        #expect(result.customLLDBInitFile == "$(SRCROOT)/../etc/path/to/lldbinit")
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(buildableReference.referencedContainer == "container:Projects/Project/Project.xcodeproj")
+        #expect(buildableReference.buildableName == "App.app")
+        #expect(buildableReference.blueprintName == "App")
+        #expect(buildableReference.buildableIdentifier == "primary")
+        #expect(result.storeKitConfigurationFileReference == .init(identifier: "../Projects/Project/nested/configuration/configuration.storekit"))
+        #expect(result.locationScenarioReference?.referenceType == "1")
+        #expect(result.locationScenarioReference?.identifier == "New York, NY, USA")
+        #expect(result.language == "pl")
     }
 
+    @Test
     func test_schemeLaunchAction_argumentsOrder() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
@@ -1273,11 +1289,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
 
-        XCTAssertEqual(result.commandlineArguments, XCScheme.CommandLineArguments(arguments: [
+        #expect(result.commandlineArguments == XCScheme.CommandLineArguments(arguments: [
             XCScheme.CommandLineArguments.CommandLineArgument(name: "arg4", enabled: true),
             XCScheme.CommandLineArguments.CommandLineArgument(name: "arg2", enabled: false),
             XCScheme.CommandLineArguments.CommandLineArgument(name: "arg1", enabled: false),
@@ -1285,6 +1301,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         ]))
     }
 
+    @Test
     func test_schemeLaunchAction_when_notRunnableTarget() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -1314,16 +1331,17 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertNil(result.runnable?.buildableReference)
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.pathRunnable?.filePath, "/usr/bin/foo")
-        XCTAssertFalse(result.disableMainThreadChecker)
-        XCTAssertEqual(result.language, nil)
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.runnable?.buildableReference == nil)
+        #expect(result.buildConfiguration == "Debug")
+        #expect(result.pathRunnable?.filePath == "/usr/bin/foo")
+        #expect(!result.disableMainThreadChecker)
+        #expect(result.language == nil)
     }
 
+    @Test
     func test_schemeLaunchAction_with_path() throws {
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
 
@@ -1355,19 +1373,20 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertNil(result.runnable?.buildableReference)
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.runnable?.buildableReference == nil)
 
-        XCTAssertEqual(result.buildConfiguration, "Debug")
-        XCTAssertEqual(result.macroExpansion?.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(result.macroExpansion?.buildableName, "libLibrary.dylib")
-        XCTAssertEqual(result.macroExpansion?.blueprintName, "Library")
-        XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
-        XCTAssertFalse(result.disableMainThreadChecker)
+        #expect(result.buildConfiguration == "Debug")
+        #expect(result.macroExpansion?.referencedContainer == "container:Project.xcodeproj")
+        #expect(result.macroExpansion?.buildableName == "libLibrary.dylib")
+        #expect(result.macroExpansion?.blueprintName == "Library")
+        #expect(result.macroExpansion?.buildableIdentifier == "primary")
+        #expect(!result.disableMainThreadChecker)
     }
 
+    @Test
     func test_schemeLaunchAction_with_executionAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -1413,19 +1432,20 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             rootPath: projectPath,
             generatedProjects: createGeneratedProjects(projects: [project])
         )
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
 
         // Then
-        XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
-        XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
-        XCTAssertEqual(got?.preActions.first?.shellToInvoke, "/bin/sh")
-        XCTAssertEqual(got?.postActions.first?.title, "Post Action")
-        XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
-        XCTAssertEqual(got?.postActions.first?.shellToInvoke, "/bin/sh")
+        #expect(got?.preActions.first?.title == "Pre Action")
+        #expect(got?.preActions.first?.scriptText == "echo Pre Actions")
+        #expect(got?.preActions.first?.shellToInvoke == "/bin/sh")
+        #expect(got?.postActions.first?.title == "Post Action")
+        #expect(got?.postActions.first?.scriptText == "echo Post Actions")
+        #expect(got?.postActions.first?.shellToInvoke == "/bin/sh")
     }
 
+    @Test
     func test_schemeLaunchAction_with_disabled_attachDebugger() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
@@ -1456,11 +1476,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "")
+        #expect(result.selectedLauncherIdentifier == "Xcode.IDEFoundation.Launcher.PosixSpawn")
     }
 
+    @Test
     func test_schemeLaunchAction_without_explicit_runAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
@@ -1486,11 +1507,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
     }
 
+    @Test
     func test_schemeLaunchAction_for_app_extension() throws {
         // Given
         let path = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
@@ -1529,13 +1551,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
-        XCTAssertEqual(result.askForAppToLaunch, true)
-        XCTAssertEqual(result.launchAutomaticallySubstyle, "2")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "")
+        #expect(result.selectedLauncherIdentifier == "Xcode.IDEFoundation.Launcher.PosixSpawn")
+        #expect(result.askForAppToLaunch == true)
+        #expect(result.launchAutomaticallySubstyle == "2")
     }
 
+    @Test
     func test_schemeLaunchAction_for_app_extension_with_disabled_attachDebugger() throws {
         // Given
         let path = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
@@ -1577,10 +1600,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
+        let result = try #require(got)
+        #expect(result.selectedDebuggerIdentifier == "")
     }
 
+    @Test
     func test_schemeLaunchAction_askForAppToLaunch() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
@@ -1609,15 +1633,16 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.askForAppToLaunch, true)
-        XCTAssertEqual(result.launchAutomaticallySubstyle, "2")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        let result = try #require(got)
+        #expect(result.askForAppToLaunch == true)
+        #expect(result.launchAutomaticallySubstyle == "2")
+        #expect(result.selectedLauncherIdentifier == "Xcode.DebuggerFoundation.Launcher.LLDB")
+        #expect(result.selectedDebuggerIdentifier == "Xcode.DebuggerFoundation.Debugger.LLDB")
     }
 
     // MARK: - Profile Action Tests
 
+    @Test
     func test_schemeProfileAction_when_runnableTarget() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -1643,29 +1668,30 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        let buildable = try XCTUnwrap(result.buildableProductRunnable?.buildableReference)
+        let result = try #require(got)
+        let buildable = try #require(result.buildableProductRunnable?.buildableReference)
 
-        XCTAssertNil(result.macroExpansion)
-        XCTAssertEqual(result.buildableProductRunnable?.runnableDebuggingMode, "0")
-        XCTAssertEqual(buildable.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(buildable.buildableName, target.productNameWithExtension)
-        XCTAssertEqual(buildable.blueprintName, target.name)
-        XCTAssertEqual(buildable.buildableIdentifier, "primary")
+        #expect(result.macroExpansion == nil)
+        #expect(result.buildableProductRunnable?.runnableDebuggingMode == "0")
+        #expect(buildable.referencedContainer == "container:Project.xcodeproj")
+        #expect(buildable.buildableName == target.productNameWithExtension)
+        #expect(buildable.blueprintName == target.name)
+        #expect(buildable.buildableIdentifier == "primary")
 
-        XCTAssertEqual(result.buildConfiguration, "Beta Release")
-        XCTAssertEqual(result.preActions, [])
-        XCTAssertEqual(result.postActions, [])
-        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
-        XCTAssertEqual(result.savedToolIdentifier, "")
-        XCTAssertEqual(result.ignoresPersistentStateOnLaunch, false)
-        XCTAssertEqual(result.useCustomWorkingDirectory, false)
-        XCTAssertEqual(result.debugDocumentVersioning, true)
-        XCTAssertNil(result.commandlineArguments)
-        XCTAssertNil(result.environmentVariables)
-        XCTAssertEqual(result.enableTestabilityWhenProfilingTests, true)
+        #expect(result.buildConfiguration == "Beta Release")
+        #expect(result.preActions == [])
+        #expect(result.postActions == [])
+        #expect(result.shouldUseLaunchSchemeArgsEnv == true)
+        #expect(result.savedToolIdentifier == "")
+        #expect(result.ignoresPersistentStateOnLaunch == false)
+        #expect(result.useCustomWorkingDirectory == false)
+        #expect(result.debugDocumentVersioning == true)
+        #expect(result.commandlineArguments == nil)
+        #expect(result.environmentVariables == nil)
+        #expect(result.enableTestabilityWhenProfilingTests == true)
     }
 
+    @Test
     func test_schemeProfileAction_when_notRunnableTarget() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -1703,28 +1729,29 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
+        let result = try #require(got)
         let buildable = result.buildableProductRunnable?.buildableReference
 
-        XCTAssertNil(buildable)
-        XCTAssertEqual(result.buildConfiguration, "Beta Release")
-        XCTAssertEqual(result.preActions, [])
-        XCTAssertEqual(result.postActions, [])
-        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
-        XCTAssertEqual(result.savedToolIdentifier, "")
-        XCTAssertEqual(result.ignoresPersistentStateOnLaunch, false)
-        XCTAssertEqual(result.useCustomWorkingDirectory, false)
-        XCTAssertEqual(result.debugDocumentVersioning, true)
-        XCTAssertNil(result.commandlineArguments)
-        XCTAssertNil(result.environmentVariables)
-        XCTAssertEqual(result.enableTestabilityWhenProfilingTests, true)
+        #expect(buildable == nil)
+        #expect(result.buildConfiguration == "Beta Release")
+        #expect(result.preActions == [])
+        #expect(result.postActions == [])
+        #expect(result.shouldUseLaunchSchemeArgsEnv == true)
+        #expect(result.savedToolIdentifier == "")
+        #expect(result.ignoresPersistentStateOnLaunch == false)
+        #expect(result.useCustomWorkingDirectory == false)
+        #expect(result.debugDocumentVersioning == true)
+        #expect(result.commandlineArguments == nil)
+        #expect(result.environmentVariables == nil)
+        #expect(result.enableTestabilityWhenProfilingTests == true)
 
-        XCTAssertEqual(result.macroExpansion?.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(result.macroExpansion?.buildableName, "libLibrary.dylib")
-        XCTAssertEqual(result.macroExpansion?.blueprintName, "Library")
-        XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
+        #expect(result.macroExpansion?.referencedContainer == "container:Project.xcodeproj")
+        #expect(result.macroExpansion?.buildableName == "libLibrary.dylib")
+        #expect(result.macroExpansion?.blueprintName == "Library")
+        #expect(result.macroExpansion?.buildableIdentifier == "primary")
     }
 
+    @Test
     func test_schemeProfileAction_when_contains_launch_arguments() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -1750,32 +1777,30 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        let buildable = try XCTUnwrap(result.buildableProductRunnable?.buildableReference)
+        let result = try #require(got)
+        let buildable = try #require(result.buildableProductRunnable?.buildableReference)
 
-        XCTAssertNil(result.macroExpansion)
-        XCTAssertEqual(result.buildableProductRunnable?.runnableDebuggingMode, "0")
-        XCTAssertEqual(buildable.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(buildable.buildableName, target.productNameWithExtension)
-        XCTAssertEqual(buildable.blueprintName, target.name)
-        XCTAssertEqual(buildable.buildableIdentifier, "primary")
+        #expect(result.macroExpansion == nil)
+        #expect(result.buildableProductRunnable?.runnableDebuggingMode == "0")
+        #expect(buildable.referencedContainer == "container:Project.xcodeproj")
+        #expect(buildable.buildableName == target.productNameWithExtension)
+        #expect(buildable.blueprintName == target.name)
+        #expect(buildable.buildableIdentifier == "primary")
 
-        XCTAssertEqual(result.buildConfiguration, "Beta Release")
-        XCTAssertEqual(result.preActions, [])
-        XCTAssertEqual(result.postActions, [])
-        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, false)
-        XCTAssertEqual(result.savedToolIdentifier, "")
-        XCTAssertEqual(result.ignoresPersistentStateOnLaunch, false)
-        XCTAssertEqual(result.useCustomWorkingDirectory, false)
-        XCTAssertEqual(result.debugDocumentVersioning, true)
-        XCTAssertEqual(
-            result.commandlineArguments,
-            XCScheme.CommandLineArguments(arguments: [.init(name: "something", enabled: true)])
-        )
-        XCTAssertEqual(result.environmentVariables, [])
-        XCTAssertEqual(result.enableTestabilityWhenProfilingTests, true)
+        #expect(result.buildConfiguration == "Beta Release")
+        #expect(result.preActions == [])
+        #expect(result.postActions == [])
+        #expect(result.shouldUseLaunchSchemeArgsEnv == false)
+        #expect(result.savedToolIdentifier == "")
+        #expect(result.ignoresPersistentStateOnLaunch == false)
+        #expect(result.useCustomWorkingDirectory == false)
+        #expect(result.debugDocumentVersioning == true)
+        #expect(result.commandlineArguments == XCScheme.CommandLineArguments(arguments: [.init(name: "something", enabled: true)]))
+        #expect(result.environmentVariables == [])
+        #expect(result.enableTestabilityWhenProfilingTests == true)
     }
 
+    @Test
     func test_defaultSchemeProfileAction_when_runActionIsSpecified() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -1810,28 +1835,29 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        let buildable = try XCTUnwrap(result.buildableProductRunnable?.buildableReference)
+        let result = try #require(got)
+        let buildable = try #require(result.buildableProductRunnable?.buildableReference)
 
-        XCTAssertNil(result.macroExpansion)
-        XCTAssertEqual(result.buildableProductRunnable?.runnableDebuggingMode, "0")
-        XCTAssertEqual(buildable.referencedContainer, "container:Project.xcodeproj")
-        XCTAssertEqual(buildable.buildableName, target.productNameWithExtension)
-        XCTAssertEqual(buildable.blueprintName, target.name)
-        XCTAssertEqual(buildable.buildableIdentifier, "primary")
+        #expect(result.macroExpansion == nil)
+        #expect(result.buildableProductRunnable?.runnableDebuggingMode == "0")
+        #expect(buildable.referencedContainer == "container:Project.xcodeproj")
+        #expect(buildable.buildableName == target.productNameWithExtension)
+        #expect(buildable.blueprintName == target.name)
+        #expect(buildable.buildableIdentifier == "primary")
 
-        XCTAssertEqual(result.buildConfiguration, "Release")
-        XCTAssertEqual(result.preActions, [])
-        XCTAssertEqual(result.postActions, [])
-        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
-        XCTAssertEqual(result.savedToolIdentifier, "")
-        XCTAssertEqual(result.ignoresPersistentStateOnLaunch, false)
-        XCTAssertEqual(result.useCustomWorkingDirectory, false)
-        XCTAssertEqual(result.debugDocumentVersioning, true)
-        XCTAssertNil(result.commandlineArguments)
-        XCTAssertNil(result.environmentVariables)
+        #expect(result.buildConfiguration == "Release")
+        #expect(result.preActions == [])
+        #expect(result.postActions == [])
+        #expect(result.shouldUseLaunchSchemeArgsEnv == true)
+        #expect(result.savedToolIdentifier == "")
+        #expect(result.ignoresPersistentStateOnLaunch == false)
+        #expect(result.useCustomWorkingDirectory == false)
+        #expect(result.debugDocumentVersioning == true)
+        #expect(result.commandlineArguments == nil)
+        #expect(result.environmentVariables == nil)
     }
 
+    @Test
     func test_schemeProfileAction_with_executionAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -1873,14 +1899,15 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
-        XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
-        XCTAssertEqual(got?.preActions.first?.shellToInvoke, "/bin/sh")
-        XCTAssertEqual(got?.postActions.first?.title, "Post Action")
-        XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
-        XCTAssertEqual(got?.postActions.first?.shellToInvoke, "/bin/sh")
+        #expect(got?.preActions.first?.title == "Pre Action")
+        #expect(got?.preActions.first?.scriptText == "echo Pre Actions")
+        #expect(got?.preActions.first?.shellToInvoke == "/bin/sh")
+        #expect(got?.postActions.first?.title == "Post Action")
+        #expect(got?.postActions.first?.scriptText == "echo Post Actions")
+        #expect(got?.postActions.first?.shellToInvoke == "/bin/sh")
     }
 
+    @Test
     func test_schemeProfileAction_askForAppToLaunch() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
@@ -1915,13 +1942,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.askForAppToLaunch, true)
-        XCTAssertEqual(result.launchAutomaticallySubstyle, "2")
+        let result = try #require(got)
+        #expect(result.askForAppToLaunch == true)
+        #expect(result.launchAutomaticallySubstyle == "2")
     }
 
     // MARK: - Analyze Action Tests
 
+    @Test
     func test_schemeAnalyzeAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
@@ -1945,16 +1973,18 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildConfiguration, "Beta Release")
+        let result = try #require(got)
+        #expect(result.buildConfiguration == "Beta Release")
     }
 
+    @Test
     func test_defaultSchemeArchiveAction() {
         let got = subject.defaultSchemeArchiveAction(for: .test())
-        XCTAssertEqual(got.buildConfiguration, "Release")
-        XCTAssertEqual(got.revealArchiveInOrganizer, true)
+        #expect(got.buildConfiguration == "Release")
+        #expect(got.revealArchiveInOrganizer == true)
     }
 
+    @Test
     func test_schemeArchiveAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
@@ -1982,12 +2012,13 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildConfiguration, "Beta Release")
-        XCTAssertEqual(result.customArchiveName, "App [Beta]")
-        XCTAssertEqual(result.revealArchiveInOrganizer, true)
+        let result = try #require(got)
+        #expect(result.buildConfiguration == "Beta Release")
+        #expect(result.customArchiveName == "App [Beta]")
+        #expect(result.revealArchiveInOrganizer == true)
     }
 
+    @Test
     func test_schemeArchiveAction_whenNoBuildActionSpecified() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
@@ -2017,12 +2048,13 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         // Then
-        let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.buildConfiguration, "Beta Release")
-        XCTAssertEqual(result.customArchiveName, "App [Beta]")
-        XCTAssertEqual(result.revealArchiveInOrganizer, true)
+        let result = try #require(got)
+        #expect(result.buildConfiguration == "Beta Release")
+        #expect(result.customArchiveName == "App [Beta]")
+        #expect(result.revealArchiveInOrganizer == true)
     }
 
+    @Test
     func test_schemeGenerationModes_customOnly() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
@@ -2057,9 +2089,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let schemes = result.map(\.xcScheme.name)
-        XCTAssertEqual(schemes, [scheme.name])
+        #expect(schemes == [scheme.name])
     }
 
+    @Test
     func test_generate_appExtensionScheme() throws {
         let path = try AbsolutePath(validating: "/test")
         let app = Target.test(name: "App", product: .app)
@@ -2099,12 +2132,13 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let schemeForExtension = result.map(\.xcScheme.wasCreatedForAppExtension)
-        XCTAssertEqual(schemeForExtension, [
+        #expect(schemeForExtension == [
             nil, // Xcode omits the setting rather than have it set to `false`
             true,
         ])
     }
 
+    @Test
     func test_schemeGenerationLastUpgradeCheck_workspace() throws {
         // Given
         let target = Target.test()
@@ -2135,12 +2169,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             graphTraverser: graphTraverser
         )
 
-        XCTAssertEqual(
-            result.first?.xcScheme.lastUpgradeVersion,
-            "1300"
-        )
+        #expect(result.first?.xcScheme.lastUpgradeVersion == "1300")
     }
 
+    @Test
     func test_schemeGenerationLastUpgradeCheck_project() throws {
         // Given
         let target = Target.test()
@@ -2164,10 +2196,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             graphTraverser: graphTraverser
         )
 
-        XCTAssertEqual(
-            result.first?.xcScheme.lastUpgradeVersion,
-            "1300"
-        )
+        #expect(result.first?.xcScheme.lastUpgradeVersion == "1300")
     }
 
     // MARK: - Helpers

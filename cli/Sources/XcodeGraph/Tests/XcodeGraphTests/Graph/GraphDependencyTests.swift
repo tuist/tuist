@@ -1,43 +1,53 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class GraphDependencyTests: XCTestCase {
-    func test_codable_target() {
+struct GraphDependencyTests {
+    @Test func test_codable_target() throws {
         // Given
         let subject = GraphDependency.testTarget()
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(GraphDependency.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_codable_framework() {
+    @Test func test_codable_framework() throws {
         // Given
         let subject = GraphDependency.testFramework()
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(GraphDependency.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_isLinkable() {
-        XCTAssertFalse(GraphDependency.testMacro().isLinkable)
-        XCTAssertTrue(GraphDependency.testXCFramework().isLinkable)
-        XCTAssertTrue(GraphDependency.testFramework().isLinkable)
-        XCTAssertTrue(GraphDependency.testLibrary().isLinkable)
-        XCTAssertFalse(GraphDependency.testBundle().isLinkable)
-        XCTAssertTrue(GraphDependency.testPackageProduct().isLinkable)
-        XCTAssertTrue(GraphDependency.testTarget().isLinkable)
-        XCTAssertTrue(GraphDependency.testSDK().isLinkable)
+    @Test func test_isLinkable() {
+        #expect(!GraphDependency.testMacro().isLinkable)
+        #expect(GraphDependency.testXCFramework().isLinkable)
+        #expect(GraphDependency.testFramework().isLinkable)
+        #expect(GraphDependency.testLibrary().isLinkable)
+        #expect(!GraphDependency.testBundle().isLinkable)
+        #expect(GraphDependency.testPackageProduct().isLinkable)
+        #expect(GraphDependency.testTarget().isLinkable)
+        #expect(GraphDependency.testSDK().isLinkable)
     }
 
-    func test_isPrecompiledMacro() {
-        XCTAssertTrue(GraphDependency.testMacro().isPrecompiledMacro)
-        XCTAssertFalse(GraphDependency.testXCFramework().isPrecompiledMacro)
-        XCTAssertFalse(GraphDependency.testFramework().isPrecompiledMacro)
-        XCTAssertFalse(GraphDependency.testLibrary().isPrecompiledMacro)
-        XCTAssertFalse(GraphDependency.testBundle().isPrecompiledMacro)
-        XCTAssertFalse(GraphDependency.testPackageProduct().isPrecompiledMacro)
-        XCTAssertFalse(GraphDependency.testTarget().isPrecompiledMacro)
-        XCTAssertFalse(GraphDependency.testSDK().isPrecompiledMacro)
+    @Test func test_isPrecompiledMacro() {
+        #expect(GraphDependency.testMacro().isPrecompiledMacro)
+        #expect(!GraphDependency.testXCFramework().isPrecompiledMacro)
+        #expect(!GraphDependency.testFramework().isPrecompiledMacro)
+        #expect(!GraphDependency.testLibrary().isPrecompiledMacro)
+        #expect(!GraphDependency.testBundle().isPrecompiledMacro)
+        #expect(!GraphDependency.testPackageProduct().isPrecompiledMacro)
+        #expect(!GraphDependency.testTarget().isPrecompiledMacro)
+        #expect(!GraphDependency.testSDK().isPrecompiledMacro)
     }
 }

@@ -1,13 +1,18 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class BuildRuleFileTypeTests: XCTestCase {
-    func test_codable() {
+struct BuildRuleFileTypeTests {
+    @Test func test_codable() throws {
         // Given
         let subject = BuildRule.FileType.sourceFilesWithNamesMatching
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(BuildRule.self, from: data)
+        #expect(subject == decoded)
     }
 }

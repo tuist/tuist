@@ -1,11 +1,11 @@
 import Foundation
-import TuistSupportTesting
-import XCTest
+import Testing
+import TuistTesting
 
 @testable import ProjectDescription
 
-final class TargetTests: XCTestCase {
-    func test_toJSON() {
+struct TargetTests {
+    @Test func test_toJSON() throws {
         let subject: Target = .target(
             name: "name",
             destinations: [.iPhone, .iPad],
@@ -39,10 +39,10 @@ final class TargetTests: XCTestCase {
             coreDataModels: [.coreDataModel("pat", currentVersion: "version")],
             environmentVariables: ["a": "b"]
         )
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_toJSON_withFileList() {
+    @Test func test_toJSON_withFileList() throws {
         let subject: Target = .target(
             name: "name",
             destinations: [.iPhone, .iPad, .macWithiPadDesign],
@@ -88,6 +88,6 @@ final class TargetTests: XCTestCase {
             coreDataModels: [.coreDataModel("pat", currentVersion: "version")],
             environmentVariables: ["a": "b"]
         )
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 }

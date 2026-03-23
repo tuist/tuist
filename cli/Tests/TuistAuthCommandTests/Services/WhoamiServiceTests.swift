@@ -4,19 +4,17 @@
     import TuistConfigLoader
     import TuistCore
     import TuistServer
-    import XCTest
+    import Testing
 
     @testable import TuistAuthCommand
     @testable import TuistTesting
 
-    final class WhoamiServiceTests: TuistUnitTestCase {
-        private var serverSessionController: MockServerSessionControlling!
-        private var subject: WhoamiService!
-        private var configLoader: MockConfigLoading!
-        private var serverURL: URL!
-
-        override func setUp() {
-            super.setUp()
+    struct WhoamiServiceTests {
+        private let serverSessionController: MockServerSessionControlling
+        private let subject: WhoamiService
+        private let configLoader: MockConfigLoading
+        private let serverURL: URL
+        init() {
             serverSessionController = MockServerSessionControlling()
             configLoader = MockConfigLoading()
             serverURL = URL(string: "https://test.tuist.dev")!
@@ -27,14 +25,8 @@
             )
         }
 
-        override func tearDown() {
-            serverSessionController = nil
-            configLoader = nil
-            serverURL = nil
-            subject = nil
-            super.tearDown()
-        }
 
+        @Test
         func test_whoami_when_logged_in() async throws {
             try await withMockedDependencies {
                 // Given
@@ -46,10 +38,11 @@
                 try await subject.run(directory: nil, serverURL: nil)
 
                 // Then
-                XCTAssertPrinterOutputContains("tuist@tuist.dev")
+                TuistTest.expectLogs("tuist@tuist.dev")
             }
         }
 
+        @Test
         func test_whoami_when_logged_out() async throws {
             try await withMockedDependencies {
                 // Given
@@ -57,9 +50,7 @@
                     .authenticatedHandle(serverURL: .value(serverURL))
                     .willThrow(ServerSessionControllerError.unauthenticated)
 
-                await XCTAssertThrowsSpecific(
-                    try await subject.run(directory: nil, serverURL: nil), ServerSessionControllerError.unauthenticated
-                )
+                await #expect(throws: ServerSessionControllerError.unauthenticated) { try await subject.run(directory: nil, serverURL: nil) }
             }
         }
     }

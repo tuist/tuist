@@ -5,58 +5,42 @@ import TuistCore
 import TuistTesting
 import XcodeGraph
 import XcodeProj
-import XCTest
+import Testing
 
 @testable import TuistGenerator
 
-final class LinkGeneratorPathTests: TuistUnitTestCase {
+struct LinkGeneratorPathTests {
+    @Test
     func test_xcodeValue() {
         let path = try! AbsolutePath(validating: "/my-path")
-        XCTAssertEqual(LinkGeneratorPath.absolutePath(path).xcodeValue(sourceRootPath: .root), "$(SRCROOT)/my-path")
-        XCTAssertEqual(
-            LinkGeneratorPath.string("$(DEVELOPER_FRAMEWORKS_DIR)").xcodeValue(sourceRootPath: .root),
-            "$(DEVELOPER_FRAMEWORKS_DIR)"
-        )
+        #expect(LinkGeneratorPath.absolutePath(path).xcodeValue(sourceRootPath: .root) == "$(SRCROOT)/my-path")
+        #expect(LinkGeneratorPath.string("$(DEVELOPER_FRAMEWORKS_DIR)").xcodeValue(sourceRootPath: .root) == "$(DEVELOPER_FRAMEWORKS_DIR)")
     }
 }
 
-final class LinkGeneratorTests: XCTestCase {
-    var embedScriptGenerator: MockEmbedScriptGenerator!
-    var subject: LinkGenerator!
-
-    override func setUp() {
-        super.setUp()
+struct LinkGeneratorTests {
+    let embedScriptGenerator: MockEmbedScriptGenerator
+    let subject: LinkGenerator
+    init() {
         embedScriptGenerator = MockEmbedScriptGenerator()
         subject = LinkGenerator(embedScriptGenerator: embedScriptGenerator)
     }
 
-    override func tearDown() {
-        subject = nil
-        embedScriptGenerator = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_linkGeneratorError_description() {
-        XCTAssertEqual(
-            LinkGeneratorError.missingProduct(name: "name").description,
-            "Couldn't find a reference for the product name."
-        )
-        XCTAssertEqual(
-            LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/")).description,
-            "Couldn't find a reference for the file at path /."
-        )
-        XCTAssertEqual(
-            LinkGeneratorError.missingConfigurationList(targetName: "target").description,
-            "The target target doesn't have a configuration list."
-        )
+        #expect(LinkGeneratorError.missingProduct(name: "name").description == "Couldn't find a reference for the product name.")
+        #expect(LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/")).description == "Couldn't find a reference for the file at path /.")
+        #expect(LinkGeneratorError.missingConfigurationList(targetName: "target").description == "The target target doesn't have a configuration list.")
     }
 
+    @Test
     func test_linkGeneratorError_type() {
-        XCTAssertEqual(LinkGeneratorError.missingProduct(name: "name").type, .bug)
-        XCTAssertEqual(LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/")).type, .bug)
-        XCTAssertEqual(LinkGeneratorError.missingConfigurationList(targetName: "target").type, .bug)
+        #expect(LinkGeneratorError.missingProduct(name: "name").type == .bug)
+        #expect(LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/")).type == .bug)
+        #expect(LinkGeneratorError.missingConfigurationList(targetName: "target").type == .bug)
     }
 
+    @Test
     func test_generateEmbedPhase() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
@@ -97,23 +81,24 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let scriptBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
-        XCTAssertEqual(scriptBuildPhase?.name, "Embed Precompiled Frameworks")
-        XCTAssertEqual(scriptBuildPhase?.shellScript, "script")
-        XCTAssertEqual(scriptBuildPhase?.inputPaths, ["$(SRCROOT)/frameworks/A.framework"])
-        XCTAssertEqual(scriptBuildPhase?.outputPaths, ["output/A.framework"])
+        #expect(scriptBuildPhase?.name == "Embed Precompiled Frameworks")
+        #expect(scriptBuildPhase?.shellScript == "script")
+        #expect(scriptBuildPhase?.inputPaths == ["$(SRCROOT)/frameworks/A.framework"])
+        #expect(scriptBuildPhase?.outputPaths == ["output/A.framework"])
 
-        let embedBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
-        XCTAssertEqual(embedBuildPhase.name, "Embed Frameworks")
-        XCTAssertEqual(embedBuildPhase.dstPath, "")
-        XCTAssertEqual(embedBuildPhase.dstSubfolderSpec, .frameworks)
-        XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
+        let embedBuildPhase = try #require(pbxTarget.embedFrameworksBuildPhases().first)
+        #expect(embedBuildPhase.name == "Embed Frameworks")
+        #expect(embedBuildPhase.dstPath == "")
+        #expect(embedBuildPhase.dstSubfolderSpec == .frameworks)
+        #expect(embedBuildPhase.files?.map(\.file) == [
             wakaFile,
         ])
-        XCTAssertEqual(embedBuildPhase.files?.compactMap(\.settings), [
+        #expect(embedBuildPhase.files?.compactMap(\.settings) == [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
 
+    @Test
     func test_generateEmbedPhaseWithNoEmbeddableFrameworks() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
@@ -148,20 +133,21 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let scriptBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
-        XCTAssertNil(scriptBuildPhase)
+        #expect(scriptBuildPhase == nil)
 
-        let embedBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
-        XCTAssertEqual(embedBuildPhase.name, "Embed Frameworks")
-        XCTAssertEqual(embedBuildPhase.dstPath, "")
-        XCTAssertEqual(embedBuildPhase.dstSubfolderSpec, .frameworks)
-        XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
+        let embedBuildPhase = try #require(pbxTarget.embedFrameworksBuildPhases().first)
+        #expect(embedBuildPhase.name == "Embed Frameworks")
+        #expect(embedBuildPhase.dstPath == "")
+        #expect(embedBuildPhase.dstSubfolderSpec == .frameworks)
+        #expect(embedBuildPhase.files?.map(\.file) == [
             wakaFile,
         ])
-        XCTAssertEqual(embedBuildPhase.files?.compactMap(\.settings), [
+        #expect(embedBuildPhase.files?.compactMap(\.settings) == [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
 
+    @Test
     func test_generateEmbedPhase_includesSymbols_when_nonTestTarget() throws {
         try Product.allCases.filter { !$0.testsBundle }.forEach { product in
             // Given
@@ -201,13 +187,14 @@ final class LinkGeneratorTests: XCTestCase {
                 graphTraverser: graphTraverser
             )
 
-            XCTAssert(
+            #expect(
                 embedScriptGenerator.scriptArgs.last?.2 == true,
                 "Expected `includeSymbolsInFileLists == true` for product `\(product)`"
             )
         }
     }
 
+    @Test
     func test_generateEmbedPhase_doesNot_includesSymbols_when_testTarget() throws {
         for product in Product.allCases.filter(\.testsBundle) {
             // Given
@@ -247,13 +234,14 @@ final class LinkGeneratorTests: XCTestCase {
                 graphTraverser: graphTraverser
             )
 
-            XCTAssert(
+            #expect(
                 embedScriptGenerator.scriptArgs.last?.2 == false,
                 "Expected `includeSymbolsInFileLists == false` for product `\(product)`"
             )
         }
     }
 
+    @Test
     func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.product(
@@ -270,19 +258,20 @@ final class LinkGeneratorTests: XCTestCase {
             .embeddableFrameworks(path: .any, name: .any)
             .willReturn(dependencies)
 
-        XCTAssertThrowsError(try subject.generateEmbedPhase(
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
-            fileElements: fileElements,
-            sourceRootPath: sourceRootPath,
-            path: path,
-            graphTraverser: graphTraverser
-        )) {
-            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
+        #expect(throws: LinkGeneratorError.missingProduct(name: "Test")) {
+            try subject.generateEmbedPhase(
+                target: target,
+                pbxTarget: pbxTarget,
+                pbxproj: pbxproj,
+                fileElements: fileElements,
+                sourceRootPath: sourceRootPath,
+                path: path,
+                graphTraverser: graphTraverser
+            )
         }
     }
 
+    @Test
     func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenXCFrameworkIsPresent() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
@@ -314,15 +303,16 @@ final class LinkGeneratorTests: XCTestCase {
         )
 
         // Then
-        let copyBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
-        XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
-        let buildFiles = try XCTUnwrap(copyBuildPhase.files)
-        XCTAssertEqual(buildFiles.map { $0.file?.path }, ["Test.xcframework"])
-        XCTAssertEqual(buildFiles.map(\.settings), [
+        let copyBuildPhase = try #require(pbxTarget.embedFrameworksBuildPhases().first)
+        #expect(copyBuildPhase.name == "Embed Frameworks")
+        let buildFiles = try #require(copyBuildPhase.files)
+        #expect(buildFiles.map { $0.file?.path } == ["Test.xcframework"])
+        #expect(buildFiles.map(\.settings) == [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
 
+    @Test
     func test_generateLinks_generatesEmbeddedFrameworksForLocalEmbedPackage() throws {
         // Given
         let (pbxTarget, target) = createTargets(product: .framework)
@@ -407,16 +397,17 @@ final class LinkGeneratorTests: XCTestCase {
         )
 
         // Then
-        let copyBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
-        XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
+        let copyBuildPhase = try #require(pbxTarget.embedFrameworksBuildPhases().first)
+        #expect(copyBuildPhase.name == "Embed Frameworks")
 
-        let buildFiles = try XCTUnwrap(copyBuildPhase.files)
-        XCTAssertEqual(buildFiles.map { $0.product?.productName }, ["Product"])
-        XCTAssertEqual(buildFiles.map(\.settings), [
+        let buildFiles = try #require(copyBuildPhase.files)
+        #expect(buildFiles.map { $0.product?.productName } == ["Product"])
+        #expect(buildFiles.map(\.settings) == [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
     }
 
+    @Test
     func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenPackageProductIsPresent() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
@@ -460,19 +451,17 @@ final class LinkGeneratorTests: XCTestCase {
         )
 
         // Then
-        let copyBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
-        XCTAssertEqual(copyBuildPhase.name, "Embed Frameworks")
-        let buildFiles = try XCTUnwrap(copyBuildPhase.files)
-        XCTAssertEqual(Set(buildFiles.map { $0.product?.productName }), ["Product", "ProductWithPlatformCondition"])
-        XCTAssertEqual(Set(buildFiles.map(\.settings)), [
+        let copyBuildPhase = try #require(pbxTarget.embedFrameworksBuildPhases().first)
+        #expect(copyBuildPhase.name == "Embed Frameworks")
+        let buildFiles = try #require(copyBuildPhase.files)
+        #expect(Set(buildFiles.map { $0.product?.productName }) == ["Product", "ProductWithPlatformCondition"])
+        #expect(Set(buildFiles.map(\.settings)) == [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
-        XCTAssertEqual(
-            buildFiles.reduce(into: [String: String]()) { $0[$1.product?.productName] = $1.platformFilter },
-            ["ProductWithPlatformCondition": "maccatalyst"]
-        )
+        #expect(buildFiles.reduce(into: [String: String]()) { $0[$1.product?.productName] = $1.platformFilter } == ["ProductWithPlatformCondition": "maccatalyst"])
     }
 
+    @Test
     func test_setupRunPathSearchPath() throws {
         // Given
         let paths = [
@@ -500,7 +489,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["LD_RUNPATH_SEARCH_PATHS"]?.arrayValue, [
+        #expect(config.buildSettings["LD_RUNPATH_SEARCH_PATHS"]?.arrayValue == [
             "$(inherited)",
             "my/custom/path",
             "$(SRCROOT)/Dependencies/Frameworks",
@@ -508,6 +497,7 @@ final class LinkGeneratorTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_setupFrameworkSearchPath() throws {
         // Given
         let dependencies = [
@@ -541,7 +531,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"]?.arrayValue, [
+        #expect(config.buildSettings["FRAMEWORK_SEARCH_PATHS"]?.arrayValue == [
             "$(inherited)",
             "my/custom/path",
             "$(PLATFORM_DIR)/Developer/Library/Frameworks",
@@ -551,6 +541,7 @@ final class LinkGeneratorTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_setupHeadersSearchPath() throws {
         let headersFolders = [try AbsolutePath(validating: "/headers")]
         let pbxproj = PBXProj()
@@ -583,9 +574,10 @@ final class LinkGeneratorTests: XCTestCase {
         )
 
         let expected = ["$(inherited)", "$(SRCROOT)/headers"]
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue, expected)
+        #expect(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue == expected)
     }
 
+    @Test
     func test_setupHeadersSearchPaths_extendCustomSettings() throws {
         // Given
         let searchPaths = [
@@ -613,7 +605,7 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue, [
+        #expect(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue == [
             "$(inherited)",
             "my/custom/path",
             "$(SRCROOT)/to/libraries",
@@ -621,6 +613,7 @@ final class LinkGeneratorTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_setupHeadersSearchPaths_mergesDuplicates() throws {
         // Given
         let searchPaths = [
@@ -648,12 +641,13 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue, [
+        #expect(config.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue == [
             "$(inherited)",
             "$(SRCROOT)/to/libraries",
         ])
     }
 
+    @Test
     func test_setupHeadersSearchPath_throws_whenTheConfigurationListIsMissing() throws {
         let headersFolders = [try AbsolutePath(validating: "/headers")]
         let pbxproj = PBXProj()
@@ -668,17 +662,18 @@ final class LinkGeneratorTests: XCTestCase {
             .librariesPublicHeadersFolders(path: .any, name: .any)
             .willReturn(Set(headersFolders))
 
-        XCTAssertThrowsError(try subject.setupHeadersSearchPath(
-            target: target,
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath,
-            path: path,
-            graphTraverser: graphTraverser
-        )) {
-            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name))
+        #expect(throws: LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)) {
+            try subject.setupHeadersSearchPath(
+                target: target,
+                pbxTarget: pbxTarget,
+                sourceRootPath: sourceRootPath,
+                path: path,
+                graphTraverser: graphTraverser
+            )
         }
     }
 
+    @Test
     func test_setupLibrarySearchPaths_multiplePaths() throws {
         // Given
         let searchPaths = [
@@ -710,11 +705,12 @@ final class LinkGeneratorTests: XCTestCase {
             "$(SRCROOT)/to/libraries",
             "$(SRCROOT)/to/other/libraries",
         ]
-        XCTAssertEqual(config.buildSettings["LIBRARY_SEARCH_PATHS"]?.arrayValue, expectedSearchPaths)
+        #expect(config.buildSettings["LIBRARY_SEARCH_PATHS"]?.arrayValue == expectedSearchPaths)
         let expectedLdFlags = ["$(inherited)", "-L$(DT_TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)"]
-        XCTAssertEqual(config.buildSettings["OTHER_LDFLAGS"]?.arrayValue, expectedLdFlags)
+        #expect(config.buildSettings["OTHER_LDFLAGS"]?.arrayValue == expectedLdFlags)
     }
 
+    @Test
     func test_setupLibrarySearchPaths_noPaths() throws {
         // Given
         let searchPaths: [AbsolutePath] = []
@@ -738,10 +734,11 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertNil(config.buildSettings["LIBRARY_SEARCH_PATHS"])
-        XCTAssertNil(config.buildSettings["OTHER_LDFLAGS"])
+        #expect(config.buildSettings["LIBRARY_SEARCH_PATHS"] == nil)
+        #expect(config.buildSettings["OTHER_LDFLAGS"] == nil)
     }
 
+    @Test
     func test_setupLibrarySearchPaths_noLibraryPaths_withSwiftToolchainLdFlag() throws {
         // Given: A dynamic framework with no library search paths gets the Swift toolchain
         // path added to OTHER_LDFLAGS so that auto-linked Swift compatibility libraries
@@ -767,11 +764,12 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertNil(config.buildSettings["LIBRARY_SEARCH_PATHS"])
+        #expect(config.buildSettings["LIBRARY_SEARCH_PATHS"] == nil)
         let expectedLdFlags = ["$(inherited)", "-L$(DT_TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)"]
-        XCTAssertEqual(config.buildSettings["OTHER_LDFLAGS"]?.arrayValue, expectedLdFlags)
+        #expect(config.buildSettings["OTHER_LDFLAGS"]?.arrayValue == expectedLdFlags)
     }
 
+    @Test
     func test_setupSwiftIncludePaths_multiplePaths() throws {
         // Given
         let searchPaths = [
@@ -799,9 +797,10 @@ final class LinkGeneratorTests: XCTestCase {
         // Then
         let config = xcodeprojElements.config
         let expected = ["$(inherited)", "$(SRCROOT)/to/libraries", "$(SRCROOT)/to/other/libraries"]
-        XCTAssertEqual(config.buildSettings["SWIFT_INCLUDE_PATHS"]?.arrayValue, expected)
+        #expect(config.buildSettings["SWIFT_INCLUDE_PATHS"]?.arrayValue == expected)
     }
 
+    @Test
     func test_setupSwiftIncludePaths_noPaths() throws {
         // Given
         let searchPaths: [AbsolutePath] = []
@@ -825,9 +824,10 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        XCTAssertNil(config.buildSettings["SWIFT_INCLUDE_PATHS"])
+        #expect(config.buildSettings["SWIFT_INCLUDE_PATHS"] == nil)
     }
 
+    @Test
     func test_generateLinkingPhase() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
@@ -864,10 +864,11 @@ final class LinkGeneratorTests: XCTestCase {
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
         let wakaBuildFile: PBXBuildFile? = buildPhase?.files?.last
 
-        XCTAssertEqual(testBuildFile?.file, testFile)
-        XCTAssertEqual(wakaBuildFile?.file, wakaFile)
+        #expect(testBuildFile?.file == testFile)
+        #expect(wakaBuildFile?.file == wakaFile)
     }
 
+    @Test
     func test_generateLinkingPhase_requiredProduct() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
@@ -903,9 +904,10 @@ final class LinkGeneratorTests: XCTestCase {
         let buildPhase = try pbxTarget.frameworksBuildPhase()
 
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
-        XCTAssertNil(testBuildFile?.settings?["ATTRIBUTES"])
+        #expect(testBuildFile?.settings?["ATTRIBUTES"] == nil)
     }
 
+    @Test
     func test_generateLinkingPhase_optionalProduct() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
@@ -942,9 +944,10 @@ final class LinkGeneratorTests: XCTestCase {
 
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.first
         let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"]?.arrayValue
-        XCTAssertEqual(attributes, ["Weak"])
+        #expect(attributes == ["Weak"])
     }
 
+    @Test
     func test_generateLinkingPhase_optionalFramework() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework", status: .optional))
@@ -980,9 +983,10 @@ final class LinkGeneratorTests: XCTestCase {
 
         let testBuildFile: PBXBuildFile? = buildPhase?.files?.last
         let attributes: [String]? = testBuildFile?.settings?["ATTRIBUTES"]?.arrayValue
-        XCTAssertEqual(attributes, ["Weak"])
+        #expect(attributes == ["Weak"])
     }
 
+    @Test
     func test_generateLinkingPhase_throws_whenFileReferenceIsMissing() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
@@ -995,21 +999,19 @@ final class LinkGeneratorTests: XCTestCase {
             .linkableDependencies(path: .any, name: .any)
             .willReturn(dependencies)
 
-        XCTAssertThrowsError(try subject.generateLinkingPhase(
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
-            fileElements: fileElements,
-            path: path,
-            graphTraverser: graphTraverser
-        )) {
-            XCTAssertEqual(
-                $0 as? LinkGeneratorError,
-                LinkGeneratorError.missingReference(path: try! AbsolutePath(validating: "/test.framework"))
+        #expect(throws: LinkGeneratorError.missingReference(path: try! AbsolutePath(validating: "/test.framework"))) {
+            try subject.generateLinkingPhase(
+                target: target,
+                pbxTarget: pbxTarget,
+                pbxproj: pbxproj,
+                fileElements: fileElements,
+                path: path,
+                graphTraverser: graphTraverser
             )
         }
     }
 
+    @Test
     func test_generateLinkingPhase_throws_whenProductIsMissing() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.product(
@@ -1025,18 +1027,19 @@ final class LinkGeneratorTests: XCTestCase {
             .linkableDependencies(path: .any, name: .any)
             .willReturn(dependencies)
 
-        XCTAssertThrowsError(try subject.generateLinkingPhase(
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
-            fileElements: fileElements,
-            path: path,
-            graphTraverser: graphTraverser
-        )) {
-            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingProduct(name: "Test"))
+        #expect(throws: LinkGeneratorError.missingProduct(name: "Test")) {
+            try subject.generateLinkingPhase(
+                target: target,
+                pbxTarget: pbxTarget,
+                pbxproj: pbxproj,
+                fileElements: fileElements,
+                path: path,
+                graphTraverser: graphTraverser
+            )
         }
     }
 
+    @Test
     func test_generateLinkingPhase_sdk() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
@@ -1076,17 +1079,18 @@ final class LinkGeneratorTests: XCTestCase {
         // Then
         let buildPhase = try pbxTarget.frameworksBuildPhase()
 
-        XCTAssertNotNil(buildPhase)
-        XCTAssertEqual(buildPhase?.files?.map(\.file), [
+        #expect(buildPhase != nil)
+        #expect(buildPhase?.files?.map(\.file) == [
             requiredFile,
             optionalFile,
         ])
-        XCTAssertEqual(buildPhase?.files?.map(\.settings), [
+        #expect(buildPhase?.files?.map(\.settings) == [
             nil,
             ["ATTRIBUTES": ["Weak"]],
         ])
     }
 
+    @Test
     func test_generateCopyProductsBuildPhase_staticTargetDependsOnStaticProducts() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/")
@@ -1118,14 +1122,15 @@ final class LinkGeneratorTests: XCTestCase {
             .buildPhases
             .compactMap { $0 as? PBXCopyFilesBuildPhase }
             .first(where: { $0.name() == "Dependencies" })
-        XCTAssertEqual(copyProductsPhase?.dstSubfolderSpec, .productsDirectory)
+        #expect(copyProductsPhase?.dstSubfolderSpec == .productsDirectory)
 
         let buildFiles = copyProductsPhase?.files?.compactMap { $0.file?.path }
-        XCTAssertEqual(buildFiles, [
+        #expect(buildFiles == [
             "libStaticDependency.a",
         ])
     }
 
+    @Test
     func test_generateCopyProductsBuildPhase_staticTargetDependsOnStaticXCFramework2() throws {
         // Given
         let path = AbsolutePath("/path/")
@@ -1169,7 +1174,7 @@ final class LinkGeneratorTests: XCTestCase {
         )
 
         // Then
-        let copyProductsPhase = try XCTUnwrap(
+        let copyProductsPhase = try #require(
             xcodeProjElements
                 .pbxTarget
                 .buildPhases
@@ -1177,16 +1182,17 @@ final class LinkGeneratorTests: XCTestCase {
                 .first(where: { $0.name() == "Static XCFramework Dependencies" })
         )
 
-        XCTAssertEqual(copyProductsPhase.dstSubfolderSpec, .productsDirectory)
-        XCTAssertEqual(copyProductsPhase.dstPath, "_StaticXCFrameworkDependencies/StaticFramework")
+        #expect(copyProductsPhase.dstSubfolderSpec == .productsDirectory)
+        #expect(copyProductsPhase.dstPath == "_StaticXCFrameworkDependencies/StaticFramework")
 
         let buildFiles = copyProductsPhase.files?.compactMap { $0.file?.path }
-        XCTAssertEqual(buildFiles, [
+        #expect(buildFiles == [
             "XCFrameworks/StaticLibraryA.xcframework",
             "XCFrameworks/StaticLibraryB.xcframework",
         ])
     }
 
+    @Test
     func test_generateCopyProductsBuildPhase_dynamicTargetDependsOnStaticProducts() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/")
@@ -1221,9 +1227,10 @@ final class LinkGeneratorTests: XCTestCase {
             .buildPhases
             .compactMap { $0 as? PBXCopyFilesBuildPhase }
             .first(where: { $0.name() == "Dependencies" })
-        XCTAssertNil(copyProductsPhase)
+        #expect(copyProductsPhase == nil)
     }
 
+    @Test
     func test_generateCopyProductsBuildPhase_resourceBundles() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/")
@@ -1258,10 +1265,10 @@ final class LinkGeneratorTests: XCTestCase {
             .buildPhases
             .compactMap { $0 as? PBXCopyFilesBuildPhase }
             .first(where: { $0.name() == "Dependencies" })
-        XCTAssertEqual(copyProductsPhase?.dstSubfolderSpec, .productsDirectory)
+        #expect(copyProductsPhase?.dstSubfolderSpec == .productsDirectory)
 
         let buildFiles = copyProductsPhase?.files?.compactMap { $0.file?.path }
-        XCTAssertEqual(buildFiles, [
+        #expect(buildFiles == [
             "ResourceBundle.bundle",
         ])
     }

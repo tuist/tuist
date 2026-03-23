@@ -16,8 +16,6 @@ import TuistNooraTesting
 import TuistServer
 import TuistSupport
 import XcodeGraph
-import XCTest
-
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -145,11 +143,11 @@ struct BuildServiceTests {
             targetBuilder
                 .buildTargetStub = {
                     _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
-                    XCTAssertEqual(_workspacePath, workspacePath)
-                    XCTAssertEqual(_scheme, scheme)
-                    XCTAssertTrue(_clean)
-                    XCTAssertNil(_device)
-                    XCTAssertNil(_osVersion)
+                    #expect(_workspacePath == workspacePath)
+                    #expect(_scheme == scheme)
+                    #expect(_clean)
+                    #expect(_device == nil)
+                    #expect(_osVersion == nil)
                 }
 
             // Then
@@ -201,9 +199,9 @@ struct BuildServiceTests {
                 .willReturn(buildArguments)
             targetBuilder.buildTargetStub = {
                 _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _ in
-                XCTAssertEqual(_workspacePath, workspacePath)
-                XCTAssertEqual(_scheme, scheme)
-                XCTAssertTrue(_clean)
+                #expect(_workspacePath == workspacePath)
+                #expect(_scheme == scheme)
+                #expect(_clean)
             }
 
             // Then
@@ -266,19 +264,19 @@ struct BuildServiceTests {
             targetBuilder
                 .buildTargetStub = {
                     _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _ in
-                    XCTAssertEqual(_workspacePath, workspacePath)
-                    XCTAssertNil(_device)
-                    XCTAssertNil(_osVersion)
+                    #expect(_workspacePath == workspacePath)
+                    #expect(_device == nil)
+                    #expect(_osVersion == nil)
 
                     if _scheme.name == "A" {
-                        XCTAssertEqual(_scheme, schemeA)
-                        XCTAssertTrue(_clean)
+                        #expect(_scheme == schemeA)
+                        #expect(_clean)
                     } else if _scheme.name == "B" {
                         // When running the second scheme clean should be false
-                        XCTAssertEqual(_scheme, schemeB)
-                        XCTAssertFalse(_clean)
+                        #expect(_scheme == schemeB)
+                        #expect(!_clean)
                     } else {
-                        XCTFail("unexpected scheme \(_scheme.name)")
+                        Issue.record("unexpected scheme \(_scheme.name)")
                     }
                 }
 
@@ -345,12 +343,12 @@ struct BuildServiceTests {
                 .willReturn(buildArguments)
             targetBuilder.buildTargetStub = {
                 _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _ in
-                XCTAssertEqual(_workspacePath, workspacePath)
+                #expect(_workspacePath == workspacePath)
                 if _scheme.name == "A" {
-                    XCTAssertEqual(_scheme, schemeA)
-                    XCTAssertTrue(_clean)
+                    #expect(_scheme == schemeA)
+                    #expect(_clean)
                 } else {
-                    XCTFail("unexpected scheme \(_scheme.name)")
+                    Issue.record("unexpected scheme \(_scheme.name)")
                 }
             }
 

@@ -1,9 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class ArgumentsTests: XCTestCase {
-    func test_codable() {
+struct ArgumentsTests {
+    @Test func test_codable() throws {
         // Given
         let subject = Arguments(
             environmentVariables: [
@@ -18,6 +18,11 @@ final class ArgumentsTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Arguments.self, from: data)
+        #expect(subject == decoded)
     }
 }

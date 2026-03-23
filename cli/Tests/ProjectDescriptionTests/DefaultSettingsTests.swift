@@ -1,19 +1,20 @@
-import XCTest
+import Testing
+import TuistTesting
 @testable import ProjectDescription
 
-final class DefaultSettingsTests: XCTestCase {
-    func test_recommended_toJSON() {
+struct DefaultSettingsTests {
+    @Test func test_recommended_toJSON() throws {
         let subject = DefaultSettings.recommended(excluding: ["exclude"])
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_essential_toJSON() {
+    @Test func test_essential_toJSON() throws {
         let subject = DefaultSettings.essential(excluding: ["exclude"])
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_none_toJSON() {
+    @Test func test_none_toJSON() throws {
         let subject = DefaultSettings.none
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 }

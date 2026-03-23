@@ -2,25 +2,20 @@ import TuistCore
 import TuistLoader
 import TuistSupport
 import XcodeProj
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class TuistGeneratorPerformanceTests: TuistTestCase {
-    override func setUp() {
-        super.setUp()
-    }
+struct TuistGeneratorPerformanceTests {
 
     // MARK: - Tests
 
+    @Test(.inTemporaryDirectory)
     func test_generateWorkspace_performance() async throws {
         guard !isRunningInDebug() else {
-            // Performance tests need to be run in Release Mode for more realistic results
-            // Note: When we switch to Xcode11.5+ only on CI we can use `XCTSkipIf` instead of a guard statement
-            //
-            // XCTSkipIf(isRunningInDebug, "Performance tests need to be run in Release Mode for more realistic results")
             return
         }
 
@@ -35,23 +30,12 @@ final class TuistGeneratorPerformanceTests: TuistTestCase {
             resources: 100,
             headers: 100
         )
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
         let graph = try await modelGenerator.generate()
 
-        measureMetrics([.wallClockTime], automaticallyStartMeasuring: false) {
-            // When
-            startMeasuring()
-            let graphTraverser = GraphTraverser(graph: graph)
-            Task {
-                do {
-                    _ = try await subject.generateWorkspace(graphTraverser: graphTraverser)
-                } catch {
-                    XCTFail("Failed to generate workspace: \(error)")
-                }
-                stopMeasuring()
-            }
-        }
+        let graphTraverser = GraphTraverser(graph: graph)
+        _ = try await subject.generateWorkspace(graphTraverser: graphTraverser)
     }
 
     // MARK: - Helpers

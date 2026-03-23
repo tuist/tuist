@@ -2,24 +2,18 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import XCTest
+import Testing
 
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class EmbedScriptGeneratorTests: TuistUnitTestCase {
-    var subject: EmbedScriptGenerator!
-
-    override func setUp() {
-        super.setUp()
+struct EmbedScriptGeneratorTests {
+    let subject: EmbedScriptGenerator
+    init() {
         subject = EmbedScriptGenerator()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_script_when_includingSymbolsInFileLists() throws {
         // Given
         let path = try AbsolutePath(validating: "/frameworks/tuist.framework")
@@ -39,20 +33,21 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.inputPaths, [
+        #expect(got.inputPaths == [
             try RelativePath(validating: "tuist.framework"),
             try RelativePath(validating: "tuist.framework/tuist"),
             try RelativePath(validating: "tuist.framework/Info.plist"),
         ])
-        XCTAssertEqual(got.outputPaths, [
+        #expect(got.outputPaths == [
             "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)",
         ])
 
-        XCTAssertTrue(got.script.contains("install_framework \"$SRCROOT/\(path.basename)\""))
-        XCTAssertTrue(got.script.contains("install_dsym \"$SRCROOT/\(dsymPath.basename)\""))
-        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\""))
+        #expect(got.script.contains("install_framework \"$SRCROOT/\(path.basename)\""))
+        #expect(got.script.contains("install_dsym \"$SRCROOT/\(dsymPath.basename)\""))
+        #expect(got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\""))
     }
 
+    @Test
     func test_script_when_not_includingSymbolsInFileLists() throws {
         // Given
         let path = try AbsolutePath(validating: "/frameworks/tuist.framework")
@@ -72,17 +67,17 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.inputPaths, [
+        #expect(got.inputPaths == [
             try RelativePath(validating: "tuist.framework"),
             try RelativePath(validating: "tuist.framework/tuist"),
             try RelativePath(validating: "tuist.framework/Info.plist"),
         ])
-        XCTAssertEqual(got.outputPaths, [
+        #expect(got.outputPaths == [
             "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)",
         ])
 
-        XCTAssertTrue(got.script.contains("install_framework \"$SRCROOT/\(path.basename)\""))
-        XCTAssertTrue(got.script.contains("install_dsym \"$SRCROOT/\(dsymPath.basename)\""))
-        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\""))
+        #expect(got.script.contains("install_framework \"$SRCROOT/\(path.basename)\""))
+        #expect(got.script.contains("install_dsym \"$SRCROOT/\(dsymPath.basename)\""))
+        #expect(got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\""))
     }
 }

@@ -1,9 +1,9 @@
 import Foundation
 import XcodeGraph
-import XCTest
+import Testing
 
-final class VersionTests: XCTestCase {
-    func test_xcodeStringValue() {
+struct VersionTests {
+    @Test func test_xcodeStringValue() {
         // Given
         let version = Version(stringLiteral: "1.2.3")
 
@@ -11,14 +11,19 @@ final class VersionTests: XCTestCase {
         let got = version.xcodeStringValue
 
         // Then
-        XCTAssertEqual(got, "123")
+        #expect(got == "123")
     }
 
-    func test_codable() {
+    @Test func test_codable() throws {
         // Given
         let version = Version(stringLiteral: "1.2.3")
 
         // Then
-        XCTAssertCodable(version)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(version)
+        let decoded = try decoder.decode(Version.self, from: data)
+        #expect(version == decoded)
     }
 }

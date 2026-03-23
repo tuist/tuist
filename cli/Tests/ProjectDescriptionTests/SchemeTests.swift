@@ -1,14 +1,13 @@
 import Foundation
-import TuistSupportTesting
-import XCTest
+import Testing
 
 @testable import ProjectDescription
 
-final class SchemeTests: XCTestCase {
+struct SchemeTests {
     private var encoder = JSONEncoder()
     private var decoder = JSONDecoder()
 
-    func test_codable() throws {
+    @Test func test_codable() throws {
         // Given
         let subject: Scheme = .scheme(
             name: "scheme",
@@ -54,10 +53,10 @@ final class SchemeTests: XCTestCase {
 
         // Then
         let decoded = try decoder.decode(Scheme.self, from: encoded)
-        XCTAssertEqual(decoded, subject)
+        #expect(decoded == subject)
     }
 
-    func test_defaultConfigurationNames() throws {
+    @Test func test_defaultConfigurationNames() throws {
         // Given / When
         let subject: Scheme = .scheme(
             name: "scheme",
@@ -99,10 +98,10 @@ final class SchemeTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(subject.runAction?.configuration.rawValue, "Release")
-        XCTAssertEqual(subject.testAction?.configuration.rawValue, "Debug")
-        XCTAssertEqual(subject.runAction?.options.language, "en")
-        XCTAssertEqual(subject.runAction?.options.region, "US")
+        #expect(subject.runAction?.configuration.rawValue == "Release")
+        #expect(subject.testAction?.configuration.rawValue == "Debug")
+        #expect(subject.runAction?.options.language == "en")
+        #expect(subject.runAction?.options.region == "US")
     }
 
     // MARK: - Helpers

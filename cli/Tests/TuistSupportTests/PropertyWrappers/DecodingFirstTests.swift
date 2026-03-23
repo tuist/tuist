@@ -1,8 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 @testable import TuistSupport
 
-final class DecodingFirstTests: XCTestCase {
+struct DecodingFirstTests {
+    @Test
     func test_decodes_only_first() throws {
         // Given
         let holderJson = #"{"element": ["elementOne", "elementTwo"]}"#
@@ -10,24 +11,23 @@ final class DecodingFirstTests: XCTestCase {
         // When
         let holder = try JSONDecoder().decode(
             ArrayHolder.self,
-            from: try XCTUnwrap(holderJson.data(using: .utf8))
+            from: try #require(holderJson.data(using: .utf8))
         )
 
         // Then
-        XCTAssertEqual(holder.element, "elementOne")
+        #expect(holder.element == "elementOne")
     }
 
+    @Test
     func test_decode_fails_when_no_values() throws {
         // Given
         let holderJson = #"{"element": []}"#
 
         // Then
-        XCTAssertThrowsError(
-            try JSONDecoder().decode(
+        #expect(throws: (any Error).self) { try JSONDecoder().decode(
                 ArrayHolder.self,
-                from: try XCTUnwrap(holderJson.data(using: .utf8))
-            )
-        )
+                from: try #require(holderJson.data(using: .utf8))
+            ) }
     }
 }
 

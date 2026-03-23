@@ -1,28 +1,26 @@
 
+import FileSystem
 import Foundation
 import TuistCore
 import TuistSupport
 import XcodeProj
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class XcodeProjWriterTests: TuistUnitTestCase {
-    private var subject: XcodeProjWriter!
-
-    override func setUp() {
-        super.setUp()
+struct XcodeProjWriterTests {
+    private let subject: XcodeProjWriter
+    private let fileSystem: FileSysteming
+    init() {
         subject = XcodeProjWriter()
+        fileSystem = FileSystem()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test(.inTemporaryDirectory)
     func test_writeProject() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let descriptor = ProjectDescriptor.test(path: path, xcodeprojPath: xcodeProjPath)
 
@@ -31,12 +29,13 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
 
         // Then
         let exists = try await fileSystem.exists(xcodeProjPath)
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_writeProject_fileSideEffects() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let filePath = path.appending(component: "MyFile")
         let expectedContents = "Testing".data(using: .utf8)!
@@ -55,14 +54,15 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
 
         // Then
         let exists = try await fileSystem.exists(filePath)
-        XCTAssertTrue(exists)
+        #expect(exists)
         let contents = try await fileSystem.readFile(at: filePath)
-        XCTAssertEqual(contents, expectedContents)
+        #expect(contents == expectedContents)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_writeProject_deleteFileSideEffects() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let filePath = path.appending(component: "MyFile")
         let fileHandler = FileHandler.shared
@@ -80,13 +80,14 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
 
         // Then
         let exists = try await fileSystem.exists(filePath)
-        XCTAssertFalse(exists)
+        #expect(!exists)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_doesNotWipeUserData() async throws {
         // Given
-        let path = try temporaryPath()
-        let paths = try await createFiles([
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let paths = try await TuistTest.createFiles([
             "Foo.xcodeproj/xcuserdata/a",
             "Foo.xcodeproj/xcuserdata/b/c",
         ])
@@ -104,12 +105,13 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
 
         // Then
         let exists = try await paths.concurrentMap { try await self.fileSystem.exists($0) }
-        XCTAssertTrue(exists.allSatisfy { $0 })
+        #expect(exists.allSatisfy { $0 })
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_replacesProjectSharedSchemes() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let schemeA = SchemeDescriptor.test(name: "SchemeA", shared: true)
         let schemeB = SchemeDescriptor.test(name: "SchemeB", shared: true)
@@ -133,15 +135,16 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         // Then
         let schemes = try await fileSystem.glob(directory: xcodeProjPath, include: ["**/*.xcscheme"]).collect().map(\.basename)
             .sorted()
-        XCTAssertEqual(schemes, [
+        #expect(schemes == [
             "SchemeA.xcscheme",
             "SchemeC.xcscheme",
         ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_preservesProjectUserSchemes() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let userSchemeA = SchemeDescriptor.test(name: "UserSchemeA", shared: false)
         let userSchemeB = SchemeDescriptor.test(name: "UserSchemeB", shared: false)
@@ -164,15 +167,16 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         // Then
         let schemes = try await fileSystem.glob(directory: xcodeProjPath, include: ["**/*.xcscheme"]).collect().map(\.basename)
             .sorted()
-        XCTAssertEqual(schemes, [
+        #expect(schemes == [
             "UserSchemeA.xcscheme",
             "UserSchemeB.xcscheme",
         ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_replacesWorkspaceSharedSchemes() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
         let schemeA = SchemeDescriptor.test(name: "SchemeA", shared: true)
         let schemeB = SchemeDescriptor.test(name: "SchemeB", shared: true)
@@ -196,15 +200,16 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         // Then
         let schemes = try await fileSystem.glob(directory: xcworkspacePath, include: ["**/*.xcscheme"]).collect().map(\.basename)
             .sorted()
-        XCTAssertEqual(schemes, [
+        #expect(schemes == [
             "SchemeA.xcscheme",
             "SchemeC.xcscheme",
         ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_preservesWorkspaceUserSchemes() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
         let userSchemeA = SchemeDescriptor.test(name: "UserSchemeA", shared: false)
         let userSchemeB = SchemeDescriptor.test(name: "UserSchemeB", shared: false)
@@ -227,15 +232,16 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         // Then
         let schemes = try await fileSystem.glob(directory: xcworkspacePath, include: ["**/*.xcscheme"]).collect().map(\.basename)
             .sorted()
-        XCTAssertEqual(schemes, [
+        #expect(schemes == [
             "UserSchemeA.xcscheme",
             "UserSchemeB.xcscheme",
         ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_local_scheme() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let userScheme = SchemeDescriptor.test(name: "UserScheme", shared: false)
         let descriptor = ProjectDescriptor.test(path: path, xcodeprojPath: xcodeProjPath, schemes: [userScheme])
@@ -248,7 +254,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let schemesPath = xcodeProjPath.appending(components: "xcuserdata", "\(username).xcuserdatad", "xcschemes")
         let schemes = try await fileSystem.glob(directory: schemesPath, include: ["*.xcscheme"]).collect().map(\.basename)
             .sorted()
-        XCTAssertEqual(schemes, [
+        #expect(schemes == [
             "UserScheme.xcscheme",
         ])
     }

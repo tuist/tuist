@@ -4,26 +4,22 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistDependencies
 
-final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
-    private var subject: ExternalDependencyPathWorkspaceMapper!
-
-    override func setUp() {
-        super.setUp()
+struct ExternalDependencyPathWorkspaceMapperTests {
+    private let subject: ExternalDependencyPathWorkspaceMapper
+    init() {
         subject = ExternalDependencyPathWorkspaceMapper()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_map() throws {
         // Given
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(
             path: projectPath,
             sourceRootPath: projectPath,
@@ -31,7 +27,7 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
             name: "A"
         )
 
-        let externalProjectBasePath = try temporaryPath()
+        let externalProjectBasePath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: Constants.SwiftPackageManager.packageBuildDirectoryName)
         let externalProjectPath = externalProjectBasePath.appending(
             components: [
@@ -70,9 +66,7 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                 "ExternalDependency.xcodeproj",
             ]
         )
-        XCTAssertBetterEqual(
-            gotWorkspaceWithProjects.projects,
-            [
+        #expect(gotWorkspaceWithProjects.projects == [
                 Project.test(
                     path: projectPath,
                     sourceRootPath: projectPath,
@@ -93,7 +87,6 @@ final class ExternalDependencyPathWorkspaceMapperTests: TuistUnitTestCase {
                     ),
                     type: .external(hash: nil)
                 ),
-            ]
-        )
+            ])
     }
 }

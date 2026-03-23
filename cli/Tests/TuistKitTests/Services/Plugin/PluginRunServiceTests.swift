@@ -1,22 +1,17 @@
 import TuistSupport
 import TuistTesting
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistKit
 
-final class PluginRunServiceTests: TuistUnitTestCase {
+struct PluginRunServiceTests {
     private var subject: PluginRunService!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         subject = PluginRunService()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_run_with_arguments() throws {
+    @Test func test_run_with_arguments() throws {
         // Given
         let path = try temporaryPath()
 
@@ -32,8 +27,7 @@ final class PluginRunServiceTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(
-            try subject.run(
+        try subject.run(
                 path: path.pathString,
                 configuration: .release,
                 buildTests: true,
@@ -44,7 +38,7 @@ final class PluginRunServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_with_no_arguments() throws {
+    @Test func test_run_with_no_arguments() throws {
         // Given
         system.succeedCommand([
             "swift", "run",
@@ -53,8 +47,7 @@ final class PluginRunServiceTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(
-            try subject.run(
+        try subject.run(
                 path: nil,
                 configuration: .debug,
                 buildTests: false,

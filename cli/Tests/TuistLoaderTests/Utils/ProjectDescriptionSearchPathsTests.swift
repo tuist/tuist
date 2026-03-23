@@ -1,12 +1,12 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 
 @testable import TuistLoader
 @testable import TuistTesting
 
-final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
-    func test_paths_style() throws {
+struct ProjectDescriptionSearchPathsTests {
+    @Test func paths_style() throws {
         // Given
         let libraryPaths: [AbsolutePath] = [
             "/path/to/tuist/.build/debug/libProjectDescription.dylib",
@@ -18,14 +18,14 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
 
         // Then
-        XCTAssertEqual(searchPaths.map(\.style), [
+        #expect(searchPaths.map(\.style) == [
             .commandLine,
             .xcode,
             .swiftPackageInXcode,
         ])
     }
 
-    func test_paths_includeSearchPath() throws {
+    @Test func paths_includeSearchPath() throws {
         // Given
         let libraryPaths: [AbsolutePath] = [
             "/path/to/tuist/.build/debug/libProjectDescription.dylib",
@@ -37,14 +37,14 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
 
         // Then
-        XCTAssertEqual(searchPaths.map(\.includeSearchPath), [
+        #expect(searchPaths.map(\.includeSearchPath) == [
             "/path/to/tuist/.build/debug",
             "/path/to/DerivedData/Debug",
             "/path/to/DerivedData/Debug",
         ])
     }
 
-    func test_paths_librarySearchPath() throws {
+    @Test func paths_librarySearchPath() throws {
         // Given
         let libraryPaths: [AbsolutePath] = [
             "/path/to/tuist/.build/debug/libProjectDescription.dylib",
@@ -56,14 +56,14 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
 
         // Then
-        XCTAssertEqual(searchPaths.map(\.librarySearchPath), [
+        #expect(searchPaths.map(\.librarySearchPath) == [
             "/path/to/tuist/.build/debug",
             "/path/to/DerivedData/Debug",
             "/path/to/DerivedData/Debug",
         ])
     }
 
-    func test_paths_frameworkSearchPath() throws {
+    @Test func paths_frameworkSearchPath() throws {
         // Given
         let libraryPaths: [AbsolutePath] = [
             "/path/to/tuist/.build/debug/libProjectDescription.dylib",
@@ -75,7 +75,7 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
 
         // Then
-        XCTAssertEqual(searchPaths.map(\.frameworkSearchPath), [
+        #expect(searchPaths.map(\.frameworkSearchPath) == [
             "/path/to/tuist/.build/debug",
             "/path/to/DerivedData/Debug",
             "/path/to/DerivedData/Debug/PackageFrameworks",

@@ -2,15 +2,17 @@ import Foundation
 import Path
 import TuistCore
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
+struct GenerateCacheableSchemesGraphMapperTests {
+    @Test(.inTemporaryDirectory)
     func test_generate_binary_and_bundles_schemes() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
 
         let targetA = Target.test(name: "A", destinations: [.iPhone], product: .framework)
         let targetB = Target.test(name: "B", destinations: [.iPhone], product: .app)
@@ -41,9 +43,7 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
         let (updatedGraph, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEqual(
-            updatedGraph.workspace.schemes.map(\.name),
-            [
+        #expect(updatedGraph.workspace.schemes.map(\.name) == [
                 "Binaries-Cache-iOS",
                 "Bundles-Cache-iOS",
                 "Macros-Cache-iOS",
@@ -59,53 +59,39 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
                 "Binaries-Cache-visionOS",
                 "Bundles-Cache-visionOS",
                 "Macros-Cache-visionOS",
-            ]
-        )
+            ])
 
-        XCTAssertEqual(
-            updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
+        #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
                 .buildAction?.targets
-                .map(\.name),
-            [
+                .map(\.name) == [
                 "A",
-            ]
-        )
-        XCTAssertEqual(
-            updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-macOS" })?
+            ])
+        #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-macOS" })?
                 .buildAction?.targets
-                .map(\.name),
-            [
+                .map(\.name) == [
                 "C",
-            ]
-        )
-        XCTAssertEqual(
-            updatedGraph.workspace.schemes.first(where: { $0.name == "Bundles-Cache-tvOS" })?
+            ])
+        #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Bundles-Cache-tvOS" })?
                 .buildAction?.targets
-                .map(\.name),
-            [
+                .map(\.name) == [
                 "Bundle",
-            ]
-        )
+            ])
 
-        XCTAssertEqual(
-            updatedGraph.workspace.schemes.first(where: { $0.name == "Macros-Cache-tvOS" })?
-                .buildAction?.targets.map(\.name),
-            [
+        #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Macros-Cache-tvOS" })?
+                .buildAction?.targets.map(\.name) == [
                 "Macro",
-            ]
-        )
+            ])
 
-        XCTAssertEqual(
-            updatedGraph.workspace.schemes.flatMap { $0.buildAction?.targets ?? [] }.map(
+        #expect(updatedGraph.workspace.schemes.flatMap { $0.buildAction?.targets ?? [] }.map(
                 \.name
-            ), includedTargets
-        )
-        XCTAssertTrue(sideEffects.isEmpty)
+            ) == includedTargets)
+        #expect(sideEffects.isEmpty)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_generate_catalyst_scheme_for_targets_that_support_catalyst() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
 
         let targetWithCatalyst = Target.test(name: "WithCatalyst", destinations: [.iPhone, .macCatalyst], product: .framework)
         let targetWithoutCatalyst = Target.test(name: "WithoutCatalyst", destinations: [.iPhone], product: .framework)
@@ -125,31 +111,26 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
         let (updatedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertTrue(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
+        #expect(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
 
-        XCTAssertEqual(
-            updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-Catalyst" })?
+        #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-Catalyst" })?
                 .buildAction?.targets
-                .map(\.name),
-            [
+                .map(\.name) == [
                 "WithCatalyst",
-            ]
-        )
+            ])
 
-        XCTAssertEqual(
-            updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
+        #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
                 .buildAction?.targets
-                .map(\.name),
-            [
+                .map(\.name) == [
                 "WithCatalyst",
                 "WithoutCatalyst",
-            ]
-        )
+            ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_does_not_generate_catalyst_scheme_when_no_targets_support_catalyst() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
 
         let targetA = Target.test(name: "A", destinations: [.iPhone], product: .framework)
         let targetB = Target.test(name: "B", destinations: [.iPhone], product: .framework)
@@ -169,6 +150,6 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
         let (updatedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertFalse(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
+        #expect(!updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
     }
 }

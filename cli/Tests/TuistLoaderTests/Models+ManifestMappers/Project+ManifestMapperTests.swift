@@ -1,18 +1,22 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import ProjectDescription
+import Testing
 import TuistCore
 import TuistSupport
-import XCTest
 
 @testable import TuistLoader
 @testable import TuistTesting
 @testable import XcodeGraph
 
-final class ProjectManifestMapperTests: TuistUnitTestCase {
-    func test_from() async throws {
+struct ProjectManifestMapperTests {
+    private let fileSystem = FileSystem()
+
+    @Test(.inTemporaryDirectory) func test_from() async throws {
         // Given
-        let swiftFilePath = try temporaryPath()
-            .appending(component: "file.swift")
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let swiftFilePath = temporaryPath.appending(component: "file.swift")
         try await fileSystem.touch(swiftFilePath)
         let project = ProjectDescription.Project(
             name: "Name",
@@ -56,8 +60,8 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertBetterEqual(
-            got,
+        #expect(
+            got ==
             XcodeGraph.Project(
                 path: "/",
                 sourceRootPath: "/",

@@ -1,21 +1,21 @@
 import Foundation
-import TuistSupportTesting
-import XCTest
+import Testing
+import TuistTesting
 
 @testable import ProjectDescription
 
-final class TargetScriptTests: XCTestCase {
-    func test_toJSON_whenPath() {
+struct TargetScriptTests {
+    @Test func test_toJSON_whenPath() throws {
         let subject = TargetScript.post(path: "path", arguments: ["arg"], name: "name")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_toJSON_whenTool() {
+    @Test func test_toJSON_whenTool() throws {
         let subject = TargetScript.post(tool: "tool", arguments: ["arg"], name: "name")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_embedded_script() {
+    @Test func test_embedded_script() {
         let script = """
         echo 'Hello World'
         wd=$(pwd)
@@ -23,10 +23,10 @@ final class TargetScriptTests: XCTestCase {
         """
 
         let subject = TargetScript.pre(script: script, name: "name")
-        XCTAssertEqual(subject.script, .embedded(script))
+        #expect(subject.script == .embedded(script))
     }
 
-    func test_toJSON_when_embedded() {
+    @Test func test_toJSON_when_embedded() throws {
         let script = """
         echo 'Hello World'
         wd=$(pwd)
@@ -34,6 +34,6 @@ final class TargetScriptTests: XCTestCase {
         """
 
         let subject = TargetScript.pre(script: script, name: "name")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 }

@@ -1,24 +1,25 @@
-import XCTest
+import Testing
+import TuistTesting
 @testable import ProjectDescription
 
-final class PluginLocationTests: XCTestCase {
-    func test_codable_local() throws {
+struct PluginLocationTests {
+    @Test func test_codable_local() throws {
         let subject = PluginLocation.local(path: .path("/some/path"))
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_codable_gitWithTag() throws {
+    @Test func test_codable_gitWithTag() throws {
         let subject = PluginLocation.git(url: "https://git.com/repo.git", tag: "1.0.0")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_codable_gitWithSha() throws {
+    @Test func test_codable_gitWithSha() throws {
         let subject = PluginLocation.git(url: "https://git.com/repo.git", sha: "64d8d24f")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_codable_gitWithDirectory() throws {
+    @Test func test_codable_gitWithDirectory() throws {
         let subject = PluginLocation.git(url: "https://git.com/repo.git", tag: "1.0.0", directory: "directory")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 }

@@ -1,25 +1,19 @@
 import Foundation
 import TuistSupport
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistServer
 @testable import TuistTesting
 
-final class ServerCredentialsStoreTests: TuistUnitTestCase {
-    var subject: ServerCredentialsStore!
+struct ServerCredentialsStoreTests {
+    let subject: ServerCredentialsStore
 
-    override func setUp() {
-        super.setUp()
-    }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test(.inTemporaryDirectory)
     func test_crud() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let subject = ServerCredentialsStore(
             backend: .fileSystem,
             fileSystem: fileSystem,
@@ -35,9 +29,9 @@ final class ServerCredentialsStoreTests: TuistUnitTestCase {
 
         // Then
         let gotRead = try await subject.read(serverURL: serverURL)
-        XCTAssertEqual(gotRead, credentials)
+        #expect(gotRead == credentials)
         try await subject.delete(serverURL: serverURL)
         let gotReadAfterDelete = try await subject.read(serverURL: serverURL)
-        XCTAssertEqual(gotReadAfterDelete, nil)
+        #expect(gotReadAfterDelete == nil)
     }
 }

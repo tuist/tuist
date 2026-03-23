@@ -5,37 +5,31 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistHasher
 
-final class SourceFilesContentHasherTests: TuistUnitTestCase {
-    private var subject: SourceFilesContentHasher!
-    private var sourceFile1Path: AbsolutePath!
-    private var sourceFile2Path: AbsolutePath!
-
-    override func setUp() async throws {
-        try await super.setUp()
+struct SourceFilesContentHasherTests {
+    private let subject: SourceFilesContentHasher
+    private let sourceFile1Path: AbsolutePath
+    private let sourceFile2Path: AbsolutePath
+    init() throws {
         let contentHasher = ContentHasher()
         let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)
         subject = SourceFilesContentHasher(
             contentHasher: contentHasher,
             platformConditionContentHasher: platformConditionContentHasher
         )
-        let temporaryDir = try temporaryPath()
+        let temporaryDir = try #require(FileSystem.temporaryTestDirectory)
         sourceFile1Path = temporaryDir.appending(component: "sourceFile1")
         sourceFile2Path = temporaryDir.appending(component: "sourceFile2")
     }
 
-    override func tearDown() {
-        sourceFile1Path = nil
-        sourceFile2Path = nil
-        subject = nil
-        super.tearDown()
-    }
 
     // MARK: - Tests
 
+    @Test
     func test_hash_when_sourcesHaveAHashSet() async throws {
         // Given
         let sourceFile1 = SourceFile(path: sourceFile1Path, contentHash: "first")
@@ -45,7 +39,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         let node = try await subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
 
         // Then
-        XCTAssertEqual(node, MerkleNode(
+        #expect(node == MerkleNode(
             hash: "95f4fb96482b97d5f2fb472598252ea2",
             identifier: "sources",
             children: [
@@ -63,6 +57,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         ))
     }
 
+    @Test
     func test_hash_when_sourcesHaveNoHashSet() async throws {
         // Given
         let sourceFile1 = SourceFile(
@@ -82,7 +77,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         let node = try await subject.hash(identifier: "sources", sources: [sourceFile1, sourceFile2])
 
         // Then
-        XCTAssertEqual(node, MerkleNode(
+        #expect(node == MerkleNode(
             hash: "a399dc1a1cf69cb55d7b7dda76b62e0a",
             identifier: "sources",
             children: [

@@ -3,12 +3,13 @@ import Foundation
 import Path
 import TuistSupport
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistCore
 @testable import TuistTesting
 
-final class GraphTraverserTests: TuistUnitTestCase {
-    func test_dependsOnXCTest_when_is_framework() {
+struct GraphTraverserTests {
+    @Test func test_dependsOnXCTest_when_is_framework() {
         // Given
         let target = Target.test(
             name: "Framework",
@@ -26,10 +27,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.dependsOnXCTest(path: project.path, name: "Framework")
 
         // Then
-        XCTAssertFalse(got)
+        #expect(!got)
     }
 
-    func test_dependsOnXCTest_when_is_tests_bundle() {
+    @Test func test_dependsOnXCTest_when_is_tests_bundle() {
         // Given
         let target = Target.test(
             name: "UnitTests",
@@ -47,10 +48,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.dependsOnXCTest(path: project.path, name: "UnitTests")
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got)
     }
 
-    func test_dependsOnXCTest_when_direct_dependency_is_XCTest_SDK() {
+    @Test func test_dependsOnXCTest_when_direct_dependency_is_XCTest_SDK() {
         // Given
         let target = Target.test(
             name: "Framework",
@@ -77,10 +78,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.dependsOnXCTest(path: project.path, name: "Framework")
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got)
     }
 
-    func test_dependsOnXCTest_when_settings_enables_search_paths() {
+    @Test func test_dependsOnXCTest_when_settings_enables_search_paths() {
         // Given
         let target = Target.test(
             name: "Framework",
@@ -101,10 +102,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.dependsOnXCTest(path: project.path, name: "Framework")
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got)
     }
 
-    func test_target() {
+    @Test func test_target() {
         // Given
         let path = AbsolutePath.root
         let app = Target.test(name: "App", product: .app)
@@ -122,10 +123,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.target(path: "/", name: "App")
 
         // Then
-        XCTAssertEqual(got.map(\.target), app)
+        #expect(got.map(\.target) == app)
     }
 
-    func test_targets() {
+    @Test func test_targets() {
         // Given
         let path = AbsolutePath.root
         let app = Target.test(name: "App", product: .app)
@@ -143,10 +144,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.targets(at: path).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target), [app, framework])
+        #expect(got.map(\.target), [app == framework])
     }
 
-    func test_directStaticDependencies() {
+    @Test func test_directStaticDependencies() {
         // Given
         let path = AbsolutePath.root
         let framework = Target.test(name: "Framework", product: .framework)
@@ -168,13 +169,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directStaticDependencies(path: path, name: framework.name).sorted()
 
         // Then
-        XCTAssertEqual(
-            got,
-            [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension, condition: nil)]
-        )
+        #expect(got == [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension, condition: nil)])
     }
 
-    func test_directLocalTargetDependencies() {
+    @Test func test_directLocalTargetDependencies() {
         // Given
         // A -> B -> C
         let a = Target.test(name: "A")
@@ -198,10 +196,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directLocalTargetDependencies(path: project.path, name: a.name).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target), [b])
+        #expect(got.map(\.target) == [b])
     }
 
-    func test_directLocalTargetDependencies_returnsLocalProjectTargetsOnly() {
+    @Test func test_directLocalTargetDependencies_returnsLocalProjectTargetsOnly() {
         // Given
         // Project A: A1 -> A2
         //               -> (Project B) B1
@@ -229,10 +227,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directLocalTargetDependencies(path: projectA.path, name: a1.name).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target), [a2])
+        #expect(got.map(\.target) == [a2])
     }
 
-    func test_directTargetDependencies_returnsAllTargets() {
+    @Test func test_directTargetDependencies_returnsAllTargets() {
         // Given
         // Project A: A1 -> A2
         //               -> (Project B) B1
@@ -262,16 +260,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directTargetDependencies(path: projectA.path, name: a1.name).sorted()
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
+        #expect(got == [
                 GraphTargetReference(target: GraphTarget(path: projectA.path, target: a2, project: projectA)),
                 GraphTargetReference(target: GraphTarget(path: projectB.path, target: b1, project: projectB)),
-            ]
-        )
+            ])
     }
 
-    func test_resourceBundleDependencies_returns_an_empty_list_when_a_dependency_can_host_resources() {
+    @Test func test_resourceBundleDependencies_returns_an_empty_list_when_a_dependency_can_host_resources() {
         // Given
         // App -> WatchApp -> Bundle
         let app = Target.test(name: "App", platform: .iOS, product: .app)
@@ -297,10 +292,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [])
+        #expect(got == [])
     }
 
-    func test_resourceBundleDependencies() {
+    @Test func test_resourceBundleDependencies() {
         // Given
         // App -> StaticLibrary -> Bundle
         let app = Target.test(name: "App", product: .app)
@@ -326,12 +321,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
         ])
     }
 
-    func test_resourceBundleDependencies_when_app_depends_on_external_static_framework_with_resources_via_dynamic_framework() {
+    @Test func test_resourceBundleDependencies_when_app_depends_on_external_static_framework_with_resources_via_dynamic_framework() {
         // Given
         // App -> DynamicFramework -> StaticLibrary (External) -> Bundle
         let app = Target.test(name: "App", product: .app)
@@ -377,13 +372,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ).sorted()
 
         // Then
-        XCTAssertEqual(appBundleDependencies, [
+        #expect(appBundleDependencies == [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
         ])
-        XCTAssertEqual(dynamicFrameworkBundleDependencies, [])
+        #expect(dynamicFrameworkBundleDependencies == [])
     }
 
-    func test_resourceBundleDependencies_when_app_extension_depends_on_external_static_framework_with_resources() {
+    @Test func test_resourceBundleDependencies_when_app_extension_depends_on_external_static_framework_with_resources() {
         // Given
         // AppExtension -> StaticLibrary (External) -> Bundle
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
@@ -424,12 +419,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .sorted()
 
         // Then
-        XCTAssertEqual(appExtensionBundleDependencies, [
+        #expect(appExtensionBundleDependencies == [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
         ])
     }
 
-    func test_resourceBundleDependencies_when_the_target_doesnt_support_resources() {
+    @Test func test_resourceBundleDependencies_when_the_target_doesnt_support_resources() {
         // Given
         // StaticLibrary -> Bundle
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
@@ -453,10 +448,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: project.path, name: staticLibrary.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [])
+        #expect(got == [])
     }
 
-    func test_resourceBundleDependencies_fromTargetDependency() {
+    @Test func test_resourceBundleDependencies_fromTargetDependency() {
         // Given
         let bundle = Target.test(name: "Bundle1", product: .bundle)
         let app = Target.test(name: "App", product: .bundle)
@@ -479,12 +474,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
         ])
     }
 
-    func test_resourceBundleDependencies_fromProjectDependency() {
+    @Test func test_resourceBundleDependencies_fromProjectDependency() {
         // Given
         let bundle = Target.test(name: "Bundle1", product: .bundle)
         let projectA = Project.test(path: "/path/a", targets: [bundle])
@@ -512,12 +507,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
         ])
     }
 
-    func test_resourceBundleDependencies_transitivelyViaSingleStaticFramework() {
+    @Test func test_resourceBundleDependencies_transitivelyViaSingleStaticFramework() {
         // Given
         let bundle = Target.test(name: "ResourceBundle", product: .bundle)
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
@@ -547,12 +542,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
         ])
     }
 
-    func test_resourceBundleDependencies_transitivelyViaMultipleStaticFrameworks() {
+    @Test func test_resourceBundleDependencies_transitivelyViaMultipleStaticFrameworks() {
         // Given
         let bundle1 = Target.test(name: "ResourceBundle1", product: .bundle)
         let bundle2 = Target.test(name: "ResourceBundle2", product: .bundle)
@@ -592,13 +587,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: bundle1.name, productName: bundle1.productNameWithExtension),
             .product(target: bundle2.name, productName: bundle2.productNameWithExtension),
         ])
     }
 
-    func test_resourceBundleDependencies_transitivelyToDynamicFramework() {
+    @Test func test_resourceBundleDependencies_transitivelyToDynamicFramework() {
         // Given
         // App -> Dynamic Framework ----
         //                              |--> Static Framework 2 -> Bundle
@@ -647,15 +642,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .sorted()
 
         // Then
-        XCTAssertEqual(appResults, [])
-        XCTAssertEqual(dynamicFrameworkResults, [
+        #expect(appResults == [])
+        #expect(dynamicFrameworkResults == [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
         ])
-        XCTAssertEqual(staticFramework1Results, [])
-        XCTAssertEqual(staticFramework2Results, [])
+        #expect(staticFramework1Results == [])
+        #expect(staticFramework2Results == [])
     }
 
-    func test_resourceBundleDependencies_precompiledResourceBundles_testBundle() {
+    @Test func test_resourceBundleDependencies_precompiledResourceBundles_testBundle() {
         // Given
         let bundlePath = try! AbsolutePath(validating: "/path/cache/CachedStaticFrameworkA.bundle")
         let bundle = GraphDependency.bundle(path: bundlePath)
@@ -701,13 +696,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ).sorted()
 
         // Then
-        XCTAssertEqual(appTestResults, [
+        #expect(appTestResults == [
             .bundle(path: bundlePath),
         ])
-        XCTAssertEqual(frameworkResults, [])
+        #expect(frameworkResults == [])
     }
 
-    func test_resourceBundleDependencies_precompiledResourceBundles_staticFramework() {
+    @Test func test_resourceBundleDependencies_precompiledResourceBundles_staticFramework() {
         // Given
         let bundlePath = try! AbsolutePath(validating: "/path/cache/CachedStaticFrameworkA.bundle")
         let bundle = GraphDependency.bundle(path: bundlePath)
@@ -753,13 +748,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ).sorted()
 
         // Then
-        XCTAssertEqual(appResults, [
+        #expect(appResults == [
             .bundle(path: bundlePath),
         ])
-        XCTAssertEqual(frameworkResults, [])
+        #expect(frameworkResults == [])
     }
 
-    func test_resourceBundleDependencies_precompiledResourceBundles_dynamicFramework() {
+    @Test func test_resourceBundleDependencies_precompiledResourceBundles_dynamicFramework() {
         // Given
         let bundlePath = try! AbsolutePath(validating: "/path/cache/CachedStaticFrameworkA.bundle")
         let bundle = GraphDependency.bundle(path: bundlePath)
@@ -805,20 +800,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ).sorted()
 
         // Then
-        XCTAssertEqual(
-            appResults, [
+        #expect(appResults == [
                 .bundle(path: bundlePath),
-            ]
-        )
-        XCTAssertEqual(
-            frameworkResults,
-            [
+            ])
+        #expect(frameworkResults == [
                 .bundle(path: bundlePath),
-            ]
-        )
+            ])
     }
 
-    func test_containsResources_is_true_when_buildable_folders_contain_resources() {
+    @Test func test_containsResources_is_true_when_buildable_folders_contain_resources() {
         let target = Target.test(
             product: .staticFramework,
             resources: .init([]),
@@ -833,10 +823,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertTrue(target.containsResources)
+        #expect(target.containsResources)
     }
 
-    func test_containsResources_is_false_when_buildable_folders_contain_only_sources() {
+    @Test func test_containsResources_is_false_when_buildable_folders_contain_only_sources() {
         let target = Target.test(
             product: .staticFramework,
             resources: .init([]),
@@ -850,10 +840,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertFalse(target.containsResources)
+        #expect(!target.containsResources)
     }
 
-    func test_resourceBundleDependencies_when_static_framework_has_resources_in_buildable_folders() {
+    @Test func test_resourceBundleDependencies_when_static_framework_has_resources_in_buildable_folders() {
         // Given
         // App -> StaticFramework (buildable folder resources) -> ResourceBundle
         let bundle = Target.test(name: "App_StaticFramework", product: .bundle)
@@ -896,12 +886,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
         ])
     }
 
-    func test_target_from_dependency() {
+    @Test func test_target_from_dependency() {
         // Given
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(targets: [app])
@@ -918,10 +908,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.target(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(got?.target, app)
+        #expect(got?.target == app)
     }
 
-    func test_allDependencies() throws {
+    @Test func test_allDependencies() throws {
         // Given
         // App -> StaticLibrary -> Bundle
         let app = Target.test(name: "App", product: .app)
@@ -947,7 +937,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.allProjectDependencies(path: project.path).sorted()
 
         // Then
-        XCTAssertEqual(Set(got), Set([
+        #expect(Set(got) == Set([
             .testProduct(target: bundle.name, productName: bundle.productNameWithExtension),
             .testProduct(
                 target: staticLibrary.name,
@@ -956,7 +946,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]))
     }
 
-    func test_filterDependencies_skips_branches() {
+    @Test func test_filterDependencies_skips_branches() {
         // Given
         // App -> StaticLibrary -> Bundle
         //     |
@@ -1000,14 +990,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(Set(got), Set([
+        #expect(Set(got) == Set([
             .target(name: bundle.name, path: project.path),
             .target(name: staticLibrary.name, path: project.path),
             .target(name: frameworkA.name, path: project.path),
         ]))
     }
 
-    func test_appExtensionDependencies_when_dependencyIsAppExtension() throws {
+    @Test func test_appExtensionDependencies_when_dependencyIsAppExtension() throws {
         // Given
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "AppExtension", product: .appExtension)
@@ -1029,10 +1019,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.appExtensionDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got.first?.target.name, "AppExtension")
+        #expect(got.first?.target.name == "AppExtension")
     }
 
-    func test_appExtensionDependencies_when_dependencyIsStickerPackExtension() throws {
+    @Test func test_appExtensionDependencies_when_dependencyIsStickerPackExtension() throws {
         // When
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
@@ -1054,10 +1044,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.appExtensionDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got.first?.target.name, "StickerPackExtension")
+        #expect(got.first?.target.name == "StickerPackExtension")
     }
 
-    func test_appExtensionDependencies_when_dependencyIsMessageExtension() throws {
+    @Test func test_appExtensionDependencies_when_dependencyIsMessageExtension() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let messageExtension = Target.test(name: "MessageExtension", product: .messagesExtension)
@@ -1079,12 +1069,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.appExtensionDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target.name), [
+        #expect(got.map(\.target.name) == [
             "MessageExtension",
         ])
     }
 
-    func test_appClipDependencies() throws {
+    @Test func test_appClipDependencies() throws {
         // Given
         let app = Target.test(name: "app", product: .app)
         let appClip = Target.test(name: "clip", product: .appClip)
@@ -1105,10 +1095,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         let expectedTarget = GraphTarget(path: project.path, target: appClip, project: project)
-        XCTAssertEqual(got, GraphTargetReference(target: expectedTarget))
+        #expect(got == GraphTargetReference(target: expectedTarget))
     }
 
-    func test_buildsForMacCatalyst_returns_false_when_someDependenciesCantBuildForMacCatalyst() {
+    @Test func test_buildsForMacCatalyst_returns_false_when_someDependenciesCantBuildForMacCatalyst() {
         // Given
         let app = Target.test(name: "app", destinations: [.macCatalyst], product: .app)
         let library = Target.test(name: "library-a", destinations: [.iPhone], product: .dynamicLibrary)
@@ -1135,10 +1125,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.buildsForMacCatalyst(path: project.path, name: app.name)
 
         // Then
-        XCTAssertFalse(got)
+        #expect(!got)
     }
 
-    func test_buildsForMacCatalyst_returns_false_when_aTargetDoesntSupportCatalystRegardlessOfItsDependencies() {
+    @Test func test_buildsForMacCatalyst_returns_false_when_aTargetDoesntSupportCatalystRegardlessOfItsDependencies() {
         // Given
         let app = Target.test(name: "app", destinations: [.iPhone], product: .app)
         let library = Target.test(name: "library-a", destinations: [.macCatalyst], product: .dynamicLibrary)
@@ -1165,10 +1155,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.buildsForMacCatalyst(path: project.path, name: app.name)
 
         // Then
-        XCTAssertFalse(got)
+        #expect(!got)
     }
 
-    func test_buildsForMacCatalyst_returns_true_when_aTargetAndItsDependenciesSupportCatalyst() {
+    @Test func test_buildsForMacCatalyst_returns_true_when_aTargetAndItsDependenciesSupportCatalyst() {
         // Given
         let app = Target.test(name: "app", destinations: [.macCatalyst], product: .app)
         let library = Target.test(name: "library-a", destinations: [.macCatalyst], product: .dynamicLibrary)
@@ -1195,10 +1185,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.buildsForMacCatalyst(path: project.path, name: app.name)
 
         // Then
-        XCTAssertTrue(got)
+        #expect(got)
     }
 
-    func test_embeddableFrameworks_when_macroExecutableInBetween() throws {
+    @Test func test_embeddableFrameworks_when_macroExecutableInBetween() throws {
         // Target > Macro XCFramework > Macro Executable > Dynamic SwiftSyntax
         //
         // Having a macro executable that links dynamic dependencies is an scenario that Tuist might support in the future.
@@ -1229,10 +1219,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [GraphDependencyReference(precompiledMacro)])
+        #expect(got == [GraphDependencyReference(precompiledMacro)])
     }
 
-    func test_embeddableFrameworks_when_targetIsNotApp() throws {
+    @Test func test_embeddableFrameworks_when_targetIsNotApp() throws {
         // Given
         let target = Target.test(name: "Main", product: .framework)
         let dependency = Target.test(name: "Dependency", product: .framework)
@@ -1254,10 +1244,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertNil(got.first)
+        #expect(got.first == nil)
     }
 
-    func test_embeddableFrameworks_when_dependencyIsATarget() throws {
+    @Test func test_embeddableFrameworks_when_dependencyIsATarget() throws {
         // Given
         let mergeableSettings = Settings.test(base: ["MERGEABLE_LIBRARY": "YES"])
         let target = Target.test(name: "Main")
@@ -1284,15 +1274,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(
-            got, [
+        #expect(got == [
                 .product(target: "DependencyA", productName: "DependencyA.framework"),
                 .product(target: "DependencyB", productName: "DependencyB.framework"),
-            ]
-        )
+            ])
     }
 
-    func test_embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {
+    @Test func test_embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {
         // Given
         let target = Target.test(name: "Main", mergedBinaryType: .automatic)
         let dependencyA = Target.test(name: "DependencyA", product: .framework)
@@ -1318,10 +1306,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [.product(target: "DependencyA", productName: "DependencyA.framework")])
+        #expect(got, [.product(target: "DependencyA" == productName: "DependencyA.framework")])
     }
 
-    func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
+    @Test func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
         // Given
         let frameworkPath = try AbsolutePath(validating: "/test/test.framework")
         let target = Target.test(name: "Main", platform: .iOS)
@@ -1348,10 +1336,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got.first, GraphDependencyReference(frameworkDependency))
+        #expect(got.first == GraphDependencyReference(frameworkDependency))
     }
 
-    func test_embeddableFrameworks_when_transitiveXCFrameworks() throws {
+    @Test func test_embeddableFrameworks_when_transitiveXCFrameworks() throws {
         // Given
         let app = Target.test(name: "App", platform: .iOS, product: .app)
         let project = Project.test(targets: [app])
@@ -1406,14 +1394,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference(cDependency),
             GraphDependencyReference(dDependency),
             GraphDependencyReference(eDependency), // E should be present in the list as it is mergeable but app is not mergeable
         ])
     }
 
-    func test_embeddableFrameworks_when_appMergesDependencies() throws {
+    @Test func test_embeddableFrameworks_when_appMergesDependencies() throws {
         // Given
         let app = Target.test(
             name: "App",
@@ -1474,11 +1462,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [GraphDependencyReference(cDependency), GraphDependencyReference(dDependency)])
+        #expect(got, [GraphDependencyReference(cDependency) == GraphDependencyReference(dDependency)])
         // E should not be present in the list as it is mergeable and app is mergeable
     }
 
-    func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
+    @Test func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
         // Given
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .framework)
@@ -1507,13 +1495,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework"),
             GraphDependencyReference(frameworkDependency),
         ])
     }
 
-    func test_embeddableFrameworks_when_precompiledStaticFramework() throws {
+    @Test func test_embeddableFrameworks_when_precompiledStaticFramework() throws {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
@@ -1539,10 +1527,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 
-    func test_embeddableFrameworks_when_watchExtension() throws {
+    @Test func test_embeddableFrameworks_when_watchExtension() throws {
         // Given
         let frameworkA = Target.test(name: "FrameworkA", product: .framework)
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
@@ -1571,13 +1559,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: watchExtension.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: "FrameworkA", productName: "FrameworkA.framework"),
             .product(target: "FrameworkB", productName: "FrameworkB.framework"),
         ])
     }
 
-    func test_embeddableFrameworks_when_macOS_xpc() throws {
+    @Test func test_embeddableFrameworks_when_macOS_xpc() throws {
         // Given
         let frameworkA = Target.test(name: "FrameworkA", destinations: .macOS, product: .framework)
         let frameworkB = Target.test(name: "FrameworkB", destinations: .macOS, product: .framework)
@@ -1606,13 +1594,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: xpc.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: "FrameworkA", productName: "FrameworkA.framework"),
             .product(target: "FrameworkB", productName: "FrameworkB.framework"),
         ])
     }
 
-    func test_embeddableDependencies_whenHostedTestTarget() throws {
+    @Test func test_embeddableDependencies_whenHostedTestTarget() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -1639,10 +1627,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 
-    func test_embeddableDependencies_when_nonHostedTestTarget_dynamic_dependencies() throws {
+    @Test func test_embeddableDependencies_when_nonHostedTestTarget_dynamic_dependencies() throws {
         // Given
         let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
         let target = Target.test(name: "LocallyBuiltFramework", product: .framework)
@@ -1674,10 +1662,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: unitTests.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 
-    func test_embeddableFrameworks_whenHostedTestTarget_transitiveDependencies() throws {
+    @Test func test_embeddableFrameworks_whenHostedTestTarget_transitiveDependencies() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -1719,10 +1707,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 
-    func test_embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {
+    @Test func test_embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
@@ -1752,10 +1740,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: uiTests.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 
-    func test_embeddableFrameworks_when_appExtensionWithFrameworkDependency() throws {
+    @Test func test_embeddableFrameworks_when_appExtensionWithFrameworkDependency() throws {
         // Given
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let framework = Target.test(name: "Framework", product: .framework)
@@ -1772,10 +1760,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: appExtension.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 
-    func test_librariesPublicHeadersFolders() throws {
+    @Test func test_librariesPublicHeadersFolders() throws {
         // Given
         let target = Target.test(name: "Main")
         let publicHeadersPath = try AbsolutePath(validating: "/test/public/")
@@ -1804,10 +1792,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ).sorted()
 
         // Then
-        XCTAssertEqual(got.first, publicHeadersPath)
+        #expect(got.first == publicHeadersPath)
     }
 
-    func test_librariesSearchPaths() throws {
+    @Test func test_librariesSearchPaths() throws {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
@@ -1832,10 +1820,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.librariesSearchPaths(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, try [AbsolutePath(validating: "/test")])
+        #expect(got == try [AbsolutePath(validating: "/test")])
     }
 
-    func test_linkableDependencies_whenMacros() throws {
+    @Test func test_linkableDependencies_whenMacros() throws {
         // Given
         let target = Target.test(name: "Main", product: .app)
         let macroXCFramework = GraphDependency.testXCFramework(
@@ -1865,10 +1853,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got.first, GraphDependencyReference(macroXCFramework))
+        #expect(got.first == GraphDependencyReference(macroXCFramework))
     }
 
-    func test_linkableDependencies_doesntReturnTransitiveStaticPrecompiledBinaries_when_thereAreIntermediatePrecompiledBinariesThatCanLink(
+    @Test func test_linkableDependencies_doesntReturnTransitiveStaticPrecompiledBinaries_when_thereAreIntermediatePrecompiledBinariesThatCanLink(
     ) throws {
         // Given
         let target = Target.test(name: "Main")
@@ -1901,10 +1889,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [GraphDependencyReference(precompiledDynamicFramework)])
+        #expect(got == [GraphDependencyReference(precompiledDynamicFramework)])
     }
 
-    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledStaticBinaryDependency(
+    @Test func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledStaticBinaryDependency(
     ) throws {
         // App ---(depends on)---> Precompiled static binary (A) ---> Precompiled static binary (B)
 
@@ -1945,7 +1933,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference(dependencyPrecompiledStaticBinaryA),
             GraphDependencyReference(dependencyPrecompiledStaticBinaryB),
         ])
@@ -1954,10 +1942,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        XCTAssertTrue(embeddable.isEmpty)
+        #expect(embeddable.isEmpty)
     }
 
-    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledDynamicBinaryDependency(
+    @Test func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledDynamicBinaryDependency(
     ) throws {
         // App ---(depends on)---> Precompiled dynamic binary (A) ----> Precompiled dynamic binary (B)
 
@@ -1999,7 +1987,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryA),
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryB),
         ])
@@ -2008,22 +1996,22 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(embeddable, [
+        #expect(embeddable == [
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryA),
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryB),
         ])
     }
 
-    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependency(
+    @Test(.inTemporaryDirectory) func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> Static XCFramework (B)
 
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
-        let staticFrameworkAPath = try temporaryPath()
+        let staticFrameworkAPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "StaticFrameworkA.xcframework")
-        let staticFrameworkBPath = try temporaryPath()
+        let staticFrameworkBPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "StaticFrameworkB.xcframework")
 
         // Given: Value Graph
@@ -2061,7 +2049,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference(dependencyDynamicXCFramework),
             GraphDependencyReference(dependencyStaticXCFrameworkA),
             GraphDependencyReference(dependencyStaticXCFrameworkB),
@@ -2071,19 +2059,19 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        XCTAssertBetterEqual(embeddable, [
+        #expect(embeddable == [
             GraphDependencyReference(dependencyDynamicXCFramework),
         ])
     }
 
-    func test_linkableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
+    @Test(.inTemporaryDirectory) func test_linkableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Objective-C XCFramework (A)
 
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
-        let staticFrameworkAPath = try temporaryPath()
+        let staticFrameworkAPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "StaticFrameworkA.xcframework")
 
         // Given: Value Graph
@@ -2114,12 +2102,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference(dependencyDynamicXCFramework),
         ])
     }
 
-    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependencyWithALinkedSystemLibrary(
+    @Test(.inTemporaryDirectory) func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependencyWithALinkedSystemLibrary(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> libc++.tbd
 
@@ -2132,7 +2120,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: "/test/DynamicFramework.xcframework",
             linking: .dynamic
         )
-        let staticFrameworkAPath = try temporaryPath()
+        let staticFrameworkAPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "StaticFrameworkA.xcframework")
         let dependencyStaticXCFrameworkA = GraphDependency.testXCFramework(
             path: staticFrameworkAPath,
@@ -2161,7 +2149,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertBetterEqual(got, [
+        #expect(got == [
             .sdk(
                 path: try AbsolutePath(validating: "/libc++.tbd"),
                 status: .required,
@@ -2176,12 +2164,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        XCTAssertBetterEqual(embeddable, [
+        #expect(embeddable == [
             GraphDependencyReference(dependencyDynamicXCFramework),
         ])
     }
 
-    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledDynamicBinaryDependency(
+    @Test func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledDynamicBinaryDependency(
     ) throws {
         // App ---(depends on)---> Precompiled static binary (A) ----> Precompiled dynamic binary (B)
 
@@ -2222,7 +2210,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryB),
             GraphDependencyReference(dependencyPrecompiledStaticBinaryA),
         ])
@@ -2231,12 +2219,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(embeddable, [
+        #expect(embeddable == [
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryB),
         ])
     }
 
-    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledStaticBinaryDependency(
+    @Test func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledStaticBinaryDependency(
     ) throws {
         // App ---(depends on)---> Precompiled dynamic binary (A) ----> Precompiled static binary (B)
 
@@ -2277,7 +2265,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryA),
         ])
 
@@ -2285,12 +2273,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(embeddable, [
+        #expect(embeddable == [
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryA),
         ])
     }
 
-    func test_linkableFrameworks_when_staticFrameworkDependsOnTransitivePrecompiledStaticFramework() throws {
+    @Test func test_linkableFrameworks_when_staticFrameworkDependsOnTransitivePrecompiledStaticFramework() throws {
         // Given
         // App
         //  -> StaticFramework (Target .staticFramework)
@@ -2333,7 +2321,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let results = try subject.linkableDependencies(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(results.sorted(), [
+        #expect(results.sorted() == [
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension
@@ -2343,7 +2331,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_linkableDependencies_whenALibraryTarget() throws {
+    @Test func test_linkableDependencies_whenALibraryTarget() throws {
         // Given
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .staticLibrary)
@@ -2364,10 +2352,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "libDependency.a"))
+        #expect(got.first, .product(target: "Dependency" == productName: "libDependency.a"))
     }
 
-    func test_linkableDependencies_whenAFrameworkTarget() throws {
+    @Test func test_linkableDependencies_whenAFrameworkTarget() throws {
         // Given
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .framework)
@@ -2396,19 +2384,19 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ).sorted()
 
         // Then
-        XCTAssertEqual(got.count, 1)
-        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework"))
+        #expect(got.count == 1)
+        #expect(got.first, .product(target: "Dependency" == productName: "Dependency.framework"))
 
         let frameworkGot = try subject.linkableDependencies(path: project.path, name: dependency.name)
 
-        XCTAssertEqual(frameworkGot.count, 1)
-        XCTAssertTrue(
+        #expect(frameworkGot.count == 1)
+        #expect(
             frameworkGot
                 .contains(.product(target: "StaticDependency", productName: "libStaticDependency.a"))
         )
     }
 
-    func test_linkableDependencies_transitiveDynamicLibrariesOneStaticHop() throws {
+    @Test func test_linkableDependencies_transitiveDynamicLibrariesOneStaticHop() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFramework",
@@ -2445,20 +2433,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
+        #expect(got == [
                 GraphDependencyReference
                     .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
                 GraphDependencyReference.product(
                     target: "StaticFramework",
                     productName: "StaticFramework.framework"
                 ),
-            ]
-        )
+            ])
     }
 
-    func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
+    @Test func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
         // Given
         let dynamicFramework1 = Target.test(
             name: "DynamicFramework1",
@@ -2517,13 +2502,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let dynamicFramework1Got = try subject.linkableDependencies(path: project.path, name: dynamicFramework1.name).sorted()
 
         // Then
-        XCTAssertEqual(appGot, [
+        #expect(appGot == [
             GraphDependencyReference.product(
                 target: "DynamicFramework1",
                 productName: "DynamicFramework1.framework"
             ),
         ])
-        XCTAssertEqual(dynamicFramework1Got, [
+        #expect(dynamicFramework1Got == [
             GraphDependencyReference.product(
                 target: "DynamicFramework2",
                 productName: "DynamicFramework2.framework"
@@ -2539,7 +2524,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_linkableDependencies_transitiveDynamicLibrariesCheckNoDuplicatesInParentDynamic() throws {
+    @Test func test_linkableDependencies_transitiveDynamicLibrariesCheckNoDuplicatesInParentDynamic() throws {
         // Given
         let dynamicFramework1 = Target.test(
             name: "DynamicFramework1",
@@ -2608,16 +2593,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let dynamicFramework1Got = try subject.linkableDependencies(path: project.path, name: dynamicFramework1.name).sorted()
 
         // Then
-        XCTAssertEqual(
-            dynamicFramework1Got,
-            [
+        #expect(dynamicFramework1Got == [
                 GraphDependencyReference
                     .product(target: "DynamicFramework2", productName: "DynamicFramework2.framework"),
-            ]
-        )
+            ])
     }
 
-    func test_linkableDependencies_transitiveSDKDependenciesStatic() throws {
+    @Test func test_linkableDependencies_transitiveSDKDependenciesStatic() throws {
         // Given
         let staticFrameworkA = Target.test(
             name: "StaticFrameworkA",
@@ -2659,12 +2641,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.compactMap(sdkDependency), [
+        #expect(got.compactMap(sdkDependency) == [
             SDKPathAndStatus(name: "some.framework", status: .optional),
         ])
     }
 
-    func test_linkableDependencies_transitiveSDKDependenciesDynamic() throws {
+    @Test func test_linkableDependencies_transitiveSDKDependenciesDynamic() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFramework",
@@ -2707,14 +2689,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let dynamicGot = try subject.linkableDependencies(path: project.path, name: dynamicFramework.name).sorted()
 
         // Then
-        XCTAssertEqual(appGot.compactMap(sdkDependency), [])
-        XCTAssertEqual(
-            dynamicGot.compactMap(sdkDependency),
-            [SDKPathAndStatus(name: "some.framework", status: .optional)]
-        )
+        #expect(appGot.compactMap(sdkDependency) == [])
+        #expect(dynamicGot.compactMap(sdkDependency) == [SDKPathAndStatus(name: "some.framework", status: .optional)])
     }
 
-    func test_linkableDependencies_transitiveSDKDependenciesNotDuplicated() throws {
+    @Test func test_linkableDependencies_transitiveSDKDependenciesNotDuplicated() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFramework",
@@ -2752,12 +2731,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.compactMap(sdkDependency), [
+        #expect(got.compactMap(sdkDependency) == [
             SDKPathAndStatus(name: "some.framework", status: .optional),
         ])
     }
 
-    func test_linkableDependencies_transitiveSDKDependenciesImmediateDependencies() throws {
+    @Test func test_linkableDependencies_transitiveSDKDependenciesImmediateDependencies() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFrameworkA",
@@ -2797,16 +2776,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: staticFramework.name).sorted()
 
         // Then
-        XCTAssertEqual(
-            got.compactMap(sdkDependency),
-            [
+        #expect(got.compactMap(sdkDependency) == [
                 SDKPathAndStatus(name: "thingone.framework", status: .optional),
                 SDKPathAndStatus(name: "thingtwo.framework", status: .required),
-            ]
-        )
+            ])
     }
 
-    func test_linkableDependencies_NoTransitiveSDKDependenciesForStaticFrameworks() throws {
+    @Test func test_linkableDependencies_NoTransitiveSDKDependenciesForStaticFrameworks() throws {
         // Given
         let staticFrameworkA = Target.test(
             name: "StaticFrameworkA",
@@ -2849,13 +2825,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: staticFrameworkA.name).sorted()
 
         // Then
-        XCTAssertEqual(
-            got.compactMap(sdkDependency),
-            [SDKPathAndStatus(name: "ThingOne.framework", status: .optional)]
-        )
+        #expect(got.compactMap(sdkDependency) == [SDKPathAndStatus(name: "ThingOne.framework", status: .optional)])
     }
 
-    func test_linkableDependencies_includeTransitivePrecompiledDependenciesOfStaticFrameworks() throws {
+    @Test func test_linkableDependencies_includeTransitivePrecompiledDependenciesOfStaticFrameworks() throws {
         // Given
         // App > StaticFramework > PrecompiledDynamicFramework
         let app = Target.test(name: "App", product: .app)
@@ -2887,7 +2860,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let result = try subject.linkableDependencies(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(result.sorted(), [
+        #expect(result.sorted() == [
             .product(target: "StaticFramework", productName: "StaticFramework.framework"),
             .framework(
                 path: "/path/to/frameworks/precompiled.framework",
@@ -2902,7 +2875,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks() throws {
+    @Test func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks() throws {
         // Given
         // App > DynamicFramework > PrecompiledDynamicFramework
         let app = Target.test(name: "App", product: .app)
@@ -2934,12 +2907,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let result = try subject.linkableDependencies(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(result.sorted(), [
+        #expect(result.sorted() == [
             .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
         ])
     }
 
-    func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks2() throws {
+    @Test func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks2() throws {
         // Given
         // App > StaticFramework > DynamicFramework > PrecompiledDynamicFramework
         let app = Target.test(name: "App", product: .app)
@@ -2975,13 +2948,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let result = try subject.linkableDependencies(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(result.sorted(), [
+        #expect(result.sorted() == [
             .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
             .product(target: "StaticFramework", productName: "StaticFramework.framework"),
         ])
     }
 
-    func test_linkableDependencies_when_watchExtension() throws {
+    @Test func test_linkableDependencies_when_watchExtension() throws {
         // Given
         let frameworkA = Target.test(name: "FrameworkA", product: .framework)
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
@@ -3010,12 +2983,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: watchExtension.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: "FrameworkA", productName: "FrameworkA.framework"),
         ])
     }
 
-    func test_linkableDependencies_when_watchExtension_staticDependency() throws {
+    @Test func test_linkableDependencies_when_watchExtension_staticDependency() throws {
         // Given
         let frameworkA = Target.test(name: "FrameworkA", product: .staticFramework)
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
@@ -3044,13 +3017,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: watchExtension.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: "FrameworkA", productName: "FrameworkA.framework"),
             .product(target: "FrameworkB", productName: "FrameworkB.framework"),
         ])
     }
 
-    func test_linkableDependencies_whenHostedTestTarget_withCommonStaticProducts() throws {
+    @Test func test_linkableDependencies_whenHostedTestTarget_withCommonStaticProducts() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFramework",
@@ -3084,10 +3057,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         // common static products are not linked in the test target
         // as the are already present in the test host
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 
-    func test_linkableDependencies_whenAppClipHostedTestTarget_withCommonStaticProducts() throws {
+    @Test func test_linkableDependencies_whenAppClipHostedTestTarget_withCommonStaticProducts() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFramework",
@@ -3119,10 +3092,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         // common static products are not linked in the test target
         // as the are already present in the test host
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 
-    func test_linkableDependencies_whenHostedTestTarget_withCommonDynamicProducts() throws {
+    @Test func test_linkableDependencies_whenHostedTestTarget_withCommonDynamicProducts() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -3152,12 +3125,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .product(target: "Framework", productName: "Framework.framework"),
         ])
     }
 
-    func test_linkableDependencies_whenHostedTestTarget_doNotIncludeRedundantDependencies() throws {
+    @Test func test_linkableDependencies_whenHostedTestTarget_doNotIncludeRedundantDependencies() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -3184,10 +3157,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: tests.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        #expect(got.isEmpty)
     }
 
-    func test_linkableDependencies_when_appClipSDKNode() throws {
+    @Test func test_linkableDependencies_when_appClipSDKNode() throws {
         // Given
         let target = Target.test(name: "AppClip", product: .appClip)
         let project = Project.test(path: "/path/a", targets: [target])
@@ -3227,14 +3200,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
             source: .system
         )
         .path
-        XCTAssertEqual(
-            got, [
+        #expect(got == [
                 .sdk(path: path, status: .required, source: .system, condition: .when([.ios])),
-            ]
-        )
+            ])
     }
 
-    func test_embeddableFrameworks_when_appClipDependsOnDynamicFramework() throws {
+    @Test func test_embeddableFrameworks_when_appClipDependsOnDynamicFramework() throws {
         // Given
         let appClipTarget = Target.test(name: "AppClip", product: .appClip)
         let frameworkTarget = Target.test(name: "MyFramework", product: .framework)
@@ -3258,7 +3229,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let result = subject.embeddableFrameworks(path: project.path, name: appClipTarget.name).sorted()
 
         // Then
-        XCTAssertEqual(result, [
+        #expect(result == [
             .product(
                 target: "MyFramework",
                 productName: "MyFramework.framework"
@@ -3266,7 +3237,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_embeddableFrameworks_when_transitiveXCFrameworkWithDifferentStatuses() throws {
+    @Test func test_embeddableFrameworks_when_transitiveXCFrameworkWithDifferentStatuses() throws {
         // Given
         // App depends on FrameworkA and FrameworkB
         // FrameworkA depends on XCFramework with .optional status
@@ -3318,21 +3289,21 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.count, 3)
+        #expect(got.count == 3)
         let xcframeworks = got.filter {
             if case .xcframework = $0 { return true }
             return false
         }
-        XCTAssertEqual(xcframeworks.count, 1)
+        #expect(xcframeworks.count == 1)
         switch xcframeworks[0] {
         case let .xcframework(_, _, _, status, _):
-            XCTAssertEqual(status, .required)
+            #expect(status == .required)
         default:
-            XCTFail("Expected xcframework")
+            Issue.record("Expected xcframework")
         }
     }
 
-    func test_linkableDependencies_when_dependencyIsAFramework() throws {
+    @Test func test_linkableDependencies_when_dependencyIsAFramework() throws {
         // Given
         let frameworkPath = try AbsolutePath(validating: "/test/test.framework")
         let target = Target.test(name: "Main", platform: .iOS)
@@ -3359,12 +3330,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference(frameworkDependency),
         ])
     }
 
-    func test_linkableFrameworks_when_precompiledStaticFramework() throws {
+    @Test func test_linkableFrameworks_when_precompiledStaticFramework() throws {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
@@ -3393,12 +3364,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference(frameworkDependency),
         ])
     }
 
-    func test_when_staticFrameworkDependsOnPrecompiledStaticFramework() throws {
+    @Test func test_when_staticFrameworkDependsOnPrecompiledStaticFramework() throws {
         // Given
         // App > StaticFramework > PrecompiledStaticFramework
         let app = Target.test(name: "App", product: .app)
@@ -3448,21 +3419,21 @@ final class GraphTraverserTests: TuistUnitTestCase {
         //
         // For precompiled static `.framework`s, ensuring search paths are updated should allow the intermediate
         // static frameworks to see their symbols during compilation.
-        XCTAssertEqual(appLinkableProducts.sorted(), [
+        #expect(appLinkableProducts.sorted() == [
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension
             ),
             GraphDependencyReference(precompiledStaticFramework),
         ])
-        XCTAssertEqual(staticFrameworkLinkableProducts.sorted(), [])
-        XCTAssertEqual(staticFrameworkCopyProducts.sorted(), [])
-        XCTAssertEqual(staticFrameworkSearchPaths.sorted(), [
+        #expect(staticFrameworkLinkableProducts.sorted() == [])
+        #expect(staticFrameworkCopyProducts.sorted() == [])
+        #expect(staticFrameworkSearchPaths.sorted() == [
             GraphDependencyReference(precompiledStaticFramework),
         ])
     }
 
-    func test_when_staticFrameworkDependsOnPrecompiledStaticLibaryXCFramework() throws {
+    @Test func test_when_staticFrameworkDependsOnPrecompiledStaticLibaryXCFramework() throws {
         // Given
         // App > StaticFramework > PrecompiledStaticXCFramework
         let app = Target.test(name: "App", product: .app)
@@ -3511,21 +3482,21 @@ final class GraphTraverserTests: TuistUnitTestCase {
         //
         // For precompiled static `.xcframework`s, ensuring they are part of the copy products build phase
         // allows the intermediate static frameworks to see their symbols during compilation.
-        XCTAssertEqual(appLinkableProducts.sorted(), [
+        #expect(appLinkableProducts.sorted() == [
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension
             ),
             GraphDependencyReference(precompiledStaticXCFramework),
         ])
-        XCTAssertEqual(staticFrameworkLinkableProducts.sorted(), [])
-        XCTAssertEqual(staticFrameworkCopyProducts.sorted(), [
+        #expect(staticFrameworkLinkableProducts.sorted() == [])
+        #expect(staticFrameworkCopyProducts.sorted() == [
             GraphDependencyReference(precompiledStaticXCFramework),
         ])
-        XCTAssertEqual(staticFrameworkSearchPaths.sorted(), [])
+        #expect(staticFrameworkSearchPaths.sorted() == [])
     }
 
-    func test_when_staticFrameworkDependsOnPrecompiledStaticLibary() throws {
+    @Test func test_when_staticFrameworkDependsOnPrecompiledStaticLibary() throws {
         // Given
         // App > StaticFramework > PrecompiledStaticXCFramework
         let app = Target.test(name: "App", product: .app)
@@ -3583,27 +3554,27 @@ final class GraphTraverserTests: TuistUnitTestCase {
         //
         // For precompiled static library `.a`, ensuring the searc and swift include paths are set
         // allows the intermediate static frameworks to see their symbols during compilation.
-        XCTAssertEqual(appLinkableProducts.sorted(), [
+        #expect(appLinkableProducts.sorted() == [
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension
             ),
             GraphDependencyReference(precompiledStaticLibrary),
         ])
-        XCTAssertEqual(appLibrarySearchPaths.sorted(), [
+        #expect(appLibrarySearchPaths.sorted() == [
             "/test/PrecompiledStaticLibrary",
         ])
-        XCTAssertEqual(staticFrameworkLinkableProducts.sorted(), [])
-        XCTAssertEqual(staticFrameworkCopyProducts.sorted(), [])
-        XCTAssertEqual(staticFrameworkLibrarySearchPaths.sorted(), [
+        #expect(staticFrameworkLinkableProducts.sorted() == [])
+        #expect(staticFrameworkCopyProducts.sorted() == [])
+        #expect(staticFrameworkLibrarySearchPaths.sorted() == [
             "/test/PrecompiledStaticLibrary",
         ])
-        XCTAssertEqual(staticFrameworkSwiftIncludePaths.sorted(), [
+        #expect(staticFrameworkSwiftIncludePaths.sorted() == [
             "/test/PrecompiledStaticLibrary",
         ])
     }
 
-    func test_linkableFrameworks_when_transitivePrecompiledStaticFramework() throws {
+    @Test func test_linkableFrameworks_when_transitivePrecompiledStaticFramework() throws {
         // Given
         let unitTests = Target.test(name: "MyStaticFrameworkTests", product: .unitTests)
         let staticFramework = Target.test(name: "MyStaticFramework", product: .staticFramework)
@@ -3631,7 +3602,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: unitTests.name)
 
         // Then
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension
@@ -3640,7 +3611,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_linkableFrameworks_when_transitivePrecompiledStaticFrameworkLinkedByDynamicFramework() throws {
+    @Test func test_linkableFrameworks_when_transitivePrecompiledStaticFrameworkLinkedByDynamicFramework() throws {
         // Given
         let unitTests = Target.test(name: "MyDynamicFrameworkTests", product: .unitTests)
         let dynamicFramework = Target.test(name: "MyDynamicFramework", product: .framework)
@@ -3673,14 +3644,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let testResults = try subject.linkableDependencies(path: project.path, name: unitTests.name)
 
         // Then
-        XCTAssertEqual(frameworkResults.sorted(), [
+        #expect(frameworkResults.sorted() == [
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension
             ),
             GraphDependencyReference(precompiledStaticFramework),
         ])
-        XCTAssertEqual(testResults.sorted(), [
+        #expect(testResults.sorted() == [
             .product(
                 target: dynamicFramework.name,
                 productName: dynamicFramework.productNameWithExtension
@@ -3688,7 +3659,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_linkableFrameworks_when_precompiledStaticFrameworkLinkedByHostApp() throws {
+    @Test func test_linkableFrameworks_when_precompiledStaticFrameworkLinkedByHostApp() throws {
         // Given
         let hostApp = Target.test(name: "App", product: .app)
         let unitTests = Target.test(name: "AppTests", product: .unitTests)
@@ -3717,10 +3688,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let results = try subject.linkableDependencies(path: project.path, name: unitTests.name)
 
         // Then
-        XCTAssertEqual(results.sorted(), [])
+        #expect(results.sorted() == [])
     }
 
-    func test_linkableFrameworks_when_transitivePrecompiledStaticFrameworkLinkedByHostApp() throws {
+    @Test func test_linkableFrameworks_when_transitivePrecompiledStaticFrameworkLinkedByHostApp() throws {
         // Given
         let hostApp = Target.test(name: "App", product: .app)
         let unitTests = Target.test(name: "MyHostAppTests", product: .unitTests)
@@ -3753,7 +3724,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let results = try subject.linkableDependencies(path: project.path, name: unitTests.name)
 
         // Then
-        XCTAssertEqual(results.sorted(), [
+        #expect(results.sorted() == [
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension
@@ -3761,7 +3732,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_searchablePathDependencies_when_transitivePrecompiledStaticFrameworkLinkedByHostApp() throws {
+    @Test func test_searchablePathDependencies_when_transitivePrecompiledStaticFrameworkLinkedByHostApp() throws {
         // Given
         let hostApp = Target.test(name: "App", product: .app)
         let unitTests = Target.test(name: "MyHostAppTests", product: .unitTests)
@@ -3794,7 +3765,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let results = try subject.searchablePathDependencies(path: project.path, name: unitTests.name)
 
         // Then
-        XCTAssertEqual(results.sorted(), [
+        #expect(results.sorted() == [
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension
@@ -3803,7 +3774,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_searchablePathDependencies_when_transitiveStaticDependenciesThroughDynamicFramework() throws {
+    @Test func test_searchablePathDependencies_when_transitiveStaticDependenciesThroughDynamicFramework() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let dynamicFramework = Target.test(name: "MyDynamicFramework", product: .framework)
@@ -3829,20 +3800,20 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let linkableDeps = try subject.linkableDependencies(path: project.path, name: app.name)
 
         // Then: searchablePathDependencies includes the transitive static dep
-        XCTAssertTrue(
+        #expect(
             searchablePaths.contains(
                 .product(target: staticFramework.name, productName: staticFramework.productNameWithExtension)
             )
         )
         // And: linkableDependencies does NOT include the transitive static dep (it's inside the dynamic framework)
-        XCTAssertFalse(
-            linkableDeps.contains(
+        #expect(
+            !linkableDeps.contains(
                 .product(target: staticFramework.name, productName: staticFramework.productNameWithExtension)
             )
         )
     }
 
-    func test_librariesSwiftIncludePaths() throws {
+    @Test func test_librariesSwiftIncludePaths() throws {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
@@ -3865,10 +3836,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, try [AbsolutePath(validating: "/test/modules")])
+        #expect(got == try [AbsolutePath(validating: "/test/modules")])
     }
 
-    func test_runPathSearchPaths() throws {
+    @Test func test_runPathSearchPaths() throws {
         // Given
         let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
         let project = Project.test(path: "/path/a", targets: [unitTests])
@@ -3904,13 +3875,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.runPathSearchPaths(path: project.path, name: unitTests.name).sorted()
 
         // Then
-        XCTAssertEqual(
-            got,
-            try [AbsolutePath(validating: "/test")]
-        )
+        #expect(got == try [AbsolutePath(validating: "/test")])
     }
 
-    func test_runPathSearchPaths_when_unit_tests_with_hosted_target() throws {
+    @Test func test_runPathSearchPaths_when_unit_tests_with_hosted_target() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
@@ -3942,10 +3910,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.runPathSearchPaths(path: project.path, name: unitTests.name).sorted()
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty)
     }
 
-    func test_hostTargetNode_watchApp() {
+    @Test func test_hostTargetNode_watchApp() {
         // Given
         let app = Target.test(name: "App", platform: .iOS, product: .app)
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
@@ -3965,10 +3933,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.hostTargetFor(path: project.path, name: "WatchApp")
 
         // Then
-        XCTAssertEqual(got?.target, app)
+        #expect(got?.target == app)
     }
 
-    func test_hostTargetNode_watchAppExtension() {
+    @Test func test_hostTargetNode_watchAppExtension() {
         // Given
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
         let watchAppExtension = Target.test(name: "WatchAppExtension", platform: .watchOS, product: .watch2Extension)
@@ -3991,10 +3959,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.hostTargetFor(path: project.path, name: "WatchAppExtension")
 
         // Then
-        XCTAssertEqual(got?.target, watchApp)
+        #expect(got?.target == watchApp)
     }
 
-    func test_apps() {
+    @Test func test_apps() {
         // Given
         let macosApp = Target.test(name: "MacOS", platform: .macOS, product: .app)
         let tvosApp = Target.test(name: "tvOS", platform: .tvOS, product: .app)
@@ -4016,12 +3984,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.apps()
 
         // Then
-        XCTAssertEqual(got.count, 2)
-        XCTAssertTrue(got.contains(GraphTarget(path: project.path, target: macosApp, project: project)))
-        XCTAssertTrue(got.contains(GraphTarget(path: project.path, target: tvosApp, project: project)))
+        #expect(got.count == 2)
+        #expect(got.contains(GraphTarget(path: project.path, target: macosApp, project: project)))
+        #expect(got.contains(GraphTarget(path: project.path, target: tvosApp, project: project)))
     }
 
-    func test_allTargets_returns_all_the_targets() {
+    @Test func test_allTargets_returns_all_the_targets() {
         // Given
         let firstPath = try! AbsolutePath(validating: "/first")
         let secondPath = try! AbsolutePath(validating: "/second")
@@ -4042,14 +4010,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = graphTraverser.allTargets().sorted()
 
         // Then
-        XCTAssertEqual(got.count, 2)
-        XCTAssertEqual(got.first?.project, firstProject)
-        XCTAssertEqual(got.first?.target, firstTarget)
-        XCTAssertEqual(got.last?.project, secondProject)
-        XCTAssertEqual(got.last?.target, secondTarget)
+        #expect(got.count == 2)
+        #expect(got.first?.project == firstProject)
+        #expect(got.first?.target == firstTarget)
+        #expect(got.last?.project == secondProject)
+        #expect(got.last?.target == secondTarget)
     }
 
-    func test_hasRemotePackages_when_has_remotePackages() {
+    @Test func test_hasRemotePackages_when_has_remotePackages() {
         // Given
         let path = try! AbsolutePath(validating: "/project")
         let package = Package.remote(url: "https://git.tuist.io", requirement: .branch("main"))
@@ -4060,19 +4028,19 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // Then
-        XCTAssertTrue(graphTraverser.hasRemotePackages)
+        #expect(graphTraverser.hasRemotePackages)
     }
 
-    func test_hasRemotePackages_when_doesnt_have_remote_packages() {
+    @Test func test_hasRemotePackages_when_doesnt_have_remote_packages() {
         // Given
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // Then
-        XCTAssertFalse(graphTraverser.hasRemotePackages)
+        #expect(!graphTraverser.hasRemotePackages)
     }
 
-    func test_extensionKitExtensionDependencies_when_dependencyIsExtensionKitExtension() throws {
+    @Test func test_extensionKitExtensionDependencies_when_dependencyIsExtensionKitExtension() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let extensionKitExtension = Target.test(name: "ExtensionKitExtension", product: .extensionKitExtension)
@@ -4094,12 +4062,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.extensionKitExtensionDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target.name), [
+        #expect(got.map(\.target.name) == [
             "ExtensionKitExtension",
         ])
     }
 
-    func test_recursiveDependencies_whet_targetHasRecursiveDependencies() throws {
+    @Test func test_recursiveDependencies_whet_targetHasRecursiveDependencies() throws {
         let targetC = Target.test(name: "C")
         let targetD = Target.test(name: "D")
         let targetB = Target.test(name: "B")
@@ -4130,14 +4098,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got: Set<GraphTarget> = subject.allTargetDependencies(path: project.path, name: "A")
 
         // Then
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             graphTargetB,
             graphTargetC,
             graphTargetD,
         ])
     }
 
-    func test_copyProductDependencies_when_targetHasTransitiveStaticXCFrameworks() throws {
+    @Test func test_copyProductDependencies_when_targetHasTransitiveStaticXCFrameworks() throws {
         // XCFrameworks are copied into the products directory to let Xcode's compilation process pick the right architecture and
         // platform at build-time. The logic that determines which xcframeworks to include should traverse the .xcframework
         // dependencies
@@ -4225,7 +4193,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.copyProductDependencies(path: project.path, name: staticLibrary.name)
 
         // Then
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             .xcframework(
                 path: "/xcframeworks/direct.xcframework",
                 expectedSignature: nil,
@@ -4259,7 +4227,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ].sorted())
     }
 
-    func test_copyProductDependencies_when_targetHasDirectStaticDependencies() throws {
+    @Test func test_copyProductDependencies_when_targetHasDirectStaticDependencies() throws {
         // Given
         let staticLibrary = Target.test(name: "StaticLibrary", destinations: [.iPhone], product: .staticLibrary)
         let aDependency = Target.test(name: "StaticDependency", destinations: [.iPhone], product: .staticLibrary)
@@ -4281,12 +4249,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.copyProductDependencies(path: project.path, name: staticLibrary.name)
 
         // Then
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             .product(target: aDependency.name, productName: aDependency.productNameWithExtension),
         ])
     }
 
-    func test_copyProductDependencies_when_targetHasBundleDependencies() throws {
+    @Test func test_copyProductDependencies_when_targetHasBundleDependencies() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let bundle = Target.test(name: "Bundle", destinations: [.iPhone], product: .bundle)
@@ -4308,12 +4276,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.copyProductDependencies(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             .product(target: bundle.name, productName: bundle.productNameWithExtension),
         ])
     }
 
-    func test_executableDependencies_when_targetHasExecutableNonLocalDependencies() {
+    @Test func test_executableDependencies_when_targetHasExecutableNonLocalDependencies() {
         // Given
         let mainApp = Target.test(name: "App", product: .app)
         let localExecutable = Target.test(name: "LocalExecutable", product: .app)
@@ -4341,7 +4309,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.executableDependencies(path: mainProject.path, name: mainApp.name)
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             GraphDependencyReference.product(
                 target: nonLocalExecutable.name,
                 productName: nonLocalExecutable.productNameWithExtension
@@ -4349,7 +4317,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_platformFilters_transitiveDependencyInheritedPlatformFilter() throws {
+    @Test func test_platformFilters_transitiveDependencyInheritedPlatformFilter() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let staticFramework = Target.test(
@@ -4376,7 +4344,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): try XCTUnwrap(.test([.ios])),
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): try #require(.test([.ios])),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4385,12 +4353,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let result = subject.combinedCondition(to: sdkGraphDependency, from: appkGraphDependency)
 
         // Then
-        XCTAssertEqual(result, .condition(.when([.ios])))
+        #expect(result == .condition(.when([.ios])))
     }
 
     /// Given A -> B -> C, if A -> B has a filter of [.ios], and B -> C has a filter of `[.macos]`, A->C should return `nil` for
     /// platform filters
-    func test_platformFilters_transitiveDependencyHasNilPlatformFilters_whenDependencyHasDisjointFilters() throws {
+    @Test func test_platformFilters_transitiveDependencyHasNilPlatformFilters_whenDependencyHasDisjointFilters() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.mac], product: .app)
         let staticFramework = Target.test(
@@ -4417,8 +4385,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): try XCTUnwrap(.test([.macos])),
-                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): try XCTUnwrap(.test([.ios])),
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): try #require(.test([.macos])),
+                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): try #require(.test([.ios])),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4427,10 +4395,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let result = subject.combinedCondition(to: sdkGraphDependency, from: appkGraphDependency)
 
         // Then
-        XCTAssertEqual(result, .incompatible)
+        #expect(result == .incompatible)
     }
 
-    func test_platformFilters_transitivePlatformFilter() throws {
+    @Test func test_platformFilters_transitivePlatformFilter() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let staticFramework = Target.test(
@@ -4457,7 +4425,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): try XCTUnwrap(.test([.ios])),
+                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): try #require(.test([.ios])),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4466,10 +4434,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let result = subject.combinedCondition(to: sdkGraphDependency, from: appkGraphDependency)
 
         // Then
-        XCTAssertEqual(result, .condition(.when([.ios])))
+        #expect(result == .condition(.when([.ios])))
     }
 
-    func test_platformFilters_transitivePlatformFilter_siblingDependenciesDontImpactEachOther() throws {
+    @Test func test_platformFilters_transitivePlatformFilter_siblingDependenciesDontImpactEachOther() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let staticFrameworkA = Target.test(
@@ -4514,7 +4482,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: staticFrameworkAGraphDependency, to: sdkGraphDependency): try XCTUnwrap(.test([.ios])),
+                GraphEdge(from: staticFrameworkAGraphDependency, to: sdkGraphDependency): try #require(.test([.ios])),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4531,11 +4499,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(appToStaticFilters, .condition(nil))
-        XCTAssertEqual(appToSDKFilters, .condition(.when([.ios])))
+        #expect(appToStaticFilters == .condition(nil))
+        #expect(appToSDKFilters == .condition(.when([.ios])))
     }
 
-    func test_platformFilters_transitivePlatformFilter_noFiltersHaveHigherPrecedence() throws {
+    @Test func test_platformFilters_transitivePlatformFilter_noFiltersHaveHigherPrecedence() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let staticFrameworkA = Target.test(
@@ -4584,7 +4552,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkBGraphDependency): try XCTUnwrap(.test([.macos])),
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkBGraphDependency): try #require(.test([.macos])),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4593,10 +4561,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let result = subject.combinedCondition(to: staticFrameworkCGraphDependency, from: appkGraphDependency)
 
         // Then
-        XCTAssertEqual(result, .condition(nil))
+        #expect(result == .condition(nil))
     }
 
-    func test_directSwiftMacroExecutables_when_targetHasDirectMacroDependencies() {
+    @Test func test_directSwiftMacroExecutables_when_targetHasDirectMacroDependencies() {
         // Given
         let framework = Target.test(name: "StaticFramework", destinations: [.iPhone], product: .staticFramework)
         let macro = Target.test(name: "Macro", destinations: [.mac], product: .macro)
@@ -4617,12 +4585,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directSwiftMacroExecutables(path: project.path, name: framework.name)
 
         // Then
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             .product(target: macro.name, productName: macro.productNameWithExtension, condition: .when([.macos])),
         ])
     }
 
-    func test_directSwiftMacroExecutables_returns_nothing_when_targetDoesntHaveDirectMacroDependencies() {
+    @Test func test_directSwiftMacroExecutables_returns_nothing_when_targetDoesntHaveDirectMacroDependencies() {
         // Given
         let framework = Target.test(name: "StaticFramework", destinations: [.iPhone], product: .staticFramework)
         let project = Project.test(targets: [framework])
@@ -4642,10 +4610,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directSwiftMacroExecutables(path: project.path, name: framework.name)
 
         // Then
-        XCTAssertEqual(got.sorted(), [])
+        #expect(got.sorted() == [])
     }
 
-    func test_directSwiftMacroTargets_when_targetHasADirectMacroStaticFrameworkDependency() {
+    @Test func test_directSwiftMacroTargets_when_targetHasADirectMacroStaticFrameworkDependency() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let staticFrameworkMacro = Target.test(name: "StaticFrameworkMacro", destinations: [.iPhone], product: .staticFramework)
@@ -4687,7 +4655,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directSwiftMacroTargets(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             GraphTargetReference(
                 target: GraphTarget(path: project.path, target: dynamicFrameworkMacro, project: project),
                 condition: nil
@@ -4707,7 +4675,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_directSwiftMacroTargets_doesntReturnATarget_when_theItDoesntDependOnAMacroExecutable(
+    @Test func test_directSwiftMacroTargets_doesntReturnATarget_when_theItDoesntDependOnAMacroExecutable(
     ) {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
@@ -4730,10 +4698,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directSwiftMacroTargets(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(got.sorted(), [])
+        #expect(got.sorted() == [])
     }
 
-    func test_allSwiftMacroTargets_returnsTransitiveSwiftMacros() {
+    @Test func test_allSwiftMacroTargets_returnsTransitiveSwiftMacros() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let directMacroFramework = Target.test(name: "DirectMacroFramework", destinations: [.iPhone], product: .staticFramework)
@@ -4771,17 +4739,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let gotDirectMacroFramework = subject.allSwiftMacroTargets(path: project.path, name: directMacroFramework.name)
 
         // Then
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             GraphTarget(path: project.path, target: directMacroFramework, project: project),
             GraphTarget(path: project.path, target: transitiveMacroLibrary, project: project),
         ])
-        XCTAssertEqual(gotDirectMacroFramework.sorted(), [
+        #expect(gotDirectMacroFramework.sorted() == [
             GraphTarget(path: project.path, target: directMacroFramework, project: project),
             GraphTarget(path: project.path, target: transitiveMacroLibrary, project: project),
         ])
     }
 
-    func test_directTargetDependenciesWithConditions() throws {
+    @Test func test_directTargetDependenciesWithConditions() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let framework = Target.test(name: "Framework", destinations: [.iPhone], product: .framework)
@@ -4792,7 +4760,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             appDependency: Set([frameworkDependency]),
             frameworkDependency: Set([]),
         ]
-        let platformCondition = try XCTUnwrap(PlatformCondition.test([.ios]))
+        let platformCondition = try #require(PlatformCondition.test([.ios]))
 
         // Given: Value Graph
         let graph = Graph.test(
@@ -4809,14 +4777,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directTargetDependencies(path: project.path, name: app.name)
 
         // Then
-        XCTAssertEqual(got.count, 1)
-        let result = try XCTUnwrap(got.first)
-        XCTAssertEqual(result.graphTarget, GraphTarget(path: project.path, target: framework, project: project))
-        XCTAssertEqual(result.condition, platformCondition)
+        #expect(got.count == 1)
+        let result = try #require(got.first)
+        #expect(result.graphTarget, GraphTarget(path: project.path, target: framework == project: project))
+        #expect(result.condition == platformCondition)
     }
 
     /// https://github.com/tuist/tuist/issues/5746
-    func test_transitiveTargetDependenciesWhenIntermediateDependenciesHaveConditions() throws {
+    @Test func test_transitiveTargetDependenciesWhenIntermediateDependenciesHaveConditions() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone, .mac], product: .app)
         let frameworkA = Target.test(name: "FrameworkA", destinations: [.iPhone, .mac], product: .framework)
@@ -4840,7 +4808,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             frameworkBDependency: Set([frameworkCDependency]),
             frameworkCDependency: Set([frameworkDDependency]),
         ]
-        let platformCondition = try XCTUnwrap(PlatformCondition.test([.ios]))
+        let platformCondition = try #require(PlatformCondition.test([.ios]))
 
         // Given: Value Graph
         let graph = Graph.test(
@@ -4867,12 +4835,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEqual(appToFrameworkC, .condition(nil))
-            XCTAssertEqual(appToFrameworkD, .condition(nil))
+            #expect(appToFrameworkC == .condition(nil))
+            #expect(appToFrameworkD == .condition(nil))
         }
     }
 
-    func test_orphanExternalDependencies() throws {
+    @Test func test_orphanExternalDependencies() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
@@ -4905,10 +4873,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).allOrphanExternalTargets()
 
         // Then
-        XCTAssertEqual(got, Set([GraphTarget(path: packageProject.path, target: packageDevProduct, project: packageProject)]))
+        #expect(got, Set([GraphTarget(path: packageProject.path, target: packageDevProduct == project: packageProject)]))
     }
 
-    func test_orphanExternalDependencies_when_a_dependency_condition_platforms_are_not_used_downstream() throws {
+    @Test func test_orphanExternalDependencies_when_a_dependency_condition_platforms_are_not_used_downstream() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
@@ -4939,7 +4907,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 GraphEdge(
                     from: appDependency,
                     to: directPackageProductDependency
-                ): try XCTUnwrap(.when([.macos])),
+                ): try #require(.when([.macos])),
             ]
         )
 
@@ -4947,9 +4915,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).allOrphanExternalTargets()
 
         // Then
-        XCTAssertEqual(
-            got,
-            Set(
+        #expect(got == Set(
                 [
                     GraphTarget(
                         path: packageProject.path,
@@ -4957,11 +4923,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
                         project: packageProject
                     ),
                 ]
-            )
-        )
+            ))
     }
 
-    func test_targetsWithExternalDependencies() {
+    @Test func test_targetsWithExternalDependencies() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let framework = Target.test(name: "Framework", destinations: [.iPhone], product: .framework)
@@ -4991,10 +4956,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).targetsWithExternalDependencies()
 
         // Then
-        XCTAssertEqual(got, Set([GraphTarget(path: project.path, target: framework, project: project)]))
+        #expect(got, Set([GraphTarget(path: project.path, target: framework == project: project)]))
     }
 
-    func test_allExternalTargets() {
+    @Test func test_allExternalTargets() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let framework = Target.test(name: "Framework", destinations: [.iPhone], product: .framework)
@@ -5024,12 +4989,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).allExternalTargets()
 
         // Then
-        XCTAssertEqual(got, Set([GraphTarget(path: packageProject.path, target: directPackageProduct, project: packageProject)]))
+        #expect(got, Set([GraphTarget(path: packageProject.path, target: directPackageProduct == project: packageProject)]))
     }
 
-    func test_externalTargetSupportedPlatforms_when_external_dependency_without_platform_filter() async throws {
+    @Test(.inTemporaryDirectory) func test_externalTargetSupportedPlatforms_when_external_dependency_without_platform_filter() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
@@ -5073,20 +5038,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).externalTargetSupportedPlatforms()
 
         // Then
-        XCTAssertNil(got[GraphTarget(path: project.path, target: appTarget, project: project)])
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)],
-            Set([.iOS])
-        )
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: externalPackageTargetB, project: externalProject)],
-            Set([.iOS])
-        )
+        #expect(got[GraphTarget(path: project.path, target: appTarget, project: project)] == nil)
+        #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([.iOS]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalPackageTargetB, project: externalProject)] == Set([.iOS]))
     }
 
-    func test_test_externalTargetSupportedPlatforms_when_external_transitive_dependency_without_platform_filter() async throws {
+    @Test(.inTemporaryDirectory) func test_test_externalTargetSupportedPlatforms_when_external_transitive_dependency_without_platform_filter() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
@@ -5130,20 +5089,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).externalTargetSupportedPlatforms()
 
         // Then
-        XCTAssertNil(got[GraphTarget(path: project.path, target: appTarget, project: project)])
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: directExternalPackage, project: externalProject)],
-            Set([.iOS])
-        )
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: transitiveExternalPackage, project: externalProject)],
-            Set([.iOS])
-        )
+        #expect(got[GraphTarget(path: project.path, target: appTarget, project: project)] == nil)
+        #expect(got[GraphTarget(path: externalProject.path, target: directExternalPackage, project: externalProject)] == Set([.iOS]))
+        #expect(got[GraphTarget(path: externalProject.path, target: transitiveExternalPackage, project: externalProject)] == Set([.iOS]))
     }
 
-    func test_externalTargetSupportedPlatforms_when_external_macro_dependency() async throws {
+    @Test(.inTemporaryDirectory) func test_externalTargetSupportedPlatforms_when_external_macro_dependency() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
@@ -5186,22 +5139,16 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).externalTargetSupportedPlatforms()
 
         // Then
-        XCTAssertNil(got[GraphTarget(path: project.path, target: appTarget, project: project)])
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: externalMacroFramework, project: externalProject)],
-            Set([.iOS])
-        )
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: externalMacroExecutable, project: externalProject)],
-            Set([.macOS])
-        )
+        #expect(got[GraphTarget(path: project.path, target: appTarget, project: project)] == nil)
+        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroFramework, project: externalProject)] == Set([.iOS]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroExecutable, project: externalProject)] == Set([.macOS]))
     }
 
     // MARK: - externalTargetSupportedDestinations
 
-    func test_externalTargetSupportedDestinations_filters_catalyst_when_app_does_not_support_it() async throws {
+    @Test(.inTemporaryDirectory) func test_externalTargetSupportedDestinations_filters_catalyst_when_app_does_not_support_it() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
@@ -5235,15 +5182,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).externalTargetSupportedDestinations()
 
         // Then
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)],
-            Set([.iPad, .iPhone])
-        )
+        #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([.iPad, .iPhone]))
     }
 
-    func test_externalTargetSupportedDestinations_includes_catalyst_when_app_supports_it() async throws {
+    @Test(.inTemporaryDirectory) func test_externalTargetSupportedDestinations_includes_catalyst_when_app_supports_it() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone, .macCatalyst])
@@ -5277,15 +5221,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).externalTargetSupportedDestinations()
 
         // Then
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)],
-            Set([.iPad, .iPhone, .macCatalyst])
-        )
+        #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([.iPad, .iPhone, .macCatalyst]))
     }
 
-    func test_externalTargetSupportedDestinations_with_platform_condition() async throws {
+    @Test(.inTemporaryDirectory) func test_externalTargetSupportedDestinations_with_platform_condition() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac])
@@ -5306,7 +5247,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
 
         // Only use the external target on iOS
-        let dependencyCondition = try XCTUnwrap(PlatformCondition.when([.ios]))
+        let dependencyCondition = try #require(PlatformCondition.when([.ios]))
 
         let graph = Graph.test(
             projects: [
@@ -5326,15 +5267,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         // Platform condition is .ios, which maps to iPhone and iPad destinations (not macCatalyst which is .catalyst)
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)],
-            Set([.iPad, .iPhone])
-        )
+        #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([.iPad, .iPhone]))
     }
 
-    func test_externalTargetSupportedDestinations_macro_gets_mac_destination() async throws {
+    @Test(.inTemporaryDirectory) func test_externalTargetSupportedDestinations_macro_gets_mac_destination() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
@@ -5377,19 +5315,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).externalTargetSupportedDestinations()
 
         // Then
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: externalMacroFramework, project: externalProject)],
-            Set([.iPad, .iPhone])
-        )
-        XCTAssertEqual(
-            got[GraphTarget(path: externalProject.path, target: externalMacroExecutable, project: externalProject)],
-            Set([.mac])
-        )
+        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroFramework, project: externalProject)] == Set([.iPad, .iPhone]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroExecutable, project: externalProject)] == Set([.mac]))
     }
 
-    func test_directTargetExternalDependencies() throws {
+    @Test(.inTemporaryDirectory) func test_directTargetExternalDependencies() throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
@@ -5426,7 +5358,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).directTargetExternalDependencies(path: project.path, name: appTarget.name)
 
         // Then
-        XCTAssertEqual(got, Set([
+        #expect(got == Set([
             GraphTargetReference(target: GraphTarget(
                 path: externalProject.path,
                 target: externalFramework,
@@ -5435,9 +5367,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]))
     }
 
-    func test_allSwiftPluginExecutables_includesAllXCFrameworkMacros_when_theyAreDirectOrTransitiveDependencies() throws {
+    @Test(.inTemporaryDirectory) func test_allSwiftPluginExecutables_includesAllXCFrameworkMacros_when_theyAreDirectOrTransitiveDependencies() throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let appTarget = Target.test(name: "App", destinations: [.appleWatch])
         let project = Project.test(path: directory, targets: [appTarget])
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
@@ -5458,15 +5390,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // When
         let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
 
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             "\(macroPath.pathString)#\(macroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
         ])
     }
 
-    func test_allSwiftPluginExecutables_staticFrameworksThatDependOnMacroTargets_when_theyAreDirectOrTransitiveDependencies(
+    @Test(.inTemporaryDirectory) func test_allSwiftPluginExecutables_staticFrameworksThatDependOnMacroTargets_when_theyAreDirectOrTransitiveDependencies(
     ) throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let appTarget = Target.test(name: "App", destinations: [.appleWatch])
         let directMacroStaticFrameworkTarget = Target.test(
             name: "DirectMacroStaticFramework",
@@ -5523,16 +5455,16 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // When
         let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
 
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/DirectMacro#DirectMacro",
             "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/TransitiveMacro#TransitiveMacro",
         ])
     }
 
-    func test_allSwiftPluginExecutables_when_staticMacroFrameworkThatDependOnMacroPrecompiledExecutable(
+    @Test(.inTemporaryDirectory) func test_allSwiftPluginExecutables_when_staticMacroFrameworkThatDependOnMacroPrecompiledExecutable(
     ) throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let appTarget = Target.test(name: "App", destinations: [.appleWatch])
         let directMacroStaticFrameworkTarget = Target.test(
             name: "DirectMacroStaticFramework",
@@ -5565,19 +5497,19 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
 
         // Then
-        XCTAssertEqual(got.sorted(), [
+        #expect(got.sorted() == [
             "\(precompiledMacroPath.pathString)#\(precompiledMacroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
         ])
     }
 
-    func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
+    @Test(.inTemporaryDirectory) func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Objective-C XCFramework (A)
 
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
-        let staticFrameworkAPath = try temporaryPath()
+        let staticFrameworkAPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "StaticFrameworkA.xcframework")
 
         // Given: Value Graph
@@ -5608,7 +5540,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .sorted()
 
         // Then
-        XCTAssertBetterEqual(got, [
+        #expect(got == [
             .testXCFramework(
                 path: staticFrameworkAPath,
                 linking: .static,
@@ -5619,14 +5551,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticSwiftXCFrameworkDependency(
+    @Test(.inTemporaryDirectory) func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticSwiftXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Swift XCFramework (A)
 
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
-        let staticFrameworkAPath = try temporaryPath()
+        let staticFrameworkAPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "StaticFrameworkA.xcframework")
 
         // Given: Value Graph
@@ -5658,20 +5590,20 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .sorted()
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty)
     }
 
-    func test_schemeRunnableTarget_when_no_executable_nor_build_targets() {
+    @Test func test_schemeRunnableTarget_when_no_executable_nor_build_targets() {
         // Given
         let scheme = Scheme.test(buildAction: .test(targets: []), runAction: .test(executable: nil))
         let graph = Graph.test(projects: [:])
         let subject = GraphTraverser(graph: graph)
 
         // When/Then
-        XCTAssertNil(subject.schemeRunnableTarget(scheme: scheme))
+        #expect(subject.schemeRunnableTarget(scheme: scheme) == nil)
     }
 
-    func test_schemeRunnableTarget_when_executable_and_present_target() {
+    @Test func test_schemeRunnableTarget_when_executable_and_present_target() {
         // Given
         let target = Target.test(name: "App", product: .app)
         let project = Project.test(targets: [target])
@@ -5681,10 +5613,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When/Then
-        XCTAssertEqual(subject.schemeRunnableTarget(scheme: scheme)?.target, target)
+        #expect(subject.schemeRunnableTarget(scheme: scheme)?.target == target)
     }
 
-    func test_schemeRunnableTarget_when_executable_and_absent_target() {
+    @Test func test_schemeRunnableTarget_when_executable_and_absent_target() {
         // Given
         let project = Project.test(targets: [])
         let targetReference = TargetReference(projectPath: project.path, name: "App")
@@ -5693,10 +5625,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When/Then
-        XCTAssertNil(subject.schemeRunnableTarget(scheme: scheme))
+        #expect(subject.schemeRunnableTarget(scheme: scheme) == nil)
     }
 
-    func test_schemeRunnableTarget_when_absent_executable_runnable_build_target_and_present_target() {
+    @Test func test_schemeRunnableTarget_when_absent_executable_runnable_build_target_and_present_target() {
         // Given
         let target = Target.test(name: "App", product: .app)
         let project = Project.test(targets: [target])
@@ -5706,10 +5638,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When/Then
-        XCTAssertEqual(subject.schemeRunnableTarget(scheme: scheme)?.target, target)
+        #expect(subject.schemeRunnableTarget(scheme: scheme)?.target == target)
     }
 
-    func test_schemeRunnableTarget_when_absent_executable_runnable_build_target_and_absent_target() {
+    @Test func test_schemeRunnableTarget_when_absent_executable_runnable_build_target_and_absent_target() {
         // Given
         let project = Project.test(targets: [])
         let targetReference = TargetReference(projectPath: project.path, name: "App")
@@ -5718,7 +5650,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When/Then
-        XCTAssertNil(subject.schemeRunnableTarget(scheme: scheme))
+        #expect(subject.schemeRunnableTarget(scheme: scheme) == nil)
     }
 
     // MARK: - Helpers

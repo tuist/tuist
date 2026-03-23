@@ -2,34 +2,30 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistCacheEE
 
-final class ArtifactSignerTests: TuistTestCase {
-    var subject: ArtifactSigner!
-
-    override func setUp() {
-        super.setUp()
+struct ArtifactSignerTests {
+    let subject: ArtifactSigner
+    init() {
         subject = ArtifactSigner()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_crud() throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let filePath = temporaryDirectory.appending(component: "Test")
         try "Test".write(to: filePath.url, atomically: true, encoding: .utf8)
 
         // When
-        XCTAssertFalse(try subject.isValid(filePath))
+        #expect(!try subject.isValid(filePath))
         try subject.sign(filePath)
-        XCTAssertTrue(try subject.isValid(filePath))
+        #expect(try subject.isValid(filePath))
         try subject.removeSignature(filePath)
-        XCTAssertFalse(try subject.isValid(filePath))
+        #expect(!try subject.isValid(filePath))
     }
 }

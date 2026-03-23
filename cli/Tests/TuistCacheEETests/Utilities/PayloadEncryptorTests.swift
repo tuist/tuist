@@ -1,28 +1,23 @@
 import Foundation
 import Path
 import TuistSupport
-import XCTest
+import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-final class PayloadEncryptorTests: TuistUnitTestCase {
+struct PayloadEncryptorTests {
     struct TestPayload: Codable, Equatable {
         let name: String
     }
 
-    var subject: PayloadEncryptor!
-
-    override func setUp() {
-        super.setUp()
+    let subject: PayloadEncryptor
+    init() {
         subject = PayloadEncryptor()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_encrypt_and_decrypt_work() throws {
         // Given
         let payload = TestPayload(name: "test")
@@ -30,17 +25,19 @@ final class PayloadEncryptorTests: TuistUnitTestCase {
         let decrypted: TestPayload? = try subject.decrypt(encrypted, signableAttribute: \.name)
 
         // Then
-        XCTAssertEqual(decrypted, payload)
+        #expect(decrypted == payload)
     }
 
+    @Test
     func test_decrypt_returnsNil_when_theValueIsInvalid() throws {
         // When
         let decrypted: TestPayload? = try subject.decrypt("invalid", signableAttribute: \.name)
 
         // Then
-        XCTAssertNil(decrypted)
+        #expect(decrypted == nil)
     }
 
+    @Test
     func test_decrypt_returnsNil_when_theSignatureIsInvalid() throws {
         // Given
         var encrypted = try subject.encrypt(TestPayload(name: "test"), signableAttribute: \.name)
@@ -50,6 +47,6 @@ final class PayloadEncryptorTests: TuistUnitTestCase {
         let decrypted: TestPayload? = try subject.decrypt(encrypted, signableAttribute: \.name)
 
         // Then
-        XCTAssertNil(decrypted)
+        #expect(decrypted == nil)
     }
 }

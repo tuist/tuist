@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class CoreDataModelTests: XCTestCase {
-    func test_codable() throws {
+struct CoreDataModelTests {
+    @Test func test_codable() throws {
         // Given
         let subject = CoreDataModel(
             path: try AbsolutePath(validating: "/path/to/model"),
@@ -15,6 +15,11 @@ final class CoreDataModelTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(CoreDataModel.self, from: data)
+        #expect(subject == decoded)
     }
 }

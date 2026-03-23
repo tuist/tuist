@@ -4,27 +4,23 @@ import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistAutomation
 @testable import TuistTesting
 
-final class BuildGraphInspectorTests: TuistUnitTestCase {
-    var subject: BuildGraphInspector!
-
-    override func setUp() {
-        super.setUp()
+struct BuildGraphInspectorTests {
+    let subject: BuildGraphInspector
+    init() {
         subject = BuildGraphInspector()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_allTestPlans() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let target1 = Target.test(name: "Test1")
         let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
@@ -73,9 +69,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let testPlans = graphTraverser.allTestPlans()
 
         // Then
-        XCTAssertEqual(testPlans, Set([testPlan1, testPlan2]))
+        #expect(testPlans == Set([testPlan1, testPlan2]))
     }
 
+    @Test
     func test_buildArguments_when_skipSigning() throws {
         // Given
         let target = Target.test(platform: .iOS)
@@ -84,7 +81,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: true)
 
         // Then
-        XCTAssertEqual(got, [
+        #expect(got == [
             .xcarg("CODE_SIGN_IDENTITY", ""),
             .xcarg("CODE_SIGNING_REQUIRED", "NO"),
             .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
@@ -92,6 +89,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         ])
     }
 
+    @Test
     func test_buildArguments_when_theGivenConfigurationExists() throws {
         // Given
         let settings = Settings.test(base: [:], debug: .test(), release: .test())
@@ -101,9 +99,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.buildArguments(project: .test(), target: target, configuration: "Release", skipSigning: false)
 
         // Then
-        XCTAssertTrue(got.contains(.configuration("Release")))
+        #expect(got.contains(.configuration("Release")))
     }
 
+    @Test
     func test_buildArguments_when_theGivenConfigurationExistsInTheProject() throws {
         // Given
         let settings = Settings.test(base: [:], debug: .test(), release: .test())
@@ -118,9 +117,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(got.contains(.configuration("Release")))
+        #expect(got.contains(.configuration("Release")))
     }
 
+    @Test
     func test_buildArguments_when_theGivenConfigurationDoesntExist() throws {
         // Given
         let settings = Settings.test(base: [:], configurations: [:])
@@ -130,12 +130,13 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.buildArguments(project: .test(), target: target, configuration: "Release", skipSigning: false)
 
         // Then
-        XCTAssertFalse(got.contains(.configuration("Release")))
+        #expect(!got.contains(.configuration("Release")))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_buildableTarget() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let scheme = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectPath, name: "Core")]))
         let target = Target.test(name: "Core")
@@ -154,13 +155,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.buildableTarget(scheme: scheme, graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(got?.project, project)
-        XCTAssertEqual(got?.target, target)
+        #expect(got?.project == project)
+        #expect(got?.target == target)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_testableTarget_whenNoTestActions_returnsNil() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
 
         let scheme = Scheme.test()
@@ -179,12 +181,13 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertNil(got)
+        #expect(got == nil)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_testableTarget_whenNoTestPlan_returnsFirstTarget() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let target = Target.test(name: "Test")
         let targetReference = TargetReference(projectPath: projectPath, name: target.name)
@@ -214,13 +217,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got?.project, project)
-        XCTAssertEqual(got?.target, target)
+        #expect(got?.project == project)
+        #expect(got?.target == target)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_testableTarget_withTestPlan_noFilters_returnsFirstEnabledTarget() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let target1 = Target.test(name: "Test1")
         let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
@@ -263,13 +267,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got?.project, project)
-        XCTAssertEqual(got?.target, target2)
+        #expect(got?.project == project)
+        #expect(got?.target == target2)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_testableTarget_withTestPlan_filtersIncluded_returnsMachingTarget() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let target1 = Target.test(name: "Test1")
         let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
@@ -312,13 +317,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got?.project, project)
-        XCTAssertEqual(got?.target, target2)
+        #expect(got?.project == project)
+        #expect(got?.target == target2)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_testableTarget_withTestPlan_filtersExcluded_returnsMachingTarget() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let target1 = Target.test(name: "Test1")
         let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
@@ -361,13 +367,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got?.project, project)
-        XCTAssertEqual(got?.target, target2)
+        #expect(got?.project == project)
+        #expect(got?.target == target2)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_testableTarget_withTestPlan_filtersIncludedDisabledTarget_returnsNil() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let target1 = Target.test(name: "Test1")
         let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
@@ -410,12 +417,13 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertNil(got)
+        #expect(got == nil)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_buildableSchemes() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let coreProjectPath = path.appending(component: "CoreProject.xcodeproj")
         let coreScheme = Scheme.test(
@@ -448,19 +456,17 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.buildableSchemes(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
+        #expect(got == [
                 coreScheme,
                 kitScheme,
                 workspaceScheme,
-            ]
-        )
+            ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_testSchemes() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let coreProjectPath = path.appending(component: "CoreProject.xcodeproj")
         let coreScheme = Scheme.test(
@@ -527,18 +533,16 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.testSchemes(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
+        #expect(got == [
                 coreTestsScheme,
                 kitTestsScheme,
-            ]
-        )
+            ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_testableSchemes() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let coreProjectPath = path.appending(component: "CoreProject.xcodeproj")
         let coreScheme = Scheme.test(
@@ -592,20 +596,18 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.testableSchemes(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
+        #expect(got == [
                 coreScheme,
                 coreTestsScheme,
                 coreTestPlanScheme,
                 coreTestPlanTestsScheme,
-            ]
-        )
+            ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_buildableEntrySchemes_only_includes_entryTargets() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
 
         let projectAPath = path.appending(component: "ProjectA.xcodeproj")
         let schemeA = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectAPath, name: "A")]))
@@ -638,12 +640,13 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.buildableEntrySchemes(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(got, [schemeA])
+        #expect(got == [schemeA])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_workspacePath() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = path.appending(component: "App.xcworkspace")
         try FileHandler.shared.createFolder(workspacePath)
         try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
@@ -652,12 +655,13 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = try await subject.workspacePath(directory: path)
 
         // Then
-        XCTAssertEqual(got, workspacePath)
+        #expect(got == workspacePath)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_workspacePath_when_no_tuist_workspace_is_present() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = path.appending(component: "App.xcworkspace")
         try FileHandler.shared.createFolder(workspacePath)
 
@@ -665,12 +669,13 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = try await subject.workspacePath(directory: path)
 
         // Then
-        XCTAssertNil(got)
+        #expect(got == nil)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_workspacePath_when_multiple_workspaces_are_present() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let nonTuistWorkspacePath = path.appending(components: "SPM.xcworkspace")
         try FileHandler.shared.createFolder(nonTuistWorkspacePath)
         let workspacePath = path.appending(component: "TuistServer.xcworkspace")
@@ -681,9 +686,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = try await subject.workspacePath(directory: path)
 
         // Then
-        XCTAssertEqual(got, workspacePath)
+        #expect(got == workspacePath)
     }
 
+    @Test
     func test_projectSchemes_when_multiple_platforms() {
         // Given
         let graph: Graph = .test(
@@ -701,14 +707,12 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.workspaceSchemes(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
+        #expect(got == [
                 .test(name: "WorkspaceName-Workspace"),
-            ]
-        )
+            ])
     }
 
+    @Test
     func test_projectSchemes_when_single_platform() {
         // Given
         let graph: Graph = .test(
@@ -726,17 +730,15 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.workspaceSchemes(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
+        #expect(got == [
                 .test(name: "WorkspaceName-Workspace"),
-            ]
-        )
+            ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_testableTarget_withMultipleTestPlans_noneSpecified_usesDefaultTetPlan() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let target1 = Target.test(name: "Test1")
         let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
@@ -786,13 +788,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got?.project, project)
-        XCTAssertEqual(got?.target, target2)
+        #expect(got?.project == project)
+        #expect(got?.target == target2)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_testableTarget_withMultipleTestPlans_noneSpecified_findsTargetInNonDefaultPlan_when_action_is_build() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
         let target1 = Target.test(name: "Test1")
         let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
@@ -842,13 +845,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got?.project, project)
-        XCTAssertEqual(got?.target, target2)
+        #expect(got?.project == project)
+        #expect(got?.target == target2)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_runnableSchemes_when_no_runnable_item_in_scheme() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "App.xcodeproj")
         let app = Target.test(name: "App", product: .app)
         let appReference = TargetReference(projectPath: projectPath, name: app.name)
@@ -871,12 +875,13 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.runnableSchemes(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(got, [scheme])
+        #expect(got == [scheme])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_runnableSchemes_when_runnable_item_in_scheme() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "App.xcodeproj")
         let app = Target.test(name: "App", product: .app)
         let appReference = TargetReference(projectPath: projectPath, name: app.name)
@@ -899,6 +904,6 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.runnableSchemes(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(got, [scheme])
+        #expect(got == [scheme])
     }
 }

@@ -1,12 +1,13 @@
+import FileSystemTesting
 import Path
 import TuistSupport
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistCore
 @testable import TuistTesting
 
-final class FrameworkLoaderErrorTests: TuistUnitTestCase {
-    func test_type_when_frameworkNotFound() {
+struct FrameworkLoaderErrorTests {
+    @Test func test_type_when_frameworkNotFound() {
         // Given
         let path = try! AbsolutePath(validating: "/frameworks/tuist.framework")
         let subject = FrameworkLoaderError.frameworkNotFound(path)
@@ -15,10 +16,10 @@ final class FrameworkLoaderErrorTests: TuistUnitTestCase {
         let got = subject.type
 
         // Then
-        XCTAssertEqual(got, .abort)
+        #expect(got == .abort)
     }
 
-    func test_description_when_frameworkNotFound() {
+    @Test func test_description_when_frameworkNotFound() {
         // Given
         let path = try! AbsolutePath(validating: "/frameworks/tuist.framework")
         let subject = FrameworkLoaderError.frameworkNotFound(path)
@@ -27,41 +28,33 @@ final class FrameworkLoaderErrorTests: TuistUnitTestCase {
         let got = subject.description
 
         // Then
-        XCTAssertEqual(got, "Couldn't find framework at \(path.pathString)")
+        #expect(got == "Couldn't find framework at \(path.pathString)")
     }
 }
 
-final class FrameworkLoaderTests: TuistUnitTestCase {
-    var frameworkMetadataProvider: MockFrameworkMetadataProvider!
-    var subject: FrameworkLoader!
+struct FrameworkLoaderTests {
+    let frameworkMetadataProvider: MockFrameworkMetadataProvider
+    let subject: FrameworkLoader
 
-    override func setUp() {
-        super.setUp()
+    init() {
         frameworkMetadataProvider = MockFrameworkMetadataProvider()
         subject = FrameworkLoader(frameworkMetadataProvider: frameworkMetadataProvider)
     }
 
-    override func tearDown() {
-        frameworkMetadataProvider = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_load_when_the_framework_doesnt_exist() async throws {
+    @Test(.inTemporaryDirectory) func test_load_when_the_framework_doesnt_exist() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let frameworkPath = path.appending(component: "tuist.framework")
 
         // Then
-        await XCTAssertThrowsSpecific(
-            try await subject.load(path: frameworkPath, status: .required),
-            FrameworkLoaderError.frameworkNotFound(frameworkPath)
-        )
+        await #expect(throws: FrameworkLoaderError.frameworkNotFound(frameworkPath)) {
+            try await subject.load(path: frameworkPath, status: .required)
+        }
     }
 
-    func test_load_when_the_framework_exists() async throws {
+    @Test(.inTemporaryDirectory) func test_load_when_the_framework_exists() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let binaryPath = path.appending(component: "tuist")
         let frameworkPath = path.appending(component: "tuist.framework")
         let dsymPath = path.appending(component: "tuist.dSYM")
@@ -87,8 +80,8 @@ final class FrameworkLoaderTests: TuistUnitTestCase {
         let got = try await subject.load(path: frameworkPath, status: .required)
 
         // Then
-        XCTAssertEqual(
-            got,
+        #expect(
+            got ==
             .framework(
                 path: frameworkPath,
                 binaryPath: binaryPath,

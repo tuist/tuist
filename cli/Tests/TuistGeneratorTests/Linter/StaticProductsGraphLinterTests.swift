@@ -2,24 +2,18 @@ import Foundation
 import Path
 import TuistConfig
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistTesting
 
-class StaticProductsGraphLinterTests: XCTestCase {
-    var subject: StaticProductsGraphLinter!
-
-    override func setUp() {
-        super.setUp()
+struct StaticProductsGraphLinterTests {
+    let subject: StaticProductsGraphLinter
+    init() {
         subject = StaticProductsGraphLinter()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_lint_whenPackageDependencyLinkedTwice() throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -47,7 +41,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let results = subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
 
         // Then
-        XCTAssertEqual(results, [
+        #expect(results == [
             warning(product: "Package", type: "Package", linkedBy: [appDependency, frameworkDependency]),
         ])
     }
@@ -81,7 +75,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenPrecompiledStaticLibraryLinkedTwice() throws {
@@ -115,7 +109,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "library", type: "Library", linkedBy: [appDependency, frameworkDependency]),
 //        ])
 //    }
@@ -149,7 +143,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFramework", linkedBy: [appDependency, frameworkDependency]),
 //        ])
 //    }
@@ -196,7 +190,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFrameworkC", linkedBy: [appDependency, frameworkCDependency]),
 //        ])
 //    }
@@ -251,7 +245,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticXCFrameworkC", type: "Xcframework", linkedBy: [appDependency, frameworkCDependency]),
 //        ])
 //    }
@@ -298,7 +292,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFrameworkC", linkedBy: [appDependency, frameworkCDependency]),
 //        ])
 //    }
@@ -341,7 +335,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFrameworkA", linkedBy: [appDependency, frameworkCDependency]),
 //            warning(product: "StaticFrameworkA", linkedBy: [frameworkCDependency, frameworkDDependency]),
 //        ])
@@ -376,7 +370,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertFalse(results.isEmpty)
+//        #expect(!results.isEmpty)
 //    }
 //
 //    func test_lint_whenNoStaticProductsLinkedTwice_2() throws {
@@ -421,7 +415,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenNoStaticProductLinkedTwice_testTargets() throws {
@@ -453,7 +447,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenStaticProductLinkedTwice_testTargets_1() throws {
@@ -488,7 +482,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFramework", linkedBy: [frameworkDependency, frameworkTestsDependency]),
 //        ])
 //    }
@@ -522,7 +516,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenNoStaticProductLinkedTwice_hostedTestTargets_2() throws {
@@ -602,7 +596,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenNoStaticProductLinkedTwice_hostedTestTargets_3() throws {
@@ -634,7 +628,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenStaticProductLinkedTwice_hostedTestTargets_1() throws {
@@ -698,7 +692,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFrameworkA", linkedBy: [appTestsDependency, frameworkADependency]),
 //            warning(product: "StaticFrameworkB", linkedBy: [appTestsDependency, frameworkADependency]),
 //        ])
@@ -740,7 +734,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFrameworkA", linkedBy: [appTestsDependency, frameworkADependency]),
 //            warning(product: "StaticFrameworkA", linkedBy: [appUITestsDependency, frameworkADependency]),
 //        ])
@@ -783,7 +777,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        // it should be treated as a separate graph that isn't connected to the main
 //        // app's graph. It's an unfortunate side effect of declaring a target application
 //        // of a UI test bundle as a dependency.
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenStaticProductLinkedTwice_uiTestTargets_1() throws {
@@ -818,7 +812,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFrameworkA", linkedBy: [appUITestsDependency, frameworkADependency]),
 //        ])
 //    }
@@ -857,7 +851,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFrameworkA", linkedBy: [appUITestsDependency, frameworkADependency]),
 //            warning(product: "StaticFrameworkA", linkedBy: [appDependency, frameworkADependency]),
 //        ])
@@ -893,7 +887,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenStaticProductLinkedTwice_extensions() throws {
@@ -929,7 +923,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFramework", linkedBy: [appExtensionDependency, frameworkDependency]),
 //        ])
 //    }
@@ -964,7 +958,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenStaticProductLinkedTwice_appClips() throws {
@@ -1000,7 +994,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "StaticFramework", linkedBy: [appClipDependency, frameworkDependency]),
 //        ])
 //    }
@@ -1037,7 +1031,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenStaticProductLinkedTwice_swiftPackagesAndWatchAppExtensions() throws {
@@ -1075,7 +1069,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [
+//        #expect(results == [
 //            warning(product: "LocalPackage", type: "Package", linkedBy: [watchAppExtensionDependency, watchFrameworkDependency]),
 //        ])
 //    }
@@ -1108,7 +1102,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertTrue(results.isEmpty)
+//        #expect(results.isEmpty)
 //    }
 //
 //    func test_lint_whenStaticProductLinkedTwice_and_productExcluded() throws {
@@ -1157,7 +1151,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [])
+//        #expect(results == [])
 //    }
 //
 //    func test_lint_whenMacros() throws {
@@ -1193,7 +1187,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [])
+//        #expect(results == [])
 //    }
 //
 //    func test_lint_whenStaticMacroLinkedTwice() throws {
@@ -1232,7 +1226,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 //
 //        // Then
-//        XCTAssertEqual(results, [])
+//        #expect(results == [])
 //    }
 
     // MARK: - Helpers

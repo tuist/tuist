@@ -1,20 +1,25 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class XCFrameworkInfoPlistTests: XCTestCase {
-    func test_codable() {
+struct XCFrameworkInfoPlistTests {
+    @Test func test_codable() throws {
         // Given
         let subject: XCFrameworkInfoPlist = .test()
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(XCFrameworkInfoPlist.self, from: data)
+        #expect(subject == decoded)
     }
 
     // MARK: - SupportedPlatformVariant decode (tuist/tuist#9723)
 
-    func test_decode_from_plist_with_SupportedPlatformVariant() throws {
+    @Test func test_decode_from_plist_with_SupportedPlatformVariant() throws {
         // Given
         let plistData = """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -62,19 +67,19 @@ final class XCFrameworkInfoPlistTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(decoded.libraries.count, 2)
+        #expect(decoded.libraries.count == 2)
 
-        let deviceLib = try XCTUnwrap(
+        let deviceLib = try #require(
             decoded.libraries.first { $0.identifier == "ios-arm64" }
         )
-        let simulatorLib = try XCTUnwrap(
+        let simulatorLib = try #require(
             decoded.libraries.first { $0.identifier == "ios-arm64-simulator" }
         )
 
-        XCTAssertEqual(deviceLib.platform, .iOS)
-        XCTAssertNil(deviceLib.platformVariant)
+        #expect(deviceLib.platform == .iOS)
+        #expect(deviceLib.platformVariant == nil)
 
-        XCTAssertEqual(simulatorLib.platform, .iOS)
-        XCTAssertEqual(simulatorLib.platformVariant, .simulator)
+        #expect(simulatorLib.platform == .iOS)
+        #expect(simulatorLib.platformVariant == .simulator)
     }
 }

@@ -1,28 +1,23 @@
 import Foundation
+import Path
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistGenerator
 
-final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
-    private var subject: ExplicitDependencyGraphMapper!
-
-    override func setUp() {
-        super.setUp()
+struct ExplicitDependencyGraphMapperTests {
+    private let subject: ExplicitDependencyGraphMapper
+    init() {
         subject = ExplicitDependencyGraphMapper()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_map() async throws {
         // Given
-        let projectAPath = fileHandler.currentPath.appending(component: "ProjectA")
-        let externalProjectBPath = fileHandler.currentPath.appending(component: "ProjectB")
+        let projectAPath = try AbsolutePath(validating: "/tmp/ProjectA")
+        let externalProjectBPath = try AbsolutePath(validating: "/tmp/ProjectB")
         let frameworkA: Target = .test(
             name: "FrameworkA",
             product: .framework,
@@ -90,52 +85,32 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
         """
 
         // Then
-        let gotAProject = try XCTUnwrap(got.0.projects[projectAPath])
+        let gotAProject = try #require(got.0.projects[projectAPath])
         let gotATargets = Array(gotAProject.targets.values).sorted()
-        XCTAssertEqual(
-            gotATargets[0],
-            .test(
+        #expect(gotATargets[0] == .test(
                 name: "App",
                 product: .app,
                 dependencies: [
                     .target(name: "FrameworkA"),
                 ]
-            )
-        )
-        let gotFrameworkA = try XCTUnwrap(gotATargets[2])
-        XCTAssertEqual(
-            gotFrameworkA.name,
-            "FrameworkA"
-        )
-        XCTAssertEqual(
-            gotFrameworkA.product,
-            .framework
-        )
-        XCTAssertEqual(
-            gotFrameworkA.settings?.baseDebug["BUILT_PRODUCTS_DIR"],
-            "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
-        )
-        XCTAssertEqual(
-            gotFrameworkA.settings?.baseDebug["TARGET_BUILD_DIR"],
-            "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
-        )
+            ))
+        let gotFrameworkA = try #require(gotATargets[2])
+        #expect(gotFrameworkA.name == "FrameworkA")
+        #expect(gotFrameworkA.product == .framework)
+        #expect(gotFrameworkA.settings?.baseDebug["BUILT_PRODUCTS_DIR"] == "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)")
+        #expect(gotFrameworkA.settings?.baseDebug["TARGET_BUILD_DIR"] == "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)")
         switch gotFrameworkA.settings?.baseDebug["FRAMEWORK_SEARCH_PATHS"] {
         case let .array(array):
-            XCTAssertEqual(
-                Set(array),
-                Set(
+            #expect(Set(array) == Set(
                     [
                         "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/DynamicLibraryB",
                         "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/ExternalFrameworkC",
                     ]
-                )
-            )
+                ))
         default:
-            XCTFail("Invalid case for FRAMEWORK_SEARCH_PATHS")
+            Issue.record("Invalid case for FRAMEWORK_SEARCH_PATHS")
         }
-        XCTAssertEqual(
-            gotFrameworkA.scripts,
-            [
+        #expect(gotFrameworkA.scripts == [
                 TargetScript(
                     name: "Copy Built Products for Explicit Dependencies",
                     order: .post,
@@ -154,19 +129,13 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                         "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).framework",
                     ]
                 ),
-            ]
-        )
-        XCTAssertEqual(
-            gotFrameworkA.dependencies,
-            [
+            ])
+        #expect(gotFrameworkA.dependencies == [
                 .target(name: "DynamicLibraryB"),
                 .project(target: "ExternalFrameworkC", path: externalProjectBPath),
-            ]
-        )
+            ])
 
-        XCTAssertEqual(
-            gotATargets[1],
-            .test(
+        #expect(gotATargets[1] == .test(
                 name: "DynamicLibraryB",
                 product: .dynamicLibrary,
                 settings: .test(
@@ -199,13 +168,10 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                         ]
                     ),
                 ]
-            )
-        )
-        let gotExternalBProject = try XCTUnwrap(got.0.projects[externalProjectBPath])
+            ))
+        let gotExternalBProject = try #require(got.0.projects[externalProjectBPath])
         let gotExternalBTargets = Array(gotExternalBProject.targets.values)
-        XCTAssertEqual(
-            gotExternalBTargets,
-            [
+        #expect(gotExternalBTargets == [
                 .test(
                     name: "ExternalFrameworkC",
                     product: .staticFramework,
@@ -240,14 +206,14 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                         ),
                     ]
                 ),
-            ]
-        )
+            ])
     }
 
+    @Test
     func test_enabling_testing_search_paths() async throws {
         // Given
-        let projectAPath = fileHandler.currentPath.appending(component: "ProjectA")
-        let externalProjectBPath = fileHandler.currentPath.appending(component: "ProjectB")
+        let projectAPath = try AbsolutePath(validating: "/tmp/ProjectA")
+        let externalProjectBPath = try AbsolutePath(validating: "/tmp/ProjectB")
 
         let frameworkA: Target = .test(
             name: "FrameworkA",
@@ -289,22 +255,13 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
         let got = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let gotAProject = try XCTUnwrap(got.0.projects[projectAPath])
+        let gotAProject = try #require(got.0.projects[projectAPath])
         let gotATargets = Array(gotAProject.targets.values).sorted()
-        let gotFrameworkA = try XCTUnwrap(gotATargets[0])
-        XCTAssertEqual(
-            gotFrameworkA.name,
-            "FrameworkA"
-        )
-        XCTAssertEqual(
-            gotFrameworkA.product,
-            .framework
-        )
+        let gotFrameworkA = try #require(gotATargets[0])
+        #expect(gotFrameworkA.name == "FrameworkA")
+        #expect(gotFrameworkA.product == .framework)
 
         // ENABLE_TESTING_SEARCH_PATHS is propagated from ExternalFrameworkB
-        XCTAssertEqual(
-            gotFrameworkA.settings?.baseDebug["ENABLE_TESTING_SEARCH_PATHS"],
-            .string("YES")
-        )
+        #expect(gotFrameworkA.settings?.baseDebug["ENABLE_TESTING_SEARCH_PATHS"] == .string("YES"))
     }
 }

@@ -5,13 +5,13 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistHasher
 
-final class HeadersContentHasherTests: TuistUnitTestCase {
-    private var subject: HeadersContentHasher!
-    private var contentHasher: MockContentHashing!
+struct HeadersContentHasherTests {
+    private let subject: HeadersContentHasher
+    private let contentHasher: MockContentHashing
     private let filePath1 = try! AbsolutePath(validating: "/file1")
     private let filePath2 = try! AbsolutePath(validating: "/file2")
     private let filePath3 = try! AbsolutePath(validating: "/file3")
@@ -19,18 +19,13 @@ final class HeadersContentHasherTests: TuistUnitTestCase {
     private let filePath5 = try! AbsolutePath(validating: "/file5")
     private let filePath6 = try! AbsolutePath(validating: "/file6")
 
-    override func setUp() {
-        super.setUp()
+    init() {
         contentHasher = .init()
         subject = HeadersContentHasher(contentHasher: contentHasher)
     }
 
-    override func tearDown() {
-        subject = nil
-        contentHasher = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_hash_callsContentHasherWithTheExpectedParameters() async throws {
         // Given
         given(contentHasher)
@@ -64,7 +59,7 @@ final class HeadersContentHasherTests: TuistUnitTestCase {
 
         // Then
         let hash = try await subject.hash(headers: headers)
-        XCTAssertEqual(hash, "1;2;3;4;5;6")
+        #expect(hash == "1;2;3;4;5;6")
         verify(contentHasher)
             .hash(path: .any)
             .called(6)

@@ -4,28 +4,23 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
-    var subject: WorkspaceDescriptorGenerator!
-
-    override func setUp() {
-        super.setUp()
+struct WorkspaceGeneratorIntegrationTests {
+    let subject: WorkspaceDescriptorGenerator
+    init() {
         subject = WorkspaceDescriptorGenerator(config: .init(projectGenerationContext: .concurrent))
-    }
-
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
     }
 
     // MARK: - Tests
 
+    @Test(.inTemporaryDirectory)
     func test_generate_stressTest() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let projects: [AbsolutePath: Project] = (0 ..< 20).reduce(into: [:]) { acc, index in
             let path = temporaryPath.appending(component: "Project\(index)")
             acc[path] = Project.test(

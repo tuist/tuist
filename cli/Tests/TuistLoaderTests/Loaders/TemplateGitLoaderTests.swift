@@ -1,21 +1,20 @@
 import Mockable
 import Path
 import ProjectDescription
+import Testing
 import TuistCore
 import TuistGit
 import TuistSupport
 import TuistTesting
-import XCTest
 
 @testable import TuistLoader
 
-final class TemplateGitLoaderTests: TuistUnitTestCase {
-    private var subject: TemplateGitLoader!
-    private var templateLoader: MockTemplateLoading!
-    private var gitController: MockGitControlling!
+struct TemplateGitLoaderTests {
+    private let subject: TemplateGitLoader
+    private let templateLoader: MockTemplateLoading
+    private let gitController: MockGitControlling
 
-    override func setUp() {
-        super.setUp()
+    init() {
         templateLoader = MockTemplateLoading()
         gitController = MockGitControlling()
         subject = TemplateGitLoader(
@@ -26,14 +25,7 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        gitController = nil
-        subject = nil
-        templateLoader = nil
-        super.tearDown()
-    }
-
-    func test_loadTemplatePath_isSameWithClonedRepository() async throws {
+    @Test func loadTemplatePath_isSameWithClonedRepository() async throws {
         // Given
         given(gitController)
             .clone(url: .any, to: .any)

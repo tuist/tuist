@@ -1,43 +1,43 @@
 import Foundation
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistCore
 @testable import TuistTesting
 
-final class GraphDependencyTests: TuistUnitTestCase {
-    func test_isTarget() {
-        XCTAssertFalse(GraphDependency.testXCFramework().isTarget)
-        XCTAssertFalse(GraphDependency.testFramework().isTarget)
-        XCTAssertFalse(GraphDependency.testLibrary().isTarget)
-        XCTAssertFalse(GraphDependency.testPackageProduct().isTarget)
-        XCTAssertTrue(GraphDependency.testTarget().isTarget)
-        XCTAssertFalse(GraphDependency.testSDK().isTarget)
+struct GraphDependencyTests {
+    @Test func test_isTarget() {
+        #expect(!GraphDependency.testXCFramework().isTarget)
+        #expect(!GraphDependency.testFramework().isTarget)
+        #expect(!GraphDependency.testLibrary().isTarget)
+        #expect(!GraphDependency.testPackageProduct().isTarget)
+        #expect(GraphDependency.testTarget().isTarget)
+        #expect(!GraphDependency.testSDK().isTarget)
     }
 
-    func test_isPrecompiled() {
-        XCTAssertTrue(GraphDependency.testXCFramework().isPrecompiled)
-        XCTAssertTrue(GraphDependency.testFramework().isPrecompiled)
-        XCTAssertTrue(GraphDependency.testLibrary().isPrecompiled)
-        XCTAssertFalse(GraphDependency.testPackageProduct().isPrecompiled)
-        XCTAssertFalse(GraphDependency.testTarget().isPrecompiled)
-        XCTAssertFalse(GraphDependency.testSDK().isPrecompiled)
+    @Test func test_isPrecompiled() {
+        #expect(GraphDependency.testXCFramework().isPrecompiled)
+        #expect(GraphDependency.testFramework().isPrecompiled)
+        #expect(GraphDependency.testLibrary().isPrecompiled)
+        #expect(!GraphDependency.testPackageProduct().isPrecompiled)
+        #expect(!GraphDependency.testTarget().isPrecompiled)
+        #expect(!GraphDependency.testSDK().isPrecompiled)
     }
 
-    func test_isStaticPrecompiled() {
-        XCTAssertTrue(GraphDependency.testXCFramework(linking: .static).isStaticPrecompiled)
-        XCTAssertTrue(GraphDependency.testFramework(linking: .static).isStaticPrecompiled)
-        XCTAssertTrue(GraphDependency.testLibrary(linking: .static).isStaticPrecompiled)
-        XCTAssertFalse(GraphDependency.testPackageProduct().isStaticPrecompiled)
-        XCTAssertFalse(GraphDependency.testTarget().isStaticPrecompiled)
-        XCTAssertFalse(GraphDependency.testSDK().isStaticPrecompiled)
+    @Test func test_isStaticPrecompiled() {
+        #expect(GraphDependency.testXCFramework(linking: .static).isStaticPrecompiled)
+        #expect(GraphDependency.testFramework(linking: .static).isStaticPrecompiled)
+        #expect(GraphDependency.testLibrary(linking: .static).isStaticPrecompiled)
+        #expect(!GraphDependency.testPackageProduct().isStaticPrecompiled)
+        #expect(!GraphDependency.testTarget().isStaticPrecompiled)
+        #expect(!GraphDependency.testSDK().isStaticPrecompiled)
     }
 
-    func test_isDynamicPrecompiled() {
-        XCTAssertTrue(GraphDependency.testXCFramework(linking: .dynamic).isDynamicPrecompiled)
-        XCTAssertTrue(GraphDependency.testFramework(linking: .dynamic).isDynamicPrecompiled)
-        XCTAssertTrue(GraphDependency.testLibrary(linking: .dynamic).isDynamicPrecompiled)
-        XCTAssertFalse(GraphDependency.testPackageProduct().isDynamicPrecompiled)
-        XCTAssertFalse(GraphDependency.testTarget().isDynamicPrecompiled)
-        XCTAssertFalse(GraphDependency.testSDK().isDynamicPrecompiled)
+    @Test func test_isDynamicPrecompiled() {
+        #expect(GraphDependency.testXCFramework(linking: .dynamic).isDynamicPrecompiled)
+        #expect(GraphDependency.testFramework(linking: .dynamic).isDynamicPrecompiled)
+        #expect(GraphDependency.testLibrary(linking: .dynamic).isDynamicPrecompiled)
+        #expect(!GraphDependency.testPackageProduct().isDynamicPrecompiled)
+        #expect(!GraphDependency.testTarget().isDynamicPrecompiled)
+        #expect(!GraphDependency.testSDK().isDynamicPrecompiled)
     }
 }

@@ -5,20 +5,18 @@ import Path
 import TuistCore
 import TuistServer
 import TuistSupport
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-final class CacheLocalStorageIntegrationTests: TuistTestCase {
-    private var subject: CacheLocalStorage!
-    private var cacheDirectoriesProvider: MockCacheDirectoriesProviding!
-    private var artifactSigner: ArtifactSigner!
-    private var fileSystem: FileSysteming!
-
-    override func setUp() {
-        super.setUp()
-
+struct CacheLocalStorageIntegrationTests {
+    private let subject: CacheLocalStorage
+    private let cacheDirectoriesProvider: MockCacheDirectoriesProviding
+    private let artifactSigner: ArtifactSigner
+    private let fileSystem: FileSysteming
+    init() {
         artifactSigner = ArtifactSigner()
         cacheDirectoriesProvider = .init()
         fileSystem = FileSystem()
@@ -30,17 +28,11 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        cacheDirectoriesProvider = nil
-        artifactSigner = nil
-        fileSystem = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_fetch_when_a_cached_xcframework_exists_and_is_not_signed() async throws {
         // Given
-        let cacheDirectory = try temporaryPath()
+        let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.binaries))
             .willReturn(cacheDirectory)
@@ -55,12 +47,13 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let got = try await subject.fetch([item], cacheCategory: .binaries)
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_fetch_when_a_cached_xcframework_exists_and_has_a_valid_signature() async throws {
         // Given
-        let cacheDirectory = try temporaryPath()
+        let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.binaries))
             .willReturn(cacheDirectory)
@@ -77,12 +70,13 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let got = try await subject.fetch([cacheStorableItem], cacheCategory: .binaries)
 
         // Then
-        XCTAssertEqual(got[cacheItem], xcframeworkPath)
+        #expect(got[cacheItem] == xcframeworkPath)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_fetch_when_a_cached_xcframework_does_not_exist() async throws {
         // When
-        let cacheDirectory = try temporaryPath()
+        let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.binaries))
             .willReturn(cacheDirectory)
@@ -92,12 +86,13 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let got = try await subject.fetch([item], cacheCategory: .binaries)
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_fetch_when_a_test_hash_exists() async throws {
         // Given
-        let cacheDirectory = try temporaryPath()
+        let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.selectiveTests))
             .willReturn(cacheDirectory)
@@ -112,12 +107,13 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let got = try await subject.fetch([cacheStorableItem], cacheCategory: .selectiveTests)
 
         // Then
-        XCTAssertEqual(got[cacheItem], hashDirectory)
+        #expect(got[cacheItem] == hashDirectory)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_fetch_when_a_test_hash_does_not_exist() async throws {
         // When
-        let cacheDirectory = try temporaryPath()
+        let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.selectiveTests))
             .willReturn(cacheDirectory)
@@ -127,12 +123,13 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let got = try await subject.fetch([item], cacheCategory: .selectiveTests)
 
         // Then
-        XCTAssertEmpty(got)
+        #expect(got.isEmpty)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_store() async throws {
         // Given
-        let cacheDirectory = try temporaryPath()
+        let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.binaries))
             .willReturn(cacheDirectory)
@@ -148,6 +145,6 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let exists = try await fileSystem.exists(
             cacheDirectory.appending(try RelativePath(validating: "\(hash)/framework.xcframework"))
         )
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 }

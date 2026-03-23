@@ -1,18 +1,23 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class SettingsTests: XCTestCase {
-    func test_codable() {
+struct SettingsTests {
+    @Test func test_codable() throws {
         // Given
         let subject = Settings.default
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Settings.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func testXcconfigs() throws {
+    @Test func testXcconfigs() throws {
         // Given
         let configurations: [BuildConfiguration: Configuration?] = [
             BuildConfiguration(name: "D", variant: .debug): Configuration(
@@ -28,10 +33,10 @@ final class SettingsTests: XCTestCase {
         let got = configurations.xcconfigs()
 
         // Then
-        XCTAssertEqual(got.map(\.pathString), ["/A", "/B", "/D"])
+        #expect(got.map(\.pathString) == ["/A", "/B", "/D"])
     }
 
-    func testSortedByBuildConfigurationName() {
+    @Test func testSortedByBuildConfigurationName() {
         // Given
         let configurations: [BuildConfiguration: Configuration?] = [
             BuildConfiguration(name: "D", variant: .debug): emptyConfiguration(),
@@ -44,10 +49,10 @@ final class SettingsTests: XCTestCase {
         let got = configurations.sortedByBuildConfigurationName()
 
         // Then
-        XCTAssertEqual(got.map(\.0.name), ["A", "B", "C", "D"])
+        #expect(got.map(\.0.name) == ["A", "B", "C", "D"])
     }
 
-    func testDefaultDebugConfigurationWhenDefaultExists() {
+    @Test func testDefaultDebugConfigurationWhenDefaultExists() {
         // Given
         // .debug (i.e. name: "Debug", variant: .debug) is the default debug
         let configurations: [BuildConfiguration: Configuration?] = [
@@ -62,10 +67,10 @@ final class SettingsTests: XCTestCase {
         let got = settings.defaultDebugBuildConfiguration()
 
         // Then
-        XCTAssertEqual(got, .debug)
+        #expect(got == .debug)
     }
 
-    func testDefaultDebugConfigurationWhenDefaultDoesNotExist() {
+    @Test func testDefaultDebugConfigurationWhenDefaultDoesNotExist() {
         // Given
         // .debug (i.e. name: "Debug", variant: .debug) is the default debug
         let configurations: [BuildConfiguration: Configuration?] = [
@@ -79,10 +84,10 @@ final class SettingsTests: XCTestCase {
         let got = settings.defaultDebugBuildConfiguration()
 
         // Then
-        XCTAssertEqual(got, .debug("A"))
+        #expect(got == .debug("A"))
     }
 
-    func testDefaultDebugConfigurationWhenNoDebugConfigurationsExist() {
+    @Test func testDefaultDebugConfigurationWhenNoDebugConfigurationsExist() {
         // Given
         let configurations: [BuildConfiguration: Configuration?] = [
             .release("C"): nil,
@@ -94,10 +99,10 @@ final class SettingsTests: XCTestCase {
         let got = settings.defaultDebugBuildConfiguration()
 
         // Then
-        XCTAssertNil(got)
+        #expect(got == nil)
     }
 
-    func testDefaultReleaseConfigurationWhenDefaultExist() {
+    @Test func testDefaultReleaseConfigurationWhenDefaultExist() {
         // Given
         // .release (i.e. name: "Release", variant: .release) is the default release
         let configurations: [BuildConfiguration: Configuration?] = [
@@ -112,10 +117,10 @@ final class SettingsTests: XCTestCase {
         let got = settings.defaultReleaseBuildConfiguration()
 
         // Then
-        XCTAssertEqual(got, .release)
+        #expect(got == .release)
     }
 
-    func testDefaultReleaseConfigurationWhenDefaultDoesNotExist() {
+    @Test func testDefaultReleaseConfigurationWhenDefaultDoesNotExist() {
         // Given
         // .release (i.e. name: "Release", variant: .release) is the default release
         let configurations: [BuildConfiguration: Configuration?] = [
@@ -129,10 +134,10 @@ final class SettingsTests: XCTestCase {
         let got = settings.defaultReleaseBuildConfiguration()
 
         // Then
-        XCTAssertEqual(got, .release("B"))
+        #expect(got == .release("B"))
     }
 
-    func testDefaultReleaseConfigurationWhenNoReleaseConfigurationsExist() {
+    @Test func testDefaultReleaseConfigurationWhenNoReleaseConfigurationsExist() {
         // Given
         let configurations: [BuildConfiguration: Configuration?] = [
             .debug("A"): nil,
@@ -144,7 +149,7 @@ final class SettingsTests: XCTestCase {
         let got = settings.defaultReleaseBuildConfiguration()
 
         // Then
-        XCTAssertNil(got)
+        #expect(got == nil)
     }
 
     // MARK: - Helpers

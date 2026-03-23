@@ -4,37 +4,32 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistAutomation
 
-final class TargetBuilderErrorTests: XCTestCase {
+struct TargetBuilderErrorTests {
+    @Test
     func test_errorDescription() {
-        XCTAssertEqual(
-            TargetBuilderError.schemeWithoutBuildableTargets(scheme: "MyScheme").description,
-            "The scheme MyScheme cannot be built because it contains no buildable targets."
-        )
-        XCTAssertEqual(
-            TargetBuilderError.buildProductsNotFound(path: "/path/to/products").description,
-            "The expected build products at /path/to/products were not found."
-        )
+        #expect(TargetBuilderError.schemeWithoutBuildableTargets(scheme: "MyScheme").description == "The scheme MyScheme cannot be built because it contains no buildable targets.")
+        #expect(TargetBuilderError.buildProductsNotFound(path: "/path/to/products").description == "The expected build products at /path/to/products were not found.")
     }
 
+    @Test
     func test_errorType() {
-        XCTAssertEqual(TargetBuilderError.schemeWithoutBuildableTargets(scheme: "MyScheme").type, .abort)
-        XCTAssertEqual(TargetBuilderError.buildProductsNotFound(path: "/path/to/products").type, .bug)
+        #expect(TargetBuilderError.schemeWithoutBuildableTargets(scheme: "MyScheme").type == .abort)
+        #expect(TargetBuilderError.buildProductsNotFound(path: "/path/to/products").type == .bug)
     }
 }
 
-final class TargetBuilderTests: TuistUnitTestCase {
-    private var buildGraphInspector: MockBuildGraphInspecting!
-    private var xcodeBuildController: MockXcodeBuildControlling!
-    private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating!
-    private var simulatorController: MockSimulatorControlling!
-    private var subject: TargetBuilder!
-
-    override func setUp() {
-        super.setUp()
+struct TargetBuilderTests {
+    private let buildGraphInspector: MockBuildGraphInspecting
+    private let xcodeBuildController: MockXcodeBuildControlling
+    private let xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating
+    private let simulatorController: MockSimulatorControlling
+    private let subject: TargetBuilder
+    init() {
         buildGraphInspector = .init()
         xcodeBuildController = .init()
         xcodeProjectBuildDirectoryLocator = .init()
@@ -45,7 +40,6 @@ final class TargetBuilderTests: TuistUnitTestCase {
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             simulatorController: simulatorController
         )
-
         given(xcodeBuildController)
             .build(
                 .any,
@@ -60,15 +54,8 @@ final class TargetBuilderTests: TuistUnitTestCase {
             .willReturn()
     }
 
-    override func tearDown() {
-        buildGraphInspector = nil
-        xcodeBuildController = nil
-        xcodeProjectBuildDirectoryLocator = nil
-        simulatorController = nil
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_buildScheme_callsXcodeBuildControllerWithArguments() async throws {
         // Given
         let scheme = Scheme.test(name: "A")
@@ -144,9 +131,10 @@ final class TargetBuilderTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_copiesBuildProducts_to_outputPath_defaultConfiguration() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let buildOutputPath = path.appending(component: ".build")
         let scheme = Scheme.test(name: "A")
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
@@ -202,23 +190,18 @@ final class TargetBuilderTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(buildOutputPath).sorted(),
-            [buildOutputPath.appending(component: "Debug")]
-        )
+        #expect(try fileHandler.contentsOfDirectory(buildOutputPath).sorted() == [buildOutputPath.appending(component: "Debug")])
 
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: "Debug")).sorted(),
-            [
+        #expect(try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: "Debug")).sorted() == [
                 buildOutputPath.appending(components: "Debug", "App.app"),
                 buildOutputPath.appending(components: "Debug", "App.swiftmodule"),
-            ]
-        )
+            ])
     }
 
+    @Test(.inTemporaryDirectory)
     func test_copiesBuildProducts_to_outputPath_customConfiguration() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let buildOutputPath = path.appending(component: ".build")
         let scheme = Scheme.test(name: "A")
         let configuration = "TestRelease"
@@ -275,17 +258,11 @@ final class TargetBuilderTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(buildOutputPath).sorted(),
-            [buildOutputPath.appending(component: configuration)]
-        )
+        #expect(try fileHandler.contentsOfDirectory(buildOutputPath).sorted() == [buildOutputPath.appending(component: configuration)])
 
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: configuration)).sorted(),
-            [
+        #expect(try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: configuration)).sorted() == [
                 buildOutputPath.appending(components: configuration, "App.app"),
                 buildOutputPath.appending(components: configuration, "App.swiftmodule"),
-            ]
-        )
+            ])
     }
 }

@@ -7,15 +7,15 @@ import TuistLoader
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistKit
 
-final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
+struct StaticXCFrameworkModuleMapGraphMapperTests {
     private var subject: StaticXCFrameworkModuleMapGraphMapper!
     private var manifestFilesLocator: MockManifestFilesLocating!
 
-    override func setUp() {
-        super.setUp()
+    init() {
 
         manifestFilesLocator = MockManifestFilesLocating()
         subject = StaticXCFrameworkModuleMapGraphMapper(
@@ -23,14 +23,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        manifestFilesLocator = nil
-        subject = nil
-
-        super.tearDown()
-    }
-
-    func test_map_when_static_xcframework_library_linked_via_dynamic_xcframework() async throws {
+    @Test func test_map_when_static_xcframework_library_linked_via_dynamic_xcframework() async throws {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
@@ -138,10 +131,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             expectedGraph,
             gotGraph
         )
-        XCTAssertBetterEqual(
+        #expect(
             [
                 .directory(
-                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps", "Headers"))
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps" == "Headers"))
                 ),
                 .file(
                     FileDescriptor(
@@ -163,7 +156,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_static_xcframework_framework_linked_via_dynamic_xcframework() async throws {
+    @Test func test_map_when_static_xcframework_framework_linked_via_dynamic_xcframework() async throws {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
@@ -252,12 +245,12 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             expectedGraph,
             gotGraph
         )
-        XCTAssertEmpty(gotSideEffects)
+        #expect(gotSideEffects.isEmpty)
     }
 
     // MARK: - Regression: device vs simulator slice selection (tuist/tuist#9723)
 
-    func test_map_when_static_xcframework_framework_with_device_and_simulator_slices(
+    @Test func test_map_when_static_xcframework_framework_with_device_and_simulator_slices(
     ) async throws {
         // Given
         // An xcframework with both device (ios-arm64) and simulator (ios-arm64-simulator) slices.
@@ -372,10 +365,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             expectedGraph,
             gotGraph
         )
-        XCTAssertEmpty(gotSideEffects)
+        #expect(gotSideEffects.isEmpty)
     }
 
-    func test_map_when_static_xcframework_without_umbrella_header_linked_via_dynamic_xcframework() async throws {
+    @Test func test_map_when_static_xcframework_without_umbrella_header_linked_via_dynamic_xcframework() async throws {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
@@ -476,10 +469,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             expectedGraph,
             gotGraph
         )
-        XCTAssertBetterEqual(
+        #expect(
             [
                 .directory(
-                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps", "Headers"))
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps" == "Headers"))
                 ),
                 .file(
                     FileDescriptor(
@@ -492,7 +485,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_static_xcframework_linked_via_dynamic_xcframework_and_dynamic_framework() async throws {
+    @Test func test_map_when_static_xcframework_linked_via_dynamic_xcframework_and_dynamic_framework() async throws {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
@@ -621,7 +614,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_static_xcframework_linked_via_cached_dynamic_xcframework_at_different_path() async throws {
+    @Test func test_map_when_static_xcframework_linked_via_cached_dynamic_xcframework_at_different_path() async throws {
         // Given
         // Simulating the scenario where:
         // - App project is at AllInOneTests/
@@ -755,10 +748,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             expectedGraph,
             gotGraph
         )
-        XCTAssertBetterEqual(
+        #expect(
             [
                 .directory(
-                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps", "Headers"))
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps" == "Headers"))
                 ),
                 .file(
                     FileDescriptor(
@@ -780,7 +773,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_static_framework_xcframework_linked_via_cached_dynamic_xcframework_at_different_path() async throws {
+    @Test func test_map_when_static_framework_xcframework_linked_via_cached_dynamic_xcframework_at_different_path() async throws {
         // Given
         // Same scenario but with a .framework bundle (FRAMEWORK_SEARCH_PATHS) instead of .a library
         let basePath = try temporaryPath()
@@ -881,10 +874,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             expectedGraph,
             gotGraph
         )
-        XCTAssertEmpty(gotSideEffects)
+        #expect(gotSideEffects.isEmpty)
     }
 
-    func test_map_when_static_xcframework_linked_via_dynamic_xcframework_with_multiple_app_targets_in_different_projects(
+    @Test func test_map_when_static_xcframework_linked_via_dynamic_xcframework_with_multiple_app_targets_in_different_projects(
     ) async throws {
         // Given
         // This test verifies that when multiple app targets in different projects depend on the same
@@ -1047,7 +1040,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_static_xcframework_linked_via_target_with_dynamic_xcframework_dependency() async throws {
+    @Test func test_map_when_static_xcframework_linked_via_target_with_dynamic_xcframework_dependency() async throws {
         // Given
         // This test reproduces a scenario where:
         // - App (at Project/) depends on CachedFramework target (at .cache/.../HASH/)
@@ -1167,7 +1160,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_static_xcframework_library_linked_via_dynamic_xcframework_without_package_manifest() async throws {
+    @Test func test_map_when_static_xcframework_library_linked_via_dynamic_xcframework_without_package_manifest() async throws {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
@@ -1273,10 +1266,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             expectedGraph,
             gotGraph
         )
-        XCTAssertBetterEqual(
+        #expect(
             [
                 .directory(
-                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps", "Headers"))
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps" == "Headers"))
                 ),
                 .file(
                     FileDescriptor(
@@ -1298,7 +1291,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_static_xcframework_framework_linked_via_dynamic_xcframework_without_package_manifest() async throws {
+    @Test func test_map_when_static_xcframework_framework_linked_via_dynamic_xcframework_without_package_manifest() async throws {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
@@ -1385,10 +1378,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             expectedGraph,
             gotGraph
         )
-        XCTAssertEmpty(gotSideEffects)
+        #expect(gotSideEffects.isEmpty)
     }
 
-    func test_map_when_static_xcframework_linked_via_static_xcframework() async throws {
+    @Test func test_map_when_static_xcframework_linked_via_static_xcframework() async throws {
         // Given
         let projectPath = try temporaryPath()
             .appending(component: "Project")
@@ -1442,10 +1435,10 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             graph,
             gotGraph
         )
-        XCTAssertEmpty(gotSideEffects)
+        #expect(gotSideEffects.isEmpty)
     }
 
-    func test_removeOtherSwithDuplicates() {
+    @Test func test_removeOtherSwithDuplicates() {
         // Given
         let settings: SettingsDictionary = [
             "OTHER_SWIFT_FLAGS": .array(
@@ -1488,7 +1481,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_removeOtherSwiftDuplicates_preservesEnableUpcomingFeatureFlags() {
+    @Test func test_removeOtherSwiftDuplicates_preservesEnableUpcomingFeatureFlags() {
         // Given
         let settings: SettingsDictionary = [
             "OTHER_SWIFT_FLAGS": .array(

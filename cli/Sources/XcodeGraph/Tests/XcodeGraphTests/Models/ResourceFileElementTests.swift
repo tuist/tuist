@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class ResourceFileElementTests: XCTestCase {
-    func test_codable_file() throws {
+struct ResourceFileElementTests {
+    @Test func test_codable_file() throws {
         // Given
         let subject = ResourceFileElement.file(
             path: try AbsolutePath(validating: "/path/to/element"),
@@ -14,10 +14,15 @@ final class ResourceFileElementTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(ResourceFileElement.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_codable_folderReference() throws {
+    @Test func test_codable_folderReference() throws {
         // Given
         let subject = ResourceFileElement.folderReference(
             path: try AbsolutePath(validating: "/path/to/folder"),
@@ -27,6 +32,11 @@ final class ResourceFileElementTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(ResourceFileElement.self, from: data)
+        #expect(subject == decoded)
     }
 }

@@ -1,21 +1,16 @@
 import TuistTesting
-import XCTest
+import Testing
 
 @testable import TuistInspectCommand
 
-final class ImportSourceCodeScannerTests: TuistUnitTestCase {
+struct ImportSourceCodeScannerTests {
     var subject: ImportSourceCodeScanner!
 
-    override func setUp() {
+    init() {
         subject = ImportSourceCodeScanner()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_whenObjcCodeWithImports() throws {
+    @Test func test_whenObjcCodeWithImports() throws {
         // Given
         let code = """
         #import <UIKit/UIKit.h>
@@ -32,10 +27,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         let imports = try subject.extractImports(from: code, language: .objc)
 
         // Then
-        XCTAssertEqual(imports, ["UIKit", "A"])
+        #expect(imports == ["UIKit", "A"])
     }
 
-    func test_whenObjcCodeWithOneLineImports() throws {
+    @Test func test_whenObjcCodeWithOneLineImports() throws {
         // Given
         let code = """
         @import ModuleA; @import ModuleB;
@@ -51,10 +46,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         let imports = try subject.extractImports(from: code, language: .objc)
 
         // Then
-        XCTAssertEqual(imports, ["ModuleA", "ModuleB"])
+        #expect(imports == ["ModuleA", "ModuleB"])
     }
 
-    func test_whenObjcCodeWithSubmoduleImport() throws {
+    @Test func test_whenObjcCodeWithSubmoduleImport() throws {
         // Given
         let code = """
         @import ModuleA.Submodule;
@@ -70,10 +65,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         let imports = try subject.extractImports(from: code, language: .objc)
 
         // Then
-        XCTAssertEqual(imports, ["ModuleA"])
+        #expect(imports == ["ModuleA"])
     }
 
-    func test_whenObjcWithSemanticImports() throws {
+    @Test func test_whenObjcWithSemanticImports() throws {
         // Given
         let code = """
         @import Cocoa ;
@@ -91,10 +86,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         let imports = try subject.extractImports(from: code, language: .objc)
 
         // Then
-        XCTAssertEqual(imports, ["Cocoa", "LuaSkin"])
+        #expect(imports == ["Cocoa", "LuaSkin"])
     }
 
-    func test_whenObjcWithInclude() throws {
+    @Test func test_whenObjcWithInclude() throws {
         // Given
         let code = """
         #import <Foundation/Foundation.h>
@@ -112,10 +107,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, ["Foundation", "mach-o", "objc"])
+        #expect(imports == ["Foundation", "mach-o", "objc"])
     }
 
-    func test_whenSwiftWithDefaultImport() throws {
+    @Test func test_whenSwiftWithDefaultImport() throws {
         // Given
         let code = """
         import PackageDescription
@@ -130,10 +125,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, ["PackageDescription"])
+        #expect(imports == ["PackageDescription"])
     }
 
-    func test_whenSwiftWithDefaultImportWithComment() throws {
+    @Test func test_whenSwiftWithDefaultImportWithComment() throws {
         // Given
         let code = """
         ////        import PackageDescription
@@ -148,10 +143,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, [])
+        #expect(imports == [])
     }
 
-    func test_whenSwiftWithDefaultImportWithMultilineComment() throws {
+    @Test func test_whenSwiftWithDefaultImportWithMultilineComment() throws {
         // Given
         let code = """
         /*
@@ -168,10 +163,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, [])
+        #expect(imports == [])
     }
 
-    func test_whenSwiftWithOneLineImports() throws {
+    @Test func test_whenSwiftWithOneLineImports() throws {
         // Given
         let code = """
         import ModuleA; import ModuleB
@@ -186,10 +181,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, ["ModuleA", "ModuleB"])
+        #expect(imports == ["ModuleA", "ModuleB"])
     }
 
-    func test_whenSwiftWithOneLineImportsWithComment() throws {
+    @Test func test_whenSwiftWithOneLineImportsWithComment() throws {
         // Given
         let code = """
         //// import ModuleA; import ModuleB
@@ -204,10 +199,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, [])
+        #expect(imports == [])
     }
 
-    func test_whenSwiftWithOneLineImportsWithOneParticularComment() throws {
+    @Test func test_whenSwiftWithOneLineImportsWithOneParticularComment() throws {
         // Given
         let code = """
         import ModuleA; /* import ModuleB */
@@ -222,10 +217,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, ["ModuleA"])
+        #expect(imports == ["ModuleA"])
     }
 
-    func test_whenSwiftWithSubmoduleImport() throws {
+    @Test func test_whenSwiftWithSubmoduleImport() throws {
         // Given
         let code = """
         import ModuleC.Submodule
@@ -240,10 +235,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, ["ModuleC"])
+        #expect(imports == ["ModuleC"])
     }
 
-    func test_whenSwiftWithTypeImports() throws {
+    @Test func test_whenSwiftWithTypeImports() throws {
         // Given
         let code = """
         import struct ModuleA.SomeStruct
@@ -265,10 +260,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, ["ModuleA", "ModuleB", "ModuleC", "ModuleD", "ModuleE", "ModuleF", "ModuleG", "ModuleH"])
+        #expect(imports == ["ModuleA", "ModuleB", "ModuleC", "ModuleD", "ModuleE", "ModuleF", "ModuleG", "ModuleH"])
     }
 
-    func test_whenSwiftWithIfImport() throws {
+    @Test func test_whenSwiftWithIfImport() throws {
         // Given
         let code = """
         #if TUIST
@@ -290,10 +285,10 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, ["ProjectDescription", "ProjectDescriptionHelpers"])
+        #expect(imports == ["ProjectDescription", "ProjectDescriptionHelpers"])
     }
 
-    func test_whenSwiftWithTestableImport() throws {
+    @Test func test_whenSwiftWithTestableImport() throws {
         // Given
         let code = """
             @testable import ProjectDescription
@@ -313,6 +308,6 @@ final class ImportSourceCodeScannerTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(imports, ["ProjectDescription", "ProjectDescriptionHelpers"])
+        #expect(imports == ["ProjectDescription", "ProjectDescriptionHelpers"])
     }
 }

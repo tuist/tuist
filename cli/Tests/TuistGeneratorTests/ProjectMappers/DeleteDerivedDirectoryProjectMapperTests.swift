@@ -3,37 +3,32 @@ import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-public final class DeleteDerivedDirectoryProjectMapperTests: TuistUnitTestCase {
-    var subject: DeleteDerivedDirectoryProjectMapper!
-
-    override public func setUp() {
-        super.setUp()
+struct DeleteDerivedDirectoryProjectMapperTests {
+    let subject: DeleteDerivedDirectoryProjectMapper
+    init() {
         subject = DeleteDerivedDirectoryProjectMapper()
     }
 
-    override public func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test(.inTemporaryDirectory)
     func test_map_returns_sideEffectsToDeleteDerivedDirectories() async throws {
         // Given
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let derivedDirectory = projectPath.appending(component: Constants.DerivedDirectory.name)
         let projectA = Project.test(path: projectPath)
-        try fileHandler.createFolder(derivedDirectory)
-        try fileHandler.createFolder(derivedDirectory.appending(component: "InfoPlists"))
-        try fileHandler.touch(derivedDirectory.appending(component: "TargetA.modulemap"))
+        try FileHandler.shared.createFolder(derivedDirectory)
+        try FileHandler.shared.createFolder(derivedDirectory.appending(component: "InfoPlists"))
+        try FileHandler.shared.touch(derivedDirectory.appending(component: "TargetA.modulemap"))
 
         // When
         let (_, sideEffects) = try await subject.map(project: projectA)
 
         // Then
-        XCTAssertEqual(sideEffects, [
+        #expect(sideEffects == [
             .directory(.init(path: derivedDirectory.appending(component: "InfoPlists"), state: .absent)),
         ])
     }

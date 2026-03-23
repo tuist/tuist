@@ -1,13 +1,13 @@
 import Foundation
 import ProjectDescription
+import Testing
 import TuistTesting
 import XcodeGraph
-import XCTest
 
 @testable import TuistLoader
 
-final class MetalOptionsManifestMapperTests: TuistUnitTestCase {
-    func test_from() throws {
+struct MetalOptionsManifestMapperTests {
+    @Test func test_from() throws {
         // Given
         let manifest: ProjectDescription.MetalOptions = .options(
             apiValidation: true,
@@ -20,8 +20,8 @@ final class MetalOptionsManifestMapperTests: TuistUnitTestCase {
         let got = XcodeGraph.MetalOptions.from(manifest: manifest)
 
         // Then
-        XCTAssertBetterEqual(
-            got,
+        #expect(
+            got ==
             XcodeGraph.MetalOptions(
                 apiValidation: true,
                 shaderValidation: false,

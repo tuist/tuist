@@ -3,7 +3,7 @@ import Path
 import TSCUtility
 import TuistLoader
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistAutomation
 @testable import TuistCore
 @testable import TuistGenerator
@@ -14,22 +14,15 @@ import XCTest
     import TuistCacheEE
 #endif
 
-final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
+struct WorkspaceMapperFactoryTests {
     var projectMapperFactory: ProjectMapperFactory!
     var subject: WorkspaceMapperFactory!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         projectMapperFactory = ProjectMapperFactory()
     }
 
-    override func tearDown() {
-        projectMapperFactory = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_default_contains_the_project_workspace_mapper() {
+    @Test func test_default_contains_the_project_workspace_mapper() {
         // Given
         subject = WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(
@@ -46,7 +39,7 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, ProjectWorkspaceMapper.self)
     }
 
-    func test_default_contains_the_tuist_workspace_identifier_mapper() {
+    @Test func test_default_contains_the_tuist_workspace_identifier_mapper() {
         // Given
         subject = WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(
@@ -63,7 +56,7 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, TuistWorkspaceIdentifierMapper.self)
     }
 
-    func test_default_contains_the_tuist_workspace_render_markdown_readme_mapper() {
+    @Test func test_default_contains_the_tuist_workspace_render_markdown_readme_mapper() {
         // Given
         subject = WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(
@@ -80,7 +73,7 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, TuistWorkspaceRenderMarkdownReadmeMapper.self)
     }
 
-    func test_default_contains_the_tide_template_macros_mapper() {
+    @Test func test_default_contains_the_tide_template_macros_mapper() {
         // Given
         subject = WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(
@@ -97,7 +90,7 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, IDETemplateMacrosMapper.self)
     }
 
-    func test_default_contains_the_last_upgrade_version_mapper() {
+    @Test func test_default_contains_the_last_upgrade_version_mapper() {
         // Given
         subject = WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(
@@ -116,19 +109,13 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
 }
 
 #if canImport(TuistCacheEE)
-    final class CacheWorkspaceMapperFactoryTests: TuistUnitTestCase {
+    struct CacheWorkspaceMapperFactoryTests {
         var projectMapperFactory: ProjectMapperFactory!
         var subject: CacheWorkspaceMapperFactory!
 
-        override func setUp() {
+        init() {
             super.setUp()
             projectMapperFactory = ProjectMapperFactory()
-        }
-
-        override func tearDown() {
-            projectMapperFactory = nil
-            subject = nil
-            super.tearDown()
         }
 
         func test_binaryCacheWarming_returns_default_mappers() throws {

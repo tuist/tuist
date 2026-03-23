@@ -3,24 +3,18 @@ import GraphViz
 import Path
 import TuistCore
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class GraphToGraphVizMapperTests: XCTestCase {
-    var subject: GraphToGraphVizMapper!
-
-    override func setUp() {
-        super.setUp()
+struct GraphToGraphVizMapperTests {
+    let subject: GraphToGraphVizMapper
+    init() {
         subject = GraphToGraphVizMapper()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test
     func test_map() throws {
         // Given
         let graph = try makeGivenGraph()
@@ -40,10 +34,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
         let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
-        XCTAssertEqual(gotNodeIds, expectedNodeIds)
-        XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
+        #expect(gotNodeIds == expectedNodeIds)
+        #expect(gotEdgeIds == expectedEdgeIds)
     }
 
+    @Test
     func test_map_skipping_external_dependencies() throws {
         // Given
         let graph = try makeGivenGraph()
@@ -64,10 +59,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
         let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
 
-        XCTAssertEqual(gotNodeIds, expectedNodeIds)
-        XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
+        #expect(gotNodeIds == expectedNodeIds)
+        #expect(gotEdgeIds == expectedEdgeIds)
     }
 
+    @Test
     func test_map_skipping_tests() throws {
         // Given
         let graph = try makeGivenGraph()
@@ -88,10 +84,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
         let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
 
-        XCTAssertEqual(gotNodeIds, expectedNodeIds)
-        XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
+        #expect(gotNodeIds == expectedNodeIds)
+        #expect(gotEdgeIds == expectedEdgeIds)
     }
 
+    @Test
     func test_map_filter_platform() throws {
         // Given
         let graph = try makeGivenGraph()
@@ -111,10 +108,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
         let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
-        XCTAssertEqual(gotNodeIds, expectedNodeIds)
-        XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
+        #expect(gotNodeIds == expectedNodeIds)
+        #expect(gotEdgeIds == expectedEdgeIds)
     }
 
+    @Test
     func test_map_filter_targets() throws {
         // Given
         let graph = try makeGivenGraph()
@@ -141,8 +139,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
         let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
 
-        XCTAssertEqual(gotNodeIds, expectedNodeIds)
-        XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
+        #expect(gotNodeIds == expectedNodeIds)
+        #expect(gotEdgeIds == expectedEdgeIds)
     }
 
     private func makeExpectedGraphViz(

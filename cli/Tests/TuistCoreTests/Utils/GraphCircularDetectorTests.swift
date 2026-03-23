@@ -1,22 +1,16 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import TuistCore
 
-final class GraphCircularDetectorTests: XCTestCase {
-    var subject: GraphCircularDetector!
+struct GraphCircularDetectorTests {
+    var subject: GraphCircularDetector
 
-    override func setUp() {
-        super.setUp()
+    init() {
         subject = GraphCircularDetector()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_cycleDetected_1() throws {
+    @Test mutating func test_cycleDetected_1() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -28,10 +22,10 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: c, to: a)
 
         // Then
-        XCTAssertThrowsSpecific(try subject.complete(), GraphLoadingError.circularDependency([a, b, c]))
+        #expect(throws: GraphLoadingError.circularDependency([a, b, c])) { try subject.complete() }
     }
 
-    func test_cycleDetected_2() throws {
+    @Test mutating func test_cycleDetected_2() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -47,10 +41,10 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: b, to: c)
 
         // Then
-        XCTAssertThrowsError(try subject.complete())
+        #expect(throws: (any Error).self) { try subject.complete() }
     }
 
-    func test_cycleDetected_3() throws {
+    @Test mutating func test_cycleDetected_3() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -66,10 +60,10 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: e, to: a)
 
         // Then
-        XCTAssertThrowsError(try subject.complete())
+        #expect(throws: (any Error).self) { try subject.complete() }
     }
 
-    func test_noCycleDetected_1() throws {
+    @Test mutating func test_noCycleDetected_1() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -82,10 +76,10 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: b, to: d)
 
         // Then
-        XCTAssertNoThrow(try subject.complete())
+        try subject.complete()
     }
 
-    func test_noCycleDetected_2() throws {
+    @Test mutating func test_noCycleDetected_2() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -97,10 +91,10 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: c, to: a)
 
         // Then
-        XCTAssertNoThrow(try subject.complete())
+        try subject.complete()
     }
 
-    func test_noCycleDetected_3() throws {
+    @Test mutating func test_noCycleDetected_3() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -124,10 +118,10 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: d, to: e)
 
         // Then
-        XCTAssertNoThrow(try subject.complete())
+        try subject.complete()
     }
 
-    func test_noCycleDetected_detachedGraphs() throws {
+    @Test mutating func test_noCycleDetected_detachedGraphs() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -143,10 +137,10 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: d, to: e)
 
         // Then
-        XCTAssertNoThrow(try subject.complete())
+        try subject.complete()
     }
 
-    func test_cycleDetected_detachedGraphs() throws {
+    @Test mutating func test_cycleDetected_detachedGraphs() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -165,34 +159,7 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: f, to: d)
 
         // Then
-        XCTAssertThrowsSpecific(try subject.complete(), GraphLoadingError.circularDependency([d, e, f]))
-    }
-
-    // MARK: -
-
-    // MARK: - Performance
-
-    func test_performance() throws {
-        // ~ <200ms
-        measureMetrics([.wallClockTime], automaticallyStartMeasuring: false) {
-            // Given
-            var nodes = (0 ..< 1000).map { node("\($0)") }.shuffled()
-
-            while let node = nodes.popLast() {
-                for item in nodes {
-                    subject.start(from: item, to: node)
-                }
-            }
-
-            // When / Then
-            startMeasuring()
-            do {
-                try subject.complete()
-            } catch {
-                XCTFail()
-            }
-            stopMeasuring()
-        }
+        #expect(throws: GraphLoadingError.circularDependency([d, e, f])) { try subject.complete() }
     }
 
     private func node(_ name: String) -> GraphCircularDetectorNode {

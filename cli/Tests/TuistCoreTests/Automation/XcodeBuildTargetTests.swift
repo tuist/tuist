@@ -1,14 +1,15 @@
+import FileSystemTesting
 import Foundation
 import TuistCore
 import TuistSupport
-import XCTest
+import Testing
 
 @testable import TuistTesting
 
-final class XcodeBuildTargetTests: TuistUnitTestCase {
-    func test_xcodebuildArguments_returns_the_right_arguments_when_project() throws {
+struct XcodeBuildTargetTests {
+    @Test(.inTemporaryDirectory) func test_xcodebuildArguments_returns_the_right_arguments_when_project() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeprojPath = path.appending(component: "Project.xcodeproj")
         let subject = XcodeBuildTarget.project(xcodeprojPath)
 
@@ -16,12 +17,12 @@ final class XcodeBuildTargetTests: TuistUnitTestCase {
         let got = subject.xcodebuildArguments
 
         // Then
-        XCTAssertEqual(got, ["-project", xcodeprojPath.pathString])
+        #expect(got == ["-project", xcodeprojPath.pathString])
     }
 
-    func test_xcodebuildArguments_returns_the_right_arguments_when_workspace() throws {
+    @Test(.inTemporaryDirectory) func test_xcodebuildArguments_returns_the_right_arguments_when_workspace() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
         let subject = XcodeBuildTarget.workspace(xcworkspacePath)
 
@@ -29,6 +30,6 @@ final class XcodeBuildTargetTests: TuistUnitTestCase {
         let got = subject.xcodebuildArguments
 
         // Then
-        XCTAssertEqual(got, ["-workspace", xcworkspacePath.pathString])
+        #expect(got == ["-workspace", xcworkspacePath.pathString])
     }
 }

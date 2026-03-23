@@ -2,25 +2,21 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistCore
 @testable import TuistScaffold
 @testable import TuistTesting
 
-final class TemplateGeneratorTests: TuistUnitTestCase {
-    private var subject: TemplateGenerator!
-
-    override func setUp() {
-        super.setUp()
+struct TemplateGeneratorTests {
+    private let subject: TemplateGenerator
+    init() {
         subject = TemplateGenerator()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_directories_are_generated() async throws {
         // Given
         let directories = [
@@ -28,7 +24,7 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
             try RelativePath(validating: "a/b"),
             try RelativePath(validating: "c"),
         ]
-        let destinationPath = try temporaryPath()
+        let destinationPath = try #require(FileSystem.temporaryTestDirectory)
         let expectedDirectories = directories.map(destinationPath.appending)
         let items = try directories.map {
             Template.Item.test(path: try RelativePath(validating: $0.pathString + "/file.swift"))
@@ -45,9 +41,10 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
 
         // Then
         let exists = try await expectedDirectories.concurrentMap { try await self.fileSystem.exists($0) }
-        XCTAssertTrue(exists.allSatisfy { $0 })
+        #expect(exists.allSatisfy { $0 })
     }
 
+    @Test(.inTemporaryDirectory)
     func test_directories_with_attributes() async throws {
         // Given
         let directories = [
@@ -59,7 +56,7 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
             Template.Item.test(path: try RelativePath(validating: $0.pathString + "/file.swift"))
         }
         let template = Template.test(items: items)
-        let destinationPath = try temporaryPath()
+        let destinationPath = try #require(FileSystem.temporaryTestDirectory)
         let expectedDirectories = [
             try RelativePath(validating: "test_name"),
             try RelativePath(validating: "test"),
@@ -79,9 +76,10 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
 
         // Then
         let exists = try await expectedDirectories.concurrentMap { try await self.fileSystem.exists($0) }
-        XCTAssertTrue(exists.allSatisfy { $0 })
+        #expect(exists.allSatisfy { $0 })
     }
 
+    @Test(.inTemporaryDirectory)
     func test_files_are_generated() async throws {
         // Given
         let items: [Template.Item] = [
@@ -91,14 +89,14 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         ]
 
         let template = Template.test(items: items)
-        let destinationPath = try temporaryPath()
+        let destinationPath = try #require(FileSystem.temporaryTestDirectory)
         let expectedFiles: [(AbsolutePath, String)] = items.compactMap {
             let content: String
             switch $0.contents {
             case let .string(staticContent):
                 content = staticContent
             case .file, .directory:
-                XCTFail("Unexpected type")
+                Issue.record("Unexpected type")
                 return nil
             }
             return (destinationPath.appending($0.path), content)
@@ -113,13 +111,14 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
 
         // Then
         for expectedFile in expectedFiles {
-            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
+            #expect(try FileHandler.shared.readTextFile(expectedFile.0) == expectedFile.1)
         }
     }
 
+    @Test(.inTemporaryDirectory)
     func test_files_are_generated_with_attributes() async throws {
         // Given
-        let sourcePath = try temporaryPath()
+        let sourcePath = try #require(FileSystem.temporaryTestDirectory)
         let items = [
             Template.Item(path: try RelativePath(validating: "{{ name }}"), contents: .string("{{ contentName }}")),
             Template.Item(
@@ -138,7 +137,7 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         let directoryName = "test directory"
         let fileName = "test file"
         let filePath = "test file path"
-        let destinationPath = try temporaryPath()
+        let destinationPath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.writeText(fileContent, at: sourcePath.appending(component: filePath))
 
         // When
@@ -157,14 +156,15 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         // Then
 //        for expectedFile in expectedFiles {
 //            let text = try await fileSystem.readTextFile(at: expectedFile.0)
-//            XCTAssertEqual(text, expectedFile.1)
+//            #expect(text == expectedFile.1)
 //        }
     }
 
+    @Test(.inTemporaryDirectory)
     func test_rendered_files() async throws {
         // Given
-        let sourcePath = try temporaryPath()
-        let destinationPath = try temporaryPath()
+        let sourcePath = try #require(FileSystem.temporaryTestDirectory)
+        let destinationPath = try #require(FileSystem.temporaryTestDirectory)
         let name = "test name"
         let aContent = "test a content"
         let bContent = "test b content"
@@ -195,14 +195,15 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
 
         // Then
         for expectedFile in expectedFiles {
-            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
+            #expect(try FileHandler.shared.readTextFile(expectedFile.0) == expectedFile.1)
         }
     }
 
+    @Test(.inTemporaryDirectory)
     func test_file_rendered_with_attributes() async throws {
         // Given
-        let sourcePath = try temporaryPath()
-        let destinationPath = try temporaryPath()
+        let sourcePath = try #require(FileSystem.temporaryTestDirectory)
+        let destinationPath = try #require(FileSystem.temporaryTestDirectory)
         let expectedContents = "attribute name content"
         try FileHandler.shared.write(
             "{{ name }} content",
@@ -222,16 +223,14 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(destinationPath.appending(component: "a")),
-            expectedContents
-        )
+        #expect(try FileHandler.shared.readTextFile(destinationPath.appending(component: "a")) == expectedContents)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_only_stencil_files_rendered() async throws {
         // Given
-        let sourcePath = try temporaryPath()
-        let destinationPath = try temporaryPath()
+        let sourcePath = try #require(FileSystem.temporaryTestDirectory)
+        let destinationPath = try #require(FileSystem.temporaryTestDirectory)
         let expectedRenderedContents = "attribute name content"
         let expectedUnrenderedContents = "{{ name }} content"
         try FileHandler.shared.write(
@@ -263,20 +262,15 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(destinationPath.appending(component: "rendered")),
-            expectedRenderedContents
-        )
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(destinationPath.appending(component: "unrendered")),
-            expectedUnrenderedContents
-        )
+        #expect(try FileHandler.shared.readTextFile(destinationPath.appending(component: "rendered")) == expectedRenderedContents)
+        #expect(try FileHandler.shared.readTextFile(destinationPath.appending(component: "unrendered")) == expectedUnrenderedContents)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_empty_stencil_files_are_skipped() async throws {
         // Given
-        let sourcePath = try temporaryPath()
-        let destinationPath = try temporaryPath()
+        let sourcePath = try #require(FileSystem.temporaryTestDirectory)
+        let destinationPath = try #require(FileSystem.temporaryTestDirectory)
         try FileHandler.shared.write(
             "   \n   ",
             path: sourcePath.appending(component: "b.stencil"),
@@ -298,15 +292,16 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
 
         // Then
         let ignoreExists = try await fileSystem.exists(destinationPath.appending(component: "ignore"))
-        XCTAssertFalse(ignoreExists)
+        #expect(!ignoreExists)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_copy_directory() async throws {
         // Given
-        let sourcePath = try temporaryPath().appending(components: "folder")
+        let sourcePath = try #require(FileSystem.temporaryTestDirectory).appending(components: "folder")
         try FileHandler.shared.createFolder(sourcePath)
 
-        let destinationPath = try temporaryPath()
+        let destinationPath = try #require(FileSystem.temporaryTestDirectory)
         let expectedContentFile = "File's content"
 
         try FileHandler.shared.write(
@@ -330,9 +325,6 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(destinationPath.appending(components: "destination", "folder", "file1.txt")),
-            expectedContentFile
-        )
+        #expect(try FileHandler.shared.readTextFile(destinationPath.appending(components: "destination", "folder", "file1.txt")) == expectedContentFile)
     }
 }

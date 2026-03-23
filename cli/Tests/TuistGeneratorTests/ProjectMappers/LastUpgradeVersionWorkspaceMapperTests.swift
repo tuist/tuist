@@ -1,25 +1,18 @@
 import TuistCore
 import TuistGenerator
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistTesting
 
-final class LastUpgradeVersionWorkspaceMapperTests: TuistUnitTestCase {
-    var subject: LastUpgradeVersionWorkspaceMapper!
-
-    override func setUp() {
-        super.setUp()
-
+struct LastUpgradeVersionWorkspaceMapperTests {
+    let subject: LastUpgradeVersionWorkspaceMapper
+    init() {
         subject = LastUpgradeVersionWorkspaceMapper()
     }
 
-    override func tearDown() {
-        super.tearDown()
-
-        subject = nil
-    }
-
+    @Test(.inTemporaryDirectory)
     func test_maps_last_upgrade_version() throws {
         // Given
         subject = LastUpgradeVersionWorkspaceMapper()
@@ -29,8 +22,8 @@ final class LastUpgradeVersionWorkspaceMapperTests: TuistUnitTestCase {
                 lastXcodeUpgradeCheck: .init(12, 5, 1)
             )
         )
-        let projectAPath = try temporaryPath().appending(component: "A")
-        let projectBPath = try temporaryPath().appending(component: "B")
+        let projectAPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "A")
+        let projectBPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "B")
 
         let projectA = Project.test(
             path: projectAPath,
@@ -80,16 +73,13 @@ final class LastUpgradeVersionWorkspaceMapperTests: TuistUnitTestCase {
             lastUpgradeCheck: .init(12, 5, 1)
         )
 
-        XCTAssertEqual(
-            gotWorkspaceWithProjects,
-            WorkspaceWithProjects(
+        #expect(gotWorkspaceWithProjects == WorkspaceWithProjects(
                 workspace: workspace,
                 projects: [
                     mappedProjectA,
                     mappedProjectB,
                 ]
-            )
-        )
-        XCTAssertEqual(gotSideEffects, [])
+            ))
+        #expect(gotSideEffects == [])
     }
 }

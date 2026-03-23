@@ -3,43 +3,33 @@ import Foundation
 import Mockable
 import Path
 import TuistTesting
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistAutomation
 
-final class DeviceControllerTests: TuistUnitTestCase {
-    private var subject: DeviceController!
-    private var commandRunner: MockCommandRunning!
-
-    override func setUp() {
-        super.setUp()
-
+struct DeviceControllerTests {
+    private let subject: DeviceController
+    private let commandRunner: MockCommandRunning
+    init() {
         commandRunner = MockCommandRunning()
         subject = DeviceController(
             commandRunner: commandRunner
         )
     }
 
-    override func tearDown() {
-        commandRunner = nil
-        subject = nil
 
-        super.tearDown()
-    }
-
+    @Test
     func test_findAvailableDevices() async throws {
         // Given
         given(commandRunner)
             .run(arguments: .any, environment: .any, workingDirectory: .any)
             .willProduce { arguments, _, _ in
-                XCTAssertEqual(
-                    [
+                #expect([
                         "/usr/bin/xcrun", "devicectl",
                         "list", "devices",
                         "--json-output",
-                    ],
-                    arguments.dropLast()
-                )
+                    ] == arguments.dropLast())
 
                 return self.write(text: self.devicesOutputJSON, at: arguments.last!)
             }
@@ -48,8 +38,7 @@ final class DeviceControllerTests: TuistUnitTestCase {
         let got = try await subject.findAvailableDevices()
 
         // Then
-        XCTAssertEqual(
-            [
+        #expect([
                 PhysicalDevice(
                     id: "00008027-0018084C1122002E",
                     name: "Marek iPad",
@@ -90,11 +79,10 @@ final class DeviceControllerTests: TuistUnitTestCase {
                     transportType: nil,
                     connectionState: .disconnected
                 ),
-            ],
-            got
-        )
+            ] == got)
     }
 
+    @Test
     func test_findAvailableDevices_when_fetching_devices_failed() async throws {
         // Given
         given(commandRunner)
@@ -104,12 +92,10 @@ final class DeviceControllerTests: TuistUnitTestCase {
             }
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.findAvailableDevices(),
-            DeviceControllerError.fetchingDevicesFailed
-        )
+        await #expect(throws: DeviceControllerError.fetchingDevicesFailed) { try await subject.findAvailableDevices() }
     }
 
+    @Test(.inTemporaryDirectory)
     func test_installApp() async throws {
         // Given
         given(commandRunner)
@@ -122,7 +108,7 @@ final class DeviceControllerTests: TuistUnitTestCase {
                 )
             )
 
-        let appPath = try temporaryPath()
+        let appPath = try #require(FileSystem.temporaryTestDirectory)
 
         // When
         try await subject.installApp(
@@ -147,6 +133,7 @@ final class DeviceControllerTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_installApp_when_app_verification_failed() async throws {
         // Given
         given(commandRunner)
@@ -159,18 +146,16 @@ final class DeviceControllerTests: TuistUnitTestCase {
                 )
             )
 
-        let appPath = try temporaryPath()
+        let appPath = try #require(FileSystem.temporaryTestDirectory)
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.installApp(
+        await #expect(throws: DeviceControllerError.applicationVerificationFailed) { try await subject.installApp(
                 at: appPath,
                 device: .test(id: "iphone-id")
-            ),
-            DeviceControllerError.applicationVerificationFailed
-        )
+            ) }
     }
 
+    @Test
     func test_launchApp() async throws {
         // Given
         given(commandRunner)

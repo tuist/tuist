@@ -1,7 +1,7 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class GitHubClientIntegrationTests: TuistTestCase {}
+struct GitHubClientIntegrationTests {}

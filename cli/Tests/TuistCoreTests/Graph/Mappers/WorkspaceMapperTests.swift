@@ -2,11 +2,11 @@ import Foundation
 import Path
 import TuistCore
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistTesting
 
-final class ProjectWorkspaceMapperTests: XCTestCase {
-    func test_map_workspace() async throws {
+struct ProjectWorkspaceMapperTests {
+    @Test func test_map_workspace() async throws {
         // Given
         let projectMapper = ProjectMapper {
             var updated = $0
@@ -23,14 +23,14 @@ final class ProjectWorkspaceMapperTests: XCTestCase {
         let (updatedWorkspace, sideEffects) = try await subject.map(workspace: workspaceWithProjects)
 
         // Then
-        XCTAssertEqual(updatedWorkspace.projects.map(\.name), [
+        #expect(updatedWorkspace.projects.map(\.name) == [
             "Updated_A",
             "Updated_B",
         ])
-        XCTAssertTrue(sideEffects.isEmpty)
+        #expect(sideEffects.isEmpty)
     }
 
-    func test_map_sideEffects() async throws {
+    @Test func test_map_sideEffects() async throws {
         // Given
         let projectMapper = ProjectMapper {
             var updated = $0
@@ -49,7 +49,7 @@ final class ProjectWorkspaceMapperTests: XCTestCase {
         let (_, sideEffects) = try await subject.map(workspace: workspaceWithProjects)
 
         // Then
-        XCTAssertEqual(sideEffects, [
+        #expect(sideEffects == [
             .file(.init(path: try AbsolutePath(validating: "/Projects/A.swift"))),
             .file(.init(path: try AbsolutePath(validating: "/Projects/B.swift"))),
         ])
@@ -69,8 +69,8 @@ final class ProjectWorkspaceMapperTests: XCTestCase {
     }
 }
 
-final class SequentialWorkspaceMapperTests: XCTestCase {
-    func test_map_workspace() async throws {
+struct SequentialWorkspaceMapperTests {
+    @Test func test_map_workspace() async throws {
         // Given
         let mapper1 = WorkspaceMapper {
             var updated = $0
@@ -92,15 +92,15 @@ final class SequentialWorkspaceMapperTests: XCTestCase {
         let (updatedWorkspace, sideEffects) = try await subject.map(workspace: workspaceWithProjects)
 
         // Then
-        XCTAssertEqual(updatedWorkspace.workspace.name, "Updated2_Updated1_Workspace")
-        XCTAssertEqual(updatedWorkspace.projects.map(\.name), [
+        #expect(updatedWorkspace.workspace.name == "Updated2_Updated1_Workspace")
+        #expect(updatedWorkspace.projects.map(\.name) == [
             "ProjectA",
             "ProjectB",
         ])
-        XCTAssertTrue(sideEffects.isEmpty)
+        #expect(sideEffects.isEmpty)
     }
 
-    func test_map_sideEffects() async throws {
+    @Test func test_map_sideEffects() async throws {
         // Given
         let mapper1 = WorkspaceMapper {
             ($0, [
@@ -120,7 +120,7 @@ final class SequentialWorkspaceMapperTests: XCTestCase {
         let (_, sideEffects) = try await subject.map(workspace: workspaceWithProjects)
 
         // Then
-        XCTAssertEqual(sideEffects, [
+        #expect(sideEffects == [
             .command(.init(command: ["command 1"])),
             .command(.init(command: ["command 2"])),
         ])

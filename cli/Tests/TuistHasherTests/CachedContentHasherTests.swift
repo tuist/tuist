@@ -3,16 +3,14 @@ import Path
 import TuistCore
 import TuistSupport
 import TuistTesting
-import XCTest
+import Testing
 
 @testable import TuistHasher
 
-final class CachedContentHasherTests: TuistUnitTestCase {
-    private var subject: CachedContentHasher!
-    private var contentHasher: MockContentHashing!
-
-    override func setUp() {
-        super.setUp()
+struct CachedContentHasherTests {
+    private let subject: CachedContentHasher
+    private let contentHasher: MockContentHashing
+    init() {
         contentHasher = MockContentHashing()
         subject = CachedContentHasher(contentHasher: contentHasher)
         given(contentHasher)
@@ -20,14 +18,10 @@ final class CachedContentHasherTests: TuistUnitTestCase {
             .willProduce { $0.joined(separator: ";") }
     }
 
-    override func tearDown() {
-        subject = nil
-        contentHasher = nil
-        super.tearDown()
-    }
 
     // MARK: - Tests
 
+    @Test
     func test_hashString_callsContentHasherWithExpectedString() throws {
         // Given
         given(contentHasher)
@@ -43,6 +37,7 @@ final class CachedContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test
     func test_hashStrings_callsContentHasherWithExpectedStrings() throws {
         // Given
         given(contentHasher)
@@ -61,6 +56,7 @@ final class CachedContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test
     func test_hashpath_callsContentHasherWithExpectedPath() async throws {
         // Given
         let path = try AbsolutePath(validating: "/foo")
@@ -77,6 +73,7 @@ final class CachedContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test
     func test_hashpath_secondTime_doesntCallContentHasher() async throws {
         // Given
         let path = try AbsolutePath(validating: "/foo")
@@ -92,6 +89,6 @@ final class CachedContentHasherTests: TuistUnitTestCase {
         verify(contentHasher)
             .hash(path: .any)
             .called(1)
-        XCTAssertEqual(hash, cachedHash)
+        #expect(hash == cachedHash)
     }
 }

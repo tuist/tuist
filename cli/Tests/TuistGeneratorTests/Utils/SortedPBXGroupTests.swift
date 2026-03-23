@@ -1,12 +1,15 @@
+import Testing
 import XcodeProj
 
 @testable import TuistGenerator
 @testable import TuistTesting
 
-class SortedPBXGroupTests: TuistTestCase {
+struct SortedPBXGroupTests {
     var subject: SortedPBXGroup!
+    var references: [PBXFileElement] = []
 
-    func test_projectGroupsSort_simpleGroupsCase() throws {
+    @Test
+    mutating func test_projectGroupsSort_simpleGroupsCase() throws {
         // Given
         let mainGroup = PBXGroup(children: [
             file("somefile1.swift"),
@@ -37,7 +40,8 @@ class SortedPBXGroupTests: TuistTestCase {
         ]))
     }
 
-    func test_projectGroupsSort_nestedGroupsCase() throws {
+    @Test
+    mutating func test_projectGroupsSort_nestedGroupsCase() throws {
         // Given
         let mainGroup = PBXGroup(children: [
             file("somefile1.swift"),
@@ -80,7 +84,8 @@ class SortedPBXGroupTests: TuistTestCase {
         ]))
     }
 
-    func test_projectGroupsSort_simpleEmptyFoldersCase() throws {
+    @Test
+    mutating func test_projectGroupsSort_simpleEmptyFoldersCase() throws {
         // Given
         let mainGroup = PBXGroup(children: [
             file("file3"),
@@ -101,7 +106,8 @@ class SortedPBXGroupTests: TuistTestCase {
         ]))
     }
 
-    func test_projectGroupsSort_simpleEmptyFoldersAndGroupsCase() throws {
+    @Test
+    mutating func test_projectGroupsSort_simpleEmptyFoldersAndGroupsCase() throws {
         // Given
         let mainGroup = PBXGroup(children: [
             file("file3"),
@@ -128,7 +134,8 @@ class SortedPBXGroupTests: TuistTestCase {
         ]))
     }
 
-    func test_projectGroupsSort_simpleEmptyFoldersAndGroupsCaseDeeperNesting() throws {
+    @Test
+    mutating func test_projectGroupsSort_simpleEmptyFoldersAndGroupsCaseDeeperNesting() throws {
         // Given
         let mainGroup = PBXGroup(children: [
             file("somerootfile.md"),
@@ -165,19 +172,17 @@ class SortedPBXGroupTests: TuistTestCase {
 
     // MARK: - Helpers
 
-    func assertGroupsEqual(_ first: PBXGroup, _ second: PBXGroup, file: StaticString = #file, line: UInt = #line) {
-        XCTAssertEqualPairs([(first.flattenedChildren, second.flattenedChildren, true)], file: file, line: line)
+    func assertGroupsEqual(_ first: PBXGroup, _ second: PBXGroup, sourceLocation: SourceLocation = #_sourceLocation) {
+        #expect(first.flattenedChildren == second.flattenedChildren, sourceLocation: sourceLocation)
     }
 
-    var references: [PBXFileElement] = []
-
-    func file(_ name: String) -> PBXFileReference {
+    mutating func file(_ name: String) -> PBXFileReference {
         let file = PBXFileReference(path: name)
         references.append(file)
         return file
     }
 
-    func group(_ name: String, _ children: [PBXFileElement]) -> PBXGroup {
+    mutating func group(_ name: String, _ children: [PBXFileElement]) -> PBXGroup {
         let group = PBXGroup(children: children, name: name)
         references.append(group)
         return group

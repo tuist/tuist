@@ -5,41 +5,35 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistHasher
 
-final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
-    private var subject: CoreDataModelsContentHasher!
-    private var coreDataModel: CoreDataModel!
-    private var contentHasher: MockContentHashing!
+struct CoreDataModelsContentHasherTests {
+    private let subject: CoreDataModelsContentHasher
+    private let coreDataModel: CoreDataModel
+    private let contentHasher: MockContentHashing
     private let defaultValuesHash =
         "05c9d517e2cf12b45786787dae929a23" // Expected hash for the CoreDataModel created with the buildCoreDataModel function
     // using default values
 
-    override func setUp() {
-        super.setUp()
+    init() {
         contentHasher = .init()
         subject = CoreDataModelsContentHasher(contentHasher: contentHasher)
         do {
             _ = try TemporaryDirectory(removeTreeOnDeinit: true)
         } catch {
-            XCTFail("Error while creating temporary directory")
+            Issue.record("Error while creating temporary directory")
         }
         given(contentHasher)
             .hash(Parameter<[String]>.any)
             .willProduce { $0.joined(separator: ";") }
     }
 
-    override func tearDown() {
-        subject = nil
-        coreDataModel = nil
-        contentHasher = nil
-        super.tearDown()
-    }
 
     // MARK: - Tests
 
+    @Test
     func test_hash_returnsSameValue() async throws {
         // Given
         coreDataModel = try buildCoreDataModel(versions: ["v1", "v2"], currentVersion: "currentV1")
@@ -51,9 +45,10 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(coreDataModels: [coreDataModel])
 
         // Then
-        XCTAssertEqual(hash, "fixed-hash;currentV1;v1;v2")
+        #expect(hash == "fixed-hash;currentV1;v1;v2")
     }
 
+    @Test
     func test_hash_fileContentChangesHash() async throws {
         // Given
         let name = "CoreDataModel"
@@ -70,9 +65,10 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(coreDataModels: [coreDataModel])
 
         // Then
-        XCTAssertNotEqual(hash, defaultValuesHash)
+        #expect(hash != defaultValuesHash)
     }
 
+    @Test
     func test_hash_currentVersionChangesHash() async throws {
         // Given
         coreDataModel = try buildCoreDataModel(currentVersion: "2")
@@ -83,9 +79,10 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         // When
         let hash = try await subject.hash(coreDataModels: [coreDataModel])
 
-        XCTAssertNotEqual(hash, defaultValuesHash)
+        #expect(hash != defaultValuesHash)
     }
 
+    @Test
     func test_hash_versionsChangeHash() async throws {
         // Given
         coreDataModel = try buildCoreDataModel(versions: ["1", "2", "3"])
@@ -97,9 +94,10 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(coreDataModels: [coreDataModel])
 
         // Then
-        XCTAssertNotEqual(hash, defaultValuesHash)
+        #expect(hash != defaultValuesHash)
     }
 
+    @Test
     func test_hash_isDeterministicRegardlessOfInputOrder() async throws {
         // Given
         let modelA = CoreDataModel(
@@ -121,7 +119,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         let hashBA = try await subject.hash(coreDataModels: [modelB, modelA])
 
         // Then
-        XCTAssertEqual(hashAB, hashBA)
+        #expect(hashAB == hashBA)
     }
 
     // MARK: - Private

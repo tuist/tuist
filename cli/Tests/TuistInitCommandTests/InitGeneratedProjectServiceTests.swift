@@ -7,19 +7,18 @@
     import TuistScaffold
     import TuistSupport
     import TuistTesting
-    import XCTest
+    import FileSystemTesting
+import Testing
 
     @testable import TuistInitCommand
 
-    final class InitGeneratedProjectServiceTests: TuistUnitTestCase {
-        private var subject: InitGeneratedProjectService!
-        private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
-        private var templateGenerator: MockTemplateGenerating!
-        private var templateLoader: MockTemplateLoading!
-        private var templateGitLoader: MockTemplateGitLoader!
-
-        override func setUp() {
-            super.setUp()
+    struct InitGeneratedProjectServiceTests {
+        private let subject: InitGeneratedProjectService
+        private let templatesDirectoryLocator: MockTemplatesDirectoryLocating
+        private let templateGenerator: MockTemplateGenerating
+        private let templateLoader: MockTemplateLoading
+        private let templateGitLoader: MockTemplateGitLoader
+        init() {
             templatesDirectoryLocator = MockTemplatesDirectoryLocating()
             templateGenerator = MockTemplateGenerating()
             templateLoader = MockTemplateLoading()
@@ -32,18 +31,11 @@
             )
         }
 
-        override func tearDown() {
-            subject = nil
-            templatesDirectoryLocator = nil
-            templateGenerator = nil
-            templateLoader = nil
-            templateGitLoader = nil
-            super.tearDown()
-        }
 
+        @Test(.inTemporaryDirectory)
         func test_init_default_when_no_template() async throws {
             // Given
-            let defaultTemplatePath = try temporaryPath().appending(component: "default")
+            let defaultTemplatePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "default")
             given(templatesDirectoryLocator)
                 .templateDirectories(at: .any)
                 .willReturn([defaultTemplatePath])
@@ -79,9 +71,10 @@
                 .called(1)
         }
 
+        @Test(.inTemporaryDirectory)
         func test_init_default_platform() async throws {
             // Given
-            let defaultTemplatePath = try temporaryPath().appending(component: "default")
+            let defaultTemplatePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "default")
             given(templatesDirectoryLocator)
                 .templateDirectories(at: .any)
                 .willReturn([defaultTemplatePath])
@@ -117,9 +110,10 @@
                 .called(1)
         }
 
+        @Test(.inTemporaryDirectory)
         func test_init_default_with_unusual_name() async throws {
             // Given
-            let defaultTemplatePath = try temporaryPath().appending(component: "default")
+            let defaultTemplatePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "default")
             given(templatesDirectoryLocator)
                 .templateDirectories(at: .any)
                 .willReturn([defaultTemplatePath])
@@ -157,6 +151,7 @@
     }
 
     extension InitGeneratedProjectService {
+        @Test
         func testRun(
             name: String? = nil,
             platform: String? = nil,

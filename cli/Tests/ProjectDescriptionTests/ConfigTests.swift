@@ -1,9 +1,10 @@
 import Foundation
-import XCTest
+import Testing
+import TuistTesting
 @testable import ProjectDescription
 
-final class ConfigTests: XCTestCase {
-    func test_config_toJSON() {
+struct ConfigTests {
+    @Test func test_config_toJSON() throws {
         let config = Config(
             generationOptions: .options(
                 resolveDependenciesWithSystemScm: true,
@@ -19,33 +20,33 @@ final class ConfigTests: XCTestCase {
             )
         )
 
-        XCTAssertCodable(config)
+        #expect(try isCodableRoundTripable(config))
     }
 
-    func test_config_toJSON_with_gitPlugin() {
+    @Test func test_config_toJSON_with_gitPlugin() throws {
         let config = Config(
             plugins: [.git(url: "https://git.com/repo.git", tag: "1.0.0", directory: "PluginDirectory")],
             generationOptions: .options()
         )
 
-        XCTAssertCodable(config)
+        #expect(try isCodableRoundTripable(config))
     }
 
-    func test_config_toJSON_with_localPlugin() {
+    @Test func test_config_toJSON_with_localPlugin() throws {
         let config = Config(
             plugins: [.local(path: "/some/path/to/plugin")],
             generationOptions: .options()
         )
 
-        XCTAssertCodable(config)
+        #expect(try isCodableRoundTripable(config))
     }
 
-    func test_config_toJSON_with_swiftVersion() {
+    @Test func test_config_toJSON_with_swiftVersion() throws {
         let config = Config(
             swiftVersion: "5.3.0",
             generationOptions: .options()
         )
 
-        XCTAssertCodable(config)
+        #expect(try isCodableRoundTripable(config))
     }
 }

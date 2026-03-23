@@ -1,14 +1,14 @@
 import Foundation
 import Path
 import TuistSupport
-import XCTest
+import Testing
 
 @testable import TuistCore
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class GraphDependencyReferenceTests: TuistUnitTestCase {
-    func test_compare() {
+struct GraphDependencyReferenceTests {
+    @Test func test_compare() {
         // Given
         let subject: [GraphDependencyReference] = [
             .testXCFramework(path: "/xcframeworks/A.xcframework"),
@@ -29,7 +29,7 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
         // When
         let results = subject.shuffled().sorted()
 
-        XCTAssertEqual(results, [
+        #expect(results == [
             .sdk(path: "/A.framework", status: .required, source: .developer, condition: nil),
             .sdk(path: "/B.framework", status: .optional, source: .developer, condition: nil),
             .product(target: "A", productName: "A.framework", condition: nil),
@@ -46,7 +46,7 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
         ])
     }
 
-    func test_compare_isStable() {
+    @Test func test_compare_isStable() {
         // Given
         let sampleNames = [
             "A",
@@ -65,7 +65,7 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
 
         // Then
         let unstable = sorted.dropFirst().filter { $0 != sorted.first }
-        XCTAssertTrue(unstable.isEmpty)
+        #expect(unstable.isEmpty)
     }
 }
 
@@ -131,8 +131,6 @@ private enum KnownGraphDependencyReference: CaseIterable {
 }
 
 extension GraphDependencyReference {
-    // This is added to enforce keeping `KnownGraphDependencyReference` and `GraphDependencyReference` in sync.
-
     private var correspondingKnownType: KnownGraphDependencyReference {
         switch self {
         case .xcframework:

@@ -5,34 +5,26 @@ import TuistCore
 import TuistSupport
 import TuistThreadSafe
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
-    private var subject: SynthesizedResourceInterfaceProjectMapper!
-    private var synthesizedResourceInterfacesGenerator: MockSynthesizedResourceInterfaceGenerator!
-    private var contentHasher: ContentHashing!
-
-    override func setUp() {
-        super.setUp()
-
+struct SynthesizedResourceInterfaceProjectMapperTests {
+    private let subject: SynthesizedResourceInterfaceProjectMapper
+    private let synthesizedResourceInterfacesGenerator: MockSynthesizedResourceInterfaceGenerator
+    private let contentHasher: ContentHashing
+    init() {
         synthesizedResourceInterfacesGenerator = MockSynthesizedResourceInterfaceGenerator()
         contentHasher = ContentHasher()
         subject = SynthesizedResourceInterfaceProjectMapper(
-            synthesizedResourceInterfacesGenerator: synthesizedResourceInterfacesGenerator,
-            contentHasher: contentHasher
+        synthesizedResourceInterfacesGenerator: synthesizedResourceInterfacesGenerator,
+        contentHasher: contentHasher
         )
     }
 
-    override func tearDown() {
-        contentHasher = nil
-        synthesizedResourceInterfacesGenerator = nil
-        subject = nil
-        super.tearDown()
-    }
-
+    @Test(.inTemporaryDirectory)
     func test_map() async throws {
         try await withMockedDependencies {
             // Given
@@ -46,7 +38,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 return content
             }
 
-            let projectPath = try temporaryPath()
+            let projectPath = try #require(FileSystem.temporaryTestDirectory)
             let targetAPath = projectPath.appending(component: "TargetA")
             let aAssets = targetAPath.appending(component: "a.xcassets")
             let aAsset = aAssets.appending(component: "asset")
@@ -66,31 +58,31 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 "CoreDataModel.xcdatamodel"
             )
 
-            try fileHandler.createFolder(aAssets)
-            try fileHandler.touch(aAsset)
-            try fileHandler.touch(frenchStrings)
-            try fileHandler.touch(frenchStringsDict)
-            try fileHandler.touch(englishStrings)
-            try fileHandler.touch(englishStringsDict)
-            try fileHandler.touch(coreDataModelVersionFile)
-            try fileHandler.write("a", path: frenchStrings, atomically: true)
-            try fileHandler.write("a", path: frenchStringsDict, atomically: true)
-            try fileHandler.write("a", path: englishStrings, atomically: true)
-            try fileHandler.write("a", path: englishStringsDict, atomically: true)
-            try fileHandler.touch(emptyPlist)
-            try fileHandler.write("a", path: environmentPlist, atomically: true)
-            try fileHandler.write("a", path: ttfFont, atomically: true)
-            try fileHandler.write("a", path: otfFont, atomically: true)
-            try fileHandler.write("a", path: ttcFont, atomically: true)
+            try FileHandler.shared.createFolder(aAssets)
+            try FileHandler.shared.touch(aAsset)
+            try FileHandler.shared.touch(frenchStrings)
+            try FileHandler.shared.touch(frenchStringsDict)
+            try FileHandler.shared.touch(englishStrings)
+            try FileHandler.shared.touch(englishStringsDict)
+            try FileHandler.shared.touch(coreDataModelVersionFile)
+            try FileHandler.shared.write("a", path: frenchStrings, atomically: true)
+            try FileHandler.shared.write("a", path: frenchStringsDict, atomically: true)
+            try FileHandler.shared.write("a", path: englishStrings, atomically: true)
+            try FileHandler.shared.write("a", path: englishStringsDict, atomically: true)
+            try FileHandler.shared.touch(emptyPlist)
+            try FileHandler.shared.write("a", path: environmentPlist, atomically: true)
+            try FileHandler.shared.write("a", path: ttfFont, atomically: true)
+            try FileHandler.shared.write("a", path: otfFont, atomically: true)
+            try FileHandler.shared.write("a", path: ttcFont, atomically: true)
             let lottieTemplatePath = projectPath.appending(component: "Lottie.stencil")
-            try fileHandler.write("lottie template", path: lottieTemplatePath, atomically: true)
-            try fileHandler.write("a", path: lottieFile, atomically: true)
+            try FileHandler.shared.write("lottie template", path: lottieTemplatePath, atomically: true)
+            try FileHandler.shared.write("a", path: lottieFile, atomically: true)
             let stringsTemplatePath = projectPath.appending(component: "Strings.stencil")
-            try fileHandler.write("strings template", path: stringsTemplatePath, atomically: true)
+            try FileHandler.shared.write("strings template", path: stringsTemplatePath, atomically: true)
             let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
-            try fileHandler.write("core data template", path: coreDataTemplatePath, atomically: true)
-            try fileHandler.createFolder(coreDataModelFolder)
-            try fileHandler.write("a", path: coreDataModelVersionFile, atomically: true)
+            try FileHandler.shared.write("core data template", path: coreDataTemplatePath, atomically: true)
+            try FileHandler.shared.createFolder(coreDataModelFolder)
+            try FileHandler.shared.write("a", path: coreDataModelVersionFile, atomically: true)
 
             let targetA = Target.test(
                 name: "TargetA",
@@ -244,10 +236,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                     )
                 ),
             ]
-            XCTAssertEqual(
-                Set(sideEffects.map(\.description)),
-                Set(expectedSideEffects.map(\.description))
-            )
+            #expect(Set(sideEffects.map(\.description)) == Set(expectedSideEffects.map(\.description)))
             let expectedSources: [SourceFile] = [
                 SourceFile(
                     path: derivedSourcesPath
@@ -292,24 +281,21 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             let actualSources = mappedProject.targets[targetA.name]!.sources
                 .sorted(by: { $0.path.pathString < $1.path.pathString })
             let sortedExpectedSources = expectedSources.sorted(by: { $0.path.pathString < $1.path.pathString })
-            XCTAssertEqual(actualSources, sortedExpectedSources)
+            #expect(actualSources == sortedExpectedSources)
             // Check other properties are unchanged
-            XCTAssertEqual(mappedProject.path, projectPath)
-            XCTAssertEqual(mappedProject.targets.count, 1)
-            XCTAssertEqual(mappedProject.targets[targetA.name]?.name, targetA.name)
-            XCTAssertEqual(mappedProject.targets[targetA.name]?.resources, targetA.resources)
-            XCTAssertEqual(mappedProject.targets[targetA.name]?.coreDataModels, targetA.coreDataModels)
-            XCTAssertEqual(
-                templateStrings.value.sorted(),
-                [
+            #expect(mappedProject.path == projectPath)
+            #expect(mappedProject.targets.count == 1)
+            #expect(mappedProject.targets[targetA.name]?.name == targetA.name)
+            #expect(mappedProject.targets[targetA.name]?.resources == targetA.resources)
+            #expect(mappedProject.targets[targetA.name]?.coreDataModels == targetA.coreDataModels)
+            #expect(templateStrings.value.sorted() == [
                     SynthesizedResourceInterfaceTemplates.assetsTemplate,
                     "strings template",
                     SynthesizedResourceInterfaceTemplates.plistsTemplate,
                     SynthesizedResourceInterfaceTemplates.fontsTemplate,
                     "lottie template",
                     "core data template",
-                ].sorted()
-            )
+                ].sorted())
             [
                 ResourceSynthesizer.Parser.assets,
                 ResourceSynthesizer.Parser.strings,
@@ -318,14 +304,12 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 ResourceSynthesizer.Parser.json,
                 ResourceSynthesizer.Parser.coreData,
             ].forEach { parser in
-                XCTAssertEqual(
-                    parserOptionsStrings.value[parser],
-                    "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test"
-                )
+                #expect(parserOptionsStrings.value[parser] == "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test")
             }
         }
     }
 
+    @Test(.inTemporaryDirectory)
     func testMap_whenUseBuildableFolders() async throws {
         try await withMockedDependencies {
             // Given
@@ -339,7 +323,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 return content
             }
 
-            let projectPath = try temporaryPath()
+            let projectPath = try #require(FileSystem.temporaryTestDirectory)
             let targetAPath = projectPath.appending(component: "TargetA")
             let aAssets = targetAPath.appending(component: "a.xcassets")
             let aAsset = aAssets.appending(component: "asset")
@@ -359,31 +343,31 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 "CoreDataModel.xcdatamodel"
             )
 
-            try fileHandler.createFolder(aAssets)
-            try fileHandler.touch(aAsset)
-            try fileHandler.touch(frenchStrings)
-            try fileHandler.touch(frenchStringsDict)
-            try fileHandler.touch(englishStrings)
-            try fileHandler.touch(englishStringsDict)
-            try fileHandler.touch(coreDataModelVersionFile)
-            try fileHandler.write("a", path: frenchStrings, atomically: true)
-            try fileHandler.write("a", path: frenchStringsDict, atomically: true)
-            try fileHandler.write("a", path: englishStrings, atomically: true)
-            try fileHandler.write("a", path: englishStringsDict, atomically: true)
-            try fileHandler.touch(emptyPlist)
-            try fileHandler.write("a", path: environmentPlist, atomically: true)
-            try fileHandler.write("a", path: ttfFont, atomically: true)
-            try fileHandler.write("a", path: otfFont, atomically: true)
-            try fileHandler.write("a", path: ttcFont, atomically: true)
+            try FileHandler.shared.createFolder(aAssets)
+            try FileHandler.shared.touch(aAsset)
+            try FileHandler.shared.touch(frenchStrings)
+            try FileHandler.shared.touch(frenchStringsDict)
+            try FileHandler.shared.touch(englishStrings)
+            try FileHandler.shared.touch(englishStringsDict)
+            try FileHandler.shared.touch(coreDataModelVersionFile)
+            try FileHandler.shared.write("a", path: frenchStrings, atomically: true)
+            try FileHandler.shared.write("a", path: frenchStringsDict, atomically: true)
+            try FileHandler.shared.write("a", path: englishStrings, atomically: true)
+            try FileHandler.shared.write("a", path: englishStringsDict, atomically: true)
+            try FileHandler.shared.touch(emptyPlist)
+            try FileHandler.shared.write("a", path: environmentPlist, atomically: true)
+            try FileHandler.shared.write("a", path: ttfFont, atomically: true)
+            try FileHandler.shared.write("a", path: otfFont, atomically: true)
+            try FileHandler.shared.write("a", path: ttcFont, atomically: true)
             let lottieTemplatePath = projectPath.appending(component: "Lottie.stencil")
-            try fileHandler.write("lottie template", path: lottieTemplatePath, atomically: true)
-            try fileHandler.write("a", path: lottieFile, atomically: true)
+            try FileHandler.shared.write("lottie template", path: lottieTemplatePath, atomically: true)
+            try FileHandler.shared.write("a", path: lottieFile, atomically: true)
             let stringsTemplatePath = projectPath.appending(component: "Strings.stencil")
-            try fileHandler.write("strings template", path: stringsTemplatePath, atomically: true)
+            try FileHandler.shared.write("strings template", path: stringsTemplatePath, atomically: true)
             let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
-            try fileHandler.write("core data template", path: coreDataTemplatePath, atomically: true)
-            try fileHandler.createFolder(coreDataModelFolder)
-            try fileHandler.write("a", path: coreDataModelVersionFile, atomically: true)
+            try FileHandler.shared.write("core data template", path: coreDataTemplatePath, atomically: true)
+            try FileHandler.shared.createFolder(coreDataModelFolder)
+            try FileHandler.shared.write("a", path: coreDataModelVersionFile, atomically: true)
 
             let targetA = Target.test(
                 name: "TargetA",
@@ -537,10 +521,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                     )
                 ),
             ]
-            XCTAssertEqual(
-                Set(sideEffects.map(\.description)),
-                Set(expectedSideEffects.map(\.description))
-            )
+            #expect(Set(sideEffects.map(\.description)) == Set(expectedSideEffects.map(\.description)))
             let expectedSources: [SourceFile] = [
                 SourceFile(
                     path: derivedSourcesPath
@@ -585,23 +566,20 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             let actualSources = mappedProject.targets[targetA.name]!.sources
                 .sorted(by: { $0.path.pathString < $1.path.pathString })
             let sortedExpectedSources = expectedSources.sorted(by: { $0.path.pathString < $1.path.pathString })
-            XCTAssertEqual(actualSources, sortedExpectedSources)
+            #expect(actualSources == sortedExpectedSources)
             // Check other properties are unchanged
-            XCTAssertEqual(mappedProject.path, projectPath)
-            XCTAssertEqual(mappedProject.targets.count, 1)
-            XCTAssertEqual(mappedProject.targets[targetA.name]?.name, targetA.name)
-            XCTAssertEqual(mappedProject.targets[targetA.name]?.coreDataModels, targetA.coreDataModels)
-            XCTAssertEqual(
-                templateStrings.value.sorted(),
-                [
+            #expect(mappedProject.path == projectPath)
+            #expect(mappedProject.targets.count == 1)
+            #expect(mappedProject.targets[targetA.name]?.name == targetA.name)
+            #expect(mappedProject.targets[targetA.name]?.coreDataModels == targetA.coreDataModels)
+            #expect(templateStrings.value.sorted() == [
                     SynthesizedResourceInterfaceTemplates.assetsTemplate,
                     "strings template",
                     SynthesizedResourceInterfaceTemplates.plistsTemplate,
                     SynthesizedResourceInterfaceTemplates.fontsTemplate,
                     "lottie template",
                     "core data template",
-                ].sorted()
-            )
+                ].sorted())
             [
                 ResourceSynthesizer.Parser.assets,
                 ResourceSynthesizer.Parser.strings,
@@ -610,14 +588,12 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 ResourceSynthesizer.Parser.json,
                 ResourceSynthesizer.Parser.coreData,
             ].forEach { parser in
-                XCTAssertEqual(
-                    parserOptionsStrings.value[parser],
-                    "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test"
-                )
+                #expect(parserOptionsStrings.value[parser] == "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test")
             }
         }
     }
 
+    @Test(.inTemporaryDirectory)
     func testMap_whenDisableSynthesizedResourceAccessors() throws {
         // Given
         let templateStrings = ThreadSafe<[String]>([])
@@ -627,7 +603,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             return content
         }
 
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let targetAPath = projectPath.appending(component: "TargetA")
         let aAssets = targetAPath.appending(component: "a.xcassets")
         let aAsset = aAssets.appending(component: "asset")
@@ -647,30 +623,30 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             "CoreDataModel.xcdatamodel"
         )
 
-        try fileHandler.createFolder(aAssets)
-        try fileHandler.touch(aAsset)
-        try fileHandler.touch(frenchStrings)
-        try fileHandler.touch(frenchStringsDict)
-        try fileHandler.touch(englishStrings)
-        try fileHandler.touch(englishStringsDict)
-        try fileHandler.write("a", path: frenchStrings, atomically: true)
-        try fileHandler.write("a", path: frenchStringsDict, atomically: true)
-        try fileHandler.write("a", path: englishStrings, atomically: true)
-        try fileHandler.write("a", path: englishStringsDict, atomically: true)
-        try fileHandler.touch(emptyPlist)
-        try fileHandler.write("a", path: environmentPlist, atomically: true)
-        try fileHandler.write("a", path: ttfFont, atomically: true)
-        try fileHandler.write("a", path: otfFont, atomically: true)
-        try fileHandler.write("a", path: ttcFont, atomically: true)
+        try FileHandler.shared.createFolder(aAssets)
+        try FileHandler.shared.touch(aAsset)
+        try FileHandler.shared.touch(frenchStrings)
+        try FileHandler.shared.touch(frenchStringsDict)
+        try FileHandler.shared.touch(englishStrings)
+        try FileHandler.shared.touch(englishStringsDict)
+        try FileHandler.shared.write("a", path: frenchStrings, atomically: true)
+        try FileHandler.shared.write("a", path: frenchStringsDict, atomically: true)
+        try FileHandler.shared.write("a", path: englishStrings, atomically: true)
+        try FileHandler.shared.write("a", path: englishStringsDict, atomically: true)
+        try FileHandler.shared.touch(emptyPlist)
+        try FileHandler.shared.write("a", path: environmentPlist, atomically: true)
+        try FileHandler.shared.write("a", path: ttfFont, atomically: true)
+        try FileHandler.shared.write("a", path: otfFont, atomically: true)
+        try FileHandler.shared.write("a", path: ttcFont, atomically: true)
         let lottieTemplatePath = projectPath.appending(component: "Lottie.stencil")
-        try fileHandler.write("lottie template", path: lottieTemplatePath, atomically: true)
-        try fileHandler.write("a", path: lottieFile, atomically: true)
+        try FileHandler.shared.write("lottie template", path: lottieTemplatePath, atomically: true)
+        try FileHandler.shared.write("a", path: lottieFile, atomically: true)
         let stringsTemplatePath = projectPath.appending(component: "Strings.stencil")
-        try fileHandler.write("strings template", path: stringsTemplatePath, atomically: true)
+        try FileHandler.shared.write("strings template", path: stringsTemplatePath, atomically: true)
         let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
-        try fileHandler.write("core data template", path: coreDataTemplatePath, atomically: true)
-        try fileHandler.createFolder(coreDataModelFolder)
-        try fileHandler.write("a", path: coreDataModelVersionFile, atomically: true)
+        try FileHandler.shared.write("core data template", path: coreDataTemplatePath, atomically: true)
+        try FileHandler.shared.createFolder(coreDataModelFolder)
+        try FileHandler.shared.write("a", path: coreDataModelVersionFile, atomically: true)
 
         let targetA = Target.test(
             name: "TargetA",
@@ -750,10 +726,11 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let (mappedProject, sideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(project, mappedProject)
-        XCTAssertEqual(sideEffects, [])
+        #expect(project == mappedProject)
+        #expect(sideEffects == [])
     }
 
+    @Test(.inTemporaryDirectory)
     func testMap_bundleName_whenBundleAccessorsAreEnabled() throws {
         // Given
         let bundleNames = ThreadSafe<[String?]>([])
@@ -761,7 +738,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             bundleNames.mutate { $0.append(bundleName) }
             return ""
         }
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let targetPath = projectPath.appending(component: "TargetA")
         let ttfFont = targetPath.appending(component: "ttfFont.ttf")
         try stub(file: ttfFont)
@@ -788,11 +765,12 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         _ = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(bundleNames.value, [
+        #expect(bundleNames.value == [
             "Bundle.module",
         ])
     }
 
+    @Test(.inTemporaryDirectory)
     func testMap_bundleName_whenBundleAccessorsAreDisabled() throws {
         // Given
         let bundleNames = ThreadSafe<[String?]>([])
@@ -800,7 +778,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             bundleNames.mutate { $0.append(bundleName) }
             return ""
         }
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let targetPath = projectPath.appending(component: "TargetA")
         let ttfFont = targetPath.appending(component: "ttfFont.ttf")
         try stub(file: ttfFont)
@@ -827,11 +805,12 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         _ = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(bundleNames.value, [
+        #expect(bundleNames.value == [
             nil,
         ])
     }
 
+    @Test(.inTemporaryDirectory)
     func testMap_whenResourceContainsBinaryPlist() throws {
         // Given
         let plistNames = ThreadSafe<[String]>([])
@@ -839,11 +818,11 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             plistNames.mutate { $0.append(contentsOf: paths.map(\.basename)) }
             return ""
         }
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let targetPath = projectPath.appending(component: "TargetA")
         let binaryPlist = targetPath.appending(component: "Binary.plist")
         let xmlPlist = targetPath.appending(component: "XML.plist")
-        try fileHandler.createFolder(targetPath)
+        try FileHandler.shared.createFolder(targetPath)
         // Create binary plist
         let binaryData = try PropertyListSerialization.data(
             fromPropertyList: ["key": "value"],
@@ -880,15 +859,15 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         _ = try subject.map(project: project)
 
         // Then
-        XCTAssertFalse(plistNames.value.contains("Binary.plist"))
-        XCTAssertTrue(plistNames.value.contains("XML.plist"))
+        #expect(!plistNames.value.contains("Binary.plist"))
+        #expect(plistNames.value.contains("XML.plist"))
     }
 
     // MARK: - Helpers
 
     private func stub(file: AbsolutePath) throws {
-        try fileHandler.touch(file)
-        try fileHandler.write("a", path: file, atomically: true)
+        try FileHandler.shared.touch(file)
+        try FileHandler.shared.write("a", path: file, atomically: true)
     }
 
     private func makeResourceSynthesizers() -> [ResourceSynthesizer] {

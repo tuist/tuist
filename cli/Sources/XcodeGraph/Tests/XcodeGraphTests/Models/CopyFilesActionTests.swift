@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class CopyFilesActionTests: XCTestCase {
-    func test_codable() throws {
+struct CopyFilesActionTests {
+    @Test func test_codable() throws {
         // Given
         let subject = CopyFilesAction(
             name: "name",
@@ -16,6 +16,11 @@ final class CopyFilesActionTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(CopyFilesAction.self, from: data)
+        #expect(subject == decoded)
     }
 }

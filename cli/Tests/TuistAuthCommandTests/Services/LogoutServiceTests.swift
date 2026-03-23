@@ -4,19 +4,17 @@
     import TuistConfigLoader
     import TuistCore
     import TuistServer
-    import XCTest
+    import Testing
 
     @testable import TuistAuthCommand
     @testable import TuistTesting
 
-    final class LogoutServiceTests: TuistUnitTestCase {
-        private var serverSessionController: MockServerSessionControlling!
-        private var subject: LogoutService!
-        private var configLoader: MockConfigLoading!
-        private var serverURL: URL!
-
-        override func setUp() {
-            super.setUp()
+    struct LogoutServiceTests {
+        private let serverSessionController: MockServerSessionControlling
+        private let subject: LogoutService
+        private let configLoader: MockConfigLoading
+        private let serverURL: URL
+        init() {
             serverSessionController = MockServerSessionControlling()
             configLoader = MockConfigLoading()
             serverURL = URL(string: "https://test.tuist.dev")!
@@ -27,14 +25,8 @@
             )
         }
 
-        override func tearDown() {
-            serverSessionController = nil
-            serverURL = nil
-            configLoader = nil
-            subject = nil
-            super.tearDown()
-        }
 
+        @Test
         func test_logout() async throws {
             // Given
             given(serverSessionController)

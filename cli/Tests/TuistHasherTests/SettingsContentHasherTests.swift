@@ -5,22 +5,20 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistHasher
 
-final class SettingsContentHasherTests: TuistUnitTestCase {
-    private var subject: SettingsContentHasher!
-    private var contentHasher: MockContentHashing!
-    private var xcconfigHasher: MockXCConfigContentHashing!
+struct SettingsContentHasherTests {
+    private let subject: SettingsContentHasher
+    private let contentHasher: MockContentHashing
+    private let xcconfigHasher: MockXCConfigContentHashing
     private let filePath1 = try! AbsolutePath(validating: "/file1")
 
-    override func setUp() {
-        super.setUp()
+    init() {
         contentHasher = .init()
         xcconfigHasher = .init()
         subject = SettingsContentHasher(contentHasher: contentHasher, xcconfigHasher: xcconfigHasher)
-
         given(contentHasher)
             .hash(Parameter<[String]>.any)
             .willProduce { $0.joined(separator: ";") }
@@ -29,14 +27,10 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
             .willProduce { $0 + "-hash" }
     }
 
-    override func tearDown() {
-        subject = nil
-        contentHasher = nil
-        super.tearDown()
-    }
 
     // MARK: - Tests
 
+    @Test
     func test_hash_whenRecommended_withXCConfig_callsContentHasherWithExpectedStrings() async throws {
         given(xcconfigHasher)
             .hash(path: .value(filePath1))
@@ -56,12 +50,10 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(settings: settings)
 
         // Then
-        XCTAssertEqual(
-            hash,
-            "CURRENT_PROJECT_VERSION:string(\"1\")-hash;devdebugSWIFT_VERSION:string(\"5\")-hashxconfigHash;recommended"
-        )
+        #expect(hash == "CURRENT_PROJECT_VERSION:string(\"1\")-hash;devdebugSWIFT_VERSION:string(\"5\")-hashxconfigHash;recommended")
     }
 
+    @Test
     func test_hash_whenEssential_withoutXCConfig_callsContentHasherWithExpectedStrings() async throws {
         given(xcconfigHasher)
             .hash(path: .value(filePath1))
@@ -81,9 +73,10 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(settings: settings)
 
         // Then
-        XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"2\")-hash;prodreleaseSWIFT_VERSION:string(\"5\")-hash;essential")
+        #expect(hash == "CURRENT_PROJECT_VERSION:string(\"2\")-hash;prodreleaseSWIFT_VERSION:string(\"5\")-hash;essential")
     }
 
+    @Test
     func test_hash_filtersWarningFlags() async throws {
         // Given
         let settings = Settings(
@@ -117,9 +110,6 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(settings: settings)
 
         // Then: Warning flags should be filtered out, but non-warning flags should be kept
-        XCTAssertEqual(
-            hash,
-            "OTHER_SWIFT_FLAGS:array([\"-Xfrontend\", \"-enable-actor-data-race-checks\", \"-O\"])-SWIFT_VERSION:string(\"5\")-hash;DebugdebugGCC_OPTIMIZATION_LEVEL:string(\"0\")-hash;none"
-        )
+        #expect(hash == "OTHER_SWIFT_FLAGS:array([\"-Xfrontend\", \"-enable-actor-data-race-checks\", \"-O\"])-SWIFT_VERSION:string(\"5\")-hash;DebugdebugGCC_OPTIMIZATION_LEVEL:string(\"0\")-hash;none")
     }
 }

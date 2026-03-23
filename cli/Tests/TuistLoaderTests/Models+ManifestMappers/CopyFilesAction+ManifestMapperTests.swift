@@ -1,15 +1,19 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
 import ProjectDescription
+import Testing
 import TuistCore
 import XcodeGraph
-import XCTest
 
 @testable import TuistLoader
 @testable import TuistTesting
 
-final class CopyFilesManifestMapperTests: TuistUnitTestCase {
-    func test_from_with_regular_files() async throws {
+struct CopyFilesManifestMapperTests {
+    private let fileSystem = FileSystem()
+
+    @Test(.inTemporaryDirectory) func from_with_regular_files() async throws {
         // Given
         let files = [
             "Fonts/font1.ttf",
@@ -17,13 +21,12 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
             "Fonts/font3.ttf",
         ]
 
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
+            rootDirectory: temporaryPath
         )
-        try await createFiles(files)
+        try await TuistTest.createFiles(files)
 
         let manifest = ProjectDescription.CopyFilesAction.resources(
             name: "Copy Fonts",
@@ -39,13 +42,13 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.name, "Copy Fonts")
-        XCTAssertEqual(model.destination, .resources)
-        XCTAssertEqual(model.subpath, "Fonts")
-        XCTAssertEqual(model.files, try files.map { .file(path: temporaryPath.appending(try RelativePath(validating: $0))) })
+        #expect(model.name == "Copy Fonts")
+        #expect(model.destination == .resources)
+        #expect(model.subpath == "Fonts")
+        #expect(model.files == (try files.map { .file(path: temporaryPath.appending(try RelativePath(validating: $0))) }))
     }
 
-    func test_from_with_package_files() async throws {
+    @Test(.inTemporaryDirectory) func from_with_package_files() async throws {
         // Given
         let files = [
             "SharedSupport/simple-tuist.rtf",
@@ -58,13 +61,12 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
             "SharedSupport/tuist.rtfd",
         ]
 
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
+            rootDirectory: temporaryPath
         )
-        try await createFiles(files)
+        try await TuistTest.createFiles(files)
 
         let manifest = ProjectDescription.CopyFilesAction.sharedSupport(
             name: "Copy Templates",
@@ -80,12 +82,12 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.name, "Copy Templates")
-        XCTAssertEqual(model.destination, .sharedSupport)
-        XCTAssertEqual(model.subpath, "Templates")
-        XCTAssertEqual(
-            model.files,
-            try cleanFiles.map { .file(path: temporaryPath.appending(try RelativePath(validating: $0))) }
+        #expect(model.name == "Copy Templates")
+        #expect(model.destination == .sharedSupport)
+        #expect(model.subpath == "Templates")
+        #expect(
+            model.files ==
+            (try cleanFiles.map { .file(path: temporaryPath.appending(try RelativePath(validating: $0))) })
         )
     }
 }

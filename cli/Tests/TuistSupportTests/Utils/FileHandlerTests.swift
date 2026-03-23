@@ -1,46 +1,37 @@
 import Foundation
 import Path
-import XCTest
+import FileSystemTesting
+import Testing
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class FileHandlerErrorTests: XCTestCase {
+struct FileHandlerErrorTests {
+    @Test
     func test_description() {
-        XCTAssertEqual(
-            FileHandlerError.invalidTextEncoding(try AbsolutePath(validating: "/path")).description,
-            "The file at /path is not a utf8 text file"
-        )
-        XCTAssertEqual(
-            FileHandlerError.writingError(try AbsolutePath(validating: "/path")).description,
-            "Couldn't write to the file /path"
-        )
+        #expect(FileHandlerError.invalidTextEncoding(try AbsolutePath(validating: "/path")).description == "The file at /path is not a utf8 text file")
+        #expect(FileHandlerError.writingError(try AbsolutePath(validating: "/path")).description == "Couldn't write to the file /path")
     }
 }
 
-final class FileHandlerTests: TuistUnitTestCase {
+struct FileHandlerTests {
     struct TestDecodable: Decodable {}
 
-    private var subject: FileHandler!
+    private let subject: FileHandler
     private let fileManager = FileManager.default
 
     // MARK: - Setup
 
-    override func setUp() {
-        super.setUp()
-
+    init() {
         subject = FileHandler()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
     // MARK: - Tests
 
+    @Test(.inTemporaryDirectory)
     func test_replace() throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let tempFile = temporaryPath.appending(component: "Temporary")
         let destFile = temporaryPath.appending(component: "Destination")
         try "content".write(to: URL(fileURLWithPath: tempFile.pathString), atomically: true, encoding: .utf8)
@@ -50,19 +41,21 @@ final class FileHandlerTests: TuistUnitTestCase {
 
         // Then
         let content = try String(contentsOf: URL(fileURLWithPath: destFile.pathString))
-        XCTAssertEqual(content, "content")
+        #expect(content == "content")
     }
 
+    @Test
     func test_decode() throws {
-        let testPlistPath = fixturePath(path: try RelativePath(validating: "Test.plist"))
+        let testPlistPath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "Test.plist"))
         let xcframeworkInfoPlist: TestPlist = try subject.readPlistFile(testPlistPath)
-        XCTAssertNotNil(xcframeworkInfoPlist)
+        #expect(xcframeworkInfoPlist != nil)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_replace_cleans_up_temp() throws {
         // FIX: This test runs fine locally but it fails on CI.
         // // Given
-        // let temporaryPath = try self.temporaryPath()
+        // let temporaryPath = try self.try #require(FileSystem.temporaryTestDirectory)
         // let from = temporaryPath.appending(component: "from")
         // try FileHandler.shared.touch(from)
         // let to = temporaryPath.appending(component: "to")
@@ -73,23 +66,25 @@ final class FileHandlerTests: TuistUnitTestCase {
         // try subject.replace(to, with: from)
 
         // // Then
-        // XCTAssertEqual(count, try countItemsInRootTempDirectory(appropriateFor: to.asURL))
+        // #expect(count == try countItemsInRootTempDirectory(appropriateFor: to.asURL))
     }
 
+    @Test
     func test_base64MD5() throws {
         // Given
-        let testZippedFrameworkPath = fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip"))
+        let testZippedFrameworkPath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip"))
 
         // When
         let result = try subject.urlSafeBase64MD5(path: testZippedFrameworkPath)
 
         // Then
-        XCTAssertEqual(result, "X0vsGS0PGIT9z0l1s3Bn3A==")
+        #expect(result == "X0vsGS0PGIT9z0l1s3Bn3A==")
     }
 
+    @Test(.inTemporaryDirectory)
     func test_readPlistFile_throwsAnError_when_invalidPlist() throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let plistPath = temporaryDirectory.appending(component: "file.plist")
         try FileHandler.shared.touch(plistPath)
 
@@ -100,10 +95,7 @@ final class FileHandlerTests: TuistUnitTestCase {
         } catch {
             _error = error
         }
-        XCTAssertEqual(
-            _error as? FileHandlerError,
-            FileHandlerError.propertyListDecodeError(plistPath, description: "The given data was not a valid property list.")
-        )
+        #expect(_error as? FileHandlerError == FileHandlerError.propertyListDecodeError(plistPath, description: "The given data was not a valid property list."))
     }
 
     // MARK: - Private

@@ -1,38 +1,33 @@
 import Foundation
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class XcodeErrorTests: TuistUnitTestCase {
+struct XcodeErrorTests {
+    @Test
     func test_description() {
-        XCTAssertEqual(
-            XcodeError.infoPlistNotFound(.root).description,
-            "Couldn't find Xcode's Info.plist at /. Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
-        )
+        #expect(XcodeError.infoPlistNotFound(.root).description == "Couldn't find Xcode's Info.plist at /. Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app")
     }
 
+    @Test
     func test_type() {
-        XCTAssertEqual(XcodeError.infoPlistNotFound(.root).type, .abort)
+        #expect(XcodeError.infoPlistNotFound(.root).type == .abort)
     }
 }
 
-final class XcodeTests: TuistUnitTestCase {
-    var plistEncoder: PropertyListEncoder!
-
-    override func setUp() {
-        super.setUp()
+struct XcodeTests {
+    let plistEncoder: PropertyListEncoder
+    init() {
         plistEncoder = PropertyListEncoder()
     }
 
-    override func tearDown() {
-        plistEncoder = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_read() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let infoPlist = Xcode.InfoPlist(version: "3.2.1")
         let infoPlistData = try plistEncoder.encode(infoPlist)
         let contentsPath = temporaryPath.appending(component: "Contents")
@@ -44,17 +39,18 @@ final class XcodeTests: TuistUnitTestCase {
         let xcode = try await Xcode.read(path: temporaryPath)
 
         // Then
-        XCTAssertEqual(xcode.infoPlist.version, "3.2.1")
-        XCTAssertEqual(xcode.path, temporaryPath)
+        #expect(xcode.infoPlist.version == "3.2.1")
+        #expect(xcode.path == temporaryPath)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_read_when_infoPlist_doesnt_exist() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let contentsPath = temporaryPath.appending(component: "Contents")
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
 
         // When
-        await XCTAssertThrowsSpecific(try await Xcode.read(path: temporaryPath), XcodeError.infoPlistNotFound(infoPlistPath))
+        await #expect(throws: XcodeError.infoPlistNotFound(infoPlistPath)) { try await Xcode.read(path: temporaryPath) }
     }
 }

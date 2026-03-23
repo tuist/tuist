@@ -1,60 +1,54 @@
+import FileSystemTesting
 import Path
 import TuistSupport
-import XCTest
+import Testing
 @testable import TuistCore
 @testable import TuistTesting
 
-final class ContentHasherTests: TuistUnitTestCase {
-    private var subject: ContentHasher!
-    private var mockFileHandler: MockFileHandler!
+struct ContentHasherTests {
+    private let subject: ContentHasher
+    private let mockFileHandler: MockFileHandler
 
-    override func setUp() {
-        super.setUp()
-        mockFileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
+    init() throws {
+        mockFileHandler = MockFileHandler(temporaryDirectory: { try #require(FileSystem.temporaryTestDirectory) })
         subject = ContentHasher()
-    }
-
-    override func tearDown() {
-        subject = nil
-        mockFileHandler = nil
-        super.tearDown()
     }
 
     // MARK: - Tests
 
-    func test_hashstring_foo_returnsItsMd5() throws {
+    @Test(.inTemporaryDirectory) func test_hashstring_foo_returnsItsMd5() throws {
         // Given
         let hash = try subject.hash("foo")
 
         // Then
-        XCTAssertEqual(hash, "acbd18db4cc2f85cedef654fccc4a4d8") // This is the md5 of "foo"
+        #expect(hash == "acbd18db4cc2f85cedef654fccc4a4d8")
     }
 
-    func test_hashstring_bar_returnsItsMd5() throws {
+    @Test(.inTemporaryDirectory) func test_hashstring_bar_returnsItsMd5() throws {
         // Given
         let hash = try subject.hash("bar")
 
         // Then
-        XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2") // This is the md5 of "bar"
+        #expect(hash == "37b51d194a7513e45b56f6524f2d51f2")
     }
 
-    func test_hashstrings_foo_bar_returnsAnotherMd5() throws {
+    @Test(.inTemporaryDirectory) func test_hashstrings_foo_bar_returnsAnotherMd5() throws {
         // Given
         let hash = try subject.hash(["foo", "bar"])
 
         // Then
-        XCTAssertEqual(hash, "3858f62230ac3c915f300c664312c63f") // This is the md5 of "foobar"
+        #expect(hash == "3858f62230ac3c915f300c664312c63f")
     }
 
-    func test_hashdict_returnsMd5OfConcatenation() throws {
+    @Test(.inTemporaryDirectory) func test_hashdict_returnsMd5OfConcatenation() throws {
         // Given
         let hash = try subject.hash(["1": "foo", "2": "bar"])
         let expectedHash = try subject.hash("1:foo-2:bar")
         // Then
-        XCTAssertEqual(hash, expectedHash)
+        #expect(hash == expectedHash)
     }
 
-    func test_hashFile_hashesTheExpectedFile() async throws {
+    @Test(.inTemporaryDirectory) func test_hashFile_hashesTheExpectedFile() async throws {
         // Given
         let path = try writeToTemporaryPath(content: "foo")
 
@@ -62,10 +56,10 @@ final class ContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(path: path)
 
         // Then
-        XCTAssertEqual(hash, "acbd18db4cc2f85cedef654fccc4a4d8") // This is the md5 of "foo"
+        #expect(hash == "acbd18db4cc2f85cedef654fccc4a4d8")
     }
 
-    func test_hashFile_isNotHarcoded() async throws {
+    @Test(.inTemporaryDirectory) func test_hashFile_isNotHarcoded() async throws {
         // Given
         let path = try writeToTemporaryPath(content: "bar")
 
@@ -73,23 +67,23 @@ final class ContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(path: path)
 
         // Then
-        XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2") // This is the md5 of "bar"
+        #expect(hash == "37b51d194a7513e45b56f6524f2d51f2")
     }
 
-    func test_hashFile_whenFileDoesntExist_itThrowsFileNotFound() async throws {
+    @Test(.inTemporaryDirectory) func test_hashFile_whenFileDoesntExist_itThrowsFileNotFound() async throws {
         // Given
         let wrongPath = try AbsolutePath(validating: "/shakirashakira")
 
         // Then
-        await XCTAssertThrowsSpecific(
-            try await subject.hash(path: wrongPath),
-            FileHandlerError.fileNotFound(wrongPath)
-        )
+        await #expect(throws: FileHandlerError.fileNotFound(wrongPath)) {
+            try await subject.hash(path: wrongPath)
+        }
     }
 
-    func test_hash_sortedContentsOfADirectorySkippingDSStore() async throws {
+    @Test(.inTemporaryDirectory) func test_hash_sortedContentsOfADirectorySkippingDSStore() async throws {
         // given
-        let folderPath = try temporaryPath().appending(component: "assets.xcassets")
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let folderPath = temporaryPath.appending(component: "assets.xcassets")
         try mockFileHandler.createFolder(folderPath)
 
         let files = [
@@ -105,13 +99,12 @@ final class ContentHasherTests: TuistUnitTestCase {
         let hash = try await subject.hash(path: folderPath)
 
         // Then
-        XCTAssertEqual(hash, "224e2539f52203eb33728acd228b4432-37b51d194a7513e45b56f6524f2d51f2")
-        // This is the md5 of "bar", a dash, md5 of "bar2", in sorted order according to the file name
-        // and .DS_STORE should be ignored
+        #expect(hash == "224e2539f52203eb33728acd228b4432-37b51d194a7513e45b56f6524f2d51f2")
     }
 
-    func test_hash_ContentsOfADirectoryIncludingSymbolicLinksWithRelativePaths() async throws {
+    @Test(.inTemporaryDirectory) func test_hash_ContentsOfADirectoryIncludingSymbolicLinksWithRelativePaths() async throws {
         // Given
+        let fileSystem = FileSystem()
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
             let symbolicPath = temporaryDirectory.appending(component: "symbolic")
             let destinationPath = temporaryDirectory.appending(component: "destination")
@@ -127,8 +120,8 @@ final class ContentHasherTests: TuistUnitTestCase {
             let hash = try await subject.hash(path: temporaryDirectory)
 
             // Then
-            XCTAssertEqual(
-                hash,
+            #expect(
+                hash ==
                 "6990a54322d9232390a784c5c9247dd6-6990a54322d9232390a784c5c9247dd6-acbd18db4cc2f85cedef654fccc4a4d8"
             )
         }
@@ -137,7 +130,8 @@ final class ContentHasherTests: TuistUnitTestCase {
     // MARK: - Private
 
     private func writeToTemporaryPath(fileName: String = "foo", content: String = "foo") throws -> AbsolutePath {
-        let path = try temporaryPath().appending(component: fileName)
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let path = temporaryPath.appending(component: fileName)
         try mockFileHandler.write(content, path: path, atomically: true)
         return path
     }

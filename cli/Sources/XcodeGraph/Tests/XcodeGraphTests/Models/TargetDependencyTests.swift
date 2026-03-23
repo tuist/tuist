@@ -1,10 +1,10 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class TargetDependencyTests: XCTestCase {
-    func test_codable_framework() throws {
+struct TargetDependencyTests {
+    @Test func test_codable_framework() throws {
         // Given
         let subject = TargetDependency.framework(
             path: try AbsolutePath(validating: "/path/to/framework"),
@@ -12,18 +12,28 @@ final class TargetDependencyTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(TargetDependency.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_codable_project() throws {
+    @Test func test_codable_project() throws {
         // Given
         let subject = TargetDependency.project(target: "target", path: try AbsolutePath(validating: "/path/to/target"))
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(TargetDependency.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_codable_library() throws {
+    @Test func test_codable_library() throws {
         // Given
         let subject = TargetDependency.library(
             path: try AbsolutePath(validating: "/path/to/library"),
@@ -32,10 +42,15 @@ final class TargetDependencyTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(TargetDependency.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_filtering() throws {
+    @Test func test_filtering() throws {
         let expected: PlatformCondition? = .when([.macos])
 
         let subjects: [TargetDependency] = [
@@ -59,15 +74,15 @@ final class TargetDependencyTests: XCTestCase {
         ]
 
         for subject in subjects {
-            XCTAssertEqual(subject.condition, expected)
-            XCTAssertEqual(subject.withCondition(.when([.catalyst])).condition, .when([.catalyst]))
+            #expect(subject.condition == expected)
+            #expect(subject.withCondition(.when([.catalyst])).condition == .when([.catalyst]))
         }
     }
 
-    func test_xctest_platformFilters_alwaysReturnAll() {
+    @Test func test_xctest_platformFilters_alwaysReturnAll() {
         let subject = TargetDependency.xctest
 
-        XCTAssertNil(subject.condition)
-        XCTAssertNil(subject.withCondition(.when([.catalyst])).condition)
+        #expect(subject.condition == nil)
+        #expect(subject.withCondition(.when([.catalyst])).condition == nil)
     }
 }

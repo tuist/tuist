@@ -2,30 +2,26 @@ import Foundation
 import TSCBasic
 import struct TSCUtility.Version
 import TuistSupport
-import XCTest
+import Testing
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
-final class InstalledVersionTests: XCTestCase {
+struct InstalledVersionTests {
+    @Test
     func test_description() {
-        XCTAssertEqual(InstalledVersion.reference("ref").description, "ref")
-        XCTAssertEqual(InstalledVersion.semver(Version("3.2.1")).description, "3.2.1")
+        #expect(InstalledVersion.reference("ref").description == "ref")
+        #expect(InstalledVersion.semver(Version("3.2.1")).description == "3.2.1")
     }
 }
 
-final class VersionsControllerTests: TuistUnitTestCase {
-    var subject: VersionsController!
-
-    override func setUp() {
-        super.setUp()
+struct VersionsControllerTests {
+    let subject: VersionsController
+    init() {
         subject = VersionsController()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_install() throws {
         try subject.install(version: "3.2.1") { path in
             let testPath = path.appending(component: "test")
@@ -35,25 +31,28 @@ final class VersionsControllerTests: TuistUnitTestCase {
         let versionsPath = environment.versionsDirectory
         let testPath = versionsPath.appending(try RelativePath(validating: "3.2.1/test"))
 
-        XCTAssertTrue(FileHandler.shared.exists(testPath))
+        #expect(FileHandler.shared.exists(testPath))
     }
 
+    @Test
     func test_path_for_version() {
         let got = subject.path(version: "ref")
 
-        XCTAssertEqual(got, environment.versionsDirectory.appending(component: "ref"))
+        #expect(got == environment.versionsDirectory.appending(component: "ref"))
     }
 
+    @Test
     func test_versions() throws {
         try FileHandler.shared.createFolder(environment.versionsDirectory.appending(component: "3.2.1"))
         try FileHandler.shared.createFolder(environment.versionsDirectory.appending(component: "ref"))
 
         let versions = subject.versions()
 
-        XCTAssertTrue(versions.contains(.reference("ref")))
-        XCTAssertTrue(versions.contains(.semver(Version("3.2.1"))))
+        #expect(versions.contains(.reference("ref")))
+        #expect(versions.contains(.semver(Version("3.2.1"))))
     }
 
+    @Test
     func test_semverVersions_ordered() throws {
         // Given
         let versions = [
@@ -75,7 +74,7 @@ final class VersionsControllerTests: TuistUnitTestCase {
         let results = subject.semverVersions()
 
         // Then
-        XCTAssertEqual(results, [
+        #expect(results == [
             Version(0, 9, 0),
             Version(0, 12, 0),
             Version(0, 12, 9),

@@ -1,9 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class BuildConfigurationTests: XCTestCase {
-    func test_codable() {
+struct BuildConfigurationTests {
+    @Test func test_codable() throws {
         // Given
         let subject = BuildConfiguration(
             name: "Debug",
@@ -11,37 +11,27 @@ final class BuildConfigurationTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(BuildConfiguration.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_name_returnsTheRightValue_whenDebug() {
-        XCTAssertEqual(BuildConfiguration.debug.name, "Debug")
+    @Test func test_name_returnsTheRightValue_whenDebug() {
+        #expect(BuildConfiguration.debug.name == "Debug")
     }
 
-    func test_name_returnsTheRightValue_whenRelease() {
-        XCTAssertEqual(BuildConfiguration.release.name, "Release")
+    @Test func test_name_returnsTheRightValue_whenRelease() {
+        #expect(BuildConfiguration.release.name == "Release")
     }
 
-    func test_hashValue() {
-        XCTAssertEqual(
-            BuildConfiguration(name: "Debug", variant: .debug).hashValue,
-            BuildConfiguration(name: "Debug", variant: .debug).hashValue
-        )
-        XCTAssertEqual(
-            BuildConfiguration(name: "Debug", variant: .debug).hashValue,
-            BuildConfiguration.debug.hashValue
-        )
-        XCTAssertEqual(
-            BuildConfiguration(name: "debug", variant: .debug).hashValue,
-            BuildConfiguration.debug.hashValue
-        )
-        XCTAssertNotEqual(
-            BuildConfiguration(name: "Debug", variant: .debug).hashValue,
-            BuildConfiguration.release.hashValue
-        )
-        XCTAssertNotEqual(
-            BuildConfiguration(name: "debug", variant: .debug).hashValue,
-            BuildConfiguration.release.hashValue
-        )
+    @Test func test_hashValue() {
+        #expect(BuildConfiguration(name: "Debug", variant: .debug).hashValue == BuildConfiguration(name: "Debug", variant: .debug).hashValue)
+        #expect(BuildConfiguration(name: "Debug", variant: .debug).hashValue == BuildConfiguration.debug.hashValue)
+        #expect(BuildConfiguration(name: "debug", variant: .debug).hashValue == BuildConfiguration.debug.hashValue)
+        #expect(BuildConfiguration(name: "Debug", variant: .debug).hashValue != BuildConfiguration.release.hashValue)
+        #expect(BuildConfiguration(name: "debug", variant: .debug).hashValue != BuildConfiguration.release.hashValue)
     }
 }

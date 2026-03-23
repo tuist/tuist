@@ -3,26 +3,20 @@ import Path
 import TuistGenerator
 import TuistSupport
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistTesting
 
-final class UpdateWorkspaceProjectsGraphMapperTests: TuistUnitTestCase {
+struct UpdateWorkspaceProjectsGraphMapperTests {
     var subject: UpdateWorkspaceProjectsGraphMapper!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         subject = UpdateWorkspaceProjectsGraphMapper()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_map_removesNonExistingProjects() throws {
+    @Test func test_map_removesNonExistingProjects() throws {
         // Given
         let firstProjectPath: AbsolutePath = "/first-project"
         let secondProjectPath: AbsolutePath = "/second-project"
@@ -39,7 +33,7 @@ final class UpdateWorkspaceProjectsGraphMapperTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEmpty(gotSideEffects)
-        XCTAssertEqual(gotGraph.workspace.projects, [secondProjectPath])
+        #expect(gotSideEffects.isEmpty)
+        #expect(gotGraph.workspace.projects == [secondProjectPath])
     }
 }

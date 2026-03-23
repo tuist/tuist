@@ -2,26 +2,22 @@ import Foundation
 import TuistCore
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistDependencies
 
-final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase {
-    var subject: ExternalProjectsPlatformNarrowerGraphMapper!
-
-    override func setUp() {
-        super.setUp()
+struct ExternalProjectsPlatformNarrowerGraphMapperTests {
+    let subject: ExternalProjectsPlatformNarrowerGraphMapper
+    init() {
         subject = ExternalProjectsPlatformNarrowerGraphMapper()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_map_when_external_dependency_without_platform_filter() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
@@ -52,19 +48,14 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
 
         // Then
 
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[project.path]?.targets[appTarget.name])?.supportedPlatforms,
-            Set([.iOS])
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.supportedPlatforms),
-            Set([.iOS])
-        )
+        #expect(try #require(mappedGraph.projects[project.path]?.targets[appTarget.name])?.supportedPlatforms == Set([.iOS]))
+        #expect(try #require(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.supportedPlatforms) == Set([.iOS]))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_when_external_with_platform_filter() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac])
@@ -82,7 +73,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
 
         // Only use the external target on iOS
-        let dependencyCondition = try XCTUnwrap(PlatformCondition.when([.ios]))
+        let dependencyCondition = try #require(PlatformCondition.when([.ios]))
 
         let graph = Graph.test(
             projects: [
@@ -102,23 +93,15 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
 
         // Then
 
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms),
-            Set([.iOS, .macOS, .tvOS, .watchOS])
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.supportedPlatforms),
-            Set([.iOS])
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.deploymentTargets),
-            .iOS("16.0")
-        )
+        #expect(try #require(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms) == Set([.iOS, .macOS, .tvOS, .watchOS]))
+        #expect(try #require(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.supportedPlatforms) == Set([.iOS]))
+        #expect(try #require(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.deploymentTargets) == .iOS("16.0"))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_when_external_dependencies_end_with_no_platforms() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac])
@@ -136,7 +119,7 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
 
         // Only use the external target on iOS
-        let dependencyCondition = try XCTUnwrap(PlatformCondition.when([.ios]))
+        let dependencyCondition = try #require(PlatformCondition.when([.ios]))
 
         let graph = Graph.test(
             projects: [
@@ -156,26 +139,18 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
 
         // Then
 
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms),
-            Set([.iOS, .macOS, .tvOS, .watchOS])
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.supportedPlatforms),
-            Set([])
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.deploymentTargets),
-            DeploymentTargets(iOS: nil, macOS: nil, watchOS: nil, tvOS: nil, visionOS: nil)
-        )
-        XCTAssertTrue(try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.metadata.tags)
+        #expect(try #require(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms) == Set([.iOS, .macOS, .tvOS, .watchOS]))
+        #expect(try #require(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.supportedPlatforms) == Set([]))
+        #expect(try #require(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.deploymentTargets) == DeploymentTargets(iOS: nil, macOS: nil, watchOS: nil, tvOS: nil, visionOS: nil))
+        #expect(try #require(mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]?.metadata.tags)
             .contains("tuist:prunable")
         )
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_when_external_transitive_dependency_without_platform_filter() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
@@ -220,33 +195,22 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
 
         // Then
 
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms),
-            Set([.iOS])
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[directExternalPackage.name]?.supportedPlatforms),
-            Set([.iOS])
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(
+        #expect(try #require(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms) == Set([.iOS]))
+        #expect(try #require(mappedGraph.projects[externalProject.path]?.targets[directExternalPackage.name]?.supportedPlatforms) == Set([.iOS]))
+        #expect(try #require(
                 mappedGraph.projects[externalProject.path]?.targets[transitiveExternalPackage.name]?
                     .supportedPlatforms
-            ),
-            Set([.iOS])
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(
+            ) == Set([.iOS]))
+        #expect(try #require(
                 mappedGraph.projects[externalProject.path]?.targets[transitiveExternalPackage.name]?
                     .destinations
-            ),
-            Set([.iPad, .iPhone])
-        )
+            ) == Set([.iPad, .iPhone]))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_excludes_catalyst_when_app_does_not_support_it() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
@@ -276,16 +240,17 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let mappedExternalPackage = try XCTUnwrap(
+        let mappedExternalPackage = try #require(
             mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]
         )
-        XCTAssertEqual(mappedExternalPackage.destinations, Set([.iPad, .iPhone]))
-        XCTAssertFalse(mappedExternalPackage.destinations.contains(.macCatalyst))
+        #expect(mappedExternalPackage.destinations == Set([.iPad, .iPhone]))
+        #expect(!mappedExternalPackage.destinations.contains(.macCatalyst))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_includes_catalyst_when_app_supports_it() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone, .macCatalyst])
@@ -315,17 +280,18 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let mappedExternalPackage = try XCTUnwrap(
+        let mappedExternalPackage = try #require(
             mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]
         )
-        XCTAssertEqual(mappedExternalPackage.destinations, Set([.iPad, .iPhone, .macCatalyst]))
-        XCTAssertTrue(mappedExternalPackage.destinations.contains(.macCatalyst))
-        XCTAssertFalse(mappedExternalPackage.destinations.contains(.mac))
+        #expect(mappedExternalPackage.destinations == Set([.iPad, .iPhone, .macCatalyst]))
+        #expect(mappedExternalPackage.destinations.contains(.macCatalyst))
+        #expect(!mappedExternalPackage.destinations.contains(.mac))
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_when_external_macro_dependency() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
@@ -368,17 +334,8 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms),
-            Set([.iOS])
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalMacroFramework.name]?.supportedPlatforms),
-            Set([.iOS])
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(mappedGraph.projects[externalProject.path]?.targets[externalMacroExecutable.name]?.supportedPlatforms),
-            Set([.macOS])
-        )
+        #expect(try #require(mappedGraph.projects[project.path]?.targets[appTarget.name]?.supportedPlatforms) == Set([.iOS]))
+        #expect(try #require(mappedGraph.projects[externalProject.path]?.targets[externalMacroFramework.name]?.supportedPlatforms) == Set([.iOS]))
+        #expect(try #require(mappedGraph.projects[externalProject.path]?.targets[externalMacroExecutable.name]?.supportedPlatforms) == Set([.macOS]))
     }
 }

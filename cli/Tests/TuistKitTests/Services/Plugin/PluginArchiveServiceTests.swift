@@ -3,19 +3,19 @@ import TuistLoader
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistKit
 
-final class PluginArchiveServiceTests: TuistUnitTestCase {
+struct PluginArchiveServiceTests {
     private var subject: PluginArchiveService!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
     private var packageInfoLoader: MockPackageInfoLoading!
     private var manifestLoader: MockManifestLoading!
     private var fileArchiverFactory: MockFileArchivingFactorying!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         swiftPackageManagerController = MockSwiftPackageManagerControlling()
         packageInfoLoader = .init()
         manifestLoader = .init()
@@ -28,16 +28,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        swiftPackageManagerController = nil
-        packageInfoLoader = nil
-        manifestLoader = nil
-        fileArchiverFactory = nil
-        super.tearDown()
-    }
-
-    func test_run_when_no_task_products_defined() async throws {
+    @Test func test_run_when_no_task_products_defined() async throws {
         try await withMockedDependencies {
             // Given
             given(packageInfoLoader)
@@ -66,7 +57,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run() async throws {
+    @Test func test_run() async throws {
         // Given
         let path = try temporaryPath()
         given(packageInfoLoader)
@@ -140,7 +131,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
 
         _ = verify(fileArchiver).zip(name: .value("TestPlugin.tuist-plugin.zip"))
 
-        XCTAssertTrue(
+        #expect(
             fileHandler.isFolder(
                 path.appending(component: "TestPlugin.tuist-plugin.zip")
             )

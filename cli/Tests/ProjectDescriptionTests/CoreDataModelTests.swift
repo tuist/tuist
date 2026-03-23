@@ -1,12 +1,12 @@
 import Foundation
-import TuistSupportTesting
-import XCTest
+import Testing
+import TuistTesting
 
 @testable import ProjectDescription
 
-final class CoreDataModelTests: XCTestCase {
-    func test_toJSON() {
+struct CoreDataModelTests {
+    @Test func test_toJSON() throws {
         let subject: CoreDataModel = .coreDataModel("path", currentVersion: "current")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 }

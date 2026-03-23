@@ -1,89 +1,99 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class PlatformTests: XCTestCase {
-    func test_codable_iOS() {
+struct PlatformTests {
+    @Test func test_codable_iOS() throws {
         // Given
         let subject = Platform.iOS
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Platform.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_codable_tvOS() {
+    @Test func test_codable_tvOS() throws {
         // Given
         let subject = Platform.tvOS
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(Platform.self, from: data)
+        #expect(subject == decoded)
     }
 
-    func test_caseInsensitiveCommandInput() {
-        XCTAssertEqual(Platform.macOS, Platform(commandLineValue: "macos"))
-        XCTAssertEqual(Platform.macOS, Platform(commandLineValue: "macOS"))
-        XCTAssertEqual(Platform.macOS, Platform(commandLineValue: "MACOS"))
-        XCTAssertEqual(Platform.iOS, Platform(commandLineValue: "ios"))
-        XCTAssertEqual(Platform.iOS, Platform(commandLineValue: "iOS"))
-        XCTAssertEqual(Platform.iOS, Platform(commandLineValue: "IOS"))
-        XCTAssertEqual(Platform.tvOS, Platform(commandLineValue: "tvos"))
-        XCTAssertEqual(Platform.tvOS, Platform(commandLineValue: "tvOS"))
-        XCTAssertEqual(Platform.watchOS, Platform(commandLineValue: "watchos"))
-        XCTAssertEqual(Platform.watchOS, Platform(commandLineValue: "watchOS"))
-        XCTAssertEqual(Platform.visionOS, Platform(commandLineValue: "visionos"))
-        XCTAssertEqual(Platform.visionOS, Platform(commandLineValue: "visionOS"))
+    @Test func test_caseInsensitiveCommandInput() {
+        #expect(Platform.macOS == Platform(commandLineValue: "macos"))
+        #expect(Platform.macOS == Platform(commandLineValue: "macOS"))
+        #expect(Platform.macOS == Platform(commandLineValue: "MACOS"))
+        #expect(Platform.iOS == Platform(commandLineValue: "ios"))
+        #expect(Platform.iOS == Platform(commandLineValue: "iOS"))
+        #expect(Platform.iOS == Platform(commandLineValue: "IOS"))
+        #expect(Platform.tvOS == Platform(commandLineValue: "tvos"))
+        #expect(Platform.tvOS == Platform(commandLineValue: "tvOS"))
+        #expect(Platform.watchOS == Platform(commandLineValue: "watchos"))
+        #expect(Platform.watchOS == Platform(commandLineValue: "watchOS"))
+        #expect(Platform.visionOS == Platform(commandLineValue: "visionos"))
+        #expect(Platform.visionOS == Platform(commandLineValue: "visionOS"))
     }
 
-    func test_caseInvalidPlatform_throws() {
+    @Test func test_caseInvalidPlatform_throws() {
         do {
             _ = try Platform.from(commandLineValue: "not_a_platform")
-            XCTFail("Expected erro to be thrown")
+            Issue.record("Expected erro to be thrown")
         } catch let error as UnsupportedPlatformError {
-            XCTAssertEqual(error, UnsupportedPlatformError(input: "not_a_platform"))
+            #expect(error == UnsupportedPlatformError(input: "not_a_platform"))
         } catch {
-            XCTFail("Unexpected error thrown")
+            Issue.record("Unexpected error thrown")
         }
     }
 
-    func test_caseValidPlatform_doesNotThrow() throws {
-        XCTAssertEqual(Platform.iOS, try Platform.from(commandLineValue: "iOS"))
-        XCTAssertEqual(Platform.macOS, try Platform.from(commandLineValue: "macOS"))
-        XCTAssertEqual(Platform.macOS, try Platform.from(commandLineValue: "macos"))
+    @Test func test_caseValidPlatform_doesNotThrow() throws {
+        #expect(Platform.iOS == try Platform.from(commandLineValue: "iOS"))
+        #expect(Platform.macOS == try Platform.from(commandLineValue: "macOS"))
+        #expect(Platform.macOS == try Platform.from(commandLineValue: "macos"))
     }
 
-    func test_xcodeSdkRoot_returns_the_right_value() {
-        XCTAssertEqual(Platform.macOS.xcodeSdkRoot, "macosx")
-        XCTAssertEqual(Platform.iOS.xcodeSdkRoot, "iphoneos")
-        XCTAssertEqual(Platform.tvOS.xcodeSdkRoot, "appletvos")
-        XCTAssertEqual(Platform.watchOS.xcodeSdkRoot, "watchos")
-        XCTAssertEqual(Platform.visionOS.xcodeSdkRoot, "xros")
+    @Test func test_xcodeSdkRoot_returns_the_right_value() {
+        #expect(Platform.macOS.xcodeSdkRoot == "macosx")
+        #expect(Platform.iOS.xcodeSdkRoot == "iphoneos")
+        #expect(Platform.tvOS.xcodeSdkRoot == "appletvos")
+        #expect(Platform.watchOS.xcodeSdkRoot == "watchos")
+        #expect(Platform.visionOS.xcodeSdkRoot == "xros")
     }
 
-    func test_xcodeSimulatorSDK() {
-        XCTAssertEqual(Platform.tvOS.xcodeSimulatorSDK, "appletvsimulator")
-        XCTAssertEqual(Platform.iOS.xcodeSimulatorSDK, "iphonesimulator")
-        XCTAssertEqual(Platform.watchOS.xcodeSimulatorSDK, "watchsimulator")
-        XCTAssertEqual(Platform.visionOS.xcodeSimulatorSDK, "xrsimulator")
-        XCTAssertNil(Platform.macOS.xcodeSimulatorSDK)
+    @Test func test_xcodeSimulatorSDK() {
+        #expect(Platform.tvOS.xcodeSimulatorSDK == "appletvsimulator")
+        #expect(Platform.iOS.xcodeSimulatorSDK == "iphonesimulator")
+        #expect(Platform.watchOS.xcodeSimulatorSDK == "watchsimulator")
+        #expect(Platform.visionOS.xcodeSimulatorSDK == "xrsimulator")
+        #expect(Platform.macOS.xcodeSimulatorSDK == nil)
     }
 
-    func test_xcodeDeviceSDK() {
-        XCTAssertEqual(Platform.tvOS.xcodeDeviceSDK, "appletvos")
-        XCTAssertEqual(Platform.iOS.xcodeDeviceSDK, "iphoneos")
-        XCTAssertEqual(Platform.watchOS.xcodeDeviceSDK, "watchos")
-        XCTAssertEqual(Platform.macOS.xcodeDeviceSDK, "macosx")
-        XCTAssertEqual(Platform.visionOS.xcodeDeviceSDK, "xros")
+    @Test func test_xcodeDeviceSDK() {
+        #expect(Platform.tvOS.xcodeDeviceSDK == "appletvos")
+        #expect(Platform.iOS.xcodeDeviceSDK == "iphoneos")
+        #expect(Platform.watchOS.xcodeDeviceSDK == "watchos")
+        #expect(Platform.macOS.xcodeDeviceSDK == "macosx")
+        #expect(Platform.visionOS.xcodeDeviceSDK == "xros")
     }
 
-    func test_hasSimulators() {
-        XCTAssertFalse(Platform.macOS.hasSimulators)
-        XCTAssertTrue(Platform.tvOS.hasSimulators)
-        XCTAssertTrue(Platform.watchOS.hasSimulators)
-        XCTAssertTrue(Platform.tvOS.hasSimulators)
-        XCTAssertTrue(Platform.visionOS.hasSimulators)
+    @Test func test_hasSimulators() {
+        #expect(!Platform.macOS.hasSimulators)
+        #expect(Platform.tvOS.hasSimulators)
+        #expect(Platform.watchOS.hasSimulators)
+        #expect(Platform.tvOS.hasSimulators)
+        #expect(Platform.visionOS.hasSimulators)
     }
 
-    func test_xcodeSdkRootPath() {
+    @Test func test_xcodeSdkRootPath() {
         // Given
         let platforms: [Platform] = [
             .iOS,
@@ -97,7 +107,7 @@ final class PlatformTests: XCTestCase {
         let paths = platforms.map(\.xcodeSdkRootPath)
 
         // Then
-        XCTAssertEqual(paths, [
+        #expect(paths == [
             "Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk",
             "Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
             "Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk",

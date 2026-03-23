@@ -1,27 +1,20 @@
 import Foundation
 import Path
 import TuistTesting
-import XCTest
+import Testing
 
 @testable import TuistCore
 
-final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
-    private var derivedDataLocator: MockDerivedDataLocator!
-    private var subject: XcodeProjectBuildDirectoryLocator!
+struct XcodeProjectBuildDirectoryLocatorTests {
+    let derivedDataLocator: MockDerivedDataLocator
+    let subject: XcodeProjectBuildDirectoryLocator
 
-    override func setUp() {
-        super.setUp()
+    init() {
         derivedDataLocator = MockDerivedDataLocator()
         subject = XcodeProjectBuildDirectoryLocator(derivedDataLocator: derivedDataLocator)
     }
 
-    override func tearDown() {
-        derivedDataLocator = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_locate_WHEN_destination_platform_IS_device_macOS() async throws {
+    @Test func test_locate_WHEN_destination_platform_IS_device_macOS() async throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
@@ -38,10 +31,10 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
 
         // THEN
         let expectedPath = try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)")
-        XCTAssertEqual(path, expectedPath)
+        #expect(path == expectedPath)
     }
 
-    func test_locate_WHEN_destination_platform_IS_simulator_iOS() async throws {
+    @Test func test_locate_WHEN_destination_platform_IS_simulator_iOS() async throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
@@ -60,10 +53,10 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         // THEN
         let expectedPath =
             try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)")
-        XCTAssertEqual(path, expectedPath)
+        #expect(path == expectedPath)
     }
 
-    func test_locate_WHEN_destination_platform_IS_device_iOS() async throws {
+    @Test func test_locate_WHEN_destination_platform_IS_device_iOS() async throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
@@ -82,6 +75,6 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         // THEN
         let expectedPath =
             try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)")
-        XCTAssertEqual(path, expectedPath)
+        #expect(path == expectedPath)
     }
 }

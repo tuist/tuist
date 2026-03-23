@@ -6,20 +6,19 @@ import TuistCore
 import TuistHasher
 import TuistServer
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
-    private var cacheStorage: MockCacheStoring!
-    private var cacheGraphContentHasher: MockCacheGraphContentHashing!
-    private var cacheGraphMutator: MockCacheGraphMutating!
-    private var subject: TargetsToCacheBinariesGraphMapper!
-    private var config: Tuist!
-
-    override func setUp() {
-        super.setUp()
+struct TargetsToCacheBinariesGraphMapperTests {
+    private let cacheStorage: MockCacheStoring
+    private let cacheGraphContentHasher: MockCacheGraphContentHashing
+    private let cacheGraphMutator: MockCacheGraphMutating
+    private let subject: TargetsToCacheBinariesGraphMapper
+    private let config: Tuist
+    init() {
         config = .test()
         cacheStorage = MockCacheStoring()
         cacheGraphContentHasher = MockCacheGraphContentHashing()
@@ -34,17 +33,10 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        config = nil
-        cacheStorage = nil
-        cacheGraphContentHasher = nil
-        cacheGraphMutator = nil
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_map_when_sources_are_tests() async throws {
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(path: path)
 
         // Given
@@ -95,7 +87,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             )
             .willReturn(contentHashes)
 
-        let cachePath = try temporaryPath()
+        let cachePath = try #require(FileSystem.temporaryTestDirectory)
         given(cacheStorage).fetch(
             .value(
                 Set([
@@ -136,22 +128,17 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            got,
-            outputGraph
-        )
-        XCTAssertEqual(
-            gotEnvironment.initialGraphWithSources,
-            inputGraph
-        )
+        #expect(got == outputGraph)
+        #expect(gotEnvironment.initialGraphWithSources == inputGraph)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_when_all_binaries_are_fetched_successfully() async throws {
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(path: path)
 
         // Given
-        subject = TargetsToCacheBinariesGraphMapper(
+        let subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
             decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
@@ -205,7 +192,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 destination: .any
             )
             .willReturn(contentHashes)
-        let cachePath = try temporaryPath()
+        let cachePath = try #require(FileSystem.temporaryTestDirectory)
         given(cacheStorage).fetch(
             .value(
                 Set([
@@ -243,20 +230,18 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         let (got, _, _) = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEqual(
-            got,
-            outputGraph
-        )
+        #expect(got == outputGraph)
     }
 
     /// Targets from the same package have the same hash as instead of hashing the targets individually, we use the package
     /// reference hash.
+    @Test(.inTemporaryDirectory)
     func test_map_when_all_package_binaries_are_fetched_successfully() async throws {
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(path: path)
 
         // Given
-        subject = TargetsToCacheBinariesGraphMapper(
+        let subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
             decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
@@ -309,7 +294,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 destination: .any
             )
             .willReturn(contentHashes)
-        let cachePath = try temporaryPath()
+        let cachePath = try #require(FileSystem.temporaryTestDirectory)
         given(cacheStorage).fetch(
             .value(
                 Set([
@@ -341,8 +326,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 )
             )
             .willReturn(outputGraph)
-        let bBinaryPath = try temporaryPath().appending(component: "B-Binary")
-        let cBinaryPath = try temporaryPath().appending(component: "C-Binary")
+        let bBinaryPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "B-Binary")
+        let cBinaryPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "C-Binary")
         given(cacheStorage).fetch(
             .any,
             cacheCategory: .value(.binaries)
@@ -357,18 +342,16 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         let (got, _, _) = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEqual(
-            got,
-            outputGraph
-        )
+        #expect(got == outputGraph)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_forwards_correct_artifactType_to_hasher() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(path: path)
 
-        subject = TargetsToCacheBinariesGraphMapper(
+        let subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
             decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
@@ -429,11 +412,12 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         _ = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_when_excluded_targets_are_passed() async throws {
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given
-        subject = TargetsToCacheBinariesGraphMapper(
+        let subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheGraphContentHasher: cacheGraphContentHasher,
             decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: []),
@@ -490,6 +474,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         _ = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
     }
 
+    @Test
     func test_map_returns_early_when_graph_has_no_targets() async throws {
         // Given
         let inputGraph = Graph.test(name: "empty")
@@ -500,13 +485,14 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, inputGraph)
-        XCTAssertTrue(sideEffects.isEmpty)
-        XCTAssertEqual(gotEnvironment.initialGraphWithSources, inputGraph)
+        #expect(got == inputGraph)
+        #expect(sideEffects.isEmpty)
+        #expect(gotEnvironment.initialGraphWithSources == inputGraph)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_map_stores_subhashes_in_run_metadata_storage() async throws {
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(path: path)
         let runMetadataStorage = RunMetadataStorage()
 
@@ -579,8 +565,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
 
             // Then
             let storedSubhashes = await runMetadataStorage.targetContentHashSubhashes
-            XCTAssertEqual(storedSubhashes[cHash], cSubhashes)
-            XCTAssertEqual(storedSubhashes[bHash], bSubhashes)
+            #expect(storedSubhashes[cHash] == cSubhashes)
+            #expect(storedSubhashes[bHash] == bSubhashes)
         }
     }
 }

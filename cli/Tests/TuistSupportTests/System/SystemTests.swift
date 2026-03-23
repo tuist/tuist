@@ -1,10 +1,11 @@
 import Foundation
 import TSCBasic
-import XCTest
+import Testing
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class ProcessResultTests: TuistUnitTestCase {
+struct ProcessResultTests {
+    @Test
     func test_command_returns_the_right_command_when_xcrun() {
         // Given
         let subject = ProcessResult(
@@ -19,6 +20,6 @@ final class ProcessResultTests: TuistUnitTestCase {
         let got = subject.command()
 
         // Then
-        XCTAssertEqual(got, "swiftc")
+        #expect(got == "swiftc")
     }
 }

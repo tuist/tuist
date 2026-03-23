@@ -1,11 +1,11 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 @testable import TuistCore
 @testable import TuistTesting
 
-final class XcodeBuildArgumentTests: TuistUnitTestCase {
-    func test_arguments_returns_the_right_value_when_sdk() {
+struct XcodeBuildArgumentTests {
+    @Test func test_arguments_returns_the_right_value_when_sdk() {
         // Given
         let subject = XcodeBuildArgument.sdk("sdk")
 
@@ -13,10 +13,10 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         let got = subject.arguments
 
         // Then
-        XCTAssertEqual(got, ["-sdk", "sdk"])
+        #expect(got == ["-sdk", "sdk"])
     }
 
-    func test_arguments_returns_the_right_value_when_destination() {
+    @Test func test_arguments_returns_the_right_value_when_destination() {
         // Given
         let subject = XcodeBuildArgument.destination("destination")
 
@@ -24,10 +24,10 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         let got = subject.arguments
 
         // Then
-        XCTAssertEqual(got, ["-destination", "destination"])
+        #expect(got == ["-destination", "destination"])
     }
 
-    func test_arguments_returns_the_right_value_when_derivedDataPath() {
+    @Test func test_arguments_returns_the_right_value_when_derivedDataPath() {
         // Given
         let path = AbsolutePath.root
         let subject = XcodeBuildArgument.derivedDataPath(path)
@@ -36,10 +36,10 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         let got = subject.arguments
 
         // Then
-        XCTAssertEqual(got, ["-derivedDataPath", path.pathString])
+        #expect(got == ["-derivedDataPath", path.pathString])
     }
 
-    func test_arguments_returns_the_right_value_when_xcarg() {
+    @Test func test_arguments_returns_the_right_value_when_xcarg() {
         // Given
         let subject = XcodeBuildArgument.xcarg("key", "value")
 
@@ -47,10 +47,10 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         let got = subject.arguments
 
         // Then
-        XCTAssertEqual(got, ["key=value"])
+        #expect(got == ["key=value"])
     }
 
-    func test_arguments_returns_the_right_value_when_xcarg_with_spaces() {
+    @Test func test_arguments_returns_the_right_value_when_xcarg_with_spaces() {
         // Given
         let subject = XcodeBuildArgument.xcarg("key", "value with spaces")
 
@@ -58,10 +58,10 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         let got = subject.arguments
 
         // Then
-        XCTAssertEqual(got, ["key=\'value with spaces\'"])
+        #expect(got == ["key=\'value with spaces\'"])
     }
 
-    func test_arguments_returns_the_right_value_when_retry_count() {
+    @Test func test_arguments_returns_the_right_value_when_retry_count() {
         // Given
         let subject = XcodeBuildArgument.retryCount(5)
 
@@ -69,6 +69,6 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         let got = subject.arguments
 
         // Then
-        XCTAssertEqual(got, ["-retry-tests-on-failure", "-test-iterations", "6"])
+        #expect(got == ["-retry-tests-on-failure", "-test-iterations", "6"])
     }
 }

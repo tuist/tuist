@@ -1,11 +1,12 @@
 import Foundation
 import Path
-import XCTest
+import Testing
 
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class AbsolutePathExtrasTests: TuistUnitTestCase {
+struct AbsolutePathExtrasTests {
+    @Test
     func test_commonAncestor_siblings() {
         // Given
         let pathA = try! AbsolutePath(validating: "/path/to/A")
@@ -15,9 +16,10 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         let result = pathA.commonAncestor(with: pathB)
 
         // Then
-        XCTAssertEqual(result, try AbsolutePath(validating: "/path/to"))
+        #expect(result == try AbsolutePath(validating: "/path/to"))
     }
 
+    @Test
     func test_commonAncestor_parent() {
         // Given
         let pathA = try! AbsolutePath(validating: "/path/to/A")
@@ -27,9 +29,10 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         let result = pathA.commonAncestor(with: pathB)
 
         // Then
-        XCTAssertEqual(result, try AbsolutePath(validating: "/path/to"))
+        #expect(result == try AbsolutePath(validating: "/path/to"))
     }
 
+    @Test
     func test_commonAncestor_none() {
         // Given
         let pathA = try! AbsolutePath(validating: "/path/to/A")
@@ -39,9 +42,10 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         let result = pathA.commonAncestor(with: pathB)
 
         // Then
-        XCTAssertEqual(result, try AbsolutePath(validating: "/"))
+        #expect(result == try AbsolutePath(validating: "/"))
     }
 
+    @Test
     func test_commonAncestor_commutative() {
         // Given
         let pathA = try! AbsolutePath(validating: "/path/to/A")
@@ -52,35 +56,37 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         let resultB = pathB.commonAncestor(with: pathA)
 
         // Then
-        XCTAssertEqual(resultA, resultB)
+        #expect(resultA == resultB)
     }
 
+    @Test
     func test_isInOpaqueDirectory() throws {
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.scnassets").isInOpaqueDirectory)
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcdatamodeld").isInOpaqueDirectory)
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.docc").isInOpaqueDirectory)
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.playground").isInOpaqueDirectory)
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcmappingmodel").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.scnassets").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.xcdatamodeld").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.docc").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.playground").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.xcmappingmodel").isInOpaqueDirectory)
 
-        XCTAssertFalse(try AbsolutePath(validating: "/").isInOpaqueDirectory)
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
-        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").isInOpaqueDirectory)
-        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
+        #expect(!try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").isInOpaqueDirectory)
+        #expect(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png").isInOpaqueDirectory)
 
-        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.bundle/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcassets/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcassets/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.scnassets/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcdatamodeld/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.docc/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.playground/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcmappingmodel/file.png").isInOpaqueDirectory)
+        #expect(try AbsolutePath(validating: "/test/directory.bundle/file.png").isInOpaqueDirectory)
+        #expect(try AbsolutePath(validating: "/test/directory.xcassets/file.png").isInOpaqueDirectory)
+        #expect(try AbsolutePath(validating: "/test/directory.xcassets/file.png").isInOpaqueDirectory)
+        #expect(try AbsolutePath(validating: "/test/directory.scnassets/file.png").isInOpaqueDirectory)
+        #expect(try AbsolutePath(validating: "/test/directory.xcdatamodeld/file.png").isInOpaqueDirectory)
+        #expect(try AbsolutePath(validating: "/test/directory.docc/file.png").isInOpaqueDirectory)
+        #expect(try AbsolutePath(validating: "/test/directory.playground/file.png").isInOpaqueDirectory)
+        #expect(try AbsolutePath(validating: "/test/directory.xcmappingmodel/file.png").isInOpaqueDirectory)
     }
 
+    @Test
     func test_opaqueDirectory() async throws {
         for directory in [
             "/test/directory.bundle",
@@ -90,16 +96,13 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
             "/test/directory.docc",
             "/test/directory.xcmappingmodel",
         ] as [AbsolutePath] {
-            XCTAssertEqual(directory.opaqueParentDirectory(), nil)
+            #expect(directory.opaqueParentDirectory() == nil)
         }
 
-        XCTAssertEqual(try AbsolutePath(validating: "/").opaqueParentDirectory(), nil)
-        XCTAssertEqual(try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").opaqueParentDirectory(), nil)
-        XCTAssertEqual(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").opaqueParentDirectory(), nil)
-        XCTAssertEqual(
-            try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png").opaqueParentDirectory(),
-            try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle")
-        )
+        #expect(try AbsolutePath(validating: "/").opaqueParentDirectory() == nil)
+        #expect(try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").opaqueParentDirectory() == nil)
+        #expect(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").opaqueParentDirectory() == nil)
+        #expect(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png").opaqueParentDirectory() == try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle"))
 
         for file in [
             "/test/directory.bundle/file.png",
@@ -109,7 +112,7 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
             "/test/directory.docc/file.png",
             "/test/directory.xcmappingmodel/file.png",
         ] as [AbsolutePath] {
-            XCTAssertEqual(file.opaqueParentDirectory(), file.parentDirectory)
+            #expect(file.opaqueParentDirectory() == file.parentDirectory)
         }
     }
 }

@@ -1,10 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import ProjectDescription
 
-final class EnvironmentTests: XCTestCase {
-    func test_booleanTrueValues() throws {
+struct EnvironmentTests {
+    @Test func test_booleanTrueValues() throws {
         let environment: [String: String] = [
             "TUIST_0": "1",
             "TUIST_1": "true",
@@ -14,11 +14,11 @@ final class EnvironmentTests: XCTestCase {
         ]
         for (index, _) in environment.enumerated() {
             let value = Environment.value(for: String(index), environment: environment)
-            XCTAssertTrue(value.getBoolean(default: false))
+            #expect(value.getBoolean(default: false))
         }
     }
 
-    func test_booleanFalseValues() throws {
+    @Test func test_booleanFalseValues() throws {
         let environment: [String: String] = [
             "TUIST_0": "0",
             "TUIST_1": "false",
@@ -28,11 +28,11 @@ final class EnvironmentTests: XCTestCase {
         ]
         for (index, _) in environment.enumerated() {
             let value = Environment.value(for: String(index), environment: environment)
-            XCTAssertFalse(value.getBoolean(default: true))
+            #expect(!value.getBoolean(default: true))
         }
     }
 
-    func test_stringValue() {
+    @Test func test_stringValue() {
         let stringValue = UUID().uuidString
         let environment: [String: String] = [
             "TUIST_0": stringValue,
@@ -40,15 +40,15 @@ final class EnvironmentTests: XCTestCase {
         ]
         for (index, _) in environment.enumerated() {
             let value = Environment.value(for: String(index), environment: environment)
-            XCTAssertEqual(value.getString(default: ""), environment["TUIST_\(index)"])
+            #expect(value.getString(default: "") == environment["TUIST_\(index)"])
         }
     }
 
-    func test_unknownKeysReturnNil() {
+    @Test func test_unknownKeysReturnNil() {
         let environment: [String: String] = [
             "TUIST_0": "0",
         ]
         let value = Environment.value(for: "1", environment: environment)
-        XCTAssertNil(value)
+        #expect(value == nil)
     }
 }

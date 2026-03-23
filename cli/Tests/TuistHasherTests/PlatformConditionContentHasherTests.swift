@@ -4,32 +4,27 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistHasher
 
-final class PlatformConditionContentHasherTests: TuistUnitTestCase {
-    var subject: PlatformConditionContentHasher!
-
-    override func setUp() async throws {
-        try await super.setUp()
+struct PlatformConditionContentHasherTests {
+    let subject: PlatformConditionContentHasher
+    init() throws {
         subject = PlatformConditionContentHasher(contentHasher: ContentHasher())
     }
 
-    override func tearDown() async throws {
-        subject = nil
-        try await super.tearDown()
-    }
 
+    @Test
     func test_hash() throws {
         // Given
-        let platformCondition = try XCTUnwrap(PlatformCondition.when(Set([.macos])))
+        let platformCondition = try #require(PlatformCondition.when(Set([.macos])))
 
         // When
         let node = try subject.hash(identifier: "compilationCondition", platformCondition: platformCondition)
 
         // Then
-        XCTAssertEqual(node, MerkleNode(
+        #expect(node == MerkleNode(
             hash: "4ed91b7e02b960dc31256de17f3f131f",
             identifier: "compilationCondition",
             children: [

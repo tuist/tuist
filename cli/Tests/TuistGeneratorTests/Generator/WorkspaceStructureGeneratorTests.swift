@@ -2,24 +2,19 @@ import Path
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class WorkspaceStructureGeneratorTests: XCTestCase {
-    fileprivate var fileHandler: InMemoryFileHandler!
-    var subject: WorkspaceStructureGenerator!
-
-    override func setUp() {
+struct WorkspaceStructureGeneratorTests {
+    fileprivate let fileHandler: InMemoryFileHandler
+    let subject: WorkspaceStructureGenerator
+    init() {
         fileHandler = InMemoryFileHandler()
         subject = WorkspaceStructureGenerator()
     }
 
-    override func tearDown() {
-        fileHandler = nil
-        subject = nil
-    }
-
+    @Test
     func test_generateStructure_projects() throws {
         // Given
         let xcodeProjPaths = try createFolders([
@@ -38,7 +33,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
+        #expect(structure.contents == [
             .group("Modules", "/path/to/workspace/Modules", [
                 .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
                 .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
@@ -50,6 +45,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_generateStructure_projectsAndFiles() throws {
         // Given
         let xcodeProjPaths = try createFolders([
@@ -77,7 +73,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
+        #expect(structure.contents == [
             .group("Documentation", "/path/to/workspace/Documentation", [
                 .file("/path/to/workspace/Documentation/README.md"),
                 .group("generate", "/path/to/workspace/Documentation/generate", [
@@ -95,6 +91,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_generateStructure_folderReferences() throws {
         // Given
         try createFolders([
@@ -122,7 +119,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
+        #expect(structure.contents == [
             .group("Documentation", "/path/to/workspace/Documentation", [
                 .folderReference("/path/to/workspace/Documentation/Guides"),
                 .folderReference("/path/to/workspace/Documentation/Proposals"),
@@ -131,6 +128,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_generateStructure_collapseDirectories() throws {
         // Given
         try createFiles([
@@ -158,7 +156,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
+        #expect(structure.contents == [
             .group("Documentation", "/path/to/workspace/Documentation", [
                 .file("/path/to/workspace/Documentation/README.md"),
                 .group("setup", "/path/to/workspace/Documentation/setup", [
@@ -168,6 +166,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_generateStructure_excludesFolders() throws {
         // Given
         try createFolders([
@@ -190,9 +189,10 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [])
+        #expect(structure.contents == [])
     }
 
+    @Test
     func test_generateStructure_includesContainerTypes() throws {
         // Given
 
@@ -216,12 +216,13 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
+        #expect(structure.contents == [
             .file("/path/to/workspace/Pods.xcodeproj"),
             .file("/path/to/workspace/Testing.playground"),
         ])
     }
 
+    @Test
     func test_generateStructure_projectsAndFilesOverlap() throws {
         // Given
         let xcodeProjPaths = try createFolders([
@@ -244,7 +245,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
+        #expect(structure.contents == [
             .group("Modules", "/path/to/workspace/Modules", [
                 .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
                 .folderReference("/path/to/workspace/Modules/A"),
@@ -252,6 +253,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_generateStructure_projectsAndNestedFiles() throws {
         // Given
         let xcodeProjPaths = try createFolders([
@@ -273,7 +275,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
+        #expect(structure.contents == [
             .group("Modules", "/path/to/workspace/Modules", [
                 .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
                 .group("A", "/path/to/workspace/Modules/A", [
@@ -283,6 +285,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
+    @Test
     func test_generateStructure_addsDependenciesToADependenciesGroup() throws {
         // Given
         let xcodeProjPaths = try createFolders([
@@ -301,7 +304,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
+        #expect(structure.contents == [
             .virtualGroup(name: "Dependencies", contents: [
                 .project("/path/to/workspace/Tuist/.build/tuist-derived/AEXML/AEXML.xcodeproj"),
                 .project(

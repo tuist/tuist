@@ -1,33 +1,34 @@
 import Foundation
-import XCTest
+import Testing
+import TuistTesting
 @testable import ProjectDescription
 
-final class TargetDependencyTests: XCTestCase {
-    func test_toJSON_when_target() {
+struct TargetDependencyTests {
+    @Test func test_toJSON_when_target() throws {
         let subject = TargetDependency.target(name: "Target")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_toJSON_when_project() {
+    @Test func test_toJSON_when_project() throws {
         let subject = TargetDependency.project(target: "target", path: "path")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_toJSON_when_framework() {
+    @Test func test_toJSON_when_framework() throws {
         let subject = TargetDependency.framework(path: "/path/framework.framework")
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_toJSON_when_library() {
+    @Test func test_toJSON_when_library() throws {
         let subject = TargetDependency.library(
             path: "/path/library.a",
             publicHeaders: "/path/headers",
             swiftModuleMap: "/path/modulemap"
         )
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_sdk_codable() throws {
+    @Test func test_sdk_codable() throws {
         // Given
         let sdks: [TargetDependency] = [
             .sdk(name: "A", type: .framework),
@@ -40,22 +41,22 @@ final class TargetDependencyTests: XCTestCase {
         let decoded = try JSONDecoder().decode([TargetDependency].self, from: encoded)
 
         // Then
-        XCTAssertEqual(decoded, sdks)
+        #expect(decoded == sdks)
     }
 
-    func test_xcframework_codable() {
+    @Test func test_xcframework_codable() throws {
         // Given
         let subject: [TargetDependency] = [
             .xcframework(path: "/path/framework.xcframework"),
         ]
 
         // Then
-        XCTAssertCodable(subject)
+        #expect(try isCodableRoundTripable(subject))
     }
 
-    func test_instanceTarget() {
+    @Test func test_instanceTarget() {
         let target: Target = .target(name: "Target", destinations: .iOS, product: .framework, bundleId: "bundleId")
         let subject = TargetDependency.target(target)
-        XCTAssertEqual(subject, TargetDependency.target(name: "Target"))
+        #expect(subject == TargetDependency.target(name: "Target"))
     }
 }

@@ -5,22 +5,21 @@ import Mockable
 import Path
 import Testing
 import TuistCore
-import XCTest
+import Testing
 
 @testable import TuistCacheEE
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class CacheLocalStorageErrorTests: TuistUnitTestCase {
+struct CacheLocalStorageErrorTests {
+    @Test
     func test_type() {
-        XCTAssertEqual(CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").type, .abort)
+        #expect(CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").type == .abort)
     }
 
+    @Test
     func test_description() {
-        XCTAssertEqual(
-            CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").description,
-            "xcframework with hash 'hash' not found in the local cache"
-        )
+        #expect(CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").description == "xcframework with hash 'hash' not found in the local cache")
     }
 }
 

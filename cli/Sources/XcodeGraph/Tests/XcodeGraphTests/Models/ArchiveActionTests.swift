@@ -1,9 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 @testable import XcodeGraph
 
-final class ArchiveActionTests: XCTestCase {
-    func test_codable() {
+struct ArchiveActionTests {
+    @Test func test_codable() throws {
         // Given
         let subject = ArchiveAction(
             configurationName: "name",
@@ -30,6 +30,11 @@ final class ArchiveActionTests: XCTestCase {
         )
 
         // Then
-        XCTAssertCodable(subject)
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(subject)
+        let decoded = try decoder.decode(ArchiveAction.self, from: data)
+        #expect(subject == decoded)
     }
 }

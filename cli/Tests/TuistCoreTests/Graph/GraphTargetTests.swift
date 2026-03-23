@@ -1,20 +1,20 @@
 import Foundation
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistCore
 @testable import TuistTesting
 
-final class GraphTargetTests: TuistUnitTestCase {
-    func test_comparable() {
-        XCTAssertTrue(GraphTarget.test(target: Target.test(name: "a")) < GraphTarget.test(target: Target.test(name: "b")))
-        XCTAssertFalse(GraphTarget.test(target: Target.test(name: "b")) < GraphTarget.test(target: Target.test(name: "a")))
-        XCTAssertTrue(
+struct GraphTargetTests {
+    @Test func test_comparable() {
+        #expect(GraphTarget.test(target: Target.test(name: "a")) < GraphTarget.test(target: Target.test(name: "b")))
+        #expect(!(GraphTarget.test(target: Target.test(name: "b")) < GraphTarget.test(target: Target.test(name: "a"))))
+        #expect(
             GraphTarget.test(path: "/a", target: Target.test(name: "a")) < GraphTarget
                 .test(path: "/b", target: Target.test(name: "a"))
         )
-        XCTAssertFalse(
-            GraphTarget.test(path: "/b", target: Target.test(name: "a")) < GraphTarget
-                .test(path: "/a", target: Target.test(name: "a"))
+        #expect(
+            !(GraphTarget.test(path: "/b", target: Target.test(name: "a")) < GraphTarget
+                .test(path: "/a", target: Target.test(name: "a")))
         )
     }
 }

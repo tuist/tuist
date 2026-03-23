@@ -1,25 +1,21 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
+import Path
 import TuistSupport
-
-import XCTest
+import Testing
 
 @testable import TuistCore
 @testable import TuistTesting
 
-final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
-    var subject: PrecompiledMetadataProvider!
+struct PrecompiledMetadataProviderIntegrationTests {
+    let subject: PrecompiledMetadataProvider
 
-    override func setUp() {
-        super.setUp()
+    init() {
         subject = PrecompiledMetadataProvider()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_architectures() async throws {
+    @Test(.inTemporaryDirectory) func test_architectures() async throws {
         // Given
         let frameworkPath = try await temporaryFixture("xpm.framework")
 
@@ -30,10 +26,10 @@ final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
         )
 
         // Then
-        XCTAssertEqual(got.map(\.rawValue).sorted(), ["arm64", "x86_64"])
+        #expect(got.map(\.rawValue).sorted() == ["arm64", "x86_64"])
     }
 
-    func test_uuids() async throws {
+    @Test(.inTemporaryDirectory) func test_uuids() async throws {
         // Given
         let frameworkPath = try await temporaryFixture("xpm.framework")
 
@@ -48,6 +44,15 @@ final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
             UUID(uuidString: "FB17107A-86FA-3880-92AC-C9AA9E04BA98"),
             UUID(uuidString: "510FD121-B669-3524-A748-2DDF357A051C"),
         ])
-        XCTAssertEqual(got, expected)
+        #expect(got == expected)
+    }
+
+    private func temporaryFixture(_ pathString: String) async throws -> AbsolutePath {
+        let path = try RelativePath(validating: pathString)
+        let fixturePath = SwiftTestingHelper.fixturePath(path: path)
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let destinationPath = temporaryPath.appending(component: path.basename)
+        try await FileSystem().copy(fixturePath, to: destinationPath)
+        return destinationPath
     }
 }

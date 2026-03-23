@@ -1,11 +1,12 @@
 import Foundation
 import TSCUtility
-import XCTest
+import Testing
 
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class StringExtrasTests: TuistUnitTestCase {
+struct StringExtrasTests {
+    @Test
     func test_camelized() {
         // Given
         let subject = "Framework-iOSResources"
@@ -14,9 +15,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let got = subject.camelized
 
         // Then
-        XCTAssertEqual(got, "frameworkIOSResources")
+        #expect(got == "frameworkIOSResources")
     }
 
+    @Test
     func test_camelized_edge_cases() {
         // Given
         let subject = "_1Flow"
@@ -25,9 +27,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let got = subject.camelized
 
         // Then
-        XCTAssertEqual(got, "_1Flow")
+        #expect(got == "_1Flow")
     }
 
+    @Test
     func test_to_valid_swift_identifier_starting_with_lowercase_letter() {
         // Given
         let subject = "classname"
@@ -36,9 +39,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let got = subject.toValidSwiftIdentifier()
 
         // Then
-        XCTAssertEqual(got, "Classname")
+        #expect(got == "Classname")
     }
 
+    @Test
     func test_to_valid_swift_identifier_string_starting_with_numbers() {
         // Given
         let subject = "123invalidName"
@@ -47,9 +51,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let got = subject.toValidSwiftIdentifier()
 
         // Then
-        XCTAssertEqual(got, "_123invalidName")
+        #expect(got == "_123invalidName")
     }
 
+    @Test
     func test_to_valid_swift_identifier_string_with_special_characters() {
         // Given
         let subject = "class$name"
@@ -58,9 +63,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let got = subject.toValidSwiftIdentifier()
 
         // Then
-        XCTAssertEqual(got, "ClassName")
+        #expect(got == "ClassName")
     }
 
+    @Test
     func test_to_valid_swift_identifier_string_is_already_a_valid_swift_identifier() {
         // Given
         let subject = "ValidClassName"
@@ -69,9 +75,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let got = subject.toValidSwiftIdentifier()
 
         // Then
-        XCTAssertEqual(got, "ValidClassName")
+        #expect(got == "ValidClassName")
     }
 
+    @Test
     func test_to_valid_in_bundle_identifier_when_string_is_already_valid() {
         // Given
         let subject = "TestBundleIdentifier.tuist"
@@ -80,9 +87,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let got = subject.toValidInBundleIdentifier()
 
         // Then
-        XCTAssertEqual(got, "TestBundleIdentifier.tuist")
+        #expect(got == "TestBundleIdentifier.tuist")
     }
 
+    @Test
     func test_to_valid_in_bundle_identifier_when_string_contains_under_bars() {
         // Given
         let subject = "_test_bundle_identifier_"
@@ -91,9 +99,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let got = subject.toValidInBundleIdentifier()
 
         // Then
-        XCTAssertEqual(got, "-test-bundle-identifier-")
+        #expect(got == "-test-bundle-identifier-")
     }
 
+    @Test
     func test_to_valid_in_bundle_identifier_when_string_contains_special_characters() {
         // Given
         let subject = "$test+bundle@identifier"
@@ -102,9 +111,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let got = subject.toValidInBundleIdentifier()
 
         // Then
-        XCTAssertEqual(got, "-test-bundle-identifier")
+        #expect(got == "-test-bundle-identifier")
     }
 
+    @Test
     func test_to_valid_in_bundle_identifier_when_string_contains_white_spaces() {
         // Given
         let subject = "test  bundle  identifier"
@@ -113,9 +123,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let got = subject.toValidInBundleIdentifier()
 
         // Then
-        XCTAssertEqual(got, "test--bundle--identifier")
+        #expect(got == "test--bundle--identifier")
     }
 
+    @Test
     func test_string_doesnt_match_GitURL_regex() {
         // Given
         let stringToEvaluate = "not a url string"
@@ -124,9 +135,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let result = stringToEvaluate.isGitURL
 
         // Then
-        XCTAssertFalse(result)
+        #expect(!result)
     }
 
+    @Test
     func test_string_does_match_http_GitURL_with_branch_regex() {
         // Given
         let stringToEvaluate = "https://github.com/tuist/ExampleTuistTemplate.git@develop"
@@ -135,9 +147,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let result = stringToEvaluate.isGitURL
 
         // Then
-        XCTAssertTrue(result)
+        #expect(result)
     }
 
+    @Test
     func test_string_does_match_http_GitURL_without_branch_regex() {
         // Given
         let stringToEvaluate = "https://github.com/tuist/ExampleTuistTemplate.git"
@@ -146,9 +159,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let result = stringToEvaluate.isGitURL
 
         // Then
-        XCTAssertTrue(result)
+        #expect(result)
     }
 
+    @Test
     func test_string_does_match_ssh_GitURL_with_branch_regex() {
         // Given
         let stringToEvaluate = "git@github.com:user/repo.git@develop"
@@ -157,9 +171,10 @@ final class StringExtrasTests: TuistUnitTestCase {
         let result = stringToEvaluate.isGitURL
 
         // Then
-        XCTAssertTrue(result)
+        #expect(result)
     }
 
+    @Test
     func test_string_does_match_ssh_GitURL_without_branch_regex() {
         // Given
         let stringToEvaluate = "git@github.com:user/repo.git"
@@ -168,11 +183,12 @@ final class StringExtrasTests: TuistUnitTestCase {
         let result = stringToEvaluate.isGitURL
 
         // Then
-        XCTAssertTrue(result)
+        #expect(result)
     }
 }
 
-final class StringsArrayTests: TuistUnitTestCase {
+struct StringsArrayTests {
+    @Test
     func test_listed_when_no_elements() {
         // Given
         let list: [String] = []
@@ -181,9 +197,10 @@ final class StringsArrayTests: TuistUnitTestCase {
         let got = list.listed()
 
         // Then
-        XCTAssertEqual(got, "")
+        #expect(got == "")
     }
 
+    @Test
     func test_listed_when_only_one_element() {
         // Given
         let list = ["App"]
@@ -192,9 +209,10 @@ final class StringsArrayTests: TuistUnitTestCase {
         let got = list.listed()
 
         // Then
-        XCTAssertEqual(got, "App")
+        #expect(got == "App")
     }
 
+    @Test
     func test_listed_when_two_elements() {
         // Given
         let list = ["App", "Tests"]
@@ -203,9 +221,10 @@ final class StringsArrayTests: TuistUnitTestCase {
         let got = list.listed()
 
         // Then
-        XCTAssertEqual(got, "App and Tests")
+        #expect(got == "App and Tests")
     }
 
+    @Test
     func test_listed_when_more_than_two_elements() {
         // Given
         let list = ["App", "Tests", "Framework"]
@@ -214,6 +233,6 @@ final class StringsArrayTests: TuistUnitTestCase {
         let got = list.listed()
 
         // Then
-        XCTAssertEqual(got, "App, Tests, and Framework")
+        #expect(got == "App, Tests, and Framework")
     }
 }

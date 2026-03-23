@@ -2,17 +2,16 @@ import FileSystem
 import Mockable
 import Path
 import TuistTesting
-import XCTest
+import Testing
 
 @testable import TuistCore
 
-final class XCFrameworkSignatureProviderIntegrationTests: TuistUnitTestCase {
-    private var subject: XCFrameworkSignatureProvider!
-    private var codesignController: MockCodesignControlling!
-    private var path: AbsolutePath!
+struct XCFrameworkSignatureProviderIntegrationTests {
+    let subject: XCFrameworkSignatureProvider
+    let codesignController: MockCodesignControlling
+    let path: AbsolutePath
 
-    override func setUp() {
-        super.setUp()
+    init() {
         codesignController = MockCodesignControlling()
 
         subject = XCFrameworkSignatureProvider(
@@ -20,19 +19,12 @@ final class XCFrameworkSignatureProviderIntegrationTests: TuistUnitTestCase {
             codesignController: codesignController
         )
 
-        path = fixturePath(
+        path = SwiftTestingHelper.fixturePath(
             path: try! RelativePath(validating: "MyFramework.xcframework")
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        codesignController = nil
-        path = nil
-        super.tearDown()
-    }
-
-    func test_signature_unsigned() async throws {
+    @Test func test_signature_unsigned() async throws {
         // Given
         given(codesignController)
             .signature(of: .value(path))
@@ -42,10 +34,10 @@ final class XCFrameworkSignatureProviderIntegrationTests: TuistUnitTestCase {
         let result = try await subject.signature(of: path)
 
         // Then
-        XCTAssertEqual(result, .unsigned)
+        #expect(result == .unsigned)
     }
 
-    func test_signature_appleSigned() async throws {
+    @Test func test_signature_appleSigned() async throws {
         // Given
         let codesignOutput = """
         Identifier=SignedXCFramework
@@ -63,10 +55,10 @@ final class XCFrameworkSignatureProviderIntegrationTests: TuistUnitTestCase {
         let result = try await subject.signature(of: path)
 
         // Then
-        XCTAssertEqual(result, .signedWithAppleCertificate(teamIdentifier: "U6LC622NKF", teamName: "Tuist GmbH"))
+        #expect(result == .signedWithAppleCertificate(teamIdentifier: "U6LC622NKF", teamName: "Tuist GmbH"))
     }
 
-    func test_signature_appleSignedNoTeamIdInAuthority() async throws {
+    @Test func test_signature_appleSignedNoTeamIdInAuthority() async throws {
         // Given
         let codesignOutput = """
         Identifier=SignedXCFramework
@@ -84,12 +76,12 @@ final class XCFrameworkSignatureProviderIntegrationTests: TuistUnitTestCase {
         let result = try await subject.signature(of: path)
 
         // Then
-        XCTAssertEqual(result, .signedWithAppleCertificate(teamIdentifier: "U6LC622NKF", teamName: "Tuist GmbH"))
+        #expect(result == .signedWithAppleCertificate(teamIdentifier: "U6LC622NKF", teamName: "Tuist GmbH"))
     }
 
-    func test_signature_selfSigned() async throws {
+    @Test func test_signature_selfSigned() async throws {
         // Given
-        let codesign0FixturePath = fixturePath(
+        let codesign0FixturePath = SwiftTestingHelper.fixturePath(
             path: try RelativePath(validating: "SelfSignedXCFrameworkCodesign0/codesign0")
         )
         let mockFileSystem = SelfSignedXCFrameworkMockFileSystem(codesign0FixturesPath: codesign0FixturePath)
@@ -99,7 +91,7 @@ final class XCFrameworkSignatureProviderIntegrationTests: TuistUnitTestCase {
             codesignController: codesignController
         )
 
-        let selfSignedPath = fixturePath(
+        let selfSignedPath = SwiftTestingHelper.fixturePath(
             path: try RelativePath(validating: "SelfSignedXCFramework.xcframework")
         )
 
@@ -118,7 +110,7 @@ final class XCFrameworkSignatureProviderIntegrationTests: TuistUnitTestCase {
 
         // Then
         let expectedFingerprint = "EF61C3C0339FC84805357AFEC2E0BB0E6A0D5EE64165B333F934BF9E282785BC"
-        XCTAssertEqual(result, .selfSigned(fingerprint: expectedFingerprint))
+        #expect(result == .selfSigned(fingerprint: expectedFingerprint))
     }
 }
 

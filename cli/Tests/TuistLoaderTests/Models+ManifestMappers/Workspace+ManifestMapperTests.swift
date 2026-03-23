@@ -1,45 +1,40 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import TuistCore
 import TuistLoader
 import TuistRootDirectoryLocator
 import TuistTesting
 import XcodeGraph
-import XCTest
 
 @testable import TuistLoader
 
-final class WorkspaceManifestMapperTests: TuistUnitTestCase {
-    private var manifestLoader: MockManifestLoading!
-    private var rootDirectoryLocator: MockRootDirectoryLocating!
+struct WorkspaceManifestMapperTests {
+    private let manifestLoader: MockManifestLoading
+    private let rootDirectoryLocator: MockRootDirectoryLocating
+    private let fileSystem = FileSystem()
 
-    override func setUp() {
-        super.setUp()
-
+    init() {
         manifestLoader = .init()
         rootDirectoryLocator = .init()
     }
 
-    override func tearDown() {
-        manifestLoader = nil
-        rootDirectoryLocator = nil
-        super.tearDown()
-    }
-
-    func test_from_when_using_glob_for_projects() async throws {
+    @Test(.inTemporaryDirectory) func from_when_using_glob_for_projects() async throws {
         // Given
         given(manifestLoader)
             .manifests(at: .any)
             .willReturn([.project])
 
-        let workspacePath = try temporaryPath()
+        let workspacePath = try #require(FileSystem.temporaryTestDirectory)
 
         given(rootDirectoryLocator)
             .locate(from: .any)
             .willReturn(workspacePath)
 
         try await fileSystem.touch(workspacePath.appending(component: "Project.swift"))
-        try fileHandler.createFolder(workspacePath.appending(components: ".build", "checkouts"))
+        try await fileSystem.makeDirectory(at: workspacePath.appending(components: ".build", "checkouts"))
 
         // When
         let got = try await XcodeGraph.Workspace.from(
@@ -58,8 +53,8 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertBetterEqual(
-            got,
+        #expect(
+            got ==
             XcodeGraph.Workspace(
                 path: workspacePath,
                 xcWorkspacePath: workspacePath.appending(component: "Workspace.xcworkspace"),

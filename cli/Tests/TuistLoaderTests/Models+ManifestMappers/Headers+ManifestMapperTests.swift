@@ -1,38 +1,30 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
 import ProjectDescription
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import XCTest
 
 @testable import TuistLoader
 @testable import TuistTesting
 
-final class HeadersManifestMapperTests: TuistUnitTestCase {
-    func test_from() async throws {
+struct HeadersManifestMapperTests {
+    private let fileSystem = FileSystem()
+
+    @Test(.inTemporaryDirectory) func test_from() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
+            rootDirectory: temporaryPath
         )
-        try await createFiles([
-            "Sources/public/A1.h",
-            "Sources/public/A1.m",
-            "Sources/public/A2.h",
-            "Sources/public/A2.m",
-
-            "Sources/private/B1.h",
-            "Sources/private/B1.m",
-            "Sources/private/B2.h",
-            "Sources/private/B2.m",
-
-            "Sources/project/C1.h",
-            "Sources/project/C1.m",
-            "Sources/project/C2.h",
-            "Sources/project/C2.m",
+        try await TuistTest.createFiles([
+            "Sources/public/A1.h", "Sources/public/A1.m", "Sources/public/A2.h", "Sources/public/A2.m",
+            "Sources/private/B1.h", "Sources/private/B1.m", "Sources/private/B2.h", "Sources/private/B2.m",
+            "Sources/project/C1.h", "Sources/project/C1.m", "Sources/project/C2.h", "Sources/project/C2.m",
         ])
 
         let manifest: ProjectDescription.Headers = .headers(
@@ -50,45 +42,30 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, try [
-            "Sources/public/A1.h",
-            "Sources/public/A2.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.public == (try [
+            "Sources/public/A1.h", "Sources/public/A2.h",
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
 
-        XCTAssertEqual(model.private, try [
-            "Sources/private/B1.h",
-            "Sources/private/B2.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.private == (try [
+            "Sources/private/B1.h", "Sources/private/B2.h",
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
 
-        XCTAssertEqual(model.project, try [
-            "Sources/project/C1.h",
-            "Sources/project/C2.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.project == (try [
+            "Sources/project/C1.h", "Sources/project/C2.h",
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
-    func test_from_when_array() async throws {
+    @Test(.inTemporaryDirectory) func from_when_array() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
+            rootDirectory: temporaryPath
         )
-        try await createFiles([
-            "Sources/public/A/A1.h",
-            "Sources/public/A/A1.m",
-            "Sources/public/B/B1.h",
-            "Sources/public/B/B1.m",
-
-            "Sources/private/C/C1.h",
-            "Sources/private/C/C1.m",
-            "Sources/private/D/D1.h",
-            "Sources/private/D/D1.m",
-
-            "Sources/project/E/E1.h",
-            "Sources/project/E/E1.m",
-            "Sources/project/F/F1.h",
-            "Sources/project/F/F1.m",
+        try await TuistTest.createFiles([
+            "Sources/public/A/A1.h", "Sources/public/A/A1.m", "Sources/public/B/B1.h", "Sources/public/B/B1.m",
+            "Sources/private/C/C1.h", "Sources/private/C/C1.m", "Sources/private/D/D1.h", "Sources/private/D/D1.m",
+            "Sources/project/E/E1.h", "Sources/project/E/E1.m", "Sources/project/F/F1.h", "Sources/project/F/F1.m",
         ])
 
         let manifest: ProjectDescription.Headers = .headers(
@@ -106,38 +83,30 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, try [
-            "Sources/public/A/A1.h",
-            "Sources/public/B/B1.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.public == (try [
+            "Sources/public/A/A1.h", "Sources/public/B/B1.h",
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
 
-        XCTAssertEqual(model.private, try [
-            "Sources/private/C/C1.h",
-            "Sources/private/D/D1.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.private == (try [
+            "Sources/private/C/C1.h", "Sources/private/D/D1.h",
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
 
-        XCTAssertEqual(model.project, try [
-            "Sources/project/E/E1.h",
-            "Sources/project/F/F1.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.project == (try [
+            "Sources/project/E/E1.h", "Sources/project/F/F1.h",
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
-    func test_from_when_array_and_string() async throws {
+    @Test(.inTemporaryDirectory) func from_when_array_and_string() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
+            rootDirectory: temporaryPath
         )
-        try await createFiles([
-            "Sources/public/A/A1.h",
-            "Sources/public/A/A1.m",
-
-            "Sources/project/C/C1.h",
-            "Sources/project/C/C1.m",
-            "Sources/project/D/D1.h",
-            "Sources/project/D/D1.m",
+        try await TuistTest.createFiles([
+            "Sources/public/A/A1.h", "Sources/public/A/A1.m",
+            "Sources/project/C/C1.h", "Sources/project/C/C1.m",
+            "Sources/project/D/D1.h", "Sources/project/D/D1.m",
         ])
 
         let manifest: ProjectDescription.Headers = .headers(
@@ -154,39 +123,26 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, try [
+        #expect(model.public == (try [
             "Sources/public/A/A1.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
 
-        XCTAssertEqual(model.project, try [
-            "Sources/project/C/C1.h",
-            "Sources/project/D/D1.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.project == (try [
+            "Sources/project/C/C1.h", "Sources/project/D/D1.h",
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
-    func test_from_and_excluding() async throws {
+    @Test(.inTemporaryDirectory) func from_and_excluding() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
+            rootDirectory: temporaryPath
         )
-        try await createFiles([
-            "Sources/public/A1.h",
-            "Sources/public/A1.m",
-            "Sources/public/A2.h",
-            "Sources/public/A2.m",
-
-            "Sources/private/B1.h",
-            "Sources/private/B1.m",
-            "Sources/private/B2.h",
-            "Sources/private/B2.m",
-
-            "Sources/project/C1.h",
-            "Sources/project/C1.m",
-            "Sources/project/C2.h",
-            "Sources/project/C2.m",
+        try await TuistTest.createFiles([
+            "Sources/public/A1.h", "Sources/public/A1.m", "Sources/public/A2.h", "Sources/public/A2.m",
+            "Sources/private/B1.h", "Sources/private/B1.m", "Sources/private/B2.h", "Sources/private/B2.m",
+            "Sources/project/C1.h", "Sources/project/C1.m", "Sources/project/C2.h", "Sources/project/C2.m",
         ])
 
         let manifest: ProjectDescription.Headers = .headers(
@@ -204,38 +160,25 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, try [
+        #expect(model.public == (try [
             "Sources/public/A1.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
 
-        XCTAssertEqual(model.private, try [
+        #expect(model.private == (try [
             "Sources/private/B2.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
 
-        XCTAssertEqual(model.project, try [
-            "Sources/project/C1.h",
-            "Sources/project/C2.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.project == (try [
+            "Sources/project/C1.h", "Sources/project/C2.h",
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
-    func test_from_and_excluding_same_folder() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
-        let generatorPaths = GeneratorPaths(
-            manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
-        )
-        try await createFiles([
-            "Sources/A1.h",
-            "Sources/A1.m",
-            "Sources/A2.h",
-            "Sources/A2.m",
-
-            "Sources/A1+Project.h",
-            "Sources/A1+Project.m",
-            "Sources/A2+Protected.h",
-            "Sources/A2+Protected.m",
+    @Test(.inTemporaryDirectory) func from_and_excluding_same_folder() async throws {
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
+        try await TuistTest.createFiles([
+            "Sources/A1.h", "Sources/A1.m", "Sources/A2.h", "Sources/A2.m",
+            "Sources/A1+Project.h", "Sources/A1+Project.m", "Sources/A2+Protected.h", "Sources/A2+Protected.m",
         ])
 
         let manifest: ProjectDescription.Headers = .headers(
@@ -244,46 +187,24 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             project: ["Sources/*+Protected.h", "Sources/*+Project.h"]
         )
 
-        // When
         let model = try await XcodeGraph.Headers.from(
-            manifest: manifest,
-            generatorPaths: generatorPaths,
-            productName: "ModuleA",
-            fileSystem: fileSystem
+            manifest: manifest, generatorPaths: generatorPaths, productName: "ModuleA", fileSystem: fileSystem
         )
 
-        // Then
-        XCTAssertEqual(model.public, try [
-            "Sources/A1.h",
-            "Sources/A2.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.private, [])
-
-        XCTAssertEqual(model.project.sorted(), try [
-            "Sources/A1+Project.h",
-            "Sources/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.public == (try ["Sources/A1.h", "Sources/A2.h"]
+            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.private == [])
+        #expect(model.project.sorted() == (try ["Sources/A1+Project.h", "Sources/A2+Protected.h"]
+            .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
-    func test_from_and_excluding_in_nested_folder() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
-        let generatorPaths = GeneratorPaths(
-            manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
-        )
-        try await createFiles([
-            "Sources/group/A1.h",
-            "Sources/group/A1.m",
-            "Sources/group/A2.h",
-            "Sources/group/A2.m",
-
-            "Sources/group/A1+Project.h",
-            "Sources/group/A1+Project.m",
-            "Sources/group/A2+Protected.h",
-            "Sources/group/A2+Protected.m",
+    @Test(.inTemporaryDirectory) func from_and_excluding_in_nested_folder() async throws {
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
+        try await TuistTest.createFiles([
+            "Sources/group/A1.h", "Sources/group/A1.m", "Sources/group/A2.h", "Sources/group/A2.m",
+            "Sources/group/A1+Project.h", "Sources/group/A1+Project.m",
+            "Sources/group/A2+Protected.h", "Sources/group/A2+Protected.m",
         ])
 
         let manifest: ProjectDescription.Headers = .headers(
@@ -292,362 +213,192 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             project: ["Sources/**/*+Protected.h", "Sources/**/*+Project.h"]
         )
 
-        // When
         let model = try await XcodeGraph.Headers.from(
-            manifest: manifest,
-            generatorPaths: generatorPaths,
-            productName: "ModuleA",
-            fileSystem: fileSystem
+            manifest: manifest, generatorPaths: generatorPaths, productName: "ModuleA", fileSystem: fileSystem
         )
 
-        // Then
-        XCTAssertEqual(model.public, try [
-            "Sources/group/A1.h",
-            "Sources/group/A2.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.private, [])
-
-        XCTAssertEqual(model.project.sorted(), try [
-            "Sources/group/A1+Project.h",
-            "Sources/group/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.public == (try ["Sources/group/A1.h", "Sources/group/A2.h"]
+            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.private == [])
+        #expect(model.project.sorted() == (try ["Sources/group/A1+Project.h", "Sources/group/A2+Protected.h"]
+            .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
-    func test_exclusionRule_projectExcludesPrivateAndPublic() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
-        let generatorPaths = GeneratorPaths(
-            manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
-        )
-        try await createFiles([
-            "Sources/group/A1.h",
-            "Sources/group/A1.m",
-            "Sources/group/A1+Project.h",
-            "Sources/group/A1+Project.m",
-            "Sources/group/A2.h",
-            "Sources/group/A2.m",
-            "Sources/group/A2+Protected.h",
-            "Sources/group/A2+Protected.m",
-            "Sources/group/A3.h",
-            "Sources/group/A3.m",
-            "Sources/group/A4+Private.h",
-            "Sources/group/A4+Private.m",
+    @Test(.inTemporaryDirectory) func exclusionRule_projectExcludesPrivateAndPublic() async throws {
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
+        try await TuistTest.createFiles([
+            "Sources/group/A1.h", "Sources/group/A1.m", "Sources/group/A1+Project.h", "Sources/group/A1+Project.m",
+            "Sources/group/A2.h", "Sources/group/A2.m", "Sources/group/A2+Protected.h", "Sources/group/A2+Protected.m",
+            "Sources/group/A3.h", "Sources/group/A3.m", "Sources/group/A4+Private.h", "Sources/group/A4+Private.m",
         ])
 
         let manifest: ProjectDescription.Headers = .headers(
-            public: .list([
-                .glob(
-                    "Sources/**",
-                    excluding: [
-                        "Sources/**/*+Protected.h",
-                        "Sources/**/*+Project.h",
-                        "Sources/**/*+Private.h",
-                    ]
-                ),
-            ]),
+            public: .list([.glob("Sources/**", excluding: [
+                "Sources/**/*+Protected.h", "Sources/**/*+Project.h", "Sources/**/*+Private.h",
+            ])]),
             private: ["Sources/**/*+Private.h"],
             project: ["Sources/**"],
             exclusionRule: .projectExcludesPrivateAndPublic
         )
 
-        // When
         let model = try await XcodeGraph.Headers.from(
-            manifest: manifest,
-            generatorPaths: generatorPaths,
-            productName: "ModuleA",
-            fileSystem: fileSystem
+            manifest: manifest, generatorPaths: generatorPaths, productName: "ModuleA", fileSystem: fileSystem
         )
 
-        // Then
-        XCTAssertEqual(model.public, try [
-            "Sources/group/A1.h",
-            "Sources/group/A2.h",
-            "Sources/group/A3.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.private, try [
-            "Sources/group/A4+Private.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.project.sorted(), try [
-            "Sources/group/A1+Project.h",
-            "Sources/group/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.public == (try ["Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h"]
+            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.private == (try ["Sources/group/A4+Private.h"]
+            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.project.sorted() == (try ["Sources/group/A1+Project.h", "Sources/group/A2+Protected.h"]
+            .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
-    func test_exclusionRule_publicExcludesPrivateAndProject() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
-        let generatorPaths = GeneratorPaths(
-            manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
-        )
-        try await createFiles([
-            "Sources/group/A1.h",
-            "Sources/group/A1.m",
-            "Sources/group/A1+Project.h",
-            "Sources/group/A1+Project.m",
-            "Sources/group/A2.h",
-            "Sources/group/A2.m",
-            "Sources/group/A2+Protected.h",
-            "Sources/group/A2+Protected.m",
-            "Sources/group/A3.h",
-            "Sources/group/A3.m",
-            "Sources/group/A4+Private.h",
-            "Sources/group/A4+Private.m",
+    @Test(.inTemporaryDirectory) func exclusionRule_publicExcludesPrivateAndProject() async throws {
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
+        try await TuistTest.createFiles([
+            "Sources/group/A1.h", "Sources/group/A1.m", "Sources/group/A1+Project.h", "Sources/group/A1+Project.m",
+            "Sources/group/A2.h", "Sources/group/A2.m", "Sources/group/A2+Protected.h", "Sources/group/A2+Protected.m",
+            "Sources/group/A3.h", "Sources/group/A3.m", "Sources/group/A4+Private.h", "Sources/group/A4+Private.m",
         ])
 
         let manifest: ProjectDescription.Headers = .headers(
             public: ["Sources/**"],
             private: ["Sources/**/*+Private.h"],
-            project: [
-                "Sources/**/*+Protected.h",
-                "Sources/**/*+Project.h",
-            ],
+            project: ["Sources/**/*+Protected.h", "Sources/**/*+Project.h"],
             exclusionRule: .publicExcludesPrivateAndProject
         )
 
-        // When
         let model = try await XcodeGraph.Headers.from(
-            manifest: manifest,
-            generatorPaths: generatorPaths,
-            productName: "ModuleA",
-            fileSystem: fileSystem
+            manifest: manifest, generatorPaths: generatorPaths, productName: "ModuleA", fileSystem: fileSystem
         )
 
-        // Then
-        XCTAssertEqual(model.public, try [
-            "Sources/group/A1.h",
-            "Sources/group/A2.h",
-            "Sources/group/A3.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.private, try [
-            "Sources/group/A4+Private.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.project.sorted(), try [
-            "Sources/group/A1+Project.h",
-            "Sources/group/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.public == (try ["Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h"]
+            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.private == (try ["Sources/group/A4+Private.h"]
+            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.project.sorted() == (try ["Sources/group/A1+Project.h", "Sources/group/A2+Protected.h"]
+            .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
-    func test_load_from_umbrella() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
-        let generatorPaths = GeneratorPaths(
-            manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
-        )
+    @Test(.inTemporaryDirectory) func load_from_umbrella() async throws {
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
 
         let umbrellaContent = """
         #import <Foundation/Foundation.h>
-
-        //! Project version number for TuistTestModule.
         FOUNDATION_EXPORT double TuistTestModuleVersionNumber;
-
-        //! Project version string for TuistTestModule.
         FOUNDATION_EXPORT const unsigned char TuistTestModuleVersionString[];
-
-        // In this header, you should import all the public headers of your framework using statements like #import <TuistTestModule/PublicHeader.h>
-
         #import <TuistTestModule/A1.h>
-          #import <TuistTestModule/A2.h> // to test spaces prefix
-        #import "A3.h" // to test modules with legacy format
-        #import <TuistTestModule/A2+Protected.h> // to test modules, where some protected files became public
-        #import <UIKit/A4+Private.h> // to test incorrect module
+          #import <TuistTestModule/A2.h>
+        #import "A3.h"
+        #import <TuistTestModule/A2+Protected.h>
+        #import <UIKit/A4+Private.h>
         """
         let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
-        try await createFiles([
-            "Sources/group/A1.h",
-            "Sources/group/A2.h",
-            "Sources/group/A3.h",
-            "Sources/group/A1+Project.h",
-            "Sources/group/A2+Protected.h",
-            "Sources/group/A4+Private.h",
+        try await TuistTest.createFiles([
+            "Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h",
+            "Sources/group/A1+Project.h", "Sources/group/A2+Protected.h", "Sources/group/A4+Private.h",
+        ])
+        try createVersionFile(content: umbrellaContent, in: umbrellaPath)
+
+        let manifest = ProjectDescription.Headers.allHeaders(from: "Sources/**", umbrella: "Sources/Umbrella.h")
+
+        let model = try await XcodeGraph.Headers.from(
+            manifest: manifest, generatorPaths: generatorPaths, productName: "TuistTestModule", fileSystem: fileSystem
+        )
+
+        #expect(model.public.sorted() == (try [
+            "Sources/Umbrella.h", "Sources/group/A1.h", "Sources/group/A2.h",
+            "Sources/group/A3.h", "Sources/group/A2+Protected.h",
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.private == [])
+        #expect(model.project.sorted() == (try [
+            "Sources/group/A1+Project.h", "Sources/group/A4+Private.h",
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+    }
+
+    @Test(.inTemporaryDirectory) func load_from_umbrella_withExcluding() async throws {
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
+
+        let umbrellaContent = """
+        #import <Foundation/Foundation.h>
+        FOUNDATION_EXPORT double TuistTestModuleVersionNumber;
+        FOUNDATION_EXPORT const unsigned char TuistTestModuleVersionString[];
+        #import <TuistTestModule/A1.h>
+          #import <TuistTestModule/A2.h>
+        #import "A3.h"
+        """
+        let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
+
+        try await TuistTest.createFiles([
+            "Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h",
+            "Sources/group/A1+Mock.h", "Sources/group/A2+Protected.h", "Sources/group/A4+Private.h",
         ])
         try createVersionFile(content: umbrellaContent, in: umbrellaPath)
 
         let manifest = ProjectDescription.Headers.allHeaders(
-            from: "Sources/**",
-            umbrella: "Sources/Umbrella.h"
-        )
-
-        // When
-        let model = try await XcodeGraph.Headers.from(
-            manifest: manifest,
-            generatorPaths: generatorPaths,
-            productName: "TuistTestModule",
-            fileSystem: fileSystem
-        )
-
-        // Then
-        XCTAssertEqual(model.public.sorted(), try [
-            "Sources/Umbrella.h",
-            "Sources/group/A1.h",
-            "Sources/group/A2.h",
-            "Sources/group/A3.h",
-            "Sources/group/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.private, [])
-
-        XCTAssertEqual(model.project.sorted(), try [
-            "Sources/group/A1+Project.h",
-            "Sources/group/A4+Private.h",
-        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
-    }
-
-    func test_load_from_umbrella_withExcluding() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
-        let generatorPaths = GeneratorPaths(
-            manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
-        )
-
-        let umbrellaContent = """
-        #import <Foundation/Foundation.h>
-
-        //! Project version number for TuistTestModule.
-        FOUNDATION_EXPORT double TuistTestModuleVersionNumber;
-
-        //! Project version string for TuistTestModule.
-        FOUNDATION_EXPORT const unsigned char TuistTestModuleVersionString[];
-
-        // In this header, you should import all the public headers of your framework using statements like #import <TuistTestModule/PublicHeader.h>
-
-        #import <TuistTestModule/A1.h>
-          #import <TuistTestModule/A2.h> // to test spaces prefix
-        #import "A3.h" // to test modules with legacy format
-        """
-        let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
-
-        try await createFiles([
-            "Sources/group/A1.h",
-            "Sources/group/A2.h",
-            "Sources/group/A3.h",
-            "Sources/group/A1+Mock.h",
-            "Sources/group/A2+Protected.h",
-            "Sources/group/A4+Private.h",
-        ])
-        try createVersionFile(content: umbrellaContent, in: umbrellaPath)
-
-        let manifest = ProjectDescription.Headers.allHeaders(
-            from: .list([.glob(
-                "Sources/group/**",
-                excluding: [
-                    "Sources/**/*+Mock.h",
-                ]
-            )]),
+            from: .list([.glob("Sources/group/**", excluding: ["Sources/**/*+Mock.h"])]),
             umbrella: "Sources/Umbrella.h",
             private: "Sources/**/*+Private.h"
         )
 
-        // When
         let model = try await XcodeGraph.Headers.from(
-            manifest: manifest,
-            generatorPaths: generatorPaths,
-            productName: "TuistTestModule",
-            fileSystem: fileSystem
+            manifest: manifest, generatorPaths: generatorPaths, productName: "TuistTestModule", fileSystem: fileSystem
         )
 
-        // Then
-        XCTAssertEqual(model.public.sorted(), try [
-            "Sources/Umbrella.h", // should be added anyway
-            "Sources/group/A1.h",
-            "Sources/group/A2.h",
-            "Sources/group/A3.h",
-        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.private, try [
-            "Sources/group/A4+Private.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.project.sorted(), try [
-            "Sources/group/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
+        #expect(model.public.sorted() == (try [
+            "Sources/Umbrella.h", "Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h",
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.private == (try ["Sources/group/A4+Private.h"]
+            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.project.sorted() == (try ["Sources/group/A2+Protected.h"]
+            .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
-    func test_load_from_umbrella_withExcluding_withOutProject() async throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        let rootDirectory = temporaryPath
-        let generatorPaths = GeneratorPaths(
-            manifestDirectory: temporaryPath,
-            rootDirectory: rootDirectory
-        )
+    @Test(.inTemporaryDirectory) func load_from_umbrella_withExcluding_withOutProject() async throws {
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
 
         let umbrellaContent = """
         #import <Foundation/Foundation.h>
-
-        //! Project version number for TuistTestModule.
         FOUNDATION_EXPORT double TuistTestModuleVersionNumber;
-
-        //! Project version string for TuistTestModule.
         FOUNDATION_EXPORT const unsigned char TuistTestModuleVersionString[];
-
-        // In this header, you should import all the public headers of your framework using statements like #import <TuistTestModule/PublicHeader.h>
-
         #import <TuistTestModule/A1.h>
-          #import <TuistTestModule/A2.h> // to test spaces prefix
-        #import "A3.h" // to test modules with legacy format
+          #import <TuistTestModule/A2.h>
+        #import "A3.h"
         """
         let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
-        try await createFiles([
-            "Sources/group/A1.h",
-            "Sources/group/A2.h",
-            "Sources/group/A3.h",
-            "Sources/group/A1+Mock.h",
-            "Sources/group/A2+Protected.h",
-            "Sources/group/A4+Private.h",
+        try await TuistTest.createFiles([
+            "Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h",
+            "Sources/group/A1+Mock.h", "Sources/group/A2+Protected.h", "Sources/group/A4+Private.h",
         ])
         try createVersionFile(content: umbrellaContent, in: umbrellaPath)
 
         let manifest = ProjectDescription.Headers.onlyHeaders(
-            from: .list([.glob(
-                "Sources/group/**",
-                excluding: [
-                    "Sources/**/*+Mock.h",
-                ]
-            )]),
+            from: .list([.glob("Sources/group/**", excluding: ["Sources/**/*+Mock.h"])]),
             umbrella: "Sources/Umbrella.h",
             private: "Sources/**/*+Private.h"
         )
 
-        // When
         let model = try await XcodeGraph.Headers.from(
-            manifest: manifest,
-            generatorPaths: generatorPaths,
-            productName: "TuistTestModule",
-            fileSystem: fileSystem
+            manifest: manifest, generatorPaths: generatorPaths, productName: "TuistTestModule", fileSystem: fileSystem
         )
 
-        // Then
-        XCTAssertEqual(model.public.sorted(), try [
-            "Sources/Umbrella.h", // should be added anyway
-            "Sources/group/A1.h",
-            "Sources/group/A2.h",
-            "Sources/group/A3.h",
-        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.private, try [
-            "Sources/group/A4+Private.h",
-        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
-
-        XCTAssertEqual(model.project.sorted(), [])
+        #expect(model.public.sorted() == (try [
+            "Sources/Umbrella.h", "Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h",
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.private == (try ["Sources/group/A4+Private.h"]
+            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+        #expect(model.project.sorted() == [])
     }
 
     private func createVersionFile(content: String, in path: AbsolutePath) throws {
-        let data = try XCTUnwrap(content.data(using: .utf8))
+        let data = try #require(content.data(using: .utf8))
         try data.write(to: path.url, options: .atomic)
     }
 }

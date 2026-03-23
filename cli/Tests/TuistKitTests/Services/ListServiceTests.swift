@@ -4,18 +4,18 @@ import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistTesting
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistKit
 
-final class ListServiceTests: TuistUnitTestCase {
+struct ListServiceTests {
     private var subject: ListService!
     private var pluginService: MockPluginService!
     private var templateLoader: MockTemplateLoading!
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocating!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         pluginService = MockPluginService()
         templateLoader = MockTemplateLoading()
         templatesDirectoryLocator = MockTemplatesDirectoryLocating()
@@ -26,15 +26,7 @@ final class ListServiceTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        pluginService = nil
-        templateLoader = nil
-        templatesDirectoryLocator = nil
-        super.tearDown()
-    }
-
-    func test_lists_available_templates_table_format() async throws {
+    @Test func test_lists_available_templates_table_format() async throws {
         try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate"]
@@ -63,7 +55,7 @@ final class ListServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_lists_available_templates_json_format() async throws {
+    @Test func test_lists_available_templates_json_format() async throws {
         try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate"]
@@ -98,7 +90,7 @@ final class ListServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_lists_available_templates_with_plugins() async throws {
+    @Test func test_lists_available_templates_with_plugins() async throws {
         try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]

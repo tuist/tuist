@@ -1,21 +1,22 @@
+import FileSystem
+import FileSystemTesting
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistRootDirectoryLocator
 import TuistSupport
-import XCTest
 
 @testable import ProjectDescription
 @testable import TuistLoader
 @testable import TuistTesting
 
-final class TemplateLoaderTests: TuistUnitTestCase {
-    private var subject: TemplateLoader!
-    private var manifestLoader: MockManifestLoading!
-    private var rootDirectoryLocator: MockRootDirectoryLocating!
+struct TemplateLoaderTests {
+    private let subject: TemplateLoader
+    private let manifestLoader: MockManifestLoading
+    private let rootDirectoryLocator: MockRootDirectoryLocating
 
-    override func setUp() {
-        super.setUp()
+    init() {
         manifestLoader = .init()
         rootDirectoryLocator = .init()
         subject = TemplateLoader(
@@ -24,16 +25,9 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        manifestLoader = nil
-        rootDirectoryLocator = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_loadTemplate_when_not_found() async throws {
+    @Test(.inTemporaryDirectory) func loadTemplate_when_not_found() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         given(manifestLoader)
             .loadTemplate(at: .any)
             .willProduce { path in
@@ -48,15 +42,14 @@ final class TemplateLoaderTests: TuistUnitTestCase {
             .willReturn(temporaryPath)
 
         // Then
-        await XCTAssertThrowsSpecific(
-            { try await self.subject.loadTemplate(at: temporaryPath, plugins: .none) },
-            ManifestLoaderError.manifestNotFound(temporaryPath)
-        )
+        await #expect(throws: ManifestLoaderError.manifestNotFound(temporaryPath)) {
+            try await self.subject.loadTemplate(at: temporaryPath, plugins: .none)
+        }
     }
 
-    func test_loadTemplate_files() async throws {
+    @Test(.inTemporaryDirectory) func loadTemplate_files() async throws {
         // Given
-        let temporaryPath = try temporaryPath()
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         given(manifestLoader)
             .loadTemplate(at: .any)
             .willReturn(
@@ -81,7 +74,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         let got = try await subject.loadTemplate(at: temporaryPath, plugins: .none)
 
         // Then
-        XCTAssertEqual(got, TuistCore.Template(
+        #expect(got == TuistCore.Template(
             description: "desc",
             items: [Template.Item(
                 path: try RelativePath(validating: "generateOne"),

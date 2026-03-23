@@ -3,26 +3,20 @@ import Path
 import TuistCore
 import TuistMigration
 import TuistSupport
-import XCTest
+import Testing
 @testable import TuistKit
 @testable import TuistTesting
 
-final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
+struct MigrationCheckEmptyBuildSettingsServiceTests {
     var subject: MigrationCheckEmptyBuildSettingsService!
     var emptyBuildSettingsChecker: MockEmptyBuildSettingsChecker!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         emptyBuildSettingsChecker = MockEmptyBuildSettingsChecker()
         subject = MigrationCheckEmptyBuildSettingsService(emptyBuildSettingsChecker: emptyBuildSettingsChecker)
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_run() async throws {
+    @Test func test_run() async throws {
         // Given
         let xcodeprojPath = try AbsolutePath(validating: "/test.xcodeproj")
         let target = "test"
@@ -31,11 +25,11 @@ final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
         try await subject.run(xcodeprojPath: xcodeprojPath, target: target)
 
         // Then
-        XCTAssertEqual(emptyBuildSettingsChecker.invokedCheckParameters?.xcodeprojPath, xcodeprojPath)
-        XCTAssertEqual(emptyBuildSettingsChecker.invokedCheckParameters?.targetName, target)
+        #expect(emptyBuildSettingsChecker.invokedCheckParameters?.xcodeprojPath == xcodeprojPath)
+        #expect(emptyBuildSettingsChecker.invokedCheckParameters?.targetName == target)
     }
 
-    func test_run_rethrows_errors_thrown_by_the_checker() async throws {
+    @Test func test_run_rethrows_errors_thrown_by_the_checker() async throws {
         // Given
         let xcodeprojPath = try AbsolutePath(validating: "/test.xcodeproj")
         let target = "test"

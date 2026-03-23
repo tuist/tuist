@@ -4,92 +4,87 @@ import PathKit
 import TuistCore
 import XcodeGraph
 import XcodeProj
-import XCTest
+import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class ProjectGroupsTests: XCTestCase {
-    var subject: ProjectGroups!
-    var sourceRootPath: AbsolutePath!
-    var project: Project!
-    var pbxproj: PBXProj!
-
-    override func setUp() {
-        super.setUp()
-
+struct ProjectGroupsTests {
+    var subject: ProjectGroups
+    let sourceRootPath: AbsolutePath
+    let project: Project
+    let pbxproj: PBXProj
+    init() {
         let path = try! AbsolutePath(validating: "/test/")
         sourceRootPath = try! AbsolutePath(validating: "/test/")
         project = Project(
-            path: path,
-            sourceRootPath: path,
-            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
-            name: "Project",
-            organizationName: nil,
-            classPrefix: nil,
-            defaultKnownRegions: nil,
-            developmentRegion: nil,
-            options: .test(),
-            settings: .default,
-            filesGroup: .group(name: "Project"),
-            targets: [
-                .test(name: "A", filesGroup: .group(name: "Target")),
-                .test(name: "B"),
-            ],
-            packages: [],
-            schemes: [],
-            ideTemplateMacros: nil,
-            additionalFiles: [],
-            resourceSynthesizers: [],
-            lastUpgradeCheck: nil,
-            type: .local
+        path: path,
+        sourceRootPath: path,
+        xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+        name: "Project",
+        organizationName: nil,
+        classPrefix: nil,
+        defaultKnownRegions: nil,
+        developmentRegion: nil,
+        options: .test(),
+        settings: .default,
+        filesGroup: .group(name: "Project"),
+        targets: [
+        .test(name: "A", filesGroup: .group(name: "Target")),
+        .test(name: "B"),
+        ],
+        packages: [],
+        schemes: [],
+        ideTemplateMacros: nil,
+        additionalFiles: [],
+        resourceSynthesizers: [],
+        lastUpgradeCheck: nil,
+        type: .local
         )
         pbxproj = PBXProj()
+        subject = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
     }
 
-    override func tearDown() {
-        pbxproj = nil
-        project = nil
-        sourceRootPath = nil
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_generate() {
+    @Test
+    mutating func test_generate() {
         subject = ProjectGroups.generate(
             project: project,
             pbxproj: pbxproj
         )
 
         let main = subject.sortedMain
-        XCTAssertNil(main.path)
-        XCTAssertEqual(main.sourceTree, .group)
-        XCTAssertEqual(main.children.count, 5)
+        #expect(main.path == nil)
+        #expect(main.sourceTree == .group)
+        #expect(main.children.count == 5)
 
-        XCTAssertNotNil(main.group(named: "Project"))
-        XCTAssertNil(main.group(named: "Project")?.path)
-        XCTAssertEqual(main.group(named: "Project")?.sourceTree, .group)
+        #expect(main.group(named: "Project") != nil)
+        #expect(main.group(named: "Project")?.path == nil)
+        #expect(main.group(named: "Project")?.sourceTree == .group)
 
-        XCTAssertNotNil(main.group(named: "Target"))
-        XCTAssertNil(main.group(named: "Target")?.path)
-        XCTAssertEqual(main.group(named: "Target")?.sourceTree, .group)
+        #expect(main.group(named: "Target") != nil)
+        #expect(main.group(named: "Target")?.path == nil)
+        #expect(main.group(named: "Target")?.sourceTree == .group)
 
-        XCTAssertTrue(main.children.contains(subject.frameworks))
-        XCTAssertEqual(subject.frameworks.name, "Frameworks")
-        XCTAssertNil(subject.frameworks.path)
-        XCTAssertEqual(subject.frameworks.sourceTree, .group)
+        #expect(main.children.contains(subject.frameworks))
+        #expect(subject.frameworks.name == "Frameworks")
+        #expect(subject.frameworks.path == nil)
+        #expect(subject.frameworks.sourceTree == .group)
 
-        XCTAssertTrue(main.children.contains(subject.cachedFrameworks))
-        XCTAssertEqual(subject.cachedFrameworks.name, "Cache")
-        XCTAssertNil(subject.cachedFrameworks.path)
-        XCTAssertEqual(subject.cachedFrameworks.sourceTree, .group)
+        #expect(main.children.contains(subject.cachedFrameworks))
+        #expect(subject.cachedFrameworks.name == "Cache")
+        #expect(subject.cachedFrameworks.path == nil)
+        #expect(subject.cachedFrameworks.sourceTree == .group)
 
-        XCTAssertTrue(main.children.contains(subject.products))
-        XCTAssertEqual(subject.products.name, "Products")
-        XCTAssertNil(subject.products.path)
-        XCTAssertEqual(subject.products.sourceTree, .group)
+        #expect(main.children.contains(subject.products))
+        #expect(subject.products.name == "Products")
+        #expect(subject.products.path == nil)
+        #expect(subject.products.sourceTree == .group)
     }
 
-    func test_generate_groupsOrder() throws {
+    @Test
+    mutating func test_generate_groupsOrder() throws {
         // Given
         let target1 = Target.test(name: "Target1", filesGroup: .group(name: "B"))
         let target2 = Target.test(name: "Target2", filesGroup: .group(name: "C"))
@@ -108,7 +103,7 @@ final class ProjectGroupsTests: XCTestCase {
 
         // Then
         let paths = subject.sortedMain.children.map(\.nameOrPath).sorted()
-        XCTAssertEqual(paths, [
+        #expect(paths == [
             "A",
             "B",
             "C",
@@ -119,7 +114,8 @@ final class ProjectGroupsTests: XCTestCase {
         ])
     }
 
-    func test_removeEmptyAuxiliaryGroups_removesEmptyGroups() throws {
+    @Test
+    mutating func test_removeEmptyAuxiliaryGroups_removesEmptyGroups() throws {
         // Given
         let project = Project.test()
         subject = ProjectGroups.generate(
@@ -132,13 +128,14 @@ final class ProjectGroupsTests: XCTestCase {
 
         // Then
         let paths = subject.sortedMain.children.map(\.nameOrPath)
-        XCTAssertEqual(paths, [
+        #expect(paths == [
             "Products",
             "Project",
         ])
     }
 
-    func test_removeEmptyAuxiliaryGroups_preservesNonEmptyGroups() throws {
+    @Test
+    mutating func test_removeEmptyAuxiliaryGroups_preservesNonEmptyGroups() throws {
         // Given
         let project = Project.test()
         subject = ProjectGroups.generate(
@@ -154,7 +151,7 @@ final class ProjectGroupsTests: XCTestCase {
 
         // Then
         let paths = subject.sortedMain.children.map(\.nameOrPath)
-        XCTAssertEqual(paths, [
+        #expect(paths == [
             "Products",
             "Project",
             "Frameworks",
@@ -162,19 +159,21 @@ final class ProjectGroupsTests: XCTestCase {
         ])
     }
 
-    func test_targetFrameworks() throws {
+    @Test
+    mutating func test_targetFrameworks() throws {
         subject = ProjectGroups.generate(
             project: project,
             pbxproj: pbxproj
         )
 
         let got = try subject.targetFrameworks(target: "Test")
-        XCTAssertEqual(got.name, "Test")
-        XCTAssertEqual(got.sourceTree, .group)
-        XCTAssertTrue(subject.frameworks.children.contains(got))
+        #expect(got.name == "Test")
+        #expect(got.sourceTree == .group)
+        #expect(subject.frameworks.children.contains(got))
     }
 
-    func test_projectGroup_unknownProjectGroups() throws {
+    @Test
+    mutating func test_projectGroup_unknownProjectGroups() throws {
         // Given
         subject = ProjectGroups.generate(
             project: project,
@@ -182,13 +181,13 @@ final class ProjectGroupsTests: XCTestCase {
         )
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.projectGroup(named: "abc"),
-            ProjectGroupsError.missingGroup("abc")
-        )
+        #expect(throws: ProjectGroupsError.missingGroup("abc")) {
+            try subject.projectGroup(named: "abc")
+        }
     }
 
-    func test_projectGroup_knownProjectGroups() throws {
+    @Test
+    mutating func test_projectGroup_knownProjectGroups() throws {
         // Given
         let target1 = Target.test(name: "1", filesGroup: .group(name: "A"))
         let target2 = Target.test(name: "2", filesGroup: .group(name: "B"))
@@ -207,19 +206,22 @@ final class ProjectGroupsTests: XCTestCase {
         )
 
         // When / Then
-        XCTAssertNotNil(try? subject.projectGroup(named: "A"))
-        XCTAssertNotNil(try? subject.projectGroup(named: "B"))
-        XCTAssertNotNil(try? subject.projectGroup(named: "P"))
+        #expect(try subject.projectGroup(named: "A") != nil)
+        #expect(try subject.projectGroup(named: "B") != nil)
+        #expect(try subject.projectGroup(named: "P") != nil)
     }
 
+    @Test
     func test_projectGroupsError_description() {
-        XCTAssertEqual(ProjectGroupsError.missingGroup("abc").description, "Couldn't find group: abc")
+        #expect(ProjectGroupsError.missingGroup("abc").description == "Couldn't find group: abc")
     }
 
+    @Test
     func test_projectGroupsError_type() {
-        XCTAssertEqual(ProjectGroupsError.missingGroup("abc").type, .bug)
+        #expect(ProjectGroupsError.missingGroup("abc").type == .bug)
     }
 
+    @Test
     func test_generate_with_text_settings() {
         // Given
         let textSettings = Project.Options.TextSettings.test()
@@ -232,12 +234,13 @@ final class ProjectGroupsTests: XCTestCase {
         ).sortedMain
 
         // Then
-        XCTAssertEqual(main.usesTabs, textSettings.usesTabs)
-        XCTAssertEqual(main.indentWidth, textSettings.indentWidth)
-        XCTAssertEqual(main.tabWidth, textSettings.tabWidth)
-        XCTAssertEqual(main.wrapsLines, textSettings.wrapsLines)
+        #expect(main.usesTabs == textSettings.usesTabs)
+        #expect(main.indentWidth == textSettings.indentWidth)
+        #expect(main.tabWidth == textSettings.tabWidth)
+        #expect(main.wrapsLines == textSettings.wrapsLines)
     }
 
+    @Test
     func test_generate_without_text_settings() {
         // Given
         let textSettings = Project.Options.TextSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
@@ -250,10 +253,10 @@ final class ProjectGroupsTests: XCTestCase {
         ).sortedMain
 
         // Then
-        XCTAssertNil(main.usesTabs)
-        XCTAssertNil(main.indentWidth)
-        XCTAssertNil(main.tabWidth)
-        XCTAssertNil(main.wrapsLines)
+        #expect(main.usesTabs == nil)
+        #expect(main.indentWidth == nil)
+        #expect(main.tabWidth == nil)
+        #expect(main.wrapsLines == nil)
     }
 
     // MARK: - Helpers

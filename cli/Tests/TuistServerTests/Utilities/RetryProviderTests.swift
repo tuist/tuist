@@ -1,70 +1,67 @@
 import Foundation
 import Mockable
 import TuistTesting
-import XCTest
+import Testing
 
 @testable import TuistServer
 
-final class RetryProviderTests: TuistUnitTestCase {
-    private var operationCalls = 0
-    private var subject: RetryProviding!
-
-    override func setUp() {
-        super.setUp()
-
+struct RetryProviderTests {
+    private let subject: RetryProviding
+    init() {
         let delayProvider = MockDelayProviding()
         given(delayProvider)
             .delay(for: .any)
             .willReturn(1)
-
         subject = RetryProvider(
             delayProvider: delayProvider
         )
     }
 
-    override func tearDown() {
-        subject = nil
-        operationCalls = 0
-        super.tearDown()
-    }
-
+    @Test
     func test_exists_whenSucceeds_doesNotRetry() async throws {
         // Given / When
-        try await subject.runWithRetries { [self] in
-            operationCalls += 1
+        let operationCalls = Counter()
+        try await subject.runWithRetries {
+            operationCalls.increment()
         }
 
         // Then
-        XCTAssertEqual(operationCalls, 1)
+        #expect(operationCalls.value == 1)
     }
 
+    @Test
     func test_exists_whenFails_retries() async throws {
         // Given / When
-        try await subject.runWithRetries { [self] in
-            operationCalls += 1
-            if operationCalls < 3 {
+        let operationCalls = Counter()
+        try await subject.runWithRetries {
+            operationCalls.increment()
+            if operationCalls.value < 3 {
                 throw TestError("exists failed")
             }
         }
 
         // Then
-        XCTAssertEqual(operationCalls, 3)
+        #expect(operationCalls.value == 3)
     }
 
+    @Test
     func test_exists_whenFailsFourTimes_throws() async throws {
         // Given
         let error = TestError("exists failed")
+        let operationCalls = Counter()
 
         // When
-        await XCTAssertThrowsSpecific(
-            try await subject.runWithRetries { [self] in
-                operationCalls += 1
+        await #expect(throws: error) { try await subject.runWithRetries {
+                operationCalls.increment()
                 throw error
-            },
-            error
-        )
+            } }
 
         // Then
-        XCTAssertEqual(operationCalls, 4)
+        #expect(operationCalls.value == 4)
     }
+}
+
+private final class Counter: @unchecked Sendable {
+    private(set) var value = 0
+    func increment() { value += 1 }
 }

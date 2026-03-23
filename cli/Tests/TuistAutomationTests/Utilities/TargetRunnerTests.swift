@@ -5,32 +5,26 @@ import TuistOpener
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import FileSystemTesting
+import Testing
 
 @testable import TuistAutomation
 
-final class TargetRunnerErrorTests: XCTestCase {
+struct TargetRunnerErrorTests {
+    @Test
     func test_description() {
-        XCTAssertEqual(
-            TargetRunnerError.runnableNotFound(path: "/path/to/product").localizedDescription,
-            "The runnable product was expected but not found at /path/to/product."
-        )
-        XCTAssertEqual(
-            TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app)).localizedDescription,
-            "Product type app of Target is not runnable"
-        )
+        #expect(TargetRunnerError.runnableNotFound(path: "/path/to/product").localizedDescription == "The runnable product was expected but not found at /path/to/product.")
+        #expect(TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app)).localizedDescription == "Product type app of Target is not runnable")
     }
 }
 
-final class TargetRunnerTests: TuistUnitTestCase {
-    private var xcodeBuildController: MockXcodeBuildControlling!
-    private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating!
-    private var simulatorController: MockSimulatorControlling!
-    private var opener: MockOpening!
-    private var subject: TargetRunner!
-
-    override func setUp() {
-        super.setUp()
+struct TargetRunnerTests {
+    private let xcodeBuildController: MockXcodeBuildControlling
+    private let xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating
+    private let simulatorController: MockSimulatorControlling
+    private let opener: MockOpening
+    private let subject: TargetRunner
+    init() {
         xcodeBuildController = .init()
         xcodeProjectBuildDirectoryLocator = .init()
         simulatorController = .init()
@@ -43,19 +37,12 @@ final class TargetRunnerTests: TuistUnitTestCase {
         )
     }
 
-    override func tearDown() {
-        xcodeBuildController = nil
-        xcodeProjectBuildDirectoryLocator = nil
-        simulatorController = nil
-        opener = nil
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test(.inTemporaryDirectory)
     func test_throwsError_when_buildProductNotFound() async throws {
         // Given
         let target = GraphTarget.test()
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = path.appending(component: "App.xcworkspace")
         let outputPath = path.appending(component: ".build")
         let productPath = outputPath.appending(component: "Target.app")
@@ -69,8 +56,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
             .willReturn(outputPath)
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await subject.runTarget(
+        await #expect(throws: TargetRunnerError.runnableNotFound(path: productPath.pathString)) { try await subject.runTarget(
                 target,
                 platform: .iOS,
                 workspacePath: workspacePath,
@@ -80,14 +66,13 @@ final class TargetRunnerTests: TuistUnitTestCase {
                 version: nil,
                 deviceName: nil,
                 arguments: []
-            ),
-            TargetRunnerError.runnableNotFound(path: productPath.pathString)
-        )
+            ) }
     }
 
+    @Test(.inTemporaryDirectory)
     func test_usesDefaultConfiguration_when_noConfiguration() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = path.appending(component: "App.xcworkspace")
         try await fileSystem.makeDirectory(at: workspacePath)
         try await fileSystem.touch(workspacePath.appending(component: "Target"))
@@ -130,12 +115,13 @@ final class TargetRunnerTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_runsExecutable_when_platform_is_macOS_and_product_is_commandLineTool() async throws {
         // Given
-        let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
+        let workspacePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "App.xcworkspace")
         let target = Target.test(platform: .macOS, product: .commandLineTool)
         let graphTarget = GraphTarget.test(path: workspacePath, target: target, project: .test())
-        let outputPath = try temporaryPath().appending(component: ".build")
+        let outputPath = try #require(FileSystem.temporaryTestDirectory).appending(component: ".build")
         let executablePath = outputPath.appending(component: target.productNameWithExtension)
         let arguments = ["Argument", "--option1", "AnotherArgument", "--option2=true", "-opt3"]
 
@@ -165,16 +151,17 @@ final class TargetRunnerTests: TuistUnitTestCase {
                 arguments: arguments
             )
         } catch {
-            XCTFail("Should not throw")
+            Issue.record("Should not throw")
         }
     }
 
+    @Test(.inTemporaryDirectory)
     func test_runsApp_when_platform_is_iOS_and_product_is_app() async throws {
         // Given
-        let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
+        let workspacePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "App.xcworkspace")
         let target = Target.test(platform: .iOS, product: .app)
         let graphTarget = GraphTarget.test(path: workspacePath, target: target, project: .test())
-        let outputPath = try temporaryPath().appending(component: ".build")
+        let outputPath = try #require(FileSystem.temporaryTestDirectory).appending(component: ".build")
         let appPath = outputPath.appending(component: target.productNameWithExtension)
         let arguments = ["Argument", "--option1", "AnotherArgument", "--option2=true", "-opt3"]
         let minVersion = Version("14.0.0")
@@ -269,12 +256,13 @@ final class TargetRunnerTests: TuistUnitTestCase {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_runsApp_when_platform_is_macOS_and_product_is_app_and_device_is_absent() async throws {
         // Given
-        let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
+        let workspacePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "App.xcworkspace")
         let target = Target.test(destinations: [.mac], product: .app)
         let graphTarget = GraphTarget.test(path: workspacePath, target: target, project: .test())
-        let outputPath = try temporaryPath().appending(component: ".build")
+        let outputPath = try #require(FileSystem.temporaryTestDirectory).appending(component: ".build")
         let appPath = outputPath.appending(component: target.productNameWithExtension)
         let arguments: [String] = []
         let minVersion = Version("14.0.0")
@@ -326,12 +314,13 @@ final class TargetRunnerTests: TuistUnitTestCase {
         verify(opener).open(path: .value(appPath)).called(1)
     }
 
+    @Test(.inTemporaryDirectory)
     func test_runsApp_when_platform_is_macOS_and_product_is_app_and_device_is_macos() async throws {
         // Given
-        let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
+        let workspacePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "App.xcworkspace")
         let target = Target.test(destinations: [.mac], product: .app)
         let graphTarget = GraphTarget.test(path: workspacePath, target: target, project: .test())
-        let outputPath = try temporaryPath().appending(component: ".build")
+        let outputPath = try #require(FileSystem.temporaryTestDirectory).appending(component: ".build")
         let appPath = outputPath.appending(component: target.productNameWithExtension)
         let arguments: [String] = []
         let minVersion = Version("14.0.0")

@@ -1,18 +1,19 @@
-import XCTest
+import Testing
 @testable import TuistSupport
 
-final class StringRegexTests: XCTestCase {
+struct StringRegexTests {
+    @Test
     func test_string_regex() {
         let osVersionPattern = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
-        XCTAssertTrue("10.0.1".matches(pattern: osVersionPattern))
-        XCTAssertFalse("tuist".matches(pattern: osVersionPattern))
+        #expect("10.0.1".matches(pattern: osVersionPattern))
+        #expect(!"tuist".matches(pattern: osVersionPattern))
 
         let twoDigitsOnlyPattern = "^[0-9]{2}$"
-        XCTAssertTrue("10".matches(pattern: twoDigitsOnlyPattern))
-        XCTAssertFalse("10.0.1".matches(pattern: twoDigitsOnlyPattern))
+        #expect("10".matches(pattern: twoDigitsOnlyPattern))
+        #expect(!"10.0.1".matches(pattern: twoDigitsOnlyPattern))
 
         let singleWordPattern = "project*"
-        XCTAssertTrue("project".matches(pattern: singleWordPattern))
-        XCTAssertFalse("This is a project".matches(pattern: singleWordPattern))
+        #expect("project".matches(pattern: singleWordPattern))
+        #expect(!"This is a project".matches(pattern: singleWordPattern))
     }
 }

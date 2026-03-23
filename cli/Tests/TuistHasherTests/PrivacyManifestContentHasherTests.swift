@@ -3,22 +3,17 @@ import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 @testable import TuistHasher
 
-final class PrivacyManifestContentHasherTests: TuistUnitTestCase {
-    private var subject: PrivacyManifestContentHasher!
-
-    override func setUp() {
-        super.setUp()
+struct PrivacyManifestContentHasherTests {
+    private let subject: PrivacyManifestContentHasher
+    init() {
         subject = PrivacyManifestContentHasher(contentHasher: ContentHasher())
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
 
+    @Test
     func test_hash_isDeterministic() throws {
         // Given
         let privacyManifest = PrivacyManifest(
@@ -35,9 +30,10 @@ final class PrivacyManifestContentHasherTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertEqual(results.count, 1)
+        #expect(results.count == 1)
     }
 
+    @Test
     func test_hash_returnsACorrectMerkleNode() throws {
         // Given
         let privacyManifest = PrivacyManifest(
@@ -51,7 +47,7 @@ final class PrivacyManifestContentHasherTests: TuistUnitTestCase {
         let got = try subject.hash(identifier: "privacyManifest", privacyManifest: privacyManifest)
 
         // Then
-        XCTAssertEqual(got, MerkleNode(
+        #expect(got == MerkleNode(
             hash: "bdb8825693f6a3fef832665ef7b93d14",
             identifier: "privacyManifest",
             children: [

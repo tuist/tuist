@@ -2,37 +2,30 @@ import Foundation
 import Path
 import TuistTesting
 import XcodeGraph
-import XCTest
+import Testing
 
 @testable import TuistCore
 
-final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
-    private var subject: DefaultConfigurationFetcher!
+struct DefaultConfigurationFetcherTests {
+    let subject: DefaultConfigurationFetcher
 
-    override func setUp() {
-        super.setUp()
+    init() {
         subject = DefaultConfigurationFetcher()
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_fetch_throws_an_error_when_debug_configuration_not_found() throws {
+    @Test func test_fetch_throws_an_error_when_debug_configuration_not_found() throws {
         // Given
         let graph = Graph.test(projects: [
             try AbsolutePath(validating: "/project-a"): Project.test(settings: Settings(configurations: [:])),
         ])
 
         // When/Then
-        XCTAssertThrowsSpecific(
-            try subject.fetch(configuration: nil, defaultConfiguration: nil, graph: graph),
-            DefaultConfigurationFetcherError.debugBuildConfigurationNotFound
-        )
+        #expect(throws: DefaultConfigurationFetcherError.debugBuildConfigurationNotFound) {
+            try subject.fetch(configuration: nil, defaultConfiguration: nil, graph: graph)
+        }
     }
 
-    func test_fetch_returns_the_first_debug_configuration_found() throws {
+    @Test func test_fetch_returns_the_first_debug_configuration_found() throws {
         // Given
         let graph = Graph.test(projects: [
             try AbsolutePath(validating: "/project-a"): Project
@@ -43,10 +36,10 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         let got = try subject.fetch(configuration: nil, defaultConfiguration: nil, graph: graph)
 
         // Then
-        XCTAssertEqual(got, "Development")
+        #expect(got == "Development")
     }
 
-    func test_fetch_returns_the_configuration_if_the_configuration_exists_in_the_project() throws {
+    @Test func test_fetch_returns_the_configuration_if_the_configuration_exists_in_the_project() throws {
         // Given
         let graph = Graph.test(projects: [
             try AbsolutePath(validating: "/project-a"): Project
@@ -57,10 +50,10 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         let got = try subject.fetch(configuration: "Dev", defaultConfiguration: nil, graph: graph)
 
         // Then
-        XCTAssertEqual(got, "Dev")
+        #expect(got == "Dev")
     }
 
-    func test_fetch_throws_an_error_when_the_configuration_passed_points_to_a_non_existing_configuration() throws {
+    @Test func test_fetch_throws_an_error_when_the_configuration_passed_points_to_a_non_existing_configuration() throws {
         // Given
         let graph = Graph.test(projects: [
             try AbsolutePath(validating: "/project-a"): Project
@@ -68,13 +61,12 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         ])
 
         // When
-        XCTAssertThrowsSpecific(
-            try subject.fetch(configuration: "Debug", defaultConfiguration: nil, graph: graph),
-            DefaultConfigurationFetcherError.configurationNotFound("Debug", available: ["Dev"])
-        )
+        #expect(throws: DefaultConfigurationFetcherError.configurationNotFound("Debug", available: ["Dev"])) {
+            try subject.fetch(configuration: "Debug", defaultConfiguration: nil, graph: graph)
+        }
     }
 
-    func test_fetch_returns_the_default_configuration_if_the_configuration_exists_in_the_project() throws {
+    @Test func test_fetch_returns_the_default_configuration_if_the_configuration_exists_in_the_project() throws {
         // Given
         let graph = Graph.test(projects: [
             try AbsolutePath(validating: "/project-a"): Project
@@ -96,10 +88,10 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, "Release")
+        #expect(got == "Release")
     }
 
-    func test_fetch_returns_the_configuration_if_the_configuration_and_default_configuration_exist_in_the_project() throws {
+    @Test func test_fetch_returns_the_configuration_if_the_configuration_and_default_configuration_exist_in_the_project() throws {
         // Given
         let graph = Graph.test(projects: [
             try AbsolutePath(validating: "/project-a"): Project
@@ -121,10 +113,10 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, "Dev")
+        #expect(got == "Dev")
     }
 
-    func test_fetch_throws_an_error_when_the_default_configuration_passed_points_to_a_non_existing_configuration() throws {
+    @Test func test_fetch_throws_an_error_when_the_default_configuration_passed_points_to_a_non_existing_configuration() throws {
         // Given
         let graph = Graph.test(projects: [
             try AbsolutePath(validating: "/project-a"): Project
@@ -132,13 +124,12 @@ final class DefaultConfigurationFetcherTests: TuistUnitTestCase {
         ])
 
         // When
-        XCTAssertThrowsSpecific(
+        #expect(throws: DefaultConfigurationFetcherError.defaultConfigurationNotFound("Debug", available: ["Dev"])) {
             try subject.fetch(
                 configuration: nil,
                 defaultConfiguration: "Debug",
                 graph: graph
-            ),
-            DefaultConfigurationFetcherError.defaultConfigurationNotFound("Debug", available: ["Dev"])
-        )
+            )
+        }
     }
 }

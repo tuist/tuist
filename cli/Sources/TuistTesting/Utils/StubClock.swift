@@ -1,6 +1,6 @@
 import Foundation
 import TuistSupport
-import XCTest
+import Testing
 
 /// A stub clock that can be primed with
 /// multiple dates and timers.
@@ -44,7 +44,7 @@ public class StubClock: Clock {
             return Timer(timeInterval: first)
         }
         if assertOnUnexpectedCalls {
-            XCTFail("Trying to get more timers than the ones stubbed")
+            Issue.record("Trying to get more timers than the ones stubbed")
         }
         return Timer(timeInterval: 0.0)
     }
@@ -62,7 +62,7 @@ public class StubClock: Clock {
             }
 
             if stopCount >= 1 {
-                XCTFail("Attempting to stop a timer more than once")
+                Issue.record("Attempting to stop a timer more than once")
             }
 
             return timeInterval
