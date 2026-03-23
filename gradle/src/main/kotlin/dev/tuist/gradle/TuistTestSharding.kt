@@ -244,7 +244,14 @@ internal abstract class TuistTestShardingPlugin : Plugin<Project> {
 
             System.getenv("TUIST_SHARD_REFERENCE")?.let { shardReference = it }
 
-            dependsOn(project.allprojects.flatMap { it.tasks.matching { task -> task.name == "testClasses" } })
+            // Depend on whatever tasks produce the compiled test classes.
+            // This works for both standard JVM projects (testClasses) and Android
+            // projects (compileDebugUnitTestSources, etc.).
+            project.allprojects.forEach { subproject ->
+                subproject.tasks.withType(Test::class.java).forEach { testTask ->
+                    dependsOn(testTask.testClassesDirs.buildDependencies)
+                }
+            }
         }
 
         val shardIndexStr = System.getenv("TUIST_SHARD_INDEX") ?: return
