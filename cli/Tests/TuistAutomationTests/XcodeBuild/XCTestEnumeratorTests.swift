@@ -73,7 +73,6 @@
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
-                scheme: "App",
                 destination: nil
             )
 
@@ -106,7 +105,6 @@
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
-                scheme: "App",
                 destination: "platform=iOS Simulator,name=iPhone 16"
             )
 
@@ -134,7 +132,6 @@
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
-                scheme: "App",
                 destination: nil
             )
 
@@ -150,7 +147,6 @@
             await #expect(throws: XCTestEnumeratorError.self) {
                 try await subject.enumerateTests(
                     testProductsPath: testProductsPath,
-                    scheme: "App",
                     destination: nil
                 )
             }
@@ -164,7 +160,6 @@
             await #expect(throws: XCTestEnumeratorError.self) {
                 try await subject.enumerateTests(
                     testProductsPath: testProductsPath,
-                    scheme: "App",
                     destination: nil
                 )
             }
@@ -199,7 +194,6 @@
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
-                scheme: "App",
                 destination: nil
             )
 

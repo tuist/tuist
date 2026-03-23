@@ -10,12 +10,10 @@
         /// Enumerates tests in the given test products using `xcodebuild -enumerate-tests`.
         /// - Parameters:
         ///   - testProductsPath: Path to the `.xctestproducts` bundle.
-        ///   - scheme: The Xcode scheme whose tests should be enumerated.
         ///   - destination: An optional xcodebuild destination string (e.g. `"platform=iOS Simulator,name=iPhone 16"`).
         /// - Returns: An array of test targets, each containing the target name and its test suite names.
         func enumerateTests(
             testProductsPath: AbsolutePath,
-            scheme: String,
             destination: String?
         ) async throws -> [XCTestRun.TestTarget]
     }
@@ -60,7 +58,6 @@
 
         public func enumerateTests(
             testProductsPath: AbsolutePath,
-            scheme _: String,
             destination: String?
         ) async throws -> [XCTestRun.TestTarget] {
             // -scheme cannot be used with -testProductsPath (xcodebuild error 78)
