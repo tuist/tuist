@@ -662,13 +662,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        var filteredPassthroughArgs = passthroughXcodeBuildArguments
-        if let idx = filteredPassthroughArgs.firstIndex(of: "-testProductsPath"),
-           filteredPassthroughArgs.indices.contains(idx + 1)
-        {
-            filteredPassthroughArgs.removeSubrange(idx ... idx + 1)
-        }
-
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: testProductsPath,
             testTargets: testTargets,
@@ -680,7 +673,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             rosetta: rosetta,
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
-            passthroughXcodeBuildArguments: filteredPassthroughArgs
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
 
         var testError: Error?
@@ -737,7 +730,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String]
     ) async throws -> [String] {
         var arguments = ["test-without-building"]
-        arguments += ["-testProductsPath", testProductsPath.pathString]
+        if !passthroughXcodeBuildArguments.contains("-testProductsPath") {
+            arguments += ["-testProductsPath", testProductsPath.pathString]
+        }
 
         for testTarget in testTargets {
             arguments += ["-only-testing", testTarget.description]
