@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 * add test sharding support by [@fortmarek](https://github.com/fortmarek) in [#9796](https://github.com/tuist/tuist/pull/9796)
 ### 🐛 Bug Fixes
 
+* support macOS app bundle layout by [@lechuckcaptain](https://github.com/lechuckcaptain) in [#9849](https://github.com/tuist/tuist/pull/9849)
 * always copy macro executable on incremental builds by [@ffittschen](https://github.com/ffittschen) in [#9962](https://github.com/tuist/tuist/pull/9962)
 * fix static framework resource bundle crash when using xcstrings by [@pepicrft](https://github.com/pepicrft) in [#9953](https://github.com/tuist/tuist/pull/9953)
 
