@@ -277,8 +277,8 @@ jobs:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
-  cli-generator-acceptance-tests-plan:
-    name: Generator Acceptance Tests (Plan)
+  cli-generator-acceptance-tests-build:
+    name: Build Generator Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
@@ -327,10 +327,10 @@ jobs:
     name: Generator Acceptance Tests
     runs-on: namespace-profile-default-macos
     timeout-minutes: 60
-    needs: cli-generator-acceptance-tests-plan
+    needs: cli-generator-acceptance-tests-build
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.cli-generator-acceptance-tests-plan.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.cli-generator-acceptance-tests-build.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
