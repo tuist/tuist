@@ -38,7 +38,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var testedSchemes: [String] = []
     private var xcResultService: MockXCResultServicing!
     private var xcodeBuildArgumentParser: MockXcodeBuildArgumentParsing!
-    private var inspectResultBundleService: MockInspectResultBundleServicing!
+    private var uploadResultBundleService: MockUploadResultBundleServicing!
     private var derivedDataLocator: MockDerivedDataLocating!
     private var createTestService: MockCreateTestServicing!
     private var gitController: MockGitControlling!
@@ -59,7 +59,7 @@ final class TestServiceTests: TuistUnitTestCase {
         runMetadataStorage = RunMetadataStorage()
         xcResultService = .init()
         xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
-        inspectResultBundleService = .init()
+        uploadResultBundleService = .init()
         derivedDataLocator = .init()
         createTestService = .init()
         gitController = .init()
@@ -156,7 +156,7 @@ final class TestServiceTests: TuistUnitTestCase {
             configLoader: configLoader,
             xcResultService: xcResultService,
             gitController: gitController,
-            inspectResultBundleService: inspectResultBundleService,
+            uploadResultBundleService: uploadResultBundleService,
             derivedDataLocator: derivedDataLocator,
             createTestService: createTestService,
             serverEnvironmentService: serverEnvironmentService,
@@ -222,7 +222,7 @@ final class TestServiceTests: TuistUnitTestCase {
         cacheStorage = nil
         testedSchemes = []
         runMetadataStorage = nil
-        inspectResultBundleService = nil
+        uploadResultBundleService = nil
         derivedDataLocator = nil
         createTestService = nil
         gitController = nil
@@ -2702,8 +2702,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     )
                 )
 
-            given(inspectResultBundleService)
-                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+            given(uploadResultBundleService)
+                .uploadResultBundle(testSummary: .any, projectDerivedDataDirectory: .any, config: .any)
                 .willThrow(TestError("Inspect failed"))
 
             // When

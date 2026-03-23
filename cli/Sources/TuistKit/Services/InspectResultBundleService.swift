@@ -17,36 +17,32 @@ import TuistXCActivityLog
 import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
 
-public enum InspectResultBundleServiceError: Equatable, LocalizedError {
+public enum UploadResultBundleServiceError: Equatable, LocalizedError {
     case missingFullHandle
-    case missingInvocationRecord
 
     public var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return
                 "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
-        case .missingInvocationRecord:
-            return "Failed to parse the test result bundle"
         }
     }
 }
 
 @Mockable
-public protocol InspectResultBundleServicing {
-    func inspectResultBundle(
-        resultBundlePath: AbsolutePath,
+public protocol UploadResultBundleServicing {
+    func uploadResultBundle(
+        testSummary: TestSummary,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist
     ) async throws -> Components.Schemas.RunsTest
 }
 
-public struct InspectResultBundleService: InspectResultBundleServicing {
+public struct UploadResultBundleService: UploadResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
     private let createCrashReportService: CreateCrashReportServicing
     private let createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing
-    private let xcResultService: XCResultServicing
     private let dateService: DateServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
@@ -61,7 +57,6 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         createTestService: CreateTestServicing = CreateTestService(),
         createCrashReportService: CreateCrashReportServicing = CreateCrashReportService(),
         createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing = CreateTestCaseRunAttachmentService(),
-        xcResultService: XCResultServicing = XCResultService(),
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController(),
@@ -75,7 +70,6 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         self.createTestService = createTestService
         self.createCrashReportService = createCrashReportService
         self.createTestCaseRunAttachmentService = createTestCaseRunAttachmentService
-        self.xcResultService = xcResultService
         self.dateService = dateService
         self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
@@ -86,8 +80,8 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         self.fileSystem = fileSystem
     }
 
-    public func inspectResultBundle(
-        resultBundlePath: AbsolutePath,
+    public func uploadResultBundle(
+        testSummary: TestSummary,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist
     ) async throws -> Components.Schemas.RunsTest {
@@ -95,14 +89,10 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
 
-        guard let testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) else {
-            throw InspectResultBundleServiceError.missingInvocationRecord
-        }
-
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         guard let fullHandle = config.fullHandle else {
-            throw InspectResultBundleServiceError.missingFullHandle
+            throw UploadResultBundleServiceError.missingFullHandle
         }
 
         var buildRunId: String?

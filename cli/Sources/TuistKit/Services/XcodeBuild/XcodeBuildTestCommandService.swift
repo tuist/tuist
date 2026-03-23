@@ -25,7 +25,7 @@ struct XcodeBuildTestCommandService {
     private let xcodeBuildArgumentParser: XcodeBuildArgumentParsing
     private let derivedDataLocator: DerivedDataLocating
     private let xcActivityLogController: XCActivityLogControlling
-    private let inspectResultBundleService: InspectResultBundleServicing
+    private let uploadResultBundleService: UploadResultBundleServicing
     private let listTestCasesService: ListTestCasesServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let xcResultService: XCResultServicing
@@ -40,7 +40,7 @@ struct XcodeBuildTestCommandService {
         xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
-        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
+        uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
         listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         xcResultService: XCResultServicing = XCResultService(),
@@ -54,7 +54,7 @@ struct XcodeBuildTestCommandService {
         self.xcodeBuildArgumentParser = xcodeBuildArgumentParser
         self.derivedDataLocator = derivedDataLocator
         self.xcActivityLogController = xcActivityLogController
-        self.inspectResultBundleService = inspectResultBundleService
+        self.uploadResultBundleService = uploadResultBundleService
         self.listTestCasesService = listTestCasesService
         self.serverEnvironmentService = serverEnvironmentService
         self.xcResultService = xcResultService
@@ -90,40 +90,39 @@ struct XcodeBuildTestCommandService {
                 await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
             }
 
+            let rootDirectory = await rootDirectory()
+            var testSummary: TestSummary?
+            if let resultBundlePath {
+                testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
+            }
+
             var onlyQuarantinedFailures = false
-            if !quarantinedTests.isEmpty, let resultBundlePath {
-                let rootDirectory = await rootDirectory()
-                if let testSummary = try await xcResultService.parse(
-                    path: resultBundlePath,
-                    rootDirectory: rootDirectory
-                ) {
-                    let (quarantinedFailures, realFailures) = classifyFailures(
-                        testSummary: testSummary,
-                        quarantinedTests: quarantinedTests
+            if !quarantinedTests.isEmpty, let testSummary {
+                let (quarantinedFailures, realFailures) = classifyFailures(
+                    testSummary: testSummary,
+                    quarantinedTests: quarantinedTests
+                )
+                if realFailures.isEmpty, !quarantinedFailures.isEmpty {
+                    onlyQuarantinedFailures = true
+                    let failureNames = quarantinedFailures.map { testCase in
+                        [testCase.module, testCase.testSuite, testCase.name]
+                            .compactMap { $0 }
+                            .joined(separator: "/")
+                    }.joined(separator: ", ")
+                    Logger.current.notice(
+                        "\(quarantinedFailures.count) quarantined test(s) failed (exit code overridden to 0): \(failureNames)",
+                        metadata: .subsection
                     )
-                    if realFailures.isEmpty, !quarantinedFailures.isEmpty {
-                        onlyQuarantinedFailures = true
-                        let failureNames = quarantinedFailures.map { testCase in
-                            [testCase.module, testCase.testSuite, testCase.name]
-                                .compactMap { $0 }
-                                .joined(separator: "/")
-                        }.joined(separator: ", ")
-                        Logger.current.notice(
-                            "\(quarantinedFailures.count) quarantined test(s) failed (exit code overridden to 0): \(failureNames)",
-                            metadata: .subsection
-                        )
-                    } else if !realFailures.isEmpty, !quarantinedFailures.isEmpty {
-                        Logger.current.notice(
-                            "\(quarantinedFailures.count) quarantined test(s) failed, \(realFailures.count) non-quarantined test(s) failed",
-                            metadata: .subsection
-                        )
-                    }
+                } else if !realFailures.isEmpty, !quarantinedFailures.isEmpty {
+                    Logger.current.notice(
+                        "\(quarantinedFailures.count) quarantined test(s) failed, \(realFailures.count) non-quarantined test(s) failed",
+                        metadata: .subsection
+                    )
                 }
             }
 
-            // inspectResultBundleIfNeeded will re-parse the xcresult internally for uploading
-            await inspectResultBundleIfNeeded(
-                resultBundlePath: resultBundlePath,
+            await uploadResultBundleIfNeeded(
+                testSummary: testSummary,
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config
             )
@@ -138,8 +137,14 @@ struct XcodeBuildTestCommandService {
         if let derivedDataPath {
             await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
         }
-        await inspectResultBundleIfNeeded(
-            resultBundlePath: resultBundlePath,
+
+        let rootDirectory = await rootDirectory()
+        var testSummary: TestSummary?
+        if let resultBundlePath {
+            testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
+        }
+        await uploadResultBundleIfNeeded(
+            testSummary: testSummary,
             projectDerivedDataDirectory: derivedDataPath,
             config: config
         )
@@ -305,20 +310,19 @@ struct XcodeBuildTestCommandService {
         return nil
     }
 
-    private func inspectResultBundleIfNeeded(
-        resultBundlePath: AbsolutePath?,
+    private func uploadResultBundleIfNeeded(
+        testSummary: TestSummary?,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist
     ) async {
-        guard let resultBundlePath,
+        guard let testSummary,
               let projectDerivedDataDirectory,
-              config.fullHandle != nil,
-              (try? await fileSystem.exists(resultBundlePath)) == true
+              config.fullHandle != nil
         else { return }
 
         do {
-            _ = try await inspectResultBundleService.inspectResultBundle(
-                resultBundlePath: resultBundlePath,
+            _ = try await uploadResultBundleService.uploadResultBundle(
+                testSummary: testSummary,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config
             )

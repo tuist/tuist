@@ -98,7 +98,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let xcodeBuildAgumentParser: XcodeBuildArgumentParsing
     private let gitController: GitControlling
     private let rootDirectoryLocator: RootDirectoryLocating
-    private let inspectResultBundleService: InspectResultBundleServicing
+    private let uploadResultBundleService: UploadResultBundleServicing
     private let derivedDataLocator: DerivedDataLocating
     private let createTestService: CreateTestServicing
     private let machineEnvironment: MachineEnvironmentRetrieving
@@ -134,7 +134,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
         gitController: GitControlling = GitController(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
+        uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         createTestService: CreateTestServicing = CreateTestService(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -155,7 +155,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         xcodeBuildAgumentParser = xcodeBuildArgumentParser
         self.gitController = gitController
         self.rootDirectoryLocator = rootDirectoryLocator
-        self.inspectResultBundleService = inspectResultBundleService
+        self.uploadResultBundleService = uploadResultBundleService
         self.derivedDataLocator = derivedDataLocator
         self.createTestService = createTestService
         self.machineEnvironment = machineEnvironment
@@ -884,6 +884,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let testSummary: TestSummary?
         do {
             try await xcodebuildController.test(
                 .workspace(graphTraverser.workspace.xcWorkspacePath),
@@ -906,9 +907,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
+            if let resultBundlePath {
+                let rootDir = try await rootDirectory()
+                testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir)
+            } else {
+                testSummary = nil
+            }
         } catch {
-            await inspectResultBundleIfNeeded(
-                resultBundlePath: resultBundlePath,
+            var parsedSummary: TestSummary?
+            if let resultBundlePath {
+                let rootDir = try? await rootDirectory()
+                parsedSummary = try? await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDir)
+            }
+            await uploadResultBundleIfNeeded(
+                testSummary: parsedSummary,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 action: action
@@ -916,27 +928,26 @@ public struct TestService { // swiftlint:disable:this type_body_length
             throw error
         }
 
-        await inspectResultBundleIfNeeded(
-            resultBundlePath: resultBundlePath,
+        await uploadResultBundleIfNeeded(
+            testSummary: testSummary,
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config,
             action: action
         )
     }
 
-    private func inspectResultBundleIfNeeded(
-        resultBundlePath: AbsolutePath?,
+    private func uploadResultBundleIfNeeded(
+        testSummary: TestSummary?,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction
     ) async {
-        guard let resultBundlePath, config.fullHandle != nil, action != .build,
-              (try? await fileSystem.exists(resultBundlePath)) == true
+        guard let testSummary, config.fullHandle != nil, action != .build
         else { return }
 
         do {
-            _ = try await inspectResultBundleService.inspectResultBundle(
-                resultBundlePath: resultBundlePath,
+            _ = try await uploadResultBundleService.uploadResultBundle(
+                testSummary: testSummary,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config
             )

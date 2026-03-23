@@ -29,7 +29,7 @@ struct XcodeBuildTestCommandServiceTests {
     private let xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
     private let derivedDataLocator = MockDerivedDataLocating()
     private let xcActivityLogController = MockXCActivityLogControlling()
-    private let inspectResultBundleService = MockInspectResultBundleServicing()
+    private let uploadResultBundleService = MockUploadResultBundleServicing()
     private let subject: XcodeBuildTestCommandService
 
     init() {
@@ -42,7 +42,7 @@ struct XcodeBuildTestCommandServiceTests {
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
             derivedDataLocator: derivedDataLocator,
             xcActivityLogController: xcActivityLogController,
-            inspectResultBundleService: inspectResultBundleService
+            uploadResultBundleService: uploadResultBundleService
         )
     }
 
@@ -177,16 +177,16 @@ struct XcodeBuildTestCommandServiceTests {
                 .run(arguments: .any)
                 .willReturn()
 
-            given(inspectResultBundleService)
-                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+            given(uploadResultBundleService)
+                .uploadResultBundle(testSummary: .any, projectDerivedDataDirectory: .any, config: .any)
                 .willThrow(TestError("Inspect failed"))
 
             // When
             try await subject.run(passthroughXcodebuildArguments: arguments)
 
             // Then
-            verify(inspectResultBundleService)
-                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+            verify(uploadResultBundleService)
+                .uploadResultBundle(testSummary: .any, projectDerivedDataDirectory: .any, config: .any)
                 .called(1)
             let warnings = alertController.warnings()
             #expect(warnings.count == 1)

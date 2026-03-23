@@ -25,7 +25,7 @@ struct InspectTestCommandServiceTests {
     private let fileSystem = FileSystem()
     private let xcResultService = MockXCResultServicing()
     private let xcodeProjectOrWorkspacePathLocator = MockXcodeProjectOrWorkspacePathLocating()
-    private let inspectResultBundleService = MockInspectResultBundleServicing()
+    private let uploadResultBundleService = MockUploadResultBundleServicing()
     private let backgroundProcessRunner = MockBackgroundProcessRunning()
 
     init() throws {
@@ -34,7 +34,7 @@ struct InspectTestCommandServiceTests {
             fileSystem: fileSystem,
             xcResultService: xcResultService,
             xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator,
-            inspectResultBundleService: inspectResultBundleService,
+            uploadResultBundleService: uploadResultBundleService,
             configLoader: configLoader,
             backgroundProcessRunner: backgroundProcessRunner
         )
@@ -43,8 +43,12 @@ struct InspectTestCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        given(inspectResultBundleService)
-            .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 1000, testModules: []))
+
+        given(uploadResultBundleService)
+            .uploadResultBundle(testSummary: .any, projectDerivedDataDirectory: .any, config: .any)
             .willReturn(
                 Components.Schemas.RunsTest(
                     duration: 1000,
@@ -78,9 +82,9 @@ struct InspectTestCommandServiceTests {
         )
 
         // Then
-        verify(inspectResultBundleService)
-            .inspectResultBundle(
-                resultBundlePath: .value(resultBundlePath),
+        verify(uploadResultBundleService)
+            .uploadResultBundle(
+                testSummary: .any,
                 projectDerivedDataDirectory: .value(nil),
                 config: .any
             )
@@ -114,9 +118,9 @@ struct InspectTestCommandServiceTests {
         try await subject.run(path: temporaryDirectory.pathString)
 
         // Then
-        verify(inspectResultBundleService)
-            .inspectResultBundle(
-                resultBundlePath: .value(resultBundlePath),
+        verify(uploadResultBundleService)
+            .uploadResultBundle(
+                testSummary: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any
             )
@@ -153,9 +157,9 @@ struct InspectTestCommandServiceTests {
             .locate(for: .any)
             .called(0)
 
-        verify(inspectResultBundleService)
-            .inspectResultBundle(
-                resultBundlePath: .value(resultBundlePath),
+        verify(uploadResultBundleService)
+            .uploadResultBundle(
+                testSummary: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any
             )
@@ -218,9 +222,9 @@ struct InspectTestCommandServiceTests {
         try await subject.run(path: nil)
 
         // Then
-        verify(inspectResultBundleService)
-            .inspectResultBundle(
-                resultBundlePath: .value(resultBundlePath),
+        verify(uploadResultBundleService)
+            .uploadResultBundle(
+                testSummary: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any
             )
