@@ -96,7 +96,7 @@
 
             guard let testSummary = try await xcResultService.parse(
                 path: resolvedResultBundlePath,
-                rootDirectory: nil
+                rootDirectory: path
             ) else {
                 throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(resolvedResultBundlePath)
             }
