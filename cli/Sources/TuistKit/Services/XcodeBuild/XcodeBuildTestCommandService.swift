@@ -30,6 +30,7 @@ struct XcodeBuildTestCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let xcResultService: XCResultServicing
     private let gitController: GitControlling
+    private let testQuarantineService: TestQuarantineServicing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -44,7 +45,8 @@ struct XcodeBuildTestCommandService {
         listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         xcResultService: XCResultServicing = XCResultService(),
-        gitController: GitControlling = GitController()
+        gitController: GitControlling = GitController(),
+        testQuarantineService: TestQuarantineServicing = TestQuarantineService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -59,6 +61,7 @@ struct XcodeBuildTestCommandService {
         self.serverEnvironmentService = serverEnvironmentService
         self.xcResultService = xcResultService
         self.gitController = gitController
+        self.testQuarantineService = testQuarantineService
     }
 
     func run(
@@ -96,29 +99,13 @@ struct XcodeBuildTestCommandService {
                 testSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
             }
 
-            var onlyQuarantinedFailures = false
-            if !quarantinedTests.isEmpty, let testSummary {
-                let (quarantinedFailures, realFailures) = classifyFailures(
+            let onlyQuarantinedFailures = if let testSummary {
+                testQuarantineService.handleQuarantinedFailures(
                     testSummary: testSummary,
                     quarantinedTests: quarantinedTests
                 )
-                if realFailures.isEmpty, !quarantinedFailures.isEmpty {
-                    onlyQuarantinedFailures = true
-                    let failureNames = quarantinedFailures.map { testCase in
-                        [testCase.module, testCase.testSuite, testCase.name]
-                            .compactMap { $0 }
-                            .joined(separator: "/")
-                    }.joined(separator: ", ")
-                    Logger.current.notice(
-                        "\(quarantinedFailures.count) quarantined test(s) failed (exit code overridden to 0): \(failureNames)",
-                        metadata: .subsection
-                    )
-                } else if !realFailures.isEmpty, !quarantinedFailures.isEmpty {
-                    Logger.current.notice(
-                        "\(quarantinedFailures.count) quarantined test(s) failed, \(realFailures.count) non-quarantined test(s) failed",
-                        metadata: .subsection
-                    )
-                }
+            } else {
+                false
             }
 
             await uploadResultBundleIfNeeded(
@@ -263,39 +250,6 @@ struct XcodeBuildTestCommandService {
             )
             return []
         }
-    }
-
-    private func classifyFailures(
-        testSummary: TestSummary,
-        quarantinedTests: [TestIdentifier]
-    ) -> (quarantinedFailures: [TestCase], realFailures: [TestCase]) {
-        let failedTestCases = testSummary.testCases.filter { $0.status == .failed }
-        var quarantinedFailures: [TestCase] = []
-        var realFailures: [TestCase] = []
-
-        for testCase in failedTestCases {
-            let isQuarantined = quarantinedTests.contains { quarantined in
-                guard testCase.module == quarantined.target else { return false }
-                if let quarantinedClass = quarantined.class,
-                   testCase.testSuite != quarantinedClass
-                {
-                    return false
-                }
-                if let quarantinedMethod = quarantined.method,
-                   testCase.name != quarantinedMethod
-                {
-                    return false
-                }
-                return true
-            }
-            if isQuarantined {
-                quarantinedFailures.append(testCase)
-            } else {
-                realFailures.append(testCase)
-            }
-        }
-
-        return (quarantinedFailures: quarantinedFailures, realFailures: realFailures)
     }
 
     private func rootDirectory() async -> AbsolutePath? {

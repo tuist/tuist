@@ -106,6 +106,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let ciController: CIControlling
     private let clock: Clock
     private let listTestCasesService: ListTestCasesServicing
+    private let testQuarantineService: TestQuarantineServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -141,7 +142,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         ciController: CIControlling = CIController(),
         clock: Clock = WallClock(),
-        listTestCasesService: ListTestCasesServicing = ListTestCasesService()
+        listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
+        testQuarantineService: TestQuarantineServicing = TestQuarantineService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -163,6 +165,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.ciController = ciController
         self.clock = clock
         self.listTestCasesService = listTestCasesService
+        self.testQuarantineService = testQuarantineService
     }
 
     public static func validateParameters(
@@ -511,28 +514,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 cacheStorage: uploadCacheStorage
             )
 
-            if !quarantinedTests.isEmpty {
-                let (quarantinedFailures, realFailures) = classifyFailures(
-                    testSummary: testSummary,
-                    quarantinedTests: quarantinedTests
-                )
-                if realFailures.isEmpty, !quarantinedFailures.isEmpty {
-                    let failureNames = quarantinedFailures.map { testCase in
-                        [testCase.module, testCase.testSuite, testCase.name]
-                            .compactMap { $0 }
-                            .joined(separator: "/")
-                    }.joined(separator: ", ")
-                    Logger.current.notice(
-                        "\(quarantinedFailures.count) quarantined test(s) failed (exit code overridden to 0): \(failureNames)",
-                        metadata: .subsection
-                    )
-                    return
-                } else if !realFailures.isEmpty, !quarantinedFailures.isEmpty {
-                    Logger.current.notice(
-                        "\(quarantinedFailures.count) quarantined test(s) failed, \(realFailures.count) non-quarantined test(s) failed",
-                        metadata: .subsection
-                    )
-                }
+            if testQuarantineService.handleQuarantinedFailures(
+                testSummary: testSummary,
+                quarantinedTests: quarantinedTests
+            ) {
+                return
             }
 
             throw error
@@ -1080,39 +1066,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
             return []
         }
-    }
-
-    func classifyFailures(
-        testSummary: TestSummary,
-        quarantinedTests: [TestIdentifier]
-    ) -> (quarantinedFailures: [TestCase], realFailures: [TestCase]) {
-        let failedTestCases = testSummary.testCases.filter { $0.status == .failed }
-        var quarantinedFailures: [TestCase] = []
-        var realFailures: [TestCase] = []
-
-        for testCase in failedTestCases {
-            let isQuarantined = quarantinedTests.contains { quarantined in
-                guard testCase.module == quarantined.target else { return false }
-                if let quarantinedClass = quarantined.class,
-                   testCase.testSuite != quarantinedClass
-                {
-                    return false
-                }
-                if let quarantinedMethod = quarantined.method,
-                   testCase.name != quarantinedMethod
-                {
-                    return false
-                }
-                return true
-            }
-            if isQuarantined {
-                quarantinedFailures.append(testCase)
-            } else {
-                realFailures.append(testCase)
-            }
-        }
-
-        return (quarantinedFailures: quarantinedFailures, realFailures: realFailures)
     }
 
     private func quarantinedTests(
