@@ -60,15 +60,15 @@
 
         public func enumerateTests(
             testProductsPath: AbsolutePath,
-            scheme: String,
+            scheme _: String,
             destination: String?
         ) async throws -> [XCTestRun.TestTarget] {
+            // -scheme cannot be used with -testProductsPath (xcodebuild error 78)
             var arguments = [
                 "xcodebuild",
                 "test-without-building",
                 "-enumerate-tests",
                 "-testProductsPath", testProductsPath.pathString,
-                "-scheme", scheme,
             ]
             if let destination {
                 arguments.append(contentsOf: ["-destination", destination])
@@ -79,23 +79,43 @@
                 output = try await commandRunner.run(arguments: arguments).concatenatedString()
             } catch {
                 throw XCTestEnumeratorError
-                    .enumerationFailed("scheme '\(scheme)' at \(testProductsPath.pathString): \(error.localizedDescription)")
+                    .enumerationFailed("\(testProductsPath.pathString): \(error.localizedDescription)")
             }
 
             guard let data = output.data(using: .utf8) else {
                 throw XCTestEnumeratorError.invalidOutput("Output is not valid UTF-8")
             }
 
-            let enumerated: EnumeratedTests
-            do {
-                enumerated = try JSONDecoder().decode(EnumeratedTests.self, from: data)
-            } catch {
-                throw XCTestEnumeratorError.invalidOutput(error.localizedDescription)
+            if let enumerated = try? JSONDecoder().decode(EnumeratedTests.self, from: data) {
+                return enumerated.values
+                    .flatMap { $0.subtests ?? [] }
+                    .map { XCTestRun.TestTarget(blueprintName: $0.name, onlyTestIdentifiers: $0.subtests?.map(\.name)) }
             }
 
-            return enumerated.values
-                .flatMap { $0.subtests ?? [] }
-                .map { XCTestRun.TestTarget(blueprintName: $0.name, onlyTestIdentifiers: $0.subtests?.map(\.name)) }
+            return parseTextEnumeration(output)
+        }
+
+        /// Parses the text format output of `xcodebuild -enumerate-tests` when used with `-testProductsPath`.
+        /// Format: tab-indented lines: `Target <name>` → `Class <name>` → `Test <name>()`
+        private func parseTextEnumeration(_ output: String) -> [XCTestRun.TestTarget] {
+            var targets: [String: [String]] = [:]
+            var currentTarget: String?
+
+            for line in output.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("Class ") {
+                    let className = String(trimmed.dropFirst("Class ".count))
+                    if let target = currentTarget {
+                        targets[target, default: []].append(className)
+                    }
+                } else if trimmed.hasPrefix("Target ") {
+                    currentTarget = String(trimmed.dropFirst("Target ".count))
+                }
+            }
+
+            return targets.map { targetName, classNames in
+                XCTestRun.TestTarget(blueprintName: targetName, onlyTestIdentifiers: classNames)
+            }
         }
     }
 
