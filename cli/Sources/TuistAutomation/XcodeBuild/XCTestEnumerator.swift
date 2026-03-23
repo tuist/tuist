@@ -60,7 +60,6 @@
             testProductsPath: AbsolutePath,
             destination: String?
         ) async throws -> [XCTestRun.TestTarget] {
-            // -scheme cannot be used with -testProductsPath (xcodebuild error 78)
             var arguments = [
                 "xcodebuild",
                 "test-without-building",
