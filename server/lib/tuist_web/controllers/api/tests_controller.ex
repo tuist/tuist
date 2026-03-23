@@ -10,7 +10,7 @@ defmodule TuistWeb.API.TestsController do
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
