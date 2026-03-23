@@ -21,5 +21,4 @@ public struct TestSummary {
         self.duration = duration
         self.testModules = testModules
     }
-
 }

@@ -9,8 +9,8 @@ import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistLoader
-import TuistRootDirectoryLocator
 import TuistLogging
+import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 import TuistUniqueIDGenerator

@@ -1977,7 +1977,7 @@ defmodule Tuist.Tests do
     project_ids = stale_test_cases |> Enum.map(& &1.project_id) |> Enum.uniq()
 
     auto_quarantine_project_ids =
-      from(p in Tuist.Projects.Project,
+      from(p in Project,
         where: p.id in ^project_ids and p.auto_quarantine_flaky_tests == true,
         select: p.id
       )

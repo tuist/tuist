@@ -111,7 +111,14 @@ struct TestQuarantineServiceTests {
             testPlanName: nil, status: .passed, duration: 100,
             testModules: [
                 TestModule(name: "AppTests", status: .passed, duration: 100, testSuites: [], testCases: [
-                    TestCase(name: "testA()", testSuite: "Suite", module: "AppTests", duration: 50, status: .passed, failures: []),
+                    TestCase(
+                        name: "testA()",
+                        testSuite: "Suite",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .passed,
+                        failures: []
+                    ),
                 ]),
             ]
         )
@@ -127,8 +134,22 @@ struct TestQuarantineServiceTests {
             testPlanName: nil, status: .failed, duration: 100,
             testModules: [
                 TestModule(name: "AppTests", status: .failed, duration: 100, testSuites: [], testCases: [
-                    TestCase(name: "testA()", testSuite: "Suite", module: "AppTests", duration: 50, status: .failed, failures: []),
-                    TestCase(name: "testB()", testSuite: "Suite", module: "AppTests", duration: 50, status: .passed, failures: []),
+                    TestCase(
+                        name: "testA()",
+                        testSuite: "Suite",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .failed,
+                        failures: []
+                    ),
+                    TestCase(
+                        name: "testB()",
+                        testSuite: "Suite",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .passed,
+                        failures: []
+                    ),
                 ]),
             ]
         )
@@ -146,8 +167,22 @@ struct TestQuarantineServiceTests {
             testPlanName: nil, status: .failed, duration: 100,
             testModules: [
                 TestModule(name: "AppTests", status: .failed, duration: 100, testSuites: [], testCases: [
-                    TestCase(name: "testA()", testSuite: "Suite", module: "AppTests", duration: 50, status: .failed, failures: []),
-                    TestCase(name: "testB()", testSuite: "Other", module: "AppTests", duration: 50, status: .failed, failures: []),
+                    TestCase(
+                        name: "testA()",
+                        testSuite: "Suite",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .failed,
+                        failures: []
+                    ),
+                    TestCase(
+                        name: "testB()",
+                        testSuite: "Other",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .failed,
+                        failures: []
+                    ),
                 ]),
             ]
         )
@@ -164,7 +199,14 @@ struct TestQuarantineServiceTests {
             testPlanName: nil, status: .failed, duration: 100,
             testModules: [
                 TestModule(name: "AppTests", status: .failed, duration: 100, testSuites: [], testCases: [
-                    TestCase(name: "testA()", testSuite: "Suite", module: "AppTests", duration: 50, status: .failed, failures: []),
+                    TestCase(
+                        name: "testA()",
+                        testSuite: "Suite",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .failed,
+                        failures: []
+                    ),
                 ]),
             ]
         )
@@ -181,7 +223,14 @@ struct TestQuarantineServiceTests {
             testPlanName: nil, status: .failed, duration: 200,
             testModules: [
                 TestModule(name: "AppTests", status: .failed, duration: 100, testSuites: [], testCases: [
-                    TestCase(name: "testA()", testSuite: "Suite", module: "AppTests", duration: 50, status: .failed, failures: []),
+                    TestCase(
+                        name: "testA()",
+                        testSuite: "Suite",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .failed,
+                        failures: []
+                    ),
                 ]),
                 TestModule(name: "CoreTests", status: .failed, duration: 100, testSuites: [], testCases: [
                     TestCase(name: "testB()", testSuite: nil, module: "CoreTests", duration: 50, status: .failed, failures: []),
@@ -207,7 +256,14 @@ struct TestQuarantineServiceTests {
             testPlanName: nil, status: .passed, duration: 100,
             testModules: [
                 TestModule(name: "AppTests", status: .passed, duration: 100, testSuites: [], testCases: [
-                    TestCase(name: "testA()", testSuite: "Suite", module: "AppTests", duration: 50, status: .passed, failures: []),
+                    TestCase(
+                        name: "testA()",
+                        testSuite: "Suite",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .passed,
+                        failures: []
+                    ),
                 ]),
             ]
         )
@@ -225,7 +281,14 @@ struct TestQuarantineServiceTests {
                         name: "testA()", testSuite: "Suite", module: "AppTests", duration: 50,
                         status: .failed, failures: [], isQuarantined: true
                     ),
-                    TestCase(name: "testB()", testSuite: "Suite", module: "AppTests", duration: 50, status: .passed, failures: []),
+                    TestCase(
+                        name: "testB()",
+                        testSuite: "Suite",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .passed,
+                        failures: []
+                    ),
                 ]),
             ]
         )
@@ -243,7 +306,14 @@ struct TestQuarantineServiceTests {
                         name: "testA()", testSuite: "Suite", module: "AppTests", duration: 50,
                         status: .failed, failures: [], isQuarantined: true
                     ),
-                    TestCase(name: "testB()", testSuite: "Suite", module: "AppTests", duration: 50, status: .failed, failures: []),
+                    TestCase(
+                        name: "testB()",
+                        testSuite: "Suite",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .failed,
+                        failures: []
+                    ),
                 ]),
             ]
         )
@@ -257,7 +327,14 @@ struct TestQuarantineServiceTests {
             testPlanName: nil, status: .failed, duration: 100,
             testModules: [
                 TestModule(name: "AppTests", status: .failed, duration: 100, testSuites: [], testCases: [
-                    TestCase(name: "testA()", testSuite: "Suite", module: "AppTests", duration: 50, status: .failed, failures: []),
+                    TestCase(
+                        name: "testA()",
+                        testSuite: "Suite",
+                        module: "AppTests",
+                        duration: 50,
+                        status: .failed,
+                        failures: []
+                    ),
                 ]),
             ]
         )

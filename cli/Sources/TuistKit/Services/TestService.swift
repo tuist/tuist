@@ -1389,5 +1389,4 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.update(testRunId: test.id)
     }
-
 }
