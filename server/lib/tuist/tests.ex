@@ -29,6 +29,7 @@ defmodule Tuist.Tests do
   alias Tuist.Repo
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
+  alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
@@ -303,7 +304,7 @@ defmodule Tuist.Tests do
   - :name, :module_name, :suite_name - identity fields
   - :status, :duration, :ran_at - latest run data
   """
-  def create_test_cases(project_id, test_case_data_list) do
+  def create_test_cases(project_id, test_case_data_list, existing_test_cases) do
     now = NaiveDateTime.utc_now()
 
     test_case_ids_with_data =
@@ -312,9 +313,7 @@ defmodule Tuist.Tests do
         {id, data}
       end)
 
-    test_case_ids = Enum.map(test_case_ids_with_data, fn {id, _} -> id end)
-
-    existing_data = get_project_test_cases(project_id, test_case_ids)
+    existing_data = existing_test_cases
 
     {test_cases, test_cases_with_flaky_run} =
       Enum.map_reduce(test_case_ids_with_data, [], fn {id, data}, acc ->
@@ -351,7 +350,8 @@ defmodule Tuist.Tests do
       end)
 
     new_test_case_ids =
-      test_case_ids
+      test_case_ids_with_data
+      |> Enum.map(fn {id, _} -> id end)
       |> Enum.reject(&Map.has_key?(existing_data, &1))
       |> MapSet.new()
 
@@ -365,26 +365,18 @@ defmodule Tuist.Tests do
     {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids}
   end
 
-  defp get_project_test_cases(_project_id, []), do: %{}
-
-  defp get_project_test_cases(project_id, test_case_ids) do
-    test_case_ids
-    |> Enum.chunk_every(5_000)
-    |> Enum.flat_map(fn chunk ->
-      IngestRepo.all(
-        from(test_case in TestCase,
-          hints: ["FINAL"],
-          where: test_case.project_id == ^project_id,
-          where: test_case.id in ^chunk,
-          select: %{
-            id: test_case.id,
-            recent_durations: test_case.recent_durations,
-            is_flaky: test_case.is_flaky,
-            is_quarantined: test_case.is_quarantined
-          }
-        )
-      )
-    end)
+  defp get_all_project_test_cases(project_id) do
+    from(test_case in TestCase,
+      hints: ["FINAL"],
+      where: test_case.project_id == ^project_id,
+      select: %{
+        id: test_case.id,
+        recent_durations: test_case.recent_durations,
+        is_flaky: test_case.is_flaky,
+        is_quarantined: test_case.is_quarantined
+      }
+    )
+    |> IngestRepo.all()
     |> Map.new(fn row -> {row.id, row} end)
   end
 
@@ -589,6 +581,7 @@ defmodule Tuist.Tests do
 
   defp create_test_modules(test, test_modules) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
+    existing_test_cases = get_all_project_test_cases(test.project_id)
 
     Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
@@ -637,7 +630,8 @@ defmodule Tuist.Tests do
           test_cases,
           suite_name_to_id,
           module_name,
-          module_test_case_run_data
+          module_test_case_run_data,
+          existing_test_cases
         )
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
@@ -805,7 +799,15 @@ defmodule Tuist.Tests do
     suite_name_to_id
   end
 
-  defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name, test_case_run_data) do
+  defp create_test_cases_for_module(
+         test,
+         module_id,
+         test_cases,
+         suite_name_to_id,
+         module_name,
+         test_case_run_data,
+         existing_test_cases
+       ) do
     test_case_data_list =
       test_cases
       |> Enum.map(fn case_attrs ->
@@ -827,7 +829,7 @@ defmodule Tuist.Tests do
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
     {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
-      create_test_cases(test.project_id, test_case_data_list)
+      create_test_cases(test.project_id, test_case_data_list, existing_test_cases)
 
     {test_case_runs, all_failures, all_repetitions} =
       Enum.reduce(test_cases, {[], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc} ->
@@ -1781,10 +1783,10 @@ defmodule Tuist.Tests do
     fourteen_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
 
     recent_flaky_subquery =
-      from(test_case_run in TestCaseRun,
-        where: test_case_run.is_flaky == true and test_case_run.inserted_at >= ^fourteen_days_ago,
-        group_by: test_case_run.test_case_id,
-        select: test_case_run.test_case_id
+      from(flaky_run in FlakyTestCaseRun,
+        where: flaky_run.inserted_at >= ^fourteen_days_ago,
+        group_by: flaky_run.test_case_id,
+        select: flaky_run.test_case_id
       )
 
     query =

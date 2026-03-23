@@ -1,6 +1,8 @@
 defmodule Cache.Config do
   @moduledoc false
 
+  alias Cache.DistributedKV.Repo
+
   def float_env(name, default) when is_binary(name) do
     name
     |> System.get_env()
@@ -130,6 +132,74 @@ defmodule Cache.Config do
     Application.get_env(:cache, :key_value_eviction_max_duration_ms, 300_000)
   end
 
+  def key_value_mode do
+    Application.get_env(:cache, :key_value_mode, :local)
+  end
+
+  def distributed_kv_enabled? do
+    key_value_mode() == :distributed
+  end
+
+  def distributed_kv_database_url do
+    Application.get_env(:cache, Repo)[:url]
+  end
+
+  def distributed_kv_ssl_opts(database_url) when is_binary(database_url) do
+    hostname = distributed_kv_database_hostname(database_url)
+
+    [
+      verify: :verify_peer,
+      cacertfile: CAStore.file_path(),
+      server_name_indication: String.to_charlist(hostname),
+      customize_hostname_check: [
+        match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+      ]
+    ]
+  end
+
+  def distributed_kv_pool_size do
+    Application.get_env(:cache, Repo)[:pool_size] || 5
+  end
+
+  def distributed_kv_database_timeout_ms do
+    Application.fetch_env!(:cache, :distributed_kv_database_timeout_ms)
+  end
+
+  def distributed_kv_sync_interval_ms do
+    Application.fetch_env!(:cache, :distributed_kv_sync_interval_ms)
+  end
+
+  def distributed_kv_poll_lag_ms do
+    Application.fetch_env!(:cache, :distributed_kv_poll_lag_ms)
+  end
+
+  def distributed_kv_ship_interval_ms do
+    Application.fetch_env!(:cache, :distributed_kv_ship_interval_ms)
+  end
+
+  def distributed_kv_ship_batch_size do
+    Application.fetch_env!(:cache, :distributed_kv_ship_batch_size)
+  end
+
+  def distributed_kv_access_throttle_ms do
+    Application.fetch_env!(:cache, :distributed_kv_access_throttle_ms)
+  end
+
+  def distributed_kv_tombstone_retention_days do
+    Application.fetch_env!(:cache, :distributed_kv_tombstone_retention_days)
+  end
+
+  def distributed_kv_cleanup_lease_ms do
+    Application.fetch_env!(:cache, :distributed_kv_cleanup_lease_ms)
+  end
+
+  def distributed_kv_node_name do
+    Application.get_env(:cache, :distributed_kv_node_name) ||
+      System.get_env("DISTRIBUTED_KV_NODE_NAME") ||
+      System.get_env("HOSTNAME") ||
+      cache_endpoint()
+  end
+
   def key_value_read_busy_timeout_ms do
     Application.get_env(:cache, :key_value_read_busy_timeout_ms, 2_000)
   end
@@ -147,6 +217,13 @@ defmodule Cache.Config do
     |> to_string()
     |> String.split("@")
     |> List.last()
+  end
+
+  defp distributed_kv_database_hostname(database_url) do
+    case URI.parse(database_url) do
+      %URI{host: host} when is_binary(host) and host != "" -> host
+      _ -> raise ArgumentError, "DISTRIBUTED_KV_DATABASE_URL must include a hostname"
+    end
   end
 
   defp parse_float(nil, default), do: default

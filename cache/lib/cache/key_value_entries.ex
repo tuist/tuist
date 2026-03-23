@@ -1,29 +1,26 @@
 defmodule Cache.KeyValueEntries do
   @moduledoc """
-  Context module for key-value entry management and eviction.
+  Context module for key-value entry management, eviction, and distributed-mode helpers.
   """
 
   import Ecto.Query
 
   alias Cache.Config
+  alias Cache.DistributedKV.State
   alias Cache.KeyValueEntry
-  alias Cache.KeyValueEntryHash
   alias Cache.KeyValueRepo
   alias Cache.SQLiteHelpers
 
   @id_chunk_size 500
-  @hash_chunk_size 500
-  @insert_chunk_size 200
   @default_batch_size 1000
   @default_max_duration_ms 300_000
   @batch_sleep_ms 10
+  @poller_watermark "poller_watermark"
 
   @doc """
-  Deletes expired entries and returns CAS hashes grouped by account/project scope.
+  Deletes expired entries and returns `{grouped_hashes, deleted_count, status}`.
 
-  The return shape is `{grouped_hashes, deleted_count, status}` where
-  `grouped_hashes` is `%{{account_handle, project_handle} => [cas_hash, ...]}`
-  and `status` is `:complete`, `:time_limit_reached`, or `:busy`.
+  The grouped hashes value is always empty because KV eviction no longer drives artifact cleanup.
   """
   def delete_expired(max_age_days \\ 30, opts \\ []) do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
@@ -35,15 +32,7 @@ defmodule Cache.KeyValueEntries do
   end
 
   @doc """
-  Deletes one batch of the oldest expired entries and returns CAS hashes
-  grouped by account/project scope.
-
-  Entries with NULL `last_accessed_at` are evicted first, followed by the
-  oldest non-NULL entries that exceed the given age threshold.
-
-  Returns `{grouped_hashes, deleted_count, status}` where
-  `grouped_hashes` is `%{{account_handle, project_handle} => [cas_hash, ...]}`
-  and `status` is `:complete`, `:time_limit_reached`, or `:busy`.
+  Deletes one batch of the oldest expired entries and returns `{grouped_hashes, deleted_count, status}`.
   """
   def delete_one_expired_batch(max_age_days, opts \\ []) do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
@@ -62,9 +51,9 @@ defmodule Cache.KeyValueEntries do
 
           batch ->
             ids_to_delete = Enum.map(batch, &elem(&1, 0))
-            {hash_sets, count, status} = delete_expired_entries(ids_to_delete, cutoff)
+            {count, status} = delete_expired_entries(ids_to_delete, cutoff)
             :timer.sleep(@batch_sleep_ms)
-            {to_sorted_hash_lists(hash_sets), count, status}
+            {%{}, count, status}
         end
       end
     end)
@@ -77,67 +66,155 @@ defmodule Cache.KeyValueEntries do
       end
   end
 
-  @doc """
-  Replaces all CAS hash references for the given entries.
-  Deletes existing hashes and re-inserts based on current `json_payload`.
-  """
-  def replace_entry_hashes([]), do: :ok
+  def list_pending_replication(limit \\ Config.distributed_kv_ship_batch_size()) do
+    KeyValueEntry
+    |> where([entry], not is_nil(entry.replication_enqueued_at))
+    |> order_by([entry], asc: entry.replication_enqueued_at, asc: entry.id)
+    |> limit(^limit)
+    |> KeyValueRepo.all()
+  end
 
-  def replace_entry_hashes(entries) when is_list(entries) do
-    entry_chunks = Enum.chunk_every(entries, @id_chunk_size)
+  def clear_replication_token(key, token) when is_binary(key) do
+    {count, _} =
+      KeyValueRepo.update_all(
+        from(entry in KeyValueEntry,
+          where: entry.key == ^key,
+          where: entry.replication_enqueued_at == ^token
+        ),
+        set: [replication_enqueued_at: nil]
+      )
 
-    {:ok, _} =
-      KeyValueRepo.transaction(fn ->
-        Enum.each(entry_chunks, fn entries_chunk ->
-          ids_chunk = entries_chunk |> Enum.map(& &1.id) |> Enum.uniq()
+    count
+  end
 
-          {_, _} = KeyValueRepo.delete_all(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^ids_chunk))
+  def distributed_watermark do
+    KeyValueRepo.get(State, @poller_watermark)
+  end
 
-          entries_chunk
-          |> Enum.flat_map(&entry_hash_rows/1)
-          |> Enum.chunk_every(@insert_chunk_size)
-          |> Enum.each(fn rows_chunk ->
-            {_, _} =
-              KeyValueRepo.insert_all(KeyValueEntryHash, rows_chunk,
-                on_conflict: :nothing,
-                conflict_target: [:key_value_entry_id, :cas_hash]
-              )
-          end)
-        end)
-      end)
+  def put_distributed_watermark(updated_at_value, key_value) do
+    attrs = %{name: @poller_watermark, updated_at_value: updated_at_value, key_value: key_value}
+
+    {:ok, _state} =
+      %State{name: @poller_watermark}
+      |> State.changeset(attrs)
+      |> KeyValueRepo.insert(
+        on_conflict: [set: [updated_at_value: updated_at_value, key_value: key_value]],
+        conflict_target: :name
+      )
 
     :ok
   end
 
-  @doc """
-  Returns hashes from the input list that are not referenced by any
-  key-value entry for the given account and project.
-  """
-  def unreferenced_hashes([], _account_handle, _project_handle), do: []
+  def materialize_remote_entry(attrs) when is_map(attrs) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
-  def unreferenced_hashes(hashes, account_handle, project_handle) when is_list(hashes) do
-    referenced =
-      hashes
-      |> Enum.chunk_every(@hash_chunk_size)
-      |> Enum.flat_map(fn chunk ->
-        KeyValueRepo.all(
-          from(h in KeyValueEntryHash,
-            where: h.account_handle == ^account_handle,
-            where: h.project_handle == ^project_handle,
-            where: h.cas_hash in ^chunk,
-            select: h.cas_hash,
-            distinct: true
-          )
-        )
+    attrs =
+      Map.merge(
+        %{
+          inserted_at: now,
+          updated_at: now,
+          replication_enqueued_at: nil
+        },
+        attrs
+      )
+
+    persisted_attrs =
+      Map.take(attrs, [
+        :key,
+        :json_payload,
+        :last_accessed_at,
+        :source_updated_at,
+        :replication_enqueued_at,
+        :inserted_at,
+        :updated_at
+      ])
+
+    {:ok, status} =
+      KeyValueRepo.transaction(fn ->
+        case KeyValueRepo.get_by(KeyValueEntry, key: attrs.key) do
+          nil ->
+            KeyValueRepo.insert!(struct(KeyValueEntry, persisted_attrs))
+            :inserted
+
+          local_entry ->
+            merged = merge_remote_into_local(local_entry, attrs)
+
+            local_entry
+            |> KeyValueEntry.changeset(merged)
+            |> KeyValueRepo.update!()
+
+            case merged do
+              %{json_payload: json_payload, source_updated_at: source_updated_at}
+              when json_payload != local_entry.json_payload or source_updated_at != local_entry.source_updated_at ->
+                :payload_updated
+
+              _ ->
+                :access_updated
+            end
+        end
       end)
-      |> MapSet.new()
 
-    Enum.reject(hashes, &MapSet.member?(referenced, &1))
+    status
   end
 
-  defp delete_expired_loop(cutoff, batch_size, deadline_ms, cursor \\ nil, hash_sets_acc \\ %{}, count_acc \\ 0) do
+  def delete_local_entry_if_not_pending(key) when is_binary(key) do
+    {count, _} =
+      KeyValueRepo.delete_all(
+        from(entry in KeyValueEntry,
+          where: entry.key == ^key,
+          where: is_nil(entry.replication_enqueued_at)
+        )
+      )
+
+    count
+  end
+
+  def delete_local_entry_if_before_or_equal(key, cutoff) when is_binary(key) do
+    {count, _} =
+      KeyValueRepo.delete_all(
+        from(entry in KeyValueEntry,
+          where: entry.key == ^key,
+          where: entry.source_updated_at <= ^cutoff
+        )
+      )
+
+    count
+  end
+
+  def delete_project_entries_before(account_handle, project_handle, cutoff) do
+    {prefix, prefix_upper_bound} = project_key_bounds(account_handle, project_handle)
+
+    query = prefix_project_entries_query(prefix, prefix_upper_bound, cutoff)
+
+    {:ok, {deleted_keys, count}} =
+      KeyValueRepo.transaction(fn ->
+        candidate_keys =
+          query
+          |> select([entry], entry.key)
+          |> KeyValueRepo.all()
+
+        count = delete_project_candidate_keys(candidate_keys, cutoff)
+        remaining_key_set = candidate_keys |> existing_project_keys() |> MapSet.new()
+        deleted_keys = Enum.reject(candidate_keys, &MapSet.member?(remaining_key_set, &1))
+        {deleted_keys, count}
+      end)
+
+    {deleted_keys, count}
+  end
+
+  def estimated_size_bytes do
+    KeyValueRepo.one(from(entry in KeyValueEntry, select: sum(fragment("length(?)", entry.json_payload)))) || 0
+  end
+
+  def entry_count do
+    KeyValueRepo.aggregate(KeyValueEntry, :count)
+  end
+
+  def parse_scope(key), do: KeyValueEntry.scope_from_key(key)
+
+  defp delete_expired_loop(cutoff, batch_size, deadline_ms, cursor \\ nil, count_acc \\ 0) do
     if time_limit_reached?(deadline_ms) do
-      {to_sorted_hash_lists(hash_sets_acc), count_acc, :time_limit_reached}
+      {%{}, count_acc, :time_limit_reached}
     else
       timeout = Config.key_value_maintenance_busy_timeout_ms()
 
@@ -153,23 +230,18 @@ defmodule Cache.KeyValueEntries do
 
       case result do
         :empty ->
-          {to_sorted_hash_lists(hash_sets_acc), count_acc, :complete}
+          {%{}, count_acc, :complete}
 
         :busy ->
-          {to_sorted_hash_lists(hash_sets_acc), count_acc, :busy}
+          {%{}, count_acc, :busy}
 
-        {:ok, batch_hashes, batch_count, new_cursor} ->
-          merged = merge_grouped_hash_sets(hash_sets_acc, batch_hashes)
-          total = count_acc + batch_count
+        {:ok, batch_count, new_cursor} ->
           :timer.sleep(@batch_sleep_ms)
-          delete_expired_loop(cutoff, batch_size, deadline_ms, new_cursor, merged, total)
+          delete_expired_loop(cutoff, batch_size, deadline_ms, new_cursor, count_acc + batch_count)
       end
     end
   end
 
-  # Queries candidates for eviction, handling NULL last_accessed_at entries
-  # separately from non-NULL entries so the (last_accessed_at, id) index
-  # can be used for the non-NULL path.
   defp delete_candidate_batch(cutoff, batch_size, cursor) do
     case candidate_batch(cutoff, batch_size, cursor) do
       [] ->
@@ -177,11 +249,11 @@ defmodule Cache.KeyValueEntries do
 
       rows ->
         ids = Enum.map(rows, &elem(&1, 0))
-        {batch_hashes, batch_count, status} = delete_expired_entries(ids, cutoff)
+        {batch_count, status} = delete_expired_entries(ids, cutoff)
 
         case status do
           :busy -> :busy
-          :complete -> {:ok, batch_hashes, batch_count, batch_cursor(rows)}
+          :complete -> {:ok, batch_count, batch_cursor(rows)}
         end
     end
   end
@@ -204,33 +276,36 @@ defmodule Cache.KeyValueEntries do
       nulls
     else
       remaining = batch_size - null_count
-      non_nulls = non_null_candidates(cutoff, remaining, nil)
-      nulls ++ non_nulls
+      nulls ++ non_null_candidates(cutoff, remaining, nil)
     end
   end
 
   defp null_candidates(limit, after_id) do
     query =
-      from(e in KeyValueEntry,
-        where: is_nil(e.last_accessed_at),
-        order_by: [asc: e.id],
+      from(entry in KeyValueEntry,
+        where: is_nil(entry.last_accessed_at),
+        order_by: [asc: entry.id],
         limit: ^limit,
-        select: {e.id, e.last_accessed_at}
+        select: {entry.id, entry.last_accessed_at}
       )
 
-    query = if after_id, do: from(e in query, where: e.id > ^after_id), else: query
+    query = apply_evictable_filter(query)
+
+    query = if after_id, do: from(entry in query, where: entry.id > ^after_id), else: query
 
     KeyValueRepo.all(query)
   end
 
   defp non_null_candidates(cutoff, limit, cursor) do
     base =
-      from(e in KeyValueEntry,
-        where: not is_nil(e.last_accessed_at) and e.last_accessed_at < ^cutoff,
-        order_by: [asc: e.last_accessed_at, asc: e.id],
+      from(entry in KeyValueEntry,
+        where: not is_nil(entry.last_accessed_at) and entry.last_accessed_at < ^cutoff,
+        order_by: [asc: entry.last_accessed_at, asc: entry.id],
         limit: ^limit,
-        select: {e.id, e.last_accessed_at}
+        select: {entry.id, entry.last_accessed_at}
       )
+
+    base = apply_evictable_filter(base)
 
     query =
       case cursor do
@@ -238,14 +313,56 @@ defmodule Cache.KeyValueEntries do
           base
 
         {cursor_time, cursor_id} ->
-          from(e in base,
+          from(entry in base,
             where:
-              e.last_accessed_at > ^cursor_time or
-                (e.last_accessed_at == ^cursor_time and e.id > ^cursor_id)
+              entry.last_accessed_at > ^cursor_time or
+                (entry.last_accessed_at == ^cursor_time and entry.id > ^cursor_id)
           )
       end
 
     KeyValueRepo.all(query)
+  end
+
+  defp delete_expired_entries(ids_to_delete, cutoff) do
+    ids_to_delete
+    |> Enum.chunk_every(@id_chunk_size)
+    |> Enum.reduce_while({0, :complete}, fn ids_chunk, {count_acc, _status} ->
+      try do
+        deleted_count = delete_chunk(ids_chunk, cutoff)
+        {:cont, {count_acc + deleted_count, :complete}}
+      rescue
+        error ->
+          if SQLiteHelpers.busy_error?(error) do
+            {:halt, {count_acc, :busy}}
+          else
+            reraise error, __STACKTRACE__
+          end
+      end
+    end)
+  end
+
+  defp delete_chunk(ids_chunk, cutoff) do
+    {:ok, deleted_count} =
+      KeyValueRepo.transaction(fn ->
+        verified_ids =
+          KeyValueEntry
+          |> where([entry], entry.id in ^ids_chunk)
+          |> where([entry], is_nil(entry.last_accessed_at) or entry.last_accessed_at < ^cutoff)
+          |> apply_evictable_filter()
+          |> select([entry], entry.id)
+          |> KeyValueRepo.all()
+
+        {deleted_count, _} =
+          KeyValueEntry
+          |> where([entry], entry.id in ^verified_ids)
+          |> where([entry], is_nil(entry.last_accessed_at) or entry.last_accessed_at < ^cutoff)
+          |> apply_evictable_filter()
+          |> KeyValueRepo.delete_all()
+
+        deleted_count
+      end)
+
+    deleted_count
   end
 
   defp batch_cursor(batch) do
@@ -261,107 +378,114 @@ defmodule Cache.KeyValueEntries do
     System.monotonic_time(:millisecond) >= deadline_ms
   end
 
-  defp delete_expired_entries(ids_to_delete, cutoff) do
-    ids_to_delete
-    |> Enum.chunk_every(@id_chunk_size)
-    |> Enum.reduce_while({%{}, 0, :complete}, fn ids_chunk, {hash_sets_acc, count_acc, _status} ->
-      try do
-        {chunk_hash_sets, chunk_count} = delete_chunk(ids_chunk, cutoff)
-
-        {:cont, {merge_grouped_hash_sets(hash_sets_acc, chunk_hash_sets), count_acc + chunk_count, :complete}}
-      rescue
-        error ->
-          if SQLiteHelpers.busy_error?(error) do
-            {:halt, {hash_sets_acc, count_acc, :busy}}
-          else
-            reraise error, __STACKTRACE__
-          end
-      end
-    end)
-  end
-
-  defp delete_chunk(ids_chunk, cutoff) do
-    {:ok, result} =
-      KeyValueRepo.transaction(fn ->
-        verified_ids =
-          KeyValueRepo.all(
-            from(e in KeyValueEntry,
-              where: e.id in ^ids_chunk,
-              where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
-              select: e.id
-            )
-          )
-
-        grouped_hash_sets = hash_references_for_entries(verified_ids)
-
-        {deleted_count, _} =
-          KeyValueRepo.delete_all(
-            from(e in KeyValueEntry,
-              where: e.id in ^verified_ids,
-              where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff
-            )
-          )
-
-        {grouped_hash_sets, deleted_count}
-      end)
-
-    result
-  end
-
-  defp hash_references_for_entries([]), do: %{}
-
-  defp hash_references_for_entries(entry_ids) do
-    from(h in KeyValueEntryHash,
-      where: h.key_value_entry_id in ^entry_ids,
-      select: {h.account_handle, h.project_handle, h.cas_hash}
+  defp prefix_project_entries_query(prefix, prefix_upper_bound, cutoff) do
+    from(entry in KeyValueEntry,
+      where: entry.key >= ^prefix,
+      where: entry.key < ^prefix_upper_bound,
+      where: is_nil(entry.replication_enqueued_at),
+      where: is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff
     )
-    |> KeyValueRepo.all()
-    |> Enum.reduce(%{}, fn {account_handle, project_handle, cas_hash}, acc ->
-      scope = {account_handle, project_handle}
-      Map.update(acc, scope, MapSet.new([cas_hash]), &MapSet.put(&1, cas_hash))
+  end
+
+  defp delete_project_candidate_keys([], _cutoff), do: 0
+
+  defp delete_project_candidate_keys(candidate_keys, cutoff) do
+    candidate_keys
+    |> Enum.chunk_every(@id_chunk_size)
+    |> Enum.reduce(0, fn keys_chunk, count_acc ->
+      {chunk_count, _} =
+        KeyValueRepo.delete_all(
+          from(entry in KeyValueEntry,
+            where: entry.key in ^keys_chunk,
+            where: is_nil(entry.replication_enqueued_at),
+            where: is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff
+          )
+        )
+
+      count_acc + chunk_count
     end)
   end
 
-  defp merge_grouped_hash_sets(left, right) do
-    Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
-      MapSet.union(left_hashes, right_hashes)
+  defp existing_project_keys([]), do: []
+
+  defp existing_project_keys(candidate_keys) do
+    candidate_keys
+    |> Enum.chunk_every(@id_chunk_size)
+    |> Enum.flat_map(fn keys_chunk ->
+      KeyValueEntry
+      |> where([entry], entry.key in ^keys_chunk)
+      |> select([entry], entry.key)
+      |> KeyValueRepo.all()
     end)
   end
 
-  defp to_sorted_hash_lists(grouped_hash_sets) do
-    Map.new(grouped_hash_sets, fn {scope, hashes} ->
-      {scope, hashes |> MapSet.to_list() |> Enum.sort()}
-    end)
+  defp project_key_bounds(account_handle, project_handle) do
+    prefix = "keyvalue:#{account_handle}:#{project_handle}:"
+    {prefix, next_lexicographic_string(prefix)}
   end
 
-  defp entry_hash_rows(entry) do
-    with {account_handle, project_handle} <- parse_scope(entry.key),
-         {:ok, %{"entries" => entries}} when is_list(entries) <- Jason.decode(entry.json_payload) do
-      entries
-      |> Enum.map(&Map.get(&1, "value"))
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-      |> Enum.map(fn cas_hash ->
-        %{
-          key_value_entry_id: entry.id,
-          account_handle: account_handle,
-          project_handle: project_handle,
-          cas_hash: cas_hash
-        }
-      end)
+  defp next_lexicographic_string(value) do
+    value
+    |> String.to_charlist()
+    |> Enum.reverse()
+    |> increment_reversed_codepoints()
+    |> Enum.reverse()
+    |> List.to_string()
+  end
+
+  defp increment_reversed_codepoints([codepoint | rest]) when codepoint < 0x10FFFF, do: [codepoint + 1 | rest]
+  defp increment_reversed_codepoints([_codepoint | rest]), do: increment_reversed_codepoints(rest)
+
+  defp increment_reversed_codepoints([]) do
+    raise ArgumentError, "value has no lexicographic successor"
+  end
+
+  defp apply_evictable_filter(query) do
+    if Config.distributed_kv_enabled?() do
+      from(entry in query, where: is_nil(entry.replication_enqueued_at))
     else
-      _ ->
-        []
+      query
     end
   end
 
-  defp parse_scope(key) do
-    case String.split(key, ":", parts: 4) do
-      ["keyvalue", account_handle, project_handle, _cas_id] ->
-        {account_handle, project_handle}
+  defp merge_remote_into_local(local_entry, remote_attrs) do
+    local_wins? =
+      not is_nil(local_entry.replication_enqueued_at) and
+        compare_source_versions(
+          local_entry.source_updated_at,
+          local_entry.source_updated_at && Config.distributed_kv_node_name(),
+          remote_attrs.source_updated_at,
+          Map.get(remote_attrs, :source_node)
+        ) == :gt
 
-      _ ->
-        :skip
+    if local_wins? do
+      %{last_accessed_at: max_datetime(local_entry.last_accessed_at, remote_attrs.last_accessed_at)}
+    else
+      %{
+        json_payload: remote_attrs.json_payload,
+        source_updated_at: remote_attrs.source_updated_at,
+        last_accessed_at: max_datetime(local_entry.last_accessed_at, remote_attrs.last_accessed_at),
+        replication_enqueued_at: local_entry.replication_enqueued_at
+      }
     end
   end
+
+  defp compare_source_versions(nil, _left_node, nil, _right_node), do: :eq
+  defp compare_source_versions(nil, _left_node, _right_time, _right_node), do: :lt
+  defp compare_source_versions(_left_time, _left_node, nil, _right_node), do: :gt
+
+  defp compare_source_versions(left_time, left_node, right_time, right_node) do
+    case DateTime.compare(left_time, right_time) do
+      :eq -> compare_node_names(left_node || "", right_node || "")
+      other -> other
+    end
+  end
+
+  defp compare_node_names(left, right) when left > right, do: :gt
+  defp compare_node_names(left, right) when left < right, do: :lt
+  defp compare_node_names(_left, _right), do: :eq
+
+  defp max_datetime(nil, right), do: right
+  defp max_datetime(left, nil), do: left
+  defp max_datetime(left, right), do: if(DateTime.before?(left, right), do: right, else: left)
 end

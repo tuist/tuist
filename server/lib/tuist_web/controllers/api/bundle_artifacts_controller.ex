@@ -6,7 +6,7 @@ defmodule TuistWeb.API.BundleArtifactsController do
   alias Tuist.Bundles
   alias TuistWeb.API.Schemas.Error
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
