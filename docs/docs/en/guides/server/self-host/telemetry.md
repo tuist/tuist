@@ -462,6 +462,8 @@ The total number of users.
 
 A set of metrics related to the database connection.
 
+The repo pool metrics are sampled internally every 100ms and then exposed to Prometheus on `/metrics`. The `last_value` metrics below show the most recent pool state at scrape time. The pressure metrics further down are counters and sums derived from those 100ms samples, which makes short saturation windows easier to spot even when they recover before the next scrape.
+
 ### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}
 
 The number of database queries that are sitting in a queue waiting to be assigned to a database connection.
@@ -489,6 +491,39 @@ The number of database connections that are ready to be assigned to a database q
 The configured number of connections in the pool.
 
 #### Tags {#tuist_repo_pool_size-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
+### `tuist_repo_pool_checkout_queue_observed_sum` (sum) {#tuist_repo_pool_checkout_queue_observed_sum-sum}
+
+The sum of queued checkout requests observed across repo pool polls. This is useful for detecting short bursts of pool contention that may not be visible in the latest queue-length sample alone.
+
+#### Tags {#tuist_repo_pool_checkout_queue_observed_sum-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
+### `tuist_repo_pool_checkout_queue_busy_samples_total` (counter) {#tuist_repo_pool_checkout_queue_busy_samples_total-counter}
+
+The number of repo pool polls where at least one database checkout request was waiting in the queue.
+
+#### Tags {#tuist_repo_pool_checkout_queue_busy_samples_total-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
+### `tuist_repo_pool_checkout_queue_starved_samples_total` (counter) {#tuist_repo_pool_checkout_queue_starved_samples_total-counter}
+
+The number of repo pool polls where checkout requests were queued and no ready connections were available. A sustained increase here usually means the pool is saturated.
+
+#### Tags {#tuist_repo_pool_checkout_queue_starved_samples_total-tags}
 
 | Tag | Description |
 |--- | ---- |
