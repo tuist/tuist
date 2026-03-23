@@ -1,7 +1,6 @@
 import ProjectDescription
 
 let tuist = Tuist(
-    project: .tuist(generationOptions: .options(
-        enforceExplicitDependencies: true
-    ))
+    fullHandle: "tuist/tuist",
+    url: "http://localhost:8080"
 )

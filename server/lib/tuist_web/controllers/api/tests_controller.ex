@@ -347,6 +347,10 @@ defmodule TuistWeb.API.TestsController do
                          type: :integer,
                          description: "The duration of the test case in milliseconds."
                        },
+                       is_quarantined: %Schema{
+                         type: :boolean,
+                         description: "Whether this test case was quarantined when it ran."
+                       },
                        failures: %Schema{
                          type: :array,
                          description: "The failures that occurred in this test case.",
