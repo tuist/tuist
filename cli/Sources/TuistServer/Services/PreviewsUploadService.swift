@@ -453,7 +453,11 @@ public protocol PreviewsUploadServicing {
             }
 
             private func appBundleBinaryId(at path: AbsolutePath, name: String) throws -> String {
-                let executablePath = path.appending(component: name)
+                // macOS bundles use Contents/MacOS/ subdirectory layout
+                let isMacOSBundle = FileManager.default.fileExists(atPath: path.appending(component: "Contents").pathString)
+                let executablePath = isMacOSBundle
+                    ? path.appending(components: "Contents", "MacOS", name)
+                    : path.appending(component: name)
                 guard let uuids = try? precompiledMetadataProvider.uuids(binaryPath: executablePath),
                       let uuid = uuids.first
                 else {
