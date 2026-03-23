@@ -105,7 +105,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let ciController: CIControlling
     private let clock: Clock
-    private let listTestCasesService: ListTestCasesServicing
     private let testQuarantineService: TestQuarantineServicing
 
     public init(
@@ -117,8 +116,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.init(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
-            configLoader: configLoader,
-            listTestCasesService: ListTestCasesService()
+            configLoader: configLoader
         )
     }
 
@@ -142,7 +140,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         ciController: CIControlling = CIController(),
         clock: Clock = WallClock(),
-        listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService()
     ) {
         self.generatorFactory = generatorFactory
@@ -164,7 +161,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.serverEnvironmentService = serverEnvironmentService
         self.ciController = ciController
         self.clock = clock
-        self.listTestCasesService = listTestCasesService
         self.testQuarantineService = testQuarantineService
     }
 
@@ -252,9 +248,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         let skipTestTargets = skipTestTargets
-        let quarantinedTests = await quarantinedTests(
-            skipQuarantine: skipQuarantine,
-            config: config
+        let quarantinedTests = await testQuarantineService.quarantinedTests(
+            config: config,
+            skipQuarantine: skipQuarantine
         )
 
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1032,61 +1028,4 @@ public struct TestService { // swiftlint:disable:this type_body_length
         await RunMetadataStorage.current.update(testRunId: test.id)
     }
 
-    private func quarantinedTests(
-        skipQuarantine: Bool,
-        config: Tuist
-    ) async -> [TestIdentifier] {
-        Logger.current.log(
-            level: .debug,
-            "Quarantine check: skipQuarantine=\(skipQuarantine), fullHandle=\(config.fullHandle ?? "nil")"
-        )
-        guard !skipQuarantine, let fullHandle = config.fullHandle else {
-            return []
-        }
-        do {
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let quarantinedTests = try await quarantinedTests(
-                fullHandle: fullHandle,
-                serverURL: serverURL
-            )
-            Logger.current.log(
-                level: .debug,
-                "Fetched \(quarantinedTests.count) quarantined test(s)"
-            )
-            if !quarantinedTests.isEmpty {
-                Logger.current.notice(
-                    "Found \(quarantinedTests.count) quarantined test(s)",
-                    metadata: .subsection
-                )
-            }
-            return quarantinedTests
-        } catch {
-            AlertController.current.warning(
-                .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
-            )
-            return []
-        }
-    }
-
-    private func quarantinedTests(
-        fullHandle: String,
-        serverURL: URL
-    ) async throws -> [TestIdentifier] {
-        let response = try await listTestCasesService.listTestCases(
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            flaky: nil,
-            quarantined: true,
-            page: 1,
-            pageSize: 500
-        )
-
-        return try response.test_cases.map { testCase in
-            try TestIdentifier(
-                target: testCase.module.name,
-                class: testCase.suite?.name,
-                method: testCase.name
-            )
-        }
-    }
 }

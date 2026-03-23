@@ -1,6 +1,9 @@
 import Mockable
+import TuistAlert
+import TuistConfig
 import TuistCore
 import TuistLogging
+import TuistServer
 import TuistXCResultService
 
 struct QuarantineClassificationResult {
@@ -14,13 +17,11 @@ struct QuarantineClassificationResult {
 
 @Mockable
 protocol TestQuarantineServicing {
-    func classifyFailures(
-        testSummary: TestSummary,
-        quarantinedTests: [TestIdentifier]
-    ) -> QuarantineClassificationResult
+    func quarantinedTests(
+        config: Tuist,
+        skipQuarantine: Bool
+    ) async -> [TestIdentifier]
 
-    /// Classifies failures and logs the result.
-    /// Returns `true` if only quarantined tests failed (exit code should be overridden to 0).
     func handleQuarantinedFailures(
         testSummary: TestSummary,
         quarantinedTests: [TestIdentifier]
@@ -28,10 +29,62 @@ protocol TestQuarantineServicing {
 }
 
 struct TestQuarantineService: TestQuarantineServicing {
-    func classifyFailures(
+    private let listTestCasesService: ListTestCasesServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
+
+    init(
+        listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
+    ) {
+        self.listTestCasesService = listTestCasesService
+        self.serverEnvironmentService = serverEnvironmentService
+    }
+
+    func quarantinedTests(
+        config: Tuist,
+        skipQuarantine: Bool = false
+    ) async -> [TestIdentifier] {
+        guard !skipQuarantine, let fullHandle = config.fullHandle else {
+            return []
+        }
+        do {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let response = try await listTestCasesService.listTestCases(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                flaky: nil,
+                quarantined: true,
+                page: 1,
+                pageSize: 500
+            )
+            let tests = try response.test_cases.map { testCase in
+                try TestIdentifier(
+                    target: testCase.module.name,
+                    class: testCase.suite?.name,
+                    method: testCase.name
+                )
+            }
+            if !tests.isEmpty {
+                Logger.current.notice(
+                    "Found \(tests.count) quarantined test(s)",
+                    metadata: .subsection
+                )
+            }
+            return tests
+        } catch {
+            AlertController.current.warning(
+                .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+            )
+            return []
+        }
+    }
+
+    func handleQuarantinedFailures(
         testSummary: TestSummary,
         quarantinedTests: [TestIdentifier]
-    ) -> QuarantineClassificationResult {
+    ) -> Bool {
+        guard !quarantinedTests.isEmpty else { return false }
+
         let failedTestCases = testSummary.testCases.filter { $0.status == .failed }
         var quarantinedFailures: [TestCase] = []
         var realFailures: [TestCase] = []
@@ -58,35 +111,27 @@ struct TestQuarantineService: TestQuarantineServicing {
             }
         }
 
-        return QuarantineClassificationResult(quarantinedFailures: quarantinedFailures, realFailures: realFailures)
-    }
+        if quarantinedFailures.isEmpty {
+            return false
+        }
 
-    func handleQuarantinedFailures(
-        testSummary: TestSummary,
-        quarantinedTests: [TestIdentifier]
-    ) -> Bool {
-        guard !quarantinedTests.isEmpty else { return false }
-
-        let result = classifyFailures(testSummary: testSummary, quarantinedTests: quarantinedTests)
-
-        if result.onlyQuarantinedFailures {
-            let failureNames = result.quarantinedFailures.map { testCase in
+        if realFailures.isEmpty {
+            let failureNames = quarantinedFailures.map { testCase in
                 [testCase.module, testCase.testSuite, testCase.name]
                     .compactMap { $0 }
                     .joined(separator: "/")
             }.joined(separator: ", ")
             Logger.current.notice(
-                "\(result.quarantinedFailures.count) quarantined test(s) failed (exit code overridden to 0): \(failureNames)",
+                "\(quarantinedFailures.count) quarantined test(s) failed (exit code overridden to 0): \(failureNames)",
                 metadata: .subsection
             )
             return true
-        } else if !result.realFailures.isEmpty, !result.quarantinedFailures.isEmpty {
-            Logger.current.notice(
-                "\(result.quarantinedFailures.count) quarantined test(s) failed, \(result.realFailures.count) non-quarantined test(s) failed",
-                metadata: .subsection
-            )
         }
 
+        Logger.current.notice(
+            "\(quarantinedFailures.count) quarantined test(s) failed, \(realFailures.count) non-quarantined test(s) failed",
+            metadata: .subsection
+        )
         return false
     }
 }

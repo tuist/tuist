@@ -26,8 +26,6 @@ struct XcodeBuildTestCommandService {
     private let derivedDataLocator: DerivedDataLocating
     private let xcActivityLogController: XCActivityLogControlling
     private let uploadResultBundleService: UploadResultBundleServicing
-    private let listTestCasesService: ListTestCasesServicing
-    private let serverEnvironmentService: ServerEnvironmentServicing
     private let xcResultService: XCResultServicing
     private let gitController: GitControlling
     private let testQuarantineService: TestQuarantineServicing
@@ -42,8 +40,6 @@ struct XcodeBuildTestCommandService {
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
-        listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         xcResultService: XCResultServicing = XCResultService(),
         gitController: GitControlling = GitController(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService()
@@ -57,8 +53,6 @@ struct XcodeBuildTestCommandService {
         self.derivedDataLocator = derivedDataLocator
         self.xcActivityLogController = xcActivityLogController
         self.uploadResultBundleService = uploadResultBundleService
-        self.listTestCasesService = listTestCasesService
-        self.serverEnvironmentService = serverEnvironmentService
         self.xcResultService = xcResultService
         self.gitController = gitController
         self.testQuarantineService = testQuarantineService
@@ -84,7 +78,7 @@ struct XcodeBuildTestCommandService {
         let config = try await configLoader.loadConfig(path: path)
         let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
 
-        let quarantinedTests = await quarantinedTests(config: config)
+        let quarantinedTests = await testQuarantineService.quarantinedTests(config: config, skipQuarantine: false)
 
         do {
             try await xcodeBuildController.run(arguments: passthroughXcodebuildArguments)
@@ -216,40 +210,6 @@ struct XcodeBuildTestCommandService {
         let valueIndex = arguments.index(after: optionIndex)
         guard arguments.endIndex > valueIndex else { return nil }
         return arguments[valueIndex]
-    }
-
-    private func quarantinedTests(config: Tuist) async -> [TestIdentifier] {
-        guard let fullHandle = config.fullHandle else { return [] }
-        do {
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let response = try await listTestCasesService.listTestCases(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                flaky: nil,
-                quarantined: true,
-                page: 1,
-                pageSize: 500
-            )
-            let tests = try response.test_cases.map { testCase in
-                try TestIdentifier(
-                    target: testCase.module.name,
-                    class: testCase.suite?.name,
-                    method: testCase.name
-                )
-            }
-            if !tests.isEmpty {
-                Logger.current.notice(
-                    "Found \(tests.count) quarantined test(s)",
-                    metadata: .subsection
-                )
-            }
-            return tests
-        } catch {
-            AlertController.current.warning(
-                .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
-            )
-            return []
-        }
     }
 
     private func rootDirectory() async -> AbsolutePath? {
