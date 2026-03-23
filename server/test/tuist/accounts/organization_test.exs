@@ -61,6 +61,27 @@ defmodule Tuist.OrganizationTest do
 
       assert changeset.valid? == true
     end
+
+    test "normalizes the custom_oauth2 site on create" do
+      changeset =
+        Organization.create_changeset(%Organization{}, %{
+          sso_provider: :custom_oauth2,
+          sso_organization_id: " https://auth.example.com/ "
+        })
+
+      assert Ecto.Changeset.get_change(changeset, :sso_organization_id) == "https://auth.example.com"
+    end
+
+    test "validates the custom_oauth2 site URL on create" do
+      changeset =
+        Organization.create_changeset(%Organization{}, %{
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "not-a-url"
+        })
+
+      assert changeset.valid? == false
+      assert "must be a valid URL" in errors_on(changeset).sso_organization_id
+    end
   end
 
   describe "update_changeset/2" do
@@ -131,6 +152,27 @@ defmodule Tuist.OrganizationTest do
         })
 
       assert changeset.valid? == true
+    end
+
+    test "normalizes the custom_oauth2 site on update" do
+      changeset =
+        Organization.update_changeset(%Organization{}, %{
+          sso_provider: :custom_oauth2,
+          sso_organization_id: " https://auth.example.com/ "
+        })
+
+      assert Ecto.Changeset.get_change(changeset, :sso_organization_id) == "https://auth.example.com"
+    end
+
+    test "validates the custom_oauth2 site URL on update" do
+      changeset =
+        Organization.update_changeset(%Organization{}, %{
+          sso_provider: :custom_oauth2,
+          sso_organization_id: "notaurl"
+        })
+
+      assert changeset.valid? == false
+      assert "must be a valid URL" in errors_on(changeset).sso_organization_id
     end
   end
 end
