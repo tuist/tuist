@@ -655,10 +655,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let derivedDataPath = try derivedDataPath.map {
             try AbsolutePath(
                 validating: $0,
-                relativeTo: FileHandler.shared.currentPath
+                relativeTo: currentWorkingDirectory
             )
         }
 
