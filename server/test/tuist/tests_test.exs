@@ -3057,8 +3057,6 @@ defmodule Tuist.TestsTest do
           ]
         })
 
-      # Cross-run flakiness is detected asynchronously, so the returned struct
-      # may not reflect it. Verify via ClickHouse instead.
       RunsFixtures.optimize_test_runs()
       {:ok, refetched_second_test} = Tests.get_test(second_test.id)
       assert refetched_second_test.is_flaky == true
