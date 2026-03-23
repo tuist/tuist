@@ -651,12 +651,20 @@ defmodule Tuist.Tests do
         {flaky_ids, acc}
       end)
 
-    TestCase.Buffer.insert_all(acc.test_case_rows)
-    TestCaseRun.Buffer.insert_all(acc.test_case_runs)
-    TestCaseFailure.Buffer.insert_all(acc.failures)
+    flush_buffers = fn ->
+      TestCase.Buffer.insert_all(acc.test_case_rows)
+      TestCaseRun.Buffer.insert_all(acc.test_case_runs)
+      TestCaseFailure.Buffer.insert_all(acc.failures)
 
-    if Enum.any?(acc.repetitions) do
-      TestCaseRunRepetition.Buffer.insert_all(acc.repetitions)
+      if Enum.any?(acc.repetitions) do
+        TestCaseRunRepetition.Buffer.insert_all(acc.repetitions)
+      end
+    end
+
+    if Tuist.Environment.test?() do
+      flush_buffers.()
+    else
+      Task.start(flush_buffers)
     end
 
     {flaky_ids, acc.test_case_runs}
