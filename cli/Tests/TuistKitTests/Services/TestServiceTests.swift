@@ -2714,6 +2714,11 @@ final class TestServiceTests: TuistUnitTestCase {
                     )
                 )
 
+            xcResultService.reset()
+            given(xcResultService)
+                .parse(path: .any, rootDirectory: .any)
+                .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
+
             given(uploadResultBundleService)
                 .uploadResultBundle(
                     testSummary: .any,
