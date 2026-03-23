@@ -434,7 +434,7 @@ public struct XCResultService: XCResultServicing {
         let emittedOutputs = actionLog.collectEmittedOutputs()
         let (testDurations, suiteDurations) = swiftTestingDurations(from: emittedOutputs)
 
-        let overall = overallDuration(from: timestamps)
+        let overall = overallDuration(from: timestamps) ?? actionLog.duration.map { secondsToMilliseconds($0) }
         let modules = moduleDurations(from: timestamps)
         let updatedTestCases = testCasesWithDurations(testCases, testDurations: testDurations)
 

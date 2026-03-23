@@ -18,43 +18,37 @@ defmodule Tuist.Utilities.DateFormatter do
     include_seconds = Keyword.get(opts, :include_seconds, true)
     duration_ms = trunc(duration_ms)
 
-    cond do
-      duration_ms == 0 ->
-        "0.0s"
+    if duration_ms < 1000 do
+      "#{duration_ms}ms"
+    else
+      hours = div(duration_ms, 3_600_000)
+      remainder = rem(duration_ms, 3_600_000)
 
-      duration_ms < 1000 ->
-        "#{duration_ms}ms"
+      minutes = div(remainder, 60_000)
+      remainder = rem(remainder, 60_000)
 
-      true ->
-        hours = div(duration_ms, 3_600_000)
-        remainder = rem(duration_ms, 3_600_000)
+      seconds = div(remainder, 1_000)
+      milliseconds = rem(remainder, 1_000)
 
-        minutes = div(remainder, 60_000)
-        remainder = rem(remainder, 60_000)
+      seconds_with_ms = seconds + milliseconds / 1000
 
-        seconds = div(remainder, 1_000)
-        milliseconds = rem(remainder, 1_000)
+      parts = []
+      parts = if hours > 0, do: parts ++ ["#{hours}h"], else: parts
+      parts = if minutes > 0, do: parts ++ ["#{minutes}m"], else: parts
 
-        seconds_with_ms = seconds + milliseconds / 1000
+      parts =
+        cond do
+          hours > 0 and seconds > 0 and not include_seconds ->
+            parts
 
-        parts = []
-        parts = if hours > 0, do: parts ++ ["#{hours}h"], else: parts
-        parts = if minutes > 0, do: parts ++ ["#{minutes}m"], else: parts
+          duration_ms > 60_000 and seconds > 0 ->
+            parts ++ ["#{seconds}s"]
 
-        parts =
-          cond do
-            hours > 0 and seconds > 0 and not include_seconds ->
-              # For times over 1 hour, don't include seconds only if include_seconds is false
-              parts
+          true ->
+            parts ++ ["#{Float.round(seconds_with_ms, 1)}s"]
+        end
 
-            duration_ms > 60_000 and seconds > 0 ->
-              parts ++ ["#{seconds}s"]
-
-            true ->
-              parts ++ ["#{Float.round(seconds_with_ms, 1)}s"]
-          end
-
-        Enum.join(parts, " ")
+      Enum.join(parts, " ")
     end
   end
 

@@ -127,6 +127,17 @@ defmodule TuistWeb.AppLayoutComponents do
             )
           }
         />
+        <.sidebar_item
+          label={dgettext("dashboard", "Shards")}
+          icon="stack_2"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"
+            )
+          }
+        />
       </.sidebar_group>
       <.sidebar_group
         :if={Project.xcode_project?(@selected_project)}
@@ -288,6 +299,17 @@ defmodule TuistWeb.AppLayoutComponents do
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"
+            )
+          }
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Shards")}
+          icon="stack_2"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"
             )
           }
         />

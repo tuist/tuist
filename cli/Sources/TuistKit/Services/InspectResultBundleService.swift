@@ -37,7 +37,9 @@ public protocol InspectResultBundleServicing {
     func inspectResultBundle(
         resultBundlePath: AbsolutePath,
         projectDerivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        shardPlanId: String?,
+        shardIndex: Int?
     ) async throws -> Components.Schemas.RunsTest
 }
 
@@ -89,7 +91,9 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
     public func inspectResultBundle(
         resultBundlePath: AbsolutePath,
         projectDerivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil
     ) async throws -> Components.Schemas.RunsTest {
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
@@ -132,7 +136,9 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
             ciRunId: ciInfo?.runId,
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
-            ciProvider: ciInfo?.provider
+            ciProvider: ciInfo?.provider,
+            shardPlanId: shardPlanId,
+            shardIndex: shardIndex
         )
 
         let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)
