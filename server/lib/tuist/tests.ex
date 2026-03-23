@@ -775,8 +775,9 @@ defmodule Tuist.Tests do
           suite_name_to_id,
           module_name,
           module_test_case_run_data,
-          existing_test_cases,
-          shard: {shard_plan, shard_index}
+          shard_plan,
+          shard_index,
+          existing_test_cases
         )
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
@@ -946,6 +947,7 @@ defmodule Tuist.Tests do
     suite_name_to_id
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.FunctionArity
   defp create_test_cases_for_module(
          test,
          module_id,
@@ -953,10 +955,10 @@ defmodule Tuist.Tests do
          suite_name_to_id,
          module_name,
          test_case_run_data,
-         existing_test_cases,
-         opts \\ []
+         shard_plan,
+         shard_index,
+         existing_test_cases
        ) do
-    {shard_plan, shard_index} = Keyword.get(opts, :shard, {nil, nil})
 
     test_case_data_list =
       test_cases
