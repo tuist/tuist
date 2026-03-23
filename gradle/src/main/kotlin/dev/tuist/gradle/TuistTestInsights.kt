@@ -298,7 +298,7 @@ abstract class TuistTestInsightsService :
     @Volatile private var hasTests = false
 
     @Volatile
-    internal var quarantineMap: Map<String, List<QuarantinedTestIdentifier>> = emptyMap()
+    internal var quarantineMap: Map<String, List<TestIdentifier>> = emptyMap()
 
     internal fun hasNonQuarantinedFailures(moduleName: String): Boolean {
         return collector.hasNonQuarantinedFailures(moduleName)

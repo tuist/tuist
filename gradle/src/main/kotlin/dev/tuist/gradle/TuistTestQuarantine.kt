@@ -28,7 +28,7 @@ data class QuarantinedSuite(
     val name: String
 )
 
-data class QuarantinedTestIdentifier(
+data class TestIdentifier(
     val suiteName: String?,
     val testName: String
 ) {
@@ -44,10 +44,10 @@ class TuistTestQuarantineService(
 ) {
     private val logger = Logging.getLogger(TuistTestQuarantineService::class.java)
 
-    private var cachedExclusions: Map<String, List<QuarantinedTestIdentifier>>? = null
+    private var cachedExclusions: Map<String, List<TestIdentifier>>? = null
 
     @Synchronized
-    fun getQuarantinedTests(): Map<String, List<QuarantinedTestIdentifier>> {
+    fun getQuarantinedTests(): Map<String, List<TestIdentifier>> {
         cachedExclusions?.let { return it }
 
         val result = try {
@@ -97,11 +97,11 @@ class TuistTestQuarantineService(
         }
     }
 
-    private fun buildQuarantineMap(testCases: List<QuarantinedTestCase>): Map<String, List<QuarantinedTestIdentifier>> {
+    private fun buildQuarantineMap(testCases: List<QuarantinedTestCase>): Map<String, List<TestIdentifier>> {
         return testCases.groupBy(
             keySelector = { it.module.name },
             valueTransform = { testCase ->
-                QuarantinedTestIdentifier(
+                TestIdentifier(
                     suiteName = testCase.suite?.name?.takeIf { it.isNotBlank() },
                     testName = testCase.name
                 )

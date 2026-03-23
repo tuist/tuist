@@ -75,13 +75,13 @@ class TuistTestQuarantineTest {
         assertEquals(2, exclusions.size)
         assertEquals(
             listOf(
-                QuarantinedTestIdentifier("com.example.LoginTest", "testLogin"),
-                QuarantinedTestIdentifier("com.example.LogoutTest", "testLogout")
+                TestIdentifier("com.example.LoginTest", "testLogin"),
+                TestIdentifier("com.example.LogoutTest", "testLogout")
             ),
             exclusions[":app"]
         )
         assertEquals(
-            listOf(QuarantinedTestIdentifier("com.example.ParserTest", "testParse")),
+            listOf(TestIdentifier("com.example.ParserTest", "testParse")),
             exclusions[":lib"]
         )
     }
@@ -105,7 +105,7 @@ class TuistTestQuarantineTest {
 
         val exclusions = service.getQuarantinedTests()
 
-        assertEquals(listOf(QuarantinedTestIdentifier(null, "testDynamic")), exclusions[":app"])
+        assertEquals(listOf(TestIdentifier(null, "testDynamic")), exclusions[":app"])
     }
 
     @Test
@@ -127,7 +127,7 @@ class TuistTestQuarantineTest {
 
         val exclusions = service.getQuarantinedTests()
 
-        assertEquals(listOf(QuarantinedTestIdentifier(null, "testBlank")), exclusions[":app"])
+        assertEquals(listOf(TestIdentifier(null, "testBlank")), exclusions[":app"])
     }
 
     @Test
@@ -150,7 +150,7 @@ class TuistTestQuarantineTest {
         val exclusions = service.getQuarantinedTests()
 
         assertEquals(1, exclusions.size)
-        assertEquals(listOf(QuarantinedTestIdentifier("com.example.FlakyTest", "testFlaky")), exclusions[":app"])
+        assertEquals(listOf(TestIdentifier("com.example.FlakyTest", "testFlaky")), exclusions[":app"])
 
         val request = mockWebServer.takeRequest()
         assertEquals("GET", request.method)
@@ -230,16 +230,16 @@ class TuistTestQuarantineTest {
     }
 
     @Test
-    fun `QuarantinedTestIdentifier matches by suite and name`() {
-        val id = QuarantinedTestIdentifier("com.example.FooTest", "testLogin")
+    fun `TestIdentifier matches by suite and name`() {
+        val id = TestIdentifier("com.example.FooTest", "testLogin")
         assertTrue(id.matches("com.example.FooTest", "testLogin"))
         assertFalse(id.matches("com.example.BarTest", "testLogin"))
         assertFalse(id.matches("com.example.FooTest", "testLogout"))
     }
 
     @Test
-    fun `QuarantinedTestIdentifier with null suite matches any class`() {
-        val id = QuarantinedTestIdentifier(null, "testLogin")
+    fun `TestIdentifier with null suite matches any class`() {
+        val id = TestIdentifier(null, "testLogin")
         assertTrue(id.matches("com.example.FooTest", "testLogin"))
         assertTrue(id.matches("com.example.BarTest", "testLogin"))
         assertFalse(id.matches("com.example.FooTest", "testLogout"))
