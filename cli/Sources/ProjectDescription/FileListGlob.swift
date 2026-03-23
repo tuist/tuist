@@ -6,6 +6,11 @@ public struct FileListGlob: Codable, Equatable, Sendable, ExpressibleByStringInt
     /// The excluding paths.
     public var excluding: [Path]
 
+    init(glob: Path, excluding: [Path]) {
+        self.glob = glob
+        self.excluding = excluding
+    }
+
     /// Returns a generic file list glob.
     /// - Parameters:
     ///   - glob: The path with a glob pattern.

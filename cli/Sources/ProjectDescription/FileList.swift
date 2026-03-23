@@ -6,6 +6,10 @@ public struct FileList: Codable, Equatable, Sendable, ExpressibleByStringInterpo
     /// Glob pattern to the files.
     public let globs: [FileListGlob]
 
+    init(globs: [FileListGlob]) {
+        self.globs = globs
+    }
+
     /// Creates a file list from a collection of glob patterns.
     ///
     ///   - glob: Relative glob pattern.

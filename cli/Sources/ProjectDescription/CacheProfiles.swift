@@ -60,6 +60,11 @@ public struct CacheProfiles: Codable, Equatable, Sendable, ExpressibleByDictiona
     /// Default cache profile to use when none is specified via CLI
     public let defaultProfile: CacheProfileType
 
+    init(profileByName: [String: CacheProfile], defaultProfile: CacheProfileType) {
+        self.profileByName = profileByName
+        self.defaultProfile = defaultProfile
+    }
+
     public static func profiles(
         _ profileByName: [String: CacheProfile] = [:],
         default defaultProfile: CacheProfileType = .onlyExternal

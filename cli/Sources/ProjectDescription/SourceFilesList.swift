@@ -33,6 +33,22 @@ public struct SourceFileGlob: Codable, Equatable, Sendable, ExpressibleByStringI
     /// Type of the file.
     public var type: FileType
 
+    init(
+        glob: Path,
+        excluding: [Path],
+        compilerFlags: String?,
+        codeGen: FileCodeGen?,
+        compilationCondition: PlatformCondition?,
+        type: FileType
+    ) {
+        self.glob = glob
+        self.excluding = excluding
+        self.compilerFlags = compilerFlags
+        self.codeGen = codeGen
+        self.compilationCondition = compilationCondition
+        self.type = type
+    }
+
     /// Returns a source glob pattern configuration.
     /// Used for file there were already present during the generation.
     ///
@@ -146,6 +162,6 @@ public struct SourceFilesList: Codable, Equatable, Sendable, ExpressibleByString
     }
 
     public init(arrayLiteral elements: SourceFileGlob...) {
-        self.init(globs: elements)
+        self.init(globs: Array(elements))
     }
 }

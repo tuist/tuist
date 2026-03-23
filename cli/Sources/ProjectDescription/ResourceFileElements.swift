@@ -8,6 +8,11 @@ public struct ResourceFileElements: Codable, Equatable, Sendable, ExpressibleByS
     /// Define your apps privacy manifest
     public var privacyManifest: PrivacyManifest?
 
+    init(resources: [ResourceFileElement], privacyManifest: PrivacyManifest? = nil) {
+        self.resources = resources
+        self.privacyManifest = privacyManifest
+    }
+
     public static func resources(_ resources: [ResourceFileElement], privacyManifest: PrivacyManifest? = nil) -> Self {
         self.init(resources: resources, privacyManifest: privacyManifest)
     }
