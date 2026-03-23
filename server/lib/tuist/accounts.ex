@@ -26,7 +26,6 @@ defmodule Tuist.Accounts do
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
   alias Tuist.Namespace
-  alias Tuist.OAuth.CustomOAuth2
   alias Tuist.Repo
 
   require Logger
@@ -282,7 +281,6 @@ defmodule Tuist.Accounts do
         custom_oauth2_attrs =
           attrs
           |> Map.put(:sso_provider, :custom_oauth2)
-          |> Map.update(:sso_organization_id, nil, &CustomOAuth2.normalize_site/1)
           |> maybe_rename_secret(
             :custom_oauth2_client_secret,
             :custom_oauth2_encrypted_client_secret
