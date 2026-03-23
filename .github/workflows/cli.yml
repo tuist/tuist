@@ -312,7 +312,7 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
-      - name: Plan shards
+      - name: Build tests
         id: shard
         run: tuist test --build-only --shard-max 4 TuistGeneratorAcceptanceTests
       - name: Save cache
