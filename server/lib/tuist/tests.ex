@@ -262,13 +262,11 @@ defmodule Tuist.Tests do
         test_case_runs = build_test_case_runs_for_response(test_modules)
 
         Tuist.Tasks.run_async(fn ->
-          OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
-            {test_case_ids_with_flaky_run, _test_case_runs} =
-              create_test_modules(test, test_modules, shard_index, shard_plan)
+          {test_case_ids_with_flaky_run, _test_case_runs} =
+            create_test_modules(test, test_modules, shard_index, shard_plan)
 
-            test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
-            schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
-          end
+          test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
+          schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
           project = Tuist.Projects.get_project_by_id(test.project_id)
 
@@ -358,13 +356,11 @@ defmodule Tuist.Tests do
           IngestRepo.insert_all(Test, [update_attrs])
 
           Tuist.Tasks.run_async(fn ->
-            OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
-              {test_case_ids_with_flaky_run, _test_case_runs} =
-                create_test_modules(existing_test, test_modules, shard_index, shard_plan)
+            {test_case_ids_with_flaky_run, _test_case_runs} =
+              create_test_modules(existing_test, test_modules, shard_index, shard_plan)
 
-              updated_test = mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
-              schedule_flaky_threshold_check(updated_test.project_id, test_case_ids_with_flaky_run)
-            end
+            updated_test = mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
+            schedule_flaky_threshold_check(updated_test.project_id, test_case_ids_with_flaky_run)
 
             project = Tuist.Projects.get_project_by_id(updated_test.project_id)
 
