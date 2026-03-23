@@ -593,7 +593,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
-            try await storeSuccessfulShardTestHashes(
+            try await storeSuccessfulTestHashesFromGraph(
                 selectiveTestingGraph: selectiveTestingGraph,
                 passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
                 cacheStorage: cacheStorage
@@ -691,7 +691,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: .testWithoutBuilding
         )
 
-        try await storeSuccessfulShardTestHashes(
+        try await storeSuccessfulTestHashesFromGraph(
             selectiveTestingGraph: selectiveTestingGraph,
             passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
             cacheStorage: cacheStorage
@@ -849,7 +849,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return SelectiveTestingGraph(testTargetHashes: testTargetHashes)
     }
 
-    private func storeSuccessfulShardTestHashes(
+    private func storeSuccessfulTestHashesFromGraph(
         selectiveTestingGraph: SelectiveTestingGraph,
         passingTargetNames: Set<String>,
         cacheStorage: CacheStoring
