@@ -20,7 +20,7 @@ defmodule TuistWeb.API.BundlesController do
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :bundle)
 
   plug(
-    TuistWeb.Plugs.InstrumentedCastAndValidate,
+    TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )

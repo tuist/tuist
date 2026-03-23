@@ -15,7 +15,7 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.Error
 
   plug(
-    TuistWeb.Plugs.InstrumentedCastAndValidate,
+    TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )

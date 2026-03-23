@@ -19,7 +19,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
 
-  plug(TuistWeb.Plugs.InstrumentedCastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )

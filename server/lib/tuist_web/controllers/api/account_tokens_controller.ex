@@ -13,7 +13,7 @@ defmodule TuistWeb.API.AccountTokensController do
   plug(TuistWeb.Plugs.LoaderPlug)
 
   plug(
-    TuistWeb.Plugs.InstrumentedCastAndValidate,
+    TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )

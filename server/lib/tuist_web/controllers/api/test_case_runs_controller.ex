@@ -7,7 +7,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Tests.TestCaseRunsList
 
-  plug(TuistWeb.Plugs.InstrumentedCastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )

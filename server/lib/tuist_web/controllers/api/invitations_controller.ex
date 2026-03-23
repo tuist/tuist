@@ -9,7 +9,7 @@ defmodule TuistWeb.API.InvitationsController do
   alias TuistWeb.API.Schemas.Invitation
   alias TuistWeb.Authentication
 
-  plug(TuistWeb.Plugs.InstrumentedCastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_message: TuistWeb.RenderAPIErrorPlug
   )

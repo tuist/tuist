@@ -12,7 +12,7 @@ defmodule TuistWeb.API.OrganizationsController do
   alias TuistWeb.API.Schemas.OrganizationUsage
   alias TuistWeb.Authentication
 
-  plug(TuistWeb.Plugs.InstrumentedCastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_message: TuistWeb.RenderAPIErrorPlug
   )
