@@ -109,7 +109,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let ciController: CIControlling
     private let clock: Clock
     private let testQuarantineService: TestQuarantineServicing
-    private let listTestCasesService: ListTestCasesServicing
     private let shardPlanService: ShardPlanServicing
     private let shardService: ShardServicing
 
@@ -147,7 +146,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         ciController: CIControlling = CIController(),
         clock: Clock = WallClock(),
         testQuarantineService: TestQuarantineServicing = TestQuarantineService(),
-        listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
         shardPlanService: ShardPlanServicing = ShardPlanService(),
         shardService: ShardServicing = ShardService()
     ) {
@@ -171,7 +169,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.ciController = ciController
         self.clock = clock
         self.testQuarantineService = testQuarantineService
-        self.listTestCasesService = listTestCasesService
         self.shardPlanService = shardPlanService
         self.shardService = shardService
     }

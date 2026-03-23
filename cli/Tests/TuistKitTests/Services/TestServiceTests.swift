@@ -45,6 +45,8 @@ final class TestServiceTests: TuistUnitTestCase {
     private var ciController: MockCIControlling!
     private var testQuarantineService: MockTestQuarantineServicing!
     private var serverEnvironmentService: MockServerEnvironmentServicing!
+    private var shardPlanService: MockShardPlanServicing!
+    private var shardService: MockShardServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -66,6 +68,8 @@ final class TestServiceTests: TuistUnitTestCase {
         ciController = .init()
         testQuarantineService = .init()
         serverEnvironmentService = .init()
+        shardPlanService = .init()
+        shardService = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -161,7 +165,9 @@ final class TestServiceTests: TuistUnitTestCase {
             createTestService: createTestService,
             serverEnvironmentService: serverEnvironmentService,
             ciController: ciController,
-            testQuarantineService: testQuarantineService
+            testQuarantineService: testQuarantineService,
+            shardPlanService: shardPlanService,
+            shardService: shardService
         )
 
         given(simulatorController)
@@ -229,6 +235,8 @@ final class TestServiceTests: TuistUnitTestCase {
         ciController = nil
         testQuarantineService = nil
         serverEnvironmentService = nil
+        shardPlanService = nil
+        shardService = nil
         subject = nil
         super.tearDown()
     }
