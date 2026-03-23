@@ -1,5 +1,7 @@
 import Config
 
+alias Cache.DistributedKV.Repo
+
 if config_env() == :dev do
   cache_port = String.to_integer(System.get_env("TUIST_CACHE_PORT") || "8087")
   server_url = System.get_env("TUIST_CACHE_SERVER_URL") || "http://localhost:8080"
@@ -10,8 +12,6 @@ if config_env() == :dev do
 
   config :cache, server_url: server_url
 end
-
-alias Cache.DistributedKV.Repo
 
 if config_env() == :prod do
   secret_key_base =
