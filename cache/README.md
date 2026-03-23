@@ -46,7 +46,7 @@ This service provides:
 
 3. Start the server:
    ```bash
-   mise run dev
+   mix phx.server
    ```
 
 ## Testing
