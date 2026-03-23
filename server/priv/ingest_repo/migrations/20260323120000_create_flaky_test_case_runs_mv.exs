@@ -25,13 +25,12 @@ defmodule Tuist.IngestRepo.Migrations.CreateFlakyTestCaseRunsMv do
     CREATE MATERIALIZED VIEW IF NOT EXISTS flaky_test_case_runs
     ENGINE = MergeTree
     ORDER BY (inserted_at, test_case_id)
-    SETTINGS allow_nullable_key = 1
     POPULATE
     AS SELECT
-      test_case_id,
+      assumeNotNull(test_case_id) AS test_case_id,
       inserted_at
     FROM test_case_runs
-    WHERE is_flaky = 1
+    WHERE is_flaky = 1 AND test_case_id IS NOT NULL
     """)
   end
 
