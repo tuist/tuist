@@ -269,6 +269,26 @@
               />
             <% end %>
           </:col>
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
+            <%= case test_case.last_status do %>
+              <% "success" -> %>
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Passed")}
+                  status="success"
+                />
+              <% "failure" -> %>
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Failed")}
+                  status="error"
+                />
+              <% "skipped" -> %>
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Skipped")}
+                  status="warning"
+                />
+              <% _ -> %>
+            <% end %>
+          </:col>
           <:col
             :let={test_case}
             label={dgettext("dashboard_tests", "Last run")}
@@ -281,32 +301,17 @@
                 sort_icon(@quarantined_tests_sort_order)
             }
           >
-            <div :if={test_case.last_run_id} data-part="last-run-with-status">
-              <.badge
-                :if={test_case.last_status == "success"}
-                label={dgettext("dashboard_tests", "Passed")}
-                color="success"
-                style="light-fill"
-                size="small"
-              />
-              <.badge
-                :if={test_case.last_status == "failure"}
-                label={dgettext("dashboard_tests", "Failed")}
-                color="destructive"
-                style="light-fill"
-                size="small"
-              />
-              <.link_button
-                navigate={
-                  ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_case.last_run_id}"
-                }
-                label={Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)}
-                underline
-                variant="secondary"
-                size="large"
-                data-part="last-run-link"
-              />
-            </div>
+            <.link_button
+              :if={test_case.last_run_id}
+              navigate={
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_case.last_run_id}"
+              }
+              label={Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)}
+              underline
+              variant="secondary"
+              size="large"
+              data-part="last-run-link"
+            />
             <span :if={is_nil(test_case.last_run_id)}>
               {Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)}
             </span>
