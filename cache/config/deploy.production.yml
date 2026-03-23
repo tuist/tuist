@@ -17,5 +17,4 @@ env:
     SENTRY_ENV: prod
     DEPLOY_ENV: prod
     POOL_SIZE: "10"
-    KEY_VALUE_MODE: distributed
 

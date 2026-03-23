@@ -19,6 +19,5 @@ if [ -z "$host_name" ]; then
 fi
 
 export PUBLIC_HOST="$host_name.tuist.dev"
-export DISTRIBUTED_KV_NODE_NAME="${DISTRIBUTED_KV_NODE_NAME:-$host_name}"
 
 PHX_SERVER=true exec ./cache start

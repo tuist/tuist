@@ -1,6 +1,10 @@
 defmodule Cache.XcodeCleanupWorker do
   @moduledoc """
-  Oban worker that deletes explicit Xcode cache artifacts from disk and metadata.
+  Oban worker that deletes Xcode cache artifacts from disk and metadata.
+  Only deletes artifacts that are no longer referenced by any key-value entry.
+  Artifacts flow through disk → metadata deletion. Each stage only
+  receives keys that the previous stage successfully cleaned up, so a failure
+  at any point leaves metadata intact for retries.
   """
   use Oban.Worker,
     queue: :clean,
@@ -9,6 +13,7 @@ defmodule Cache.XcodeCleanupWorker do
 
   alias Cache.CacheArtifacts
   alias Cache.Disk
+  alias Cache.KeyValueEntries
   alias Cache.Xcode
 
   require Logger
@@ -17,15 +22,21 @@ defmodule Cache.XcodeCleanupWorker do
   def perform(%Oban.Job{
         args: %{"account_handle" => account_handle, "project_handle" => project_handle, "cas_hashes" => cas_hashes}
       }) do
-    keys = Enum.map(cas_hashes, &Xcode.Disk.key(account_handle, project_handle, &1))
+    case KeyValueEntries.unreferenced_hashes(cas_hashes, account_handle, project_handle) do
+      [] ->
+        :ok
 
-    {deleted_keys, failed_count} = delete_from_disk(keys)
+      unreferenced ->
+        keys = Enum.map(unreferenced, &Xcode.Disk.key(account_handle, project_handle, &1))
 
-    if deleted_keys != [], do: delete_from_metadata(deleted_keys)
+        {deleted_keys, failed_count} = delete_from_disk(keys)
 
-    if failed_count > 0,
-      do: {:error, {:disk_delete_failed, failed_count}},
-      else: :ok
+        if deleted_keys != [], do: delete_from_metadata(deleted_keys)
+
+        if failed_count > 0,
+          do: {:error, {:disk_delete_failed, failed_count}},
+          else: :ok
+    end
   end
 
   defp delete_from_disk(keys) do

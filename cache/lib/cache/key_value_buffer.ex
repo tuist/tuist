@@ -5,6 +5,7 @@ defmodule Cache.KeyValueBuffer do
 
   import Ecto.Query
 
+  alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
   alias Cache.SQLiteBuffer
@@ -94,6 +95,7 @@ defmodule Cache.KeyValueBuffer do
   def write_batch(:key_values, entries) do
     now = DateTime.utc_now()
     now_truncated = DateTime.truncate(now, :second)
+    keys = Enum.map(entries, fn {_key, entry} -> entry.key end)
 
     rows =
       Enum.map(entries, fn {_key, entry} ->
@@ -102,20 +104,33 @@ defmodule Cache.KeyValueBuffer do
           json_payload: entry.json_payload,
           last_accessed_at: now,
           inserted_at: now_truncated,
-          updated_at: now_truncated,
-          source_updated_at: now,
-          replication_enqueued_at: now
+          updated_at: now_truncated
         }
       end)
 
-    rows
-    |> Enum.chunk_every(@query_chunk_size)
-    |> Enum.each(fn rows_chunk ->
-      KeyValueRepo.insert_all(KeyValueEntry, rows_chunk,
-        conflict_target: :key,
-        on_conflict:
-          {:replace, [:json_payload, :last_accessed_at, :updated_at, :source_updated_at, :replication_enqueued_at]}
-      )
+    KeyValueRepo.transaction(fn ->
+      rows
+      |> Enum.chunk_every(@query_chunk_size)
+      |> Enum.each(fn rows_chunk ->
+        KeyValueRepo.insert_all(KeyValueEntry, rows_chunk,
+          conflict_target: :key,
+          on_conflict: {:replace, [:json_payload, :last_accessed_at, :updated_at]}
+        )
+      end)
+
+      persisted_entries =
+        keys
+        |> Enum.chunk_every(@query_chunk_size)
+        |> Enum.flat_map(fn keys_chunk ->
+          KeyValueRepo.all(
+            from(e in KeyValueEntry,
+              where: e.key in ^keys_chunk,
+              select: struct(e, [:id, :key, :json_payload])
+            )
+          )
+        end)
+
+      :ok = KeyValueEntries.replace_entry_hashes(persisted_entries)
     end)
   end
 
@@ -128,13 +143,9 @@ defmodule Cache.KeyValueBuffer do
     keys
     |> Enum.chunk_every(@query_chunk_size)
     |> Enum.each(fn keys_chunk ->
-      KeyValueRepo.update_all(from(e in KeyValueEntry, where: e.key in ^keys_chunk),
-        set: [last_accessed_at: now, updated_at: now_truncated]
-      )
-
       KeyValueRepo.update_all(
-        from(e in KeyValueEntry, where: e.key in ^keys_chunk, where: not is_nil(e.source_updated_at)),
-        set: [replication_enqueued_at: now]
+        from(e in KeyValueEntry, where: e.key in ^keys_chunk),
+        set: [last_accessed_at: now, updated_at: now_truncated]
       )
     end)
   end
