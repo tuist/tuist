@@ -255,6 +255,32 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
+        if action == .testWithoutBuilding,
+           let testProductsPath = testProductsPathFromArguments(passthroughXcodeBuildArguments)
+        {
+            let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+            if try await fileSystem.exists(selectiveTestingGraphPath) {
+                try await runTestWithoutBuildingFromBundle(
+                    testProductsPath: testProductsPath,
+                    selectiveTestingGraphPath: selectiveTestingGraphPath,
+                    config: config,
+                    deviceName: deviceName,
+                    platform: platform,
+                    osVersion: osVersion,
+                    rosetta: rosetta,
+                    resultBundlePath: resultBundlePath,
+                    derivedDataPath: derivedDataPath,
+                    retryCount: retryCount,
+                    testTargets: testTargets,
+                    skipTestTargets: skipTestTargets,
+                    testPlanConfiguration: testPlanConfiguration,
+                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                    runId: runId
+                )
+                return
+            }
+        }
+
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
         let destination = try await destination(
@@ -450,35 +476,39 @@ public struct TestService { // swiftlint:disable:this type_body_length
             resultBundlePath: resultBundlePath
         )
 
-        if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
-           let fullHandle = config.fullHandle
-        {
-            let testProductsPath = try await resolveTestProductsPath(
+        if action == .build {
+            if let testProductsPath = try? await resolveTestProductsPath(
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 derivedDataPath: derivedDataPath
-            )
+            ) {
+                let selectiveTestingGraph = computeSelectiveTestingGraph(
+                    mapperEnvironment: mapperEnvironment,
+                    schemes: schemes,
+                    testPlanConfiguration: testPlanConfiguration
+                )
+                let selectiveTestingGraphPath = testProductsPath.appending(
+                    component: SelectiveTestingGraph.fileName
+                )
+                try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
-            let selectiveTestingGraph = computeSelectiveTestingGraph(
-                mapperEnvironment: mapperEnvironment,
-                schemes: schemes,
-                testPlanConfiguration: testPlanConfiguration
-            )
-            let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
-            try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
-
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            _ = try await shardPlanService.plan(
-                xctestproductsPath: testProductsPath,
-                schemes: schemes.map(\.name),
-                reference: shardReference,
-                shardGranularity: shardGranularity,
-                shardMin: shardMin,
-                shardMax: shardMax,
-                shardTotal: shardTotal,
-                shardMaxDuration: shardMaxDuration,
-                fullHandle: fullHandle,
-                serverURL: serverURL
-            )
+                if shardMin != nil || shardMax != nil || shardTotal != nil,
+                   let fullHandle = config.fullHandle
+                {
+                    let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+                    _ = try await shardPlanService.plan(
+                        xctestproductsPath: testProductsPath,
+                        schemes: schemes.map(\.name),
+                        reference: shardReference,
+                        shardGranularity: shardGranularity,
+                        shardMin: shardMin,
+                        shardMax: shardMax,
+                        shardTotal: shardTotal,
+                        shardMaxDuration: shardMaxDuration,
+                        fullHandle: fullHandle,
+                        serverURL: serverURL
+                    )
+                }
+            }
         }
     }
 
@@ -584,6 +614,109 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         AlertController.current.success(.alert("The project tests ran successfully"))
+    }
+
+    // MARK: - Test Without Building (from bundle)
+
+    // swiftlint:disable:next function_body_length function_parameter_count
+    private func runTestWithoutBuildingFromBundle(
+        testProductsPath: AbsolutePath,
+        selectiveTestingGraphPath: AbsolutePath,
+        config: Tuist,
+        deviceName: String?,
+        platform: String?,
+        osVersion: String?,
+        rosetta: Bool,
+        resultBundlePath: AbsolutePath?,
+        derivedDataPath: String?,
+        retryCount: Int,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String],
+        runId: String
+    ) async throws {
+        Logger.current.notice(
+            "Skipping project generation — using selective testing graph from .xctestproducts bundle",
+            metadata: .section
+        )
+
+        let selectiveTestingGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(
+            at: selectiveTestingGraphPath
+        )
+
+        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+
+        let runResultBundlePath =
+            try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
+                .appending(components: runId, Constants.resultBundleName)
+
+        let resultBundlePath = try await self.resultBundlePath(
+            runResultBundlePath: runResultBundlePath,
+            passedResultBundlePath: resultBundlePath,
+            config: config
+        )
+
+        let derivedDataPath = try derivedDataPath.map {
+            try AbsolutePath(
+                validating: $0,
+                relativeTo: FileHandler.shared.currentPath
+            )
+        }
+
+        let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
+            testProductsPath: testProductsPath,
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets,
+            testPlanConfiguration: testPlanConfiguration,
+            deviceName: deviceName,
+            platform: platform,
+            osVersion: osVersion,
+            rosetta: rosetta,
+            resultBundlePath: resultBundlePath,
+            derivedDataPath: derivedDataPath,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+        )
+
+        var testError: Error?
+
+        do {
+            try await xcodebuildController.run(arguments: xcodebuildArguments)
+        } catch {
+            testError = error
+        }
+
+        await inspectResultBundleIfNeeded(
+            resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: derivedDataPath,
+            config: config,
+            action: .testWithoutBuilding
+        )
+
+        try await storeSuccessfulShardTestHashes(
+            selectiveTestingGraph: selectiveTestingGraph,
+            passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
+            cacheStorage: cacheStorage
+        )
+
+        try await copyResultBundlePathIfNeeded(
+            runResultBundlePath: runResultBundlePath,
+            resultBundlePath: resultBundlePath
+        )
+
+        if let testError {
+            throw testError
+        }
+
+        AlertController.current.success(.alert("The project tests ran successfully"))
+    }
+
+    private func testProductsPathFromArguments(_ arguments: [String]) -> AbsolutePath? {
+        guard let index = arguments.firstIndex(of: "-testProductsPath"),
+              arguments.indices.contains(index + 1)
+        else { return nil }
+        return try? AbsolutePath(validating: arguments[index + 1])
     }
 
     private func buildTestWithoutBuildingArguments(
