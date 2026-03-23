@@ -10,6 +10,7 @@ if config_env() == :dev do
 
   config :cache, server_url: server_url
 end
+
 if config_env() == :prod do
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||

@@ -4,6 +4,7 @@ alias Ecto.Adapters.SQL.Sandbox
 
 test_port = String.to_integer(System.get_env("TUIST_CACHE_TEST_PORT") || "4002")
 test_storage_dir = System.get_env("TUIST_CACHE_TEST_STORAGE_DIR") || "/tmp/test_cas"
+
 config :cache, Cache.Guardian,
   issuer: "tuist",
   secret_key: "test_guardian_secret_key_at_least_64_characters_long_for_test_purposes"
