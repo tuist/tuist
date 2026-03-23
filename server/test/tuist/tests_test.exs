@@ -5456,7 +5456,12 @@ defmodule Tuist.TestsTest do
     end
 
     test "unquarantines when project has auto_quarantine_flaky_tests enabled" do
-      project = ProjectsFixtures.project_fixture(auto_quarantine_flaky_tests: true)
+      project = ProjectsFixtures.project_fixture()
+
+      project
+      |> Ecto.Changeset.change(auto_quarantine_flaky_tests: true)
+      |> Tuist.Repo.update!()
+
       test_case_id = Ecto.UUID.generate()
 
       test_case =
