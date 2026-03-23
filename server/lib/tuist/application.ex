@@ -76,9 +76,10 @@ defmodule Tuist.Application do
       OpentelemetryPhoenix.setup(adapter: :bandit)
       OpentelemetryFinch.setup()
       OpentelemetryBroadway.setup()
-      OpentelemetryEcto.setup([:tuist, :repo])
-      OpentelemetryEcto.setup([:tuist, :ingest_repo])
-      OpentelemetryEcto.setup([:tuist, :click_house_repo])
+      ecto_opts = [additional_span_attributes: %{"metrics.skip" => true}]
+      OpentelemetryEcto.setup([:tuist, :repo], ecto_opts)
+      OpentelemetryEcto.setup([:tuist, :ingest_repo], ecto_opts)
+      OpentelemetryEcto.setup([:tuist, :click_house_repo], ecto_opts)
     end
   end
 
