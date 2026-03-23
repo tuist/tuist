@@ -61,7 +61,7 @@ class TuistTestQuarantineService(
         return result
     }
 
-    private fun fetchQuarantinedTests(): Map<String, List<String>> {
+    private fun fetchQuarantinedTests(): Map<String, List<TestIdentifier>> {
         return httpClient.execute { config ->
             val url = URI(baseUrl.trimEnd('/')).resolve(
                 "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/test-cases?quarantined=true&page_size=500"
