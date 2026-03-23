@@ -38,6 +38,7 @@ ensure_suffix() {
 }
 
 suffix="$(ensure_suffix)"
+test_partition="${MIX_TEST_PARTITION:-}"
 
 export TUIST_DEV_INSTANCE="${suffix}"
 export TUIST_SERVER_PORT="$((8080 + suffix))"
@@ -48,3 +49,9 @@ export TUIST_CACHE_PORT="$((8087 + suffix))"
 export TUIST_CACHE_SERVER_URL="${TUIST_SERVER_URL}"
 export TUIST_MINIO_API_PORT="$((9095 + suffix))"
 export TUIST_MINIO_CONSOLE_PORT="$((9098 + suffix))"
+export TUIST_SERVER_TEST_PORT="$((4002 + suffix))"
+export TUIST_SERVER_TEST_POSTGRES_DB="tuist_test${test_partition}_${suffix}"
+export TUIST_SERVER_TEST_CLICKHOUSE_DB="tuist_test${test_partition}_${suffix}"
+export TUIST_CACHE_TEST_PORT="$((4003 + suffix))"
+export TUIST_CACHE_TEST_POSTGRES_DB="cache_test_${suffix}"
+export TUIST_CACHE_TEST_STORAGE_DIR="/tmp/test_cas_${suffix}"
