@@ -1075,10 +1075,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
             return quarantinedTests
         } catch {
-            Logger.current.log(
-                level: .warning,
-                "Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests."
-            )
             AlertController.current.warning(
                 .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
             )
