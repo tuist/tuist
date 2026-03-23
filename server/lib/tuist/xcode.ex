@@ -223,11 +223,11 @@ defmodule Tuist.Xcode do
   @doc """
   Returns a preload query for xcode_targets scoped to the run's date range.
 
-  The xcode_targets table is partitioned by toYYYYMMDD(inserted_at). A plain
+  The xcode_targets table is ordered by (inserted_at, id). A plain
   `preload(run, [:xcode_targets])` generates `WHERE command_event_id = ?`
   without inserted_at bounds, causing ClickHouse to scan all partitions
-  (~887K rows). Use this function instead to add a ±1 day inserted_at filter
-  so ClickHouse can prune to 1-3 daily partitions.
+  (~887K rows). Use this function instead to add a tight inserted_at range
+  (-5 min to +2 hours around created_at) for efficient primary key lookup.
 
   Usage: `ClickHouseRepo.preload(run, xcode_targets: Xcode.xcode_targets_preload_query(run))`
   """
@@ -239,15 +239,14 @@ defmodule Tuist.Xcode do
     )
   end
 
-  # Returns a ±1 day date range around the event's created_at for use as an
-  # inserted_at filter. The xcode_targets table is partitioned by
-  # toYYYYMMDD(inserted_at), so adding this filter lets ClickHouse prune
-  # partitions and avoid scanning the entire table when querying by
-  # command_event_id alone. The ±1 day margin handles midnight edge cases.
+  # Returns a range from 5 min before to 2 hours after the event's created_at.
+  # The xcode_targets table is ordered by (inserted_at, id), so a tight range
+  # lets ClickHouse binary search instead of scanning full daily partitions.
+  # inserted_at lags behind created_at by build duration + buffer flush delay,
+  # so 2 hours covers even long builds with margin.
   defp event_date_range(event) do
-    event_date = NaiveDateTime.to_date(event.created_at)
-    start_dt = NaiveDateTime.new!(Date.add(event_date, -1), ~T[00:00:00])
-    end_dt = NaiveDateTime.new!(Date.add(event_date, 2), ~T[00:00:00])
+    start_dt = NaiveDateTime.add(event.created_at, -300, :second)
+    end_dt = NaiveDateTime.add(event.created_at, 7200, :second)
     {start_dt, end_dt}
   end
 
