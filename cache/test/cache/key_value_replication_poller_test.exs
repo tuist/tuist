@@ -180,4 +180,71 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
     refute_receive :size_measured, 200
   end
+
+  test "stops the page early when local SQLite is busy and keeps the poller alive" do
+    parent = self()
+    {:ok, watermark_agent} = Agent.start_link(fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
+
+    first_updated_at = DateTime.add(DateTime.utc_now(), -120, :second)
+    second_updated_at = DateTime.add(first_updated_at, 1, :second)
+
+    first_row = %Entry{
+      key: "keyvalue:acme:ios:cas-1",
+      account_handle: "acme",
+      project_handle: "ios",
+      cas_id: "cas-1",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact-1"}]}),
+      source_node: "node-a",
+      source_updated_at: first_updated_at,
+      last_accessed_at: first_updated_at,
+      updated_at: first_updated_at,
+      deleted_at: nil
+    }
+
+    second_row = %{
+      first_row
+      | key: "keyvalue:acme:ios:cas-2",
+        cas_id: "cas-2",
+        source_updated_at: second_updated_at,
+        last_accessed_at: second_updated_at,
+        updated_at: second_updated_at
+    }
+
+    first_key = first_row.key
+    second_key = second_row.key
+
+    stub(KeyValueEntries, :distributed_watermark, fn -> Agent.get(watermark_agent, & &1) end)
+    stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
+
+    stub(KeyValueEntries, :materialize_remote_entry, fn attrs ->
+      case attrs.key do
+        ^first_key ->
+          send(parent, :first_row_materialized)
+          :payload_updated
+
+        ^second_key ->
+          raise %Exqlite.Error{message: "Database busy"}
+      end
+    end)
+
+    stub(KeyValueEntries, :put_distributed_watermark, fn updated_at, key ->
+      Agent.update(watermark_agent, fn _ -> %{updated_at_value: updated_at, key_value: key} end)
+      send(parent, {:watermark_updated, key})
+      :ok
+    end)
+
+    stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
+
+    stub(Repo, :all, fn _query, _opts -> [first_row, second_row] end)
+
+    start_supervised!(KeyValueReplicationPoller)
+
+    assert_receive :first_row_materialized, 10_000
+    assert_receive {:watermark_updated, ^first_key}, 10_000
+
+    assert %{updated_at_value: ^first_updated_at, key_value: ^first_key} =
+             Agent.get(watermark_agent, & &1)
+
+    assert Process.whereis(KeyValueReplicationPoller)
+  end
 end

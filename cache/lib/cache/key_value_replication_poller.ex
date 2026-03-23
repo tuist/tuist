@@ -10,6 +10,7 @@ defmodule Cache.KeyValueReplicationPoller do
   alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
+  alias Cache.SQLiteHelpers
 
   @completion_event [:cache, :kv, :replication, :poll, :complete]
   @lag_event [:cache, :kv, :replication, :poll, :lag_ms]
@@ -102,41 +103,26 @@ defmodule Cache.KeyValueReplicationPoller do
 
     rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
 
-    {materialized_count, deleted_count} =
-      Enum.reduce(rows, {0, 0}, fn row, {materialized_acc, deleted_acc} ->
-        if is_nil(row.deleted_at) do
-          status =
-            KeyValueEntries.materialize_remote_entry(%{
-              key: row.key,
-              json_payload: row.json_payload,
-              last_accessed_at: row.last_accessed_at,
-              source_updated_at: row.source_updated_at,
-              source_node: row.source_node
-            })
+    {processed_count, materialized_count, deleted_count, last_processed_row} =
+      Enum.reduce_while(rows, {0, 0, 0, nil}, fn row, {processed_acc, materialized_acc, deleted_acc, last_row} ->
+        case apply_remote_row(row) do
+          {:ok, {:materialized, _status}} ->
+            {:cont, {processed_acc + 1, materialized_acc + 1, deleted_acc, row}}
 
-          if status in [:inserted, :payload_updated] do
-            Cachex.del(:cache_keyvalue_store, row.key)
-          end
+          {:ok, {:deleted, deleted_rows}} ->
+            {:cont, {processed_acc + 1, materialized_acc, deleted_acc + deleted_rows, row}}
 
-          KeyValueAccessTracker.mark_shared_lineage(row.key)
-          {materialized_acc + 1, deleted_acc}
-        else
-          deleted_rows = KeyValueEntries.delete_local_entry_if_not_pending(row.key)
-
-          Cachex.del(:cache_keyvalue_store, row.key)
-          KeyValueAccessTracker.clear(row.key)
-
-          {materialized_acc, deleted_acc + deleted_rows}
+          {:error, :busy} ->
+            {:halt, {processed_acc, materialized_acc, deleted_acc, last_row}}
         end
       end)
 
-    if rows != [] do
-      last_row = List.last(rows)
-      :ok = KeyValueEntries.put_distributed_watermark(last_row.updated_at, last_row.key)
-      emit_lag(last_row.updated_at)
+    if last_processed_row do
+      :ok = KeyValueEntries.put_distributed_watermark(last_processed_row.updated_at, last_processed_row.key)
+      emit_lag(last_processed_row.updated_at)
     end
 
-    {length(rows), {total_materialized + materialized_count, total_deleted + deleted_count}}
+    {processed_count, {total_materialized + materialized_count, total_deleted + deleted_count}}
   end
 
   defp maybe_bootstrap do
@@ -176,30 +162,87 @@ defmodule Cache.KeyValueReplicationPoller do
         :ok
 
       _ ->
-        size_after_page =
-          Enum.reduce_while(rows, current_size, &materialize_bootstrap_row(&1, &2, budget))
+        {status, size_after_page} =
+          Enum.reduce_while(rows, {:ok, current_size}, &materialize_bootstrap_row(&1, &2, budget))
 
-        last_row = List.last(rows)
-        bootstrap_rows(size_after_page, budget, {last_row.last_accessed_at, last_row.key})
+        if status == :ok do
+          last_row = List.last(rows)
+          bootstrap_rows(size_after_page, budget, {last_row.last_accessed_at, last_row.key})
+        else
+          :ok
+        end
     end
   end
 
-  defp materialize_bootstrap_row(row, size_acc, budget) do
+  defp materialize_bootstrap_row(row, {:ok, size_acc}, budget) do
     if size_acc >= budget do
-      {:halt, size_acc}
+      {:halt, {:ok, size_acc}}
     else
-      status =
-        KeyValueEntries.materialize_remote_entry(%{
-          key: row.key,
-          json_payload: row.json_payload,
-          last_accessed_at: row.last_accessed_at,
-          source_updated_at: row.source_updated_at,
-          source_node: row.source_node
-        })
+      case materialize_remote_row(row) do
+        {:ok, status} ->
+          if status in [:inserted, :payload_updated], do: KeyValueAccessTracker.mark_shared_lineage(row.key)
+          {:cont, {:ok, size_acc + byte_size(row.json_payload)}}
 
-      if status in [:inserted, :payload_updated], do: KeyValueAccessTracker.mark_shared_lineage(row.key)
-      {:cont, size_acc + byte_size(row.json_payload)}
+        {:error, :busy} ->
+          {:halt, {:busy, size_acc}}
+      end
     end
+  end
+
+  defp apply_remote_row(%Entry{deleted_at: nil} = row) do
+    case materialize_remote_row(row) do
+      {:ok, status} ->
+        if status in [:inserted, :payload_updated] do
+          Cachex.del(:cache_keyvalue_store, row.key)
+        end
+
+        KeyValueAccessTracker.mark_shared_lineage(row.key)
+        {:ok, {:materialized, status}}
+
+      {:error, :busy} ->
+        {:error, :busy}
+    end
+  end
+
+  defp apply_remote_row(row) do
+    case delete_remote_row(row) do
+      {:ok, deleted_rows} ->
+        Cachex.del(:cache_keyvalue_store, row.key)
+        KeyValueAccessTracker.clear(row.key)
+        {:ok, {:deleted, deleted_rows}}
+
+      {:error, :busy} ->
+        {:error, :busy}
+    end
+  end
+
+  defp materialize_remote_row(row) do
+    {:ok,
+     KeyValueEntries.materialize_remote_entry(%{
+       key: row.key,
+       json_payload: row.json_payload,
+       last_accessed_at: row.last_accessed_at,
+       source_updated_at: row.source_updated_at,
+       source_node: row.source_node
+     })}
+  rescue
+    error ->
+      if SQLiteHelpers.busy_error?(error) do
+        {:error, :busy}
+      else
+        reraise error, __STACKTRACE__
+      end
+  end
+
+  defp delete_remote_row(row) do
+    {:ok, KeyValueEntries.delete_local_entry_if_not_pending(row.key)}
+  rescue
+    error ->
+      if SQLiteHelpers.busy_error?(error) do
+        {:error, :busy}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp apply_watermark(query, nil), do: query
