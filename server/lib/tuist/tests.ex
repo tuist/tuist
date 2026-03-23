@@ -259,13 +259,11 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        test_case_runs = build_test_case_runs_for_response(test_modules)
+        {test_case_ids_with_flaky_run, test_case_runs} =
+          create_test_modules(test, test_modules, shard_index, shard_plan)
 
         Tuist.Tasks.run_async(fn ->
-          {test_case_ids_with_flaky_run, _test_case_runs} =
-            create_test_modules(test, test_modules, shard_index, shard_plan)
-
-          test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
+          mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
           schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
           project = Tuist.Projects.get_project_by_id(test.project_id)
@@ -282,23 +280,6 @@ defmodule Tuist.Tests do
       {:error, changeset} ->
         {:error, changeset}
     end
-  end
-
-  defp build_test_case_runs_for_response(test_modules) do
-    Enum.flat_map(test_modules, fn module_attrs ->
-      module_name = Map.get(module_attrs, :name)
-
-      module_attrs
-      |> Map.get(:test_cases, [])
-      |> Enum.map(fn case_attrs ->
-        %{
-          id: UUIDv7.generate(),
-          name: Map.get(case_attrs, :name),
-          module_name: module_name,
-          suite_name: Map.get(case_attrs, :test_suite_name, "")
-        }
-      end)
-    end)
   end
 
   defp create_or_update_sharded_test(attrs) do
@@ -332,7 +313,10 @@ defmodule Tuist.Tests do
           create_new_test(attrs, shard_index, shard_plan)
 
         existing_test ->
-          test_case_runs = build_test_case_runs_for_response(test_modules)
+          {test_case_ids_with_flaky_run, test_case_runs} =
+            OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
+              create_test_modules(existing_test, test_modules, shard_index, shard_plan)
+            end
 
           reported_count = count_reported_shards(existing_test.id) + 1
 
@@ -356,10 +340,7 @@ defmodule Tuist.Tests do
           IngestRepo.insert_all(Test, [update_attrs])
 
           Tuist.Tasks.run_async(fn ->
-            {test_case_ids_with_flaky_run, _test_case_runs} =
-              create_test_modules(existing_test, test_modules, shard_index, shard_plan)
-
-            updated_test = mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
+            mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
             schedule_flaky_threshold_check(updated_test.project_id, test_case_ids_with_flaky_run)
 
             project = Tuist.Projects.get_project_by_id(updated_test.project_id)
