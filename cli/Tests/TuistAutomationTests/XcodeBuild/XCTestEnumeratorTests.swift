@@ -153,16 +153,16 @@
         }
 
         @Test(.inTemporaryDirectory)
-        func enumerateTests_throwsInvalidOutputForMalformedJSON() async throws {
+        func enumerateTests_returnsEmptyForUnrecognizedOutput() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
             givenCommandOutput("not json")
 
-            await #expect(throws: XCTestEnumeratorError.self) {
-                try await subject.enumerateTests(
-                    testProductsPath: testProductsPath,
-                    destination: nil
-                )
-            }
+            let result = try await subject.enumerateTests(
+                testProductsPath: testProductsPath,
+                destination: nil
+            )
+
+            #expect(result.isEmpty)
         }
 
         @Test(.inTemporaryDirectory)
