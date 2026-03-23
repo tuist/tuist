@@ -80,29 +80,27 @@ struct TestQuarantineService: TestQuarantineServicing {
     ) -> TestSummary {
         guard !quarantinedTests.isEmpty else { return testSummary }
         var result = testSummary
-        for moduleIndex in result.testModules.indices {
-            for caseIndex in result.testModules[moduleIndex].testCases.indices {
-                let testCase = result.testModules[moduleIndex].testCases[caseIndex]
-                let isQuarantined = quarantinedTests.contains { quarantined in
-                    guard testCase.module == quarantined.target else { return false }
-                    if let quarantinedClass = quarantined.class,
-                       testCase.testSuite != quarantinedClass
-                    {
-                        return false
-                    }
-                    if let quarantinedMethod = quarantined.method,
-                       testCase.name != quarantinedMethod
-                    {
-                        return false
-                    }
-                    return true
-                }
-                if isQuarantined {
-                    result.testModules[moduleIndex].testCases[caseIndex].isQuarantined = true
-                }
+        result.testModules = result.testModules.map { module in
+            var module = module
+            module.testCases = module.testCases.map { testCase in
+                var testCase = testCase
+                testCase.isQuarantined = quarantinedTests.contains { matches(testCase: testCase, quarantined: $0) }
+                return testCase
             }
+            return module
         }
         return result
+    }
+
+    private func matches(testCase: TestCase, quarantined: TestIdentifier) -> Bool {
+        guard testCase.module == quarantined.target else { return false }
+        if let quarantinedClass = quarantined.class, testCase.testSuite != quarantinedClass {
+            return false
+        }
+        if let quarantinedMethod = quarantined.method, testCase.name != quarantinedMethod {
+            return false
+        }
+        return true
     }
 
     func onlyQuarantinedTestsFailed(
