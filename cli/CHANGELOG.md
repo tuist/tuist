@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.162.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix static framework resource bundle crash when using xcstrings by [@pepicrft](https://github.com/pepicrft) in [#9953](https://github.com/tuist/tuist/pull/9953)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.162.0...4.162.1
+
 ## What's Changed in 4.162.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

@@ -98,15 +98,15 @@ struct GenerateAcceptanceTestiOSAppWithTests {
     @Test(.withFixture("generated_ios_app_with_tests"), .inTemporaryDirectory)
     func focused_targets() async throws {
         let fixturePath = try fixtureDirectory()
-        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
 
-        func generatedTargets() throws -> [String] {
-            try XcodeProj(pathString: xcodeprojPath.pathString).pbxproj.nativeTargets.map(\.name).sorted()
+        func generatedTargets() async throws -> [String] {
+            let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+            return try XcodeProj(pathString: xcodeprojPath.pathString).pbxproj.nativeTargets.map(\.name).sorted()
         }
 
         try await run(GenerateCommand.self)
         #expect(
-            try generatedTargets() == [
+            try await generatedTargets() == [
                 "App",
                 "App-dash",
                 "App-dashUITests",
@@ -119,7 +119,7 @@ struct GenerateAcceptanceTestiOSAppWithTests {
             ]
         )
         try await run(GenerateCommand.self, "AppCore")
-        #expect(try generatedTargets() == ["AppCore"])
+        #expect(try await generatedTargets() == ["AppCore"])
     }
 }
 
@@ -208,8 +208,8 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
             )
         }
         for resource in [
-            "StaticFramework3.framework",
-            "StaticFramework4.framework",
+            "StaticFramework3_StaticFramework3.bundle",
+            "StaticFramework4_StaticFramework4.bundle",
         ] {
             try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
@@ -233,12 +233,12 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
             resource: "StaticFramework2Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework3.framework",
+            "StaticFramework3_StaticFramework3.bundle",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework3Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework4.framework",
+            "StaticFramework4_StaticFramework4.bundle",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework4Resources-tuist.png"
         )
@@ -832,7 +832,7 @@ struct GenerateAcceptanceTestGeneratedStaticFrameworkIncludesMetalLib {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "StaticMetallibFramework")
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticMetallibFramework.framework",
+            "StaticMetallibFramework_StaticMetallibFramework.bundle",
             destination: "Debug",
             resource: "default.metallib"
         )

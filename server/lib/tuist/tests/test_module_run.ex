@@ -12,6 +12,8 @@ defmodule Tuist.Tests.TestModuleRun do
     Flop.Schema,
     filterable: [
       :test_run_id,
+      :shard_id,
+      :shard_index,
       :name,
       :status,
       :test_suite_count,
@@ -32,6 +34,8 @@ defmodule Tuist.Tests.TestModuleRun do
     field :test_suite_count, Ch, type: "Int32"
     field :test_case_count, Ch, type: "Int32"
     field :avg_test_case_duration, Ch, type: "Int32"
+    field :shard_id, Ch, type: "Nullable(UUID)"
+    field :shard_index, Ch, type: "Nullable(Int32)"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
@@ -47,6 +51,8 @@ defmodule Tuist.Tests.TestModuleRun do
       :test_suite_count,
       :test_case_count,
       :avg_test_case_duration,
+      :shard_id,
+      :shard_index,
       :inserted_at
     ])
     |> validate_required([

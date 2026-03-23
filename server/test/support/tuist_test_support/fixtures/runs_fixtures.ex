@@ -127,6 +127,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
            ci_project_handle: Keyword.get(attrs, :ci_project_handle),
            ci_host: Keyword.get(attrs, :ci_host),
            ci_provider: Keyword.get(attrs, :ci_provider),
+           shard_plan_id: Keyword.get(attrs, :shard_plan_id),
+           shard_index: Keyword.get(attrs, :shard_index),
            test_modules: test_modules
          }) do
       {:ok, test} -> {:ok, test}

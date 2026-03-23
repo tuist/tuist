@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistEnvKey
 import TuistSupport
 
 public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableCommand, RecentPathRememberableCommand {
@@ -21,10 +22,14 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
     )
     public var passthroughXcodebuildArguments: [String] = []
 
+    @Option(name: .long, help: "The zero-based shard index to execute.")
+    var shardIndex: Int?
+
     public func run() async throws {
         try await XcodeBuildTestCommandService()
             .run(
-                passthroughXcodebuildArguments: ["test"] + passthroughXcodebuildArguments
+                passthroughXcodebuildArguments: ["test"] + passthroughXcodebuildArguments,
+                shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue()
             )
     }
 }

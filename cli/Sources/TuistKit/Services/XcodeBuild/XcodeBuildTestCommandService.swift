@@ -3,11 +3,13 @@ import Foundation
 import Path
 import TuistAlert
 import TuistAutomation
+import TuistCI
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 import TuistUniqueIDGenerator
@@ -23,6 +25,8 @@ struct XcodeBuildTestCommandService {
     private let derivedDataLocator: DerivedDataLocating
     private let xcActivityLogController: XCActivityLogControlling
     private let inspectResultBundleService: InspectResultBundleServicing
+    private let shardService: ShardServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
 
     init(
         fileSystem: FileSysteming = FileSystem(),
@@ -33,7 +37,9 @@ struct XcodeBuildTestCommandService {
         xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
-        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService()
+        inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
+        shardService: ShardServicing = ShardService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
     ) {
         self.fileSystem = fileSystem
         self.xcodeBuildController = xcodeBuildController
@@ -44,15 +50,35 @@ struct XcodeBuildTestCommandService {
         self.derivedDataLocator = derivedDataLocator
         self.xcActivityLogController = xcActivityLogController
         self.inspectResultBundleService = inspectResultBundleService
+        self.shardService = shardService
+        self.serverEnvironmentService = serverEnvironmentService
     }
 
     func run(
-        passthroughXcodebuildArguments: [String]
+        passthroughXcodebuildArguments: [String],
+        shardIndex: Int? = nil
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
             contentsOf: resultBundlePathArguments(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
         )
+
+        let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
+        let config = try await configLoader.loadConfig(path: path)
+
+        var shardPlanId: String?
+        var shardTestProductsPath: AbsolutePath?
+        if let shardIndex, let fullHandle = config.fullHandle {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let shard = try await shardService.shard(
+                shardIndex: shardIndex,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+            shardTestProductsPath = shard.testProductsPath
+            passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
+            shardPlanId = shard.shardPlanId
+        }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
         var derivedDataPath: AbsolutePath? = xcodeBuildArguments.derivedDataPath
@@ -62,8 +88,6 @@ struct XcodeBuildTestCommandService {
             }
         }
 
-        let path = try await path(passthroughXcodebuildArguments: passthroughXcodebuildArguments)
-        let config = try await configLoader.loadConfig(path: path)
         let resultBundlePath = await RunMetadataStorage.current.resultBundlePath
 
         do {
@@ -75,8 +99,13 @@ struct XcodeBuildTestCommandService {
             await inspectResultBundleIfNeeded(
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: derivedDataPath,
-                config: config
+                config: config,
+                shardPlanId: shardPlanId,
+                shardIndex: shardIndex
             )
+            if let shardTestProductsPath {
+                try? await fileSystem.remove(shardTestProductsPath)
+            }
             throw error
         }
 
@@ -86,8 +115,13 @@ struct XcodeBuildTestCommandService {
         await inspectResultBundleIfNeeded(
             resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
-            config: config
+            config: config,
+            shardPlanId: shardPlanId,
+            shardIndex: shardIndex
         )
+        if let shardTestProductsPath {
+            try? await fileSystem.remove(shardTestProductsPath)
+        }
     }
 
     private func updateBuildRunId(projectDerivedDataDirectory: AbsolutePath) async {
@@ -174,10 +208,11 @@ struct XcodeBuildTestCommandService {
     private func inspectResultBundleIfNeeded(
         resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
-        config: Tuist
+        config: Tuist,
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil
     ) async {
         guard let resultBundlePath,
-              let projectDerivedDataDirectory,
               config.fullHandle != nil,
               (try? await fileSystem.exists(resultBundlePath)) == true
         else { return }
@@ -186,7 +221,9 @@ struct XcodeBuildTestCommandService {
             _ = try await inspectResultBundleService.inspectResultBundle(
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
-                config: config
+                config: config,
+                shardPlanId: shardPlanId,
+                shardIndex: shardIndex
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))

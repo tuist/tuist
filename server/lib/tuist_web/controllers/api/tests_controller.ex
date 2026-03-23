@@ -10,7 +10,7 @@ defmodule TuistWeb.API.TestsController do
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -280,6 +280,15 @@ defmodule TuistWeb.API.TestsController do
            gradle_build_id: %Schema{
              type: :string,
              description: "The UUID of an associated Gradle build."
+           },
+           shard_plan_id: %Schema{
+             type: :string,
+             description: "The shard plan ID if this test run is part of a sharded execution."
+           },
+           shard_index: %Schema{
+             type: :integer,
+             description: "The zero-based shard index for this test result.",
+             nullable: true
            },
            build_system: BuildSystem.schema(),
            test_modules: %Schema{
@@ -613,7 +622,9 @@ defmodule TuistWeb.API.TestsController do
           test_modules: Map.get(params, :test_modules, []),
           test_cases: Map.get(params, :test_cases, []),
           build_run_id: Map.get(params, :build_run_id),
-          gradle_build_id: Map.get(params, :gradle_build_id)
+          gradle_build_id: Map.get(params, :gradle_build_id),
+          shard_plan_id: Map.get(params, :shard_plan_id),
+          shard_index: Map.get(params, :shard_index)
         })
     end
   end
