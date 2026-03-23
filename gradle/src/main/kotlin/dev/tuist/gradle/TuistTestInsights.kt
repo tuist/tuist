@@ -55,7 +55,8 @@ data class TestCase(
     val status: String,
     val duration: Long,
     val failures: List<TestFailure>,
-    val repetitions: List<TestCaseRepetition>? = null
+    val repetitions: List<TestCaseRepetition>? = null,
+    @SerializedName("is_quarantined") val isQuarantined: Boolean = false
 )
 
 data class TestCaseRepetition(
@@ -82,21 +83,16 @@ internal data class TestAttempt(
     val resultType: TestResult.ResultType,
     val startTime: Long,
     val endTime: Long,
-    val exception: Throwable?
+    val exception: Throwable?,
+    val isQuarantined: Boolean = false
 )
 
 internal class TestReportCollector {
     private val attemptsByModule = mutableMapOf<String, MutableList<TestAttempt>>()
 
-    fun getFailedTestIdentifiers(moduleName: String): List<String> {
-        val attempts = attemptsByModule[moduleName] ?: return emptyList()
-        return attempts
-            .filter { it.resultType == TestResult.ResultType.FAILURE }
-            .map { attempt ->
-                val className = attempt.className
-                if (className != null) "$className.${attempt.testName}" else "*.${attempt.testName}"
-            }
-            .distinct()
+    fun hasNonQuarantinedFailures(moduleName: String): Boolean {
+        val attempts = attemptsByModule[moduleName] ?: return false
+        return attempts.any { it.resultType == TestResult.ResultType.FAILURE && !it.isQuarantined }
     }
 
     fun collectTestResult(
@@ -106,10 +102,11 @@ internal class TestReportCollector {
         resultType: TestResult.ResultType,
         startTime: Long,
         endTime: Long,
-        exception: Throwable?
+        exception: Throwable?,
+        isQuarantined: Boolean = false
     ) {
         attemptsByModule.getOrPut(moduleName) { mutableListOf() }.add(
-            TestAttempt(testName, className, resultType, startTime, endTime, exception)
+            TestAttempt(testName, className, resultType, startTime, endTime, exception, isQuarantined)
         )
     }
 
@@ -204,7 +201,8 @@ internal class TestReportCollector {
                     status = finalStatus,
                     duration = totalDuration,
                     failures = failures,
-                    repetitions = repetitions
+                    repetitions = repetitions,
+                    isQuarantined = attempts.any { it.isQuarantined }
                 )
             }
     }
@@ -294,8 +292,11 @@ abstract class TuistTestInsightsService :
     private var latestEndTime: Long = Long.MIN_VALUE
     @Volatile private var hasTests = false
 
-    internal fun getFailedTests(moduleName: String): List<String> {
-        return collector.getFailedTestIdentifiers(moduleName)
+    @Volatile
+    internal var quarantineMap: Map<String, List<String>> = emptyMap()
+
+    internal fun hasNonQuarantinedFailures(moduleName: String): Boolean {
+        return collector.hasNonQuarantinedFailures(moduleName)
     }
 
     @Synchronized
@@ -315,9 +316,18 @@ abstract class TuistTestInsightsService :
             result.successfulTestCount > 0 -> TestResult.ResultType.SUCCESS
             else -> result.resultType
         }
+        val modulePatterns = quarantineMap[moduleName] ?: emptyList()
+        val testId = if (descriptor.className != null) {
+            "${descriptor.className}.${descriptor.name}"
+        } else {
+            "*.${descriptor.name}"
+        }
+        val isQuarantined = modulePatterns.any { pattern ->
+            pattern == testId || (pattern.startsWith("*.") && testId.endsWith(pattern.removePrefix("*")))
+        }
         collector.collectTestResult(
             moduleName, descriptor.name, descriptor.className,
-            actualResultType, result.startTime, result.endTime, result.exception
+            actualResultType, result.startTime, result.endTime, result.exception, isQuarantined
         )
     }
 
@@ -479,6 +489,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
 
                     testTask.doFirst {
                         val quarantineMap = quarantineService.getQuarantinedTests()
+                        serviceProvider.get().quarantineMap = quarantineMap
                         val modulePatterns = quarantineMap[moduleName]
                         if (modulePatterns != null) {
                             logger.lifecycle("Tuist: Found ${modulePatterns.size} quarantined test(s) in module $moduleName")
@@ -486,24 +497,8 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                     }
 
                     testTask.doLast {
-                        val quarantineMap = quarantineService.getQuarantinedTests()
-                        val failedTests = serviceProvider.get().getFailedTests(moduleName)
-                        if (failedTests.isEmpty()) return@doLast
-
-                        val modulePatterns = quarantineMap[moduleName] ?: emptyList()
-                        val realFailures = failedTests.filter { testId ->
-                            !modulePatterns.any { pattern -> matchesQuarantinePattern(testId, pattern) }
-                        }
-                        val quarantinedFailureCount = failedTests.size - realFailures.size
-
-                        if (quarantinedFailureCount > 0) {
-                            logger.lifecycle("Tuist: $quarantinedFailureCount quarantined test(s) failed in module $moduleName")
-                        }
-
-                        if (realFailures.isNotEmpty()) {
-                            throw org.gradle.api.GradleException(
-                                "Tuist: ${realFailures.size} non-quarantined test(s) failed in module $moduleName: ${realFailures.joinToString(", ")}"
-                            )
+                        if (serviceProvider.get().hasNonQuarantinedFailures(moduleName)) {
+                            throw org.gradle.api.GradleException("There were failing tests in module $moduleName")
                         }
                     }
                 }
@@ -522,12 +517,4 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         }
 
     }
-}
-
-internal fun matchesQuarantinePattern(testId: String, pattern: String): Boolean {
-    if (pattern.startsWith("*.")) {
-        val methodName = pattern.removePrefix("*.")
-        return testId.endsWith(".$methodName")
-    }
-    return testId == pattern
 }
