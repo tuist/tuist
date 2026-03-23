@@ -28,21 +28,23 @@ defmodule TuistCommon.HTTP.TransportPromExPlugin do
         :tuist_http_request_failure_metrics,
         [
           counter(
-            [:tuist, :http, :request, :failure, :count],
+            [:tuist, :http, :request, :failure, :stop, :count],
             event_name: [:bandit, :request, :stop],
             keep: fn metadata, _measurements ->
               not is_nil(Transport.bandit_request_failure_reason(metadata))
             end,
             tag_values: &bandit_failure_tag_values/1,
             tags: [:method, :route, :reason],
-            description: "Counts failed Bandit requests that indicate unhealthy behavior."
+            description:
+              "Counts failed Bandit request stop events that indicate unhealthy behavior."
           ),
           counter(
-            [:tuist, :http, :request, :failure, :count],
+            [:tuist, :http, :request, :failure, :exception, :count],
             event_name: [:bandit, :request, :exception],
             tag_values: &bandit_exception_tag_values/1,
             tags: [:method, :route, :reason],
-            description: "Counts failed Bandit requests that indicate unhealthy behavior."
+            description:
+              "Counts failed Bandit request exception events that indicate unhealthy behavior."
           )
         ]
       ),
@@ -67,22 +69,22 @@ defmodule TuistCommon.HTTP.TransportPromExPlugin do
         :tuist_http_connection_error_metrics,
         [
           counter(
-            [:tuist, :http, :connection, :error, :count],
+            [:tuist, :http, :connection, :error, :recv, :count],
             event_name: [:thousand_island, :connection, :recv_error],
             tag_values: fn _metadata ->
               Transport.thousand_island_connection_error_metadata(:recv_error)
             end,
             tags: [:event],
-            description: "Counts Thousand Island synchronous recv/send errors."
+            description: "Counts Thousand Island recv_error connection failures."
           ),
           counter(
-            [:tuist, :http, :connection, :error, :count],
+            [:tuist, :http, :connection, :error, :send, :count],
             event_name: [:thousand_island, :connection, :send_error],
             tag_values: fn _metadata ->
               Transport.thousand_island_connection_error_metadata(:send_error)
             end,
             tags: [:event],
-            description: "Counts Thousand Island synchronous recv/send errors."
+            description: "Counts Thousand Island send_error connection failures."
           )
         ]
       )

@@ -143,6 +143,68 @@ defmodule Cache.KeyValueEntriesTest do
     assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "inserted"}]
   end
 
+  test "apply_remote_batch uses an immediate transaction for batched remote apply" do
+    parent = self()
+    row = remote_row("keyvalue:acme:ios:locked")
+
+    stub(KeyValueRepo, :transaction, fn _fun, opts ->
+      send(parent, {:transaction_opts, opts})
+
+      {:ok,
+       %{
+         processed_count: 1,
+         inserted_count: 1,
+         payload_updated_count: 0,
+         access_updated_count: 0,
+         deleted_count: 0,
+         last_processed_row: row,
+         invalidate_keys: [row.key],
+         mark_lineage_keys: [row.key],
+         clear_lineage_keys: []
+       }}
+    end)
+
+    assert {:ok, result} = KeyValueEntries.apply_remote_batch([row])
+    assert result.mark_lineage_keys == [row.key]
+    assert_receive {:transaction_opts, opts}
+    assert Keyword.get(opts, :mode) == :immediate
+  end
+
+  test "apply_remote_batch reuses pending side effects when replaying a committed chunk" do
+    original_time = DateTime.add(DateTime.utc_now(), -120, :second)
+    updated_time = DateTime.add(original_time, 60, :second)
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:update",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
+      last_accessed_at: original_time,
+      source_updated_at: original_time
+    })
+
+    row =
+      remote_row("keyvalue:acme:ios:update",
+        json_payload: Jason.encode!(%{entries: [%{"value" => "new"}]}),
+        last_accessed_at: updated_time,
+        source_updated_at: updated_time,
+        updated_at: updated_time
+      )
+
+    assert {:ok, first_result} = KeyValueEntries.apply_remote_batch([row])
+    assert first_result.payload_updated_count == 1
+    assert first_result.access_updated_count == 0
+    assert first_result.invalidate_keys == [row.key]
+
+    assert {:ok, second_result} = KeyValueEntries.apply_remote_batch([row])
+    assert second_result == first_result
+
+    :ok = KeyValueEntries.commit_remote_batch(first_result.last_processed_row)
+
+    assert {:ok, third_result} = KeyValueEntries.apply_remote_batch([row])
+    assert third_result.payload_updated_count == 0
+    assert third_result.access_updated_count == 1
+    assert third_result.invalidate_keys == []
+  end
+
   test "apply_remote_batch preserves newer local pending payloads and merges access time" do
     local_source_updated_at = DateTime.utc_now()
     remote_source_updated_at = DateTime.add(local_source_updated_at, -60, :second)
@@ -272,7 +334,7 @@ defmodule Cache.KeyValueEntriesTest do
   test "apply_remote_batch returns busy errors without committing" do
     row = remote_row("keyvalue:acme:ios:busy")
 
-    stub(KeyValueRepo, :transaction, fn _fun ->
+    stub(KeyValueRepo, :transaction, fn _fun, _opts ->
       raise %Exqlite.Error{message: "Database busy"}
     end)
 

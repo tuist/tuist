@@ -16,6 +16,7 @@ defmodule Cache.KeyValueEntries do
   @default_max_duration_ms 300_000
   @batch_sleep_ms 10
   @poller_watermark "poller_watermark"
+  @pending_remote_batch "pending_remote_batch"
   @remote_apply_conflict_fields [
     :json_payload,
     :last_accessed_at,
@@ -99,14 +100,27 @@ defmodule Cache.KeyValueEntries do
   end
 
   def put_distributed_watermark(updated_at_value, key_value) do
-    attrs = %{name: @poller_watermark, updated_at_value: updated_at_value, key_value: key_value}
+    put_replication_state!(@poller_watermark, updated_at_value, key_value)
 
-    {:ok, _state} =
-      %State{name: @poller_watermark}
-      |> State.changeset(attrs)
-      |> KeyValueRepo.insert(
-        on_conflict: [set: [updated_at_value: updated_at_value, key_value: key_value]],
-        conflict_target: :name
+    :ok
+  end
+
+  def commit_remote_batch(nil), do: :ok
+
+  def commit_remote_batch(last_processed_row) do
+    {:ok, :ok} =
+      KeyValueRepo.transaction(
+        fn ->
+          put_replication_state!(
+            @poller_watermark,
+            last_processed_row.updated_at,
+            last_processed_row.key
+          )
+
+          delete_replication_state!(@pending_remote_batch)
+          :ok
+        end,
+        mode: :immediate
       )
 
     :ok
@@ -116,16 +130,22 @@ defmodule Cache.KeyValueEntries do
     now = DateTime.truncate(DateTime.utc_now(), :second)
     {alive_rows, deleted_rows} = Enum.split_with(rows, &is_nil(&1.deleted_at))
     tombstone_keys = Enum.map(deleted_rows, & &1.key)
+    signature = remote_batch_signature(rows)
 
-    with {:ok, result} <- apply_remote_batch_transaction(rows, alive_rows, tombstone_keys, now) do
-      {:ok,
-       %{
-         result
-         | invalidate_keys: result.invalidate_keys ++ tombstone_keys,
-           mark_lineage_keys: Enum.map(alive_rows, & &1.key),
-           clear_lineage_keys: tombstone_keys
-       }}
+    case load_pending_remote_batch(signature) do
+      nil ->
+        apply_remote_batch_transaction(rows, alive_rows, tombstone_keys, now, signature)
+
+      result ->
+        {:ok, result}
     end
+  rescue
+    error ->
+      if SQLiteHelpers.busy_error?(error) do
+        {:error, :busy}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   def materialize_remote_entry(attrs) when is_map(attrs) do
@@ -172,25 +192,31 @@ defmodule Cache.KeyValueEntries do
     count
   end
 
-  defp apply_remote_batch_transaction(rows, alive_rows, tombstone_keys, now) do
-    case KeyValueRepo.transaction(fn ->
-           local_entries_by_key = fetch_local_entries_by_key(Enum.map(rows, & &1.key))
+  defp apply_remote_batch_transaction(rows, alive_rows, tombstone_keys, now, signature) do
+    case KeyValueRepo.transaction(
+           fn ->
+             local_entries_by_key = fetch_local_entries_by_key(Enum.map(rows, & &1.key))
 
-           {upsert_rows, stats} = build_remote_upsert_rows(alive_rows, local_entries_by_key, now)
-           upsert_remote_rows(upsert_rows)
+             {upsert_rows, stats} = build_remote_upsert_rows(alive_rows, local_entries_by_key, now)
+             upsert_remote_rows(upsert_rows)
 
-           %{
-             processed_count: length(rows),
-             inserted_count: stats.inserted_count,
-             payload_updated_count: stats.payload_updated_count,
-             access_updated_count: stats.access_updated_count,
-             deleted_count: delete_tombstoned_rows(tombstone_keys),
-             last_processed_row: List.last(rows),
-             invalidate_keys: stats.invalidate_keys,
-             mark_lineage_keys: [],
-             clear_lineage_keys: []
-           }
-         end) do
+             result = %{
+               processed_count: length(rows),
+               inserted_count: stats.inserted_count,
+               payload_updated_count: stats.payload_updated_count,
+               access_updated_count: stats.access_updated_count,
+               deleted_count: delete_tombstoned_rows(tombstone_keys),
+               last_processed_row: List.last(rows),
+               invalidate_keys: stats.invalidate_keys ++ tombstone_keys,
+               mark_lineage_keys: Enum.map(alive_rows, & &1.key),
+               clear_lineage_keys: tombstone_keys
+             }
+
+             put_pending_remote_batch!(signature, result)
+             result
+           end,
+           mode: :immediate
+         ) do
       {:ok, result} -> {:ok, result}
       {:error, reason} -> {:error, reason}
     end
@@ -202,6 +228,72 @@ defmodule Cache.KeyValueEntries do
         reraise error, __STACKTRACE__
       end
   end
+
+  defp load_pending_remote_batch(signature) do
+    case KeyValueRepo.get(State, @pending_remote_batch) do
+      nil ->
+        nil
+
+      %State{key_value: key_value} ->
+        %{signature: pending_signature, result: result} = decode_replication_state_payload!(key_value)
+
+        if pending_signature == signature do
+          result
+        else
+          raise "pending remote batch does not match the current poller chunk"
+        end
+    end
+  end
+
+  defp put_pending_remote_batch!(signature, result) do
+    payload = encode_replication_state_payload!(%{signature: signature, result: result})
+    put_replication_state!(@pending_remote_batch, result.last_processed_row.updated_at, payload)
+  end
+
+  defp put_replication_state!(name, updated_at_value, key_value) do
+    attrs = %{name: name, updated_at_value: updated_at_value, key_value: key_value}
+
+    %State{name: name}
+    |> State.changeset(attrs)
+    |> KeyValueRepo.insert!(
+      on_conflict: [set: [updated_at_value: updated_at_value, key_value: key_value]],
+      conflict_target: :name
+    )
+  end
+
+  defp delete_replication_state!(name) do
+    KeyValueRepo.delete_all(from(state in State, where: state.name == ^name))
+    :ok
+  end
+
+  defp encode_replication_state_payload!(payload) do
+    payload
+    |> :erlang.term_to_binary()
+    |> Base.encode64()
+  end
+
+  defp decode_replication_state_payload!(payload) do
+    payload
+    |> Base.decode64!()
+    |> :erlang.binary_to_term([:safe])
+  end
+
+  defp remote_batch_signature(rows) do
+    Enum.map(rows, fn row ->
+      %{
+        key: row.key,
+        updated_at: row.updated_at,
+        deleted_at: row.deleted_at,
+        source_updated_at: row.source_updated_at,
+        last_accessed_at: row.last_accessed_at,
+        source_node: row.source_node,
+        json_payload_hash: remote_row_payload_hash(row.json_payload)
+      }
+    end)
+  end
+
+  defp remote_row_payload_hash(nil), do: nil
+  defp remote_row_payload_hash(payload), do: :crypto.hash(:sha256, payload)
 
   defp fetch_local_entries_by_key([]), do: %{}
 

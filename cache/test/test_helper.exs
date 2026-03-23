@@ -1,5 +1,6 @@
 Mimic.copy(Sentry)
 Mimic.copy(Cache.Authentication)
+Mimic.copy(Cachex)
 Mimic.copy(Cache.Config)
 Mimic.copy(Cache.Disk)
 Mimic.copy(Cache.Xcode.Disk)

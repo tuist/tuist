@@ -116,9 +116,6 @@ defmodule Cache.KeyValueReplicationPoller do
 
           {:error, :busy} ->
             {:halt, {processed_acc, materialized_acc, deleted_acc}}
-
-          {:error, :post_commit_failed} ->
-            {:halt, {processed_acc, materialized_acc, deleted_acc}}
         end
       end)
 
@@ -180,7 +177,7 @@ defmodule Cache.KeyValueReplicationPoller do
     else
       case materialize_remote_row(row) do
         {:ok, status} ->
-          if status in [:inserted, :payload_updated], do: KeyValueAccessTracker.mark_shared_lineage(row.key)
+          if status in [:inserted, :payload_updated], do: :ok = KeyValueAccessTracker.mark_shared_lineage(row.key)
           {:cont, {:ok, size_acc + byte_size(row.json_payload)}}
 
         {:error, :busy} ->
@@ -192,11 +189,10 @@ defmodule Cache.KeyValueReplicationPoller do
   defp apply_remote_chunk(rows) do
     case KeyValueEntries.apply_remote_batch(rows) do
       {:ok, result} ->
-        with :ok <- run_chunk_side_effects(result),
-             :ok <- persist_chunk_watermark(result.last_processed_row) do
-          emit_chunk_lag(result.last_processed_row)
-          {:ok, result}
-        end
+        :ok = run_chunk_side_effects(result)
+        :ok = KeyValueEntries.commit_remote_batch(result.last_processed_row)
+        emit_chunk_lag(result.last_processed_row)
+        {:ok, result}
 
       {:error, :busy} ->
         {:error, :busy}
@@ -204,37 +200,22 @@ defmodule Cache.KeyValueReplicationPoller do
       {:error, reason} ->
         raise "unexpected remote batch apply error: #{inspect(reason)}"
     end
-  rescue
-    error ->
-      if SQLiteHelpers.busy_error?(error) do
-        {:error, :busy}
-      else
-        reraise error, __STACKTRACE__
-      end
   end
 
   defp run_chunk_side_effects(result) do
     Enum.each(result.invalidate_keys, fn key ->
-      _ = Cachex.del(:cache_keyvalue_store, key)
+      {:ok, _deleted?} = Cachex.del(:cache_keyvalue_store, key)
     end)
 
-    Enum.each(result.mark_lineage_keys, &KeyValueAccessTracker.mark_shared_lineage/1)
-    Enum.each(result.clear_lineage_keys, &KeyValueAccessTracker.clear/1)
+    Enum.each(result.mark_lineage_keys, fn key ->
+      :ok = KeyValueAccessTracker.mark_shared_lineage(key)
+    end)
+
+    Enum.each(result.clear_lineage_keys, fn key ->
+      :ok = KeyValueAccessTracker.clear(key)
+    end)
 
     :ok
-  rescue
-    _error ->
-      {:error, :post_commit_failed}
-  end
-
-  defp persist_chunk_watermark(nil), do: :ok
-
-  defp persist_chunk_watermark(last_processed_row) do
-    :ok = KeyValueEntries.put_distributed_watermark(last_processed_row.updated_at, last_processed_row.key)
-    :ok
-  rescue
-    _error ->
-      {:error, :post_commit_failed}
   end
 
   defp emit_chunk_lag(nil), do: :ok

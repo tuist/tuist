@@ -22,6 +22,7 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
       [_timeout_event, failure_event | _] = TransportPromExPlugin.event_metrics([])
       [stop_metric, exception_metric] = failure_event.metrics
 
+      assert stop_metric.name == [:tuist, :http, :request, :failure, :stop, :count]
       assert stop_metric.event_name == [:bandit, :request, :stop]
       assert stop_metric.keep.(%{conn: %{status: 500}}, %{})
 
@@ -35,6 +36,7 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
                request_path: "/bar"
              }
 
+      assert exception_metric.name == [:tuist, :http, :request, :failure, :exception, :count]
       assert exception_metric.event_name == [:bandit, :request, :exception]
 
       assert exception_metric.tag_values.(%{
@@ -53,11 +55,22 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
       assert drop_metric.keep.(%{error: :closed}, %{})
       assert drop_metric.tag_values.(%{error: :closed}) == %{reason: "closed"}
 
+      assert recv_metric.name == [:tuist, :http, :connection, :error, :recv, :count]
       assert recv_metric.event_name == [:thousand_island, :connection, :recv_error]
       assert recv_metric.tag_values.(%{}) == %{event: "recv_error"}
 
+      assert send_metric.name == [:tuist, :http, :connection, :error, :send, :count]
       assert send_metric.event_name == [:thousand_island, :connection, :send_error]
       assert send_metric.tag_values.(%{}) == %{event: "send_error"}
+    end
+
+    test "uses unique metric names for transport counters" do
+      names =
+        TransportPromExPlugin.event_metrics([])
+        |> Enum.flat_map(& &1.metrics)
+        |> Enum.map(& &1.name)
+
+      assert Enum.uniq(names) == names
     end
   end
 end
