@@ -304,7 +304,7 @@ defmodule Tuist.Tests do
   - :name, :module_name, :suite_name - identity fields
   - :status, :duration, :ran_at - latest run data
   """
-  def create_test_cases(project_id, test_case_data_list, existing_test_cases \\ nil) do
+  def create_test_cases(project_id, test_case_data_list, existing_test_cases) do
     now = NaiveDateTime.utc_now()
 
     test_case_ids_with_data =
@@ -313,7 +313,7 @@ defmodule Tuist.Tests do
         {id, data}
       end)
 
-    existing_data = existing_test_cases || get_all_project_test_cases(project_id)
+    existing_data = existing_test_cases
 
     {test_cases, test_cases_with_flaky_run} =
       Enum.map_reduce(test_case_ids_with_data, [], fn {id, data}, acc ->
