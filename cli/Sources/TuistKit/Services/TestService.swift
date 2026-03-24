@@ -490,10 +490,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 if shardMin != nil || shardMax != nil || shardTotal != nil,
                    let fullHandle = config.fullHandle
                 {
+                    let shardDestination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments)
+                        ?? platform.map { "platform=\($0)" }
+
                     let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
                     _ = try await shardPlanService.plan(
                         xctestproductsPath: testProductsPath,
-                        schemes: schemes.map(\.name),
+                        destination: shardDestination,
                         reference: shardReference,
                         shardGranularity: shardGranularity,
                         shardMin: shardMin,
@@ -1556,5 +1559,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 method: testCase.name
             )
         }
+    }
+
+    private func passedValue(for option: String, arguments: [String]) -> String? {
+        guard let optionIndex = arguments.firstIndex(of: option) else { return nil }
+        let valueIndex = arguments.index(after: optionIndex)
+        guard arguments.endIndex > valueIndex else { return nil }
+        return arguments[valueIndex]
     }
 }
