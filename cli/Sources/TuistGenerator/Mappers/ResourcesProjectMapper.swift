@@ -91,8 +91,8 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             // Xcode generates typed asset symbols (mirroring SwiftPM's PIF builder).
             // String catalogs (.xcstrings) are NOT added to Sources because doing so triggers
             // Xcode's string extraction which marks all strings as "stale" when the target uses
-            // a companion resource bundle (bundle: .module). Instead, xcstrings are kept in the
-            // main target's Resources phase so Xcode can correctly associate string references
+            // a companion resource bundle (bundle: .module). They are kept in the main target's
+            // Resources phase (see below) so Xcode can correctly associate string references
             // in Swift code with the catalog entries.
             let codeGeneratingResourceExtensions: Set<String> = ["xcassets"]
             for resource in target.resources.resources {

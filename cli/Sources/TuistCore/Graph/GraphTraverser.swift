@@ -272,7 +272,7 @@ public class GraphTraverser: GraphTraversing {
         guard let target = graph.projects[path]?.targets[name] else { return [] }
 
         func canHostResources(target: Target) -> Bool {
-            target.supportsResources && (target.product != .staticFramework || target.containsResources)
+            target.supportsResources && target.product != .staticFramework
         }
 
         guard canHostResources(target: target) else { return [] }
@@ -1501,7 +1501,7 @@ public class GraphTraverser: GraphTraversing {
 
     private func isEmbeddableDependencyTarget(dependency: GraphDependency) -> Bool {
         testTarget(dependency: dependency) {
-            $0.product.isDynamic || $0.product == .staticFramework && $0.containsResources
+            $0.product.isDynamic
         }
     }
 
