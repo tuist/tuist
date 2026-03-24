@@ -3301,4 +3301,11 @@ final class TestServiceTests: TuistUnitTestCase {
             )
         }
     }
+
+    // MARK: - inferPlatformDestination
+
+    func test_inferPlatformDestination_returns_nil_for_empty_schemes() {
+        let graphTraverser = MockGraphTraversing()
+        XCTAssertNil(subject.inferPlatformDestination(schemes: [], graphTraverser: graphTraverser))
+    }
 }
