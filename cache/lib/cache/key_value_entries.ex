@@ -474,24 +474,29 @@ defmodule Cache.KeyValueEntries do
   def delete_project_entries_before(account_handle, project_handle, cutoff, opts \\ []) do
     include_pending? = Keyword.get(opts, :include_pending?, false)
     on_deleted_keys = Keyword.get(opts, :on_deleted_keys)
+    after_delete_batch = Keyword.get(opts, :after_delete_batch)
     collect_deleted_keys? = is_nil(on_deleted_keys)
     {prefix, prefix_upper_bound} = project_key_bounds(account_handle, project_handle)
 
     state = %{
       on_deleted_keys: on_deleted_keys,
+      after_delete_batch: after_delete_batch,
       collect_deleted_keys?: collect_deleted_keys?,
       deleted_keys_acc: [],
       count_acc: 0
     }
 
-    delete_project_entries_before_loop(
-      prefix,
-      prefix_upper_bound,
-      cutoff,
-      include_pending?,
-      nil,
-      state
-    )
+    case delete_project_entries_before_loop(
+           prefix,
+           prefix_upper_bound,
+           cutoff,
+           include_pending?,
+           nil,
+           state
+         ) do
+      {:ok, final_state} -> {Enum.reverse(final_state.deleted_keys_acc), final_state.count_acc}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   def estimated_size_bytes do
@@ -705,32 +710,33 @@ defmodule Cache.KeyValueEntries do
 
     case candidate_keys do
       [] ->
-        {Enum.reverse(state.deleted_keys_acc), state.count_acc}
+        {:ok, state}
 
       _ ->
-        :ok = maybe_notify_deleted_keys(state.on_deleted_keys, candidate_keys)
+        with :ok <- maybe_notify_deleted_keys(state.on_deleted_keys, candidate_keys),
+             :ok <- maybe_after_delete_batch(state.after_delete_batch, candidate_keys) do
+          next_deleted_keys_acc =
+            if state.collect_deleted_keys? do
+              Enum.reverse(candidate_keys, state.deleted_keys_acc)
+            else
+              state.deleted_keys_acc
+            end
 
-        next_deleted_keys_acc =
-          if state.collect_deleted_keys? do
-            Enum.reverse(candidate_keys, state.deleted_keys_acc)
-          else
-            state.deleted_keys_acc
-          end
+          next_state = %{
+            state
+            | deleted_keys_acc: next_deleted_keys_acc,
+              count_acc: state.count_acc + deleted_count
+          }
 
-        next_state = %{
-          state
-          | deleted_keys_acc: next_deleted_keys_acc,
-            count_acc: state.count_acc + deleted_count
-        }
-
-        delete_project_entries_before_loop(
-          prefix,
-          prefix_upper_bound,
-          cutoff,
-          include_pending?,
-          List.last(candidate_keys),
-          next_state
-        )
+          delete_project_entries_before_loop(
+            prefix,
+            prefix_upper_bound,
+            cutoff,
+            include_pending?,
+            List.last(candidate_keys),
+            next_state
+          )
+        end
     end
   end
 
@@ -739,6 +745,22 @@ defmodule Cache.KeyValueEntries do
   defp maybe_notify_deleted_keys(fun, keys) when is_function(fun, 1) do
     :ok = fun.(keys)
     :ok
+  end
+
+  defp maybe_after_delete_batch(nil, _keys), do: :ok
+
+  defp maybe_after_delete_batch(fun, keys) when is_function(fun, 1) do
+    case fun.(keys) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
+
+      other ->
+        raise ArgumentError,
+              "after_delete_batch callback must return :ok or {:error, reason}, got: #{inspect(other)}"
+    end
   end
 
   defp project_candidate_keys_batch(prefix, prefix_upper_bound, cutoff, include_pending?, cursor) do

@@ -38,6 +38,7 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, %DateTime{}, opts ->
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           refute Keyword.has_key?(opts, :include_pending?)
           {[], 0}
       end)
@@ -75,6 +76,7 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^cutoff, opts ->
           assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {["keyvalue:test_account:test_project:cas"], 1}
       end)
@@ -115,7 +117,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle -> {:ok, cutoff} end)
 
-      expect(Cleanup, :renew_project_cleanup_lease, 2, fn ^account_handle, ^project_handle, ^cutoff ->
+      expect(Cleanup, :renew_project_cleanup_lease, fn ^account_handle, ^project_handle, ^cutoff ->
         send(self(), :renew_called)
         :ok
       end)
@@ -123,6 +125,7 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^cutoff, opts ->
           assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {[], 0}
       end)
@@ -158,6 +161,7 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^safe_cutoff, opts ->
           assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {[], 0}
       end)
@@ -182,21 +186,45 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
     end
 
-    test "distributed cleanup treats an active cleanup lease as a safe no-op" do
+    test "distributed cleanup still performs node-local cleanup while shared cleanup is already in progress" do
       stub(Config, :key_value_mode, fn -> :distributed end)
       stub(Config, :distributed_kv_enabled?, fn -> true end)
+      stub(Config, :xcode_cache_bucket, fn -> nil end)
 
       account_handle = "test_account"
       project_handle = "test_project"
+      cleanup_cutoff = ~U[2026-03-12 12:00:00Z]
       parent = self()
 
       expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle ->
         {:error, :cleanup_already_in_progress}
       end)
 
-      stub(KeyValueEntries, :delete_project_entries_before, fn _account_handle, _project_handle, _cutoff, _opts ->
-        send(parent, :kv_deleted)
-        {[], 0}
+      expect(Cleanup, :latest_project_cleanup_cutoff, fn ^account_handle, ^project_handle -> cleanup_cutoff end)
+
+      expect(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
+          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+          send(parent, :kv_deleted)
+          {[], 0}
+      end)
+
+      expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
+        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        send(parent, :disk_deleted)
+        {:ok, 0}
+      end)
+
+      stub(S3, :delete_objects_with_prefix_before, fn _prefix, _cutoff, _opts ->
+        send(parent, :shared_s3_deleted)
+        {:ok, 0}
+      end)
+
+      stub(Cleanup, :tombstone_project_entries, fn _account_handle, _project_handle, _cleanup_cutoff ->
+        send(parent, :tombstoned)
+        0
       end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
@@ -205,24 +233,75 @@ defmodule Cache.CleanProjectWorkerTest do
         assert :ok = CleanProjectWorker.perform(job)
       end)
 
-      refute_received :kv_deleted
+      assert_received :kv_deleted
+      assert_received :disk_deleted
+      refute_received :shared_s3_deleted
+      refute_received :tombstoned
     end
 
-    test "distributed cleanup keeps active lease conflicts retryable on retry attempts" do
+    test "distributed cleanup keeps active lease conflicts retryable on retry attempts after local cleanup" do
       stub(Config, :key_value_mode, fn -> :distributed end)
       stub(Config, :distributed_kv_enabled?, fn -> true end)
+      stub(Config, :xcode_cache_bucket, fn -> nil end)
 
       account_handle = "test_account"
       project_handle = "test_project"
+      cleanup_cutoff = ~U[2026-03-12 12:00:00Z]
+      parent = self()
 
       expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle ->
         {:error, :cleanup_already_in_progress}
+      end)
+
+      expect(Cleanup, :latest_project_cleanup_cutoff, fn ^account_handle, ^project_handle -> cleanup_cutoff end)
+
+      expect(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
+          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+          send(parent, :kv_deleted)
+          {[], 0}
+      end)
+
+      expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
+        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        send(parent, :disk_deleted)
+        {:ok, 0}
       end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}, attempt: 2}
 
       capture_log(fn ->
         assert {:error, :cleanup_already_in_progress} = CleanProjectWorker.perform(job)
+      end)
+
+      assert_received :kv_deleted
+      assert_received :disk_deleted
+    end
+
+    test "distributed cleanup propagates local KV cleanup lease-loss errors" do
+      stub(Config, :key_value_mode, fn -> :distributed end)
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
+
+      account_handle = "test_account"
+      project_handle = "test_project"
+      cleanup_cutoff = ~U[2026-03-12 12:00:00Z]
+
+      expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle -> {:ok, cleanup_cutoff} end)
+
+      expect(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
+          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+          {:error, :cleanup_lease_lost}
+      end)
+
+      job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
+
+      capture_log(fn ->
+        assert {:error, :cleanup_lease_lost} = CleanProjectWorker.perform(job)
       end)
     end
 
@@ -243,6 +322,7 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^cutoff, opts ->
           assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {[], 0}
       end)
@@ -285,6 +365,7 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, %DateTime{}, opts ->
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           refute Keyword.has_key?(opts, :include_pending?)
           {[], 0}
       end)

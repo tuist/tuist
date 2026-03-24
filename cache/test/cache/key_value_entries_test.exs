@@ -704,6 +704,64 @@ defmodule Cache.KeyValueEntriesTest do
     assert KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key)) == []
   end
 
+  test "delete_project_entries_before runs after_delete_batch once per deleted batch" do
+    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
+    timestamp = DateTime.truncate(old_time, :second)
+
+    rows =
+      for i <- 1..1000 do
+        %{
+          key: "keyvalue:acme:ios:artifact-#{i}",
+          json_payload: "{}",
+          last_accessed_at: old_time,
+          source_updated_at: old_time,
+          inserted_at: timestamp,
+          updated_at: timestamp
+        }
+      end
+
+    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
+    {:ok, after_batch_sizes} = Agent.start_link(fn -> [] end)
+
+    {keys, count} =
+      KeyValueEntries.delete_project_entries_before("acme", "ios", old_time,
+        after_delete_batch: fn deleted_keys ->
+          Agent.update(after_batch_sizes, fn sizes -> [length(deleted_keys) | sizes] end)
+          :ok
+        end
+      )
+
+    assert count == 1000
+    assert length(keys) == 1000
+    assert Agent.get(after_batch_sizes, &Enum.sort/1) == [500, 500]
+  end
+
+  test "delete_project_entries_before returns callback errors from after_delete_batch" do
+    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
+    timestamp = DateTime.truncate(old_time, :second)
+
+    rows =
+      for i <- 1..1000 do
+        %{
+          key: "keyvalue:acme:ios:artifact-#{i}",
+          json_payload: "{}",
+          last_accessed_at: old_time,
+          source_updated_at: old_time,
+          inserted_at: timestamp,
+          updated_at: timestamp
+        }
+      end
+
+    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
+
+    assert {:error, :cleanup_lease_lost} =
+             KeyValueEntries.delete_project_entries_before("acme", "ios", old_time,
+               after_delete_batch: fn _deleted_keys -> {:error, :cleanup_lease_lost} end
+             )
+
+    assert KeyValueRepo.aggregate(KeyValueEntry, :count) == 500
+  end
+
   test "delete_project_entries_before respects exact lexicographic key bounds" do
     old_time = DateTime.add(DateTime.utc_now(), -1, :day)
 

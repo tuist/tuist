@@ -120,6 +120,48 @@ defmodule Cache.DistributedKV.CleanupTest do
     assert {:error, :cleanup_lease_lost} = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
   end
 
+  test "latest_project_cleanup_cutoffs matches only the requested project pairs" do
+    ios_cutoff = ~U[2026-03-12 12:00:00.000000Z]
+    android_cutoff = ~U[2026-03-12 13:00:00.000000Z]
+    beta_cutoff = ~U[2026-03-12 14:00:00.000000Z]
+
+    Repo.insert!(%Project{
+      account_handle: "acme",
+      project_handle: "ios",
+      last_cleanup_at: ios_cutoff,
+      cleanup_lease_expires_at: DateTime.add(ios_cutoff, 60, :second),
+      updated_at: ios_cutoff
+    })
+
+    Repo.insert!(%Project{
+      account_handle: "acme",
+      project_handle: "android",
+      last_cleanup_at: android_cutoff,
+      cleanup_lease_expires_at: DateTime.add(android_cutoff, 60, :second),
+      updated_at: android_cutoff
+    })
+
+    Repo.insert!(%Project{
+      account_handle: "beta",
+      project_handle: "ios",
+      last_cleanup_at: beta_cutoff,
+      cleanup_lease_expires_at: DateTime.add(beta_cutoff, 60, :second),
+      updated_at: beta_cutoff
+    })
+
+    cutoffs =
+      Cleanup.latest_project_cleanup_cutoffs([
+        %{account_handle: "acme", project_handle: "ios"},
+        %{account_handle: "beta", project_handle: "ios"},
+        %{account_handle: "acme", project_handle: "ios"}
+      ])
+
+    assert cutoffs == %{
+             {"acme", "ios"} => DateTime.truncate(ios_cutoff, :second),
+             {"beta", "ios"} => DateTime.truncate(beta_cutoff, :second)
+           }
+  end
+
   test "expire_project_cleanup_lease releases the active lease for retries" do
     now = DateTime.utc_now()
     cutoff = DateTime.add(now, -5, :second)

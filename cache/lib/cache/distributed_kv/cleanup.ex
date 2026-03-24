@@ -121,19 +121,25 @@ defmodule Cache.DistributedKV.Cleanup do
         %{}
 
       _ ->
-        scope_filter =
-          Enum.reduce(scope_pairs, dynamic(false), fn {account_handle, project_handle}, dynamic ->
-            dynamic(
-              [cleanup],
-              ^dynamic or
-                (cleanup.account_handle == ^account_handle and cleanup.project_handle == ^project_handle)
-            )
+        requested_scopes =
+          Enum.map(scope_pairs, fn {account_handle, project_handle} ->
+            %{account_handle: account_handle, project_handle: project_handle}
           end)
 
         Project
-        |> where(^scope_filter)
-        |> select([project], {project.account_handle, project.project_handle, project.last_cleanup_at})
-        |> Repo.all()
+        |> join(
+          :inner,
+          [project],
+          requested_scope in values(requested_scopes, %{account_handle: :string, project_handle: :string}),
+          on:
+            project.account_handle == requested_scope.account_handle and
+              project.project_handle == requested_scope.project_handle
+        )
+        |> select(
+          [project, _requested_scope],
+          {project.account_handle, project.project_handle, project.last_cleanup_at}
+        )
+        |> Repo.all(timeout: Config.distributed_kv_database_timeout_ms())
         |> Map.new(fn {account_handle, project_handle, last_cleanup_at} ->
           {{account_handle, project_handle}, DateTime.truncate(last_cleanup_at, :second)}
         end)
