@@ -63,7 +63,7 @@ public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
         switch project.type {
         case .external:
             switch resolvedBase {
-            case .none:
+            case .commandDefault, .none:
                 return false
             case .onlyExternal, .allPossible:
                 return true
@@ -72,7 +72,7 @@ public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
             switch resolvedBase {
             case .allPossible:
                 return true
-            case .onlyExternal, .none:
+            case .commandDefault, .onlyExternal, .none:
                 if profileTargetNames.contains(target.name) { return true }
                 if !target.metadata.tags.isDisjoint(with: profileTargetTags) { return true }
                 return false
