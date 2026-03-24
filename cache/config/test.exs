@@ -2,6 +2,9 @@ import Config
 
 alias Ecto.Adapters.SQL.Sandbox
 
+test_port = String.to_integer(System.get_env("TUIST_CACHE_TEST_PORT") || "4002")
+test_storage_dir = System.get_env("TUIST_CACHE_TEST_STORAGE_DIR") || "/tmp/test_cas"
+
 config :cache, Cache.Guardian,
   issuer: "tuist",
   secret_key: "test_guardian_secret_key_at_least_64_characters_long_for_test_purposes"
@@ -29,7 +32,7 @@ config :cache, Cache.Repo,
 config :cache, Cache.SQLiteBuffer, shutdown_ms: 0, flush_interval_ms: to_timeout(hour: 1), flush_timeout_ms: 50_000
 
 config :cache, CacheWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4002],
+  http: [ip: {127, 0, 0, 1}, port: test_port],
   secret_key_base: "test_secret_key_base_at_least_64_characters_long_for_security_purposes",
   server: false
 
@@ -47,7 +50,7 @@ config :cache, :s3,
 
 config :cache,
   server_url: "http://localhost:8080",
-  storage_dir: "/tmp/test_cas",
+  storage_dir: test_storage_dir,
   api_key: "test-secret-key"
 
 config :logger, level: :warning

@@ -22,9 +22,7 @@ public struct ServerBuild: Codable {
         self.url = url
         self.status = status
     }
-}
 
-extension ServerBuild {
     init?(_ build: Components.Schemas.RunsBuild) {
         id = build.id
         guard let url = URL(string: build.url)
@@ -43,10 +41,8 @@ extension ServerBuild {
             status = nil
         }
     }
-}
 
-#if MOCKING
-    extension ServerBuild {
+    #if MOCKING
         public static func test(
             id: String = "build-id",
             url: URL = URL(string: "https://tuist.dev/build-url")!,
@@ -58,5 +54,5 @@ extension ServerBuild {
                 status: status
             )
         }
-    }
-#endif
+    #endif
+}

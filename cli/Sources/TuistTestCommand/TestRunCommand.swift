@@ -4,6 +4,7 @@
     import Path
     import TuistBuildCommand
     import TuistCore
+    import TuistEnvKey
     import TuistExtension
     import TuistKit
     import TuistLogging
@@ -237,6 +238,48 @@
         )
         var skipQuarantine: Bool = false
 
+        @Option(
+            name: .long,
+            help: "Maximum number of shards to distribute tests across.",
+            envKey: .testShardMax
+        )
+        var shardMax: Int?
+
+        @Option(
+            name: .long,
+            help: "Minimum number of shards.",
+            envKey: .testShardMin
+        )
+        var shardMin: Int?
+
+        @Option(
+            name: .long,
+            help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max).",
+            envKey: .testShardTotal
+        )
+        var shardTotal: Int?
+
+        @Option(
+            name: .long,
+            help: "Target maximum duration per shard in milliseconds.",
+            envKey: .testShardMaxDuration
+        )
+        var shardMaxDuration: Int?
+
+        @Option(
+            name: .long,
+            help: "Sharding granularity level: module (default) or suite.",
+            envKey: .testShardGranularity
+        )
+        var shardGranularity: ShardGranularity = .module
+
+        @Option(
+            name: .long,
+            help: "Explicit shard reference. Derived from environment variables for supported CI providers.",
+            envKey: .testShardReference
+        )
+        var shardReference: String?
+
         @Argument(
             parsing: .postTerminator,
             help:
@@ -347,7 +390,14 @@
                 ignoreSelectiveTesting: !selectiveTesting,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                skipQuarantine: skipQuarantine
+                skipQuarantine: skipQuarantine,
+                shardReference: shardReference,
+                shardGranularity: shardGranularity,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
+                shardIndex: EnvKey.testShardIndex.envValue()
             )
         }
     }

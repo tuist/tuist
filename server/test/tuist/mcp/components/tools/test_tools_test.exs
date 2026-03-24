@@ -45,7 +45,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
          }}
       end)
 
-      stub(Analytics, :test_runs_metrics, fn _runs ->
+      stub(Analytics, :test_runs_metrics, fn _project_id, _runs ->
         [%{test_run_id: "run-1", total_tests: 50, ran_tests: 45, skipped_tests: 5}]
       end)
 

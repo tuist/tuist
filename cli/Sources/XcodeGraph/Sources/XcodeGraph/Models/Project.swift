@@ -169,10 +169,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         let buildConfiguration = debugConfiguration ?? settings.configurations.keys.first
         return buildConfiguration?.name ?? BuildConfiguration.debug.name
     }
-}
 
-#if DEBUG
-    extension Project {
+    #if DEBUG
         public static func test(
             path: AbsolutePath = try! AbsolutePath(validating: "/Project"), // swiftlint:disable:this force_try
             sourceRootPath: AbsolutePath = try! AbsolutePath(validating: "/Project"), // swiftlint:disable:this force_try
@@ -262,8 +260,10 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 type: type
             )
         }
-    }
+    #endif
+}
 
+#if DEBUG
     extension Project.Options {
         public static func test(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(

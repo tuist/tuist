@@ -10,12 +10,10 @@ public struct AnalyzeAction: Equatable, Codable, Sendable {
     public init(configurationName: String) {
         self.configurationName = configurationName
     }
-}
 
-#if DEBUG
-    extension AnalyzeAction {
+    #if DEBUG
         public static func test(configurationName: String = "Beta Release") -> AnalyzeAction {
             AnalyzeAction(configurationName: configurationName)
         }
-    }
-#endif
+    #endif
+}

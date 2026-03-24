@@ -121,8 +121,9 @@ jobs:
         working-directory: server
         run: |
           MIX_ENV=dev mix phx.server &
+          server_url="${TUIST_SERVER_URL:-http://localhost:8080}"
           for i in {1..30}; do
-            if curl -sf http://localhost:8080 >/dev/null 2>&1; then
+            if curl -sf "$server_url" >/dev/null 2>&1; then
               echo "Main server is ready"
               break
             fi
@@ -133,8 +134,9 @@ jobs:
         working-directory: cache
         run: |
           MIX_ENV=dev mix phx.server &
+          cache_port="${TUIST_CACHE_PORT:-8087}"
           for i in {1..30}; do
-            if nc -z localhost 8087 2>/dev/null; then
+            if nc -z localhost "$cache_port" 2>/dev/null; then
               echo "Cache server is ready"
               break
             fi
@@ -143,5 +145,5 @@ jobs:
           done
       - name: Run Gradle cache acceptance test
         env:
-          SERVER_URL: http://localhost:8080
+          SERVER_URL: ${{ env.TUIST_SERVER_URL }}
         run: mise run --no-prepare e2e gradle_cache

@@ -65,8 +65,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
       })
 
     metrics_map =
-      runs
-      |> Tests.Analytics.test_runs_metrics()
+      project.id
+      |> Tests.Analytics.test_runs_metrics(runs)
       |> Map.new(&{&1.test_run_id, &1})
 
     {:ok,

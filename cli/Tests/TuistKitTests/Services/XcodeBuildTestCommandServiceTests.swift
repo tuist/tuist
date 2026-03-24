@@ -178,7 +178,13 @@ struct XcodeBuildTestCommandServiceTests {
                 .willReturn()
 
             given(inspectResultBundleService)
-                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+                .inspectResultBundle(
+                    resultBundlePath: .any,
+                    projectDerivedDataDirectory: .any,
+                    config: .any,
+                    shardPlanId: .any,
+                    shardIndex: .any
+                )
                 .willThrow(TestError("Inspect failed"))
 
             // When
@@ -186,7 +192,13 @@ struct XcodeBuildTestCommandServiceTests {
 
             // Then
             verify(inspectResultBundleService)
-                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+                .inspectResultBundle(
+                    resultBundlePath: .any,
+                    projectDerivedDataDirectory: .any,
+                    config: .any,
+                    shardPlanId: .any,
+                    shardIndex: .any
+                )
                 .called(1)
             let warnings = alertController.warnings()
             #expect(warnings.count == 1)

@@ -100,9 +100,6 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                     modifiedTarget.sources.append(SourceFile(path: resource.path))
                 }
             }
-            // Keep xcstrings in the main target's resources so Xcode's string catalog editor
-            // can match string references in the target's Swift sources. Other resources are
-            // moved entirely to the companion bundle target.
             let mainTargetRetainedResources = target.resources.resources.filter { $0.path.extension == "xcstrings" }
             modifiedTarget.resources.resources = mainTargetRetainedResources
             modifiedTarget.copyFiles = []

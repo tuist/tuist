@@ -17,9 +17,7 @@ public struct GitInfo: Equatable {
         self.sha = sha
         self.remoteURLOrigin = remoteURLOrigin
     }
-}
 
-extension GitInfo {
     public static func test(
         ref: String? = nil,
         branch: String? = nil,

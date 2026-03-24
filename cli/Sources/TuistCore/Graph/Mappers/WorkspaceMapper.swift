@@ -7,10 +7,8 @@ public struct WorkspaceWithProjects: Equatable {
         self.workspace = workspace
         self.projects = projects
     }
-}
 
-#if DEBUG
-    extension WorkspaceWithProjects {
+    #if DEBUG
         public static func test(
             workspace: Workspace = .test(),
             projects: [Project] = [.test()]
@@ -20,8 +18,8 @@ public struct WorkspaceWithProjects: Equatable {
                 projects: projects
             )
         }
-    }
-#endif
+    #endif
+}
 
 public protocol WorkspaceMapping {
     func map(workspace: WorkspaceWithProjects) async throws -> (WorkspaceWithProjects, [SideEffectDescriptor])

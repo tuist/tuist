@@ -1,7 +1,7 @@
 import Foundation
 
 /// Server project
-public struct ServerProject: Codable, Identifiable {
+public struct ServerProject: Codable, Identifiable, CustomStringConvertible {
     public enum Visibility: String, Codable {
         case `public`, `private`
     }
@@ -28,9 +28,7 @@ public struct ServerProject: Codable, Identifiable {
     public let repositoryURL: String?
     public let visibility: Visibility
     public let buildSystem: Components.Schemas.Project.build_systemPayload
-}
 
-extension ServerProject {
     init(_ project: Components.Schemas.Project) {
         id = Int(project.id)
         fullName = project.full_name
@@ -44,16 +42,8 @@ extension ServerProject {
         }
         buildSystem = project.build_system ?? .xcode
     }
-}
 
-extension ServerProject: CustomStringConvertible {
-    public var description: String {
-        fullName
-    }
-}
-
-#if MOCKING
-    extension ServerProject {
+    #if MOCKING
         public static func test(
             id: Int = 0,
             fullName: String = "test/test",
@@ -71,5 +61,9 @@ extension ServerProject: CustomStringConvertible {
                 buildSystem: buildSystem
             )
         }
+    #endif
+
+    public var description: String {
+        fullName
     }
-#endif
+}

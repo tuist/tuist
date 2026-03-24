@@ -2,7 +2,7 @@ import Foundation
 
 /// HTTP Archive (HAR) 1.2 format representation.
 /// Based on the W3C specification: https://w3c.github.io/web-performance/specs/HAR/Overview.html
-public enum HAR {
+public enum HAR { // swiftlint:disable:this type_body_length
     /// The root object of a HAR file.
     public struct Log: Codable, Sendable, Equatable {
         public var version: String
@@ -400,11 +400,9 @@ public enum HAR {
             self.comment = comment
         }
     }
-}
 
-// MARK: - JSON Encoding/Decoding
+    // MARK: - JSON Encoding/Decoding
 
-extension HAR {
     /// Custom date formatter for HAR format (ISO 8601 with fractional seconds).
     public static var dateFormatter: ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()

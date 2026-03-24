@@ -21,10 +21,8 @@ public struct TargetContentHash: Equatable {
     public let hash: String
     public let hashedPaths: [AbsolutePath: String]
     public let subhashes: TargetContentHashSubhashes
-}
 
-#if DEBUG
-    extension TargetContentHash {
+    #if DEBUG
         public static func test(
             hash: String = "test-hash",
             hashedPaths: [AbsolutePath: String] = [:],
@@ -36,8 +34,8 @@ public struct TargetContentHash: Equatable {
                 subhashes: subhashes
             )
         }
-    }
-#endif
+    #endif
+}
 
 /// `TargetContentHasher`
 /// is responsible for computing a unique hash that identifies a target
@@ -243,7 +241,7 @@ public struct TargetContentHasher: TargetContentHashing {
                     }
 
                     return try contentHasher.hash(stringsToHash)
-                }
+                }.sorted()
             }
 
         let buildableFoldersHash: String? = buildableFolderHashes.isEmpty

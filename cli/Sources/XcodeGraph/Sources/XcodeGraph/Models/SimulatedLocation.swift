@@ -1,7 +1,7 @@
 import Foundation
 import Path
 
-public enum SimulatedLocation: Sendable {
+public enum SimulatedLocation: Equatable, Codable, Hashable, Sendable {
     case gpxFile(AbsolutePath)
     case reference(String)
 
@@ -24,9 +24,7 @@ public enum SimulatedLocation: Sendable {
         if case .gpxFile = self { return "0" }
         return "1"
     }
-}
 
-extension SimulatedLocation: Equatable, Codable, Hashable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let value = try container.decode(String.self)

@@ -12,17 +12,13 @@ public struct ServerAccount: Sendable, Codable, Equatable, Hashable {
         self.id = id
         self.handle = handle
     }
-}
 
-extension ServerAccount {
     init(_ account: Components.Schemas.Account) {
         id = Int(account.id)
         handle = account.handle
     }
-}
 
-#if MOCKING
-    extension ServerAccount {
+    #if MOCKING
         public static func test(
             id: Int = 0,
             handle: String = "tuistrocks"
@@ -32,5 +28,5 @@ extension ServerAccount {
                 handle: handle
             )
         }
-    }
-#endif
+    #endif
+}

@@ -1,7 +1,7 @@
 // MARK: - InfoPlist
 
 /// A info plist from a file, a custom dictionary or a extended defaults.
-public enum InfoPlist: Codable, Equatable, Sendable {
+public enum InfoPlist: Codable, Equatable, Sendable, ExpressibleByStringInterpolation {
     /// The path to an existing Info.plist file.
     case file(path: Path)
 
@@ -56,11 +56,7 @@ public enum InfoPlist: Codable, Equatable, Sendable {
             return nil
         }
     }
-}
 
-// MARK: - InfoPlist - ExpressibleByStringInterpolation
-
-extension InfoPlist: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .file(path: .path(value))
     }

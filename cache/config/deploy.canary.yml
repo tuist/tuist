@@ -7,3 +7,4 @@ env:
     SERVER_URL: https://canary.tuist.dev
     SENTRY_ENV: can
     DEPLOY_ENV: can
+    REGISTRY_SYNC_ALLOWLIST: alamofire/alamofire

@@ -1,0 +1,637 @@
+<div id="shards">
+  <.card title={dgettext("dashboard_tests", "Shards")} icon="stack_2" data-part="overview">
+    <:actions>
+      <.date_picker
+        id="shards-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "shards-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "shards-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <div data-part="analytics-content">
+      <div data-part="widgets">
+        <.widget
+          id="widget-total-sharded-runs"
+          loading={!@shard_runs_analytics.ok?}
+          title={dgettext("dashboard_tests", "Total sharded runs")}
+          value={if @shard_runs_analytics.ok?, do: to_string(@shard_runs_analytics.result.count)}
+          empty={@shard_runs_analytics.ok? && @shard_runs_analytics.result.count == 0}
+          legend_color="primary"
+          trend_value={
+            if @shard_runs_analytics.ok?, do: @shard_runs_analytics.result.trend, else: nil
+          }
+          trend_type={:neutral}
+          trend_label={@analytics_trend_label}
+          phx_click="select_widget"
+          phx_value_widget="shard_run_count"
+          selected={@analytics_selected_widget == "shard_run_count"}
+        />
+        <.percentile_dropdown_widget
+          id="widget-avg-shard-count"
+          loading={!@shard_count_analytics.ok?}
+          title={
+            case @selected_shard_count_type do
+              "avg" -> dgettext("dashboard_tests", "Avg. shard count")
+              "p99" -> dgettext("dashboard_tests", "p99 shard count")
+              "p90" -> dgettext("dashboard_tests", "p90 shard count")
+              "p50" -> dgettext("dashboard_tests", "p50 shard count")
+            end
+          }
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Number of shards used per sharded run during a given period."
+            )
+          }
+          value={
+            if @shard_count_analytics.ok? do
+              to_string(
+                case @selected_shard_count_type do
+                  "avg" -> @shard_count_analytics.result.total_average
+                  "p99" -> @shard_count_analytics.result.p99
+                  "p90" -> @shard_count_analytics.result.p90
+                  "p50" -> @shard_count_analytics.result.p50
+                end
+              )
+            end
+          }
+          metrics={
+            if @shard_count_analytics.ok? do
+              %{
+                avg: to_string(@shard_count_analytics.result.total_average),
+                p99: to_string(@shard_count_analytics.result.p99),
+                p90: to_string(@shard_count_analytics.result.p90),
+                p50: to_string(@shard_count_analytics.result.p50)
+              }
+            end
+          }
+          selected_type={@selected_shard_count_type}
+          event_name="select_shard_count_type"
+          legend_color={
+            case @selected_shard_count_type do
+              "p99" -> "p99"
+              "p90" -> "p90"
+              "p50" -> "p50"
+              _ -> "secondary"
+            end
+          }
+          trend_value={
+            if @shard_count_analytics.ok?,
+              do: @shard_count_analytics.result.trend,
+              else: nil
+          }
+          trend_type={:neutral}
+          trend_label={@analytics_trend_label}
+          phx_click="select_widget"
+          phx_value_widget="avg_shard_count"
+          selected={@analytics_selected_widget == "avg_shard_count"}
+          empty={@shard_count_analytics.ok? && @shard_count_analytics.result.total_average == 0}
+          empty_label={dgettext("dashboard_tests", "No data")}
+        />
+        <.percentile_dropdown_widget
+          id="widget-avg-shard-balance"
+          loading={!@shard_balance_analytics.ok?}
+          title={
+            case @selected_balance_type do
+              "avg" -> dgettext("dashboard_tests", "Avg. shard balance")
+              "p99" -> dgettext("dashboard_tests", "p99 shard balance")
+              "p90" -> dgettext("dashboard_tests", "p90 shard balance")
+              "p50" -> dgettext("dashboard_tests", "p50 shard balance")
+            end
+          }
+          description={
+            dgettext(
+              "dashboard_tests",
+              "How evenly test duration is distributed across shards. 100% means perfectly balanced."
+            )
+          }
+          value={
+            if @shard_balance_analytics.ok? do
+              case @selected_balance_type do
+                "avg" -> "#{@shard_balance_analytics.result.total_average}%"
+                "p99" -> "#{@shard_balance_analytics.result.p99}%"
+                "p90" -> "#{@shard_balance_analytics.result.p90}%"
+                "p50" -> "#{@shard_balance_analytics.result.p50}%"
+              end
+            end
+          }
+          metrics={
+            if @shard_balance_analytics.ok? do
+              %{
+                avg: "#{@shard_balance_analytics.result.total_average}%",
+                p99: "#{@shard_balance_analytics.result.p99}%",
+                p90: "#{@shard_balance_analytics.result.p90}%",
+                p50: "#{@shard_balance_analytics.result.p50}%"
+              }
+            end
+          }
+          selected_type={@selected_balance_type}
+          event_name="select_balance_type"
+          legend_color={
+            case @selected_balance_type do
+              "p99" -> "p99"
+              "p90" -> "p90"
+              "p50" -> "p50"
+              _ -> "secondary"
+            end
+          }
+          trend_value={
+            if @shard_balance_analytics.ok?,
+              do: @shard_balance_analytics.result.trend,
+              else: nil
+          }
+          trend_type={:neutral}
+          trend_label={@analytics_trend_label}
+          phx_click="select_widget"
+          phx_value_widget="avg_shard_balance"
+          selected={@analytics_selected_widget == "avg_shard_balance"}
+          empty={
+            @shard_balance_analytics.ok? && @shard_balance_analytics.result.total_average == 0
+          }
+          empty_label={dgettext("dashboard_tests", "No data")}
+        />
+      </div>
+      <.card_section :if={!@analytics_chart_data.ok?}>
+        <div data-part="analytics-chart">
+          <.skeleton_chart />
+        </div>
+      </.card_section>
+      <.card_section :if={
+        @analytics_chart_data.ok? and
+          ((@analytics_selected_widget == "shard_run_count" and
+              @shard_runs_analytics.result.count != 0) or
+             (@analytics_selected_widget == "avg_shard_count" and
+                @shard_count_analytics.result.total_average != 0) or
+             (@analytics_selected_widget == "avg_shard_balance" and
+                @shard_balance_analytics.result.total_average != 0))
+      }>
+        <div data-part="analytics-chart">
+          <.chart
+            :if={@analytics_selected_widget == "shard_run_count"}
+            id="shards-analytics-chart"
+            type="line"
+            extra_options={
+              %{
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "88%",
+                  top: "5%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @analytics_chart_data.result.dates |> List.first(),
+                      @analytics_chart_data.result.dates |> List.last()
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: @analytics_chart_data.result.value_formatter
+                  }
+                },
+                tooltip:
+                  if @analytics_preset == "last-24-hours" do
+                    %{
+                      valueFormat: @analytics_chart_data.result.value_formatter,
+                      dateFormat: "hour"
+                    }
+                  else
+                    %{valueFormat: @analytics_chart_data.result.value_formatter}
+                  end,
+                legend: %{
+                  show: false
+                }
+              }
+            }
+            series={[
+              %{
+                data:
+                  Enum.zip(
+                    @analytics_chart_data.result.dates,
+                    @analytics_chart_data.result.values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: @analytics_chart_data.result.name,
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+          <.chart
+            :if={@analytics_selected_widget == "avg_shard_count"}
+            id="shards-shard-count-analytics-chart"
+            type="line"
+            extra_options={
+              %{
+                legend: %{
+                  left: "left",
+                  top: "bottom",
+                  orient: "horizontal",
+                  textStyle: %{
+                    color: "var:noora-surface-label-secondary",
+                    fontFamily: "monospace",
+                    fontWeight: 400,
+                    fontSize: 10,
+                    lineHeight: 12
+                  },
+                  icon:
+                    "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                  itemWidth: 8,
+                  itemHeight: 4
+                },
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "60%",
+                  top: "10%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @shard_count_analytics.result.dates |> List.first(),
+                      @shard_count_analytics.result.dates |> List.last()
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitNumber: 4,
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "{value}"
+                  }
+                },
+                tooltip:
+                  if @analytics_preset == "last-24-hours" do
+                    %{valueFormat: "{value}", dateFormat: "hour"}
+                  else
+                    %{valueFormat: "{value}"}
+                  end
+              }
+            }
+            series={[
+              %{
+                color: "var:noora-chart-secondary",
+                data:
+                  Enum.zip(
+                    @shard_count_analytics.result.dates,
+                    @shard_count_analytics.result.values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_tests", "Average"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              },
+              %{
+                color: "var:noora-chart-p99",
+                data:
+                  Enum.zip(
+                    @shard_count_analytics.result.dates,
+                    @shard_count_analytics.result.p99_values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_tests", "p99"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              },
+              %{
+                color: "var:noora-chart-p90",
+                data:
+                  Enum.zip(
+                    @shard_count_analytics.result.dates,
+                    @shard_count_analytics.result.p90_values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_tests", "p90"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              },
+              %{
+                color: "var:noora-chart-p50",
+                data:
+                  Enum.zip(
+                    @shard_count_analytics.result.dates,
+                    @shard_count_analytics.result.p50_values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_tests", "p50"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+          <.chart
+            :if={@analytics_selected_widget == "avg_shard_balance"}
+            id="shards-balance-analytics-chart"
+            type="line"
+            extra_options={
+              %{
+                legend: %{
+                  left: "left",
+                  top: "bottom",
+                  orient: "horizontal",
+                  textStyle: %{
+                    color: "var:noora-surface-label-secondary",
+                    fontFamily: "monospace",
+                    fontWeight: 400,
+                    fontSize: 10,
+                    lineHeight: 12
+                  },
+                  icon:
+                    "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                  itemWidth: 8,
+                  itemHeight: 4
+                },
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "60%",
+                  top: "10%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @shard_balance_analytics.result.dates |> List.first(),
+                      @shard_balance_analytics.result.dates |> List.last()
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitNumber: 4,
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "{value}%"
+                  }
+                },
+                tooltip:
+                  if @analytics_preset == "last-24-hours" do
+                    %{valueFormat: "{value}%", dateFormat: "hour"}
+                  else
+                    %{valueFormat: "{value}%"}
+                  end
+              }
+            }
+            series={[
+              %{
+                color: "var:noora-chart-secondary",
+                data:
+                  Enum.zip(
+                    @shard_balance_analytics.result.dates,
+                    @shard_balance_analytics.result.values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_tests", "Average"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              },
+              %{
+                color: "var:noora-chart-p99",
+                data:
+                  Enum.zip(
+                    @shard_balance_analytics.result.dates,
+                    @shard_balance_analytics.result.p99_values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_tests", "p99"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              },
+              %{
+                color: "var:noora-chart-p90",
+                data:
+                  Enum.zip(
+                    @shard_balance_analytics.result.dates,
+                    @shard_balance_analytics.result.p90_values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_tests", "p90"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              },
+              %{
+                color: "var:noora-chart-p50",
+                data:
+                  Enum.zip(
+                    @shard_balance_analytics.result.dates,
+                    @shard_balance_analytics.result.p50_values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_tests", "p50"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        </div>
+      </.card_section>
+    </div>
+    <.card_section data-part="sharded-runs-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search-sharded-runs" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-sharded-runs"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@sharded_runs_search}
+          />
+        </.form>
+        <.filter_dropdown
+          id="sharded-runs-filter-dropdown"
+          label={dgettext("dashboard_tests", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <div :if={not Enum.empty?(@sharded_runs)} data-part="sharded-runs-table">
+        <.table
+          id="sharded-runs-table"
+          rows={@sharded_runs}
+          row_navigate={
+            fn test_run ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_run.id}"
+              )
+            end
+          }
+        >
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
+            <.text_cell label={
+              if test_run.scheme != "" and not is_nil(test_run.scheme),
+                do: test_run.scheme,
+                else: dgettext("dashboard_tests", "Unknown")
+            } />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Granularity")}>
+            <.text_cell label={
+              if test_run.shard_plan,
+                do: String.capitalize(test_run.shard_plan.granularity),
+                else: dgettext("dashboard_tests", "Unknown")
+            } />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Status")}>
+            <.status_badge_cell
+              :if={test_run.status == "success"}
+              label={dgettext("dashboard_tests", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "failure"}
+              label={dgettext("dashboard_tests", "Failed")}
+              status="error"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "in_progress"}
+              label={dgettext("dashboard_tests", "In Progress")}
+              status="in_progress"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "skipped"}
+              label={dgettext("dashboard_tests", "Skipped")}
+              status="warning"
+            />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Shards")}>
+            <.text_cell label={
+              if test_run.shard_plan,
+                do: to_string(test_run.shard_plan.shard_count),
+                else: "—"
+            } />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Duration")}>
+            <.text_cell
+              :if={test_run.status != "in_progress"}
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  test_run.duration || 0
+                )
+              }
+              icon="history"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "in_progress"}
+              label={dgettext("dashboard_tests", "In Progress")}
+              status="in_progress"
+            />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Ran at")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@sharded_runs_meta.has_previous_page?}
+          has_next_page={@sharded_runs_meta.has_next_page?}
+          start_cursor={@sharded_runs_meta.start_cursor}
+          end_cursor={@sharded_runs_meta.end_cursor}
+        />
+      </div>
+
+      <div :if={Enum.empty?(@sharded_runs)} data-part="empty-sharded-runs">
+        <.empty_card_section
+          title={dgettext("dashboard_tests", "No sharded runs")}
+          get_started_href="https://docs.tuist.dev/en/guides/features/sharding"
+          data-part="empty-sharded-runs-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>

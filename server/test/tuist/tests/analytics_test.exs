@@ -203,7 +203,7 @@ defmodule Tuist.Tests.AnalyticsTest do
     end
   end
 
-  describe "test_runs_metrics/1" do
+  describe "test_runs_metrics/2" do
     test "returns metrics and command event data for test runs" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -254,6 +254,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run_one.id,
           test_module_run_id: module_run_id_one,
+          project_id: project.id,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testOne",
@@ -266,6 +267,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run_two.id,
           test_module_run_id: module_run_id_two,
+          project_id: project.id,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testSuccess",
@@ -278,6 +280,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run_two.id,
           test_module_run_id: module_run_id_two,
+          project_id: project.id,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testFailure",
@@ -290,6 +293,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run_two.id,
           test_module_run_id: module_run_id_two,
+          project_id: project.id,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testAnother",
@@ -333,7 +337,7 @@ defmodule Tuist.Tests.AnalyticsTest do
         )
 
       # When
-      got = Analytics.test_runs_metrics([test_run_one, test_run_two])
+      got = Analytics.test_runs_metrics(project.id, [test_run_one, test_run_two])
 
       # Then
       assert length(got) == 2
@@ -391,6 +395,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           id: UUIDv7.generate(),
           test_run_id: test_run.id,
           test_module_run_id: UUIDv7.generate(),
+          project_id: project.id,
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testOne",
@@ -402,7 +407,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       ])
 
       # When
-      got = Analytics.test_runs_metrics([test_run])
+      got = Analytics.test_runs_metrics(project.id, [test_run])
 
       # Then
       assert length(got) == 1

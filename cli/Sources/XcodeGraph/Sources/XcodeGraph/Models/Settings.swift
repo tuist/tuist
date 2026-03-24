@@ -53,15 +53,22 @@ public struct Configuration: Equatable, Codable, Sendable {
             xcconfig: xcconfig
         )
     }
+
+    #if DEBUG
+        public static func test(
+            settings: SettingsDictionary = [:],
+            xcconfig: AbsolutePath? = try! AbsolutePath(validating: "/Config.xcconfig") // swiftlint:disable:this force_try
+        ) -> Configuration {
+            Configuration(settings: settings, xcconfig: xcconfig)
+        }
+    #endif
 }
 
 public enum DefaultSettings: Codable, Equatable, Sendable {
     case recommended(excluding: Set<String> = [])
     case essential(excluding: Set<String> = [])
     case none
-}
 
-extension DefaultSettings {
     public static var recommended: DefaultSettings {
         .recommended(excluding: [])
     }
@@ -111,9 +118,7 @@ public struct Settings: Equatable, Codable, Sendable {
             defaultConfiguration: defaultConfiguration
         )
     }
-}
 
-extension Settings {
     /// Finds the default debug `BuildConfiguration` if it exists, otherwise returns the first debug configuration available.
     ///
     /// - Returns: The default debug `BuildConfiguration`
@@ -135,31 +140,8 @@ extension Settings {
         let defaultConfiguration = releaseConfigurations.first(where: { $0 == BuildConfiguration.release })
         return defaultConfiguration ?? releaseConfigurations.first
     }
-}
 
-extension [BuildConfiguration: Configuration?] {
-    public func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
-        sorted(by: { first, second -> Bool in first.key < second.key })
-    }
-
-    public func xcconfigs() -> [AbsolutePath] {
-        sortedByBuildConfigurationName()
-            .map(\.value)
-            .compactMap { $0?.xcconfig }
-    }
-}
-
-#if DEBUG
-    extension Configuration {
-        public static func test(
-            settings: SettingsDictionary = [:],
-            xcconfig: AbsolutePath? = try! AbsolutePath(validating: "/Config.xcconfig") // swiftlint:disable:this force_try
-        ) -> Configuration {
-            Configuration(settings: settings, xcconfig: xcconfig)
-        }
-    }
-
-    extension Settings {
+    #if DEBUG
         public static func test(
             base: SettingsDictionary,
             debug: Configuration,
@@ -193,5 +175,17 @@ extension [BuildConfiguration: Configuration?] {
                 defaultSettings: defaultSettings
             )
         }
+    #endif
+}
+
+extension [BuildConfiguration: Configuration?] {
+    public func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
+        sorted(by: { first, second -> Bool in first.key < second.key })
     }
-#endif
+
+    public func xcconfigs() -> [AbsolutePath] {
+        sortedByBuildConfigurationName()
+            .map(\.value)
+            .compactMap { $0?.xcconfig }
+    }
+}

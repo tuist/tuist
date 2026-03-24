@@ -19,24 +19,42 @@
         public let createdFromCI: Bool
         public let createdBy: ServerAccount?
         public let insertedAt: Date
-    }
 
-    public enum ServerPreviewError: LocalizedError {
-        case invalidURL(String)
-        case invalidDate(String)
-
-        public var errorDescription: String? {
-            switch self {
-            case let .invalidURL(value):
-                return "Invalid preview URL: \(value)"
-            case let .invalidDate(value):
-                return "Invalid preview date: \(value)"
-            }
-        }
-    }
-
-    extension ServerPreview {
         private static let dateFormatter = ISO8601DateFormatter()
+
+        init(
+            id: String,
+            url: URL,
+            qrCodeURL: URL,
+            iconURL: URL,
+            deviceURL: URL,
+            version: Version?,
+            bundleIdentifier: String?,
+            displayName: String?,
+            gitCommitSHA: String?,
+            gitBranch: String?,
+            appBuilds: [AppBuild],
+            supportedPlatforms: [DestinationType],
+            createdFromCI: Bool,
+            createdBy: ServerAccount?,
+            insertedAt: Date
+        ) {
+            self.id = id
+            self.url = url
+            self.qrCodeURL = qrCodeURL
+            self.iconURL = iconURL
+            self.deviceURL = deviceURL
+            self.version = version
+            self.bundleIdentifier = bundleIdentifier
+            self.displayName = displayName
+            self.gitCommitSHA = gitCommitSHA
+            self.gitBranch = gitBranch
+            self.appBuilds = appBuilds
+            self.supportedPlatforms = supportedPlatforms
+            self.createdFromCI = createdFromCI
+            self.createdBy = createdBy
+            self.insertedAt = insertedAt
+        }
 
         public init(_ preview: Components.Schemas.Preview) throws {
             id = preview.id
@@ -78,10 +96,8 @@
             }
             self.insertedAt = insertedAt
         }
-    }
 
-    #if DEBUG
-        extension ServerPreview {
+        #if DEBUG
             public static func test(
                 id: String = "preview-id",
                 url: URL = URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id")!,
@@ -124,6 +140,20 @@
                     insertedAt: insertedAt
                 )
             }
+        #endif
+    }
+
+    public enum ServerPreviewError: LocalizedError {
+        case invalidURL(String)
+        case invalidDate(String)
+
+        public var errorDescription: String? {
+            switch self {
+            case let .invalidURL(value):
+                return "Invalid preview URL: \(value)"
+            case let .invalidDate(value):
+                return "Invalid preview date: \(value)"
+            }
         }
-    #endif
+    }
 #endif

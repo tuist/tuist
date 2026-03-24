@@ -31,10 +31,8 @@ public struct CacheItem: Hashable, Equatable, Codable {
         hasher.combine("cache-item")
         hasher.combine(hash)
     }
-}
 
-#if DEBUG
-    extension CacheItem {
+    #if DEBUG
         public static func test(
             name: String = "Target",
             hash: String = "cache-item-hash",
@@ -50,5 +48,5 @@ public struct CacheItem: Hashable, Equatable, Codable {
                 buildDuration: buildDuration
             )
         }
-    }
-#endif
+    #endif
+}

@@ -63,6 +63,18 @@ public struct Tuist: Equatable, Hashable, Sendable {
         case .xcode: throw TuistConfigError.notAGeneratedProjectNorSwiftPackage(errorMessageOverride: errorMessageOverride)
         }
     }
+
+    #if DEBUG
+        public static func test(
+            project: TuistProject = .testGeneratedProject(),
+            fullHandle: String? = nil,
+            inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            cache: Cache = Cache(),
+            url: URL = Constants.URLs.production
+        ) -> Self {
+            return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, cache: cache, url: url)
+        }
+    #endif
 }
 
 public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
@@ -83,26 +95,12 @@ public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
     ) {
         self.redundantDependencies = redundantDependencies
     }
-}
 
-#if DEBUG
-    extension Tuist {
-        public static func test(
-            project: TuistProject = .testGeneratedProject(),
-            fullHandle: String? = nil,
-            inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            cache: Cache = Cache(),
-            url: URL = Constants.URLs.production
-        ) -> Self {
-            return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, cache: cache, url: url)
-        }
-    }
-
-    extension InspectOptions {
+    #if DEBUG
         public static func test(
             redundantDependencies: RedundantDependencies = .init(ignoreTagsMatching: [])
         ) -> Self {
             return .init(redundantDependencies: redundantDependencies)
         }
-    }
-#endif
+    #endif
+}

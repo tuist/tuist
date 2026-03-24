@@ -4,7 +4,7 @@ const CodeCopy = {
 
     copyButtons.forEach((button) => {
       button.addEventListener("click", () => {
-        const window = button.closest("#marketing-window");
+        const window = button.closest(".marketing-window");
         const codeBlock = window.querySelector('[data-part="code"]');
 
         if (codeBlock) {

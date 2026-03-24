@@ -37,10 +37,8 @@ public struct Scheme: Equatable, Codable, Sendable {
         self.profileAction = profileAction
         self.analyzeAction = analyzeAction
     }
-}
 
-#if DEBUG
-    extension Scheme {
+    #if DEBUG
         public static func test(
             name: String = "Test",
             shared: Bool = false,
@@ -62,5 +60,5 @@ public struct Scheme: Equatable, Codable, Sendable {
                 analyzeAction: analyzeAction
             )
         }
-    }
-#endif
+    #endif
+}

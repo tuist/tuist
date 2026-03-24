@@ -748,6 +748,50 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         )
     }
+
+    public enum ResolvedDependency: Equatable {
+        case target(name: String, condition: ProjectDescription.PlatformCondition? = nil)
+        case xcframework(path: Path, condition: ProjectDescription.PlatformCondition? = nil)
+        case externalTarget(package: String, target: String, condition: ProjectDescription.PlatformCondition? = nil)
+
+        fileprivate var condition: ProjectDescription.PlatformCondition? {
+            switch self {
+            case let .target(_, condition):
+                return condition
+            case let .xcframework(_, condition):
+                return condition
+            case let .externalTarget(_, _, condition):
+                return condition
+            }
+        }
+
+        fileprivate var targetName: String? {
+            switch self {
+            case let .target(targetName, _), let .externalTarget(_, targetName, _):
+                return targetName
+            case .xcframework:
+                return nil
+            }
+        }
+
+        fileprivate static func fromTarget(
+            name: String,
+            targetDependencyToFramework: [String: Path],
+            condition packageConditionDescription: PackageInfo.PackageConditionDescription?
+        ) -> [Self] {
+            do {
+                let condition = try ProjectDescription.PlatformCondition.from(packageConditionDescription)
+
+                if let framework = targetDependencyToFramework[name] {
+                    return [.xcframework(path: framework, condition: condition)]
+                } else {
+                    return [.target(name: PackageInfoMapper.sanitize(targetName: name), condition: condition)]
+                }
+            } catch {
+                return []
+            }
+        }
+    }
 }
 
 extension ProjectDescription.DeploymentTargets {
@@ -1605,52 +1649,6 @@ extension PackageInfo.Target.Dependency {
             return name
         case let .byName(name: name, _):
             return name
-        }
-    }
-}
-
-extension PackageInfoMapper {
-    public enum ResolvedDependency: Equatable {
-        case target(name: String, condition: ProjectDescription.PlatformCondition? = nil)
-        case xcframework(path: Path, condition: ProjectDescription.PlatformCondition? = nil)
-        case externalTarget(package: String, target: String, condition: ProjectDescription.PlatformCondition? = nil)
-
-        fileprivate var condition: ProjectDescription.PlatformCondition? {
-            switch self {
-            case let .target(_, condition):
-                return condition
-            case let .xcframework(_, condition):
-                return condition
-            case let .externalTarget(_, _, condition):
-                return condition
-            }
-        }
-
-        fileprivate var targetName: String? {
-            switch self {
-            case let .target(targetName, _), let .externalTarget(_, targetName, _):
-                return targetName
-            case .xcframework:
-                return nil
-            }
-        }
-
-        fileprivate static func fromTarget(
-            name: String,
-            targetDependencyToFramework: [String: Path],
-            condition packageConditionDescription: PackageInfo.PackageConditionDescription?
-        ) -> [Self] {
-            do {
-                let condition = try ProjectDescription.PlatformCondition.from(packageConditionDescription)
-
-                if let framework = targetDependencyToFramework[name] {
-                    return [.xcframework(path: framework, condition: condition)]
-                } else {
-                    return [.target(name: PackageInfoMapper.sanitize(targetName: name), condition: condition)]
-                }
-            } catch {
-                return []
-            }
         }
     }
 }
