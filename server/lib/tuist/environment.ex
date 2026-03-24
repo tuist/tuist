@@ -1,21 +1,19 @@
 defmodule Tuist.Environment do
   @moduledoc false
   @env Mix.env()
-  @git_branch (if Mix.env() == :dev do
-                 {branch, 0} = System.cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"])
-                 String.trim(branch)
-               else
-                 nil
-               end)
 
   def env do
     @env
   end
 
   def title_prefix do
-    case @git_branch do
-      nil -> ""
-      branch -> "(#{branch}) "
+    if dev?() do
+      case System.cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"]) do
+        {branch, 0} -> "(#{String.trim(branch)}) "
+        _ -> ""
+      end
+    else
+      ""
     end
   end
 
