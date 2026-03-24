@@ -110,13 +110,9 @@ defmodule Cache.Disk do
     on_progress = Keyword.get(opts, :on_progress)
 
     if File.exists?(path) do
-      files =
-        path
-        |> Path.join("**/*")
-        |> Path.wildcard(match_dot: true)
-        |> Enum.filter(&File.regular?/1)
-
-      delete_files_before(files, DateTime.truncate(cutoff, :second), on_progress)
+      path
+      |> stream_regular_files()
+      |> delete_files_before(DateTime.truncate(cutoff, :second), on_progress)
     else
       {:ok, 0}
     end
@@ -266,9 +262,9 @@ defmodule Cache.Disk do
     end
   end
 
-  defp delete_files_before(files, safe_cutoff, on_progress) do
-    files
-    |> Enum.chunk_every(@cleanup_progress_chunk_size)
+  defp delete_files_before(files_stream, safe_cutoff, on_progress) do
+    files_stream
+    |> Stream.chunk_every(@cleanup_progress_chunk_size)
     |> Enum.reduce_while({:ok, 0}, fn files_chunk, {:ok, deleted_acc} ->
       with :ok <- maybe_call_progress(on_progress),
            {:ok, chunk_deleted_count} <- delete_files_chunk_before(files_chunk, safe_cutoff) do
@@ -304,6 +300,41 @@ defmodule Cache.Disk do
       false -> :skipped
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp stream_regular_files(root) do
+    Stream.resource(
+      fn -> [root] end,
+      fn
+        [] ->
+          {:halt, []}
+
+        [dir | rest] ->
+          case File.ls(dir) do
+            {:ok, entries} ->
+              {regular, subdirs} =
+                entries
+                |> Enum.map(&Path.join(dir, &1))
+                |> classify_paths()
+
+              {regular, subdirs ++ rest}
+
+            {:error, _} ->
+              {[], rest}
+          end
+      end,
+      fn _ -> :ok end
+    )
+  end
+
+  defp classify_paths(paths) do
+    Enum.reduce(paths, {[], []}, fn path, {regular_acc, dir_acc} ->
+      case File.stat(path) do
+        {:ok, %File.Stat{type: :regular}} -> {[path | regular_acc], dir_acc}
+        {:ok, %File.Stat{type: :directory}} -> {regular_acc, [path | dir_acc]}
+        _ -> {regular_acc, dir_acc}
+      end
+    end)
   end
 
   defp project_path(account_handle, project_handle) do

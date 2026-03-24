@@ -226,7 +226,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
   test "same-second cleanup cutoffs do not discard pending rows" do
     parent = self()
     entry_updated_at = ~U[2026-03-12 12:00:00.050000Z]
-    cleanup_started_at = ~U[2026-03-12 12:00:00.900000Z]
+    cleanup_started_at = ~U[2026-03-12 12:00:00Z]
     json_payload = Jason.encode!(%{entries: [%{"value" => "artifact"}]})
 
     pending_entry = %KeyValueEntry{

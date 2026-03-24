@@ -311,30 +311,28 @@ defmodule Cache.S3 do
     end)
   end
 
+  defp delete_objects_in_chunk_if_before(_bucket, [], _cutoff), do: {:ok, 0}
+
   defp delete_objects_in_chunk_if_before(bucket, objects, cutoff) do
-    Enum.reduce_while(objects, {:ok, 0}, fn {key, last_modified_iso}, {:ok, count} ->
-      case delete_object_if_before(bucket, key, last_modified_iso, cutoff) do
-        :deleted -> {:cont, {:ok, count + 1}}
-        :skipped -> {:cont, {:ok, count}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
-  end
-
-  defp delete_object_if_before(bucket, key, last_modified_iso, cutoff) do
-    case parse_iso8601_datetime(last_modified_iso) do
-      {:ok, last_modified} ->
-        if DateTime.before?(last_modified, cutoff) do
-          case bucket |> ExAws.S3.delete_object(key) |> ExAws.request() do
-            {:ok, _} -> :deleted
-            {:error, reason} -> {:error, reason}
-          end
-        else
-          :skipped
+    keys_to_delete =
+      objects
+      |> Enum.filter(fn {_key, last_modified_iso} ->
+        case parse_iso8601_datetime(last_modified_iso) do
+          {:ok, last_modified} -> DateTime.before?(last_modified, cutoff)
+          :error -> false
         end
+      end)
+      |> Enum.map(fn {key, _} -> key end)
 
-      :error ->
-        :skipped
+    case keys_to_delete do
+      [] ->
+        {:ok, 0}
+
+      keys ->
+        case bucket |> ExAws.S3.delete_multiple_objects(keys) |> ExAws.request() do
+          {:ok, _} -> {:ok, length(keys)}
+          {:error, reason} -> {:error, reason}
+        end
     end
   end
 

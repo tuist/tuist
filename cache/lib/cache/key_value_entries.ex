@@ -484,7 +484,6 @@ defmodule Cache.KeyValueEntries do
     KeyValueRepo.aggregate(KeyValueEntry, :count)
   end
 
-
   defp delete_expired_loop(cutoff, batch_size, deadline_ms, cursor \\ nil, count_acc \\ 0) do
     if time_limit_reached?(deadline_ms) do
       {%{}, count_acc, :time_limit_reached}
@@ -668,6 +667,9 @@ defmodule Cache.KeyValueEntries do
          deleted_keys_acc,
          count_acc
        ) do
+    # The SELECT and DELETE share a single immediate transaction, so no concurrent
+    # writer can modify matching rows between the two statements. This guarantees
+    # that `candidate_keys` is exactly the set of deleted keys.
     {:ok, {candidate_keys, deleted_count}} =
       KeyValueRepo.transaction(
         fn ->
@@ -678,12 +680,8 @@ defmodule Cache.KeyValueEntries do
               {[], 0}
 
             _ ->
-              then(
-                {delete_project_candidate_keys_batch(candidate_keys, cutoff, include_pending?), candidate_keys},
-                fn {batch_count, keys} ->
-                  {keys, batch_count}
-                end
-              )
+              deleted_count = delete_project_candidate_keys_batch(candidate_keys, cutoff, include_pending?)
+              {candidate_keys, deleted_count}
           end
         end,
         mode: :immediate

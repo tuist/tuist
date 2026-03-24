@@ -226,7 +226,7 @@ defmodule Cache.KeyValueReplicationShipper do
     _ = KeyValueEntries.delete_local_entry_if_before_or_equal(row.entry.key, row.entry.source_updated_at)
     _ = KeyValueEntries.clear_replication_token(row.entry.key, row.entry.replication_enqueued_at)
     KeyValueAccessTracker.clear(row.entry.key)
-    Cachex.del(:cache_keyvalue_store, row.entry.key)
+    {:ok, _} = Cachex.del(:cache_keyvalue_store, row.entry.key)
     :ok
   end
 
@@ -236,7 +236,7 @@ defmodule Cache.KeyValueReplicationShipper do
         false
 
       cleanup_started_at ->
-        DateTime.compare(row.entry.source_updated_at, DateTime.truncate(cleanup_started_at, :second)) in [:lt, :eq]
+        DateTime.compare(row.entry.source_updated_at, cleanup_started_at) in [:lt, :eq]
     end
   end
 

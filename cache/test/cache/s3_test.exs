@@ -592,11 +592,12 @@ defmodule Cache.S3Test do
         [%{key: key, last_modified: "2026-03-12T11:59:59.000Z"}]
       end)
 
-      expect(ExAws.S3, :delete_object, fn "test-bucket", ^key ->
-        {:delete_operation, "test-bucket", key}
+      expect(ExAws.S3, :delete_multiple_objects, fn "test-bucket", keys ->
+        assert keys == [key]
+        {:delete_multiple_operation, "test-bucket", keys}
       end)
 
-      expect(ExAws, :request, fn {:delete_operation, "test-bucket", ^key} ->
+      expect(ExAws, :request, fn {:delete_multiple_operation, "test-bucket", _keys} ->
         {:ok, %{}}
       end)
 
