@@ -111,11 +111,11 @@ public struct GraphMapperFactory: GraphMapperFactorying {
 
         func automation(
             config: Tuist,
-            ignoreBinaryCache: Bool,
             ignoreSelectiveTesting: Bool,
             testPlan: String?,
             includedTargets: Set<TargetQuery>,
             excludedTargets: Set<TargetQuery>,
+            cacheProfile: CacheProfile = .allPossible,
             configuration: String?,
             cacheStorage: CacheStoring,
             destination: SimulatorDeviceAndRuntime?
@@ -166,11 +166,11 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             )
             mappers.append(TreeShakePrunedTargetsGraphMapper())
 
-            if !ignoreBinaryCache {
+            if cacheProfile != .none {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
                     decider: CacheProfileTargetReplacementDecider(
-                        profile: .allPossible,
+                        profile: cacheProfile,
                         exceptions: includedTargets
                     ),
                     configuration: configuration,
@@ -241,7 +241,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
                     decider: CacheProfileTargetReplacementDecider(
-                        profile: cacheSources.isEmpty ? cacheProfile : .allPossible,
+                        profile: cacheProfile,
                         exceptions: cacheSources
                     ),
                     configuration: configuration,

@@ -256,6 +256,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let resolvedCacheProfile = try config.resolveCacheProfile(
+            ignoreBinaryCache: ignoreBinaryCache,
+            includedTargets: [],
+            cacheProfile: nil
+        )
 
         let destination = try await destination(
             arguments: passthroughXcodeBuildArguments,
@@ -271,7 +276,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipUITests: skipUITests,
             skipUnitTests: skipUnitTests,
             configuration: configuration,
-            ignoreBinaryCache: ignoreBinaryCache,
+            cacheProfile: resolvedCacheProfile,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,
             destination: destination

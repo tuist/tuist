@@ -15,6 +15,8 @@ public enum CacheProfileType: Codable, Equatable, Sendable, Hashable, Expressibl
             self = .onlyExternal
         case .allPossible:
             self = .allPossible
+        case .commandDefault:
+            self = .custom(BaseCacheProfile.commandDefault.rawValue)
         case .none?:
             self = .none
         case nil:
@@ -28,6 +30,8 @@ public enum BaseCacheProfile: String, Codable, Equatable, Sendable, Hashable, Ca
     case onlyExternal = "only-external"
     /// Replace as many targets as possible (all internal targets), excluding focused targets
     case allPossible = "all-possible"
+    /// Reuse the command's contextual default profile and extend it with this profile's queries and exclusions.
+    case commandDefault = "command-default"
     /// No binary replacement
     case none
 }

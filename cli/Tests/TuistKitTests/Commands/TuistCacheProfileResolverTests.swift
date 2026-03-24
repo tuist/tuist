@@ -36,7 +36,7 @@ struct TuistCacheProfileResolverTests {
         #expect(result == .allPossible)
     }
 
-    @Test func target_focus_overrides_explicit_onlyExternal() throws {
+    @Test func explicit_onlyExternal_overrides_target_focus() throws {
         // Given
         let config = Tuist.test(project: .testGeneratedProject())
 
@@ -48,7 +48,7 @@ struct TuistCacheProfileResolverTests {
         )
 
         // Then
-        #expect(result == .allPossible)
+        #expect(result == .onlyExternal)
     }
 
     @Test func resolves_from_explicit_builtins() throws {
@@ -140,6 +140,108 @@ struct TuistCacheProfileResolverTests {
 
         // Then
         #expect(result == .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]))
+    }
+
+    @Test func resolves_command_default_custom_from_config_default_for_test_context() throws {
+        // Given
+        let config = Tuist.test(project:
+            .generated(.test(cacheOptions: .test(
+                keepSourceTargets: false,
+                profiles: .init(
+                    [
+                        "ci": .init(
+                            base: .commandDefault,
+                            targetQueries: ["tag:cacheable"],
+                            exceptTargetQueries: ["tag:no-cache"]
+                        ),
+                    ],
+                    default: "ci"
+                )
+            )))
+        )
+
+        // When
+        let result = try config.resolveCacheProfile(
+            ignoreBinaryCache: false,
+            includedTargets: [],
+            cacheProfile: nil
+        )
+
+        // Then
+        #expect(result == .init(
+            base: .onlyExternal,
+            targetQueries: ["tag:cacheable"],
+            exceptTargetQueries: ["tag:no-cache"]
+        ))
+    }
+
+    @Test func resolves_command_default_custom_from_config_default_for_focused_generate() throws {
+        // Given
+        let config = Tuist.test(project:
+            .generated(.test(cacheOptions: .test(
+                keepSourceTargets: false,
+                profiles: .init(
+                    [
+                        "ci": .init(
+                            base: .commandDefault,
+                            targetQueries: ["tag:cacheable"],
+                            exceptTargetQueries: ["tag:no-cache"]
+                        ),
+                    ],
+                    default: "ci"
+                )
+            )))
+        )
+
+        // When
+        let result = try config.resolveCacheProfile(
+            ignoreBinaryCache: false,
+            includedTargets: ["App"],
+            cacheProfile: nil
+        )
+
+        // Then
+        #expect(result == .init(
+            base: .allPossible,
+            targetQueries: ["tag:cacheable"],
+            exceptTargetQueries: ["tag:no-cache"]
+        ))
+    }
+
+    @Test func resolves_explicit_command_default_custom_against_resolved_config_default() throws {
+        // Given
+        let config = Tuist.test(project:
+            .generated(.test(cacheOptions: .test(
+                keepSourceTargets: false,
+                profiles: .init(
+                    [
+                        "ci": .init(
+                            base: .commandDefault,
+                            targetQueries: ["tag:cacheable"]
+                        ),
+                        "firestore-workaround": .init(
+                            base: .commandDefault,
+                            exceptTargetQueries: ["FirebaseFirestore"]
+                        ),
+                    ],
+                    default: "ci"
+                )
+            )))
+        )
+
+        // When
+        let result = try config.resolveCacheProfile(
+            ignoreBinaryCache: false,
+            includedTargets: ["App"],
+            cacheProfile: "firestore-workaround"
+        )
+
+        // Then
+        #expect(result == .init(
+            base: .allPossible,
+            targetQueries: ["tag:cacheable"],
+            exceptTargetQueries: ["FirebaseFirestore"]
+        ))
     }
 
     @Test func throws_when_custom_profile_missing() {
