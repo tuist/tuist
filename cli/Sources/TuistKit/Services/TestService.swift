@@ -1527,6 +1527,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.update(testRunId: test.id)
     }
+
+    private func passedValue(for option: String, arguments: [String]) -> String? {
         guard let optionIndex = arguments.firstIndex(of: option) else { return nil }
         let valueIndex = arguments.index(after: optionIndex)
         guard arguments.endIndex > valueIndex else { return nil }
