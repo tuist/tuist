@@ -8,14 +8,24 @@ defmodule Cache.CleanProjectWorkerTest do
   alias Cache.Config
   alias Cache.Disk
   alias Cache.DistributedKV.Cleanup
+  alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
+  alias Cache.KeyValueEntry
+  alias Cache.KeyValueRepo
+  alias Cache.KeyValueStore
   alias Cache.S3
+  alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
   setup do
+    :ok = Sandbox.checkout(KeyValueRepo)
     stub(Config, :key_value_mode, fn -> :local end)
     stub(Config, :distributed_kv_enabled?, fn -> false end)
+    stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
+    stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
+    stub(KeyValueAccessTracker, :shared_lineage?, fn _key -> false end)
+    stub(KeyValueAccessTracker, :allow_access_bump?, fn _key -> false end)
     :ok
   end
 
@@ -58,8 +68,9 @@ defmodule Cache.CleanProjectWorkerTest do
         :ok
       end)
 
-      expect(KeyValueEntries, :delete_project_entries_before, fn ^account_handle, ^project_handle, ^cutoff ->
-        {["keyvalue:test_account:test_project:cas"], 1}
+      expect(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, ^cutoff, [include_pending?: true] ->
+          {["keyvalue:test_account:test_project:cas"], 1}
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
@@ -103,8 +114,9 @@ defmodule Cache.CleanProjectWorkerTest do
         :ok
       end)
 
-      expect(KeyValueEntries, :delete_project_entries_before, fn ^account_handle, ^project_handle, ^cutoff ->
-        {[], 0}
+      expect(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, ^cutoff, [include_pending?: true] ->
+          {[], 0}
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
@@ -135,8 +147,9 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle -> {:ok, cleanup_started_at} end)
       stub(Cleanup, :renew_project_cleanup_lease, fn ^account_handle, ^project_handle, ^cleanup_started_at -> :ok end)
 
-      expect(KeyValueEntries, :delete_project_entries_before, fn ^account_handle, ^project_handle, ^safe_cutoff ->
-        {[], 0}
+      expect(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, ^safe_cutoff, [include_pending?: true] ->
+          {[], 0}
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^safe_cutoff, opts ->
@@ -199,8 +212,9 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle -> {:ok, cutoff} end)
       stub(Cleanup, :renew_project_cleanup_lease, fn ^account_handle, ^project_handle, ^cutoff -> :ok end)
 
-      expect(KeyValueEntries, :delete_project_entries_before, fn ^account_handle, ^project_handle, ^cutoff ->
-        {[], 0}
+      expect(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, ^cutoff, [include_pending?: true] ->
+          {[], 0}
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
@@ -249,6 +263,59 @@ defmodule Cache.CleanProjectWorkerTest do
       capture_log(fn ->
         assert :ok = CleanProjectWorker.perform(job)
       end)
+    end
+
+    test "distributed cleanup removes pending local rows before an immediate same-node read" do
+      stub(Config, :key_value_mode, fn -> :distributed end)
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
+      stub(Config, :xcode_cache_bucket, fn -> nil end)
+
+      account_handle = "test_account"
+      project_handle = "test_project"
+      cas_id = "pending"
+      cleanup_started_at = ~U[2026-03-12 12:00:00.900000Z]
+      safe_cutoff = ~U[2026-03-12 12:00:00Z]
+      row_source_updated_at = ~U[2026-03-12 12:00:00.000000Z]
+      replication_enqueued_at = ~U[2026-03-12 12:00:01.000000Z]
+      key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
+      stale_payload = Jason.encode!(%{entries: [%{"value" => "stale"}]})
+
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: key,
+        json_payload: stale_payload,
+        source_node: "test-node",
+        last_accessed_at: replication_enqueued_at,
+        source_updated_at: row_source_updated_at,
+        replication_enqueued_at: replication_enqueued_at
+      })
+
+      assert {:ok, true} = Cachex.put(:cache_keyvalue_store, key, stale_payload)
+
+      expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle -> {:ok, cleanup_started_at} end)
+      stub(Cleanup, :renew_project_cleanup_lease, fn ^account_handle, ^project_handle, ^cleanup_started_at -> :ok end)
+
+      expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^safe_cutoff, opts ->
+        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        {:ok, 0}
+      end)
+
+      expect(S3, :delete_objects_with_prefix_before, fn "test_account/test_project/", ^safe_cutoff, opts ->
+        assert Keyword.fetch!(opts, :type) == :cache
+        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        {:ok, 0}
+      end)
+
+      expect(Cleanup, :tombstone_project_entries, fn ^account_handle, ^project_handle, ^safe_cutoff -> 0 end)
+
+      job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
+
+      capture_log(fn ->
+        assert :ok = CleanProjectWorker.perform(job)
+      end)
+
+      assert KeyValueRepo.get_by(KeyValueEntry, key: key) == nil
+      assert {:ok, nil} = Cachex.get(:cache_keyvalue_store, key)
+      assert {:error, :not_found} = KeyValueStore.get_key_value(cas_id, account_handle, project_handle)
     end
   end
 end

@@ -8,6 +8,7 @@ defmodule Cache.CleanProjectWorker do
   alias Cache.Config
   alias Cache.Disk
   alias Cache.DistributedKV.Cleanup
+  alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
   alias Cache.S3
 
@@ -96,8 +97,20 @@ defmodule Cache.CleanProjectWorker do
   end
 
   defp invalidate_local_kv(account_handle, project_handle, cutoff) do
-    {keys, _count} = KeyValueEntries.delete_project_entries_before(account_handle, project_handle, cutoff)
-    Enum.each(keys, &Cachex.del(:cache_keyvalue_store, &1))
+    distributed? = Config.distributed_kv_enabled?()
+
+    {keys, _count} =
+      if distributed? do
+        KeyValueEntries.delete_project_entries_before(account_handle, project_handle, cutoff, include_pending?: true)
+      else
+        KeyValueEntries.delete_project_entries_before(account_handle, project_handle, cutoff)
+      end
+
+    Enum.each(keys, fn key ->
+      if distributed?, do: :ok = KeyValueAccessTracker.clear(key)
+      {:ok, _deleted?} = Cachex.del(:cache_keyvalue_store, key)
+    end)
+
     :ok
   end
 

@@ -151,6 +151,67 @@ defmodule Cache.KeyValueEntriesTest do
     assert record.replication_enqueued_at == local_source_updated_at
   end
 
+  test "materialize_remote_entry clears stale replication tokens when a newer remote payload wins" do
+    local_source_updated_at = DateTime.add(DateTime.utc_now(), -60, :second)
+    remote_source_updated_at = DateTime.utc_now()
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
+      source_node: "node-a",
+      last_accessed_at: local_source_updated_at,
+      source_updated_at: local_source_updated_at,
+      replication_enqueued_at: local_source_updated_at
+    })
+
+    assert :payload_updated =
+             KeyValueEntries.materialize_remote_entry(%{
+               key: "keyvalue:acme:ios:cas",
+               json_payload: Jason.encode!(%{entries: [%{"value" => "remote"}]}),
+               last_accessed_at: remote_source_updated_at,
+               source_updated_at: remote_source_updated_at,
+               source_node: "node-b"
+             })
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: "keyvalue:acme:ios:cas")
+    assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "remote"}]
+    assert record.source_node == "node-b"
+    assert record.source_updated_at == remote_source_updated_at
+    assert record.replication_enqueued_at == nil
+    assert KeyValueEntries.list_pending_replication() == []
+  end
+
+  test "materialize_remote_entry preserves a strictly newer local access token when the remote payload wins" do
+    local_source_updated_at = DateTime.add(DateTime.utc_now(), -120, :second)
+    remote_source_updated_at = DateTime.add(local_source_updated_at, 60, :second)
+    local_access_token = DateTime.add(remote_source_updated_at, 60, :second)
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
+      source_node: "node-a",
+      last_accessed_at: local_access_token,
+      source_updated_at: local_source_updated_at,
+      replication_enqueued_at: local_access_token
+    })
+
+    assert :payload_updated =
+             KeyValueEntries.materialize_remote_entry(%{
+               key: "keyvalue:acme:ios:cas",
+               json_payload: Jason.encode!(%{entries: [%{"value" => "remote"}]}),
+               last_accessed_at: local_access_token,
+               source_updated_at: remote_source_updated_at,
+               source_node: "node-b"
+             })
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: "keyvalue:acme:ios:cas")
+    assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "remote"}]
+    assert record.source_node == "node-b"
+    assert record.source_updated_at == remote_source_updated_at
+    assert record.replication_enqueued_at == local_access_token
+    assert [%{key: "keyvalue:acme:ios:cas"}] = KeyValueEntries.list_pending_replication()
+  end
+
   test "apply_remote_batch inserts rows and returns side effect metadata" do
     source_updated_at = DateTime.utc_now()
 
@@ -543,6 +604,46 @@ defmodule Cache.KeyValueEntriesTest do
 
     remaining_keys = KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key))
     assert Enum.sort(remaining_keys) == ["keyvalue:acme:ios:new", "keyvalue:acme:ios:pending"]
+  end
+
+  test "delete_project_entries_before can include pending rows during distributed cleanup" do
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
+
+    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
+    new_time = DateTime.utc_now()
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:old",
+      json_payload: "{}",
+      last_accessed_at: old_time,
+      source_updated_at: old_time
+    })
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:new",
+      json_payload: "{}",
+      last_accessed_at: new_time,
+      source_updated_at: new_time
+    })
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:pending",
+      json_payload: "{}",
+      source_node: "test-node",
+      last_accessed_at: new_time,
+      source_updated_at: old_time,
+      replication_enqueued_at: new_time
+    })
+
+    {keys, count} =
+      KeyValueEntries.delete_project_entries_before("acme", "ios", old_time, include_pending?: true)
+
+    assert count == 2
+    assert Enum.sort(keys) == ["keyvalue:acme:ios:old", "keyvalue:acme:ios:pending"]
+
+    remaining_keys = KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key))
+    assert remaining_keys == ["keyvalue:acme:ios:new"]
   end
 
   test "delete_project_entries_before respects exact lexicographic key bounds" do
