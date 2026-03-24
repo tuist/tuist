@@ -314,7 +314,7 @@ jobs:
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Build tests
         id: shard
-        run: tuist test --build-only --shard-max 4 --shard-granularity suite TuistGeneratorAcceptanceTests
+        run: tuist test --build-only --shard-total 4 --shard-granularity suite TuistGeneratorAcceptanceTests
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save
