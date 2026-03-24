@@ -120,9 +120,7 @@ defmodule Cache.KeyValueReplicationShipper do
     now = DateTime.utc_now()
     upsert_shared_entries(Enum.map(rows, & &1.incoming), now)
 
-    Enum.each(rows, fn row ->
-      _ = KeyValueEntries.clear_replication_token(row.entry.key, row.entry.replication_enqueued_at)
-    end)
+    _ = KeyValueEntries.clear_replication_tokens(Enum.map(rows, & &1.entry))
 
     :ok
   end

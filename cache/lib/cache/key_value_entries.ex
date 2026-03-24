@@ -12,6 +12,8 @@ defmodule Cache.KeyValueEntries do
   alias Cache.SQLiteHelpers
 
   @id_chunk_size 500
+  @project_delete_batch_size @id_chunk_size
+  @replication_token_clear_chunk_size 250
   @default_batch_size 1000
   @default_max_duration_ms 300_000
   @batch_sleep_ms 10
@@ -96,6 +98,16 @@ defmodule Cache.KeyValueEntries do
     count
   end
 
+  def clear_replication_tokens(entries) when is_list(entries) do
+    entries
+    |> Enum.map(&replication_token_ref/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.chunk_every(@replication_token_clear_chunk_size)
+    |> Enum.reduce(0, fn chunk, count_acc ->
+      count_acc + clear_replication_token_chunk(chunk)
+    end)
+  end
+
   def distributed_watermark do
     KeyValueRepo.get(State, @poller_watermark)
   end
@@ -150,35 +162,43 @@ defmodule Cache.KeyValueEntries do
   end
 
   def materialize_remote_entry(attrs) when is_map(attrs) do
-    attrs = remote_materialization_attrs(attrs)
-    persisted_attrs = persisted_remote_attrs(attrs)
+    {:ok, result} = materialize_remote_entries([attrs])
 
-    {:ok, status} =
-      KeyValueRepo.transaction(fn ->
-        case KeyValueRepo.get_by(KeyValueEntry, key: attrs.key) do
-          nil ->
-            KeyValueRepo.insert!(struct(KeyValueEntry, persisted_attrs))
-            :inserted
+    cond do
+      result.inserted_count == 1 -> :inserted
+      result.payload_updated_count == 1 -> :payload_updated
+      true -> :access_updated
+    end
+  end
 
-          local_entry ->
-            merged = merge_remote_into_local(local_entry, attrs)
+  def materialize_remote_entries(rows) when is_list(rows) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
-            local_entry
-            |> KeyValueEntry.changeset(merged)
-            |> KeyValueRepo.update!()
+    case KeyValueRepo.transaction(
+           fn ->
+             local_entries_by_key = fetch_local_entries_by_key(Enum.map(rows, & &1.key))
+             {upsert_rows, stats} = build_remote_upsert_rows(rows, local_entries_by_key, now)
+             upsert_remote_rows(upsert_rows)
 
-            case merged do
-              %{json_payload: json_payload, source_updated_at: source_updated_at}
-              when json_payload != local_entry.json_payload or source_updated_at != local_entry.source_updated_at ->
-                :payload_updated
-
-              _ ->
-                :access_updated
-            end
-        end
-      end)
-
-    status
+             %{
+               inserted_count: stats.inserted_count,
+               payload_updated_count: stats.payload_updated_count,
+               access_updated_count: stats.access_updated_count,
+               invalidate_keys: stats.invalidate_keys
+             }
+           end,
+           mode: :immediate
+         ) do
+      {:ok, result} -> {:ok, result}
+      {:error, reason} -> {:error, reason}
+    end
+  rescue
+    error ->
+      if SQLiteHelpers.busy_error?(error) do
+        {:error, :busy}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   def delete_local_entry_if_not_pending(key) when is_binary(key) do
@@ -413,7 +433,7 @@ defmodule Cache.KeyValueEntries do
     count
   end
 
-  defp remote_materialization_attrs(attrs, now \\ DateTime.truncate(DateTime.utc_now(), :second)) do
+  defp remote_materialization_attrs(attrs, now) do
     Map.merge(
       %{
         inserted_at: now,
@@ -452,22 +472,7 @@ defmodule Cache.KeyValueEntries do
   def delete_project_entries_before(account_handle, project_handle, cutoff) do
     {prefix, prefix_upper_bound} = project_key_bounds(account_handle, project_handle)
 
-    query = prefix_project_entries_query(prefix, prefix_upper_bound, cutoff)
-
-    {:ok, {deleted_keys, count}} =
-      KeyValueRepo.transaction(fn ->
-        candidate_keys =
-          query
-          |> select([entry], entry.key)
-          |> KeyValueRepo.all()
-
-        count = delete_project_candidate_keys(candidate_keys, cutoff)
-        remaining_key_set = candidate_keys |> existing_project_keys() |> MapSet.new()
-        deleted_keys = Enum.reject(candidate_keys, &MapSet.member?(remaining_key_set, &1))
-        {deleted_keys, count}
-      end)
-
-    {deleted_keys, count}
+    delete_project_entries_before_loop(prefix, prefix_upper_bound, cutoff, nil, [], 0)
   end
 
   def estimated_size_bytes do
@@ -654,34 +659,63 @@ defmodule Cache.KeyValueEntries do
     |> apply_evictable_filter()
   end
 
-  defp delete_project_candidate_keys([], _cutoff), do: 0
+  defp delete_project_entries_before_loop(prefix, prefix_upper_bound, cutoff, cursor, deleted_keys_acc, count_acc) do
+    {:ok, {candidate_keys, deleted_count}} =
+      KeyValueRepo.transaction(
+        fn ->
+          candidate_keys = project_candidate_keys_batch(prefix, prefix_upper_bound, cutoff, cursor)
 
-  defp delete_project_candidate_keys(candidate_keys, cutoff) do
-    candidate_keys
-    |> Enum.chunk_every(@id_chunk_size)
-    |> Enum.reduce(0, fn keys_chunk, count_acc ->
-      {chunk_count, _} =
-        KeyValueEntry
-        |> where([entry], entry.key in ^keys_chunk)
-        |> where([entry], is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff)
-        |> apply_evictable_filter()
-        |> KeyValueRepo.delete_all()
+          case candidate_keys do
+            [] ->
+              {[], 0}
 
-      count_acc + chunk_count
-    end)
+            _ ->
+              then({delete_project_candidate_keys_batch(candidate_keys, cutoff), candidate_keys}, fn {batch_count, keys} ->
+                {keys, batch_count}
+              end)
+          end
+        end,
+        mode: :immediate
+      )
+
+    case candidate_keys do
+      [] ->
+        {Enum.reverse(deleted_keys_acc), count_acc}
+
+      _ ->
+        delete_project_entries_before_loop(
+          prefix,
+          prefix_upper_bound,
+          cutoff,
+          List.last(candidate_keys),
+          Enum.reverse(candidate_keys, deleted_keys_acc),
+          count_acc + deleted_count
+        )
+    end
   end
 
-  defp existing_project_keys([]), do: []
-
-  defp existing_project_keys(candidate_keys) do
-    candidate_keys
-    |> Enum.chunk_every(@id_chunk_size)
-    |> Enum.flat_map(fn keys_chunk ->
-      KeyValueEntry
-      |> where([entry], entry.key in ^keys_chunk)
+  defp project_candidate_keys_batch(prefix, prefix_upper_bound, cutoff, cursor) do
+    query =
+      prefix
+      |> prefix_project_entries_query(prefix_upper_bound, cutoff)
+      |> order_by([entry], asc: entry.key)
+      |> limit(^@project_delete_batch_size)
       |> select([entry], entry.key)
-      |> KeyValueRepo.all()
-    end)
+
+    query = if cursor, do: from(entry in query, where: entry.key > ^cursor), else: query
+
+    KeyValueRepo.all(query)
+  end
+
+  defp delete_project_candidate_keys_batch(candidate_keys, cutoff) do
+    {count, _} =
+      KeyValueEntry
+      |> where([entry], entry.key in ^candidate_keys)
+      |> where([entry], is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff)
+      |> apply_evictable_filter()
+      |> KeyValueRepo.delete_all()
+
+    count
   end
 
   defp project_key_bounds(account_handle, project_handle) do
@@ -711,6 +745,37 @@ defmodule Cache.KeyValueEntries do
     else
       query
     end
+  end
+
+  defp replication_token_ref(%{replication_enqueued_at: nil}), do: nil
+
+  defp replication_token_ref(%{id: id, replication_enqueued_at: token}) when not is_nil(id) do
+    {:id, id, token}
+  end
+
+  defp replication_token_ref(%{key: key, replication_enqueued_at: token}) when is_binary(key) do
+    {:key, key, token}
+  end
+
+  defp clear_replication_token_chunk([]), do: 0
+
+  defp clear_replication_token_chunk(refs) do
+    predicate =
+      Enum.reduce(refs, dynamic(false), fn
+        {:id, id, token}, dynamic ->
+          dynamic([entry], ^dynamic or (entry.id == ^id and entry.replication_enqueued_at == ^token))
+
+        {:key, key, token}, dynamic ->
+          dynamic([entry], ^dynamic or (entry.key == ^key and entry.replication_enqueued_at == ^token))
+      end)
+
+    {count, _} =
+      KeyValueRepo.update_all(
+        from(entry in KeyValueEntry, where: ^predicate),
+        set: [replication_enqueued_at: nil]
+      )
+
+    count
   end
 
   defp merge_remote_into_local(local_entry, remote_attrs) do

@@ -10,7 +10,6 @@ defmodule Cache.KeyValueReplicationPoller do
   alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
-  alias Cache.SQLiteHelpers
 
   @completion_event [:cache, :kv, :replication, :poll, :complete]
   @lag_event [:cache, :kv, :replication, :poll, :lag_ms]
@@ -159,8 +158,9 @@ defmodule Cache.KeyValueReplicationPoller do
         :complete
 
       _ ->
-        {status, size_after_page} =
-          Enum.reduce_while(rows, {:ok, current_size}, &materialize_bootstrap_row(&1, &2, budget))
+        {rows_to_materialize, size_after_page} = bootstrap_materializable_rows(rows, current_size, budget)
+
+        status = materialize_bootstrap_rows(rows_to_materialize)
 
         if status == :ok do
           last_row = List.last(rows)
@@ -171,19 +171,32 @@ defmodule Cache.KeyValueReplicationPoller do
     end
   end
 
-  defp materialize_bootstrap_row(row, {:ok, size_acc}, budget) do
-    if size_acc >= budget do
-      {:halt, {:ok, size_acc}}
-    else
-      case materialize_remote_row(row) do
-        {:ok, status} ->
-          if status in [:inserted, :payload_updated], do: :ok = KeyValueAccessTracker.mark_shared_lineage(row.key)
-          {:cont, {:ok, size_acc + byte_size(row.json_payload)}}
+  defp bootstrap_materializable_rows(rows, current_size, budget) do
+    Enum.reduce_while(rows, {[], current_size}, fn row, {selected_rows, size_acc} ->
+      if size_acc >= budget do
+        {:halt, {Enum.reverse(selected_rows), size_acc}}
+      else
+        {:cont, {[row | selected_rows], size_acc + byte_size(row.json_payload)}}
+      end
+    end)
+  end
+
+  defp materialize_bootstrap_rows(rows) do
+    rows
+    |> Enum.chunk_every(@apply_chunk_size)
+    |> Enum.reduce_while(:ok, fn chunk, :ok ->
+      case KeyValueEntries.materialize_remote_entries(chunk) do
+        {:ok, result} ->
+          Enum.each(result.invalidate_keys, &KeyValueAccessTracker.mark_shared_lineage/1)
+          {:cont, :ok}
 
         {:error, :busy} ->
-          {:halt, {:busy, size_acc}}
+          {:halt, :busy}
+
+        {:error, reason} ->
+          raise "unexpected bootstrap apply error: #{inspect(reason)}"
       end
-    end
+    end)
   end
 
   defp apply_remote_chunk(rows) do
@@ -223,24 +236,6 @@ defmodule Cache.KeyValueReplicationPoller do
 
   defp alive_row_count(rows) do
     Enum.count(rows, &is_nil(&1.deleted_at))
-  end
-
-  defp materialize_remote_row(row) do
-    {:ok,
-     KeyValueEntries.materialize_remote_entry(%{
-       key: row.key,
-       json_payload: row.json_payload,
-       last_accessed_at: row.last_accessed_at,
-       source_updated_at: row.source_updated_at,
-       source_node: row.source_node
-     })}
-  rescue
-    error ->
-      if SQLiteHelpers.busy_error?(error) do
-        {:error, :busy}
-      else
-        reraise error, __STACKTRACE__
-      end
   end
 
   defp apply_watermark(query, nil), do: query

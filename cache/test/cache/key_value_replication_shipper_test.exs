@@ -56,6 +56,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
     json_payload = Jason.encode!(%{entries: [%{"value" => "artifact"}]})
 
     pending_entry = %KeyValueEntry{
+      id: 1,
       key: "keyvalue:acme:ios:cas",
       json_payload: json_payload,
       source_node: "test-node",
@@ -69,7 +70,10 @@ defmodule Cache.KeyValueReplicationShipperTest do
 
     stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
 
-    stub(KeyValueEntries, :clear_replication_token, fn "keyvalue:acme:ios:cas", ^token ->
+    stub(KeyValueEntries, :clear_replication_tokens, fn [entry] ->
+      assert entry.id == 1
+      assert entry.key == "keyvalue:acme:ios:cas"
+      assert entry.replication_enqueued_at == token
       send(parent, :token_cleared)
       1
     end)
@@ -103,6 +107,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
     replication_enqueued_at = DateTime.utc_now()
 
     pending_entry = %KeyValueEntry{
+      id: 1,
       key: "keyvalue:acme:ios:cas",
       json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
       source_node: "node-a",
@@ -114,7 +119,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
     stub(Cleanup, :latest_project_cleanup_cutoffs, fn _scopes -> %{} end)
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
-    stub(KeyValueEntries, :clear_replication_token, fn _key, _token -> 1 end)
+    stub(KeyValueEntries, :clear_replication_tokens, fn [_entry] -> 1 end)
 
     expect(Repo, :insert_all, fn Entry, rows, _opts ->
       assert [%{source_node: "node-a", source_updated_at: ^source_updated_at}] = rows
@@ -133,6 +138,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
 
     pending_entries = [
       %KeyValueEntry{
+        id: 1,
         key: "keyvalue:acme:ios:cas-a",
         json_payload: Jason.encode!(%{entries: [%{"value" => "artifact-a"}]}),
         last_accessed_at: token,
@@ -140,6 +146,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
         replication_enqueued_at: token
       },
       %KeyValueEntry{
+        id: 2,
         key: "keyvalue:acme:ios:cas-b",
         json_payload: Jason.encode!(%{entries: [%{"value" => "artifact-b"}]}),
         last_accessed_at: token,
@@ -157,10 +164,12 @@ defmodule Cache.KeyValueReplicationShipperTest do
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueEntries, :list_pending_replication, fn -> pending_entries end)
 
-    expect(KeyValueEntries, :clear_replication_token, 2, fn key, ^token ->
-      assert key in ["keyvalue:acme:ios:cas-a", "keyvalue:acme:ios:cas-b"]
-      send(parent, {:token_cleared, key})
-      1
+    expect(KeyValueEntries, :clear_replication_tokens, fn entries ->
+      assert Enum.map(entries, & &1.id) == [1, 2]
+      assert Enum.map(entries, & &1.key) == ["keyvalue:acme:ios:cas-a", "keyvalue:acme:ios:cas-b"]
+      assert Enum.all?(entries, &(&1.replication_enqueued_at == token))
+      send(parent, :tokens_cleared)
+      2
     end)
 
     expect(Repo, :insert_all, fn Entry, rows, opts ->
@@ -179,8 +188,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
 
     assert_receive :cutoffs_loaded
     assert_receive :upsert_batch
-    assert_receive {:token_cleared, _}
-    assert_receive {:token_cleared, _}
+    assert_receive :tokens_cleared
   end
 
   test "reloads cleanup cutoffs on each flush" do
@@ -190,6 +198,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
     stub(Config, :distributed_kv_ship_interval_ms, fn -> 60_000 end)
 
     pending_entry = %KeyValueEntry{
+      id: 1,
       key: "keyvalue:acme:ios:cas",
       json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
       last_accessed_at: token,
@@ -204,7 +213,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
 
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
-    stub(KeyValueEntries, :clear_replication_token, fn _key, _token -> 1 end)
+    stub(KeyValueEntries, :clear_replication_tokens, fn [_entry] -> 1 end)
     stub(Repo, :insert_all, fn _schema, _rows, _opts -> {1, nil} end)
 
     start_supervised!(KeyValueReplicationShipper)
@@ -221,6 +230,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
     json_payload = Jason.encode!(%{entries: [%{"value" => "artifact"}]})
 
     pending_entry = %KeyValueEntry{
+      id: 1,
       key: "keyvalue:acme:ios:cas",
       json_payload: json_payload,
       last_accessed_at: entry_updated_at,
@@ -235,7 +245,10 @@ defmodule Cache.KeyValueReplicationShipperTest do
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
 
-    expect(KeyValueEntries, :clear_replication_token, fn "keyvalue:acme:ios:cas", ^entry_updated_at ->
+    expect(KeyValueEntries, :clear_replication_tokens, fn [entry] ->
+      assert entry.id == 1
+      assert entry.key == "keyvalue:acme:ios:cas"
+      assert entry.replication_enqueued_at == entry_updated_at
       send(parent, :token_cleared)
       1
     end)

@@ -69,6 +69,39 @@ defmodule Cache.KeyValueEntriesTest do
     assert KeyValueRepo.get(KeyValueEntry, pending_entry.id)
   end
 
+  test "clear_replication_tokens clears only rows that still match their original token" do
+    old_token = DateTime.add(DateTime.utc_now(), -60, :second)
+    new_token = DateTime.utc_now()
+
+    first_entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:first",
+        json_payload: "{}",
+        last_accessed_at: old_token,
+        source_updated_at: old_token,
+        replication_enqueued_at: old_token
+      })
+
+    second_entry =
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:second",
+        json_payload: "{}",
+        last_accessed_at: new_token,
+        source_updated_at: new_token,
+        replication_enqueued_at: new_token
+      })
+
+    cleared_count =
+      KeyValueEntries.clear_replication_tokens([
+        %{id: first_entry.id, replication_enqueued_at: old_token},
+        %{id: second_entry.id, replication_enqueued_at: old_token}
+      ])
+
+    assert cleared_count == 1
+    assert KeyValueRepo.get!(KeyValueEntry, first_entry.id).replication_enqueued_at == nil
+    assert KeyValueRepo.get!(KeyValueEntry, second_entry.id).replication_enqueued_at == new_token
+  end
+
   test "materialize_remote_entry inserts new rows and updates watermark" do
     source_updated_at = DateTime.utc_now()
 

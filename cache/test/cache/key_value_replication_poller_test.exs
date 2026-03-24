@@ -274,9 +274,10 @@ defmodule Cache.KeyValueReplicationPollerTest do
     stub(KeyValueEntries, :distributed_watermark, fn -> nil end)
     stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
 
-    stub(KeyValueEntries, :materialize_remote_entry, fn %{key: key} ->
-      send(parent, {:bootstrap_attempted, key})
-      raise %Exqlite.Error{message: "Database busy"}
+    stub(KeyValueEntries, :materialize_remote_entries, fn rows ->
+      assert Enum.map(rows, & &1.key) == [row.key]
+      send(parent, {:bootstrap_attempted, row.key})
+      {:error, :busy}
     end)
 
     stub(KeyValueEntries, :put_distributed_watermark, fn _updated_at, _key ->
@@ -299,6 +300,77 @@ defmodule Cache.KeyValueReplicationPollerTest do
     row_key = row.key
     assert_receive {:bootstrap_attempted, ^row_key}, 10_000
     refute_receive :watermark_advanced, 200
+  end
+
+  test "bootstrap materializes rows in chunked local transactions" do
+    parent = self()
+    {:ok, repo_calls_agent} = Agent.start_link(fn -> 0 end)
+    base_time = DateTime.add(DateTime.utc_now(), -300, :second)
+
+    rows =
+      Enum.map(1..150, fn i ->
+        updated_at = DateTime.add(base_time, i, :second)
+
+        %Entry{
+          key: "keyvalue:acme:ios:bootstrap-#{i}",
+          account_handle: "acme",
+          project_handle: "ios",
+          cas_id: "bootstrap-#{i}",
+          json_payload: Jason.encode!(%{entries: [%{"value" => "artifact-#{i}"}]}),
+          source_node: "node-a",
+          source_updated_at: updated_at,
+          last_accessed_at: updated_at,
+          updated_at: updated_at,
+          deleted_at: nil
+        }
+      end)
+
+    latest_row = List.last(rows)
+
+    stub(KeyValueEntries, :distributed_watermark, fn -> nil end)
+    stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
+
+    stub(KeyValueEntries, :materialize_remote_entries, fn chunk ->
+      send(parent, {:bootstrap_batch_size, length(chunk)})
+
+      {:ok,
+       %{
+         inserted_count: length(chunk),
+         payload_updated_count: 0,
+         access_updated_count: 0,
+         invalidate_keys: Enum.map(chunk, & &1.key)
+       }}
+    end)
+
+    stub(KeyValueEntries, :put_distributed_watermark, fn updated_at, key ->
+      assert updated_at == latest_row.updated_at
+      assert key == latest_row.key
+      send(parent, :bootstrap_watermark_advanced)
+      :ok
+    end)
+
+    stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
+    stub(Repo, :one, fn _query, _opts -> latest_row end)
+
+    stub(Repo, :all, fn _query, _opts ->
+      Agent.get_and_update(repo_calls_agent, fn count ->
+        next_count = count + 1
+
+        result =
+          case next_count do
+            1 -> rows
+            _ -> []
+          end
+
+        {result, next_count}
+      end)
+    end)
+
+    start_supervised!(KeyValueReplicationPoller)
+
+    assert_receive {:bootstrap_batch_size, 100}, 10_000
+    assert_receive {:bootstrap_batch_size, 50}, 10_000
+    assert_receive :bootstrap_watermark_advanced, 10_000
   end
 
   @tag capture_log: true
