@@ -37,10 +37,8 @@ public struct PackageSettings: Equatable, Codable {
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
     }
-}
 
-#if DEBUG
-    extension PackageSettings {
+    #if DEBUG
         public static func test(
             productTypes: [String: Product] = [:],
             productDestinations: [String: Destinations] = [:],
@@ -56,5 +54,5 @@ public struct PackageSettings: Equatable, Codable {
                 projectOptions: projectOptions
             )
         }
-    }
-#endif
+    #endif
+}

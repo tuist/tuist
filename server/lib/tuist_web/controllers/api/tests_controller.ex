@@ -153,7 +153,7 @@ defmodule TuistWeb.API.TestsController do
     }
 
     {test_runs, meta} = Tests.list_test_runs(attrs)
-    metrics_list = Tests.Analytics.test_runs_metrics(test_runs)
+    metrics_list = Tests.Analytics.test_runs_metrics(selected_project.id, test_runs)
     metrics_map = Map.new(metrics_list, &{&1.test_run_id, &1})
 
     json(conn, %{

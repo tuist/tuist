@@ -1,5 +1,5 @@
 /// Cache profile type.
-public enum CacheProfileType: Codable, Equatable, Sendable, Hashable {
+public enum CacheProfileType: Codable, Equatable, Sendable, Hashable, ExpressibleByStringLiteral {
     /// Replace external dependencies only (system default)
     case onlyExternal
     /// Replace as many targets as possible with cached binaries
@@ -8,9 +8,7 @@ public enum CacheProfileType: Codable, Equatable, Sendable, Hashable {
     case none
     /// Use named custom profile from `profiles` dictionary
     case custom(String)
-}
 
-extension CacheProfileType: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         switch BaseCacheProfile(rawValue: value) {
         case .onlyExternal:
@@ -104,10 +102,8 @@ public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
         self.profiles = profiles
         self.storages = storages
     }
-}
 
-#if DEBUG
-    extension CacheOptions {
+    #if DEBUG
         public static func test(
             keepSourceTargets: Bool = false,
             profiles: CacheProfiles = .init([:], default: .onlyExternal),
@@ -119,5 +115,5 @@ public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
                 storages: storages
             )
         }
-    }
-#endif
+    #endif
+}

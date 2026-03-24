@@ -626,7 +626,7 @@ defmodule Tuist.VCS do
          test_run_url: test_run_url,
          project: project
        }) do
-    metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
+    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
     metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
 
     rows =
@@ -658,7 +658,7 @@ defmodule Tuist.VCS do
          test_run_url: test_run_url,
          project: project
        }) do
-    metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
+    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
     metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
 
     rows =

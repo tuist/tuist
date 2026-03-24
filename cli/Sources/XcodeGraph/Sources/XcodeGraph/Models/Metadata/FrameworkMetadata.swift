@@ -28,10 +28,8 @@ public struct FrameworkMetadata: Equatable {
         self.architectures = architectures
         self.status = status
     }
-}
 
-#if DEBUG
-    extension FrameworkMetadata {
+    #if DEBUG
         public static func test(
             // swiftlint:disable:next force_try
             path: AbsolutePath = try! AbsolutePath(validating: "/Frameworks/TestFramework.xframework"),
@@ -53,5 +51,5 @@ public struct FrameworkMetadata: Equatable {
                 status: status
             )
         }
-    }
-#endif
+    #endif
+}

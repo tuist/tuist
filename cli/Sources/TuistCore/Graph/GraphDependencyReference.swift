@@ -1,4 +1,7 @@
 import Path
+#if DEBUG
+    import TuistSupport
+#endif
 import XcodeGraph
 
 public enum GraphDependencyReference: Equatable, Comparable, Hashable {
@@ -178,20 +181,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             }
         }
     }
-}
 
-extension PlatformCondition?: Swift.Comparable {
-    public static func < (lhs: Optional, rhs: Optional) -> Bool {
-        guard let lhs else { return false }
-        guard let rhs else { return true }
-        return lhs < rhs
-    }
-}
-
-#if DEBUG
-    import TuistSupport
-
-    extension GraphDependencyReference {
+    #if DEBUG
         public static func testFramework(
             path: AbsolutePath = "/frameworks/tuist.framework",
             binaryPath: AbsolutePath = "/frameworks/tuist.framework/tuist",
@@ -289,5 +280,13 @@ extension PlatformCondition?: Swift.Comparable {
                 condition: condition
             )
         }
+    #endif
+}
+
+extension PlatformCondition?: Swift.Comparable {
+    public static func < (lhs: Optional, rhs: Optional) -> Bool {
+        guard let lhs else { return false }
+        guard let rhs else { return true }
+        return lhs < rhs
     }
-#endif
+}

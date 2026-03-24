@@ -1,6 +1,7 @@
 import Foundation
 import Path
 
+// swiftlint:disable:next type_body_length
 public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Codable, Sendable {
     public struct XCFramework: Hashable, CustomStringConvertible, Comparable, Codable, Sendable {
         public var path: AbsolutePath
@@ -320,12 +321,10 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
     public static func < (lhs: GraphDependency, rhs: GraphDependency) -> Bool {
         lhs.description < rhs.description
     }
-}
 
-#if DEBUG
-    // swiftlint:disable force_try
+    #if DEBUG
+        // swiftlint:disable force_try
 
-    extension GraphDependency {
         public static func testFramework(
             path: AbsolutePath = AbsolutePath.root.appending(component: "Test.framework"),
             binaryPath: AbsolutePath = AbsolutePath.root.appending(try! RelativePath(validating: "Test.framework/Test")),
@@ -440,7 +439,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
                 type: .runtime
             )
         }
-    }
 
-    // swiftlint:enable force_try
-#endif
+        // swiftlint:enable force_try
+    #endif
+}

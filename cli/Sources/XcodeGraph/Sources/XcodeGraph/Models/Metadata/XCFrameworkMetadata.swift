@@ -36,10 +36,8 @@ public struct XCFrameworkMetadata: Equatable {
         self.moduleMaps = moduleMaps
         self.expectedSignature = expectedSignature
     }
-}
 
-#if DEBUG
-    extension XCFrameworkMetadata {
+    #if DEBUG
         public static func test(
             // swiftlint:disable:next force_try
             path: AbsolutePath = try! AbsolutePath(validating: "/XCFrameworks/XCFramework.xcframework"),
@@ -64,5 +62,5 @@ public struct XCFrameworkMetadata: Equatable {
                 expectedSignature: expectedSignature
             )
         }
-    }
-#endif
+    #endif
+}

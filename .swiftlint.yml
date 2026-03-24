@@ -1,3 +1,5 @@
+opt_in_rules:
+  - no_grouping_extension
 disabled_rules:
   - trailing_whitespace
   - trailing_comma
