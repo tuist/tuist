@@ -319,7 +319,7 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp remote_row_payload_hash(nil), do: nil
-  defp remote_row_payload_hash(payload), do: :crypto.hash(:sha256, payload)
+  defp remote_row_payload_hash(payload), do: :erlang.phash2(payload)
 
   defp fetch_local_entries_by_key([]), do: %{}
 

@@ -60,7 +60,8 @@ defmodule Cache.KeyValueReplicationPoller do
     {total_materialized, total_deleted} =
       case maybe_bootstrap() do
         :ok ->
-          drain_pages(started_at, {0, 0})
+          watermark = KeyValueEntries.distributed_watermark()
+          drain_pages(watermark, started_at, {0, 0})
 
         :busy ->
           {0, 0}
@@ -81,23 +82,21 @@ defmodule Cache.KeyValueReplicationPoller do
     {:ok, new_state}
   end
 
-  defp drain_pages(started_at, totals) do
+  defp drain_pages(watermark, started_at, totals) do
     if System.monotonic_time(:millisecond) - started_at >= @max_poll_run_ms do
       totals
     else
-      {page_size, new_totals} = apply_one_page(totals)
+      {page_size, new_watermark, new_totals} = apply_one_page(watermark, totals)
 
       if page_size == @page_size do
-        drain_pages(started_at, new_totals)
+        drain_pages(new_watermark, started_at, new_totals)
       else
         new_totals
       end
     end
   end
 
-  defp apply_one_page({total_materialized, total_deleted}) do
-    watermark = KeyValueEntries.distributed_watermark()
-
+  defp apply_one_page(watermark, {total_materialized, total_deleted}) do
     query =
       Entry
       |> apply_poll_lag_filter()
@@ -122,7 +121,22 @@ defmodule Cache.KeyValueReplicationPoller do
         end
       end)
 
-    {processed_count, {total_materialized + materialized_count, total_deleted + deleted_count}}
+    last_committed = last_committed_row(rows, processed_count)
+
+    new_watermark =
+      if last_committed do
+        %{updated_at_value: last_committed.updated_at, key_value: last_committed.key}
+      else
+        watermark
+      end
+
+    {processed_count, new_watermark, {total_materialized + materialized_count, total_deleted + deleted_count}}
+  end
+
+  defp last_committed_row(_rows, 0), do: nil
+
+  defp last_committed_row(rows, processed_count) do
+    rows |> Enum.take(processed_count) |> List.last()
   end
 
   defp maybe_bootstrap do
@@ -180,13 +194,16 @@ defmodule Cache.KeyValueReplicationPoller do
   end
 
   defp bootstrap_materializable_rows(rows, current_size, budget) do
-    Enum.reduce_while(rows, {[], current_size}, fn row, {selected_rows, size_acc} ->
-      if size_acc >= budget do
-        {:halt, {Enum.reverse(selected_rows), size_acc}}
-      else
-        {:cont, {[row | selected_rows], size_acc + byte_size(row.json_payload)}}
-      end
-    end)
+    {selected, final_size} =
+      Enum.reduce_while(rows, {[], current_size}, fn row, {selected_rows, size_acc} ->
+        if size_acc >= budget do
+          {:halt, {selected_rows, size_acc}}
+        else
+          {:cont, {[row | selected_rows], size_acc + byte_size(row.json_payload)}}
+        end
+      end)
+
+    {Enum.reverse(selected), final_size}
   end
 
   defp materialize_bootstrap_rows(rows) do
