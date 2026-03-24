@@ -224,12 +224,8 @@ final class ManifestLoaderTests: TuistTestCase {
         let manifestPath = temporaryPath.appending(
             component: Manifest.package.fileName(temporaryPath)
         )
-        try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
-        try content.write(
-            to: manifestPath.url,
-            atomically: true,
-            encoding: .utf8
-        )
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try await fileSystem.writeText(content, at: manifestPath)
 
         // When
         let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: true)
