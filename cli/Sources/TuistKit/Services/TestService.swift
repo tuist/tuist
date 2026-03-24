@@ -492,6 +492,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 {
                     let shardDestination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments)
                         ?? platform.map { "platform=\($0)" }
+                        ?? inferPlatformDestination(schemes: schemes, graphTraverser: graphTraverser)
 
                     let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
                     _ = try await shardPlanService.plan(
@@ -763,18 +764,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 ]
             } else if let platform {
                 let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
-                switch buildPlatform {
-                case .iOS:
-                    arguments += ["-destination", "platform=iOS Simulator,name=iPhone"]
-                case .macOS:
-                    arguments += ["-destination", "platform=macOS"]
-                case .tvOS:
-                    arguments += ["-destination", "platform=tvOS Simulator,name=Apple TV"]
-                case .watchOS:
-                    arguments += ["-destination", "platform=watchOS Simulator,name=Apple Watch"]
-                case .visionOS:
-                    arguments += ["-destination", "platform=visionOS Simulator,name=Apple Vision Pro"]
-                }
+                arguments += ["-destination", buildPlatform.xcodebuildPlatformDestination]
             }
         }
 
@@ -1566,5 +1556,37 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let valueIndex = arguments.index(after: optionIndex)
         guard arguments.endIndex > valueIndex else { return nil }
         return arguments[valueIndex]
+    }
+
+    func inferPlatformDestination(schemes: [Scheme], graphTraverser: GraphTraversing) -> String? {
+        for scheme in schemes {
+            guard let target = buildGraphInspector.testableTarget(
+                scheme: scheme,
+                testPlan: nil,
+                testTargets: [],
+                skipTestTargets: [],
+                graphTraverser: graphTraverser,
+                action: .build
+            ) else { continue }
+
+            guard let resolvedPlatform = target.target.destinations.first?.platform,
+                  target.target.destinations.platforms.count == 1
+            else { continue }
+
+            return resolvedPlatform.xcodebuildPlatformDestination
+        }
+        return nil
+    }
+}
+
+extension XcodeGraph.Platform {
+    var xcodebuildPlatformDestination: String {
+        switch self {
+        case .iOS: "platform=iOS Simulator"
+        case .macOS: "platform=macOS"
+        case .tvOS: "platform=tvOS Simulator"
+        case .watchOS: "platform=watchOS Simulator"
+        case .visionOS: "platform=visionOS Simulator"
+        }
     }
 }
