@@ -50,6 +50,9 @@ struct XcodeBuildTestCommandServiceTests {
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(nil)
 
         subject = XcodeBuildTestCommandService(
             fileSystem: fileSystem,
