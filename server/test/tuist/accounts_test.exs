@@ -8,7 +8,6 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
-  alias Tuist.Accounts.CustomOAuth2
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
@@ -773,7 +772,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "CustomOAuth2.config_for_organization/1" do
+  describe "oauth2_config_for_organization/1" do
     test "returns config for a custom OAuth2 organization" do
       organization = %Organization{
         sso_provider: :oauth2,
@@ -785,7 +784,7 @@ defmodule Tuist.AccountsTest do
         oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
       }
 
-      assert {:ok, config} = CustomOAuth2.config_for_organization(organization)
+      assert {:ok, config} = Accounts.oauth2_config_for_organization(organization)
 
       assert config.site == "https://auth.example.com"
       assert config.provider_organization_id == "https://auth.example.com"
@@ -807,7 +806,7 @@ defmodule Tuist.AccountsTest do
         oauth2_user_info_url: "https://dev-example.okta.com/oauth2/v1/userinfo"
       }
 
-      assert {:ok, config} = CustomOAuth2.config_for_organization(organization)
+      assert {:ok, config} = Accounts.oauth2_config_for_organization(organization)
 
       assert config.site == "https://dev-example.okta.com"
       assert config.provider_organization_id == "dev-example.okta.com"
@@ -825,7 +824,7 @@ defmodule Tuist.AccountsTest do
       }
 
       assert {:error, :oauth2_not_configured} =
-               CustomOAuth2.config_for_organization(organization)
+               Accounts.oauth2_config_for_organization(organization)
     end
   end
 

@@ -6,7 +6,6 @@ defmodule TuistWeb.SSOSettingsLive do
   import Phoenix.Component
 
   alias Tuist.Accounts
-  alias Tuist.Accounts.CustomOAuth2
   alias Tuist.Authorization
 
   @impl true
@@ -189,8 +188,7 @@ defmodule TuistWeb.SSOSettingsLive do
   defp extract_oauth2_urls("okta", form) do
     domain = String.trim(form["okta_domain"] || "")
 
-    {domain, CustomOAuth2.okta_authorize_url(domain), CustomOAuth2.okta_token_url(domain),
-     CustomOAuth2.okta_userinfo_url(domain)}
+    {domain, Accounts.okta_authorize_url(domain), Accounts.okta_token_url(domain), Accounts.okta_userinfo_url(domain)}
   end
 
   defp extract_oauth2_urls("oauth2", form) do
