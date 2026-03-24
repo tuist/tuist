@@ -185,6 +185,11 @@ struct XcodeBuildTestCommandServiceTests {
                 .loadConfig(path: .any)
                 .willReturn(.test(fullHandle: "tuist/tuist"))
 
+            xcResultService.reset()
+            given(xcResultService)
+                .parse(path: .any, rootDirectory: .any)
+                .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
+
             given(xcodeBuildArgumentParser)
                 .parse(.any)
                 .willReturn(
