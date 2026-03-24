@@ -182,26 +182,80 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         }
 
         val indices = (0 until response.shardCount).toList()
+        writeShardMatrixOutput(indices, reference, response)
+    }
+
+    private fun writeShardMatrixOutput(indices: List<Int>, reference: String, response: ShardPlan) {
         val githubOutputPath = System.getenv("GITHUB_OUTPUT")
-        if (githubOutputPath != null) {
-            val matrixJSON = """{"shard":$indices}"""
-            java.io.File(githubOutputPath).appendText("matrix=$matrixJSON\n")
-            logger.lifecycle("Tuist: GitHub Actions matrix output written.")
-        } else {
-            val matrix = mapOf(
-                "reference" to reference,
-                "shard_count" to response.shardCount,
-                "shards" to response.shards.map { shard ->
-                    mapOf(
-                        "index" to shard.index,
-                        "test_targets" to shard.testTargets,
-                        "estimated_duration_ms" to shard.estimatedDurationMs
-                    )
+        val isGitLab = System.getenv("GITLAB_CI") != null
+        val isCircleCI = System.getenv("CIRCLECI") != null
+        val isBuildkite = System.getenv("BUILDKITE") != null
+        val cmEnvPath = System.getenv("CM_ENV")
+
+        when {
+            githubOutputPath != null -> {
+                val matrixJSON = """{"shard":$indices}"""
+                java.io.File(githubOutputPath).appendText("matrix=$matrixJSON\n")
+                logger.lifecycle("Tuist: GitHub Actions matrix output written.")
+            }
+            isGitLab -> {
+                val yaml = buildString {
+                    for (index in indices) {
+                        appendLine("shard-$index:")
+                        appendLine("  extends: .tuist-shard")
+                        appendLine("  variables:")
+                        appendLine("    TUIST_SHARD_INDEX: \"$index\"")
+                        appendLine()
+                    }
                 }
-            )
-            val outputFile = project.projectDir.resolve(".tuist-shard-matrix.json")
-            outputFile.writeText(Gson().toJson(matrix))
-            logger.lifecycle("Tuist: Shard matrix written to ${outputFile.path}")
+                val outputFile = project.projectDir.resolve(".tuist-shard-child-pipeline.yml")
+                outputFile.writeText(yaml)
+                logger.lifecycle("Tuist: GitLab CI child pipeline written to ${outputFile.path}")
+            }
+            isCircleCI -> {
+                val parameters = mapOf(
+                    "shard-indices" to indices.joinToString(","),
+                    "shard-count" to indices.size
+                )
+                val outputFile = project.projectDir.resolve(".tuist-shard-continuation.json")
+                outputFile.writeText(Gson().toJson(parameters))
+                logger.lifecycle("Tuist: CircleCI continuation parameters written to ${outputFile.path}")
+            }
+            isBuildkite -> {
+                val yaml = buildString {
+                    appendLine("steps:")
+                    for (index in indices) {
+                        appendLine("  - label: \"Shard #$index\"")
+                        appendLine("    env:")
+                        appendLine("      TUIST_SHARD_INDEX: \"$index\"")
+                        appendLine()
+                    }
+                }
+                val outputFile = project.projectDir.resolve(".tuist-shard-pipeline.yml")
+                outputFile.writeText(yaml)
+                logger.lifecycle("Tuist: Buildkite pipeline written to ${outputFile.path}")
+            }
+            cmEnvPath != null -> {
+                val matrixJSON = """{"shard":$indices}"""
+                java.io.File(cmEnvPath).appendText("TUIST_SHARD_MATRIX=$matrixJSON\nTUIST_SHARD_COUNT=${indices.size}\n")
+                logger.lifecycle("Tuist: Codemagic environment variables written to CM_ENV.")
+            }
+            else -> {
+                val matrix = mapOf(
+                    "reference" to reference,
+                    "shard_count" to response.shardCount,
+                    "shards" to response.shards.map { shard ->
+                        mapOf(
+                            "index" to shard.index,
+                            "test_targets" to shard.testTargets,
+                            "estimated_duration_ms" to shard.estimatedDurationMs
+                        )
+                    }
+                )
+                val outputFile = project.projectDir.resolve(".tuist-shard-matrix.json")
+                outputFile.writeText(Gson().toJson(matrix))
+                logger.lifecycle("Tuist: Shard matrix written to ${outputFile.path}")
+            }
         }
     }
 

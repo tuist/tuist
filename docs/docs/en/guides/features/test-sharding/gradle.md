@@ -35,7 +35,7 @@ This task:
 1. Compiles the test classes
 2. Discovers test suites by scanning the compiled class files
 3. Creates a shard plan on the Tuist server using historical timing data
-4. Outputs a shard matrix to `.tuist-shard-matrix.json`. On GitHub Actions, it also automatically writes the matrix as a `GITHUB_OUTPUT`
+4. Outputs a shard matrix in the detected CI provider's native format, or to `.tuist-shard-matrix.json` as a fallback
 
 ### Build options {#build-options}
 
@@ -61,9 +61,15 @@ The `TUIST_SHARD_INDEX` environment variable specifies the zero-based shard inde
 
 ## Continuous integration {#continuous-integration}
 
-Test sharding currently supports the following CI providers:
+Tuist automatically detects the following CI providers and writes shard matrix output in their native format:
 
-- **GitHub Actions**
+- [GitHub Actions](#github-actions)
+- [GitLab CI](#gitlab-ci)
+- [CircleCI](#circleci)
+- [Buildkite](#buildkite)
+- [Codemagic](#codemagic)
+
+For other providers, Tuist writes a `.tuist-shard-matrix.json` file that you can parse to set up parallel jobs.
 
 ### GitHub Actions {#github-actions}
 
@@ -110,4 +116,163 @@ jobs:
       - run: tuist auth login
       - run: ./gradlew tuistRunShard
 ```
+
+### GitLab CI {#gitlab-ci}
+
+On GitLab CI, Tuist generates a `.tuist-shard-child-pipeline.yml` file that you trigger as a [child pipeline](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines). Define a `.tuist-shard` template job that the generated shard jobs extend:
+
+```yaml
+# .gitlab-ci.yml
+stages:
+  - build
+  - test
+
+build-shards:
+  stage: build
+  script:
+    - tuist auth login
+    - ./gradlew tuistPrepareTestShards -PtuistShardMax=5
+  artifacts:
+    paths:
+      - .tuist-shard-child-pipeline.yml
+
+test-shards:
+  stage: test
+  needs: [build-shards]
+  trigger:
+    include:
+      - artifact: .tuist-shard-child-pipeline.yml
+        job: build-shards
+    strategy: depend
+```
+
+The child pipeline needs a `.tuist-shard` job template:
+
+```yaml
+# .gitlab/shard-template.yml
+.tuist-shard:
+  script:
+    - tuist auth login
+    - ./gradlew tuistRunShard
+```
+
+### CircleCI {#circleci}
+
+On CircleCI, Tuist writes a `.tuist-shard-continuation.json` file with `shard-indices` and `shard-count` parameters. Use the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) to trigger a follow-up pipeline:
+
+```yaml
+# .circleci/config.yml
+version: 2.1
+setup: true
+
+orbs:
+  continuation: circleci/continuation@1
+
+jobs:
+  build-shards:
+    docker:
+      - image: cimg/openjdk:17.0
+    steps:
+      - checkout
+      - run:
+          name: Build and plan shards
+          command: |
+            tuist auth login
+            ./gradlew tuistPrepareTestShards -PtuistShardMax=5
+      - continuation/continue:
+          configuration_path: .circleci/continue-config.yml
+          parameters: .tuist-shard-continuation.json
+
+workflows:
+  setup:
+    jobs:
+      - build-shards
+```
+
+```yaml
+# .circleci/continue-config.yml
+version: 2.1
+
+parameters:
+  shard-indices:
+    type: string
+    default: ""
+  shard-count:
+    type: integer
+    default: 0
+
+jobs:
+  test-shard:
+    docker:
+      - image: cimg/openjdk:17.0
+    parameters:
+      shard-index:
+        type: integer
+    steps:
+      - checkout
+      - run:
+          name: Run shard
+          command: |
+            export TUIST_SHARD_INDEX=<< parameters.shard-index >>
+            tuist auth login
+            ./gradlew tuistRunShard
+
+workflows:
+  test:
+    jobs:
+      - test-shard:
+          matrix:
+            parameters:
+              shard-index: [<< pipeline.parameters.shard-indices >>]
+```
+
+### Buildkite {#buildkite}
+
+On Buildkite, Tuist generates a `.tuist-shard-pipeline.yml` file with one step per shard. Upload it with `buildkite-agent pipeline upload` to dynamically add shard steps:
+
+```yaml
+# pipeline.yml
+steps:
+  - label: "Build test shards"
+    command: |
+      tuist auth login
+      ./gradlew tuistPrepareTestShards -PtuistShardMax=5
+      buildkite-agent pipeline upload .tuist-shard-pipeline.yml
+```
+
+Each generated step has `TUIST_SHARD_INDEX` set in its environment. Add the test command to each shard step using a shared script:
+
+```bash
+# .buildkite/shard-step.sh
+#!/bin/bash
+tuist auth login
+./gradlew tuistRunShard
+```
+
+### Codemagic {#codemagic}
+
+On Codemagic, Tuist writes `TUIST_SHARD_MATRIX` and `TUIST_SHARD_COUNT` to the `CM_ENV` file, making them available in subsequent steps:
+
+```yaml
+# codemagic.yaml
+workflows:
+  test-shards:
+    name: Test Shards
+    instance_type: linux_x2
+    environment:
+      java: 17
+    scripts:
+      - name: Build and plan shards
+        script: |
+          tuist auth login
+          ./gradlew tuistPrepareTestShards -PtuistShardMax=5
+      - name: Run shard
+        script: |
+          tuist auth login
+          ./gradlew tuistRunShard
+```
+
+::: tip
+Codemagic does not natively support dynamic matrix jobs. Use `TUIST_SHARD_COUNT` to configure multiple workflows or use the Codemagic API to trigger parallel builds with different `TUIST_SHARD_INDEX` values.
+:::
 
