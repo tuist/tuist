@@ -16,6 +16,16 @@ defmodule Cache.KeyValueReplicationShipper do
 
   @telemetry_event [:cache, :kv, :replication, :ship, :flush]
   @pending_rows_event [:cache, :kv, :replication, :ship, :pending_rows]
+  @shared_insert_types %{
+    key: :string,
+    account_handle: :string,
+    project_handle: :string,
+    cas_id: :string,
+    json_payload: :string,
+    source_node: :string,
+    source_updated_at: :utc_datetime_usec,
+    last_accessed_at: :utc_datetime_usec
+  }
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -136,8 +146,7 @@ defmodule Cache.KeyValueReplicationShipper do
   defp ship_batch([]), do: :ok
 
   defp ship_batch(rows) do
-    now = DateTime.utc_now()
-    upsert_shared_entries(Enum.map(rows, & &1.incoming), now)
+    upsert_shared_entries(Enum.map(rows, & &1.incoming))
 
     _ = KeyValueEntries.clear_replication_tokens(Enum.map(rows, & &1.entry))
 
@@ -145,14 +154,14 @@ defmodule Cache.KeyValueReplicationShipper do
   end
 
   @doc false
-  def upsert_shared_entries(rows, now \\ DateTime.utc_now())
+  def upsert_shared_entries(rows)
 
-  def upsert_shared_entries([], _now), do: :ok
+  def upsert_shared_entries([]), do: :ok
 
-  def upsert_shared_entries(rows, now) do
-    insert_rows =
-      Enum.map(rows, fn row ->
-        %{
+  def upsert_shared_entries(rows) do
+    insert_query =
+      from(row in values(rows, @shared_insert_types),
+        select: %{
           key: row.key,
           account_handle: row.account_handle,
           project_handle: row.project_handle,
@@ -161,9 +170,9 @@ defmodule Cache.KeyValueReplicationShipper do
           source_node: row.source_node,
           source_updated_at: row.source_updated_at,
           last_accessed_at: row.last_accessed_at,
-          updated_at: now
+          updated_at: fragment("clock_timestamp()::timestamp")
         }
-      end)
+      )
 
     # Shared rows resolve payload conflicts by source_updated_at, then source_node for equal timestamps.
     on_conflict =
@@ -208,12 +217,12 @@ defmodule Cache.KeyValueReplicationShipper do
                 e.deleted_at,
                 e.deleted_at
               ),
-            updated_at: fragment("EXCLUDED.updated_at")
+            updated_at: fragment("clock_timestamp()::timestamp")
           ]
         ]
       )
 
-    Repo.insert_all(Entry, insert_rows,
+    Repo.insert_all(Entry, insert_query,
       on_conflict: on_conflict,
       conflict_target: :key,
       timeout: Config.distributed_kv_database_timeout_ms()

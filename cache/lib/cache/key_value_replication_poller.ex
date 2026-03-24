@@ -60,8 +60,7 @@ defmodule Cache.KeyValueReplicationPoller do
     {total_materialized, total_deleted} =
       case maybe_bootstrap() do
         :ok ->
-          lag_cutoff = DateTime.add(DateTime.utc_now(), -Config.distributed_kv_poll_lag_ms(), :millisecond)
-          drain_pages(lag_cutoff, started_at, {0, 0})
+          drain_pages(started_at, {0, 0})
 
         :busy ->
           {0, 0}
@@ -82,26 +81,26 @@ defmodule Cache.KeyValueReplicationPoller do
     {:ok, new_state}
   end
 
-  defp drain_pages(lag_cutoff, started_at, totals) do
+  defp drain_pages(started_at, totals) do
     if System.monotonic_time(:millisecond) - started_at >= @max_poll_run_ms do
       totals
     else
-      {page_size, new_totals} = apply_one_page(lag_cutoff, totals)
+      {page_size, new_totals} = apply_one_page(totals)
 
       if page_size == @page_size do
-        drain_pages(lag_cutoff, started_at, new_totals)
+        drain_pages(started_at, new_totals)
       else
         new_totals
       end
     end
   end
 
-  defp apply_one_page(lag_cutoff, {total_materialized, total_deleted}) do
+  defp apply_one_page({total_materialized, total_deleted}) do
     watermark = KeyValueEntries.distributed_watermark()
 
     query =
       Entry
-      |> where([entry], entry.updated_at < ^lag_cutoff)
+      |> apply_poll_lag_filter()
       |> apply_watermark(watermark)
       |> order_by([entry], asc: entry.updated_at, asc: entry.key)
       |> limit(^@page_size)
@@ -245,6 +244,16 @@ defmodule Cache.KeyValueReplicationPoller do
 
   defp alive_row_count(rows) do
     Enum.count(rows, &is_nil(&1.deleted_at))
+  end
+
+  defp apply_poll_lag_filter(query) do
+    lag_ms = Config.distributed_kv_poll_lag_ms()
+
+    from(entry in query,
+      where:
+        entry.updated_at <
+          fragment("(clock_timestamp() - (? * INTERVAL '1 millisecond'))::timestamp", ^lag_ms)
+    )
   end
 
   defp apply_watermark(query, nil), do: query

@@ -10,10 +10,27 @@ defmodule Cache.KeyValueReplicationShipperTest do
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueReplicationShipper
+  alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
+  setup_all do
+    ensure_distributed_repo_storage!()
+
+    case start_supervised(Repo) do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+    end
+
+    {:ok, _, _} = Ecto.Migrator.with_repo(Repo, &Ecto.Migrator.run(&1, :up, all: true))
+
+    :ok
+  end
+
   setup do
+    :ok = Sandbox.checkout(Repo)
+    Sandbox.mode(Repo, {:shared, self()})
+    Repo.delete_all(Entry)
     stub(Config, :key_value_mode, fn -> :distributed end)
     stub(Config, :distributed_kv_enabled?, fn -> true end)
     stub(Config, :distributed_kv_node_name, fn -> "test-node" end)
@@ -21,33 +38,94 @@ defmodule Cache.KeyValueReplicationShipperTest do
   end
 
   test "shared entries keep microsecond precision in updated_at" do
-    now = ~U[2026-03-12 12:00:00.123456Z]
+    source_updated_at = ~U[2026-03-12 12:00:00.123456Z]
 
-    expect(Repo, :insert_all, fn Entry, rows, opts ->
-      assert [%{updated_at: ^now}] = rows
-      assert Entry.__schema__(:type, :updated_at) == :utc_datetime_usec
-      assert {:ok, _} = Ecto.Type.dump(Entry.__schema__(:type, :updated_at), now)
+    assert :ok =
+             KeyValueReplicationShipper.upsert_shared_entries([
+               %{
+                 key: "keyvalue:acme:ios:cas",
+                 account_handle: "acme",
+                 project_handle: "ios",
+                 cas_id: "cas",
+                 json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+                 source_node: "node-a",
+                 source_updated_at: source_updated_at,
+                 last_accessed_at: source_updated_at
+               }
+             ])
+
+    record = Repo.get!(Entry, "keyvalue:acme:ios:cas")
+    assert record.source_updated_at == source_updated_at
+    assert record.updated_at != source_updated_at
+    assert Entry.__schema__(:type, :updated_at) == :utc_datetime_usec
+    assert {:ok, _} = Ecto.Type.dump(Entry.__schema__(:type, :updated_at), record.updated_at)
+  end
+
+  test "shared entry inserts use database time expressions for replication ordering" do
+    source_updated_at = ~U[2026-03-12 12:00:00.123456Z]
+
+    expect(Repo, :insert_all, fn Entry, %Ecto.Query{} = query, opts ->
+      {sql, _params} = Ecto.Adapters.SQL.to_sql(:all, Repo, query)
+
+      assert sql =~ "clock_timestamp()"
+      assert inspect(opts[:on_conflict]) =~ "clock_timestamp()"
       assert opts[:conflict_target] == :key
       assert opts[:timeout]
+
       {1, nil}
     end)
 
     assert :ok =
-             KeyValueReplicationShipper.upsert_shared_entries(
-               [
-                 %{
-                   key: "keyvalue:acme:ios:cas",
-                   account_handle: "acme",
-                   project_handle: "ios",
-                   cas_id: "cas",
-                   json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
-                   source_node: "node-a",
-                   source_updated_at: now,
-                   last_accessed_at: now
-                 }
-               ],
-               now
-             )
+             KeyValueReplicationShipper.upsert_shared_entries([
+               %{
+                 key: "keyvalue:acme:ios:cas",
+                 account_handle: "acme",
+                 project_handle: "ios",
+                 cas_id: "cas",
+                 json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+                 source_node: "node-a",
+                 source_updated_at: source_updated_at,
+                 last_accessed_at: source_updated_at
+               }
+             ])
+  end
+
+  test "shared entry conflict updates refresh updated_at" do
+    source_updated_at = ~U[2026-03-12 12:00:00.123456Z]
+
+    assert :ok =
+             KeyValueReplicationShipper.upsert_shared_entries([
+               %{
+                 key: "keyvalue:acme:ios:cas",
+                 account_handle: "acme",
+                 project_handle: "ios",
+                 cas_id: "cas",
+                 json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
+                 source_node: "node-a",
+                 source_updated_at: source_updated_at,
+                 last_accessed_at: source_updated_at
+               }
+             ])
+
+    original = Repo.get!(Entry, "keyvalue:acme:ios:cas")
+    Process.sleep(10)
+
+    assert :ok =
+             KeyValueReplicationShipper.upsert_shared_entries([
+               %{
+                 key: "keyvalue:acme:ios:cas",
+                 account_handle: "acme",
+                 project_handle: "ios",
+                 cas_id: "cas",
+                 json_payload: Jason.encode!(%{entries: [%{"value" => "new"}]}),
+                 source_node: "node-b",
+                 source_updated_at: DateTime.add(source_updated_at, 1, :second),
+                 last_accessed_at: DateTime.add(source_updated_at, 1, :second)
+               }
+             ])
+
+    updated = Repo.get!(Entry, "keyvalue:acme:ios:cas")
+    assert DateTime.after?(updated.updated_at, original.updated_at)
   end
 
   test "ships pending rows and clears the shipped token" do
@@ -78,27 +156,19 @@ defmodule Cache.KeyValueReplicationShipperTest do
       1
     end)
 
-    stub(Repo, :insert_all, fn Entry, rows, opts ->
-      assert [row] = rows
-      assert row.key == "keyvalue:acme:ios:cas"
-      assert row.account_handle == "acme"
-      assert row.project_handle == "ios"
-      assert row.cas_id == "cas"
-      assert row.json_payload == json_payload
-      assert row.source_node == "test-node"
-      assert row.source_updated_at == token
-      assert row.last_accessed_at == token
-      assert %DateTime{} = row.updated_at
-      assert opts[:conflict_target] == :key
-      assert opts[:timeout]
-      send(parent, :upserted)
-      {1, nil}
-    end)
-
     start_supervised!(KeyValueReplicationShipper)
 
-    assert_receive :upserted
     assert_receive :token_cleared
+
+    assert %Entry{
+             account_handle: "acme",
+             project_handle: "ios",
+             cas_id: "cas",
+             json_payload: ^json_payload,
+             source_node: "test-node",
+             source_updated_at: ^token,
+             last_accessed_at: ^token
+           } = Repo.get!(Entry, "keyvalue:acme:ios:cas")
   end
 
   test "access-only replication preserves the original source node" do
@@ -119,17 +189,18 @@ defmodule Cache.KeyValueReplicationShipperTest do
     stub(Cleanup, :latest_project_cleanup_cutoffs, fn _scopes -> %{} end)
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
-    stub(KeyValueEntries, :clear_replication_tokens, fn [_entry] -> 1 end)
 
-    expect(Repo, :insert_all, fn Entry, rows, _opts ->
-      assert [%{source_node: "node-a", source_updated_at: ^source_updated_at}] = rows
-      send(parent, :upserted)
-      {1, nil}
+    stub(KeyValueEntries, :clear_replication_tokens, fn [_entry] ->
+      send(parent, :token_cleared)
+      1
     end)
 
     start_supervised!(KeyValueReplicationShipper)
 
-    assert_receive :upserted
+    assert_receive :token_cleared
+
+    assert %Entry{source_node: "node-a", source_updated_at: ^source_updated_at} =
+             Repo.get!(Entry, "keyvalue:acme:ios:cas")
   end
 
   test "batches shared repo work for one flush" do
@@ -172,23 +243,15 @@ defmodule Cache.KeyValueReplicationShipperTest do
       2
     end)
 
-    expect(Repo, :insert_all, fn Entry, rows, opts ->
-      assert length(rows) == 2
-      assert Enum.map(rows, & &1.key) == ["keyvalue:acme:ios:cas-a", "keyvalue:acme:ios:cas-b"]
-      assert Enum.map(rows, & &1.cas_id) == ["cas-a", "cas-b"]
-      assert Enum.all?(rows, &(&1.source_node == "test-node"))
-      assert %DateTime{} = hd(rows).updated_at
-      assert opts[:conflict_target] == :key
-      assert opts[:timeout]
-      send(parent, :upsert_batch)
-      {2, nil}
-    end)
-
     start_supervised!(KeyValueReplicationShipper)
 
     assert_receive :cutoffs_loaded
-    assert_receive :upsert_batch
     assert_receive :tokens_cleared
+
+    assert Entry |> Repo.all() |> Enum.sort_by(& &1.key) |> Enum.map(&{&1.key, &1.cas_id, &1.source_node}) == [
+             {"keyvalue:acme:ios:cas-a", "cas-a", "test-node"},
+             {"keyvalue:acme:ios:cas-b", "cas-b", "test-node"}
+           ]
   end
 
   test "reloads cleanup cutoffs on each flush" do
@@ -214,7 +277,6 @@ defmodule Cache.KeyValueReplicationShipperTest do
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
     stub(KeyValueEntries, :clear_replication_tokens, fn [_entry] -> 1 end)
-    stub(Repo, :insert_all, fn _schema, _rows, _opts -> {1, nil} end)
 
     start_supervised!(KeyValueReplicationShipper)
     assert_receive :cutoffs_loaded
@@ -253,15 +315,17 @@ defmodule Cache.KeyValueReplicationShipperTest do
       1
     end)
 
-    expect(Repo, :insert_all, fn Entry, rows, _opts ->
-      assert [%{key: "keyvalue:acme:ios:cas"}] = rows
-      send(parent, :upserted)
-      {1, nil}
-    end)
-
     start_supervised!(KeyValueReplicationShipper)
 
-    assert_receive :upserted
     assert_receive :token_cleared
+    assert %Entry{key: "keyvalue:acme:ios:cas"} = Repo.get!(Entry, "keyvalue:acme:ios:cas")
+  end
+
+  defp ensure_distributed_repo_storage! do
+    case Repo.__adapter__().storage_up(Repo.config()) do
+      :ok -> :ok
+      {:error, :already_up} -> :ok
+      {:error, reason} -> raise "failed to create distributed KV test database: #{inspect(reason)}"
+    end
   end
 end

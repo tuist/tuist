@@ -8,33 +8,40 @@ defmodule Cache.DistributedKV.Cleanup do
   alias Cache.DistributedKV.Project
   alias Cache.DistributedKV.Repo
 
+  @project_insert_types %{account_handle: :string, project_handle: :string}
+
   def begin_project_cleanup(account_handle, project_handle) do
-    now = DateTime.utc_now()
-    cleanup_lease_expires_at = DateTime.add(now, Config.distributed_kv_cleanup_lease_ms(), :millisecond)
+    lease_ms = Config.distributed_kv_cleanup_lease_ms()
+
+    insert_query =
+      from(
+        project in values([%{account_handle: account_handle, project_handle: project_handle}], @project_insert_types),
+        select: %{
+          account_handle: project.account_handle,
+          project_handle: project.project_handle,
+          last_cleanup_at: fragment("clock_timestamp()::timestamp"),
+          cleanup_lease_expires_at:
+            fragment("(clock_timestamp() + (? * INTERVAL '1 millisecond'))::timestamp", ^lease_ms),
+          updated_at: fragment("clock_timestamp()::timestamp")
+        }
+      )
 
     on_conflict =
       from(project in Project,
-        where: project.cleanup_lease_expires_at <= ^now,
+        where: project.cleanup_lease_expires_at <= fragment("clock_timestamp()::timestamp"),
         update: [
           set: [
-            last_cleanup_at: ^now,
-            cleanup_lease_expires_at: ^cleanup_lease_expires_at,
-            updated_at: ^now
+            last_cleanup_at: fragment("clock_timestamp()::timestamp"),
+            cleanup_lease_expires_at:
+              fragment("(clock_timestamp() + (? * INTERVAL '1 millisecond'))::timestamp", ^lease_ms),
+            updated_at: fragment("clock_timestamp()::timestamp")
           ]
         ]
       )
 
     case Repo.insert_all(
            Project,
-           [
-             %{
-               account_handle: account_handle,
-               project_handle: project_handle,
-               last_cleanup_at: now,
-               cleanup_lease_expires_at: cleanup_lease_expires_at,
-               updated_at: now
-             }
-           ],
+           insert_query,
            on_conflict: on_conflict,
            conflict_target: [:account_handle, :project_handle],
            returning: [:last_cleanup_at]
@@ -45,17 +52,24 @@ defmodule Cache.DistributedKV.Cleanup do
   end
 
   def renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
-    now = DateTime.utc_now()
-    cleanup_lease_expires_at = DateTime.add(now, Config.distributed_kv_cleanup_lease_ms(), :millisecond)
+    lease_ms = Config.distributed_kv_cleanup_lease_ms()
 
     {count, _} =
       Repo.update_all(
         from(project in Project,
           where:
             project.account_handle == ^account_handle and project.project_handle == ^project_handle and
-              project.last_cleanup_at == ^cleanup_started_at and project.cleanup_lease_expires_at > ^now
+              project.last_cleanup_at == ^cleanup_started_at and
+              project.cleanup_lease_expires_at > fragment("clock_timestamp()::timestamp"),
+          update: [
+            set: [
+              cleanup_lease_expires_at:
+                fragment("(clock_timestamp() + (? * INTERVAL '1 millisecond'))::timestamp", ^lease_ms),
+              updated_at: fragment("clock_timestamp()::timestamp")
+            ]
+          ]
         ),
-        set: [cleanup_lease_expires_at: cleanup_lease_expires_at, updated_at: now]
+        []
       )
 
     if count == 1 do
@@ -66,33 +80,41 @@ defmodule Cache.DistributedKV.Cleanup do
   end
 
   def expire_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
-    now = DateTime.utc_now()
-
     _ =
       Repo.update_all(
         from(project in Project,
           where:
             project.account_handle == ^account_handle and project.project_handle == ^project_handle and
-              project.last_cleanup_at == ^cleanup_started_at
+              project.last_cleanup_at == ^cleanup_started_at,
+          update: [
+            set: [
+              cleanup_lease_expires_at: fragment("clock_timestamp()::timestamp"),
+              updated_at: fragment("clock_timestamp()::timestamp")
+            ]
+          ]
         ),
-        set: [cleanup_lease_expires_at: now, updated_at: now]
+        []
       )
 
     :ok
   end
 
   def tombstone_project_entries(account_handle, project_handle, cleanup_started_at) do
-    now = DateTime.utc_now()
-
     {count, _} =
       Repo.update_all(
         from(entry in Entry,
           where: entry.account_handle == ^account_handle,
           where: entry.project_handle == ^project_handle,
           where: entry.source_updated_at <= ^cleanup_started_at,
-          where: is_nil(entry.deleted_at)
+          where: is_nil(entry.deleted_at),
+          update: [
+            set: [
+              deleted_at: ^cleanup_started_at,
+              updated_at: fragment("clock_timestamp()::timestamp")
+            ]
+          ]
         ),
-        set: [deleted_at: cleanup_started_at, updated_at: now]
+        []
       )
 
     count

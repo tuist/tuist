@@ -16,6 +16,19 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
   setup :set_mimic_from_context
 
+  setup_all do
+    ensure_distributed_repo_storage!()
+
+    case start_supervised(Repo) do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+    end
+
+    {:ok, _, _} = Ecto.Migrator.with_repo(Repo, &Ecto.Migrator.run(&1, :up, all: true))
+
+    :ok
+  end
+
   setup do
     :ok = Sandbox.checkout(KeyValueRepo)
     Sandbox.mode(KeyValueRepo, {:shared, self()})
@@ -162,6 +175,26 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
     assert_receive :chunk_applied, 10_000
     assert_receive :watermark_updated, 10_000
+  end
+
+  test "poller uses shared database time for lag filtering" do
+    parent = self()
+
+    stub(KeyValueEntries, :distributed_watermark, fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
+
+    stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
+
+    expect(Repo, :all, fn %Ecto.Query{} = query, _opts ->
+      {sql, _params} = Ecto.Adapters.SQL.to_sql(:all, Repo, query)
+      assert sql =~ "clock_timestamp()"
+      assert sql =~ "1 millisecond"
+      send(parent, :poll_query_seen)
+      []
+    end)
+
+    start_supervised!(KeyValueReplicationPoller)
+
+    assert_receive :poll_query_seen, 10_000
   end
 
   test "throttles local store size measurement across repeated polls" do
@@ -497,5 +530,13 @@ defmodule Cache.KeyValueReplicationPollerTest do
       },
       overrides
     )
+  end
+
+  defp ensure_distributed_repo_storage! do
+    case Repo.__adapter__().storage_up(Repo.config()) do
+      :ok -> :ok
+      {:error, :already_up} -> :ok
+      {:error, reason} -> raise "failed to create distributed KV test database: #{inspect(reason)}"
+    end
   end
 end

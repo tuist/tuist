@@ -2,11 +2,14 @@ defmodule Cache.DistributedKV.CleanupTest do
   use ExUnit.Case, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Cache.Config
   alias Cache.DistributedKV.Cleanup
   alias Cache.DistributedKV.Entry
   alias Cache.DistributedKV.Project
   alias Cache.DistributedKV.Repo
+  alias Ecto.Adapters.SQL
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
@@ -64,6 +67,24 @@ defmodule Cache.DistributedKV.CleanupTest do
     assert 1 == Repo.aggregate(Project, :count)
   end
 
+  test "begin_project_cleanup uses shared database time for lease acquisition" do
+    cleanup_started_at = ~U[2026-03-12 12:00:00.123456Z]
+
+    expect(Repo, :insert_all, fn Project, %Ecto.Query{} = insert_query, opts ->
+      {insert_sql, _params} = SQL.to_sql(:all, Repo, insert_query)
+      {conflict_sql, _params} = SQL.to_sql(:update_all, Repo, opts[:on_conflict])
+
+      assert insert_sql =~ "clock_timestamp()"
+      assert conflict_sql =~ "clock_timestamp()"
+      assert opts[:conflict_target] == [:account_handle, :project_handle]
+      assert opts[:returning] == [:last_cleanup_at]
+
+      {1, [%{last_cleanup_at: cleanup_started_at}]}
+    end)
+
+    assert {:ok, ^cleanup_started_at} = Cleanup.begin_project_cleanup("acme", "ios")
+  end
+
   test "expired cleanup leases get a fresh cutoff" do
     stale_cutoff = DateTime.add(DateTime.utc_now(), -120, :second)
     stale_lease = DateTime.add(DateTime.utc_now(), -60, :second)
@@ -118,6 +139,20 @@ defmodule Cache.DistributedKV.CleanupTest do
     })
 
     assert {:error, :cleanup_lease_lost} = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
+  end
+
+  test "renew_project_cleanup_lease uses shared database time for lease checks" do
+    cutoff = ~U[2026-03-12 12:00:00.123456Z]
+
+    expect(Repo, :update_all, fn %Ecto.Query{} = query, updates ->
+      update_query = from(project in query, update: ^updates)
+      {sql, _params} = SQL.to_sql(:update_all, Repo, update_query)
+
+      assert sql =~ "clock_timestamp()"
+      {1, nil}
+    end)
+
+    assert :ok = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
   end
 
   test "latest_project_cleanup_cutoffs matches only the requested project pairs" do
