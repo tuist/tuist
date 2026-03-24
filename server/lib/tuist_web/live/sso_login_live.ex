@@ -28,14 +28,13 @@ defmodule TuistWeb.SSOLoginLive do
       {:ok, organization} ->
         encoded_email = URI.encode_www_form(email)
 
-        redirect_url =
+        provider_path =
           case organization.sso_provider do
-            :okta ->
-              "/users/auth/okta?organization_id=#{organization.id}&login_hint=#{encoded_email}"
-
-            :custom_oauth2 ->
-              "/users/auth/custom_oauth2?organization_id=#{organization.id}&login_hint=#{encoded_email}"
+            :okta -> "okta"
+            :oauth2 -> "custom_oauth2"
           end
+
+        redirect_url = "/users/auth/#{provider_path}?organization_id=#{organization.id}&login_hint=#{encoded_email}"
 
         {:noreply, redirect(socket, to: redirect_url)}
 

@@ -27,7 +27,7 @@ defmodule TuistWeb.UserOktaLoginLive do
   def handle_event("submit", %{"user" => %{"email" => email}}, socket) do
     email = String.trim(email)
 
-    case Accounts.okta_organization_for_user_email(email) do
+    case Accounts.sso_organization_for_user_email(email) do
       {:ok, organization} ->
         redirect_url = "/users/auth/okta?organization_id=#{organization.id}"
         {:noreply, redirect(socket, external: redirect_url)}

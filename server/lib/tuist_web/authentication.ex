@@ -347,7 +347,7 @@ defmodule TuistWeb.Authentication do
   defp sso_provider_path(%{id: organization_id, sso_provider: :okta}),
     do: ~p"/users/auth/okta?organization_id=#{organization_id}"
 
-  defp sso_provider_path(%{id: organization_id, sso_provider: :custom_oauth2}),
+  defp sso_provider_path(%{id: organization_id, sso_provider: :oauth2}),
     do: ~p"/users/auth/custom_oauth2?organization_id=#{organization_id}"
 
   def require_authenticated_user_for_private_projects(

@@ -101,7 +101,7 @@ msgstr ""
 msgid "Connection successful"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:88
+#: lib/tuist_web/live/sso_login_live.ex:96
 #: lib/tuist_web/live/user_okta_login_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Contact us"
@@ -127,7 +127,7 @@ msgstr ""
 msgid "Don't have an account?"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:71
+#: lib/tuist_web/live/sso_login_live.ex:79
 #: lib/tuist_web/live/user_forgot_password_live.ex:54
 #: lib/tuist_web/live/user_login_live.ex:138
 #: lib/tuist_web/live/user_okta_login_live.ex:74
@@ -176,7 +176,7 @@ msgstr ""
 msgid "Instantly share your app using a URL."
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:83
+#: lib/tuist_web/live/sso_login_live.ex:91
 #: lib/tuist_web/live/user_okta_login_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "Interested in SSO?"
@@ -187,7 +187,7 @@ msgstr ""
 msgid "Keep me logged in"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:79
+#: lib/tuist_web/live/sso_login_live.ex:87
 #: lib/tuist_web/live/user_login_live.ex:17
 #: lib/tuist_web/live/user_login_live.ex:176
 #: lib/tuist_web/live/user_okta_login_live.ex:82
@@ -196,20 +196,19 @@ msgstr ""
 msgid "Log in"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:54
+#: lib/tuist_web/live/sso_login_live.ex:62
 #: lib/tuist_web/live/user_login_live.ex:48
 #: lib/tuist_web/live/user_okta_login_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:56
 #: lib/tuist_web/live/user_okta_login_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via Okta"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:56
+#: lib/tuist_web/live/sso_login_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Log in to your enterprise account via SSO"
 msgstr ""
@@ -229,7 +228,7 @@ msgstr ""
 msgid "Next steps"
 msgstr ""
 
-#: lib/tuist_web/live/sso_login_live.ex:34
+#: lib/tuist_web/live/sso_login_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "No SSO organization found for this email"
 msgstr ""
@@ -310,7 +309,7 @@ msgstr ""
 
 #: lib/tuist_web/live/choose_username_live.ex:42
 #: lib/tuist_web/live/device_codes_success_live.ex:28
-#: lib/tuist_web/live/sso_login_live.ex:46
+#: lib/tuist_web/live/sso_login_live.ex:54
 #: lib/tuist_web/live/user_confirmation_live.ex:18
 #: lib/tuist_web/live/user_forgot_password_live.ex:23
 #: lib/tuist_web/live/user_login_live.ex:40

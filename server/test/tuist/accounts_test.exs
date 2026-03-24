@@ -24,14 +24,6 @@ defmodule Tuist.AccountsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
-    stub(JOSE.JWT, :peek_payload, fn _ ->
-      %JOSE.JWT{
-        fields: %{
-          "iss" => "https://tuist.okta.com"
-        }
-      }
-    end)
-
     :ok
   end
 
@@ -373,12 +365,7 @@ defmodule Tuist.AccountsTest do
           },
           extra: %{
             raw_info: %{
-              user: %{},
-              token: %OAuth2.AccessToken{
-                other_params: %{
-                  "id_token" => "jwt-token"
-                }
-              }
+              provider_organization_id: "tuist.okta.com"
             }
           }
         })
@@ -386,7 +373,9 @@ defmodule Tuist.AccountsTest do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: "tuist.okta.com",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
       # When
@@ -446,7 +435,9 @@ defmodule Tuist.AccountsTest do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: "tuist.io",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
       # When
@@ -659,135 +650,123 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "update_okta_configuration/2" do
-    test "updates Okta configuration for an existing organization" do
-      # Given
+  describe "update_sso_configuration/3" do
+    test "updates Okta SSO configuration using shared fields" do
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
 
-      # When
       result =
-        Accounts.update_okta_configuration(organization.id, %{
-          okta_client_id: "test_client_id",
-          okta_client_secret: "test_secret",
-          sso_organization_id: "https://test.okta.com"
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_secret",
+          sso_organization_id: "test.okta.com",
+          oauth2_authorize_url: "https://test.okta.com/oauth2/v1/authorize",
+          oauth2_token_url: "https://test.okta.com/oauth2/v1/token",
+          oauth2_user_info_url: "https://test.okta.com/oauth2/v1/userinfo"
         })
 
-      # Then
       assert {:ok, updated_org} = result
-      assert updated_org.okta_client_id == "test_client_id"
+      assert updated_org.oauth2_client_id == "test_client_id"
       assert updated_org.sso_provider == :okta
-      assert updated_org.sso_organization_id == "https://test.okta.com"
-      # Check that the secret is stored (encrypted)
-      assert updated_org.okta_encrypted_client_secret
+      assert updated_org.sso_organization_id == "test.okta.com"
+      assert updated_org.oauth2_encrypted_client_secret
     end
 
     test "encrypts the client secret when storing" do
-      # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
       plain_secret = "my_super_secret_key"
 
-      # When
       {:ok, updated_org} =
-        Accounts.update_okta_configuration(organization.id, %{
-          okta_client_id: "test_client_id",
-          okta_client_secret: plain_secret,
-          sso_organization_id: "https://test.okta.com"
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: plain_secret,
+          sso_organization_id: "test.okta.com",
+          oauth2_authorize_url: "https://test.okta.com/oauth2/v1/authorize",
+          oauth2_token_url: "https://test.okta.com/oauth2/v1/token",
+          oauth2_user_info_url: "https://test.okta.com/oauth2/v1/userinfo"
         })
 
-      # Then
-      # Verify the secret was stored
-      assert updated_org.okta_encrypted_client_secret
-      # Reload from database to ensure we're testing the persisted value
+      assert updated_org.oauth2_encrypted_client_secret
       {:ok, reloaded_org} = Accounts.get_organization_by_id(updated_org.id)
-
-      # The Vault.Binary type should automatically decrypt when loaded
-      # so we should get back the original plain text
-      assert reloaded_org.okta_encrypted_client_secret == plain_secret
+      assert reloaded_org.oauth2_encrypted_client_secret == plain_secret
     end
 
     test "returns error when organization doesn't exist" do
-      # When
       result =
-        Accounts.update_okta_configuration(999_999, %{
-          okta_client_id: "test_client_id"
+        Accounts.update_sso_configuration(999_999, :okta, %{
+          oauth2_client_id: "test_client_id"
         })
 
-      # Then
       assert result == {:error, :not_found}
     end
 
-    test "automatically sets sso_provider to okta" do
-      # Given
+    test "automatically sets sso_provider" do
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user, sso_provider: :google)
 
-      # When - update Okta configuration
       {:ok, updated_org} =
-        Accounts.update_okta_configuration(organization.id, %{
-          okta_client_id: "test_client_id"
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_secret",
+          sso_organization_id: "test.okta.com",
+          oauth2_authorize_url: "https://test.okta.com/oauth2/v1/authorize",
+          oauth2_token_url: "https://test.okta.com/oauth2/v1/token",
+          oauth2_user_info_url: "https://test.okta.com/oauth2/v1/userinfo"
         })
 
-      # Then - sso_provider should be changed to :okta
       assert updated_org.sso_provider == :okta
     end
 
     test "can update partial Okta configuration" do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: user,
-          okta_client_id: "old_client_id",
-          sso_organization_id: "https://old.okta.com",
+          oauth2_client_id: "old_client_id",
+          oauth2_client_secret: "old_secret",
+          sso_organization_id: "old.okta.com",
           sso_provider: :okta
         )
 
-      # When - update only the client ID
       {:ok, updated_org} =
-        Accounts.update_okta_configuration(organization.id, %{
-          okta_client_id: "new_client_id"
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_id: "new_client_id"
         })
 
-      # Then
-      assert updated_org.okta_client_id == "new_client_id"
-      # unchanged
-      assert updated_org.sso_organization_id == "https://old.okta.com"
-      # still okta
+      assert updated_org.oauth2_client_id == "new_client_id"
+      assert updated_org.sso_organization_id == "old.okta.com"
       assert updated_org.sso_provider == :okta
     end
-  end
 
-  describe "update_custom_oauth2_configuration/2" do
     test "updates custom OAuth2 configuration for an existing organization" do
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
 
       assert {:ok, updated_org} =
-               Accounts.update_custom_oauth2_configuration(organization.id, %{
-                 custom_oauth2_client_id: "test_client_id",
-                 custom_oauth2_client_secret: "test_secret",
-                 custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-                 custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
-                 custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo",
+               Accounts.update_sso_configuration(organization.id, :oauth2, %{
+                 oauth2_client_id: "test_client_id",
+                 oauth2_client_secret: "test_secret",
+                 oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+                 oauth2_token_url: "https://auth.example.com/oauth2/token",
+                 oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo",
                  sso_organization_id: "https://auth.example.com/"
                })
 
-      assert updated_org.custom_oauth2_client_id == "test_client_id"
-      assert updated_org.custom_oauth2_authorize_url == "https://auth.example.com/oauth2/authorize"
-      assert updated_org.custom_oauth2_token_url == "https://auth.example.com/oauth2/token"
-      assert updated_org.custom_oauth2_user_info_url == "https://auth.example.com/oauth2/userinfo"
-      assert updated_org.custom_oauth2_encrypted_client_secret
-      assert updated_org.sso_provider == :custom_oauth2
+      assert updated_org.oauth2_client_id == "test_client_id"
+      assert updated_org.oauth2_authorize_url == "https://auth.example.com/oauth2/authorize"
+      assert updated_org.oauth2_token_url == "https://auth.example.com/oauth2/token"
+      assert updated_org.oauth2_user_info_url == "https://auth.example.com/oauth2/userinfo"
+      assert updated_org.oauth2_encrypted_client_secret
+      assert updated_org.sso_provider == :oauth2
       assert updated_org.sso_organization_id == "https://auth.example.com"
     end
 
-    test "returns error when organization doesn't exist" do
+    test "returns error for custom_oauth2 when organization doesn't exist" do
       result =
-        Accounts.update_custom_oauth2_configuration(999_999, %{
-          custom_oauth2_client_id: "test_client_id"
+        Accounts.update_sso_configuration(999_999, :oauth2, %{
+          oauth2_client_id: "test_client_id"
         })
 
       assert result == {:error, :not_found}
@@ -797,13 +776,13 @@ defmodule Tuist.AccountsTest do
   describe "CustomOAuth2.config_for_organization/1" do
     test "returns config for a custom OAuth2 organization" do
       organization = %Organization{
-        sso_provider: :custom_oauth2,
-        sso_organization_id: "https://auth.example.com/",
-        custom_oauth2_client_id: "test_client_id",
-        custom_oauth2_encrypted_client_secret: "test_client_secret",
-        custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-        custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
-        custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+        sso_provider: :oauth2,
+        sso_organization_id: "https://auth.example.com",
+        oauth2_client_id: "test_client_id",
+        oauth2_encrypted_client_secret: "test_client_secret",
+        oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+        oauth2_token_url: "https://auth.example.com/oauth2/token",
+        oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
       }
 
       assert {:ok, config} = CustomOAuth2.config_for_organization(organization)
@@ -817,13 +796,35 @@ defmodule Tuist.AccountsTest do
       assert config.user_info_url == "https://auth.example.com/oauth2/userinfo"
     end
 
-    test "returns error for a non-custom OAuth2 organization" do
+    test "returns config for an Okta organization using shared fields" do
       organization = %Organization{
         sso_provider: :okta,
-        sso_organization_id: "dev-example.okta.com"
+        sso_organization_id: "dev-example.okta.com",
+        oauth2_client_id: "test_client_id",
+        oauth2_encrypted_client_secret: "test_client_secret",
+        oauth2_authorize_url: "https://dev-example.okta.com/oauth2/v1/authorize",
+        oauth2_token_url: "https://dev-example.okta.com/oauth2/v1/token",
+        oauth2_user_info_url: "https://dev-example.okta.com/oauth2/v1/userinfo"
       }
 
-      assert {:error, :custom_oauth2_not_configured} =
+      assert {:ok, config} = CustomOAuth2.config_for_organization(organization)
+
+      assert config.site == "https://dev-example.okta.com"
+      assert config.provider_organization_id == "dev-example.okta.com"
+      assert config.client_id == "test_client_id"
+      assert config.client_secret == "test_client_secret"
+      assert config.authorize_url == "https://dev-example.okta.com/oauth2/v1/authorize"
+      assert config.token_url == "https://dev-example.okta.com/oauth2/v1/token"
+      assert config.user_info_url == "https://dev-example.okta.com/oauth2/v1/userinfo"
+    end
+
+    test "returns error for a non-OAuth2 organization" do
+      organization = %Organization{
+        sso_provider: :google,
+        sso_organization_id: "example.com"
+      }
+
+      assert {:error, :oauth2_not_configured} =
                CustomOAuth2.config_for_organization(organization)
     end
   end
@@ -1302,7 +1303,9 @@ defmodule Tuist.AccountsTest do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: "tuist.okta.com",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
       oauth_identity = %{
@@ -1311,12 +1314,7 @@ defmodule Tuist.AccountsTest do
         info: %{email: "okta-sso@tuist.io"},
         extra: %{
           raw_info: %{
-            user: %{},
-            token: %{
-              other_params: %{
-                "id_token" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.test"
-              }
-            }
+            provider_organization_id: "tuist.okta.com"
           }
         }
       }
@@ -1459,12 +1457,7 @@ defmodule Tuist.AccountsTest do
         },
         extra: %{
           raw_info: %{
-            user: %{},
-            token: %{
-              other_params: %{
-                "id_token" => "jwt-token"
-              }
-            }
+            provider_organization_id: "tuist.okta.com"
           }
         }
       })
@@ -2017,7 +2010,12 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: "tuist.okta.com",
+          oauth2_client_id: "client-id",
+          oauth2_encrypted_client_secret: "client-secret",
+          oauth2_authorize_url: "https://tuist.okta.com/oauth2/v1/authorize",
+          oauth2_token_url: "https://tuist.okta.com/oauth2/v1/token",
+          oauth2_user_info_url: "https://tuist.okta.com/oauth2/v1/userinfo"
         })
 
       # Then
@@ -2079,12 +2077,7 @@ defmodule Tuist.AccountsTest do
           info: %{email: "user@tuist.io"},
           extra: %{
             raw_info: %{
-              user: %{},
-              token: %{
-                other_params: %{
-                  "id_token" => "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.signature"
-                }
-              }
+              provider_organization_id: "tuist.okta.com"
             }
           }
         })
@@ -2096,7 +2089,12 @@ defmodule Tuist.AccountsTest do
       {:ok, updated_organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: "tuist.okta.com",
+          oauth2_client_id: "client-id",
+          oauth2_encrypted_client_secret: "client-secret",
+          oauth2_authorize_url: "https://tuist.okta.com/oauth2/v1/authorize",
+          oauth2_token_url: "https://tuist.okta.com/oauth2/v1/token",
+          oauth2_user_info_url: "https://tuist.okta.com/oauth2/v1/userinfo"
         })
 
       # Then
@@ -2305,12 +2303,7 @@ defmodule Tuist.AccountsTest do
           },
           extra: %{
             raw_info: %{
-              user: %{},
-              token: %{
-                other_params: %{
-                  "id_token" => "jwt-token"
-                }
-              }
+              provider_organization_id: "tuist.okta.com"
             }
           }
         })
@@ -2632,7 +2625,9 @@ defmodule Tuist.AccountsTest do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: "tuist.okta.com",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
       Accounts.add_user_to_organization(user_one, organization, role: :user)
@@ -2647,23 +2642,10 @@ defmodule Tuist.AccountsTest do
           },
           extra: %{
             raw_info: %{
-              user: %{},
-              token: %{
-                other_params: %{
-                  "id_token" => "jwt-token"
-                }
-              }
+              provider_organization_id: "tuist.okta.com"
             }
           }
         })
-
-      stub(JOSE.JWT, :peek_payload, fn _ ->
-        %JOSE.JWT{
-          fields: %{
-            "iss" => "https://different-org.okta.com"
-          }
-        }
-      end)
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :okta,
@@ -2673,12 +2655,7 @@ defmodule Tuist.AccountsTest do
         },
         extra: %{
           raw_info: %{
-            user: %{},
-            token: %{
-              other_params: %{
-                "id_token" => "different-jwt-token"
-              }
-            }
+            provider_organization_id: "different-org.okta.com"
           }
         }
       })
@@ -2760,7 +2737,9 @@ defmodule Tuist.AccountsTest do
         AccountsFixtures.organization_fixture(
           creator: user_one,
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: "tuist.okta.com",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
       # Create an SSO user
@@ -2771,10 +2750,7 @@ defmodule Tuist.AccountsTest do
           info: %{email: "okta@tuist.io"},
           extra: %{
             raw_info: %{
-              user: %{},
-              token: %{
-                other_params: %{"id_token" => "jwt-token"}
-              }
+              provider_organization_id: "tuist.okta.com"
             }
           }
         })
@@ -3263,85 +3239,44 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "okta_organization_for_user_email/1" do
+  describe "sso_organization_for_user_email/1" do
     test "returns organization when user exists and has okta organization" do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :okta,
-          sso_organization_id: "company.okta.com"
+          sso_organization_id: "company.okta.com",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
-      # When
-      {:ok, got_organization} = Accounts.okta_organization_for_user_email(user.email)
+      {:ok, got_organization} = Accounts.sso_organization_for_user_email(user.email)
 
-      # Then
       assert got_organization.id == organization.id
       assert got_organization.sso_provider == :okta
     end
 
-    test "falls back to domain-based matching when user doesn't exist" do
-      # Given - no user exists but organization exists for domain
-      AccountsFixtures.organization_fixture(
-        sso_provider: :okta,
-        sso_organization_id: "company.okta.com"
-      )
-
-      # When
-      {:ok, organization} = Accounts.okta_organization_for_user_email("newuser@company.com")
-
-      # Then
-      assert organization.sso_provider == :okta
-      assert organization.sso_organization_id == "company.okta.com"
-    end
-
-    test "falls back to domain-based matching when user has no okta organization" do
-      # Given
-      user = AccountsFixtures.user_fixture(email: "user@company.com")
-      # User has no organization
-
-      # But organization exists for domain
-      AccountsFixtures.organization_fixture(
-        sso_provider: :okta,
-        sso_organization_id: "company.okta.com"
-      )
-
-      # When
-      {:ok, organization} = Accounts.okta_organization_for_user_email(user.email)
-
-      # Then
-      assert organization.sso_provider == :okta
-      assert organization.sso_organization_id == "company.okta.com"
-    end
-
     test "returns error when user does not exist" do
-      # When / Then
       assert {:error, :not_found} ==
-               Accounts.okta_organization_for_user_email("nonexistent@example.com")
+               Accounts.sso_organization_for_user_email("nonexistent@example.com")
     end
 
-    test "returns error when user exists but has no okta organization" do
-      # Given
+    test "returns error when user exists but has no SSO organization" do
       user = AccountsFixtures.user_fixture()
 
-      # When / Then
-      assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
+      assert {:error, :not_found} == Accounts.sso_organization_for_user_email(user.email)
     end
 
     test "returns error when user has organization but no sso configured" do
-      # Given
       user = AccountsFixtures.user_fixture()
       AccountsFixtures.organization_fixture(creator: user)
 
-      # When / Then
-      assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
+      assert {:error, :not_found} == Accounts.sso_organization_for_user_email(user.email)
     end
 
     test "returns error when user has google sso instead of okta" do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       AccountsFixtures.organization_fixture(
@@ -3350,69 +3285,7 @@ defmodule Tuist.AccountsTest do
         sso_organization_id: "company.com"
       )
 
-      # When / Then
-      assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
-    end
-  end
-
-  describe "get_okta_configuration_by_organization_id/1" do
-    test "returns okta configuration when organization has okta configured with db values" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-
-      organization =
-        AccountsFixtures.organization_fixture(
-          creator: user,
-          sso_provider: :okta,
-          sso_organization_id: "company.okta.com",
-          okta_client_id: "test_client_id",
-          okta_client_secret: "test_client_secret"
-        )
-
-      # When
-      {:ok, config} = Accounts.get_okta_configuration_by_organization_id(organization.id)
-
-      # Then
-      assert config.client_id == "test_client_id"
-      assert config.client_secret == "test_client_secret"
-      assert config.site == "company.okta.com"
-    end
-
-    test "returns error when organization does not have okta configured" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-
-      organization =
-        AccountsFixtures.organization_fixture(
-          creator: user,
-          sso_provider: :google,
-          sso_organization_id: "company.com"
-        )
-
-      # When / Then
-      assert {:error, :not_found} ==
-               Accounts.get_okta_configuration_by_organization_id(organization.id)
-    end
-
-    test "returns error when organization has okta as provider but no client_id" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-
-      organization =
-        AccountsFixtures.organization_fixture(
-          creator: user,
-          sso_provider: :okta,
-          sso_organization_id: "company.okta.com"
-        )
-
-      # When / Then
-      assert {:error, :not_found} ==
-               Accounts.get_okta_configuration_by_organization_id(organization.id)
-    end
-
-    test "returns error when organization does not exist" do
-      # When / Then
-      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(999_999)
+      assert {:error, :not_found} == Accounts.sso_organization_for_user_email(user.email)
     end
   end
 
@@ -3655,25 +3528,18 @@ defmodule Tuist.AccountsTest do
       assert is_nil(result)
     end
 
-    test "extracts issuer domain for Okta provider" do
-      # Given
+    test "extracts provider_organization_id for Okta provider" do
       auth = %{
         provider: :okta,
         extra: %{
           raw_info: %{
-            token: %{
-              other_params: %{
-                "id_token" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.test"
-              }
-            }
+            provider_organization_id: "tuist.okta.com"
           }
         }
       }
 
-      # When
       result = Accounts.extract_provider_organization_id(auth)
 
-      # Then
       assert result == "tuist.okta.com"
     end
   end
