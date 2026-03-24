@@ -25,7 +25,8 @@ extension Tuist {
     func resolveCacheProfile(
         ignoreBinaryCache: Bool,
         includedTargets: Set<TargetQuery>,
-        cacheProfile: CacheProfileType?
+        cacheProfile: CacheProfileType?,
+        commandDefault: CacheProfile? = nil
     ) throws -> CacheProfile {
         if ignoreBinaryCache {
             Logger.current.debug("Using cache profile none")
@@ -38,7 +39,7 @@ extension Tuist {
         }
 
         let profiles = project.generatedProject?.cacheOptions.profiles
-        let contextualCommandDefault: CacheProfile = includedTargets.isEmpty ? .onlyExternal : .allPossible
+        let contextualCommandDefault = commandDefault ?? (includedTargets.isEmpty ? .onlyExternal : .allPossible)
         let resolvedCommandDefault: CacheProfile
         if let configDefault = profiles?.defaultProfile {
             resolvedCommandDefault = try resolveFromProfileType(

@@ -378,7 +378,7 @@ final class TestServiceTests: TuistUnitTestCase {
         givenGenerator()
         let path = try temporaryPath()
         let expectedProfile = CacheProfile(
-            base: .onlyExternal,
+            base: .allPossible,
             targetQueries: ["tag:cacheable"],
             exceptTargetQueries: ["tag:no-cache"]
         )

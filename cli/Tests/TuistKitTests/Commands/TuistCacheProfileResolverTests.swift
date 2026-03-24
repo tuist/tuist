@@ -164,12 +164,13 @@ struct TuistCacheProfileResolverTests {
         let result = try config.resolveCacheProfile(
             ignoreBinaryCache: false,
             includedTargets: [],
-            cacheProfile: nil
+            cacheProfile: nil,
+            commandDefault: .allPossible
         )
 
         // Then
         #expect(result == .init(
-            base: .onlyExternal,
+            base: .allPossible,
             targetQueries: ["tag:cacheable"],
             exceptTargetQueries: ["tag:no-cache"]
         ))
@@ -242,6 +243,22 @@ struct TuistCacheProfileResolverTests {
             targetQueries: ["tag:cacheable"],
             exceptTargetQueries: ["FirebaseFirestore"]
         ))
+    }
+
+    @Test func context_falls_back_to_all_possible_when_no_explicit_and_no_config_default() throws {
+        // Given
+        let config = Tuist.test(project: .testGeneratedProject())
+
+        // When
+        let result = try config.resolveCacheProfile(
+            ignoreBinaryCache: false,
+            includedTargets: [],
+            cacheProfile: nil,
+            commandDefault: .allPossible
+        )
+
+        // Then
+        #expect(result == .allPossible)
     }
 
     @Test func throws_when_custom_profile_missing() {

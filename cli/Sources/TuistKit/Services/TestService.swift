@@ -259,7 +259,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let resolvedCacheProfile = try config.resolveCacheProfile(
             ignoreBinaryCache: ignoreBinaryCache,
             includedTargets: [],
-            cacheProfile: nil
+            cacheProfile: nil,
+            commandDefault: .allPossible
         )
 
         let destination = try await destination(
