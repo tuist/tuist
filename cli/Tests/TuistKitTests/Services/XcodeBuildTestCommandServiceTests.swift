@@ -12,7 +12,9 @@ import TuistLoader
 import TuistSupport
 import TuistTesting
 import TuistUniqueIDGenerator
+import TuistRootDirectoryLocator
 import TuistXCActivityLog
+import TuistXCResultService
 import XcodeGraph
 
 import protocol XcodeGraphMapper.XcodeGraphMapping
