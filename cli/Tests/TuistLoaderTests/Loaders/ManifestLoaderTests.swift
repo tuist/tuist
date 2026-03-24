@@ -203,7 +203,7 @@ final class ManifestLoaderTests: TuistTestCase {
             )
         )
     }
-    
+
     func test_loadPackageBaseProductType() async throws {
         // Given
         let temporaryPath = try temporaryPath()

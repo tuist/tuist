@@ -5945,7 +5945,7 @@ struct PackageInfoMapperTests {
         let mappedTarget = try #require(project?.targets.first(where: { $0.name == "ATarget" }))
         #expect(mappedTarget.product == .framework)
     }
-    
+
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenWrapperTargetPattern_baseProductTypeUsed() async throws {
