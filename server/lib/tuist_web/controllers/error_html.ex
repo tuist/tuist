@@ -130,7 +130,7 @@ defmodule TuistWeb.ErrorHTML do
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csp-nonce" content={get_csp_nonce()} />
         <meta name="csrf-token" content={get_csrf_token()} />
-        <.live_title>{"#{@head_title || dgettext("dashboard", "Error")} · Tuist"}</.live_title>
+        <.live_title>{Tuist.Environment.title_prefix() <> "#{@head_title || dgettext("dashboard", "Error")} · Tuist"}</.live_title>
         <link phx-track-static rel="stylesheet" href={~p"/app/assets/bundle.css"} />
       </head>
       <body>
