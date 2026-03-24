@@ -31,9 +31,9 @@ struct WorkspaceDescriptorGeneratorTests {
     // MARK: - Tests
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generate_workspaceStructure() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -75,9 +75,9 @@ struct WorkspaceDescriptorGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generate_workspaceStructure_noWorkspaceData() async throws {
         // Given
         let name = "test"
@@ -99,9 +99,9 @@ struct WorkspaceDescriptorGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generate_workspaceStructureWithProjects() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -137,9 +137,9 @@ struct WorkspaceDescriptorGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateWorkspaceStructure_withSettingsDescriptorDisablingSchemaGeneration() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -161,9 +161,9 @@ struct WorkspaceDescriptorGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -185,9 +185,9 @@ struct WorkspaceDescriptorGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)

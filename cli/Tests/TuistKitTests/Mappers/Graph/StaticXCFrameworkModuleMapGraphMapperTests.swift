@@ -22,9 +22,9 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         )
     }
 
-    @Test func map_when_static_xcframework_library_linked_via_dynamic_xcframework() async throws {
+    @Test(.inTemporaryDirectory) func map_when_static_xcframework_library_linked_via_dynamic_xcframework() async throws {
         // Given
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "Project")
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -72,12 +72,12 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
             dependencies: [
                 .target(name: "App", path: projectPath): [
                     .testXCFramework(
-                        path: try temporaryPath()
+                        path: try #require(FileSystem.temporaryTestDirectory)
                             .appending(component: "DynamicFramework.xcframework")
                     ),
                 ],
                 .testXCFramework(
-                    path: try temporaryPath()
+                    path: try #require(FileSystem.temporaryTestDirectory)
                         .appending(component: "DynamicFramework.xcframework")
                 ): [
                     .testXCFramework(
@@ -152,9 +152,9 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         )
     }
 
-    @Test func map_when_static_xcframework_framework_linked_via_dynamic_xcframework() async throws {
+    @Test(.inTemporaryDirectory) func map_when_static_xcframework_framework_linked_via_dynamic_xcframework() async throws {
         // Given
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "Project")
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -187,12 +187,12 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
             dependencies: [
                 .target(name: "App", path: projectPath): [
                     .testXCFramework(
-                        path: try temporaryPath()
+                        path: try #require(FileSystem.temporaryTestDirectory)
                             .appending(component: "DynamicFramework.xcframework")
                     ),
                 ],
                 .testXCFramework(
-                    path: try temporaryPath()
+                    path: try #require(FileSystem.temporaryTestDirectory)
                         .appending(component: "DynamicFramework.xcframework")
                 ): [
                     .testXCFramework(
@@ -243,13 +243,13 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
 
     // MARK: - Regression: device vs simulator slice selection (tuist/tuist#9723)
 
-    @Test func map_when_static_xcframework_framework_with_device_and_simulator_slices(
+    @Test(.inTemporaryDirectory) func map_when_static_xcframework_framework_with_device_and_simulator_slices(
     ) async throws {
         // Given
         // An xcframework with both device (ios-arm64) and simulator (ios-arm64-simulator) slices.
         // FRAMEWORK_SEARCH_PATHS must use SDK-conditioned keys so that device and simulator
         // builds each find only the correct binary for their platform.
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "Project")
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -285,12 +285,12 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
             dependencies: [
                 .target(name: "App", path: projectPath): [
                     .testXCFramework(
-                        path: try temporaryPath()
+                        path: try #require(FileSystem.temporaryTestDirectory)
                             .appending(component: "DynamicFramework.xcframework")
                     ),
                 ],
                 .testXCFramework(
-                    path: try temporaryPath()
+                    path: try #require(FileSystem.temporaryTestDirectory)
                         .appending(component: "DynamicFramework.xcframework")
                 ): [
                     .testXCFramework(
@@ -358,9 +358,10 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         #expect(gotSideEffects.isEmpty)
     }
 
-    @Test func map_when_static_xcframework_without_umbrella_header_linked_via_dynamic_xcframework() async throws {
+    @Test(.inTemporaryDirectory) func map_when_static_xcframework_without_umbrella_header_linked_via_dynamic_xcframework(
+    ) async throws {
         // Given
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "Project")
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -401,12 +402,12 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
             dependencies: [
                 .target(name: "App", path: projectPath): [
                     .testXCFramework(
-                        path: try temporaryPath()
+                        path: try #require(FileSystem.temporaryTestDirectory)
                             .appending(component: "DynamicFramework.xcframework")
                     ),
                 ],
                 .testXCFramework(
-                    path: try temporaryPath()
+                    path: try #require(FileSystem.temporaryTestDirectory)
                         .appending(component: "DynamicFramework.xcframework")
                 ): [
                     .testXCFramework(
@@ -472,9 +473,10 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         )
     }
 
-    @Test func map_when_static_xcframework_linked_via_dynamic_xcframework_and_dynamic_framework() async throws {
+    @Test(.inTemporaryDirectory) func map_when_static_xcframework_linked_via_dynamic_xcframework_and_dynamic_framework(
+    ) async throws {
         // Given
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "Project")
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -526,12 +528,12 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
                     path: projectPath
                 ): [
                     .testXCFramework(
-                        path: try temporaryPath()
+                        path: try #require(FileSystem.temporaryTestDirectory)
                             .appending(component: "DynamicFrameworkTwo.xcframework")
                     ),
                 ],
                 .testXCFramework(
-                    path: try temporaryPath()
+                    path: try #require(FileSystem.temporaryTestDirectory)
                         .appending(component: "DynamicFrameworkTwo.xcframework")
                 ): [
                     .testXCFramework(
@@ -598,7 +600,8 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         #expect(expectedGraph == gotGraph)
     }
 
-    @Test func map_when_static_xcframework_linked_via_cached_dynamic_xcframework_at_different_path() async throws {
+    @Test(.inTemporaryDirectory) func map_when_static_xcframework_linked_via_cached_dynamic_xcframework_at_different_path(
+    ) async throws {
         // Given
         // Simulating the scenario where:
         // - App project is at AllInOneTests/
@@ -608,7 +611,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         // When a framework target gets cached, it becomes an xcframework at a different path.
         // The bug is that HEADER_SEARCH_PATHS for the App target gets calculated relative to
         // the cached xcframework's path instead of relative to the App project's path.
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let appProjectPath = basePath.appending(component: "AllInOneTests")
         let cachedXCFrameworkPath = basePath.appending(
             components: ".cache",
@@ -754,10 +757,12 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         )
     }
 
-    @Test func map_when_static_framework_xcframework_linked_via_cached_dynamic_xcframework_at_different_path() async throws {
+    @Test(
+        .inTemporaryDirectory
+    ) func map_when_static_framework_xcframework_linked_via_cached_dynamic_xcframework_at_different_path() async throws {
         // Given
         // Same scenario but with a .framework bundle (FRAMEWORK_SEARCH_PATHS) instead of .a library
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let appProjectPath = basePath.appending(component: "AllInOneTests")
         let cachedXCFrameworkPath = basePath.appending(
             components: ".cache",
@@ -855,7 +860,9 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         #expect(gotSideEffects.isEmpty)
     }
 
-    @Test func map_when_static_xcframework_linked_via_dynamic_xcframework_with_multiple_app_targets_in_different_projects(
+    @Test(
+        .inTemporaryDirectory
+    ) func map_when_static_xcframework_linked_via_dynamic_xcframework_with_multiple_app_targets_in_different_projects(
     ) async throws {
         // Given
         // This test verifies that when multiple app targets in different projects depend on the same
@@ -866,7 +873,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         // - Project2/App2 -> CachedFramework.xcframework (dynamic) -> GoogleMaps.xcframework (static)
         //
         // The paths should be calculated relative to each project, not mixed up.
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let project1Path = basePath.appending(component: "Project1")
         let project2Path = basePath.appending(components: "deeply", "nested", "Project2")
         let cachedXCFrameworkPath = basePath.appending(
@@ -1015,7 +1022,8 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         #expect(expectedGraph == gotGraph)
     }
 
-    @Test func map_when_static_xcframework_linked_via_target_with_dynamic_xcframework_dependency() async throws {
+    @Test(.inTemporaryDirectory) func map_when_static_xcframework_linked_via_target_with_dynamic_xcframework_dependency(
+    ) async throws {
         // Given
         // This test reproduces a scenario where:
         // - App (at Project/) depends on CachedFramework target (at .cache/.../HASH/)
@@ -1025,7 +1033,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         // Both App and CachedFramework should find GoogleMaps through DynamicHelper.
         // CachedFramework's settings would be calculated relative to .cache/.../HASH/.
         // If those settings propagate to App without recalculation, we get wrong paths.
-        let basePath = try temporaryPath()
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
         let appProjectPath = basePath.appending(component: "Project")
         let cachedFrameworkProjectPath = basePath.appending(components: ".cache", "tuist", "Binaries", "HASH")
         let dynamicHelperXCFrameworkPath = basePath.appending(components: "Frameworks", "DynamicHelper.xcframework")
@@ -1135,9 +1143,10 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         )
     }
 
-    @Test func map_when_static_xcframework_library_linked_via_dynamic_xcframework_without_package_manifest() async throws {
+    @Test(.inTemporaryDirectory) func map_when_static_xcframework_library_linked_via_dynamic_xcframework_without_package_manifest(
+    ) async throws {
         // Given
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "Project")
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -1183,12 +1192,12 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
             dependencies: [
                 .target(name: "App", path: projectPath): [
                     .testXCFramework(
-                        path: try temporaryPath()
+                        path: try #require(FileSystem.temporaryTestDirectory)
                             .appending(component: "DynamicFramework.xcframework")
                     ),
                 ],
                 .testXCFramework(
-                    path: try temporaryPath()
+                    path: try #require(FileSystem.temporaryTestDirectory)
                         .appending(component: "DynamicFramework.xcframework")
                 ): [
                     .testXCFramework(
@@ -1263,9 +1272,11 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         )
     }
 
-    @Test func map_when_static_xcframework_framework_linked_via_dynamic_xcframework_without_package_manifest() async throws {
+    @Test(
+        .inTemporaryDirectory
+    ) func map_when_static_xcframework_framework_linked_via_dynamic_xcframework_without_package_manifest() async throws {
         // Given
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "Project")
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -1296,12 +1307,12 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
             dependencies: [
                 .target(name: "App", path: projectPath): [
                     .testXCFramework(
-                        path: try temporaryPath()
+                        path: try #require(FileSystem.temporaryTestDirectory)
                             .appending(component: "DynamicFramework.xcframework")
                     ),
                 ],
                 .testXCFramework(
-                    path: try temporaryPath()
+                    path: try #require(FileSystem.temporaryTestDirectory)
                         .appending(component: "DynamicFramework.xcframework")
                 ): [
                     .testXCFramework(
@@ -1350,9 +1361,9 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         #expect(gotSideEffects.isEmpty)
     }
 
-    @Test func map_when_static_xcframework_linked_via_static_xcframework() async throws {
+    @Test(.inTemporaryDirectory) func map_when_static_xcframework_linked_via_static_xcframework() async throws {
         // Given
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "Project")
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -1379,13 +1390,13 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
             dependencies: [
                 .target(name: "App", path: projectPath): [
                     .testXCFramework(
-                        path: try temporaryPath()
+                        path: try #require(FileSystem.temporaryTestDirectory)
                             .appending(component: "StaticXCFramework.xcframework"),
                         linking: .static
                     ),
                 ],
                 .testXCFramework(
-                    path: try temporaryPath()
+                    path: try #require(FileSystem.temporaryTestDirectory)
                         .appending(component: "StaticXCFramework.xcframework")
                 ): [
                     .testXCFramework(

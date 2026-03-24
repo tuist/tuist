@@ -36,9 +36,9 @@ struct InstallServiceTests {
         )
     }
 
-    @Test func run_when_updating_dependencies() async throws {
+    @Test(.inTemporaryDirectory) func run_when_updating_dependencies() async throws {
         // Given
-        let stubbedPath = try temporaryPath()
+        let stubbedPath = try #require(FileSystem.temporaryTestDirectory)
         let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
 
         given(manifestFilesLocator)
@@ -118,9 +118,9 @@ struct InstallServiceTests {
         #expect(invokedConfig == config.project.generatedProject)
     }
 
-    @Test func run_when_installing_dependencies() async throws {
+    @Test(.inTemporaryDirectory) func run_when_installing_dependencies() async throws {
         // Given
-        let stubbedPath = try temporaryPath()
+        let stubbedPath = try #require(FileSystem.temporaryTestDirectory)
         let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
 
         given(manifestFilesLocator)
@@ -169,9 +169,9 @@ struct InstallServiceTests {
         #expect(savedPackageResolvedContents == "resolved")
     }
 
-    @Test func run_when_installing_dependencies_passing_additional_arguments() async throws {
+    @Test(.inTemporaryDirectory) func run_when_installing_dependencies_passing_additional_arguments() async throws {
         // Given
-        let stubbedPath = try temporaryPath()
+        let stubbedPath = try #require(FileSystem.temporaryTestDirectory)
         let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
 
         given(manifestFilesLocator)
@@ -220,9 +220,9 @@ struct InstallServiceTests {
         #expect(savedPackageResolvedContents == "resolved")
     }
 
-    @Test func install_when_from_a_tuist_project_directory() async throws {
+    @Test(.inTemporaryDirectory) func install_when_from_a_tuist_project_directory() async throws {
         // Given
-        let temporaryDirectory = try temporaryPath()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let expectedFoundPackageLocation = temporaryDirectory.appending(
             components: Constants.tuistDirectoryName, Manifest.package.fileName(temporaryDirectory)
         )
@@ -264,9 +264,9 @@ struct InstallServiceTests {
         #expect(savedPackageResolvedContents == "resolved")
     }
 
-    @Test func resolve_with_spm_arguments_from_config() async throws {
+    @Test(.inTemporaryDirectory) func resolve_with_spm_arguments_from_config() async throws {
         // Given
-        let stubbedPath = try temporaryPath()
+        let stubbedPath = try #require(FileSystem.temporaryTestDirectory)
 
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -314,9 +314,9 @@ struct InstallServiceTests {
             .called(1)
     }
 
-    @Test func update_with_spm_arguments_from_config() async throws {
+    @Test(.inTemporaryDirectory) func update_with_spm_arguments_from_config() async throws {
         // Given
-        let stubbedPath = try temporaryPath()
+        let stubbedPath = try #require(FileSystem.temporaryTestDirectory)
 
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)
@@ -364,9 +364,9 @@ struct InstallServiceTests {
             .called(0)
     }
 
-    @Test func update_with_config_and_passthrough_arguments() async throws {
+    @Test(.inTemporaryDirectory) func update_with_config_and_passthrough_arguments() async throws {
         // Given
-        let stubbedPath = try temporaryPath()
+        let stubbedPath = try #require(FileSystem.temporaryTestDirectory)
 
         given(manifestFilesLocator)
             .locatePackageManifest(at: .any)

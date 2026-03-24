@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -314,8 +315,8 @@ struct RunCommandServiceTests {
     }
 
     @Test(
-        .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedDependencies()
     )
     func run_throws_beforeBuilding_if_cantRunTarget() async throws {
         // Given
@@ -405,8 +406,8 @@ struct RunCommandServiceTests {
     }
 
     @Test(
-        .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedDependencies()
     )
     func run_share_link_runs_app() async throws {
         // Given
@@ -460,8 +461,8 @@ struct RunCommandServiceTests {
     }
 
     @Test(
-        .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedDependencies()
     )
     func run_preview_with_specifier_runs_app() async throws {
         // Given
@@ -581,8 +582,8 @@ struct RunCommandServiceTests {
     }
 
     @Test(
-        .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedDependencies()
     )
     func run_share_link_runs_ipa() async throws {
         // Given
@@ -639,8 +640,8 @@ struct RunCommandServiceTests {
     }
 
     @Test(
-        .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedDependencies()
     )
     func run_preview_link_android_app() async throws {
         // Given
@@ -709,8 +710,8 @@ struct RunCommandServiceTests {
     }
 
     @Test(
-        .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedDependencies()
     )
     func run_preview_link_android_app_no_package_name() async throws {
         // Given
@@ -765,8 +766,8 @@ struct RunCommandServiceTests {
     }
 
     @Test(
-        .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedDependencies()
     )
     func run_preview_link_android_apk_not_in_archive() async throws {
         // Given
@@ -886,8 +887,8 @@ struct RunCommandServiceTests {
     }
 
     @Test(
-        .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedDependencies()
     )
     func run_share_link_runs_with_destination_and_version() async throws {
         // Given

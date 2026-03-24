@@ -56,9 +56,9 @@ struct CleanServiceTests {
         )
     }
 
-    @Test func run_with_category_cleans_category() async throws {
+    @Test(.inTemporaryDirectory) func run_with_category_cleans_category() async throws {
         // Given
-        let rootDirectory = try temporaryPath()
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
         let cachePaths = try await createFiles([
             "tuist/Manifests/manifest.json", "tuist/ProjectDescriptionHelpers/File.swift",
         ])
@@ -91,9 +91,9 @@ struct CleanServiceTests {
         #expect(cachePathsExists[1])
     }
 
-    @Test func run_with_dependencies_cleans_dependencies() async throws {
+    @Test(.inTemporaryDirectory) func run_with_dependencies_cleans_dependencies() async throws {
         // Given
-        let rootDirectory = try temporaryPath()
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
         let localPaths = try await createFiles([
             "Tuist/.build/file", "Tuist/ProjectDescriptionHelpers/File.swift",
         ])
@@ -128,9 +128,9 @@ struct CleanServiceTests {
         #expect(localPathsExists[1])
     }
 
-    @Test func run_with_dependencies_cleans_dependencies_when_package_is_in_root() async throws {
+    @Test(.inTemporaryDirectory) func run_with_dependencies_cleans_dependencies_when_package_is_in_root() async throws {
         // Given
-        let rootDirectory = try temporaryPath()
+        let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
         let localPaths = try await createFiles([
             ".build/file", "Tuist/ProjectDescriptionHelpers/file",
         ])
@@ -165,7 +165,7 @@ struct CleanServiceTests {
         #expect(localPathsExists[1])
     }
 
-    @Test func run_without_category_cleans_all() async throws {
+    @Test(.inTemporaryDirectory) func run_without_category_cleans_all() async throws {
         // Given
         let cachePaths = try await createFiles(["tuist/Manifests/hash"])
 
@@ -173,7 +173,7 @@ struct CleanServiceTests {
             .cacheDirectory(for: .any)
             .willReturn(cachePaths[0].parentDirectory)
 
-        let projectPath = try temporaryPath()
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         given(rootDirectoryLocator)
             .locate(from: .any)
             .willReturn(projectPath)
@@ -206,7 +206,7 @@ struct CleanServiceTests {
         #expect(!swiftPackageManagerBuildFileExists)
     }
 
-    @Test func run_with_remote_legacy() async throws {
+    @Test(.inTemporaryDirectory) func run_with_remote_legacy() async throws {
         try await withMockedEnvironment {
             try await withMockedDependencies {
                 Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
@@ -235,9 +235,9 @@ struct CleanServiceTests {
 
                 given(cacheDirectoriesProvider)
                     .cacheDirectory(for: .any)
-                    .willReturn(try temporaryPath())
+                    .willReturn(try #require(FileSystem.temporaryTestDirectory))
 
-                let projectPath = try temporaryPath()
+                let projectPath = try #require(FileSystem.temporaryTestDirectory)
                 given(rootDirectoryLocator)
                     .locate(from: .any)
                     .willReturn(projectPath)
@@ -261,7 +261,7 @@ struct CleanServiceTests {
         }
     }
 
-    @Test func run_with_remote() async throws {
+    @Test(.inTemporaryDirectory) func run_with_remote() async throws {
         try await withMockedEnvironment {
             try await withMockedDependencies {
                 Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "0"
@@ -298,9 +298,9 @@ struct CleanServiceTests {
 
                 given(cacheDirectoriesProvider)
                     .cacheDirectory(for: .any)
-                    .willReturn(try temporaryPath())
+                    .willReturn(try #require(FileSystem.temporaryTestDirectory))
 
-                let projectPath = try temporaryPath()
+                let projectPath = try #require(FileSystem.temporaryTestDirectory)
                 given(rootDirectoryLocator)
                     .locate(from: .any)
                     .willReturn(projectPath)

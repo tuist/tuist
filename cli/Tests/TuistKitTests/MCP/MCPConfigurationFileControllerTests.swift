@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import SwiftyJSON
@@ -32,8 +33,8 @@ struct MCPConfigurationFileControllerTests {
     }
 
     @Test(
-        .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedDependencies()
     ) func update_modifiesAnExistingConfiguration_when_itExists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -53,8 +54,8 @@ struct MCPConfigurationFileControllerTests {
     }
 
     @Test(
-        .withMockedDependencies(),
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedDependencies()
     ) func update_overridesAnExistingTuistServerConfiguration_when_itExists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

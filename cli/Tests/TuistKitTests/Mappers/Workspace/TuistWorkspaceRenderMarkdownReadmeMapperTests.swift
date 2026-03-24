@@ -10,10 +10,8 @@ import XcodeGraph
 
 struct TuistWorkspaceRenderMarkdownReadmeMapperTests {
     private var subject: TuistWorkspaceRenderMarkdownReadmeMapper!
-    private var workspaceDirectory: AbsolutePath!
 
-    init() throws {
-        workspaceDirectory = try temporaryPath()
+    init() {
         subject = .init()
     }
 

@@ -26,7 +26,7 @@ struct ListServiceTests {
         )
     }
 
-    @Test func lists_available_templates_table_format() async throws {
+    @Test(.inTemporaryDirectory) func lists_available_templates_table_format() async throws {
         try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate"]
@@ -39,7 +39,7 @@ struct ListServiceTests {
 
             given(templatesDirectoryLocator)
                 .templateDirectories(at: .any)
-                .willReturn(try expectedTemplates.map(temporaryPath().appending))
+                .willReturn(try expectedTemplates.map(#require(FileSystem.temporaryTestDirectory).appending))
 
             given(templateLoader)
                 .loadTemplate(at: .any, plugins: .any)
@@ -55,7 +55,7 @@ struct ListServiceTests {
         }
     }
 
-    @Test func lists_available_templates_json_format() async throws {
+    @Test(.inTemporaryDirectory) func lists_available_templates_json_format() async throws {
         try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate"]
@@ -74,7 +74,7 @@ struct ListServiceTests {
 
             given(templatesDirectoryLocator)
                 .templateDirectories(at: .any)
-                .willReturn(try expectedTemplates.map(temporaryPath().appending))
+                .willReturn(try expectedTemplates.map(#require(FileSystem.temporaryTestDirectory).appending))
 
             given(templateLoader)
                 .loadTemplate(at: .any, plugins: .any)
@@ -90,7 +90,7 @@ struct ListServiceTests {
         }
     }
 
-    @Test func lists_available_templates_with_plugins() async throws {
+    @Test(.inTemporaryDirectory) func lists_available_templates_with_plugins() async throws {
         try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]
@@ -102,14 +102,14 @@ struct ListServiceTests {
             pluginTemplate  description
             """
 
-            let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
+            let pluginTemplatePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "PluginTemplate")
             pluginService.loadPluginsStub = { _ in
                 Plugins.test(templatePaths: [pluginTemplatePath])
             }
 
             given(templatesDirectoryLocator)
                 .templateDirectories(at: .any)
-                .willReturn(try expectedTemplates.map(temporaryPath().appending))
+                .willReturn(try expectedTemplates.map(#require(FileSystem.temporaryTestDirectory).appending))
 
             given(templateLoader)
                 .loadTemplate(at: .any, plugins: .any)

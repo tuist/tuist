@@ -67,7 +67,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func resolveDependencies_whenProductContainsBinaryTargetWithPathToXcframework_mapsToXcframework() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
@@ -251,7 +252,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func resolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
@@ -4203,7 +4205,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenMultipleCustomSwiftVersionsAndConfiguredVersion_mapsLargestToSwiftVersionLowerThanConfigured(
     ) async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
@@ -5940,7 +5943,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenWrapperTargetPattern_usesProductNameAsModuleName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/ATarget")))
@@ -5969,7 +5973,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenWrapperTargetPattern_productTypesLookedUpByProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/ATarget")))
@@ -6002,7 +6007,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenSameNameProductAndTarget_keepsTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Foo")))
@@ -6031,7 +6037,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenWrapperTargetDependsOnBinaryTarget_keepsTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
@@ -6066,7 +6073,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenWrapperTargetDependsTransitivelyOnBinaryTarget_keepsTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
@@ -6110,7 +6118,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenTransitiveTargetMatchesProductPrefix_keepsOwnTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Sharing")))
@@ -6151,7 +6160,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenMultiTargetProduct_keepsOwnTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/FooCore")))
@@ -6184,7 +6194,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenBinaryTargetXcframeworkBaseNameMatchesProductName_keepsTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
@@ -6225,7 +6236,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenTargetNameContainsSpacesAndDefaultPathUsesUnderscores_mapsTargetSources() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
@@ -6258,7 +6270,8 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
-        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenTargetNameContainsSpaces_sanitizesBundleIdentifier() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(

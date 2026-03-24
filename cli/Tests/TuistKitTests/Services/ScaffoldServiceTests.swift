@@ -38,7 +38,7 @@ struct ScaffoldServiceTests {
         )
     }
 
-    @Test func load_template_options() async throws {
+    @Test(.inTemporaryDirectory) func load_template_options() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -55,7 +55,7 @@ struct ScaffoldServiceTests {
 
         given(templatesDirectoryLocator)
             .templateDirectories(at: .any)
-            .willReturn([try temporaryPath().appending(component: "template")])
+            .willReturn([try #require(FileSystem.temporaryTestDirectory).appending(component: "template")])
 
         let expectedOptions = (required: ["required"], optional: ["optional"])
 
@@ -70,7 +70,7 @@ struct ScaffoldServiceTests {
         #expect(options.optional == expectedOptions.optional)
     }
 
-    @Test func load_template_plugin_options() async throws {
+    @Test(.inTemporaryDirectory) func load_template_plugin_options() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -86,7 +86,7 @@ struct ScaffoldServiceTests {
             )
 
         let expectedOptions = (required: ["required"], optional: ["optional"])
-        let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
+        let pluginTemplatePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "PluginTemplate")
 
         pluginService.loadPluginsStub = { _ in
             Plugins.test(templatePaths: [pluginTemplatePath])
@@ -127,7 +127,7 @@ struct ScaffoldServiceTests {
         }
     }
 
-    @Test func fails_when_required_attribute_not_provided() async throws {
+    @Test(.inTemporaryDirectory) func fails_when_required_attribute_not_provided() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -137,7 +137,7 @@ struct ScaffoldServiceTests {
 
         given(templatesDirectoryLocator)
             .templateDirectories(at: .any)
-            .willReturn([try temporaryPath().appending(component: "template")])
+            .willReturn([try #require(FileSystem.temporaryTestDirectory).appending(component: "template")])
 
         // Then
         await #expect(throws: ScaffoldServiceError.attributeNotProvided("required")) {
@@ -145,7 +145,7 @@ struct ScaffoldServiceTests {
         }
     }
 
-    @Test func optional_attribute_is_taken_from_template() async throws {
+    @Test(.inTemporaryDirectory) func optional_attribute_is_taken_from_template() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -155,7 +155,7 @@ struct ScaffoldServiceTests {
 
         given(templatesDirectoryLocator)
             .templateDirectories(at: .any)
-            .willReturn([try temporaryPath().appending(component: "template")])
+            .willReturn([try #require(FileSystem.temporaryTestDirectory).appending(component: "template")])
 
         given(templateGenerator)
             .generate(
@@ -178,7 +178,7 @@ struct ScaffoldServiceTests {
             .called(1)
     }
 
-    @Test func optional_dictionary_attribute_is_taken_from_template() async throws {
+    @Test(.inTemporaryDirectory) func optional_dictionary_attribute_is_taken_from_template() async throws {
         // Given
         let context: Template.Attribute.Value = .dictionary([
             "key1": .string("value1"),
@@ -193,7 +193,7 @@ struct ScaffoldServiceTests {
 
         given(templatesDirectoryLocator)
             .templateDirectories(at: .any)
-            .willReturn([try temporaryPath().appending(component: "template")])
+            .willReturn([try #require(FileSystem.temporaryTestDirectory).appending(component: "template")])
 
         given(templateGenerator)
             .generate(
@@ -216,7 +216,7 @@ struct ScaffoldServiceTests {
             .called(1)
     }
 
-    @Test func optional_integer_attribute_is_taken_from_template() async throws {
+    @Test(.inTemporaryDirectory) func optional_integer_attribute_is_taken_from_template() async throws {
         // Given
         let defaultIntegerValue: Template.Attribute.Value = .integer(999)
 
@@ -228,7 +228,7 @@ struct ScaffoldServiceTests {
 
         given(templatesDirectoryLocator)
             .templateDirectories(at: .any)
-            .willReturn([try temporaryPath().appending(component: "template")])
+            .willReturn([try #require(FileSystem.temporaryTestDirectory).appending(component: "template")])
 
         given(templateGenerator)
             .generate(
@@ -251,7 +251,7 @@ struct ScaffoldServiceTests {
             .called(1)
     }
 
-    @Test func attributes_are_passed_to_generator() async throws {
+    @Test(.inTemporaryDirectory) func attributes_are_passed_to_generator() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -267,7 +267,7 @@ struct ScaffoldServiceTests {
 
         given(templatesDirectoryLocator)
             .templateDirectories(at: .any)
-            .willReturn([try temporaryPath().appending(component: "template")])
+            .willReturn([try #require(FileSystem.temporaryTestDirectory).appending(component: "template")])
 
         given(templateGenerator)
             .generate(

@@ -341,8 +341,8 @@ struct CommandEventFactoryTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func make_when_is_in_git_repository_and_branch_has_no_commits_and_no_remote_url_origin() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -399,8 +399,8 @@ struct CommandEventFactoryTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func make_when_is_in_git_repository_and_branch_has_commits_and_no_remote_url_origin() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -453,8 +453,8 @@ struct CommandEventFactoryTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func make_includes_cache_endpoint_from_trackable_command_info() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -498,8 +498,8 @@ struct CommandEventFactoryTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func make_includes_empty_cache_endpoint_when_not_set() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)

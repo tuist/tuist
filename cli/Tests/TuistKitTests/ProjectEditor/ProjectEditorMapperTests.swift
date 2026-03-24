@@ -33,9 +33,9 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory,
         .withMockedXcodeController
     ) func edit_when_there_are_helpers_and_setup_and_config_and_dependencies_and_tasks_and_plugins() async throws {
         // Given
@@ -270,9 +270,9 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory,
         .withMockedXcodeController
     ) func edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() async throws {
         // Given
@@ -354,9 +354,9 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory,
         .withMockedXcodeController
     ) func tuist_edit_with_more_than_one_manifest() async throws {
         // Given
@@ -471,9 +471,9 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory,
         .withMockedXcodeController
     ) func tuist_edit_with_one_plugin_no_projects() async throws {
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
@@ -552,9 +552,9 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory,
         .withMockedXcodeController
     ) func tuist_edit_with_more_than_one_plugin_no_projects() async throws {
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
@@ -661,9 +661,9 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory,
         .withMockedXcodeController
     ) func tuist_edit_plugin_only_takes_required_sources() async throws {
         // Given
@@ -722,9 +722,9 @@ struct ProjectEditorMapperTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedSwiftVersionProvider,
-        .inTemporaryDirectory,
         .withMockedXcodeController
     ) func tuist_edit_project_with_plugin() async throws {
         // Given

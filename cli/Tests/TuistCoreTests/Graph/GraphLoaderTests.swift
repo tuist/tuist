@@ -741,7 +741,6 @@ struct GraphLoaderTests {
         )
     }
 
-
     private mutating func stubFramework(metadata: PrecompiledMetadata) {
         stubbedFrameworks[metadata.path] = metadata
         let stubbedFrameworks = stubbedFrameworks

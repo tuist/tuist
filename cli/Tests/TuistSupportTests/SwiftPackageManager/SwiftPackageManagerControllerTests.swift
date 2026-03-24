@@ -9,6 +9,7 @@ import XcodeGraph
 @testable import TuistSupport
 
 struct SwiftPackageManagerControllerTests {
+    private let system = MockSystem()
     private let subject: SwiftPackageManagerController
     private let commandRunner: MockCommandRunning
     init() {

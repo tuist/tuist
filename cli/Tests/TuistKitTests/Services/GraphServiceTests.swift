@@ -41,10 +41,10 @@ struct GraphServiceTests {
         )
     }
 
-    @Test func run_whenDot() async throws {
+    @Test(.inTemporaryDirectory) func run_whenDot() async throws {
         try await withMockedDependencies {
             // Given
-            let temporaryPath = try temporaryPath()
+            let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
             let graphPath = temporaryPath.appending(component: "graph.dot")
             let projectManifestPath = temporaryPath.appending(component: "Project.swift")
 
@@ -83,10 +83,10 @@ struct GraphServiceTests {
         }
     }
 
-    @Test func run_when_legacyJSON() async throws {
+    @Test(.inTemporaryDirectory) func run_when_legacyJSON() async throws {
         try await withMockedDependencies {
             // Given
-            let temporaryPath = try temporaryPath()
+            let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
             let graphPath = temporaryPath.appending(component: "graph.json")
             let projectManifestPath = temporaryPath.appending(component: "Project.swift")
 
@@ -127,10 +127,10 @@ struct GraphServiceTests {
         }
     }
 
-    @Test func run_when_json() async throws {
+    @Test(.inTemporaryDirectory) func run_when_json() async throws {
         try await withMockedDependencies {
             // Given
-            let temporaryPath = try temporaryPath()
+            let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
             let graphPath = temporaryPath.appending(component: "graph.json")
             let projectManifestPath = temporaryPath.appending(component: "Project.swift")
 
@@ -171,10 +171,10 @@ struct GraphServiceTests {
         }
     }
 
-    @Test func run_when_json_and_has_no_root_manifest() async throws {
+    @Test(.inTemporaryDirectory) func run_when_json_and_has_no_root_manifest() async throws {
         try await withMockedDependencies {
             // Given
-            let temporaryPath = try temporaryPath()
+            let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
             let graphPath = temporaryPath.appending(component: "graph.json")
 
             try await fileSystem.touch(graphPath)

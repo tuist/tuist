@@ -5,15 +5,16 @@ import TuistTesting
 @testable import TuistKit
 
 struct PluginBuildServiceTests {
+    private let system = MockSystem()
     private var subject: PluginBuildService!
 
     init() {
         subject = PluginBuildService()
     }
 
-    @Test func run_with_arguments() throws {
+    @Test(.inTemporaryDirectory) func run_with_arguments() throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
 
         system.succeedCommand([
             "swift", "build",

@@ -1,3 +1,4 @@
+import FileSystem
 import FileSystemTesting
 import Mockable
 import Testing
@@ -21,6 +22,8 @@ struct TargetRunnerErrorTests {
 }
 
 struct TargetRunnerTests {
+    private let system = MockSystem()
+    private let fileSystem = FileSystem()
     private let xcodeBuildController = MockXcodeBuildControlling()
     private let xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocating()
     private let simulatorController = MockSimulatorControlling()

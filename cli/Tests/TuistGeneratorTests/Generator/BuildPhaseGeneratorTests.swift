@@ -264,9 +264,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateBuildPhases() async throws {
         // Given
         let pbxTarget = PBXNativeTarget(name: "Test")
@@ -574,9 +574,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateHeadersBuildPhase_empty_when_iOSAppTarget() async throws {
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let pbxTarget = PBXNativeTarget(name: "Test")
@@ -617,9 +617,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateHeadersBuildPhase_before_generateSourceBuildPhase() async throws {
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let pbxTarget = PBXNativeTarget(name: "Test")
@@ -665,9 +665,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateResourcesBuildPhase_whenLocalizedFile() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -708,9 +708,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateResourcesBuildPhase_whenLocalizedXibFiles() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -760,9 +760,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateResourcesBuildPhase_whenLocalizedIntentsFile() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -851,9 +851,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateResourcesBuildPhase_whenNormalResource() throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -889,9 +889,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateResourcesBuildPhase_whenContainsResourcesTags() throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -939,9 +939,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateResourcesBuildPhase_whenMultiPlatformResourceFiles() throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -1055,9 +1055,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateResourceBundle_fromProjectDependency() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -1173,9 +1173,9 @@ struct BuildPhaseGeneratorTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func test_generateAppExtensionsBuildPhase() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)

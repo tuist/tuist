@@ -7,6 +7,7 @@ import struct TSCUtility.Version
 @testable import TuistTesting
 
 struct XcodeControllerTests {
+    private let system = MockSystem()
     let subject: XcodeController
     init() {
         subject = XcodeController()

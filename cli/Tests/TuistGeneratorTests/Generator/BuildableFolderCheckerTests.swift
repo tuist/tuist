@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Testing
 import TuistGenerator
 import XcodeGraph

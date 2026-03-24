@@ -1,4 +1,5 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path

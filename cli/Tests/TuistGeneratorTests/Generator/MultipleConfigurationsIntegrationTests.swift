@@ -321,9 +321,9 @@ final class MultipleConfigurationsIntegrationTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .withMockedXcodeController
     ) func generateWhenCustomConfigurations() async throws {
         // Given
         let projectDebugConfiguration = Configuration(settings: [

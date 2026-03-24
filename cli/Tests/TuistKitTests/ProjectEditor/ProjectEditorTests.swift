@@ -65,9 +65,9 @@ struct ProjectEditorTests {
         )
     }
 
-    @Test func test_edit() async throws {
+    @Test(.inTemporaryDirectory) func test_edit() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
         let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
@@ -134,9 +134,9 @@ struct ProjectEditorTests {
         #expect(mapArgs?.packageManifestPath == packageManifestPath)
     }
 
-    @Test func edit_when_there_are_no_editable_files() async throws {
+    @Test(.inTemporaryDirectory) func edit_when_there_are_no_editable_files() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
         let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
@@ -171,9 +171,9 @@ struct ProjectEditorTests {
         }
     }
 
-    @Test func edit_with_plugin() async throws {
+    @Test(.inTemporaryDirectory) func edit_with_plugin() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
         let pluginManifest = directory.appending(component: "Plugin.swift")
@@ -215,9 +215,9 @@ struct ProjectEditorTests {
         #expect(mapArgs?.pluginProjectDescriptionHelpersModule == [])
     }
 
-    @Test func edit_with_many_plugins() async throws {
+    @Test(.inTemporaryDirectory) func edit_with_many_plugins() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
         let pluginManifests = [
@@ -268,9 +268,9 @@ struct ProjectEditorTests {
         #expect(mapArgs?.pluginProjectDescriptionHelpersModule == [])
     }
 
-    @Test func edit_project_with_local_plugins() async throws {
+    @Test(.inTemporaryDirectory) func edit_project_with_local_plugins() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
 
@@ -333,9 +333,9 @@ struct ProjectEditorTests {
         #expect(mapArgs?.pluginProjectDescriptionHelpersModule == [])
     }
 
-    @Test func edit_project_with_local_plugin_outside_editing_path() async throws {
+    @Test(.inTemporaryDirectory) func edit_project_with_local_plugin_outside_editing_path() async throws {
         // Given
-        let rootPath = try temporaryPath()
+        let rootPath = try #require(FileSystem.temporaryTestDirectory)
         let editingPath = rootPath.appending(component: "Editing")
         let projectDescriptionPath = editingPath.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
@@ -395,9 +395,9 @@ struct ProjectEditorTests {
         #expect(mapArgs?.pluginProjectDescriptionHelpersModule == [])
     }
 
-    @Test func edit_project_deduplicates_plugins_with_same_directory_name() async throws {
+    @Test(.inTemporaryDirectory) func edit_project_deduplicates_plugins_with_same_directory_name() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
 
@@ -451,9 +451,9 @@ struct ProjectEditorTests {
         }
     }
 
-    @Test func edit_project_with_remote_plugin() async throws {
+    @Test(.inTemporaryDirectory) func edit_project_with_remote_plugin() async throws {
         // Given
-        let directory = try temporaryPath()
+        let directory = try #require(FileSystem.temporaryTestDirectory)
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
 

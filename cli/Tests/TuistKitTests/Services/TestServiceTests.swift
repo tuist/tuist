@@ -82,7 +82,7 @@ struct TestServiceTests {
 
         cacheDirectoriesProvider = MockCacheDirectoriesProviding()
 
-        let runsCacheDirectory = try temporaryPath()
+        let runsCacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))
             .willReturn(runsCacheDirectory)
@@ -105,7 +105,7 @@ struct TestServiceTests {
 
         given(derivedDataLocator)
             .locate(for: .any)
-            .willReturn(try temporaryPath().appending(component: "DerivedData"))
+            .willReturn(try #require(FileSystem.temporaryTestDirectory).appending(component: "DerivedData"))
 
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
@@ -113,7 +113,7 @@ struct TestServiceTests {
 
         given(gitController)
             .topLevelGitDirectory(workingDirectory: .any)
-            .willReturn(try temporaryPath())
+            .willReturn(try #require(FileSystem.temporaryTestDirectory))
 
         given(gitController)
             .gitInfo(workingDirectory: .any)
@@ -314,10 +314,10 @@ struct TestServiceTests {
         }
     }
 
-    @Test func throws_an_error_when_config_is_not_for_generated_project() async throws {
+    @Test(.inTemporaryDirectory) func throws_an_error_when_config_is_not_for_generated_project() async throws {
         // Given
         givenGenerator()
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testXcodeProject()))
@@ -339,10 +339,10 @@ struct TestServiceTests {
         }
     }
 
-    @Test func run_generates_project() async throws {
+    @Test(.inTemporaryDirectory) func run_generates_project() async throws {
         // Given
         givenGenerator()
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         given(generator)
             .generateWithGraph(path: .value(path), options: .any)
             .willReturn((path, .test(), MapperEnvironment()))
@@ -356,7 +356,7 @@ struct TestServiceTests {
         )
     }
 
-    @Test func run_tests_with_specified_arch() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_with_specified_arch() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -413,12 +413,12 @@ struct TestServiceTests {
         // When / Then
         try await testRun(
             schemeName: "TestScheme",
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             rosetta: true
         )
     }
 
-    @Test func run_tests_with_passthrough_destination() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_with_passthrough_destination() async throws {
         // Given
         givenGenerator()
         given(configLoader)
@@ -439,7 +439,7 @@ struct TestServiceTests {
         // When
         try await testRun(
             schemeName: "TestScheme",
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             passthroughXcodeBuildArguments: ["-destination", "id=device-id"]
         )
 
@@ -487,7 +487,7 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_tests_for_only_specified_scheme() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_for_only_specified_scheme() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -526,14 +526,14 @@ struct TestServiceTests {
         // When
         try await testRun(
             schemeName: "TestScheme",
-            path: try temporaryPath()
+            path: try #require(FileSystem.temporaryTestDirectory)
         )
 
         // Then
         #expect(testedSchemes == ["TestScheme"])
     }
 
-    @Test func run_tests_all_project_schemes() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_all_project_schemes() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -568,7 +568,7 @@ struct TestServiceTests {
 
         // When
         try await testRun(
-            path: try temporaryPath()
+            path: try #require(FileSystem.temporaryTestDirectory)
         )
 
         // Then
@@ -581,11 +581,11 @@ struct TestServiceTests {
         )
     }
 
-    @Test func run_uploads_to_local_cache_storage_when_no_upload() async throws {
+    @Test(.inTemporaryDirectory) func run_uploads_to_local_cache_storage_when_no_upload() async throws {
         // Given
         givenGenerator()
 
-        let projectPathOne = try temporaryPath().appending(component: "ProjectOne")
+        let projectPathOne = try #require(FileSystem.temporaryTestDirectory).appending(component: "ProjectOne")
         let schemeOne = Scheme.test(
             name: "ProjectSchemeOne",
             testAction: .test(
@@ -662,7 +662,7 @@ struct TestServiceTests {
         // When
         try await testRun(
             noUpload: true,
-            path: try temporaryPath()
+            path: try #require(FileSystem.temporaryTestDirectory)
         )
 
         // Then
@@ -675,7 +675,7 @@ struct TestServiceTests {
             .called(0)
     }
 
-    @Test func run_tests_individual_scheme() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_individual_scheme() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -719,14 +719,14 @@ struct TestServiceTests {
         // When
         try await testRun(
             schemeName: "ProjectSchemeOne",
-            path: try temporaryPath()
+            path: try #require(FileSystem.temporaryTestDirectory)
         )
 
         // Then
         #expect(testedSchemes == ["ProjectSchemeOne"])
     }
 
-    @Test func run_tests_individual_scheme_with_no_test_actions() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_individual_scheme_with_no_test_actions() async throws {
         // Given
         try await withMockedDependencies {
             givenGenerator()
@@ -759,7 +759,7 @@ struct TestServiceTests {
             // When
             try await testRun(
                 schemeName: "ProjectSchemeOne",
-                path: try temporaryPath()
+                path: try #require(FileSystem.temporaryTestDirectory)
             )
 
             // Then
@@ -770,7 +770,7 @@ struct TestServiceTests {
         }
     }
 
-    @Test func throws_when_scheme_does_not_exist_and_initial_graph_is_nil() async throws {
+    @Test(.inTemporaryDirectory) func throws_when_scheme_does_not_exist_and_initial_graph_is_nil() async throws {
         // Given
         givenGenerator()
         given(generator)
@@ -780,7 +780,7 @@ struct TestServiceTests {
                     path,
                     .test(
                         projects: [
-                            try temporaryPath(): .test(schemes: [
+                            try #require(FileSystem.temporaryTestDirectory): .test(schemes: [
                                 .test(name: "ProjectSchemeTwo"),
                             ]),
                         ]
@@ -801,12 +801,12 @@ struct TestServiceTests {
         ) {
             try await testRun(
                 schemeName: "ProjectSchemeOne",
-                path: try temporaryPath()
+                path: try #require(FileSystem.temporaryTestDirectory)
             )
         }
     }
 
-    @Test func throws_scheme_does_not_exist_in_initial_graph() async throws {
+    @Test(.inTemporaryDirectory) func throws_scheme_does_not_exist_in_initial_graph() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -821,7 +821,7 @@ struct TestServiceTests {
                 schemes: [.test(name: "ProjectSchemeTwo", testAction: .test(targets: []))]
             ),
             projects: [
-                try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeTwo")]),
+                try #require(FileSystem.temporaryTestDirectory): .test(schemes: [.test(name: "ProjectSchemeTwo")]),
             ]
         )
         given(configLoader)
@@ -846,19 +846,19 @@ struct TestServiceTests {
         ) {
             try await testRun(
                 schemeName: "ProjectSchemeOne",
-                path: try temporaryPath()
+                path: try #require(FileSystem.temporaryTestDirectory)
             )
         }
     }
 
-    @Test func skips_running_tests_when_scheme_is_in_initial_graph_only() async throws {
+    @Test(.inTemporaryDirectory) func skips_running_tests_when_scheme_is_in_initial_graph_only() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
             var environment = MapperEnvironment()
             environment.initialGraph = .test(
                 projects: [
-                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                    try #require(FileSystem.temporaryTestDirectory): .test(schemes: [.test(name: "ProjectSchemeOne")]),
                 ]
             )
             given(configLoader)
@@ -877,7 +877,7 @@ struct TestServiceTests {
             // When
             try await testRun(
                 schemeName: "ProjectSchemeOne",
-                path: try temporaryPath()
+                path: try #require(FileSystem.temporaryTestDirectory)
             )
 
             // Then
@@ -888,14 +888,14 @@ struct TestServiceTests {
         }
     }
 
-    @Test func skips_running_tests_when_all_tests_are_cached() async throws {
+    @Test(.inTemporaryDirectory) func skips_running_tests_when_all_tests_are_cached() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
             var environment = MapperEnvironment()
             environment.initialGraph = .test(
                 projects: [
-                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                    try #require(FileSystem.temporaryTestDirectory): .test(schemes: [.test(name: "ProjectSchemeOne")]),
                 ]
             )
             given(configLoader)
@@ -913,7 +913,7 @@ struct TestServiceTests {
 
             // When
             try await testRun(
-                path: try temporaryPath()
+                path: try #require(FileSystem.temporaryTestDirectory)
             )
 
             // Then
@@ -922,7 +922,7 @@ struct TestServiceTests {
         }
     }
 
-    @Test func skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path()
+    @Test(.inTemporaryDirectory) func skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path()
         async throws
     {
         try await withMockedDependencies {
@@ -931,7 +931,7 @@ struct TestServiceTests {
             var environment = MapperEnvironment()
             environment.initialGraph = .test(
                 projects: [
-                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                    try #require(FileSystem.temporaryTestDirectory): .test(schemes: [.test(name: "ProjectSchemeOne")]),
                 ]
             )
             given(configLoader)
@@ -947,12 +947,12 @@ struct TestServiceTests {
                     )
                 }
 
-            let resultBundlePath = try temporaryPath()
+            let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
                 .appending(component: "test.xcresult")
 
             // When
             try await testRun(
-                path: try temporaryPath(),
+                path: try #require(FileSystem.temporaryTestDirectory),
                 resultBundlePath: resultBundlePath
             )
 
@@ -962,7 +962,7 @@ struct TestServiceTests {
         }
     }
 
-    @Test func run_tests_when_part_is_cached() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_when_part_is_cached() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
@@ -973,7 +973,7 @@ struct TestServiceTests {
                 .testableSchemes(graphTraverser: .any)
                 .willReturn([])
 
-            let projectPathOne = try temporaryPath().appending(component: "ProjectOne")
+            let projectPathOne = try #require(FileSystem.temporaryTestDirectory).appending(component: "ProjectOne")
             let schemeOne = Scheme.test(
                 name: "ProjectSchemeOne",
                 testAction: .test(
@@ -1089,7 +1089,7 @@ struct TestServiceTests {
 
             // When
             try await testRun(
-                path: try temporaryPath()
+                path: try #require(FileSystem.temporaryTestDirectory)
             )
 
             // Then
@@ -1132,7 +1132,7 @@ struct TestServiceTests {
         }
     }
 
-    @Test func run_tests_stores_only_test_target_hashes_not_dependency_hashes() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_stores_only_test_target_hashes_not_dependency_hashes() async throws {
         try await withMockedDependencies {
             // Given
             // TargetATests (.unitTests) depends on FrameworkA (.framework).
@@ -1146,7 +1146,7 @@ struct TestServiceTests {
                 .testableSchemes(graphTraverser: .any)
                 .willReturn([])
 
-            let projectPath = try temporaryPath().appending(component: "Project")
+            let projectPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "Project")
             let scheme = Scheme.test(
                 name: "UnitTests",
                 testAction: .test(
@@ -1201,7 +1201,7 @@ struct TestServiceTests {
                 .willProduce { path, _ in (path, initialGraph, environment) }
 
             // When
-            try await testRun(path: try temporaryPath())
+            try await testRun(path: try #require(FileSystem.temporaryTestDirectory))
 
             // Then: only the test target hash is stored, not the framework dependency
             verify(cacheStorage)
@@ -1219,9 +1219,9 @@ struct TestServiceTests {
         }
     }
 
-    @Test func run_tests_caches_passing_targets_when_some_targets_fail() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_caches_passing_targets_when_some_targets_fail() async throws {
         // Given
-        let projectPath = try temporaryPath().appending(component: "ProjectOne")
+        let projectPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "ProjectOne")
         givenGenerator()
 
         let scheme = Scheme.test(
@@ -1276,7 +1276,7 @@ struct TestServiceTests {
 
         xcodebuildController.reset()
 
-        let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
+        let xcresultPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "bundle.xcresult")
         given(xcodebuildController)
             .test(
                 .any,
@@ -1349,7 +1349,7 @@ struct TestServiceTests {
         // When / Then
         do {
             try await testRun(
-                path: try temporaryPath(),
+                path: try #require(FileSystem.temporaryTestDirectory),
                 resultBundlePath: xcresultPath
             )
             Issue.record("Should throw")
@@ -1384,12 +1384,12 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_tests_when_part_is_cached_and_scheme_is_passed() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_when_part_is_cached_and_scheme_is_passed() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
 
-            let projectPathOne = try temporaryPath().appending(component: "ProjectOne")
+            let projectPathOne = try #require(FileSystem.temporaryTestDirectory).appending(component: "ProjectOne")
             let schemeOne = Scheme.test(
                 name: "ProjectSchemeOne",
                 testAction: .test(
@@ -1507,7 +1507,7 @@ struct TestServiceTests {
             // When
             try await testRun(
                 schemeName: "ProjectSchemeTwo",
-                path: try temporaryPath()
+                path: try #require(FileSystem.temporaryTestDirectory)
             )
 
             // Then
@@ -1528,7 +1528,7 @@ struct TestServiceTests {
         }
     }
 
-    @Test func run_tests_with_skipped_targets() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_with_skipped_targets() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -1570,7 +1570,7 @@ struct TestServiceTests {
         // When
         try await testRun(
             schemeName: "ProjectSchemeOneTests",
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             skipTestTargets: [.init(target: "ProjectSchemeOneTests", class: "TestClass")]
         )
 
@@ -1578,10 +1578,10 @@ struct TestServiceTests {
         #expect(testedSchemes == ["ProjectSchemeOneTests"])
     }
 
-    @Test func run_filters_test_targets_not_in_scheme() async throws {
+    @Test(.inTemporaryDirectory) func run_filters_test_targets_not_in_scheme() async throws {
         // Given
         // Scheme has only "TargetA" in its test action — "PrunedTarget" was removed by selective testing
-        let projectPath = try temporaryPath().appending(component: "Project")
+        let projectPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "Project")
         let scheme = Scheme.test(
             name: "App-Workspace",
             testAction: .test(
@@ -1669,7 +1669,7 @@ struct TestServiceTests {
 
         // When — user passes both TargetA (present) and PrunedTarget (not in scheme)
         try await testRun(
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             testTargets: [
                 try .init(target: "TargetA", class: nil),
                 try .init(target: "PrunedTarget", class: nil),
@@ -1681,7 +1681,7 @@ struct TestServiceTests {
         #expect(capturedTestTargets == [try TestIdentifier(target: "TargetA", class: nil)])
     }
 
-    @Test func run_tests_all_project_schemes_when_fails() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_all_project_schemes_when_fails() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -1731,7 +1731,7 @@ struct TestServiceTests {
         // When / Then
         do {
             try await testRun(
-                path: try temporaryPath()
+                path: try #require(FileSystem.temporaryTestDirectory)
             )
             Issue.record("Should throw")
         } catch {}
@@ -1746,7 +1746,7 @@ struct TestServiceTests {
         //        )
     }
 
-    @Test func run_tests_when_no_project_schemes_present() async throws {
+    @Test(.inTemporaryDirectory) func run_tests_when_no_project_schemes_present() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
@@ -1765,7 +1765,7 @@ struct TestServiceTests {
 
             // When
             try await testRun(
-                path: try temporaryPath()
+                path: try #require(FileSystem.temporaryTestDirectory)
             )
 
             // Then
@@ -1774,10 +1774,10 @@ struct TestServiceTests {
         }
     }
 
-    @Test func run_uses_resource_bundle_path() async throws {
+    @Test(.inTemporaryDirectory) func run_uses_resource_bundle_path() async throws {
         // Given
         givenGenerator()
-        let expectedResourceBundlePath = try temporaryPath()
+        let expectedResourceBundlePath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "test")
         let xcresultPath = expectedResourceBundlePath.parentDirectory.appending(
             component: "bundle.xcresult"
@@ -1808,7 +1808,7 @@ struct TestServiceTests {
 
         // When
         try await testRun(
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             resultBundlePath: expectedResourceBundlePath
         )
 
@@ -1833,10 +1833,10 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_uses_resource_bundle_path_when_not_a_symlink() async throws {
+    @Test(.inTemporaryDirectory) func run_uses_resource_bundle_path_when_not_a_symlink() async throws {
         // Given
         givenGenerator()
-        let xcresultPath = try temporaryPath().appending(component: "bundle.xcresult")
+        let xcresultPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "bundle.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
 
         given(configLoader)
@@ -1857,7 +1857,7 @@ struct TestServiceTests {
 
         // When
         try await testRun(
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             resultBundlePath: xcresultPath
         )
 
@@ -1882,7 +1882,7 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_saves_resource_bundle_when_cloud_is_configured() async throws {
+    @Test(.inTemporaryDirectory) func run_saves_resource_bundle_when_cloud_is_configured() async throws {
         // Given
         givenGenerator()
         configLoader.reset()
@@ -1911,7 +1911,7 @@ struct TestServiceTests {
                 )
             )
 
-        let runsCacheDirectory = try temporaryPath()
+        let runsCacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .value(.runs))
             .willReturn(runsCacheDirectory)
@@ -1921,7 +1921,7 @@ struct TestServiceTests {
         // When
         try await testRun(
             runId: "run-id",
-            path: try temporaryPath()
+            path: try #require(FileSystem.temporaryTestDirectory)
         )
 
         // Then
@@ -1945,10 +1945,10 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_uses_resource_bundle_path_with_given_scheme() async throws {
+    @Test(.inTemporaryDirectory) func run_uses_resource_bundle_path_with_given_scheme() async throws {
         // Given
         givenGenerator()
-        let expectedResourceBundlePath = try temporaryPath()
+        let expectedResourceBundlePath = try #require(FileSystem.temporaryTestDirectory)
             .appending(component: "test")
         let xcresultPath = expectedResourceBundlePath.parentDirectory.appending(
             component: "bundle.xcresult"
@@ -1986,7 +1986,7 @@ struct TestServiceTests {
         // When
         try await testRun(
             schemeName: "ProjectScheme2",
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             resultBundlePath: expectedResourceBundlePath
         )
 
@@ -2018,7 +2018,7 @@ struct TestServiceTests {
         #expect(existsResultBundlePathInCacheDirectory)
     }
 
-    @Test func run_passes_retry_count_as_argument() async throws {
+    @Test(.inTemporaryDirectory) func run_passes_retry_count_as_argument() async throws {
         // Given
         givenGenerator()
         given(configLoader)
@@ -2050,7 +2050,7 @@ struct TestServiceTests {
         // When
         try await testRun(
             schemeName: "ProjectSchemeOne",
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             retryCount: 3
         )
 
@@ -2075,7 +2075,7 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_defaults_retry_count_to_zero() async throws {
+    @Test(.inTemporaryDirectory) func run_defaults_retry_count_to_zero() async throws {
         // Given
         givenGenerator()
         given(buildGraphInspector)
@@ -2126,7 +2126,7 @@ struct TestServiceTests {
         // When
         try await testRun(
             schemeName: "ProjectSchemeOne",
-            path: try temporaryPath()
+            path: try #require(FileSystem.temporaryTestDirectory)
         )
 
         // Then
@@ -2150,12 +2150,12 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_test_plan_success() async throws {
+    @Test(.inTemporaryDirectory) func run_test_plan_success() async throws {
         // Given
         givenGenerator()
         let testPlan = "TestPlan"
         let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
-        let projectPath = try temporaryPath().appending(component: "Project")
+        let projectPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "Project")
         let projectTestableSchemes = [
             Scheme.test(
                 name: "TestScheme",
@@ -2269,7 +2269,7 @@ struct TestServiceTests {
         // When
         try await testRun(
             schemeName: "TestScheme",
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             testPlanConfiguration: TestPlanConfiguration(testPlan: testPlan)
         )
 
@@ -2301,12 +2301,12 @@ struct TestServiceTests {
         )
     }
 
-    @Test func run_test_plan_with_no_explicit_targets() async throws {
+    @Test(.inTemporaryDirectory) func run_test_plan_with_no_explicit_targets() async throws {
         // Given
         givenGenerator()
         let testPlan = "TestPlan"
         let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
-        let projectPath = try temporaryPath().appending(component: "Project")
+        let projectPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "Project")
         let projectTestableSchemes = [
             Scheme.test(
                 name: "TestScheme",
@@ -2411,7 +2411,7 @@ struct TestServiceTests {
         // When
         try await testRun(
             schemeName: "TestScheme",
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             testPlanConfiguration: TestPlanConfiguration(testPlan: testPlan)
         )
 
@@ -2432,14 +2432,14 @@ struct TestServiceTests {
         )
     }
 
-    @Test func build_scheme_with_test_plans_and_no_explicit_targets() async throws {
+    @Test(.inTemporaryDirectory) func build_scheme_with_test_plans_and_no_explicit_targets() async throws {
         // Given
         givenGenerator()
         let testPlan = "TestPlan1"
         let testPlan2 = "TestPlan2"
         let testPlanPath = try AbsolutePath(validating: "/testPlan/\(testPlan)")
         let testPlan2Path = try AbsolutePath(validating: "/testPlan/\(testPlan2)")
-        let projectPath = try temporaryPath().appending(component: "Project")
+        let projectPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "Project")
         let projectTestableSchemes = [
             Scheme.test(
                 name: "TestScheme",
@@ -2556,7 +2556,7 @@ struct TestServiceTests {
         // When
         try await testRun(
             schemeName: "TestScheme",
-            path: try temporaryPath(),
+            path: try #require(FileSystem.temporaryTestDirectory),
             action: .build
         )
 
@@ -2581,7 +2581,7 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_test_plan_failure() async throws {
+    @Test(.inTemporaryDirectory) func run_test_plan_failure() async throws {
         // Given
         givenGenerator()
         let testPlan = "TestPlan"
@@ -2641,7 +2641,7 @@ struct TestServiceTests {
             // When
             try await testRun(
                 schemeName: "TestScheme",
-                path: try temporaryPath(),
+                path: try #require(FileSystem.temporaryTestDirectory),
                 testPlanConfiguration: TestPlanConfiguration(testPlan: notDefinedTestPlan)
             )
         } catch let TestServiceError.testPlanNotFound(_, passedTestPlan, existing) {
@@ -2653,7 +2653,7 @@ struct TestServiceTests {
         }
     }
 
-    @Test func run_logsWarningWhenInspectResultBundleFails() async throws {
+    @Test(.inTemporaryDirectory) func run_logsWarningWhenInspectResultBundleFails() async throws {
         try await withMockedDependencies {
             // Given
             givenGenerator()
@@ -2670,7 +2670,7 @@ struct TestServiceTests {
                     (path, .test(), MapperEnvironment())
                 }
 
-            let resultBundlePath = try temporaryPath().appending(component: "test.xcresult")
+            let resultBundlePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "test.xcresult")
             try await fileSystem.makeDirectory(at: resultBundlePath)
 
             configLoader.reset()
@@ -2701,7 +2701,7 @@ struct TestServiceTests {
 
             // When
             try await testRun(
-                path: try temporaryPath(),
+                path: try #require(FileSystem.temporaryTestDirectory),
                 resultBundlePath: resultBundlePath
             )
 
@@ -2713,10 +2713,10 @@ struct TestServiceTests {
         }
     }
 
-    @Test func run_fetches_quarantined_tests_and_runs_them() async throws {
+    @Test(.inTemporaryDirectory) func run_fetches_quarantined_tests_and_runs_them() async throws {
         // Given
         givenGenerator()
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let fullHandle = "organization/project"
 
         configLoader.reset()
@@ -2806,10 +2806,10 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_does_not_fetch_quarantined_tests_when_skipQuarantine_is_true() async throws {
+    @Test(.inTemporaryDirectory) func run_does_not_fetch_quarantined_tests_when_skipQuarantine_is_true() async throws {
         // Given
         givenGenerator()
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let fullHandle = "organization/project"
 
         configLoader.reset()
@@ -2888,10 +2888,10 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_does_not_fetch_quarantined_tests_when_fullHandle_is_nil() async throws {
+    @Test(.inTemporaryDirectory) func run_does_not_fetch_quarantined_tests_when_fullHandle_is_nil() async throws {
         // Given
         givenGenerator()
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
 
         configLoader.reset()
         given(configLoader)
@@ -2969,10 +2969,10 @@ struct TestServiceTests {
             .called(1)
     }
 
-    @Test func run_logs_warning_when_fetching_quarantined_tests_fails() async throws {
+    @Test(.inTemporaryDirectory) func run_logs_warning_when_fetching_quarantined_tests_fails() async throws {
         // Given
         givenGenerator()
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let fullHandle = "organization/project"
 
         configLoader.reset()

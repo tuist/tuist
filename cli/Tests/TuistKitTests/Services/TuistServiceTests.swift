@@ -10,6 +10,7 @@ import TuistTesting
 @testable import TuistKit
 
 struct TuistServiceTests {
+    private let system = MockSystem()
     private var subject: TuistService!
     private var pluginService: MockPluginService!
     private var configLoader: MockConfigLoading!
@@ -35,13 +36,13 @@ struct TuistServiceTests {
         }
     }
 
-    @Test func run_when_plugin_executable() async throws {
+    @Test(.inTemporaryDirectory) func run_when_plugin_executable() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project")
         let pluginReleasePath = path.appending(component: "Plugins")
-        try fileHandler.touch(pluginReleasePath.appending(component: "tuist-command-a"))
-        try fileHandler.touch(pluginReleasePath.appending(component: "tuist-command-b"))
+        try FileHandler.shared.touch(pluginReleasePath.appending(component: "tuist-command-a"))
+        try FileHandler.shared.touch(pluginReleasePath.appending(component: "tuist-command-b"))
         system.succeedCommand([
             pluginReleasePath.appending(component: "tuist-command-b").pathString,
             "--path",

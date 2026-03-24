@@ -21,9 +21,9 @@ struct DumpServiceTests {
         subject = DumpService()
     }
 
-    @Test func prints_the_manifest_when_project_manifest() async throws {
+    @Test(.inTemporaryDirectory) func prints_the_manifest_when_project_manifest() async throws {
         try await withMockedDependencies {
-            let tmpDir = try temporaryPath()
+            let tmpDir = try #require(FileSystem.temporaryTestDirectory)
             let config = """
             import ProjectDescription
 
@@ -92,9 +92,9 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func prints_the_manifest_when_workspace_manifest() async throws {
+    @Test(.inTemporaryDirectory) func prints_the_manifest_when_workspace_manifest() async throws {
         try await withMockedDependencies {
-            let tmpDir = try temporaryPath()
+            let tmpDir = try #require(FileSystem.temporaryTestDirectory)
             let config = """
             import ProjectDescription
 
@@ -146,9 +146,9 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func prints_the_manifest_when_config_manifest() async throws {
+    @Test(.inTemporaryDirectory) func prints_the_manifest_when_config_manifest() async throws {
         try await withMockedDependencies {
-            let tmpDir = try temporaryPath()
+            let tmpDir = try #require(FileSystem.temporaryTestDirectory)
             let config = """
             import ProjectDescription
 
@@ -259,9 +259,9 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func prints_the_manifest_when_template_manifest() async throws {
+    @Test(.inTemporaryDirectory) func prints_the_manifest_when_template_manifest() async throws {
         try await withMockedDependencies {
-            let tmpDir = try temporaryPath()
+            let tmpDir = try #require(FileSystem.temporaryTestDirectory)
             let config = """
             import ProjectDescription
 
@@ -294,9 +294,9 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func prints_the_manifest_when_plugin_manifest() async throws {
+    @Test(.inTemporaryDirectory) func prints_the_manifest_when_plugin_manifest() async throws {
         try await withMockedDependencies {
-            let tmpDir = try temporaryPath()
+            let tmpDir = try #require(FileSystem.temporaryTestDirectory)
             let config = """
             import ProjectDescription
 
@@ -321,10 +321,10 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func prints_the_manifest_when_package_manifest() async throws {
+    @Test(.inTemporaryDirectory) func prints_the_manifest_when_package_manifest() async throws {
         try await withMockedDependencies {
             // Given
-            let tmpDir = try temporaryPath()
+            let tmpDir = try #require(FileSystem.temporaryTestDirectory)
             let tuistDir = tmpDir.appending(component: Constants.tuistDirectoryName)
             try fileHandler.createFolder(tuistDir)
 
@@ -389,10 +389,10 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func prints_the_manifest_when_package_manifest_without_package_settings() async throws {
+    @Test(.inTemporaryDirectory) func prints_the_manifest_when_package_manifest_without_package_settings() async throws {
         try await withMockedDependencies {
             // Given
-            let tmpDir = try temporaryPath()
+            let tmpDir = try #require(FileSystem.temporaryTestDirectory)
             let tuistDir = tmpDir.appending(component: Constants.tuistDirectoryName)
             try await fileSystem.makeDirectory(at: tuistDir)
 
@@ -473,9 +473,9 @@ struct DumpServiceTests {
         try await assertLoadingRaisesWhenManifestNotFound(manifest: .plugin)
     }
 
-    @Test func run_throws_when_the_manifest_loading_fails() async throws {
+    @Test(.inTemporaryDirectory) func run_throws_when_the_manifest_loading_fails() async throws {
         for manifest in DumpableManifest.allCases {
-            let tmpDir = try temporaryPath()
+            let tmpDir = try #require(FileSystem.temporaryTestDirectory)
             try "invalid config".write(
                 toFile: tmpDir.appending(component: manifest.manifest.fileName(tmpDir)).pathString,
                 atomically: true,

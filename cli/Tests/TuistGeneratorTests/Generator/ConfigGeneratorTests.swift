@@ -102,8 +102,8 @@ struct ConfigGeneratorTests {
     }
 
     @Test(
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedXcodeController
     ) func generateTargetConfig_whenSourceRootIsEqualToXcodeprojPath() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
@@ -143,8 +143,8 @@ struct ConfigGeneratorTests {
     }
 
     @Test(
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedXcodeController
     ) func generateTargetConfig_whenVariableInfoPlistPath() async throws {
         // Given
         let sourceRootPath = try #require(FileSystem.temporaryTestDirectory)
@@ -1349,8 +1349,8 @@ struct ConfigGeneratorTests {
     }
 
     @Test(
-        .withMockedXcodeController,
-        .inTemporaryDirectory
+        .inTemporaryDirectory,
+        .withMockedXcodeController
     ) func generateTargetConfig_when_defaultSettingsIsNoneWithExcludingTEST_HOST_then_TEST_HOSTIsNil() async throws {
         // Given
         let settings = Settings.test(defaultSettings: .none)

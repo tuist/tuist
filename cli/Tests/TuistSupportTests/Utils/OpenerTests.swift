@@ -22,6 +22,7 @@ struct OpeningErrorTests {
 }
 
 struct OpenerTests {
+    private let system = MockSystem()
     let subject: Opener
     init() {
         subject = Opener()

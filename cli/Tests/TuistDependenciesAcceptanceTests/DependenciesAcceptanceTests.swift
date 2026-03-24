@@ -175,8 +175,8 @@ struct DependenciesAcceptanceTests {
     }
 
     @Test(
-        .disabled(), // I'll enable it in a separate PR.
         .inTemporaryDirectory,
+        .disabled(), // I'll enable it in a separate PR.
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),

@@ -2006,8 +2006,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(
-        .inTemporaryDirectory
+    @Test(.inTemporaryDirectory
     ) func linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> Static XCFramework (B)
@@ -2070,8 +2069,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(
-        .inTemporaryDirectory
+    @Test(.inTemporaryDirectory
     ) func linkableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Objective-C XCFramework (A)
@@ -2115,8 +2113,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(
-        .inTemporaryDirectory
+    @Test(.inTemporaryDirectory
     ) func linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependencyWithALinkedSystemLibrary(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> libc++.tbd
@@ -5055,8 +5052,7 @@ struct GraphTraverserTests {
             Set([.iOS]))
     }
 
-    @Test(
-        .inTemporaryDirectory
+    @Test(.inTemporaryDirectory
     ) func externalTargetSupportedPlatforms_when_external_transitive_dependency_without_platform_filter() async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
@@ -5400,8 +5396,7 @@ struct GraphTraverserTests {
         ]))
     }
 
-    @Test(
-        .inTemporaryDirectory
+    @Test(.inTemporaryDirectory
     ) func allSwiftPluginExecutables_includesAllXCFrameworkMacros_when_theyAreDirectOrTransitiveDependencies() throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
@@ -5430,8 +5425,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(
-        .inTemporaryDirectory
+    @Test(.inTemporaryDirectory
     ) func allSwiftPluginExecutables_staticFrameworksThatDependOnMacroTargets_when_theyAreDirectOrTransitiveDependencies(
     ) throws {
         // Given
@@ -5539,8 +5533,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(
-        .inTemporaryDirectory
+    @Test(.inTemporaryDirectory
     ) func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Objective-C XCFramework (A)
@@ -5590,8 +5583,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(
-        .inTemporaryDirectory
+    @Test(.inTemporaryDirectory
     ) func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticSwiftXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Swift XCFramework (A)

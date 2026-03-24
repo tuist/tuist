@@ -12,8 +12,8 @@ import TuistTesting
 
 struct BuildAcceptanceTests {
     @Test(
-        .withFixture("generated_multiplatform_app_with_extension"),
         .inTemporaryDirectory,
+        .withFixture("generated_multiplatform_app_with_extension"),
         .withMockedEnvironment()
     ) func multiplatform_app_with_extension() async throws {
         // Given
@@ -47,8 +47,8 @@ struct BuildAcceptanceTests {
     }
 
     @Test(
-        .withFixture("generated_ios_app_with_framework_buildable_folders_and_xcassets"),
         .inTemporaryDirectory,
+        .withFixture("generated_ios_app_with_framework_buildable_folders_and_xcassets"),
         .withMockedEnvironment()
     ) func ios_app_with_framework_buildable_folders_and_xcassets() async throws {
         // Given
@@ -70,8 +70,8 @@ struct BuildAcceptanceTests {
     }
 
     @Test(
-        .withFixture("generated_app_with_buildable_folders"),
         .inTemporaryDirectory,
+        .withFixture("generated_app_with_buildable_folders"),
         .withMockedEnvironment()
     ) func app_with_buildable_folders() async throws {
         // Given
@@ -514,8 +514,8 @@ struct BuildAcceptanceTestiOSAppWithCPlusPLusInteroperability {
 
 struct XcodeBuildCommandAcceptanceTests {
     @Test(
-        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
+        .withFixture("generated_ios_app_with_tests"),
         .withMockedEnvironment()
     ) func xcodebuild_build_command() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -540,8 +540,8 @@ struct XcodeBuildCommandAcceptanceTests {
     }
 
     @Test(
-        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
+        .withFixture("generated_ios_app_with_tests"),
         .withMockedEnvironment()
     ) func xcodebuild_test_command() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -566,8 +566,8 @@ struct XcodeBuildCommandAcceptanceTests {
     }
 
     @Test(
-        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
+        .withFixture("generated_ios_app_with_tests"),
         .withMockedEnvironment()
     ) func xcodebuild_build_for_testing_command() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -592,8 +592,8 @@ struct XcodeBuildCommandAcceptanceTests {
     }
 
     @Test(
-        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
+        .withFixture("generated_ios_app_with_tests"),
         .withMockedEnvironment()
     ) func xcodebuild_test_without_building_command() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -635,8 +635,8 @@ struct XcodeBuildCommandAcceptanceTests {
     }
 
     @Test(
-        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
+        .withFixture("generated_ios_app_with_tests"),
         .withMockedEnvironment()
     ) func xcodebuild_archive_command() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -661,8 +661,8 @@ struct XcodeBuildCommandAcceptanceTests {
     }
 
     @Test(
-        .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
+        .withFixture("generated_ios_app_with_tests"),
         .withMockedEnvironment()
     ) func xcodebuild_unordered_build_command() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

@@ -24,8 +24,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func generate_testTargetIdentity() async throws {
         // Given
@@ -89,8 +89,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func objectVersion_when_xcode11_and_spm() async throws {
         let xcodeControllerMock = try #require(XcodeController.mocked)
@@ -134,8 +134,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func objectVersion_when_xcode11() async throws {
         let xcodeControllerMock = try #require(XcodeController.mocked)
@@ -165,8 +165,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func objectVersion_when_xcode10() async throws {
         let xcodeControllerMock = try #require(XcodeController.mocked)
@@ -196,8 +196,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func test_knownRegions() async throws {
         // Given
@@ -241,8 +241,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func generate_setsDefaultKnownRegions() async throws {
         // Given
@@ -266,8 +266,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func generate_setsCustomDefaultKnownRegions() async throws {
         // Given
@@ -285,8 +285,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func generate_setsOrganizationName() async throws {
         // Given
@@ -312,8 +312,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func generate_setsClassPrefix() async throws {
         // Given
@@ -339,8 +339,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func generate_setsResourcesTagsName() async throws {
         // Given
@@ -374,8 +374,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func generate_setsDefaultDevelopmentRegion() async throws {
         // Given
@@ -498,8 +498,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func generate_setsLastUpgradeCheck() async throws {
         // Given
@@ -588,8 +588,8 @@ struct ProjectDescriptorGeneratorTests {
     }
 
     @Test(
-        .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
         .withMockedXcodeController
     ) func generate_remoteSwiftPackages() async throws {
         let xcodeControllerMock = try #require(XcodeController.mocked)

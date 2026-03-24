@@ -10,8 +10,8 @@ import TuistTesting
 
 struct TestAcceptanceTests {
     @Test(
-        .withFixture("generated_ios_app_with_frameworks"),
         .inTemporaryDirectory,
+        .withFixture("generated_ios_app_with_frameworks"),
         .withMockedEnvironment(),
         .withMockedLogger()
     ) func ios_app_with_frameworks() async throws {
@@ -27,8 +27,8 @@ struct TestAcceptanceTests {
     }
 
     @Test(
-        .withFixture("generated_app_with_framework_and_tests"),
         .inTemporaryDirectory,
+        .withFixture("generated_app_with_framework_and_tests"),
         .withMockedEnvironment(),
         .withMockedLogger()
     ) func app_with_framework_and_tests() async throws {

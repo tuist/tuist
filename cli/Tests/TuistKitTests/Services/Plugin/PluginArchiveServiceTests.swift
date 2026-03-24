@@ -56,9 +56,9 @@ struct PluginArchiveServiceTests {
         }
     }
 
-    @Test func test_run() async throws {
+    @Test(.inTemporaryDirectory) func test_run() async throws {
         // Given
-        let path = try temporaryPath()
+        let path = try #require(FileSystem.temporaryTestDirectory)
         given(packageInfoLoader)
             .loadPackageInfo(at: .any, disableSandbox: .value(true))
             .willReturn(

@@ -1601,6 +1601,7 @@ struct GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies {
 
 struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
     @Test(
+        .inTemporaryDirectory,
         .withFixture("generated_ios_app_with_sandbox_disabled")
     )
     func sandbox_disabled() async throws {
