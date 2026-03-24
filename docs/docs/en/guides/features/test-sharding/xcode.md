@@ -79,6 +79,7 @@ Tuist automatically detects the following CI providers and writes shard matrix o
 - [CircleCI](#circleci)
 - [Buildkite](#buildkite)
 - [Codemagic](#codemagic)
+- [Bitrise](#bitrise)
 
 For other providers, Tuist writes a `.tuist-shard-matrix.json` file that you can parse to set up parallel jobs.
 
@@ -310,5 +311,76 @@ workflows:
 
 ::: tip
 Codemagic does not natively support dynamic matrix jobs. Use `TUIST_SHARD_COUNT` to configure multiple workflows or use the Codemagic API to trigger parallel builds with different `TUIST_SHARD_INDEX` values.
+:::
+
+### Bitrise {#bitrise}
+
+On Bitrise, Tuist writes `.tuist-shard-matrix.json` to the `BITRISE_DEPLOY_DIR`, making it available as a build artifact for downstream pipeline stages. Use Bitrise Pipelines with pre-defined parallel workflows:
+
+```yaml
+# bitrise.yml
+pipelines:
+  test-pipeline:
+    stages:
+      - build-stage: {}
+      - test-stage: {}
+
+stages:
+  build-stage:
+    workflows:
+      - build-shards: {}
+  test-stage:
+    workflows:
+      - test-shard-0: {}
+      - test-shard-1: {}
+      - test-shard-2: {}
+      - test-shard-3: {}
+      - test-shard-4: {}
+
+workflows:
+  build-shards:
+    steps:
+      - script:
+          title: Build and plan shards
+          inputs:
+            - content: |
+                tuist auth login
+                tuist xcodebuild build-for-testing \
+                  -scheme MyScheme \
+                  -destination 'platform=iOS Simulator,name=iPhone 16' \
+                  --shard-total 5
+
+  test-shard-0: &shard-workflow
+    envs:
+      - TUIST_SHARD_INDEX: 0
+    steps:
+      - script:
+          title: Run shard
+          inputs:
+            - content: |
+                tuist auth login
+                tuist xcodebuild test \
+                  -scheme MyScheme \
+                  -destination 'platform=iOS Simulator,name=iPhone 16'
+  test-shard-1:
+    <<: *shard-workflow
+    envs:
+      - TUIST_SHARD_INDEX: 1
+  test-shard-2:
+    <<: *shard-workflow
+    envs:
+      - TUIST_SHARD_INDEX: 2
+  test-shard-3:
+    <<: *shard-workflow
+    envs:
+      - TUIST_SHARD_INDEX: 3
+  test-shard-4:
+    <<: *shard-workflow
+    envs:
+      - TUIST_SHARD_INDEX: 4
+```
+
+::: tip
+Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
 :::
 

@@ -47,7 +47,9 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
             try await writeBuildkiteOutput(indices: indices)
         case .codemagic:
             try await writeCodemagicOutput(indices: indices, cmEnvPath: env["CM_ENV"]!)
-        case .bitrise, nil:
+        case .bitrise:
+            try await writeBitriseOutput(indices: indices, deployDir: env["BITRISE_DEPLOY_DIR"]!)
+        case nil:
             try await writeFallbackJSON(shardPlan: shardPlan)
         }
     }
@@ -133,6 +135,17 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
             options: [.overwrite]
         )
         Logger.current.debug("Codemagic environment variables written to CM_ENV.")
+    }
+
+    private func writeBitriseOutput(indices: [Int], deployDir: String) async throws {
+        let deployPath = try AbsolutePath(validating: deployDir)
+        let outputPath = deployPath.appending(component: ".tuist-shard-matrix.json")
+        if try await fileSystem.exists(outputPath) {
+            try await fileSystem.remove(outputPath)
+        }
+        let matrixJSON = "{\"shard\":\(indices),\"shard_count\":\(indices.count)}"
+        try await fileSystem.writeText(matrixJSON, at: outputPath, encoding: .utf8)
+        Logger.current.debug("Bitrise shard matrix written to \(outputPath.pathString)")
     }
 
     private func writeFallbackJSON(shardPlan: Components.Schemas.ShardPlan) async throws {
