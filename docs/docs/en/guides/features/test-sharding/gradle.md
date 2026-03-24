@@ -35,7 +35,7 @@ This task:
 1. Compiles the test classes
 2. Discovers test suites by scanning the compiled class files
 3. Creates a shard plan on the Tuist server using historical timing data
-4. Outputs a shard matrix to `.tuist-shard-matrix.json`. On GitHub Actions, it also automatically writes the matrix as a `GITHUB_OUTPUT`
+4. Outputs a shard matrix for your CI system
 
 ### Build options {#build-options}
 
@@ -51,13 +51,11 @@ The shard reference is automatically derived from CI environment variables (`GIT
 
 ## Test phase {#test-phase}
 
-Each shard runner executes its assigned tests using the `tuistRunShard` task:
+Each shard runner executes its assigned tests using the standard `test` task. When `TUIST_SHARD_INDEX` is set, the plugin automatically fetches the shard assignment from the server and filters the test execution to include only the assigned test suites.
 
 ```sh
-./gradlew tuistRunShard
+TUIST_SHARD_INDEX=0 ./gradlew test
 ```
-
-The `TUIST_SHARD_INDEX` environment variable specifies the zero-based shard index. The plugin fetches the shard assignment from the server and filters the test execution to include only the assigned test suites.
 
 ## Continuous integration {#continuous-integration}
 
@@ -67,7 +65,7 @@ Test sharding currently supports the following CI providers:
 
 ### GitHub Actions {#github-actions}
 
-On GitHub Actions, the shard reference and matrix output are derived automatically. Use a matrix strategy to run shards in parallel:
+Use a matrix strategy to run shards in parallel:
 
 ```yaml
 name: Tests
@@ -108,6 +106,6 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
       - run: tuist auth login
-      - run: ./gradlew tuistRunShard
+      - run: ./gradlew test
 ```
 

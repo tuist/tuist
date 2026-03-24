@@ -38,7 +38,7 @@ This command:
 1. Builds your tests with `xcodebuild build-for-testing`
 2. Creates a shard plan on the Tuist server using historical timing data
 3. Uploads the `.xctestproducts` bundle for use by shard runners
-4. Outputs a shard matrix to `.tuist-shard-matrix.json`. On GitHub Actions, it also automatically writes the matrix as a `GITHUB_OUTPUT`
+4. Outputs a shard matrix for your CI system
 
 ### Build options {#build-options}
 
@@ -78,7 +78,7 @@ Test sharding currently supports the following CI providers:
 
 ### GitHub Actions {#github-actions}
 
-On GitHub Actions, the shard reference and matrix output are derived automatically. Use a matrix strategy to run shards in parallel:
+Use a matrix strategy to run shards in parallel:
 
 ```yaml
 name: Tests

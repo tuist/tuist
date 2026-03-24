@@ -9,7 +9,6 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">Tuist generated project</LocalizedLink>
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
 - <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> configured (for optimal shard balancing)
 <!-- -->
@@ -37,7 +36,7 @@ This command:
 2. Builds your tests
 3. Creates a shard plan on the Tuist server using historical timing data
 4. Uploads the `.xctestproducts` bundle for use by shard runners
-5. Outputs a shard matrix to `.tuist-shard-matrix.json`. On GitHub Actions, it also automatically writes the matrix as a `GITHUB_OUTPUT`
+5. Outputs a shard matrix for your CI system
 6. Persists the <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink> graph (if applicable) so shard runners don't need to regenerate the project
 
 ### Build options {#build-options}
@@ -82,7 +81,7 @@ Test sharding currently supports the following CI providers:
 
 ### GitHub Actions {#github-actions}
 
-On GitHub Actions, the shard reference and matrix output are derived automatically. Use a matrix strategy to run shards in parallel:
+Use a matrix strategy to run shards in parallel:
 
 ```yaml
 name: Tests
