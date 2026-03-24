@@ -38,11 +38,7 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
 
         switch ciInfo?.provider {
         case .github:
-            if let githubOutputPath = env["GITHUB_OUTPUT"] {
-                try await writeGitHubActionsOutput(indices: indices, outputFilePath: githubOutputPath)
-            } else {
-                try await writeFallbackJSON(shardPlan: shardPlan)
-            }
+            try await writeGitHubActionsOutput(indices: indices, outputFilePath: env["GITHUB_OUTPUT"]!)
         case .gitlab:
             try await writeGitLabCIOutput(indices: indices)
         case .circleci:
@@ -50,11 +46,7 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         case .buildkite:
             try await writeBuildkiteOutput(indices: indices)
         case .codemagic:
-            if let cmEnvPath = env["CM_ENV"] {
-                try await writeCodemagicOutput(indices: indices, cmEnvPath: cmEnvPath)
-            } else {
-                try await writeFallbackJSON(shardPlan: shardPlan)
-            }
+            try await writeCodemagicOutput(indices: indices, cmEnvPath: env["CM_ENV"]!)
         case .bitrise, nil:
             try await writeFallbackJSON(shardPlan: shardPlan)
         }
