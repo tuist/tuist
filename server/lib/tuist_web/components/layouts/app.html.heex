@@ -27,7 +27,7 @@
       })();
     </script>
     <.live_title>
-      {Tuist.Environment.title_prefix() <> (assigns[:head_title] || "Tuist")}
+      {assigns[:head_title] || "Tuist"}
     </.live_title>
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />

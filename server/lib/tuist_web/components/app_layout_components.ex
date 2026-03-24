@@ -384,6 +384,15 @@ defmodule TuistWeb.AppLayoutComponents do
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="headerbar-breadcrumbs" />
       </div>
       <div data-part="right-section">
+        <.badge
+          :if={Tuist.Environment.git_branch()}
+          label={Tuist.Environment.git_branch()}
+          color="attention"
+          style="light-fill"
+          size="large"
+        >
+          <:icon><.git_branch /></:icon>
+        </.badge>
         <.link href={Tuist.Environment.get_url(:documentation)} target="_blank">
           <.button variant="secondary" icon_only>
             <.book />
