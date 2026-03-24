@@ -120,6 +120,27 @@ defmodule Cache.DistributedKV.CleanupTest do
     assert {:error, :cleanup_lease_lost} = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
   end
 
+  test "expire_project_cleanup_lease releases the active lease for retries" do
+    now = DateTime.utc_now()
+    cutoff = DateTime.add(now, -5, :second)
+
+    Repo.insert!(%Project{
+      account_handle: "acme",
+      project_handle: "ios",
+      last_cleanup_at: cutoff,
+      cleanup_lease_expires_at: DateTime.add(now, 60, :second),
+      updated_at: cutoff
+    })
+
+    assert :ok = Cleanup.expire_project_cleanup_lease("acme", "ios", cutoff)
+
+    expired = Repo.get_by!(Project, account_handle: "acme", project_handle: "ios")
+    assert DateTime.compare(expired.cleanup_lease_expires_at, DateTime.utc_now()) in [:lt, :eq]
+
+    assert {:ok, fresh_cutoff} = Cleanup.begin_project_cleanup("acme", "ios")
+    assert DateTime.after?(fresh_cutoff, cutoff)
+  end
+
   test "tombstone_project_entries keeps microsecond precision in updated_at" do
     cutoff = ~U[2026-03-12 12:00:00.123456Z]
 

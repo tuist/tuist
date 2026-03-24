@@ -280,13 +280,17 @@ defmodule Cache.Disk do
   defp maybe_call_progress(fun) when is_function(fun, 0), do: fun.()
 
   defp delete_files_chunk_before(files, safe_cutoff) do
-    Enum.reduce_while(files, {:ok, 0}, fn file_path, {:ok, deleted_acc} ->
-      case delete_file_if_before(file_path, safe_cutoff) do
-        :deleted -> {:cont, {:ok, deleted_acc + 1}}
-        :skipped -> {:cont, {:ok, deleted_acc}}
-        {:error, :enoent} -> {:cont, {:ok, deleted_acc}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
+    Enum.reduce_while(files, {:ok, 0}, fn
+      {:error, reason}, {:ok, _deleted_acc} ->
+        {:halt, {:error, reason}}
+
+      file_path, {:ok, deleted_acc} when is_binary(file_path) ->
+        case delete_file_if_before(file_path, safe_cutoff) do
+          :deleted -> {:cont, {:ok, deleted_acc + 1}}
+          :skipped -> {:cont, {:ok, deleted_acc}}
+          {:error, :enoent} -> {:cont, {:ok, deleted_acc}}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
     end)
   end
 
@@ -312,15 +316,16 @@ defmodule Cache.Disk do
         [dir | rest] ->
           case File.ls(dir) do
             {:ok, entries} ->
-              {regular, subdirs} =
-                entries
-                |> Enum.map(&Path.join(dir, &1))
-                |> classify_paths()
+              case entries |> Enum.map(&Path.join(dir, &1)) |> classify_paths() do
+                {:ok, {regular, subdirs}} ->
+                  {regular, subdirs ++ rest}
 
-              {regular, subdirs ++ rest}
+                {:error, reason} ->
+                  {[{:error, reason}], []}
+              end
 
-            {:error, _} ->
-              {[], rest}
+            {:error, reason} ->
+              {[{:error, {:ls_failed, dir, reason}}], []}
           end
       end,
       fn _ -> :ok end
@@ -328,11 +333,19 @@ defmodule Cache.Disk do
   end
 
   defp classify_paths(paths) do
-    Enum.reduce(paths, {[], []}, fn path, {regular_acc, dir_acc} ->
+    Enum.reduce_while(paths, {:ok, {[], []}}, fn path, {:ok, {regular_acc, dir_acc}} ->
       case File.stat(path) do
-        {:ok, %File.Stat{type: :regular}} -> {[path | regular_acc], dir_acc}
-        {:ok, %File.Stat{type: :directory}} -> {regular_acc, [path | dir_acc]}
-        _ -> {regular_acc, dir_acc}
+        {:ok, %File.Stat{type: :regular}} ->
+          {:cont, {:ok, {[path | regular_acc], dir_acc}}}
+
+        {:ok, %File.Stat{type: :directory}} ->
+          {:cont, {:ok, {regular_acc, [path | dir_acc]}}}
+
+        {:ok, _stat} ->
+          {:cont, {:ok, {regular_acc, dir_acc}}}
+
+        {:error, reason} ->
+          {:halt, {:error, {:stat_failed, path, reason}}}
       end
     end)
   end

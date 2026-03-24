@@ -471,9 +471,25 @@ defmodule Cache.KeyValueEntries do
 
   def delete_project_entries_before(account_handle, project_handle, cutoff, opts \\ []) do
     include_pending? = Keyword.get(opts, :include_pending?, false)
+    on_deleted_keys = Keyword.get(opts, :on_deleted_keys)
+    collect_deleted_keys? = is_nil(on_deleted_keys)
     {prefix, prefix_upper_bound} = project_key_bounds(account_handle, project_handle)
 
-    delete_project_entries_before_loop(prefix, prefix_upper_bound, cutoff, include_pending?, nil, [], 0)
+    state = %{
+      on_deleted_keys: on_deleted_keys,
+      collect_deleted_keys?: collect_deleted_keys?,
+      deleted_keys_acc: [],
+      count_acc: 0
+    }
+
+    delete_project_entries_before_loop(
+      prefix,
+      prefix_upper_bound,
+      cutoff,
+      include_pending?,
+      nil,
+      state
+    )
   end
 
   def estimated_size_bytes do
@@ -658,15 +674,7 @@ defmodule Cache.KeyValueEntries do
     |> apply_evictable_filter(include_pending?)
   end
 
-  defp delete_project_entries_before_loop(
-         prefix,
-         prefix_upper_bound,
-         cutoff,
-         include_pending?,
-         cursor,
-         deleted_keys_acc,
-         count_acc
-       ) do
+  defp delete_project_entries_before_loop(prefix, prefix_upper_bound, cutoff, include_pending?, cursor, state) do
     # The SELECT and DELETE share a single immediate transaction, so no concurrent
     # writer can modify matching rows between the two statements. This guarantees
     # that `candidate_keys` is exactly the set of deleted keys.
@@ -689,19 +697,40 @@ defmodule Cache.KeyValueEntries do
 
     case candidate_keys do
       [] ->
-        {Enum.reverse(deleted_keys_acc), count_acc}
+        {Enum.reverse(state.deleted_keys_acc), state.count_acc}
 
       _ ->
+        :ok = maybe_notify_deleted_keys(state.on_deleted_keys, candidate_keys)
+
+        next_deleted_keys_acc =
+          if state.collect_deleted_keys? do
+            Enum.reverse(candidate_keys, state.deleted_keys_acc)
+          else
+            state.deleted_keys_acc
+          end
+
+        next_state = %{
+          state
+          | deleted_keys_acc: next_deleted_keys_acc,
+            count_acc: state.count_acc + deleted_count
+        }
+
         delete_project_entries_before_loop(
           prefix,
           prefix_upper_bound,
           cutoff,
           include_pending?,
           List.last(candidate_keys),
-          Enum.reverse(candidate_keys, deleted_keys_acc),
-          count_acc + deleted_count
+          next_state
         )
     end
+  end
+
+  defp maybe_notify_deleted_keys(nil, _keys), do: :ok
+
+  defp maybe_notify_deleted_keys(fun, keys) when is_function(fun, 1) do
+    :ok = fun.(keys)
+    :ok
   end
 
   defp project_candidate_keys_batch(prefix, prefix_upper_bound, cutoff, include_pending?, cursor) do

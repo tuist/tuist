@@ -15,9 +15,14 @@ defmodule Cache.CleanProjectWorker do
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}) do
+  def perform(%Oban.Job{
+        args: %{"account_handle" => account_handle, "project_handle" => project_handle},
+        attempt: attempt
+      }) do
+    attempt = max(attempt || 0, 1)
+
     if Config.distributed_kv_enabled?() do
-      perform_distributed_cleanup(account_handle, project_handle)
+      perform_distributed_cleanup(account_handle, project_handle, attempt)
     else
       perform_local_cleanup(account_handle, project_handle)
       :ok
@@ -42,36 +47,42 @@ defmodule Cache.CleanProjectWorker do
     delete_s3_artifacts(account_handle, project_handle, :cache, "cache")
   end
 
-  defp perform_distributed_cleanup(account_handle, project_handle) do
+  defp perform_distributed_cleanup(account_handle, project_handle, attempt) do
     case Cleanup.begin_project_cleanup(account_handle, project_handle) do
       {:ok, cleanup_started_at} ->
         safe_cutoff = DateTime.truncate(cleanup_started_at, :second)
         on_progress = fn -> Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) end
 
-        with :ok <- invalidate_local_kv(account_handle, project_handle, safe_cutoff),
-             :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
-             :ok <- delete_disk_with_cutoff(account_handle, project_handle, safe_cutoff, on_progress),
-             :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
-             :ok <- maybe_delete_xcode_s3_artifacts(account_handle, project_handle, safe_cutoff, on_progress),
-             :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
-             :ok <-
-               delete_s3_artifacts_with_cutoff(
-                 account_handle,
-                 project_handle,
-                 :cache,
-                 "cache",
-                 safe_cutoff,
-                 on_progress
-               ),
-             :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
-          tombstoned = Cleanup.tombstone_project_entries(account_handle, project_handle, safe_cutoff)
+        result =
+          with :ok <- invalidate_local_kv(account_handle, project_handle, safe_cutoff),
+               :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
+               :ok <- delete_disk_with_cutoff(account_handle, project_handle, safe_cutoff, on_progress),
+               :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
+               :ok <- maybe_delete_xcode_s3_artifacts(account_handle, project_handle, safe_cutoff, on_progress),
+               :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
+               :ok <-
+                 delete_s3_artifacts_with_cutoff(
+                   account_handle,
+                   project_handle,
+                   :cache,
+                   "cache",
+                   safe_cutoff,
+                   on_progress
+                 ),
+               :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
+            tombstoned = Cleanup.tombstone_project_entries(account_handle, project_handle, safe_cutoff)
 
-          Logger.info(
-            "Distributed cleanup finished for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)} (tombstoned=#{tombstoned})"
-          )
+            Logger.info(
+              "Distributed cleanup finished for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)} (tombstoned=#{tombstoned})"
+            )
 
-          :ok
-        else
+            :ok
+          end
+
+        case result do
+          :ok ->
+            :ok
+
           {:error, :cleanup_lease_lost} = error ->
             Logger.warning(
               "Distributed cleanup lease lost for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)}; aborting so a newer cleanup can continue safely"
@@ -84,28 +95,43 @@ defmodule Cache.CleanProjectWorker do
               "Distributed cleanup failed for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)}: #{inspect(reason)}"
             )
 
+            :ok = Cleanup.expire_project_cleanup_lease(account_handle, project_handle, cleanup_started_at)
             error
         end
 
       {:error, :cleanup_already_in_progress} ->
-        Logger.info(
-          "Distributed cleanup already in progress for #{account_handle}/#{project_handle}; skipping duplicate job"
-        )
+        if attempt > 1 do
+          Logger.warning(
+            "Distributed cleanup already in progress for #{account_handle}/#{project_handle} on retry attempt #{attempt}; returning retryable error"
+          )
 
-        :ok
+          {:error, :cleanup_already_in_progress}
+        else
+          Logger.info(
+            "Distributed cleanup already in progress for #{account_handle}/#{project_handle}; skipping duplicate job"
+          )
+
+          :ok
+        end
     end
   end
 
   defp invalidate_local_kv(account_handle, project_handle, cutoff) do
     distributed? = Config.distributed_kv_enabled?()
+    on_deleted_keys = fn keys -> invalidate_local_kv_keys(keys, distributed?) end
 
-    {keys, _count} =
-      if distributed? do
-        KeyValueEntries.delete_project_entries_before(account_handle, project_handle, cutoff, include_pending?: true)
-      else
-        KeyValueEntries.delete_project_entries_before(account_handle, project_handle, cutoff)
-      end
+    opts = maybe_include_pending([on_deleted_keys: on_deleted_keys], distributed?)
 
+    {_keys, _count} =
+      KeyValueEntries.delete_project_entries_before(account_handle, project_handle, cutoff, opts)
+
+    :ok
+  end
+
+  defp maybe_include_pending(opts, true), do: Keyword.put(opts, :include_pending?, true)
+  defp maybe_include_pending(opts, false), do: opts
+
+  defp invalidate_local_kv_keys(keys, distributed?) do
     Enum.each(keys, fn key ->
       if distributed?, do: :ok = KeyValueAccessTracker.clear(key)
       {:ok, _deleted?} = Cachex.del(:cache_keyvalue_store, key)

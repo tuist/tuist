@@ -168,5 +168,41 @@ defmodule Cache.DiskIntegrationTest do
         _ = File.rm(artifact_path)
       end
     end
+
+    test "returns an error when directory traversal fails" do
+      account = unique_account()
+      project = "inaccessible_project"
+      project_path = Disk.artifact_path("#{account}/#{project}")
+      blocked_dir = Path.join(project_path, "blocked")
+      cutoff = DateTime.truncate(DateTime.utc_now(), :second)
+
+      assert :ok = File.mkdir_p(blocked_dir)
+      assert :ok = File.chmod(blocked_dir, 0o000)
+
+      try do
+        assert {:error, {:ls_failed, ^blocked_dir, reason}} = Disk.delete_project_files_before(account, project, cutoff)
+        assert reason in [:eacces, :eperm]
+      after
+        assert :ok = File.chmod(blocked_dir, 0o755)
+        _ = File.rm_rf(project_path)
+      end
+    end
+
+    test "returns an error when stat fails for a traversed path" do
+      account = unique_account()
+      project = "dangling_symlink_project"
+      project_path = Disk.artifact_path("#{account}/#{project}")
+      broken_link = Path.join(project_path, "dangling")
+      missing_target = Path.join(project_path, "missing-target")
+      cutoff = DateTime.truncate(DateTime.utc_now(), :second)
+
+      assert :ok = File.mkdir_p(project_path)
+      assert :ok = File.ln_s(missing_target, broken_link)
+
+      assert {:error, {:stat_failed, ^broken_link, :enoent}} =
+               Disk.delete_project_files_before(account, project, cutoff)
+
+      _ = File.rm_rf(project_path)
+    end
   end
 end

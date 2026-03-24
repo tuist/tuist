@@ -22,6 +22,7 @@ defmodule Cache.CleanProjectWorkerTest do
     :ok = Sandbox.checkout(KeyValueRepo)
     stub(Config, :key_value_mode, fn -> :local end)
     stub(Config, :distributed_kv_enabled?, fn -> false end)
+    stub(Cleanup, :expire_project_cleanup_lease, fn _account_handle, _project_handle, _cleanup_started_at -> :ok end)
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
     stub(KeyValueAccessTracker, :shared_lineage?, fn _key -> false end)
@@ -34,8 +35,11 @@ defmodule Cache.CleanProjectWorkerTest do
       account_handle = "test_account"
       project_handle = "test_project"
 
-      expect(KeyValueEntries, :delete_project_entries_before, fn ^account_handle, ^project_handle, %DateTime{} ->
-        {[], 0}
+      expect(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, %DateTime{}, opts ->
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+          refute Keyword.has_key?(opts, :include_pending?)
+          {[], 0}
       end)
 
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
@@ -69,7 +73,9 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
-        ^account_handle, ^project_handle, ^cutoff, [include_pending?: true] ->
+        ^account_handle, ^project_handle, ^cutoff, opts ->
+          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {["keyvalue:test_account:test_project:cas"], 1}
       end)
 
@@ -115,7 +121,9 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
-        ^account_handle, ^project_handle, ^cutoff, [include_pending?: true] ->
+        ^account_handle, ^project_handle, ^cutoff, opts ->
+          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {[], 0}
       end)
 
@@ -148,7 +156,9 @@ defmodule Cache.CleanProjectWorkerTest do
       stub(Cleanup, :renew_project_cleanup_lease, fn ^account_handle, ^project_handle, ^cleanup_started_at -> :ok end)
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
-        ^account_handle, ^project_handle, ^safe_cutoff, [include_pending?: true] ->
+        ^account_handle, ^project_handle, ^safe_cutoff, opts ->
+          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {[], 0}
       end)
 
@@ -184,7 +194,7 @@ defmodule Cache.CleanProjectWorkerTest do
         {:error, :cleanup_already_in_progress}
       end)
 
-      stub(KeyValueEntries, :delete_project_entries_before, fn _account_handle, _project_handle, _cutoff ->
+      stub(KeyValueEntries, :delete_project_entries_before, fn _account_handle, _project_handle, _cutoff, _opts ->
         send(parent, :kv_deleted)
         {[], 0}
       end)
@@ -196,6 +206,24 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       refute_received :kv_deleted
+    end
+
+    test "distributed cleanup keeps active lease conflicts retryable on retry attempts" do
+      stub(Config, :key_value_mode, fn -> :distributed end)
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
+
+      account_handle = "test_account"
+      project_handle = "test_project"
+
+      expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle ->
+        {:error, :cleanup_already_in_progress}
+      end)
+
+      job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}, attempt: 2}
+
+      capture_log(fn ->
+        assert {:error, :cleanup_already_in_progress} = CleanProjectWorker.perform(job)
+      end)
     end
 
     test "distributed cleanup fails and skips tombstoning when S3 deletion fails" do
@@ -213,8 +241,14 @@ defmodule Cache.CleanProjectWorkerTest do
       stub(Cleanup, :renew_project_cleanup_lease, fn ^account_handle, ^project_handle, ^cutoff -> :ok end)
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
-        ^account_handle, ^project_handle, ^cutoff, [include_pending?: true] ->
+        ^account_handle, ^project_handle, ^cutoff, opts ->
+          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {[], 0}
+      end)
+
+      expect(Cleanup, :expire_project_cleanup_lease, fn ^account_handle, ^project_handle, ^cutoff ->
+        :ok
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
@@ -248,8 +282,11 @@ defmodule Cache.CleanProjectWorkerTest do
 
       stub(Config, :xcode_cache_bucket, fn -> nil end)
 
-      expect(KeyValueEntries, :delete_project_entries_before, fn ^account_handle, ^project_handle, %DateTime{} ->
-        {[], 0}
+      expect(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, %DateTime{}, opts ->
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+          refute Keyword.has_key?(opts, :include_pending?)
+          {[], 0}
       end)
 
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)

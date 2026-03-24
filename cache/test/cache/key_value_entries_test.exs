@@ -646,6 +646,43 @@ defmodule Cache.KeyValueEntriesTest do
     assert remaining_keys == ["keyvalue:acme:ios:new"]
   end
 
+  test "delete_project_entries_before can process invalidation side effects per batch without accumulating keys" do
+    old_time = DateTime.add(DateTime.utc_now(), -1, :day)
+    timestamp = DateTime.truncate(old_time, :second)
+
+    rows =
+      for i <- 1..1000 do
+        %{
+          key: "keyvalue:acme:ios:artifact-#{i}",
+          json_payload: "{}",
+          last_accessed_at: old_time,
+          source_updated_at: old_time,
+          inserted_at: timestamp,
+          updated_at: timestamp
+        }
+      end
+
+    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
+    {:ok, batch_sizes} = Agent.start_link(fn -> [] end)
+
+    {keys, count} =
+      KeyValueEntries.delete_project_entries_before("acme", "ios", old_time,
+        on_deleted_keys: fn deleted_keys ->
+          Agent.update(batch_sizes, fn sizes -> [length(deleted_keys) | sizes] end)
+          :ok
+        end
+      )
+
+    assert count == 1000
+    assert keys == []
+
+    reported_batch_sizes = Agent.get(batch_sizes, & &1)
+    assert Enum.sum(reported_batch_sizes) == 1000
+    assert length(reported_batch_sizes) == 2
+    assert Enum.all?(reported_batch_sizes, &(&1 == 500))
+    assert KeyValueRepo.all(from(entry in KeyValueEntry, select: entry.key)) == []
+  end
+
   test "delete_project_entries_before respects exact lexicographic key bounds" do
     old_time = DateTime.add(DateTime.utc_now(), -1, :day)
 

@@ -65,6 +65,22 @@ defmodule Cache.DistributedKV.Cleanup do
     end
   end
 
+  def expire_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
+    now = DateTime.utc_now()
+
+    _ =
+      Repo.update_all(
+        from(project in Project,
+          where:
+            project.account_handle == ^account_handle and project.project_handle == ^project_handle and
+              project.last_cleanup_at == ^cleanup_started_at
+        ),
+        set: [cleanup_lease_expires_at: now, updated_at: now]
+      )
+
+    :ok
+  end
+
   def tombstone_project_entries(account_handle, project_handle, cleanup_started_at) do
     now = DateTime.utc_now()
 
