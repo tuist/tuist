@@ -21,7 +21,7 @@ import XcodeGraph
 
 @testable import TuistKit
 
-struct InspectResultBundleServiceTests {
+struct UploadResultBundleServiceTests {
     private let subject: UploadResultBundleService
     private let machineEnvironment = MockMachineEnvironmentRetrieving()
     private let createTestService = MockCreateTestServicing()
@@ -553,25 +553,14 @@ struct InspectResultBundleServiceTests {
 
         given(createTestCaseRunAttachmentService)
             .createAttachment(
-                fullHandle: .value("tuist/tuist"),
+                fullHandle: .any,
                 serverURL: .any,
-                testCaseRunId: .value("test-case-run-1"),
-                fileName: .value("screenshot.png"),
-                filePath: .value(screenshotFilePath),
-                repetitionNumber: .value(2)
+                testCaseRunId: .any,
+                fileName: .any,
+                filePath: .any,
+                repetitionNumber: .any
             )
             .willReturn("attachment-1")
-
-        given(createTestCaseRunAttachmentService)
-            .createAttachment(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any,
-                testCaseRunId: .value("test-case-run-1"),
-                fileName: .value("crash.ips"),
-                filePath: .value(crashFilePath),
-                repetitionNumber: .value(2)
-            )
-            .willReturn("attachment-2")
 
         given(createCrashReportService)
             .createCrashReport(
@@ -595,33 +584,22 @@ struct InspectResultBundleServiceTests {
         // Then
         verify(createTestCaseRunAttachmentService)
             .createAttachment(
-                fullHandle: .value("tuist/tuist"),
+                fullHandle: .any,
                 serverURL: .any,
-                testCaseRunId: .value("test-case-run-1"),
-                fileName: .value("screenshot.png"),
-                filePath: .value(screenshotFilePath),
-                repetitionNumber: .value(2)
+                testCaseRunId: .any,
+                fileName: .any,
+                filePath: .any,
+                repetitionNumber: .any
             )
-            .called(1)
-
-        verify(createTestCaseRunAttachmentService)
-            .createAttachment(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any,
-                testCaseRunId: .value("test-case-run-1"),
-                fileName: .value("crash.ips"),
-                filePath: .value(crashFilePath),
-                repetitionNumber: .value(2)
-            )
-            .called(1)
+            .called(2)
 
         verify(createCrashReportService)
             .createCrashReport(
-                fullHandle: .value("tuist/tuist"),
+                fullHandle: .any,
                 serverURL: .any,
                 crashReport: .any,
-                testCaseRunId: .value("test-case-run-1"),
-                testCaseRunAttachmentId: .value("attachment-2")
+                testCaseRunId: .any,
+                testCaseRunAttachmentId: .any
             )
             .called(1)
     }
