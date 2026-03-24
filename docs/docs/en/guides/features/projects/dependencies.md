@@ -113,9 +113,27 @@ let package = Package(
 
 ::: tip PACKAGE SETTINGS
 <!-- -->
-The `PackageSettings` instance wrapped in a compiler directive allows you to configure how packages are integrated. For example, in the example above it's used to override the default product type used for packages. By default, you shouldn't need it.
+The `PackageSettings` instance wrapped in a compiler directive allows you to configure how packages are integrated. For example, in the example above it's used to override the default product type used for packages. By default, you shouldn't need it. You can also use it to configure expected signatures for SwiftPM binary targets through `expectedSignatures`.
 <!-- -->
 :::
+
+### Binary Target Signatures
+
+If a local or remote Swift package exposes a binary XCFramework target, you can configure its expected signature using `PackageSettings.expectedSignatures`:
+
+```swift
+#if TUIST
+    import ProjectDescription
+
+    let packageSettings = PackageSettings(
+        expectedSignatures: [
+            "SelfSignedXCFramework": .selfSigned(
+                fingerprint: "EF61C3C0339FC84805357AFEC2E0BB0E6A0D5EE64165B333F934BF9E282785BC"
+            ),
+        ]
+    )
+#endif
+```
 
 > [!IMPORTANT] CUSTOM BUILD CONFIGURATIONS
 > If your project uses custom build configurations (configurations other than the standard `Debug` and `Release`), you must specify them in the `PackageSettings` using `baseSettings`. External dependencies need to know about your project's configurations to build correctly. For example:
