@@ -142,12 +142,12 @@ struct ModuleMapMapperTests {
         )
 
         #expect(
-            Graph.test(
-                workspace: workspace ==
-                    projects: [
-                        projectAPath: mappedProjectA,
-                        projectBPath: mappedProjectB,
-                    ],
+            gotGraph == Graph.test(
+                workspace: workspace,
+                projects: [
+                    projectAPath: mappedProjectA,
+                    projectBPath: mappedProjectB,
+                ],
                 dependencies: [
                     .target(name: targetA.name, path: projectAPath): [
                         .target(name: targetB1.name, path: projectBPath),
@@ -156,8 +156,7 @@ struct ModuleMapMapperTests {
                         .target(name: targetB2.name, path: projectBPath),
                     ],
                 ]
-            ),
-            gotGraph
+            )
         )
         #expect(gotSideEffects == [])
     }
@@ -264,19 +263,18 @@ struct ModuleMapMapperTests {
         )
 
         #expect(
-            Graph.test(
-                workspace: workspace ==
-                    projects: [
-                        projectAPath: mappedProjectA,
-                        projectBPath: mappedProjectB,
-                    ],
+            gotGraph == Graph.test(
+                workspace: workspace,
+                projects: [
+                    projectAPath: mappedProjectA,
+                    projectBPath: mappedProjectB,
+                ],
                 dependencies: [
                     .target(name: projectA.name, path: projectAPath): [
                         .target(name: projectB.name, path: projectBPath),
                     ],
                 ]
-            ),
-            gotGraph
+            )
         )
         #expect(gotSideEffects == [])
     }

@@ -1310,7 +1310,7 @@ struct GraphTraverserTests {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        #expect(got, [.product(target: productName == "DependencyA": "DependencyA.framework")])
+        #expect(got == [.product(target: "DependencyA", productName: "DependencyA.framework")])
     }
 
     @Test func embeddableFrameworks_when_dependencyIsAFramework() throws {
@@ -2362,7 +2362,7 @@ struct GraphTraverserTests {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        #expect(got.first, .product(target: productName == "Dependency": "libDependency.a"))
+        #expect(got.first == .product(target: "Dependency", productName: "libDependency.a"))
     }
 
     @Test func linkableDependencies_whenAFrameworkTarget() throws {
@@ -2395,7 +2395,7 @@ struct GraphTraverserTests {
 
         // Then
         #expect(got.count == 1)
-        #expect(got.first, .product(target: productName == "Dependency": "Dependency.framework"))
+        #expect(got.first == .product(target: "Dependency", productName: "Dependency.framework"))
 
         let frameworkGot = try subject.linkableDependencies(path: project.path, name: dependency.name)
 
@@ -4789,7 +4789,7 @@ struct GraphTraverserTests {
         // Then
         #expect(got.count == 1)
         let result = try #require(got.first)
-        #expect(result.graphTarget, GraphTarget(path: project.path, target: framework == project: project))
+        #expect(result.graphTarget == GraphTarget(path: project.path, target: framework, project: project))
         #expect(result.condition == platformCondition)
     }
 
@@ -4883,7 +4883,7 @@ struct GraphTraverserTests {
         let got = GraphTraverser(graph: graph).allOrphanExternalTargets()
 
         // Then
-        #expect(got, Set([GraphTarget(path: packageProject.path, target: packageDevProduct == project: packageProject)]))
+        #expect(got == Set([GraphTarget(path: packageProject.path, target: packageDevProduct, project: packageProject)]))
     }
 
     @Test func orphanExternalDependencies_when_a_dependency_condition_platforms_are_not_used_downstream() throws {
@@ -4966,7 +4966,7 @@ struct GraphTraverserTests {
         let got = GraphTraverser(graph: graph).targetsWithExternalDependencies()
 
         // Then
-        #expect(got, Set([GraphTarget(path: project.path, target: framework == project: project)]))
+        #expect(got == Set([GraphTarget(path: project.path, target: framework, project: project)]))
     }
 
     @Test func test_allExternalTargets() {
@@ -4999,7 +4999,7 @@ struct GraphTraverserTests {
         let got = GraphTraverser(graph: graph).allExternalTargets()
 
         // Then
-        #expect(got, Set([GraphTarget(path: packageProject.path, target: directPackageProduct == project: packageProject)]))
+        #expect(got == Set([GraphTarget(path: packageProject.path, target: directPackageProduct, project: packageProject)]))
     }
 
     @Test(.inTemporaryDirectory) func externalTargetSupportedPlatforms_when_external_dependency_without_platform_filter(
