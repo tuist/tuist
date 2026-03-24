@@ -48771,6 +48771,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/test_suite_name`.
                             public var test_suite_name: Swift.String?
+                            /// Whether this test case was quarantined when it ran.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/is_quarantined`.
+                            public var is_quarantined: Swift.Bool?
                             /// Creates a new `test_casesPayloadPayload`.
                             ///
                             /// - Parameters:
@@ -48780,13 +48784,15 @@ public enum Operations {
                             ///   - repetitions: The repetition attempts for this test case (when run with retry-on-failure).
                             ///   - status: The status of the test case.
                             ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
+                            ///   - is_quarantined: Whether this test case was quarantined when it ran.
                             public init(
                                 duration: Swift.Int,
                                 failures: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
                                 name: Swift.String,
                                 repetitions: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload? = nil,
                                 status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
-                                test_suite_name: Swift.String? = nil
+                                test_suite_name: Swift.String? = nil,
+                                is_quarantined: Swift.Bool? = nil
                             ) {
                                 self.duration = duration
                                 self.failures = failures
@@ -48794,6 +48800,7 @@ public enum Operations {
                                 self.repetitions = repetitions
                                 self.status = status
                                 self.test_suite_name = test_suite_name
+                                self.is_quarantined = is_quarantined
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case duration
@@ -48802,6 +48809,7 @@ public enum Operations {
                                 case repetitions
                                 case status
                                 case test_suite_name
+                                case is_quarantined
                             }
                         }
                         /// The test cases within this module.

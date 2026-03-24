@@ -1033,6 +1033,7 @@ defmodule Tuist.Tests do
           status: status,
           is_flaky: is_flaky,
           is_new: is_new,
+          is_quarantined: Map.get(case_attrs, :is_quarantined, false),
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
@@ -1436,7 +1437,8 @@ defmodule Tuist.Tests do
           module_name: test_case.module_name,
           suite_name: test_case.suite_name,
           last_ran_at: coalesce(stats.last_ran_at, test_case.last_ran_at),
-          last_run_id: stats.last_run_id
+          last_run_id: stats.last_run_id,
+          last_status: test_case.last_status
         }
       )
 
@@ -1602,7 +1604,8 @@ defmodule Tuist.Tests do
       quarantined_by_account_id: Map.get(quarantine_info, :actor_id),
       quarantined_by_account_name: Map.get(quarantine_info, :actor_name),
       last_ran_at: row.last_ran_at,
-      last_run_id: row.last_run_id
+      last_run_id: row.last_run_id,
+      last_status: row.last_status
     }
   end
 
@@ -1966,33 +1969,68 @@ defmodule Tuist.Tests do
       from(test_case in TestCase,
         hints: ["FINAL"],
         where: test_case.is_flaky == true,
-        where: test_case.is_quarantined == false,
         where: test_case.id not in subquery(recent_flaky_subquery)
       )
 
     stale_test_cases = ClickHouseRepo.all(query)
     now = NaiveDateTime.utc_now()
 
+    project_ids = stale_test_cases |> Enum.map(& &1.project_id) |> Enum.uniq()
+
+    auto_quarantine_project_ids =
+      from(p in Project,
+        where: p.id in ^project_ids and p.auto_quarantine_flaky_tests == true,
+        select: p.id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
     test_cases_to_update =
       Enum.map(stale_test_cases, fn test_case ->
+        should_unquarantine =
+          test_case.is_quarantined and
+            MapSet.member?(auto_quarantine_project_ids, test_case.project_id)
+
+        updates = %{is_flaky: false, inserted_at: now}
+        updates = if should_unquarantine, do: Map.put(updates, :is_quarantined, false), else: updates
+
         test_case
         |> Map.from_struct()
         |> Map.delete(:__meta__)
-        |> Map.merge(%{is_flaky: false, inserted_at: now})
+        |> Map.merge(updates)
       end)
 
     TestCase.Buffer.insert_all(test_cases_to_update)
 
     if Enum.any?(stale_test_cases) do
       events =
-        Enum.map(stale_test_cases, fn test_case ->
-          %{
+        Enum.flat_map(stale_test_cases, fn test_case ->
+          should_unquarantine =
+            test_case.is_quarantined and
+              MapSet.member?(auto_quarantine_project_ids, test_case.project_id)
+
+          flaky_event = %{
             id: UUIDv7.generate(),
             test_case_id: test_case.id,
             event_type: "unmarked_flaky",
             actor_id: nil,
             inserted_at: now
           }
+
+          if should_unquarantine do
+            [
+              flaky_event,
+              %{
+                id: UUIDv7.generate(),
+                test_case_id: test_case.id,
+                event_type: "unquarantined",
+                actor_id: nil,
+                inserted_at: now
+              }
+            ]
+          else
+            [flaky_event]
+          end
         end)
 
       TestCaseEvent.Buffer.insert_all(events)
