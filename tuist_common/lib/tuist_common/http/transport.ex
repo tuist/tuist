@@ -52,7 +52,8 @@ defmodule TuistCommon.HTTP.Transport do
 
     %{
       method: (conn && conn.method) || "unknown",
-      route: (conn && conn.private[:phoenix_route]) || "unknown"
+      route: (conn && conn.private[:phoenix_route]) || "unknown",
+      request_path: conn && conn.request_path
     }
   end
 

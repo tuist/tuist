@@ -32,6 +32,9 @@ defmodule TuistCommon.HTTP.TransportLogger do
   end
 
   def handle_event([:bandit, :request, :stop], measurements, metadata, _config) do
+    request_meta = Transport.bandit_request_metadata(metadata)
+    Logger.metadata(Map.to_list(request_meta))
+
     if Transport.bandit_request_timeout?(metadata) do
       Logger.warning(
         "Bandit request body read timed out",
@@ -53,10 +56,16 @@ defmodule TuistCommon.HTTP.TransportLogger do
         :ok
 
       reason ->
-        Logger.warning(
-          "Thousand Island connection dropped",
+        log_metadata =
           Map.to_list(Transport.thousand_island_drop_log_metadata(measurements, metadata, reason))
-        )
+
+        case reason do
+          r when r in ["timeout", "closed"] ->
+            Logger.debug("Thousand Island connection dropped", log_metadata)
+
+          _ ->
+            Logger.warning("Thousand Island connection dropped", log_metadata)
+        end
     end
   end
 
