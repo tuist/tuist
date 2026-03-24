@@ -29,6 +29,8 @@ struct CleanServiceTests {
     private var cleanProjectCacheService: MockCleanProjectCacheServicing!
     private var getCacheEndpointsService: MockGetCacheEndpointsServicing!
     private var serverAuthenticationController: MockServerAuthenticationControlling!
+    private let fileSystem = FileSystem()
+    private let fileHandler = FileHandler.shared
 
     init() throws {
         rootDirectoryLocator = .init()
@@ -59,7 +61,7 @@ struct CleanServiceTests {
     @Test(.inTemporaryDirectory) func run_with_category_cleans_category() async throws {
         // Given
         let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let cachePaths = try await createFiles([
+        let cachePaths = try await TuistTest.createFiles([
             "tuist/Manifests/manifest.json", "tuist/ProjectDescriptionHelpers/File.swift",
         ])
 
@@ -94,7 +96,7 @@ struct CleanServiceTests {
     @Test(.inTemporaryDirectory) func run_with_dependencies_cleans_dependencies() async throws {
         // Given
         let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let localPaths = try await createFiles([
+        let localPaths = try await TuistTest.createFiles([
             "Tuist/.build/file", "Tuist/ProjectDescriptionHelpers/File.swift",
         ])
 
@@ -131,7 +133,7 @@ struct CleanServiceTests {
     @Test(.inTemporaryDirectory) func run_with_dependencies_cleans_dependencies_when_package_is_in_root() async throws {
         // Given
         let rootDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let localPaths = try await createFiles([
+        let localPaths = try await TuistTest.createFiles([
             ".build/file", "Tuist/ProjectDescriptionHelpers/file",
         ])
 
@@ -167,7 +169,7 @@ struct CleanServiceTests {
 
     @Test(.inTemporaryDirectory) func run_without_category_cleans_all() async throws {
         // Given
-        let cachePaths = try await createFiles(["tuist/Manifests/hash"])
+        let cachePaths = try await TuistTest.createFiles(["tuist/Manifests/hash"])
 
         given(cacheDirectoriesProvider)
             .cacheDirectory(for: .any)

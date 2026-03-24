@@ -5,7 +5,7 @@ import Testing
 
 struct WorkspaceSettingsDescriptorTests {
     @Test
-    func test_xcsettingsFilePath() {
+    func test_xcsettingsFilePath() throws {
         // Given
         let basePath = try! AbsolutePath(validating: "/temp")
 
@@ -13,6 +13,7 @@ struct WorkspaceSettingsDescriptorTests {
         let actual = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: basePath)
 
         // Then
-        #expect(actual == try AbsolutePath(validating: "/temp/xcshareddata/WorkspaceSettings.xcsettings"))
+        let expected = try AbsolutePath(validating: "/temp/xcshareddata/WorkspaceSettings.xcsettings")
+        #expect(actual == expected)
     }
 }

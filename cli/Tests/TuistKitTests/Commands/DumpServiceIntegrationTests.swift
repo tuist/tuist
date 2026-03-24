@@ -13,6 +13,7 @@ import TuistSupport
 @testable import TuistTesting
 
 struct DumpServiceTests {
+    private let fileHandler = FileHandler.shared
     private var subject: DumpService!
     private var fileSystem: FileSysteming!
 

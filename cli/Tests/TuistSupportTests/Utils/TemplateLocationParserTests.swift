@@ -7,7 +7,7 @@ import Testing
 struct TemplateLocationParserTests {
     private let subject: TemplateLocationParser
     init() {
-        subject = TemplateLocationParser(system: system)
+        subject = TemplateLocationParser(system: MockSystem())
     }
 
     @Test

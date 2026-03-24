@@ -30,6 +30,7 @@ struct ProjectEditorErrorTests {
 }
 
 struct ProjectEditorTests {
+    private let fileSystem = FileSystem()
     private var generator: MockDescriptorGenerator!
     private var projectEditorMapper: MockProjectEditorMapper!
     private var resourceLocator: MockResourceLocator!
@@ -51,8 +52,9 @@ struct ProjectEditorTests {
         templatesDirectoryLocator = MockTemplatesDirectoryLocating()
         projectDescriptionHelpersBuilder = MockProjectDescriptionHelpersBuilder()
         projectDescriptionHelpersBuilderFactory = MockProjectDescriptionHelpersBuilderFactory()
+        let builder = projectDescriptionHelpersBuilder!
         projectDescriptionHelpersBuilderFactory
-            .projectDescriptionHelpersBuilderStub = { _ in projectDescriptionHelpersBuilder }
+            .projectDescriptionHelpersBuilderStub = { _ in builder }
 
         subject = ProjectEditor(
             generator: generator,

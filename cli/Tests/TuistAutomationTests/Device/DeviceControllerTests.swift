@@ -12,6 +12,7 @@ import TuistTesting
 struct DeviceControllerTests {
     private let subject: DeviceController
     private let commandRunner: MockCommandRunning
+    private let fileSystem = FileSystem()
     init() {
         commandRunner = MockCommandRunning()
         subject = DeviceController(

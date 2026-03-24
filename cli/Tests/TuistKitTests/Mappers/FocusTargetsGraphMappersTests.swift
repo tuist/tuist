@@ -36,7 +36,7 @@ struct FocusTargetsGraphMappersTests {
 
         // Then
         #expect(gotSideEffects.isEmpty)
-        #expect(pruningTargets.map(\.name.isEmpty))
+        #expect(pruningTargets.map(\.name).isEmpty)
     }
 
     @Test(.inTemporaryDirectory) func map_when_included_targets_is_empty_no_internal_targets_are_pruned() throws {
@@ -290,7 +290,7 @@ struct FocusTargetsGraphMappersTests {
             .filter { $0.metadata.tags.contains("tuist:prunable") }
 
         // Then — App should NOT be pruned because it's referenced as a pre-action build settings provider
-        #expect(pruningTargets.map(\.name.isEmpty))
+        #expect(pruningTargets.map(\.name).isEmpty)
     }
 
     @Test(.inTemporaryDirectory) func map_when_included_products_prunes_pre_action_target_from_fully_pruned_scheme() throws {

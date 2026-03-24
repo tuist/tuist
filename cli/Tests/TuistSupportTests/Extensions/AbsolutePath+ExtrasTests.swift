@@ -7,49 +7,52 @@ import Testing
 
 struct AbsolutePathExtrasTests {
     @Test
-    func commonAncestor_siblings() {
+    func commonAncestor_siblings() throws {
         // Given
-        let pathA = try! AbsolutePath(validating: "/path/to/A")
-        let pathB = try! AbsolutePath(validating: "/path/to/B")
+        let pathA = try AbsolutePath(validating: "/path/to/A")
+        let pathB = try AbsolutePath(validating: "/path/to/B")
 
         // When
         let result = pathA.commonAncestor(with: pathB)
 
         // Then
-        #expect(result == try AbsolutePath(validating: "/path/to"))
+        let expected = try AbsolutePath(validating: "/path/to")
+        #expect(result == expected)
     }
 
     @Test
-    func commonAncestor_parent() {
+    func commonAncestor_parent() throws {
         // Given
-        let pathA = try! AbsolutePath(validating: "/path/to/A")
-        let pathB = try! AbsolutePath(validating: "/path/to/")
+        let pathA = try AbsolutePath(validating: "/path/to/A")
+        let pathB = try AbsolutePath(validating: "/path/to/")
 
         // When
         let result = pathA.commonAncestor(with: pathB)
 
         // Then
-        #expect(result == try AbsolutePath(validating: "/path/to"))
+        let expected = try AbsolutePath(validating: "/path/to")
+        #expect(result == expected)
     }
 
     @Test
-    func commonAncestor_none() {
+    func commonAncestor_none() throws {
         // Given
-        let pathA = try! AbsolutePath(validating: "/path/to/A")
-        let pathB = try! AbsolutePath(validating: "/another/path")
+        let pathA = try AbsolutePath(validating: "/path/to/A")
+        let pathB = try AbsolutePath(validating: "/another/path")
 
         // When
         let result = pathA.commonAncestor(with: pathB)
 
         // Then
-        #expect(result == try AbsolutePath(validating: "/"))
+        let expected = try AbsolutePath(validating: "/")
+        #expect(result == expected)
     }
 
     @Test
-    func commonAncestor_commutative() {
+    func commonAncestor_commutative() throws {
         // Given
-        let pathA = try! AbsolutePath(validating: "/path/to/A")
-        let pathB = try! AbsolutePath(validating: "/path/to/B")
+        let pathA = try AbsolutePath(validating: "/path/to/A")
+        let pathB = try AbsolutePath(validating: "/path/to/B")
 
         // When
         let resultA = pathA.commonAncestor(with: pathB)
@@ -102,8 +105,9 @@ struct AbsolutePathExtrasTests {
         #expect(try AbsolutePath(validating: "/").opaqueParentDirectory() == nil)
         #expect(try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").opaqueParentDirectory() == nil)
         #expect(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").opaqueParentDirectory() == nil)
-        #expect(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png")
-            .opaqueParentDirectory() == try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle"))
+        let bundlePath = try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png")
+        let expectedBundlePath = try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle")
+        #expect(bundlePath.opaqueParentDirectory() == expectedBundlePath)
 
         for file in [
             "/test/directory.bundle/file.png",

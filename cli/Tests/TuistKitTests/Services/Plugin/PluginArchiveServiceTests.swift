@@ -15,6 +15,7 @@ struct PluginArchiveServiceTests {
     private var packageInfoLoader: MockPackageInfoLoading!
     private var manifestLoader: MockManifestLoading!
     private var fileArchiverFactory: MockFileArchivingFactorying!
+    private let fileHandler = FileHandler.shared
 
     init() {
         swiftPackageManagerController = MockSwiftPackageManagerControlling()

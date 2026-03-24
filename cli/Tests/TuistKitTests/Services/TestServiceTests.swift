@@ -24,6 +24,8 @@ import XcodeGraph
 @testable import TuistTesting
 
 struct TestServiceTests {
+    private let fileHandler = FileHandler.shared
+    private let fileSystem = FileSystem()
     private var subject: TestService!
     private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!
@@ -37,7 +39,12 @@ struct TestServiceTests {
     private var cacheStorageFactory: MockCacheStorageFactorying!
     private var cacheStorage: MockCacheStoring!
     private var runMetadataStorage: RunMetadataStorage!
-    private var testedSchemes: [String] = []
+    private class TestedSchemes {
+        var values: [String] = []
+        func append(_ scheme: String) { values.append(scheme) }
+    }
+
+    private let testedSchemes = TestedSchemes()
     private var xcResultService: MockXCResultServicing!
     private var xcodeBuildArgumentParser: MockXcodeBuildArgumentParsing!
     private var uploadResultBundleService: MockUploadResultBundleServicing!
@@ -222,7 +229,7 @@ struct TestServiceTests {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
+            .willProduce { [testedSchemes] _, scheme, _, _, _, _, _, _, _, _, _, _, _, _ in
                 testedSchemes.append(scheme)
             }
     }
@@ -531,7 +538,7 @@ struct TestServiceTests {
         )
 
         // Then
-        #expect(testedSchemes == ["TestScheme"])
+        #expect(testedSchemes.values == ["TestScheme"])
     }
 
     @Test(.inTemporaryDirectory) func run_tests_all_project_schemes() async throws {
@@ -574,7 +581,7 @@ struct TestServiceTests {
 
         // Then
         #expect(
-            testedSchemes ==
+            testedSchemes.values ==
                 [
                     "ProjectSchemeOne",
                     "ProjectSchemeTwo",
@@ -724,7 +731,7 @@ struct TestServiceTests {
         )
 
         // Then
-        #expect(testedSchemes == ["ProjectSchemeOne"])
+        #expect(testedSchemes.values == ["ProjectSchemeOne"])
     }
 
     @Test(.inTemporaryDirectory) func run_tests_individual_scheme_with_no_test_actions() async throws {
@@ -767,7 +774,7 @@ struct TestServiceTests {
             TuistTest.expectLogs(
                 "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
             )
-            #expect(testedSchemes.isEmpty)
+            #expect(testedSchemes.values.isEmpty)
         }
     }
 
@@ -882,7 +889,7 @@ struct TestServiceTests {
             )
 
             // Then
-            #expect(testedSchemes.isEmpty)
+            #expect(testedSchemes.values.isEmpty)
             TuistTest.expectLogs(
                 "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
             )
@@ -918,7 +925,7 @@ struct TestServiceTests {
             )
 
             // Then
-            #expect(testedSchemes.isEmpty)
+            #expect(testedSchemes.values.isEmpty)
             TuistTest.expectLogs("There are no tests to run, finishing early")
         }
     }
@@ -958,7 +965,7 @@ struct TestServiceTests {
             )
 
             // Then
-            #expect(testedSchemes.isEmpty)
+            #expect(testedSchemes.values.isEmpty)
             TuistTest.expectLogs("There are no tests to run, finishing early")
         }
     }
@@ -1094,7 +1101,7 @@ struct TestServiceTests {
             )
 
             // Then
-            #expect(testedSchemes == ["ProjectSchemeOne"])
+            #expect(testedSchemes.values == ["ProjectSchemeOne"])
             TuistTest.expectLogs(
                 "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
             )
@@ -1356,7 +1363,7 @@ struct TestServiceTests {
             Issue.record("Should throw")
         } catch {}
         #expect(
-            testedSchemes ==
+            testedSchemes.values ==
                 [
                     "UnitTests",
                 ]
@@ -1512,7 +1519,7 @@ struct TestServiceTests {
             )
 
             // Then
-            #expect(testedSchemes == ["ProjectSchemeTwo"])
+            #expect(testedSchemes.values == ["ProjectSchemeTwo"])
             TuistTest.expectLogs(
                 "The following targets have not changed since the last successful run and will be skipped: TargetC"
             )
@@ -1576,7 +1583,7 @@ struct TestServiceTests {
         )
 
         // Then
-        #expect(testedSchemes == ["ProjectSchemeOneTests"])
+        #expect(testedSchemes.values == ["ProjectSchemeOneTests"])
     }
 
     @Test(.inTemporaryDirectory) func run_filters_test_targets_not_in_scheme() async throws {
@@ -1678,7 +1685,7 @@ struct TestServiceTests {
         )
 
         // Then — only TargetA should be passed to xcodebuild, PrunedTarget should be filtered out
-        #expect(testedSchemes == ["App-Workspace"])
+        #expect(testedSchemes.values == ["App-Workspace"])
         #expect(capturedTestTargets == [try TestIdentifier(target: "TargetA", class: nil)])
     }
 
@@ -1737,7 +1744,7 @@ struct TestServiceTests {
             Issue.record("Should throw")
         } catch {}
         #expect(
-            testedSchemes ==
+            testedSchemes.values ==
                 [
                     "ProjectScheme",
                 ]
@@ -1770,7 +1777,7 @@ struct TestServiceTests {
             )
 
             // Then
-            #expect(testedSchemes.isEmpty)
+            #expect(testedSchemes.values.isEmpty)
             TuistTest.expectLogs("There are no tests to run, finishing early")
         }
     }
@@ -2275,7 +2282,7 @@ struct TestServiceTests {
         )
 
         // Then
-        #expect(testedSchemes == ["TestScheme"])
+        #expect(testedSchemes.values == ["TestScheme"])
         verify(cacheStorage)
             .store(
                 .value(
@@ -2417,7 +2424,7 @@ struct TestServiceTests {
         )
 
         // Then
-        #expect(testedSchemes == ["TestScheme"])
+        #expect(testedSchemes.values == ["TestScheme"])
         let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
         #expect(
             selectiveTestingCacheItems ==
@@ -2707,7 +2714,7 @@ struct TestServiceTests {
             )
 
             // Then
-            #expect(testedSchemes == ["ProjectScheme"])
+            #expect(testedSchemes.values == ["ProjectScheme"])
             let warnings = AlertController.current.warnings()
             #expect(warnings.count == 1)
             #expect(warnings.first?.message.plain().contains("Failed to upload test results") == true)
@@ -3235,8 +3242,8 @@ struct TestServiceTests {
 
     // MARK: - inferPlatformDestination
 
-    func test_inferPlatformDestination_returns_nil_for_empty_schemes() {
+    @Test func inferPlatformDestination_returns_nil_for_empty_schemes() {
         let graphTraverser = MockGraphTraversing()
-        XCTAssertNil(subject.inferPlatformDestination(schemes: [], graphTraverser: graphTraverser))
+        #expect(subject.inferPlatformDestination(schemes: [], graphTraverser: graphTraverser) == nil)
     }
 }

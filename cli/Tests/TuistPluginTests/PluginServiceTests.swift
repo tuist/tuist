@@ -23,6 +23,7 @@ struct PluginServiceTests {
     private let cacheDirectoriesProvider: MockCacheDirectoriesProviding
     private let fileUnarchiver: MockFileUnarchiving
     private let fileClient: MockFileClient
+    private let fileHandler = FileHandler.shared
     init() throws {
         manifestLoader = .init()
         templatesDirectoryLocator = MockTemplatesDirectoryLocating()
@@ -32,7 +33,6 @@ struct PluginServiceTests {
         given(cacheDirectoriesProvider)
             .cacheDirectory()
             .willReturn(try! try #require(FileSystem.temporaryTestDirectory))
-        cacheDirectoriesProvider = .init()
         fileUnarchiver = MockFileUnarchiving()
         let fileArchivingFactory = MockFileArchivingFactorying()
         given(fileArchivingFactory).makeFileUnarchiver(for: .any).willReturn(fileUnarchiver)

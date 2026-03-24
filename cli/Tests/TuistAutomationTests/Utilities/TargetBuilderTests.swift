@@ -32,6 +32,7 @@ struct TargetBuilderTests {
     private let xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating
     private let simulatorController: MockSimulatorControlling
     private let subject: TargetBuilder
+    private let fileHandler = FileHandler.shared
     init() {
         buildGraphInspector = .init()
         xcodeBuildController = .init()
@@ -151,7 +152,7 @@ struct TargetBuilderTests {
                 configuration: .any
             )
             .willReturn(xcodeBuildPath)
-        try await createFiles([
+        try await TuistTest.createFiles([
             "Xcode/DerivedData/MyProject-hash/Debug/App.app",
             "Xcode/DerivedData/MyProject-hash/Debug/App.swiftmodule",
         ])
@@ -237,7 +238,7 @@ struct TargetBuilderTests {
                 configuration: .any
             )
             .willReturn(xcodeBuildPath)
-        try await createFiles([
+        try await TuistTest.createFiles([
             "Xcode/DerivedData/MyProject-hash/\(configuration)/App.app",
             "Xcode/DerivedData/MyProject-hash/\(configuration)/App.swiftmodule",
         ])

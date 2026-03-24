@@ -28,7 +28,7 @@ struct EmptyBuildSettingsCheckerIntegrationTests {
     func check_when_non_empty_target_build_settings() async throws {
         try await withMockedDependencies {
             // Given
-            let xcodeprojPath = fixturePath(
+            let xcodeprojPath = SwiftTestingHelper.fixturePath(
                 path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj")
             )
 
@@ -49,7 +49,7 @@ struct EmptyBuildSettingsCheckerIntegrationTests {
     func check_when_non_empty_project_build_settings() async throws {
         try await withMockedDependencies {
             // Given
-            let xcodeprojPath = fixturePath(
+            let xcodeprojPath = SwiftTestingHelper.fixturePath(
                 path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj")
             )
 

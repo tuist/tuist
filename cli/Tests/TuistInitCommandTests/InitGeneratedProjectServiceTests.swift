@@ -1,4 +1,5 @@
 #if os(macOS)
+    import FileSystem
     import FileSystemTesting
     import Foundation
     import Mockable
@@ -150,7 +151,6 @@
     }
 
     extension InitGeneratedProjectService {
-        @Test
         func testRun(
             name: String? = nil,
             platform: String? = nil,

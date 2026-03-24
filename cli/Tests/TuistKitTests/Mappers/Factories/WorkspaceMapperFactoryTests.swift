@@ -15,22 +15,25 @@ import XcodeGraph
 #endif
 
 struct WorkspaceMapperFactoryTests {
-    var projectMapperFactory: ProjectMapperFactory!
-    var subject: WorkspaceMapperFactory!
+    let projectMapperFactory: ProjectMapperFactory
 
     init() {
         projectMapperFactory = ProjectMapperFactory()
     }
 
-    @Test func default_contains_the_project_workspace_mapper() {
-        // Given
-        subject = WorkspaceMapperFactory(
+    private func makeSubject() -> WorkspaceMapperFactory {
+        WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(
                 mappers: projectMapperFactory.default(
                     tuist: .default
                 )
             )
         )
+    }
+
+    @Test func default_contains_the_project_workspace_mapper() {
+        // Given
+        let subject = makeSubject()
 
         // When
         let got = subject.default(tuist: .default)
@@ -41,13 +44,7 @@ struct WorkspaceMapperFactoryTests {
 
     @Test func default_contains_the_tuist_workspace_identifier_mapper() {
         // Given
-        subject = WorkspaceMapperFactory(
-            projectMapper: SequentialProjectMapper(
-                mappers: projectMapperFactory.default(
-                    tuist: .default
-                )
-            )
-        )
+        let subject = makeSubject()
 
         // When
         let got = subject.default(tuist: .default)
@@ -58,13 +55,7 @@ struct WorkspaceMapperFactoryTests {
 
     @Test func default_contains_the_tuist_workspace_render_markdown_readme_mapper() {
         // Given
-        subject = WorkspaceMapperFactory(
-            projectMapper: SequentialProjectMapper(
-                mappers: projectMapperFactory.default(
-                    tuist: .default
-                )
-            )
-        )
+        let subject = makeSubject()
 
         // When
         let got = subject.default(tuist: .default)
@@ -75,13 +66,7 @@ struct WorkspaceMapperFactoryTests {
 
     @Test func default_contains_the_tide_template_macros_mapper() {
         // Given
-        subject = WorkspaceMapperFactory(
-            projectMapper: SequentialProjectMapper(
-                mappers: projectMapperFactory.default(
-                    tuist: .default
-                )
-            )
-        )
+        let subject = makeSubject()
 
         // When
         let got = subject.default(tuist: .default)
@@ -92,13 +77,7 @@ struct WorkspaceMapperFactoryTests {
 
     @Test func default_contains_the_last_upgrade_version_mapper() {
         // Given
-        subject = WorkspaceMapperFactory(
-            projectMapper: SequentialProjectMapper(
-                mappers: projectMapperFactory.default(
-                    tuist: .default
-                )
-            )
-        )
+        let subject = makeSubject()
 
         // When
         let got = subject.default(tuist: .default)
@@ -110,8 +89,7 @@ struct WorkspaceMapperFactoryTests {
 
 #if canImport(TuistCacheEE)
     struct CacheWorkspaceMapperFactoryTests {
-        var projectMapperFactory: ProjectMapperFactory!
-        var subject: CacheWorkspaceMapperFactory!
+        let projectMapperFactory: ProjectMapperFactory
 
         init() {
             projectMapperFactory = ProjectMapperFactory()
@@ -119,7 +97,7 @@ struct WorkspaceMapperFactoryTests {
 
         @Test func binaryCacheWarming_returns_default_mappers() throws {
             // Given
-            subject =
+            let subject =
                 CacheWorkspaceMapperFactory(
                     projectMapper: SequentialProjectMapper(
                         mappers: projectMapperFactory.default(tuist: .test())

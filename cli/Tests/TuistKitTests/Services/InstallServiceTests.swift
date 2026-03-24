@@ -20,6 +20,7 @@ struct InstallServiceTests {
     private var configLoader: MockConfigLoading!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
     private var manifestFilesLocator: MockManifestFilesLocating!
+    private let fileHandler = FileHandler.shared
 
     private var subject: InstallService!
 

@@ -25,6 +25,7 @@ struct GraphServiceTests {
     private var xcodeGraphMapper: MockXcodeGraphMapping!
     private var configLoader: MockConfigLoading!
     private var subject: GraphService!
+    private let fileSystem = FileSystem()
 
     init() {
         graphVizMapper = MockGraphToGraphVizMapper()

@@ -15,6 +15,7 @@ import XcodeGraph
 struct StaticXCFrameworkModuleMapGraphMapperTests {
     private var subject: StaticXCFrameworkModuleMapGraphMapper!
     private var manifestFilesLocator: MockManifestFilesLocating!
+    private let fileSystem = FileSystem()
 
     init() {
         manifestFilesLocator = MockManifestFilesLocating()
@@ -129,9 +130,9 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         // Then
         #expect(expectedGraph == gotGraph)
         #expect(
-            [
+            gotSideEffects == [
                 .directory(
-                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps" == "Headers"))
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps", "Headers"))
                 ),
                 .file(
                     FileDescriptor(
@@ -148,8 +149,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
                         """.data(using: .utf8)
                     )
                 ),
-            ],
-            gotSideEffects
+            ]
         )
     }
 
@@ -459,9 +459,9 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         // Then
         #expect(expectedGraph == gotGraph)
         #expect(
-            [
+            gotSideEffects == [
                 .directory(
-                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps" == "Headers"))
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps", "Headers"))
                 ),
                 .file(
                     FileDescriptor(
@@ -469,8 +469,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
                         contents: "modulemap".data(using: .utf8)
                     )
                 ),
-            ],
-            gotSideEffects
+            ]
         )
     }
 
@@ -734,9 +733,9 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         // Then
         #expect(expectedGraph == gotGraph)
         #expect(
-            [
+            gotSideEffects == [
                 .directory(
-                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps" == "Headers"))
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps", "Headers"))
                 ),
                 .file(
                     FileDescriptor(
@@ -753,8 +752,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
                         """.data(using: .utf8)
                     )
                 ),
-            ],
-            gotSideEffects
+            ]
         )
     }
 
@@ -1249,9 +1247,9 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         // Then
         #expect(expectedGraph == gotGraph)
         #expect(
-            [
+            gotSideEffects == [
                 .directory(
-                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps" == "Headers"))
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps", "Headers"))
                 ),
                 .file(
                     FileDescriptor(
@@ -1268,8 +1266,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
                         """.data(using: .utf8)
                     )
                 ),
-            ],
-            gotSideEffects
+            ]
         )
     }
 

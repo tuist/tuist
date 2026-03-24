@@ -1,3 +1,4 @@
+import FileSystem
 import FileSystemTesting
 import Foundation
 import Testing
@@ -23,9 +24,9 @@ struct ManifestGraphLoaderIntegrationTests {
 
     // MARK: - Tests
 
-    @Test func load_workspace() async throws {
+    @Test(.withFixture("WorkspaceWithPlugins")) func load_workspace() async throws {
         // Given
-        let path = try await temporaryFixture("WorkspaceWithPlugins")
+        let path = try #require(TuistTest.fixtureDirectory)
 
         // When
         let (result, _, _, _) = try await subject.load(path: path, disableSandbox: true)
@@ -39,9 +40,9 @@ struct ManifestGraphLoaderIntegrationTests {
         ])
     }
 
-    @Test func load_project() async throws {
+    @Test(.withFixture("WorkspaceWithPlugins")) func load_project() async throws {
         // Given
-        let path = try await temporaryFixture("WorkspaceWithPlugins")
+        let path = try #require(TuistTest.fixtureDirectory)
             .appending(component: "App")
 
         // When

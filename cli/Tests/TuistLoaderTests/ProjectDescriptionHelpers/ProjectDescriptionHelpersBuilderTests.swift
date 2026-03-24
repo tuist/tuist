@@ -67,16 +67,17 @@ struct ProjectDescriptionHelpersBuilderTests {
         projectDescriptionHelpersHasher.stubHash = { $0.basename }
 
         var allModules: [ProjectDescriptionHelpersModule] = []
+        var currentSubject = subject
         for path in paths {
             helpersDirectoryLocator.locateStub = path
-            let modules = try await subject.build(
+            let modules = try await currentSubject.build(
                 at: path,
                 projectDescriptionSearchPaths: searchPaths,
                 projectDescriptionHelperPlugins: []
             )
             allModules.append(contentsOf: modules)
 
-            subject = ProjectDescriptionHelpersBuilder(
+            currentSubject = ProjectDescriptionHelpersBuilder(
                 projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
                 cacheDirectory: cachePath,
                 helpersDirectoryLocator: helpersDirectoryLocator,

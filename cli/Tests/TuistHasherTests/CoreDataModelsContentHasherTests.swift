@@ -11,7 +11,6 @@ import XcodeGraph
 
 struct CoreDataModelsContentHasherTests {
     private let subject: CoreDataModelsContentHasher
-    private let coreDataModel: CoreDataModel
     private let contentHasher: MockContentHashing
     private let defaultValuesHash =
         "05c9d517e2cf12b45786787dae929a23" // Expected hash for the CoreDataModel created with the buildCoreDataModel function
@@ -35,7 +34,7 @@ struct CoreDataModelsContentHasherTests {
     @Test
     func hash_returnsSameValue() async throws {
         // Given
-        coreDataModel = try buildCoreDataModel(versions: ["v1", "v2"], currentVersion: "currentV1")
+        let coreDataModel = try buildCoreDataModel(versions: ["v1", "v2"], currentVersion: "currentV1")
         given(contentHasher)
             .hash(path: .any)
             .willProduce { $0.basename }
@@ -51,7 +50,7 @@ struct CoreDataModelsContentHasherTests {
     func hash_fileContentChangesHash() async throws {
         // Given
         let name = "CoreDataModel"
-        coreDataModel = try buildCoreDataModel()
+        let coreDataModel = try buildCoreDataModel()
         let fakePath = buildFakePath(from: name)
         given(contentHasher)
             .hash(path: .any)
@@ -70,7 +69,7 @@ struct CoreDataModelsContentHasherTests {
     @Test
     func hash_currentVersionChangesHash() async throws {
         // Given
-        coreDataModel = try buildCoreDataModel(currentVersion: "2")
+        let coreDataModel = try buildCoreDataModel(currentVersion: "2")
         given(contentHasher)
             .hash(path: .any)
             .willProduce { $0.basename }
@@ -84,7 +83,7 @@ struct CoreDataModelsContentHasherTests {
     @Test
     func hash_versionsChangeHash() async throws {
         // Given
-        coreDataModel = try buildCoreDataModel(versions: ["1", "2", "3"])
+        let coreDataModel = try buildCoreDataModel(versions: ["1", "2", "3"])
         given(contentHasher)
             .hash(path: .any)
             .willProduce { $0.basename }

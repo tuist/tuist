@@ -1,5 +1,6 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Path
 import Testing
 import TuistSupport
@@ -8,10 +9,9 @@ import TuistSupport
 
 struct ContentHasherTests {
     private let subject: ContentHasher
-    private let mockFileHandler: MockFileHandler
+    private let fileHandler = FileHandler.shared
 
     init() throws {
-        mockFileHandler = MockFileHandler(temporaryDirectory: { try #require(FileSystem.temporaryTestDirectory) })
         subject = ContentHasher()
     }
 
@@ -85,7 +85,7 @@ struct ContentHasherTests {
         // given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let folderPath = temporaryPath.appending(component: "assets.xcassets")
-        try mockFileHandler.createFolder(folderPath)
+        try fileHandler.createFolder(folderPath)
 
         let files = [
             "foo": "bar",
@@ -133,13 +133,13 @@ struct ContentHasherTests {
     private func writeToTemporaryPath(fileName: String = "foo", content: String = "foo") throws -> AbsolutePath {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: fileName)
-        try mockFileHandler.write(content, path: path, atomically: true)
+        try fileHandler.write(content, path: path, atomically: true)
         return path
     }
 
     private func writeFiles(to folder: AbsolutePath, files: [String: String]) throws {
         for file in files {
-            try mockFileHandler.write(file.value, path: folder.appending(component: file.key), atomically: true)
+            try fileHandler.write(file.value, path: folder.appending(component: file.key), atomically: true)
         }
     }
 }

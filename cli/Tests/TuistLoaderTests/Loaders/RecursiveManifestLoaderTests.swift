@@ -13,13 +13,17 @@ import struct XcodeGraph.PackageInfo
 @testable import TuistLoader
 @testable import TuistTesting
 
+private final class ManifestStore {
+    var projectManifests: [AbsolutePath: Project] = [:]
+    var workspaceManifests: [AbsolutePath: Workspace] = [:]
+    var packageManifests: [AbsolutePath: PackageInfo] = [:]
+}
+
 struct RecursiveManifestLoaderTests {
     private let path: AbsolutePath
-    private var manifestLoader: MockManifestLoading
+    private let manifestLoader: MockManifestLoading
     private let packageInfoMapper: MockPackageInfoMapping
-    private var projectManifests: [AbsolutePath: Project] = [:]
-    private var workspaceManifests: [AbsolutePath: Workspace] = [:]
-    private var packageManifests: [AbsolutePath: PackageInfo] = [:]
+    private let store = ManifestStore()
     private let subject: RecursiveManifestLoader
     private let rootDirectoryLocator: MockRootDirectoryLocating
     private let fileSystem = FileSystem()
@@ -35,37 +39,38 @@ struct RecursiveManifestLoaderTests {
             .willReturn(path)
 
         manifestLoader = MockManifestLoading()
+        let store = store
         given(manifestLoader)
             .loadProject(at: .any, disableSandbox: .any)
-            .willProduce { [self] loadPath, _ in
-                guard let manifest = projectManifests[loadPath] else {
+            .willProduce { loadPath, _ in
+                guard let manifest = store.projectManifests[loadPath] else {
                     throw ManifestLoaderError.manifestNotFound(.project, loadPath)
                 }
                 return manifest
             }
         given(manifestLoader)
             .loadWorkspace(at: .any, disableSandbox: .any)
-            .willProduce { [self] loadPath, _ in
-                guard let manifest = workspaceManifests[loadPath] else {
+            .willProduce { loadPath, _ in
+                guard let manifest = store.workspaceManifests[loadPath] else {
                     throw ManifestLoaderError.manifestNotFound(.workspace, loadPath)
                 }
                 return manifest
             }
         given(manifestLoader)
             .loadPackage(at: .any, disableSandbox: .value(false))
-            .willProduce { [self] loadPath, _ in
-                guard let manifest = packageManifests[loadPath] else {
+            .willProduce { loadPath, _ in
+                guard let manifest = store.packageManifests[loadPath] else {
                     throw ManifestLoaderError.manifestNotFound(.workspace, loadPath)
                 }
                 return manifest
             }
         given(manifestLoader)
             .manifests(at: .any)
-            .willProduce { [self] loadPath in
+            .willProduce { loadPath in
                 var manifests = Set<Manifest>()
-                if projectManifests[loadPath] != nil { manifests.insert(.project) }
-                if workspaceManifests[loadPath] != nil { manifests.insert(.workspace) }
-                if packageManifests[loadPath] != nil { manifests.insert(.package) }
+                if store.projectManifests[loadPath] != nil { manifests.insert(.project) }
+                if store.workspaceManifests[loadPath] != nil { manifests.insert(.workspace) }
+                if store.packageManifests[loadPath] != nil { manifests.insert(.package) }
                 return manifests
             }
 
@@ -142,18 +147,18 @@ struct RecursiveManifestLoaderTests {
         Dictionary(uniqueKeysWithValues: projects.map { ($0.key.relative(to: path).pathString, $0.value) })
     }
 
-    private mutating func stub(manifest: Project, at relativePath: RelativePath) async throws {
+    private func stub(manifest: Project, at relativePath: RelativePath) async throws {
         let manifestPath = path.appending(relativePath)
             .appending(component: Manifest.project.fileName(path.appending(relativePath)))
         try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
         try await fileSystem.touch(manifestPath)
-        projectManifests[manifestPath.parentDirectory] = manifest
+        store.projectManifests[manifestPath.parentDirectory] = manifest
     }
 
-    private mutating func stub(workspace manifest: Workspace, at relativePath: RelativePath) throws {
+    private func stub(workspace manifest: Workspace, at relativePath: RelativePath) throws {
         let manifestPath = path.appending(relativePath)
             .appending(component: Manifest.workspace.fileName(path.appending(relativePath)))
         try fileHandler.touch(manifestPath)
-        workspaceManifests[manifestPath.parentDirectory] = manifest
+        store.workspaceManifests[manifestPath.parentDirectory] = manifest
     }
 }

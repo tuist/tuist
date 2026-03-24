@@ -12,6 +12,7 @@ import TuistSupport
 
 struct TemplateGeneratorTests {
     private let subject: TemplateGenerator
+    private let fileSystem = FileSystem()
     init() {
         subject = TemplateGenerator()
     }

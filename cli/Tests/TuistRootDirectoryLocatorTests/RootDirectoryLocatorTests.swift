@@ -20,7 +20,7 @@ struct RootDirectoryLocatorTests {
     func locate_when_a_tuist_and_git_directory_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/", "this/.git"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/directory", "this/is/Tuist/", "this/.git"])
 
         // When
         let got = try await subject
@@ -34,7 +34,7 @@ struct RootDirectoryLocatorTests {
     func locate_when_a_tuist_directory_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/directory", "this/is/Tuist/"])
 
         // When
         let got = try await subject
@@ -48,8 +48,8 @@ struct RootDirectoryLocatorTests {
     func locate_when_a_tuist_swift_manifest_file_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/directory"])
-        try await createFiles(["this/is/\(Constants.tuistManifestFileName)"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/directory"])
+        try await TuistTest.createFiles(["this/is/\(Constants.tuistManifestFileName)"])
 
         // When
         let got = try await subject
@@ -63,8 +63,8 @@ struct RootDirectoryLocatorTests {
     func locate_when_a_tuist_toml_file_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/directory"])
-        try await createFiles(["this/is/\(Constants.tuistTomlFileName)"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/directory"])
+        try await TuistTest.createFiles(["this/is/\(Constants.tuistTomlFileName)"])
 
         // When
         let got = try await subject
@@ -78,7 +78,7 @@ struct RootDirectoryLocatorTests {
     func locate_when_a_git_directory_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/directory", "this/.git"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/directory", "this/.git"])
 
         // When
         let got = try await subject
@@ -92,8 +92,8 @@ struct RootDirectoryLocatorTests {
     func locate_when_a_tuist_file_is_present_not_directory() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/directory"])
-        try await createFiles(["this/is/a/directory/tuist"])
+        try await TuistTest.makeDirectories(["this/is/a/directory"])
+        try await TuistTest.createFiles(["this/is/a/directory/tuist"])
 
         // When
         let got = try await subject
@@ -107,7 +107,7 @@ struct RootDirectoryLocatorTests {
     func locate_when_multiple_tuist_directories_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/Tuist/", "this/is/Tuist/"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/Tuist/", "this/is/Tuist/"])
         let paths = [
             "this/is/a/very/directory",
             "this/is/a/very/nested/directory",
@@ -119,17 +119,18 @@ struct RootDirectoryLocatorTests {
         }
 
         // Then
-        #expect(got == try [
+        let expected = try [
             "this/is",
             "this/is/a/very/nested",
-        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
+        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) }
+        #expect(got == expected)
     }
 
     @Test(.inTemporaryDirectory)
     func locate_when_only_plugin_manifest_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await createFiles([
+        try await TuistTest.createFiles([
             "Plugin.swift",
         ])
 
@@ -144,7 +145,7 @@ struct RootDirectoryLocatorTests {
     func locate_when_a_tuist_directory_and_plugin_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await createFiles([
+        try await TuistTest.createFiles([
             "APlugin/Plugin.swift",
             "Tuist/",
         ])
@@ -159,17 +160,18 @@ struct RootDirectoryLocatorTests {
         }
 
         // Then
-        #expect(got == try [
+        let expected = try [
             "APlugin/",
             "APlugin/",
-        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
+        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) }
+        #expect(got == expected)
     }
 
     @Test(.inTemporaryDirectory)
     func locate_when_a_git_directory_and_plugin_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await createFiles([
+        try await TuistTest.createFiles([
             "APlugin/Plugin.swift",
             ".git/",
         ])
@@ -184,17 +186,18 @@ struct RootDirectoryLocatorTests {
         }
 
         // Then
-        #expect(got == try [
+        let expected = try [
             "APlugin/",
             "APlugin/",
-        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
+        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) }
+        #expect(got == expected)
     }
 
     @Test(.inTemporaryDirectory)
     func locate_when_a_swiftpm_manifest_file_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await createFiles(["SomePackage/\(Constants.SwiftPackageManager.packageSwiftName)"])
+        try await TuistTest.createFiles(["SomePackage/\(Constants.SwiftPackageManager.packageSwiftName)"])
 
         // When
         let got = try await subject
@@ -208,7 +211,10 @@ struct RootDirectoryLocatorTests {
     func locate_when_a_tuist_directory_and_swiftpm_manifest_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/directory/\(Constants.SwiftPackageManager.packageSwiftName)", "this/is/Tuist/"])
+        try await TuistTest.makeDirectories([
+            "this/is/a/very/nested/directory/\(Constants.SwiftPackageManager.packageSwiftName)",
+            "this/is/Tuist/",
+        ])
 
         // When
         let got = try await subject

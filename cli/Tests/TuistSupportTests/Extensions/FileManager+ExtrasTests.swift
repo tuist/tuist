@@ -7,6 +7,8 @@ import Testing
 @testable import TuistTesting
 
 struct FileManagerExtrasTests {
+    private let fileHandler = FileHandler.shared
+
     @Test(.inTemporaryDirectory)
     func subdirectoriesResolvingSymbolicLinks_whenNoSymbolicLinks() throws {
         // Given
@@ -58,7 +60,7 @@ struct FileManagerExtrasTests {
         try fileHandler.createFolder(subfolderPath)
         try fileHandler.write("Test", path: outsideFile, atomically: true)
         try fileHandler.write("Test", path: filePath, atomically: true)
-        try fileHandler.createSymbolicLink(at: symlinkPath, destination: outsideFile)
+        try FileManager.default.createSymbolicLink(atPath: symlinkPath.pathString, withDestinationPath: outsideFile.pathString)
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
@@ -87,7 +89,10 @@ struct FileManagerExtrasTests {
         try fileHandler.createFolder(outsideFolderPath)
         try fileHandler.createFolder(folderPath)
         try fileHandler.write("Test", path: filePath, atomically: true)
-        try fileHandler.createSymbolicLink(at: symlinkPath, destination: outsideFolderPath)
+        try FileManager.default.createSymbolicLink(
+            atPath: symlinkPath.pathString,
+            withDestinationPath: outsideFolderPath.pathString
+        )
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
@@ -113,7 +118,10 @@ struct FileManagerExtrasTests {
 
         try fileHandler.createFolder(folderPath)
         try fileHandler.createFolder(subfolderPath)
-        try fileHandler.createSymbolicLink(at: symlinkFolderPath, destination: subfolderPath)
+        try FileManager.default.createSymbolicLink(
+            atPath: symlinkFolderPath.pathString,
+            withDestinationPath: subfolderPath.pathString
+        )
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
@@ -187,8 +195,14 @@ struct FileManagerExtrasTests {
         try fileHandler.createFolder(outsideFolderPath)
         try fileHandler.createFolder(otherOutsideFolderPath)
         try fileHandler.createFolder(subFolderPath)
-        try fileHandler.createSymbolicLink(at: symlinkFolderPath, destination: outsideFolderPath)
-        try fileHandler.createSymbolicLink(at: subSymlinkFolderPath, destination: otherOutsideFolderPath)
+        try FileManager.default.createSymbolicLink(
+            atPath: symlinkFolderPath.pathString,
+            withDestinationPath: outsideFolderPath.pathString
+        )
+        try FileManager.default.createSymbolicLink(
+            atPath: subSymlinkFolderPath.pathString,
+            withDestinationPath: otherOutsideFolderPath.pathString
+        )
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)

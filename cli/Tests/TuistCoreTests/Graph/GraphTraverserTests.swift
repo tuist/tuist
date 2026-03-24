@@ -9,6 +9,8 @@ import XcodeGraph
 @testable import TuistTesting
 
 struct GraphTraverserTests {
+    private let fileSystem = FileSystem()
+
     @Test func dependsOnXCTest_when_is_framework() {
         // Given
         let target = Target.test(
@@ -144,7 +146,7 @@ struct GraphTraverserTests {
         let got = subject.targets(at: path).sorted()
 
         // Then
-        #expect(got.map(\.target), [app == framework])
+        #expect(got.map(\.target) == [app, framework])
     }
 
     @Test func test_directStaticDependencies() {
@@ -1466,7 +1468,7 @@ struct GraphTraverserTests {
         let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
 
         // Then
-        #expect(got, [GraphDependencyReference(cDependency) == GraphDependencyReference(dDependency)])
+        #expect(got == [GraphDependencyReference(cDependency), GraphDependencyReference(dDependency)])
         // E should not be present in the list as it is mergeable and app is mergeable
     }
 
@@ -1824,7 +1826,7 @@ struct GraphTraverserTests {
         let got = try subject.librariesSearchPaths(path: project.path, name: target.name).sorted()
 
         // Then
-        #expect(got == try [AbsolutePath(validating: "/test")])
+        #expect(try got == [AbsolutePath(validating: "/test")])
     }
 
     @Test func linkableDependencies_whenMacros() throws {
@@ -3843,7 +3845,7 @@ struct GraphTraverserTests {
         let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name).sorted()
 
         // Then
-        #expect(got == try [AbsolutePath(validating: "/test/modules")])
+        #expect(try got == [AbsolutePath(validating: "/test/modules")])
     }
 
     @Test func test_runPathSearchPaths() throws {
@@ -3882,7 +3884,7 @@ struct GraphTraverserTests {
         let got = subject.runPathSearchPaths(path: project.path, name: unitTests.name).sorted()
 
         // Then
-        #expect(got == try [AbsolutePath(validating: "/test")])
+        #expect(try got == [AbsolutePath(validating: "/test")])
     }
 
     @Test func runPathSearchPaths_when_unit_tests_with_hosted_target() throws {
@@ -4338,6 +4340,7 @@ struct GraphTraverserTests {
         let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
         let staticFrameworkGraphDependency: GraphDependency = .target(name: staticFramework.name, path: project.path)
         let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
+        let iosCondition = try PlatformCondition.test([.ios])!
 
         let graph = Graph.test(
             path: project.path,
@@ -4351,7 +4354,7 @@ struct GraphTraverserTests {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): try #require(.test([.ios])),
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): iosCondition,
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4379,6 +4382,8 @@ struct GraphTraverserTests {
         let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
         let staticFrameworkGraphDependency: GraphDependency = .target(name: staticFramework.name, path: project.path)
         let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
+        let macosCondition = try PlatformCondition.test([.macos])!
+        let iosCondition = try PlatformCondition.test([.ios])!
 
         let graph = Graph.test(
             path: project.path,
@@ -4392,8 +4397,8 @@ struct GraphTraverserTests {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): try #require(.test([.macos])),
-                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): try #require(.test([.ios])),
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): macosCondition,
+                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): iosCondition,
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4419,6 +4424,7 @@ struct GraphTraverserTests {
         let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
         let staticFrameworkGraphDependency: GraphDependency = .target(name: staticFramework.name, path: project.path)
         let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
+        let iosCondition = try PlatformCondition.test([.ios])!
 
         let graph = Graph.test(
             path: project.path,
@@ -4432,7 +4438,7 @@ struct GraphTraverserTests {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): try #require(.test([.ios])),
+                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): iosCondition,
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4472,6 +4478,7 @@ struct GraphTraverserTests {
         let staticFrameworkBGraphDependency: GraphDependency = .target(name: staticFrameworkB.name, path: project.path)
         let staticFrameworkCGraphDependency: GraphDependency = .target(name: staticFrameworkC.name, path: project.path)
         let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
+        let iosCondition = try PlatformCondition.test([.ios])!
 
         let graph = Graph.test(
             path: project.path,
@@ -4489,7 +4496,7 @@ struct GraphTraverserTests {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: staticFrameworkAGraphDependency, to: sdkGraphDependency): try #require(.test([.ios])),
+                GraphEdge(from: staticFrameworkAGraphDependency, to: sdkGraphDependency): iosCondition,
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4542,6 +4549,7 @@ struct GraphTraverserTests {
         let staticFrameworkAGraphDependency: GraphDependency = .target(name: staticFrameworkA.name, path: project.path)
         let staticFrameworkBGraphDependency: GraphDependency = .target(name: staticFrameworkB.name, path: project.path)
         let staticFrameworkCGraphDependency: GraphDependency = .target(name: staticFrameworkC.name, path: project.path)
+        let macosCondition = try PlatformCondition.test([.macos])!
 
         let graph = Graph.test(
             path: project.path,
@@ -4559,7 +4567,7 @@ struct GraphTraverserTests {
                 ],
             ],
             dependencyConditions: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkBGraphDependency): try #require(.test([.macos])),
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkBGraphDependency): macosCondition,
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -4767,7 +4775,7 @@ struct GraphTraverserTests {
             appDependency: Set([frameworkDependency]),
             frameworkDependency: Set([]),
         ]
-        let platformCondition = try #require(PlatformCondition.test([.ios]))
+        let platformCondition = try PlatformCondition.test([.ios])!
 
         // Given: Value Graph
         let graph = Graph.test(
@@ -4815,7 +4823,7 @@ struct GraphTraverserTests {
             frameworkBDependency: Set([frameworkCDependency]),
             frameworkCDependency: Set([frameworkDDependency]),
         ]
-        let platformCondition = try #require(PlatformCondition.test([.ios]))
+        let platformCondition = try PlatformCondition.test([.ios])!
 
         // Given: Value Graph
         let graph = Graph.test(
@@ -4904,6 +4912,7 @@ struct GraphTraverserTests {
             path: packageProject.path
         )
 
+        let macosCondition = PlatformCondition.when([.macos])!
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project, packageProject.path: packageProject],
@@ -4914,7 +4923,7 @@ struct GraphTraverserTests {
                 GraphEdge(
                     from: appDependency,
                     to: directPackageProductDependency
-                ): try #require(.when([.macos])),
+                ): macosCondition,
             ]
         )
 
@@ -5269,7 +5278,7 @@ struct GraphTraverserTests {
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
 
         // Only use the external target on iOS
-        let dependencyCondition = try #require(PlatformCondition.when([.ios]))
+        let dependencyCondition = PlatformCondition.when([.ios])!
 
         let graph = Graph.test(
             projects: [

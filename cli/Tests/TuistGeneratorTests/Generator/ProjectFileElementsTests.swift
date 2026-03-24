@@ -236,7 +236,7 @@ struct ProjectFileElementsTests {
     func addElement_lproj_multiple_files() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        let resources = try await createFiles([
+        let resources = try await TuistTest.createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/App.stringsdict",
             "resources/en.lproj/Extension.strings",
@@ -284,7 +284,7 @@ struct ProjectFileElementsTests {
     func addElement_lproj_variant_groups() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        let resources = try await createFiles([
+        let resources = try await TuistTest.createFiles([
             "resources/Base.lproj/Controller.xib",
             "resources/Base.lproj/Intents.intentdefinition",
             "resources/Base.lproj/Storyboard.storyboard",
@@ -338,7 +338,7 @@ struct ProjectFileElementsTests {
     func addElement_lproj_knownRegions() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        let resources = try await createFiles([
+        let resources = try await TuistTest.createFiles([
             "resources/en.lproj/App.strings",
             "resources/en.lproj/Extension.strings",
             "resources/fr.lproj/App.strings",
@@ -814,10 +814,11 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func normalize_whenLocalized() {
-        let path = try! AbsolutePath(validating: "/test/es.lproj/Main.storyboard")
+    func normalize_whenLocalized() throws {
+        let path = try AbsolutePath(validating: "/test/es.lproj/Main.storyboard")
         let normalized = subject.normalize(path)
-        #expect(normalized == try AbsolutePath(validating: "/test/es.lproj"))
+        let expected = try AbsolutePath(validating: "/test/es.lproj")
+        #expect(normalized == expected)
     }
 
     @Test
@@ -832,7 +833,8 @@ struct ProjectFileElementsTests {
         let pathRelativeToSourceRoot = try! AbsolutePath(validating: "/a/framework/framework.framework")
             .relative(to: try! AbsolutePath(validating: "/a/b/c/project"))
         let got = try subject.closestRelativeElementPath(pathRelativeToSourceRoot: pathRelativeToSourceRoot)
-        #expect(got == try RelativePath(validating: "../../../framework"))
+        let expected = try RelativePath(validating: "../../../framework")
+        #expect(got == expected)
     }
 
     @Test(.inTemporaryDirectory)

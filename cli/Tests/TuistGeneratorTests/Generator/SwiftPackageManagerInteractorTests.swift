@@ -49,7 +49,7 @@ struct SwiftPackageManagerInteractorTests {
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
-        try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
+        try await TuistTest.createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
@@ -83,7 +83,7 @@ struct SwiftPackageManagerInteractorTests {
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
-        try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
+        try await TuistTest.createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
         try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
@@ -127,7 +127,7 @@ struct SwiftPackageManagerInteractorTests {
                 workspacePath.pathString,
                 "-list",
             ])
-        try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
+        try await TuistTest.createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
         try await subject.install(
@@ -247,7 +247,7 @@ struct SwiftPackageManagerInteractorTests {
             workspacePath.pathString,
             "-list",
         ])
-        try await createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
+        try await TuistTest.createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
         try await subject.install(

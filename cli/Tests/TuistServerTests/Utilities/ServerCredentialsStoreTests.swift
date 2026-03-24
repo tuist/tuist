@@ -8,7 +8,7 @@ import TuistSupport
 @testable import TuistTesting
 
 struct ServerCredentialsStoreTests {
-    let subject: ServerCredentialsStore
+    private let fileSystem = FileSystem()
 
     @Test(.inTemporaryDirectory)
     func crud() async throws {

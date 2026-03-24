@@ -86,7 +86,7 @@ struct ManifestModelConverterTests {
 
     @Test(.inTemporaryDirectory) func loadProject_withFolderReferences() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        let files = try await TuistTest.createFolders(["Stubs"])
+        let files = try await TuistTest.makeDirectories(["Stubs"])
         let manifest = ProjectManifest.test(name: "SomeProject", additionalFiles: [.folderReference(path: "Stubs")])
         let manifestLoader = makeManifestLoader(with: [temporaryPath: manifest])
         let subject = makeSubject(with: manifestLoader)
@@ -128,7 +128,7 @@ struct ManifestModelConverterTests {
 
     @Test(.inTemporaryDirectory) func loadWorkspace_withProjects() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        let projects = try await TuistTest.createFolders(["A", "B"])
+        let projects = try await TuistTest.makeDirectories(["A", "B"])
         try await TuistTest.createFiles(["A/Project.swift", "B/Project.swift"])
         let manifest = WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"])
         let manifestLoader = makeManifestLoader(with: [temporaryPath: manifest], projects: projects)

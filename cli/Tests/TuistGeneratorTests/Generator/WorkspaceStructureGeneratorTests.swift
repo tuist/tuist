@@ -1,3 +1,4 @@
+import Foundation
 import Path
 import Testing
 import TuistCore

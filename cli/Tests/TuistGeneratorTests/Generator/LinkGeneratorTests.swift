@@ -28,18 +28,20 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func linkGeneratorError_description() {
+    func linkGeneratorError_description() throws {
+        let rootPath = try AbsolutePath(validating: "/")
         #expect(LinkGeneratorError.missingProduct(name: "name").description == "Couldn't find a reference for the product name.")
-        #expect(LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/"))
+        #expect(LinkGeneratorError.missingReference(path: rootPath)
             .description == "Couldn't find a reference for the file at path /.")
         #expect(LinkGeneratorError.missingConfigurationList(targetName: "target")
             .description == "The target target doesn't have a configuration list.")
     }
 
     @Test
-    func linkGeneratorError_type() {
+    func linkGeneratorError_type() throws {
+        let rootPath = try AbsolutePath(validating: "/")
         #expect(LinkGeneratorError.missingProduct(name: "name").type == .bug)
-        #expect(LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/")).type == .bug)
+        #expect(LinkGeneratorError.missingReference(path: rootPath).type == .bug)
         #expect(LinkGeneratorError.missingConfigurationList(targetName: "target").type == .bug)
     }
 

@@ -133,7 +133,11 @@ struct ResourceSynthesizerManifestMapperTests {
 
     @Test(.inTemporaryDirectory) func locate_when_a_resourceSynthesizer_and_git_directory_exists() async throws {
         let resourceSynthesizerDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await TuistTest.createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/ResourceSynthesizers", "this/.git"])
+        try await TuistTest.makeDirectories([
+            "this/is/a/very/nested/directory",
+            "this/is/Tuist/ResourceSynthesizers",
+            "this/.git",
+        ])
 
         let got = try await subject
             .locate(at: resourceSynthesizerDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
@@ -143,7 +147,7 @@ struct ResourceSynthesizerManifestMapperTests {
 
     @Test(.inTemporaryDirectory) func locate_when_a_resourceSynthesizer_directory_exists() async throws {
         let resourceSynthesizerDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await TuistTest.createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/ResourceSynthesizers"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/directory", "this/is/Tuist/ResourceSynthesizers"])
 
         let got = try await subject
             .locate(at: resourceSynthesizerDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
@@ -153,7 +157,7 @@ struct ResourceSynthesizerManifestMapperTests {
 
     @Test(.inTemporaryDirectory) func locate_when_a_git_directory_exists() async throws {
         let resourceSynthesizerDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await TuistTest.createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/ResourceSynthesizers"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/ResourceSynthesizers"])
 
         let got = try await subject
             .locate(at: resourceSynthesizerDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
@@ -163,7 +167,7 @@ struct ResourceSynthesizerManifestMapperTests {
 
     @Test(.inTemporaryDirectory) func locate_when_multiple_tuist_directories_exists() async throws {
         let resourceSynthesizerDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await TuistTest.createFolders([
+        try await TuistTest.makeDirectories([
             "this/is/a/very/nested/Tuist/ResourceSynthesizers",
             "this/is/Tuist/ResourceSynthesizers",
         ])

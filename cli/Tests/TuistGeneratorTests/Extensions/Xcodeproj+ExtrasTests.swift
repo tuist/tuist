@@ -38,7 +38,7 @@ struct XcodeprojExtrasTests {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .mac])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: PlatformCondition = try #require(.test([.ios, .macos]))
+        let dependencyCondition: PlatformCondition = try #require(try PlatformCondition.test([.ios, .macos]))
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -67,7 +67,7 @@ struct XcodeprojExtrasTests {
         // Given
         let target = Target.test(destinations: [.mac])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: PlatformCondition = try #require(.test([.ios, .macos]))
+        let dependencyCondition: PlatformCondition = try #require(try PlatformCondition.test([.ios, .macos]))
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -82,7 +82,7 @@ struct XcodeprojExtrasTests {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .mac, .appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: PlatformCondition = try #require(.test([.ios, .macos]))
+        let dependencyCondition: PlatformCondition = try #require(try PlatformCondition.test([.ios, .macos]))
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -97,7 +97,7 @@ struct XcodeprojExtrasTests {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: PlatformCondition = try #require(.test([.ios, .macos]))
+        let dependencyCondition: PlatformCondition = try #require(try PlatformCondition.test([.ios, .macos]))
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -112,7 +112,7 @@ struct XcodeprojExtrasTests {
         // Given
         let target = Target.test(destinations: [.appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: PlatformCondition = try #require(.test([.macos]))
+        let dependencyCondition: PlatformCondition = try #require(try PlatformCondition.test([.macos]))
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)

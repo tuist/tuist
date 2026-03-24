@@ -20,7 +20,7 @@ struct SettingsToXCConfigExtractorIntegrationTests {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-            let xcodeprojPath = fixturePath(
+            let xcodeprojPath = SwiftTestingHelper.fixturePath(
                 path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj")
             )
             let xcconfigPath = temporaryPath.appending(component: "iOS.xcconfig")
@@ -66,7 +66,7 @@ struct SettingsToXCConfigExtractorIntegrationTests {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-            let xcodeprojPath = fixturePath(
+            let xcodeprojPath = SwiftTestingHelper.fixturePath(
                 path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj")
             )
             let xcconfigPath = temporaryPath.appending(component: "Project.xcconfig")
@@ -157,7 +157,7 @@ struct SettingsToXCConfigExtractorIntegrationTests {
     func extract_when_target_is_not_found() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        let xcodeprojPath = fixturePath(
+        let xcodeprojPath = SwiftTestingHelper.fixturePath(
             path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj")
         )
         let xcconfigPath = temporaryPath.appending(component: "iOS.xcconfig")
@@ -174,7 +174,7 @@ struct SettingsToXCConfigExtractorIntegrationTests {
     func extract_when_project_is_not_found() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        let xcodeprojPath = fixturePath(
+        let xcodeprojPath = SwiftTestingHelper.fixturePath(
             path: try RelativePath(validating: "NonExistingProject.xcodeproj")
         )
         let xcconfigPath = temporaryPath.appending(component: "Project.xcconfig")

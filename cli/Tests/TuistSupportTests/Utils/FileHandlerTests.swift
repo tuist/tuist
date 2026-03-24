@@ -8,10 +8,11 @@ import Testing
 
 struct FileHandlerErrorTests {
     @Test
-    func test_description() {
-        #expect(FileHandlerError.invalidTextEncoding(try AbsolutePath(validating: "/path"))
+    func test_description() throws {
+        let path = try AbsolutePath(validating: "/path")
+        #expect(FileHandlerError.invalidTextEncoding(path)
             .description == "The file at /path is not a utf8 text file")
-        #expect(FileHandlerError.writingError(try AbsolutePath(validating: "/path"))
+        #expect(FileHandlerError.writingError(path)
             .description == "Couldn't write to the file /path")
     }
 }

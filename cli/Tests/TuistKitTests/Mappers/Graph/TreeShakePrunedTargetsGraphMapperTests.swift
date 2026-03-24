@@ -81,7 +81,7 @@ struct TreeShakePrunedTargetsGraphMapperTests {
         // Then
         #expect(gotSideEffects.isEmpty)
         #expect(!gotGraph.projects.isEmpty)
-        #expect(gotGraph.projects.values.flatMap(\.schemes.isEmpty))
+        #expect(gotGraph.projects.values.flatMap(\.schemes).isEmpty)
     }
 
     @Test func map_removes_project_schemes_with_whose_run_action_expand_variable_from_target_has_been_removed() throws {
@@ -109,7 +109,7 @@ struct TreeShakePrunedTargetsGraphMapperTests {
         // Then
         #expect(gotSideEffects.isEmpty)
         #expect(!gotGraph.projects.isEmpty)
-        #expect(gotGraph.projects.values.flatMap(\.schemes.isEmpty))
+        #expect(gotGraph.projects.values.flatMap(\.schemes).isEmpty)
     }
 
     @Test func map_removes_project_schemes_with_whose_test_action_expand_variable_from_target_has_been_removed() throws {
@@ -137,7 +137,7 @@ struct TreeShakePrunedTargetsGraphMapperTests {
         // Then
         #expect(gotSideEffects.isEmpty)
         #expect(!gotGraph.projects.isEmpty)
-        #expect(gotGraph.projects.values.flatMap(\.schemes.isEmpty))
+        #expect(gotGraph.projects.values.flatMap(\.schemes).isEmpty)
     }
 
     @Test func map_removes_project_schemes_with_test_plans_when_all_targets_were_removed() throws {
@@ -179,7 +179,7 @@ struct TreeShakePrunedTargetsGraphMapperTests {
         // Then
         #expect(gotSideEffects.isEmpty)
         #expect(!gotGraph.projects.isEmpty)
-        #expect(gotGraph.projects.values.flatMap(\.schemes.isEmpty))
+        #expect(gotGraph.projects.values.flatMap(\.schemes).isEmpty)
     }
 
     @Test func map_keeps_project_schemes_with_whose_all_targets_have_been_removed_but_have_test_plans() throws {

@@ -75,9 +75,7 @@ struct TuistWorkspaceRenderMarkdownReadmeMapperTests {
             .map(workspace: workspaceWithProjects)
 
         // Then
-        #expect(!
-            gotWorkspaceWithProjects.workspace.generationOptions.renderMarkdownReadme
-        )
+        #expect(!gotWorkspaceWithProjects.workspace.generationOptions.renderMarkdownReadme)
         #expect(gotWorkspaceWithProjects.workspace.projects.isEmpty)
         #expect(
             sideEffects ==

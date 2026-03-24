@@ -13,14 +13,10 @@ struct TargetScriptsContentHasherTests {
     private let subject: TargetScriptsContentHasher
     private let contentHasher: MockContentHashing
     private let temporaryDirectory: TemporaryDirectory
-    init() {
+    init() throws {
         contentHasher = .init()
         subject = TargetScriptsContentHasher(contentHasher: contentHasher)
-        do {
-            temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        } catch {
-            Issue.record("Error while creating temporary directory")
-        }
+        temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         given(contentHasher)
             .hash(Parameter<String>.any)
             .willProduce { $0 + "-hash" }

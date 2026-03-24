@@ -301,7 +301,7 @@ struct ScaffoldServiceTests {
 }
 
 extension ScaffoldService {
-    @Test func testRun(
+    func testRun(
         path: String? = nil,
         templateName: String = "template",
         requiredTemplateOptions: [String: String] = [:],

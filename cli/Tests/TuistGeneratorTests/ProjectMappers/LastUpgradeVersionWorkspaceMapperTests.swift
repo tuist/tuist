@@ -16,7 +16,6 @@ struct LastUpgradeVersionWorkspaceMapperTests {
     @Test(.inTemporaryDirectory)
     func maps_last_upgrade_version() throws {
         // Given
-        subject = LastUpgradeVersionWorkspaceMapper()
 
         let workspace = Workspace.test(
             generationOptions: .test(

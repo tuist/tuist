@@ -1,6 +1,7 @@
 import Command
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Mockable
 import Testing
 import TSCUtility
@@ -11,14 +12,17 @@ import XcodeGraph
 
 struct SwiftPackageManagerControllerTests {
     private let system = MockSystem()
+    private let fileSystem = FileSystem()
+    private let fileHandler = FileHandler.shared
     private let subject: SwiftPackageManagerController
     private let commandRunner: MockCommandRunning
     init() {
-        commandRunner = MockCommandRunning()
+        let runner = MockCommandRunning()
+        commandRunner = runner
         subject = SwiftPackageManagerController(
             system: system,
             fileSystem: fileSystem,
-            commandRunner: { commandRunner }
+            commandRunner: { runner }
         )
     }
 
@@ -154,7 +158,7 @@ struct SwiftPackageManagerControllerTests {
                         "/usr/bin/swift",
                         "package-registry",
                         "login",
-                        URL.test().appending(path: "login").absoluteString,
+                        URL(string: "https://test.tuist.io")!.appending(path: "login").absoluteString,
                         "--token",
                         "package-token",
                         "--no-confirm",
@@ -190,7 +194,7 @@ struct SwiftPackageManagerControllerTests {
                         "/usr/bin/swift",
                         "package-registry",
                         "logout",
-                        URL.test().appending(path: "logout").absoluteString,
+                        URL(string: "https://test.tuist.io")!.appending(path: "logout").absoluteString,
                     ]
                 ),
                 environment: .any,

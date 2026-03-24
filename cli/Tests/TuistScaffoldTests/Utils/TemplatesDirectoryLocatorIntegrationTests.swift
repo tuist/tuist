@@ -20,7 +20,7 @@ struct TemplatesDirectoryLocatorIntegrationTests {
     func locate_when_a_templates_and_git_directory_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git"])
 
         // When
         let got = try await subject
@@ -37,7 +37,7 @@ struct TemplatesDirectoryLocatorIntegrationTests {
     func locate_when_a_templates_directory_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/directory", "this/is/Tuist/Templates"])
 
         // When
         let got = try await subject
@@ -54,7 +54,7 @@ struct TemplatesDirectoryLocatorIntegrationTests {
     func locate_when_a_git_directory_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Templates"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Templates"])
 
         // When
         let got = try await subject
@@ -71,7 +71,7 @@ struct TemplatesDirectoryLocatorIntegrationTests {
     func locate_when_multiple_tuist_directories_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try createFolders(["this/is/a/very/nested/Tuist/Templates", "this/is/Tuist/Templates"])
+        try await TuistTest.makeDirectories(["this/is/a/very/nested/Tuist/Templates", "this/is/Tuist/Templates"])
         let paths = [
             "this/is/a/very/directory",
             "this/is/a/very/nested/directory",
@@ -85,9 +85,10 @@ struct TemplatesDirectoryLocatorIntegrationTests {
         }
 
         // Then
-        #expect(got == try [
+        let expected = try [
             "this/is/Tuist/Templates",
             "this/is/a/very/nested/Tuist/Templates",
-        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
+        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) }
+        #expect(got == expected)
     }
 }

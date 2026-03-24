@@ -14,13 +14,13 @@ func assertSettingsMatchesManifest(
     at path: AbsolutePath,
     generatorPaths: GeneratorPaths,
     sourceLocation: SourceLocation = #_sourceLocation
-) {
+) throws {
     #expect(settings.base.count == manifest.base.count, sourceLocation: sourceLocation)
 
     let sortedConfigurations = settings.configurations.sorted { l, r -> Bool in l.key.name < r.key.name }
     let sortedManifestConfigurations = manifest.configurations.sorted(by: { $0.name.rawValue < $1.name.rawValue })
     for (configuration, manifestConfiguration) in zip(sortedConfigurations, sortedManifestConfigurations) {
-        assertBuildConfigurationMatchesManifest(
+        try assertBuildConfigurationMatchesManifest(
             configuration: configuration,
             matches: manifestConfiguration,
             at: path,
@@ -64,13 +64,14 @@ func assertBuildConfigurationMatchesManifest(
     at _: AbsolutePath,
     generatorPaths: GeneratorPaths,
     sourceLocation: SourceLocation = #_sourceLocation
-) {
+) throws {
     #expect(
         configuration.1?.settings.count == manifest.settings.count,
         sourceLocation: sourceLocation
     )
+    let expectedXcconfig = try manifest.xcconfig.map { try generatorPaths.resolve(path: $0) }
     #expect(
-        configuration.1?.xcconfig == (try manifest.xcconfig.map { try generatorPaths.resolve(path: $0) }),
+        configuration.1?.xcconfig == expectedXcconfig,
         sourceLocation: sourceLocation
     )
 }

@@ -12,6 +12,8 @@ import XcodeGraph
 
 struct AppBundleLoaderTests {
     private let subject: AppBundleLoader
+    private let fileSystem = FileSystem()
+    private let fileHandler = FileHandler.shared
     init() {
         subject = AppBundleLoader(
             fileSystem: FileSystem()
@@ -104,7 +106,7 @@ struct AppBundleLoaderTests {
     @Test
     func load_iphoneos_app_bundle() async throws {
         // Given
-        let appBundlePath = fixturePath(
+        let appBundlePath = SwiftTestingHelper.fixturePath(
             path: try RelativePath(validating: "ios_app_with_frameworks_iphoneos-App.app")
         )
 

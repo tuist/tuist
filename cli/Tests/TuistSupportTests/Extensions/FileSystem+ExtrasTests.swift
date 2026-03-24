@@ -8,6 +8,8 @@ import TuistTesting
 @testable import TuistSupport
 
 struct FileSystemExtrasTests {
+    private let fileSystem = FileSystem()
+
     @Test(.inTemporaryDirectory)
     func throwingGlob_throws_when_directoryDoesntExist() async throws {
         // Given
@@ -23,7 +25,7 @@ struct FileSystemExtrasTests {
     @Test(.inTemporaryDirectory)
     func throwingGlob_throws_when_directoryExists() async throws {
         // Given
-        let files = try await createFiles(["path/nested/file.swift"])
+        let files = try await TuistTest.createFiles(["path/nested/file.swift"])
         let parentDirectory = try #require(FileSystem.temporaryTestDirectory)
 
         // When

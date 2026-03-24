@@ -15,6 +15,7 @@ struct SourceFilesContentHasherTests {
     private let subject: SourceFilesContentHasher
     private let sourceFile1Path: AbsolutePath
     private let sourceFile2Path: AbsolutePath
+    private let fileSystem = FileSystem()
     init() throws {
         let contentHasher = ContentHasher()
         let platformConditionContentHasher = PlatformConditionContentHasher(contentHasher: contentHasher)

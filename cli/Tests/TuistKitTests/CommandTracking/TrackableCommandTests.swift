@@ -14,9 +14,9 @@ import TuistSupport
 @testable import TuistTesting
 
 struct TrackableCommandTests {
-    private var subject: TrackableCommand!
     private var backgroundProcessRunner: MockBackgroundProcessRunning!
     private var gitController: MockGitControlling!
+    private let fileHandler = FileHandler.shared
 
     init() {
         gitController = MockGitControlling()
@@ -38,8 +38,8 @@ struct TrackableCommandTests {
         shouldFail: Bool = false,
         analyticsRequired: Bool = false,
         commandArguments: [String] = ["cache", "warm"]
-    ) {
-        subject = TrackableCommand(
+    ) -> TrackableCommand {
+        TrackableCommand(
             command: TestCommand(
                 flag: flag,
                 shouldFail: shouldFail,
@@ -59,7 +59,7 @@ struct TrackableCommandTests {
 
     @Test func whenCommandFails_uploadsEventWithExpectedInfo() async throws {
         // Given
-        makeSubject(flag: false, shouldFail: true)
+        let subject = makeSubject(flag: false, shouldFail: true)
         // When
         await #expect(throws: TestCommand.TestError.commandFailed) {
             try await subject.run(
@@ -82,7 +82,7 @@ struct TrackableCommandTests {
 
     @Test func whenPathIsInArguments() async throws {
         // Given
-        makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
+        let subject = makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
         try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
@@ -98,7 +98,7 @@ struct TrackableCommandTests {
 
     @Test func whenPathIsInArguments_and_no_fullHandle_is_set() async throws {
         // Given
-        makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
+        let subject = makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
         try await subject.run(fullHandle: nil, serverURL: .test(), shouldTrackAnalytics: true)
@@ -114,7 +114,7 @@ struct TrackableCommandTests {
 
     @Test func whenPathIsNotInArguments() async throws {
         // Given
-        makeSubject(commandArguments: ["cache", "warm"])
+        let subject = makeSubject(commandArguments: ["cache", "warm"])
 
         // When
         try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
