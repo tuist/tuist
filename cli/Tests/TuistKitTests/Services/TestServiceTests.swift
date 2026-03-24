@@ -138,7 +138,13 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(false)
 
         given(uploadResultBundleService)
-            .uploadResultBundle(testSummary: .any, projectDerivedDataDirectory: .any, config: .any, shardPlanId: .any, shardIndex: .any)
+            .uploadResultBundle(
+                testSummary: .any,
+                projectDerivedDataDirectory: .any,
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any
+            )
             .willReturn(
                 Components.Schemas.RunsTest(
                     duration: 0,
