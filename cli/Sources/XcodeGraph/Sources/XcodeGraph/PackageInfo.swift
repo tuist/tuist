@@ -442,6 +442,7 @@ public struct PackageInfo: Equatable, Hashable, Codable { // swiftlint:disable:t
             public enum Rule: String, Codable, Hashable {
                 case process
                 case copy
+                case embedInCode
 
                 public init(from decoder: Decoder) throws {
                     // Xcode 14 format
