@@ -82,6 +82,7 @@ defmodule Cache.KeyValueEntriesTest do
              })
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: "keyvalue:acme:ios:cas")
+    assert record.source_node == "node-a"
     assert record.source_updated_at == source_updated_at
 
     assert :ok = KeyValueEntries.put_distributed_watermark(source_updated_at, record.key)
@@ -97,6 +98,7 @@ defmodule Cache.KeyValueEntriesTest do
     KeyValueRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:cas",
       json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
+      source_node: "test-node",
       last_accessed_at: local_source_updated_at,
       source_updated_at: local_source_updated_at,
       replication_enqueued_at: local_source_updated_at
@@ -139,6 +141,7 @@ defmodule Cache.KeyValueEntriesTest do
     assert result.clear_lineage_keys == []
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: row.key)
+    assert record.source_node == "node-a"
     assert record.source_updated_at == source_updated_at
     assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "inserted"}]
   end
@@ -205,7 +208,7 @@ defmodule Cache.KeyValueEntriesTest do
     assert third_result.invalidate_keys == []
   end
 
-  test "apply_remote_batch reuses a pending committed chunk even when the upstream page mutates" do
+  test "apply_remote_batch invalidates a stale pending batch when the upstream page mutates" do
     original_time = DateTime.add(DateTime.utc_now(), -180, :second)
     first_update_time = DateTime.add(original_time, 60, :second)
     second_update_time = DateTime.add(first_update_time, 60, :second)
@@ -213,6 +216,7 @@ defmodule Cache.KeyValueEntriesTest do
     KeyValueRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:update",
       json_payload: Jason.encode!(%{entries: [%{"value" => "old"}]}),
+      source_node: "node-a",
       last_accessed_at: original_time,
       source_updated_at: original_time
     })
@@ -223,6 +227,15 @@ defmodule Cache.KeyValueEntriesTest do
         last_accessed_at: first_update_time,
         source_updated_at: first_update_time,
         updated_at: first_update_time
+      )
+
+    inserted_row =
+      remote_row("keyvalue:acme:ios:before-update",
+        cas_id: "before-update",
+        json_payload: Jason.encode!(%{entries: [%{"value" => "inserted"}]}),
+        last_accessed_at: second_update_time,
+        source_updated_at: second_update_time,
+        updated_at: second_update_time
       )
 
     second_row =
@@ -236,18 +249,20 @@ defmodule Cache.KeyValueEntriesTest do
     assert {:ok, first_result} = KeyValueEntries.apply_remote_batch([first_row])
     assert first_result.payload_updated_count == 1
 
-    assert {:ok, replayed_result} = KeyValueEntries.apply_remote_batch([second_row])
-    assert replayed_result == first_result
+    assert {:ok, replayed_result} = KeyValueEntries.apply_remote_batch([inserted_row, second_row])
+    assert replayed_result.processed_count == 2
+    assert replayed_result.inserted_count == 1
+    assert replayed_result.payload_updated_count == 1
+    assert replayed_result.last_processed_row.key == second_row.key
 
-    :ok = KeyValueEntries.commit_remote_batch(first_result.last_processed_row)
-
-    assert {:ok, second_result} = KeyValueEntries.apply_remote_batch([second_row])
-    assert second_result.payload_updated_count == 1
-    assert second_result.last_processed_row.updated_at == second_update_time
+    :ok = KeyValueEntries.commit_remote_batch(replayed_result.last_processed_row)
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: second_row.key)
+    inserted_record = KeyValueRepo.get_by!(KeyValueEntry, key: inserted_row.key)
+
     assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "newer"}]
     assert record.source_updated_at == second_update_time
+    assert inserted_record.source_updated_at == second_update_time
   end
 
   test "apply_remote_batch preserves newer local pending payloads and merges access time" do
@@ -258,6 +273,7 @@ defmodule Cache.KeyValueEntriesTest do
     KeyValueRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:cas",
       json_payload: Jason.encode!(%{entries: [%{"value" => "local"}]}),
+      source_node: "test-node",
       last_accessed_at: local_source_updated_at,
       source_updated_at: local_source_updated_at,
       replication_enqueued_at: local_source_updated_at
@@ -298,6 +314,7 @@ defmodule Cache.KeyValueEntriesTest do
     KeyValueRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:pending",
       json_payload: Jason.encode!(%{entries: []}),
+      source_node: "test-node",
       last_accessed_at: deleted_at,
       source_updated_at: deleted_at,
       replication_enqueued_at: deleted_at
@@ -441,6 +458,7 @@ defmodule Cache.KeyValueEntriesTest do
     KeyValueRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:legacy-pending",
       json_payload: "{}",
+      source_node: "test-node",
       last_accessed_at: old_time,
       source_updated_at: old_time,
       replication_enqueued_at: old_time
@@ -479,6 +497,7 @@ defmodule Cache.KeyValueEntriesTest do
     KeyValueRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:pending",
       json_payload: "{}",
+      source_node: "test-node",
       last_accessed_at: old_time,
       source_updated_at: old_time,
       replication_enqueued_at: old_time

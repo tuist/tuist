@@ -102,6 +102,7 @@ defmodule Cache.KeyValueBuffer do
         %{
           key: entry.key,
           json_payload: entry.json_payload,
+          source_node: if(distributed?, do: Config.distributed_kv_node_name()),
           last_accessed_at: now,
           inserted_at: now_truncated,
           updated_at: now_truncated,
@@ -116,7 +117,8 @@ defmodule Cache.KeyValueBuffer do
       KeyValueRepo.insert_all(KeyValueEntry, rows_chunk,
         conflict_target: :key,
         on_conflict:
-          {:replace, [:json_payload, :last_accessed_at, :updated_at, :source_updated_at, :replication_enqueued_at]}
+          {:replace,
+           [:json_payload, :source_node, :last_accessed_at, :updated_at, :source_updated_at, :replication_enqueued_at]}
       )
     end)
   end

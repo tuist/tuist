@@ -91,12 +91,27 @@ defmodule Cache.KeyValueReplicationShipper do
       project_handle: scope.project_handle,
       cas_id: scope.cas_id,
       json_payload: entry.json_payload,
-      source_node: Config.distributed_kv_node_name(),
+      source_node: pending_source_node(entry),
       source_updated_at: entry.source_updated_at,
       last_accessed_at: entry.last_accessed_at
     }
 
     %{entry: entry, scope: scope, incoming: incoming}
+  end
+
+  defp pending_source_node(entry) do
+    if access_only_pending_row?(entry) do
+      entry.source_node
+    else
+      Config.distributed_kv_node_name()
+    end
+  end
+
+  defp access_only_pending_row?(%{replication_enqueued_at: nil}), do: false
+  defp access_only_pending_row?(%{source_updated_at: nil}), do: false
+
+  defp access_only_pending_row?(entry) do
+    DateTime.after?(entry.replication_enqueued_at, entry.source_updated_at)
   end
 
   defp ship_batch([]), do: :ok

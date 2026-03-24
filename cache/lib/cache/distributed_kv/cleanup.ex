@@ -14,48 +14,34 @@ defmodule Cache.DistributedKV.Cleanup do
 
     on_conflict =
       from(project in Project,
+        where: project.cleanup_lease_expires_at <= ^now,
         update: [
           set: [
-            last_cleanup_at:
-              fragment(
-                "CASE WHEN ? > ? THEN ? ELSE EXCLUDED.last_cleanup_at END",
-                project.cleanup_lease_expires_at,
-                ^now,
-                project.last_cleanup_at
-              ),
-            cleanup_lease_expires_at:
-              fragment(
-                "CASE WHEN ? > ? THEN ? ELSE EXCLUDED.cleanup_lease_expires_at END",
-                project.cleanup_lease_expires_at,
-                ^now,
-                project.cleanup_lease_expires_at
-              ),
-            updated_at:
-              fragment(
-                "CASE WHEN ? > ? THEN ? ELSE EXCLUDED.updated_at END",
-                project.cleanup_lease_expires_at,
-                ^now,
-                project.updated_at
-              )
+            last_cleanup_at: ^now,
+            cleanup_lease_expires_at: ^cleanup_lease_expires_at,
+            updated_at: ^now
           ]
         ]
       )
 
-    {:ok, result} =
-      Repo.insert(
-        %Project{
-          account_handle: account_handle,
-          project_handle: project_handle,
-          last_cleanup_at: now,
-          cleanup_lease_expires_at: cleanup_lease_expires_at,
-          updated_at: now
-        },
-        on_conflict: on_conflict,
-        conflict_target: [:account_handle, :project_handle],
-        returning: true
-      )
-
-    {:ok, result.last_cleanup_at}
+    case Repo.insert_all(
+           Project,
+           [
+             %{
+               account_handle: account_handle,
+               project_handle: project_handle,
+               last_cleanup_at: now,
+               cleanup_lease_expires_at: cleanup_lease_expires_at,
+               updated_at: now
+             }
+           ],
+           on_conflict: on_conflict,
+           conflict_target: [:account_handle, :project_handle],
+           returning: [:last_cleanup_at]
+         ) do
+      {1, [%{last_cleanup_at: last_cleanup_at}]} -> {:ok, last_cleanup_at}
+      {0, []} -> {:error, :cleanup_already_in_progress}
+    end
   end
 
   def renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do

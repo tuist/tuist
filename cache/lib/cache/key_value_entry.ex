@@ -8,6 +8,7 @@ defmodule Cache.KeyValueEntry do
   schema "key_value_entries" do
     field :key, :string
     field :json_payload, :string
+    field :source_node, :string
     field :last_accessed_at, :utc_datetime_usec
     field :source_updated_at, :utc_datetime_usec
     field :replication_enqueued_at, :utc_datetime_usec
@@ -18,7 +19,7 @@ defmodule Cache.KeyValueEntry do
   @doc false
   def changeset(entry, attrs) do
     entry
-    |> cast(attrs, [:key, :json_payload, :last_accessed_at, :source_updated_at, :replication_enqueued_at])
+    |> cast(attrs, [:key, :json_payload, :source_node, :last_accessed_at, :source_updated_at, :replication_enqueued_at])
     |> validate_required([
       :key,
       :json_payload,

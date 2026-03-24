@@ -58,6 +58,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
     pending_entry = %KeyValueEntry{
       key: "keyvalue:acme:ios:cas",
       json_payload: json_payload,
+      source_node: "test-node",
       last_accessed_at: token,
       source_updated_at: token,
       replication_enqueued_at: token
@@ -94,6 +95,36 @@ defmodule Cache.KeyValueReplicationShipperTest do
 
     assert_receive :upserted
     assert_receive :token_cleared
+  end
+
+  test "access-only replication preserves the original source node" do
+    parent = self()
+    source_updated_at = DateTime.add(DateTime.utc_now(), -60, :second)
+    replication_enqueued_at = DateTime.utc_now()
+
+    pending_entry = %KeyValueEntry{
+      key: "keyvalue:acme:ios:cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+      source_node: "node-a",
+      last_accessed_at: replication_enqueued_at,
+      source_updated_at: source_updated_at,
+      replication_enqueued_at: replication_enqueued_at
+    }
+
+    stub(Cleanup, :latest_project_cleanup_cutoffs, fn _scopes -> %{} end)
+    stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
+    stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
+    stub(KeyValueEntries, :clear_replication_token, fn _key, _token -> 1 end)
+
+    expect(Repo, :insert_all, fn Entry, rows, _opts ->
+      assert [%{source_node: "node-a", source_updated_at: ^source_updated_at}] = rows
+      send(parent, :upserted)
+      {1, nil}
+    end)
+
+    start_supervised!(KeyValueReplicationShipper)
+
+    assert_receive :upserted
   end
 
   test "batches shared repo work for one flush" do

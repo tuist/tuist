@@ -20,6 +20,7 @@ defmodule Cache.KeyValueEntries do
   @remote_apply_conflict_fields [
     :json_payload,
     :last_accessed_at,
+    :source_node,
     :source_updated_at,
     :replication_enqueued_at,
     :updated_at
@@ -238,11 +239,12 @@ defmodule Cache.KeyValueEntries do
         %{signature: pending_signature, result: result} = decode_replication_state_payload!(key_value)
 
         case pending_signature do
-          ^signature -> result
-          # The local batch and pending state were committed together. If the upstream page changed
-          # before we advanced the watermark, we still have to finish committing the already-applied
-          # local batch before polling the newer upstream mutation.
-          _ -> result
+          ^signature ->
+            result
+
+          _ ->
+            :ok = delete_replication_state!(@pending_remote_batch)
+            nil
         end
     end
   end
@@ -367,6 +369,7 @@ defmodule Cache.KeyValueEntries do
     |> Map.put(:inserted_at, local_entry.inserted_at)
     |> Map.put(:json_payload, Map.get(merged_attrs, :json_payload, local_entry.json_payload))
     |> Map.put(:last_accessed_at, Map.get(merged_attrs, :last_accessed_at, local_entry.last_accessed_at))
+    |> Map.put(:source_node, Map.get(merged_attrs, :source_node, local_entry.source_node))
     |> Map.put(:source_updated_at, Map.get(merged_attrs, :source_updated_at, local_entry.source_updated_at))
     |> Map.put(
       :replication_enqueued_at,
@@ -426,6 +429,7 @@ defmodule Cache.KeyValueEntries do
       :key,
       :json_payload,
       :last_accessed_at,
+      :source_node,
       :source_updated_at,
       :replication_enqueued_at,
       :inserted_at,
@@ -714,7 +718,7 @@ defmodule Cache.KeyValueEntries do
       not is_nil(local_entry.replication_enqueued_at) and
         compare_source_versions(
           local_entry.source_updated_at,
-          local_entry.source_updated_at && Config.distributed_kv_node_name(),
+          local_entry.source_node,
           remote_attrs.source_updated_at,
           Map.get(remote_attrs, :source_node)
         ) == :gt
@@ -724,6 +728,7 @@ defmodule Cache.KeyValueEntries do
     else
       %{
         json_payload: remote_attrs.json_payload,
+        source_node: remote_attrs.source_node,
         source_updated_at: remote_attrs.source_updated_at,
         last_accessed_at: max_datetime(local_entry.last_accessed_at, remote_attrs.last_accessed_at),
         replication_enqueued_at: local_entry.replication_enqueued_at

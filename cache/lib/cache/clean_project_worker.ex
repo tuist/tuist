@@ -42,48 +42,56 @@ defmodule Cache.CleanProjectWorker do
   end
 
   defp perform_distributed_cleanup(account_handle, project_handle) do
-    with {:ok, cleanup_started_at} <- Cleanup.begin_project_cleanup(account_handle, project_handle) do
-      safe_cutoff = DateTime.truncate(cleanup_started_at, :second)
-      on_progress = fn -> Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) end
+    case Cleanup.begin_project_cleanup(account_handle, project_handle) do
+      {:ok, cleanup_started_at} ->
+        safe_cutoff = DateTime.truncate(cleanup_started_at, :second)
+        on_progress = fn -> Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) end
 
-      with :ok <- invalidate_local_kv(account_handle, project_handle, safe_cutoff),
-           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
-           :ok <- delete_disk_with_cutoff(account_handle, project_handle, safe_cutoff, on_progress),
-           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
-           :ok <- maybe_delete_xcode_s3_artifacts(account_handle, project_handle, safe_cutoff, on_progress),
-           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
-           :ok <-
-             delete_s3_artifacts_with_cutoff(
-               account_handle,
-               project_handle,
-               :cache,
-               "cache",
-               safe_cutoff,
-               on_progress
-             ),
-           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
-        tombstoned = Cleanup.tombstone_project_entries(account_handle, project_handle, safe_cutoff)
+        with :ok <- invalidate_local_kv(account_handle, project_handle, safe_cutoff),
+             :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
+             :ok <- delete_disk_with_cutoff(account_handle, project_handle, safe_cutoff, on_progress),
+             :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
+             :ok <- maybe_delete_xcode_s3_artifacts(account_handle, project_handle, safe_cutoff, on_progress),
+             :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
+             :ok <-
+               delete_s3_artifacts_with_cutoff(
+                 account_handle,
+                 project_handle,
+                 :cache,
+                 "cache",
+                 safe_cutoff,
+                 on_progress
+               ),
+             :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
+          tombstoned = Cleanup.tombstone_project_entries(account_handle, project_handle, safe_cutoff)
 
+          Logger.info(
+            "Distributed cleanup finished for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)} (tombstoned=#{tombstoned})"
+          )
+
+          :ok
+        else
+          {:error, :cleanup_lease_lost} = error ->
+            Logger.warning(
+              "Distributed cleanup lease lost for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)}; aborting so a newer cleanup can continue safely"
+            )
+
+            error
+
+          {:error, reason} = error ->
+            Logger.error(
+              "Distributed cleanup failed for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)}: #{inspect(reason)}"
+            )
+
+            error
+        end
+
+      {:error, :cleanup_already_in_progress} ->
         Logger.info(
-          "Distributed cleanup finished for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)} (tombstoned=#{tombstoned})"
+          "Distributed cleanup already in progress for #{account_handle}/#{project_handle}; skipping duplicate job"
         )
 
         :ok
-      else
-        {:error, :cleanup_lease_lost} = error ->
-          Logger.warning(
-            "Distributed cleanup lease lost for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)}; aborting so a newer cleanup can continue safely"
-          )
-
-          error
-
-        {:error, reason} = error ->
-          Logger.error(
-            "Distributed cleanup failed for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)}: #{inspect(reason)}"
-          )
-
-          error
-      end
     end
   end
 

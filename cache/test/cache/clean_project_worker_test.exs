@@ -159,6 +159,32 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
     end
 
+    test "distributed cleanup treats an active cleanup lease as a safe no-op" do
+      stub(Config, :key_value_mode, fn -> :distributed end)
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
+
+      account_handle = "test_account"
+      project_handle = "test_project"
+      parent = self()
+
+      expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle ->
+        {:error, :cleanup_already_in_progress}
+      end)
+
+      stub(KeyValueEntries, :delete_project_entries_before, fn _account_handle, _project_handle, _cutoff ->
+        send(parent, :kv_deleted)
+        {[], 0}
+      end)
+
+      job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
+
+      capture_log(fn ->
+        assert :ok = CleanProjectWorker.perform(job)
+      end)
+
+      refute_received :kv_deleted
+    end
+
     test "distributed cleanup fails and skips tombstoning when S3 deletion fails" do
       stub(Config, :key_value_mode, fn -> :distributed end)
       stub(Config, :distributed_kv_enabled?, fn -> true end)
