@@ -103,6 +103,7 @@ generated_fixtures
 Tuist.xcworkspace
 node_modules
 Fixture
+/.tuist-dev-instance
 
 Tuist/Dependencies/SwiftPackageManager
 Tuist/Dependencies/graph.json

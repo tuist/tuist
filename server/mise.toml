@@ -1,5 +1,9 @@
 [env]
+_.source = "{{config_root}}/../mise/utilities/dev_instance_env.sh"
 TUIST_SECRET_KEY_BASE = "rpux4+W/oBey0drSFOctyIbppOG2A9VUUuTMC1WaM8xZgYxA6gg4yryG/LkOoqkj"
+
+[hooks]
+  postinstall = "{{config_root}}/mise/tasks/install.sh"
 
 [tools]
   pnpm = "10.17.1"

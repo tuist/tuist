@@ -127,11 +127,11 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         // When
         _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
-        // Then
+        // Then — path content hashes are sorted for determinism
         let expected = [
+            dependencyFileHash,
             inputFileListPaths1,
             inputPaths1Hash,
-            dependencyFileHash,
             "outputPaths1",
             "outputFileListPaths1",
             "1",
@@ -165,11 +165,11 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         // When
         _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
-        // Then
+        // Then — path content hashes are sorted for determinism
         let expected = [
+            dependencyFileHash,
             inputFileListPaths1,
             inputPaths1Hash,
-            dependencyFileHash,
             "outputPaths1",
             "outputFileListPaths1",
             "1",
@@ -212,11 +212,11 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         // When
         _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
-        // Then
+        // Then — path content hashes are sorted for determinism
         let expected = [
+            dependencyFileHash,
             inputFileListPaths2,
             inputPaths2Hash,
-            dependencyFileHash,
             "outputPaths2",
             "outputFileListPaths2",
             "2",
@@ -271,11 +271,11 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         _ = try await subject.hash(targetScripts: [targetScriptOrder1], sourceRootPath: "/")
         _ = try await subject.hash(targetScripts: [targetScriptOrder2], sourceRootPath: "/")
 
-        // Then
+        // Then — path content hashes are sorted for determinism
         let expected = [
+            dependencyFileHash,
             inputPaths1Hash,
             inputPaths2Hash,
-            dependencyFileHash,
             "2",
             "tool2",
             "post",
@@ -285,6 +285,71 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         verify(contentHasher)
             .hash(.value(expected))
             .called(2)
+    }
+
+    func test_hash_targetAction_embeddedScriptTextIsHashed() async throws {
+        // Given
+        let inputPaths1Hash = "inputPaths1-hash"
+        given(contentHasher)
+            .hash(path: .value(try AbsolutePath(validating: "/inputPaths1")))
+            .willReturn(inputPaths1Hash)
+
+        let targetScript = TargetScript(
+            name: "EmbeddedScript",
+            order: .pre,
+            script: .embedded("echo hello"),
+            inputPaths: ["/inputPaths1"],
+            inputFileListPaths: [],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: nil
+        )
+
+        // When
+        _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
+
+        // Then
+        let expected = [
+            inputPaths1Hash,
+            "echo hello",
+            "EmbeddedScript",
+            "",
+            "pre",
+        ]
+        verify(contentHasher)
+            .hash(.value(expected))
+            .called(1)
+    }
+
+    func test_hash_targetAction_differentEmbeddedScriptProducesDifferentHash() async throws {
+        // Given
+        let targetScript1 = TargetScript(
+            name: "Script",
+            order: .pre,
+            script: .embedded("echo hello"),
+            inputPaths: [],
+            inputFileListPaths: [],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: nil
+        )
+        let targetScript2 = TargetScript(
+            name: "Script",
+            order: .pre,
+            script: .embedded("echo world"),
+            inputPaths: [],
+            inputFileListPaths: [],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: nil
+        )
+
+        // When
+        let hash1 = try await subject.hash(targetScripts: [targetScript1], sourceRootPath: "/")
+        let hash2 = try await subject.hash(targetScripts: [targetScript2], sourceRootPath: "/")
+
+        // Then
+        XCTAssertNotEqual(hash1, hash2)
     }
 
     func test_hash_targetAction_withRelativePathsAndSRCROOTReplacement() async throws {
@@ -318,11 +383,11 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         // When
         _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: sourceRootPath)
 
-        // Then
+        // Then — path content hashes are sorted for determinism
         let expected = [
-            relativeInputHash,
-            "relative/not-existing.txt",
             absoluteInputHash,
+            "relative/not-existing.txt",
+            relativeInputHash,
             "relative/output.txt",
             "srcroot/output.txt",
             "TestScript",

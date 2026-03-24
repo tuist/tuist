@@ -97,6 +97,7 @@ defmodule Cache.Application do
           :selected_project_handle,
           :method,
           :route,
+          :request_path,
           :reason,
           :error,
           :kind,
