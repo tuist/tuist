@@ -179,10 +179,8 @@ struct PackageInfoMapperTests {
             ]],
             packageModuleAliases: [:],
             packageSettings: .test(
-                binaryTargetSignatures: [
-                    "Package": [
-                        "Target": .signedWithAppleCertificate(teamIdentifier: "TEAMID", teamName: "TEAMNAME"),
-                    ],
+                expectedSignatures: [
+                    "Target": .signedWithAppleCertificate(teamIdentifier: "TEAMID", teamName: "TEAMNAME"),
                 ]
             )
         )

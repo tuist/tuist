@@ -6,12 +6,10 @@ import PackageDescription
 
     let packageSettings = PackageSettings(
         productTypes: [:],
-        binaryTargetSignatures: [
-            "Package": [
-                "SelfSignedXCFramework": .selfSigned(
-                    fingerprint: "EF61C3C0339FC84805357AFEC2E0BB0E6A0D5EE64165B333F934BF9E282785BC"
-                ),
-            ],
+        expectedSignatures: [
+            "SelfSignedXCFramework": .selfSigned(
+                fingerprint: "EF61C3C0339FC84805357AFEC2E0BB0E6A0D5EE64165B333F934BF9E282785BC"
+            ),
         ]
     )
 #endif

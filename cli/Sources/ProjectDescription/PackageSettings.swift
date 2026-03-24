@@ -39,9 +39,8 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// The base settings to be used for targets generated from SwiftPackageManager
     public var baseSettings: Settings
 
-    /// Expected signatures for Swift Package Manager binary targets.
-    /// The first-level key is the package name and the second-level key is the binary target name.
-    public var binaryTargetSignatures: [String: [String: XCFrameworkSignature]]
+    /// Expected signatures for Swift Package Manager binary targets keyed by binary target name.
+    public var expectedSignatures: [String: XCFrameworkSignature]
 
     /// Additional settings to be added to targets generated from SwiftPackageManager.
     public var targetSettings: [String: Settings]
@@ -54,21 +53,21 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
     ///     - productDestinations: Custom destinations to be used for SPM products.
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    ///     - binaryTargetSignatures: Expected signatures keyed by package name and binary target name.
+    ///     - expectedSignatures: Expected signatures keyed by binary target name.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     public init(
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
-        binaryTargetSignatures: [String: [String: XCFrameworkSignature]] = [:],
+        expectedSignatures: [String: XCFrameworkSignature] = [:],
         targetSettings: [String: Settings] = [:],
         projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
-        self.binaryTargetSignatures = binaryTargetSignatures
+        self.expectedSignatures = expectedSignatures
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
         dumpIfNeeded(self)
@@ -79,7 +78,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
     ///     - productDestinations: Custom destinations to be used for SPM products.
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    ///     - binaryTargetSignatures: Expected signatures keyed by package name and binary target name.
+    ///     - expectedSignatures: Expected signatures keyed by binary target name.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     @available(
@@ -94,14 +93,14 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
-        binaryTargetSignatures: [String: [String: XCFrameworkSignature]] = [:],
+        expectedSignatures: [String: XCFrameworkSignature] = [:],
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: Project.Options] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
-        self.binaryTargetSignatures = binaryTargetSignatures
+        self.expectedSignatures = expectedSignatures
         self.targetSettings = targetSettings.mapValues { .settings(base: $0) }
         self.projectOptions = projectOptions
         dumpIfNeeded(self)

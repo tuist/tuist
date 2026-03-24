@@ -189,7 +189,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                             case let .xcframework(path, condition):
                                 return .xcframework(
                                     path: path,
-                                    expectedSignature: packageSettings.binaryTargetSignatures[packageInfo.key]?[target]
+                                    expectedSignature: packageSettings.expectedSignatures[target]
                                         .map(ProjectDescription.XCFrameworkSignature.from),
                                     condition: condition
                                 )
@@ -224,10 +224,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
             let xcframeworkPath = Path
                 .relativeToRoot(xcframework.relative(to: try await rootDirectoryLocator.locate(from: path)).pathString)
-            let signature = packageInfos.keys
-                .compactMap { packageSettings.binaryTargetSignatures[$0]?[dependencyName] }
+            let signature = packageSettings.expectedSignatures[dependencyName]
                 .map(ProjectDescription.XCFrameworkSignature.from)
-                .first
             externalDependencies[dependencyName] = [.xcframework(path: xcframeworkPath, expectedSignature: signature)]
         }
         return externalDependencies
@@ -729,7 +727,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             {
                 return .xcframework(
                     path: .path(artifactPath.pathString),
-                    expectedSignature: packageSettings.binaryTargetSignatures[packageInfo.name]?[target.name]
+                    expectedSignature: packageSettings.expectedSignatures[target.name]
                         .map(ProjectDescription.XCFrameworkSignature.from),
                     status: .required,
                     condition: platformCondition
