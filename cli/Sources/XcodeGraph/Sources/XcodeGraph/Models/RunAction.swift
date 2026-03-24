@@ -61,10 +61,8 @@ public struct RunAction: Equatable, Codable, Sendable {
         self.customWorkingDirectory = customWorkingDirectory
         self.useCustomWorkingDirectory = useCustomWorkingDirectory
     }
-}
 
-#if DEBUG
-    extension RunAction {
+    #if DEBUG
         public static func test(
             configurationName: String = BuildConfiguration.debug.name,
             attachDebugger: Bool = true,
@@ -110,5 +108,5 @@ public struct RunAction: Equatable, Codable, Sendable {
                 useCustomWorkingDirectory: useCustomWorkingDirectory
             )
         }
-    }
-#endif
+    #endif
+}

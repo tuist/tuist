@@ -20,10 +20,8 @@ public struct Headers: Equatable, Codable, Sendable {
         self.private = `private`
         self.project = project
     }
-}
 
-#if DEBUG
-    extension Headers {
+    #if DEBUG
         public static func test(
             public: [AbsolutePath] = [],
             private: [AbsolutePath] = [],
@@ -35,5 +33,5 @@ public struct Headers: Equatable, Codable, Sendable {
                 project: project
             )
         }
-    }
-#endif
+    #endif
+}

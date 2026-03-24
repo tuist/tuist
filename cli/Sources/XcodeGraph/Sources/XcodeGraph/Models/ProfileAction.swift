@@ -28,10 +28,8 @@ public struct ProfileAction: Equatable, Codable, Sendable {
         self.askForAppToLaunch = askForAppToLaunch
         self.arguments = arguments
     }
-}
 
-#if DEBUG
-    extension ProfileAction {
+    #if DEBUG
         public static func test(
             configurationName: String = "Beta Release",
             preActions: [ExecutionAction] = [],
@@ -50,5 +48,5 @@ public struct ProfileAction: Equatable, Codable, Sendable {
                 arguments: arguments
             )
         }
-    }
-#endif
+    #endif
+}

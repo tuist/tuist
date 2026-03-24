@@ -14,14 +14,8 @@ public struct XCActivityIssue: Hashable, Equatable {
     public let endingLine: Int
     public let startingColumn: Int
     public let endingColumn: Int
-}
 
-public enum XCActivityIssueType: Hashable, Equatable {
-    case warning, error
-}
-
-#if DEBUG
-    extension XCActivityIssue {
+    #if DEBUG
         public static func test(
             type: XCActivityIssueType = .warning,
             target: String = "Target",
@@ -51,5 +45,9 @@ public enum XCActivityIssueType: Hashable, Equatable {
                 endingColumn: endingColumn
             )
         }
-    }
-#endif
+    #endif
+}
+
+public enum XCActivityIssueType: Hashable, Equatable {
+    case warning, error
+}

@@ -106,10 +106,8 @@ public struct CommandEvent: Codable, Equatable {
         self.testRunId = testRunId
         self.cacheEndpoint = cacheEndpoint
     }
-}
 
-#if MOCKING
-    extension CommandEvent {
+    #if MOCKING
         public static func test(
             runId: String = "",
             name: String = "generate",
@@ -160,5 +158,5 @@ public struct CommandEvent: Codable, Equatable {
                 cacheEndpoint: cacheEndpoint
             )
         }
-    }
-#endif
+    #endif
+}

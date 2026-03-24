@@ -10,7 +10,7 @@
 /// - seealso: `ProjectDescriptor`
 /// - seealso: `WorkspaceDescriptor`
 /// - seealso: `XcodeProjWriter`
-public enum SideEffectDescriptor: Equatable {
+public enum SideEffectDescriptor: Equatable, CustomStringConvertible {
     /// Create / Remove a file
     case file(FileDescriptor)
 
@@ -19,9 +19,7 @@ public enum SideEffectDescriptor: Equatable {
 
     /// Perform a command
     case command(CommandDescriptor)
-}
 
-extension SideEffectDescriptor: CustomStringConvertible {
     public var description: String {
         switch self {
         case let .file(fileDescriptor):

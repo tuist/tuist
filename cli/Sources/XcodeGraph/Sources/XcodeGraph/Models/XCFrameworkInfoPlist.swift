@@ -88,6 +88,27 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
             architectures = try container.decode([BinaryArchitecture].self, forKey: .architectures)
             mergeable = try container.decodeIfPresent(Bool.self, forKey: .mergeable) ?? false
         }
+
+        #if DEBUG
+            public static func test(
+                identifier: String = "test",
+                // swiftlint:disable:next force_try
+                path: RelativePath = try! RelativePath(validating: "relative/to/library"),
+                mergeable: Bool = false,
+                platform: Platform = .iOS,
+                platformVariant: PlatformVariant? = nil,
+                architectures: [BinaryArchitecture] = [.i386]
+            ) -> XCFrameworkInfoPlist.Library {
+                XCFrameworkInfoPlist.Library(
+                    identifier: identifier,
+                    path: path,
+                    mergeable: mergeable,
+                    platform: platform,
+                    platformVariant: platformVariant,
+                    architectures: architectures
+                )
+            }
+        #endif
     }
 
     /// List of libraries that are part of the .xcframework.
@@ -96,33 +117,10 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
     public init(libraries: [Library]) {
         self.libraries = libraries
     }
-}
 
-#if DEBUG
-    extension XCFrameworkInfoPlist {
+    #if DEBUG
         public static func test(libraries: [XCFrameworkInfoPlist.Library] = [.test()]) -> XCFrameworkInfoPlist {
             XCFrameworkInfoPlist(libraries: libraries)
         }
-    }
-
-    extension XCFrameworkInfoPlist.Library {
-        public static func test(
-            identifier: String = "test",
-            // swiftlint:disable:next force_try
-            path: RelativePath = try! RelativePath(validating: "relative/to/library"),
-            mergeable: Bool = false,
-            platform: Platform = .iOS,
-            platformVariant: PlatformVariant? = nil,
-            architectures: [BinaryArchitecture] = [.i386]
-        ) -> XCFrameworkInfoPlist.Library {
-            XCFrameworkInfoPlist.Library(
-                identifier: identifier,
-                path: path,
-                mergeable: mergeable,
-                platform: platform,
-                platformVariant: platformVariant,
-                architectures: architectures
-            )
-        }
-    }
-#endif
+    #endif
+}

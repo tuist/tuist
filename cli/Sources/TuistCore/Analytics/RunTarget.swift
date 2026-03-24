@@ -27,10 +27,8 @@ public struct RunTarget: Codable, Hashable {
         self.binaryCacheMetadata = binaryCacheMetadata
         self.selectiveTestingMetadata = selectiveTestingMetadata
     }
-}
 
-#if DEBUG
-    extension RunTarget {
+    #if DEBUG
         public static func test(
             name: String = "Target",
             product: Product = .framework,
@@ -50,5 +48,5 @@ public struct RunTarget: Codable, Hashable {
                 selectiveTestingMetadata: selectiveTestingMetdata
             )
         }
-    }
-#endif
+    #endif
+}

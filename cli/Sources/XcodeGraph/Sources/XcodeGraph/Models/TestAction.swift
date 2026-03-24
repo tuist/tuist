@@ -55,10 +55,8 @@ public struct TestAction: Equatable, Codable, Sendable {
         self.preferredScreenCaptureFormat = preferredScreenCaptureFormat
         self.skippedTests = skippedTests
     }
-}
 
-#if DEBUG
-    extension TestAction {
+    #if DEBUG
         public static func test(
             targets: [TestableTarget] = [TestableTarget(target: TargetReference(
                 // swiftlint:disable:next force_try
@@ -98,5 +96,5 @@ public struct TestAction: Equatable, Codable, Sendable {
                 skippedTests: skippedTests
             )
         }
-    }
-#endif
+    #endif
+}

@@ -28,13 +28,11 @@ struct SchemeLinter: SchemeLinting {
         issues.append(contentsOf: projectSchemeCantReferenceRemoteTargets(schemes: project.schemes, project: project))
         return issues
     }
-}
 
-extension SchemeLinter {
     private func lintReferencedBuildConfigurations(schemes: [Scheme], settings: Settings) async throws -> [LintingIssue] {
         let buildConfigurations = Array(settings.configurations.keys)
         return try await schemes
-            .concurrentFlatMap { try await self.lintScheme(scheme: $0, buildConfigurations: buildConfigurations) }
+            .concurrentFlatMap { try await lintScheme(scheme: $0, buildConfigurations: buildConfigurations) }
     }
 
     private func lintScheme(scheme: Scheme, buildConfigurations: [BuildConfiguration]) async throws -> [LintingIssue] {
@@ -73,7 +71,7 @@ extension SchemeLinter {
                 )
             }
             try await testAction.testPlans?.forEach(context: .concurrent) { testPlan in
-                if try await !self.fileSystem.exists(testPlan.path) {
+                if try await !fileSystem.exists(testPlan.path) {
                     issues.append(
                         LintingIssue(
                             reason: "Test Plan not found at path \(testPlan.path.pathString)",
