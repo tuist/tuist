@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.164.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* sort concurrentMap results in content hashers for determinism by [@fortmarek](https://github.com/fortmarek) in [#9998](https://github.com/tuist/tuist/pull/9998)
+* infer platform destination for shard enumeration from graph by [@fortmarek](https://github.com/fortmarek) in [#9997](https://github.com/tuist/tuist/pull/9997)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.164.1...4.164.2
+
 ## What's Changed in 4.164.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
