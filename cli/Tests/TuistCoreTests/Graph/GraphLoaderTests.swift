@@ -13,15 +13,9 @@ struct GraphLoaderTests {
     private var stubbedFrameworks = [AbsolutePath: PrecompiledMetadata]()
     private var stubbedLibraries = [AbsolutePath: PrecompiledMetadata]()
     private var stubbedXCFrameworks = [AbsolutePath: XCFrameworkMetadata]()
-    private let frameworkMetadataProvider: MockFrameworkMetadataProvider
-    private let libraryMetadataProvider: MockLibraryMetadataProvider
-    private let xcframeworkMetadataProvider: MockXCFrameworkMetadataProviding
-
-    init() {
-        frameworkMetadataProvider = GraphLoaderTests.makeFrameworkMetadataProvider()
-        libraryMetadataProvider = GraphLoaderTests.makeLibraryMetadataProvider()
-        xcframeworkMetadataProvider = GraphLoaderTests.makeXCFrameworkMetadataProvider()
-    }
+    private let frameworkMetadataProvider = MockFrameworkMetadataProvider()
+    private let libraryMetadataProvider = MockLibraryMetadataProvider()
+    private let xcframeworkMetadataProvider = MockXCFrameworkMetadataProviding()
 
     // MARK: - Load Workspace
 
@@ -747,20 +741,7 @@ struct GraphLoaderTests {
         )
     }
 
-    private static func makeFrameworkMetadataProvider() -> MockFrameworkMetadataProvider {
-        let provider = MockFrameworkMetadataProvider()
-        return provider
-    }
 
-    private static func makeLibraryMetadataProvider() -> MockLibraryMetadataProvider {
-        let provider = MockLibraryMetadataProvider()
-        return provider
-    }
-
-    private static func makeXCFrameworkMetadataProvider() -> MockXCFrameworkMetadataProviding {
-        let provider = MockXCFrameworkMetadataProviding()
-        return provider
-    }
 
     private mutating func stubFramework(metadata: PrecompiledMetadata) {
         stubbedFrameworks[metadata.path] = metadata

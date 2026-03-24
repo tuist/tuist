@@ -21,16 +21,12 @@ struct TargetRunnerErrorTests {
 }
 
 struct TargetRunnerTests {
-    private let xcodeBuildController: MockXcodeBuildControlling
-    private let xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating
-    private let simulatorController: MockSimulatorControlling
-    private let opener: MockOpening
+    private let xcodeBuildController = MockXcodeBuildControlling()
+    private let xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocating()
+    private let simulatorController = MockSimulatorControlling()
+    private let opener = MockOpening()
     private let subject: TargetRunner
     init() {
-        xcodeBuildController = .init()
-        xcodeProjectBuildDirectoryLocator = .init()
-        simulatorController = .init()
-        opener = MockOpening()
         subject = TargetRunner(
             xcodeBuildController: xcodeBuildController,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
