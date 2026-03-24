@@ -33,11 +33,57 @@ struct ActionLogSection: Codable {
         let url: String?
     }
 
-    struct TestTimestamps {
-        let testTargetStartTimes: [String: Double]
-        let earliestTestStart: Double?
-        let latestOverallCompletion: Double?
-        let latestCompletionPerModule: [String: Double]
+    struct TestDurations {
+        let overallDuration: Int?
+        let moduleDurations: [String: Int]
+    }
+
+    /// Extract test durations from the action log's structural timing (epoch-based startTime/duration).
+    /// This includes the full test execution time, accounting for retries when -retry-tests-on-failure is used.
+    func extractTestDurations() -> TestDurations {
+        var earliestTestStart: Double?
+        var launchActionsEnd: Double?
+        var moduleDurations: [String: Int] = [:]
+
+        for subsection in subsections ?? [] {
+            guard let subTitle = subsection.title else { continue }
+
+            if subTitle.hasPrefix("Test target "), let nodeStartTime = subsection.startTime {
+                if let current = earliestTestStart {
+                    earliestTestStart = min(current, nodeStartTime)
+                } else {
+                    earliestTestStart = nodeStartTime
+                }
+            }
+
+            if subTitle == "Launch actions" {
+                if let start = subsection.startTime, let duration = subsection.duration {
+                    launchActionsEnd = start + duration
+                }
+                for launchSub in subsection.subsections ?? [] {
+                    guard let launchTitle = launchSub.title,
+                          launchTitle.hasPrefix("Launch "),
+                          let duration = launchSub.duration
+                    else { continue }
+                    let moduleName = String(launchTitle.dropFirst("Launch ".count))
+                    let durationMs = Int(duration * 1000)
+                    moduleDurations[moduleName] = durationMs
+                }
+            }
+        }
+
+        var overallDuration: Int?
+        if let testStart = earliestTestStart, let end = launchActionsEnd {
+            let durationSeconds = end - testStart
+            if durationSeconds > 0 {
+                overallDuration = Int(durationSeconds * 1000)
+            }
+        }
+
+        return TestDurations(
+            overallDuration: overallDuration,
+            moduleDurations: moduleDurations
+        )
     }
 
     func collectEmittedOutputs() -> [String] {
@@ -54,162 +100,6 @@ struct ActionLogSection: Codable {
         }
 
         return outputs
-    }
-
-    /// Extract test target start times and suite completion timestamps
-    /// Returns start times per module, earliest overall start, and latest completion timestamps
-    func extractTestTimestamps() -> TestTimestamps {
-        var testTargetStartTimes: [String: Double] = [:]
-        var earliestTestStart: Double?
-        var latestOverallCompletion: Double?
-        var latestCompletionPerModule: [String: Double] = [:]
-
-        extractTestTimestampsRecursive(
-            testTargetStartTimes: &testTargetStartTimes,
-            earliestTestStart: &earliestTestStart,
-            latestOverallCompletion: &latestOverallCompletion,
-            latestCompletionPerModule: &latestCompletionPerModule
-        )
-
-        return TestTimestamps(
-            testTargetStartTimes: testTargetStartTimes,
-            earliestTestStart: earliestTestStart,
-            latestOverallCompletion: latestOverallCompletion,
-            latestCompletionPerModule: latestCompletionPerModule
-        )
-    }
-
-    private func extractTestTimestampsRecursive(
-        testTargetStartTimes: inout [String: Double],
-        earliestTestStart: inout Double?,
-        latestOverallCompletion: inout Double?,
-        latestCompletionPerModule: inout [String: Double]
-    ) {
-        if let nodeTitle = title, nodeTitle.hasPrefix("Test target "), let nodeStartTime = startTime {
-            let moduleName = String(nodeTitle.dropFirst("Test target ".count))
-            testTargetStartTimes[moduleName] = nodeStartTime
-
-            if let current = earliestTestStart {
-                earliestTestStart = min(current, nodeStartTime)
-            } else {
-                earliestTestStart = nodeStartTime
-            }
-        }
-
-        if let emittedOutput = testDetails?.emittedOutput {
-            parseSuiteCompletionTimestamps(
-                from: emittedOutput,
-                runnablePath: testDetails?.runnablePath,
-                latestOverallCompletion: &latestOverallCompletion,
-                latestCompletionPerModule: &latestCompletionPerModule
-            )
-        }
-
-        if let subsections {
-            for subsection in subsections {
-                subsection.extractTestTimestampsRecursive(
-                    testTargetStartTimes: &testTargetStartTimes,
-                    earliestTestStart: &earliestTestStart,
-                    latestOverallCompletion: &latestOverallCompletion,
-                    latestCompletionPerModule: &latestCompletionPerModule
-                )
-            }
-        }
-    }
-
-    private func parseSuiteCompletionTimestamps(
-        from emittedOutput: String,
-        runnablePath: String?,
-        latestOverallCompletion: inout Double?,
-        latestCompletionPerModule: inout [String: Double]
-    ) {
-        // Pattern: "Test Suite 'SuiteName' passed at 2025-11-24 18:39:44.625."
-        let suiteCompletionPattern = #"Test Suite '[^']+' (?:passed|failed) at (\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d+)"#
-
-        guard let regex = try? NSRegularExpression(pattern: suiteCompletionPattern, options: []) else { return }
-
-        let range = NSRange(emittedOutput.startIndex ..< emittedOutput.endIndex, in: emittedOutput)
-        let matches = regex.matches(in: emittedOutput, options: [], range: range)
-
-        for match in matches {
-            guard let timestamp = parseTimestamp(from: match, in: emittedOutput) else { continue }
-
-            updateLatestCompletion(&latestOverallCompletion, with: timestamp)
-            updateModuleCompletion(
-                emittedOutput: emittedOutput,
-                runnablePath: runnablePath,
-                timestamp: timestamp,
-                latestCompletionPerModule: &latestCompletionPerModule
-            )
-        }
-    }
-
-    private func parseTimestamp(from match: NSTextCheckingResult, in text: String) -> Double? {
-        guard match.numberOfRanges == 8,
-              let yearRange = Range(match.range(at: 1), in: text),
-              let monthRange = Range(match.range(at: 2), in: text),
-              let dayRange = Range(match.range(at: 3), in: text),
-              let hourRange = Range(match.range(at: 4), in: text),
-              let minuteRange = Range(match.range(at: 5), in: text),
-              let secondRange = Range(match.range(at: 6), in: text),
-              let millisecondRange = Range(match.range(at: 7), in: text)
-        else { return nil }
-
-        let timeZone = TimeZone.current()
-        var dateComponents = DateComponents()
-        dateComponents.year = Int(text[yearRange]) ?? 0
-        dateComponents.month = Int(text[monthRange]) ?? 0
-        dateComponents.day = Int(text[dayRange]) ?? 0
-        dateComponents.hour = Int(text[hourRange]) ?? 0
-        dateComponents.minute = Int(text[minuteRange]) ?? 0
-        dateComponents.second = Int(text[secondRange]) ?? 0
-        dateComponents.nanosecond = (Int(text[millisecondRange]) ?? 0) * 1_000_000
-        dateComponents.timeZone = timeZone
-
-        var calendar = Calendar.current
-        calendar.timeZone = timeZone
-        guard let date = calendar.date(from: dateComponents) else { return nil }
-
-        return date.timeIntervalSince1970
-    }
-
-    private func updateLatestCompletion(_ latestCompletion: inout Double?, with timestamp: Double) {
-        if let current = latestCompletion {
-            latestCompletion = max(current, timestamp)
-        } else {
-            latestCompletion = timestamp
-        }
-    }
-
-    private func updateModuleCompletion(
-        emittedOutput: String,
-        runnablePath: String?,
-        timestamp: Double,
-        latestCompletionPerModule: inout [String: Double]
-    ) {
-        guard let runnablePath,
-              runnablePath.hasSuffix(".app") || runnablePath.hasSuffix(".xctest") || runnablePath.contains("/xctest")
-        else { return }
-
-        // Extract module name from XCTest pattern: "-[ModuleName.ClassName testMethod]"
-        let xcTestPattern = #"-\[([^.]+)\."#
-        guard let moduleRegex = try? NSRegularExpression(pattern: xcTestPattern, options: []),
-              let moduleMatch = moduleRegex.firstMatch(
-                  in: emittedOutput,
-                  options: [],
-                  range: NSRange(emittedOutput.startIndex ..< emittedOutput.endIndex, in: emittedOutput)
-              ),
-              let moduleRange = Range(moduleMatch.range(at: 1), in: emittedOutput)
-        else { return }
-
-        let moduleName = String(emittedOutput[moduleRange])
-        guard !moduleName.isEmpty else { return }
-
-        if let current = latestCompletionPerModule[moduleName] {
-            latestCompletionPerModule[moduleName] = max(current, timestamp)
-        } else {
-            latestCompletionPerModule[moduleName] = timestamp
-        }
     }
 
     /// Extract test failures from action logs
