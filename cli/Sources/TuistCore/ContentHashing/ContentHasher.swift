@@ -8,16 +8,13 @@ import TuistSupport
 /// is the single source of truth for hashing content.
 /// It uses md5 checksum to uniquely hash strings and data
 /// Consider using CacheContentHasher to avoid computing the same hash twice
-public struct ContentHasher: ContentHashing, @unchecked Sendable {
-    private let fileHandler: FileHandling
+public struct ContentHasher: ContentHashing {
     private let fileSystem: FileSysteming
     private let filesFilter = HashingFilesFilter()
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem()
     ) {
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
     }
 

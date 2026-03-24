@@ -11,7 +11,7 @@ final class ContentHasherTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         mockFileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
-        subject = ContentHasher(fileHandler: mockFileHandler)
+        subject = ContentHasher()
     }
 
     override func tearDown() {
