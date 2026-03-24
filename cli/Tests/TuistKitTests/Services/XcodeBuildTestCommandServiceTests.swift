@@ -30,9 +30,25 @@ struct XcodeBuildTestCommandServiceTests {
     private let derivedDataLocator = MockDerivedDataLocating()
     private let xcActivityLogController = MockXCActivityLogControlling()
     private let uploadResultBundleService = MockUploadResultBundleServicing()
+    private let xcResultService = MockXCResultServicing()
+    private let rootDirectoryLocator = MockRootDirectoryLocating()
+    private let testQuarantineService = MockTestQuarantineServicing()
     private let subject: XcodeBuildTestCommandService
 
     init() {
+        given(testQuarantineService)
+            .quarantinedTests(config: .any, skipQuarantine: .any)
+            .willReturn([])
+        given(testQuarantineService)
+            .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
+            .willProduce { summary, _ in summary }
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testSummary: .any)
+            .willReturn(false)
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+
         subject = XcodeBuildTestCommandService(
             fileSystem: fileSystem,
             xcodeBuildController: xcodeBuildController,
@@ -42,7 +58,10 @@ struct XcodeBuildTestCommandServiceTests {
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
             derivedDataLocator: derivedDataLocator,
             xcActivityLogController: xcActivityLogController,
-            uploadResultBundleService: uploadResultBundleService
+            uploadResultBundleService: uploadResultBundleService,
+            xcResultService: xcResultService,
+            rootDirectoryLocator: rootDirectoryLocator,
+            testQuarantineService: testQuarantineService
         )
     }
 
