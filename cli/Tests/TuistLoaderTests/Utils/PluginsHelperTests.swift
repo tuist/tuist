@@ -26,7 +26,10 @@ struct PluginsHelperTests {
     }
 
     @Test func templatePath_when_template_does_not_exist() async throws {
-        await #expect(throws: ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(name: "Strings.stencil", plugin: "A")) {
+        await #expect(throws: ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(
+            name: "Strings.stencil",
+            plugin: "A"
+        )) {
             try await subject.templatePath(
                 for: "A",
                 resourceName: "Strings",
@@ -57,14 +60,14 @@ struct PluginsHelperTests {
     @Test func resourceTemplateNotFound_error() {
         #expect(
             ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(name: "Strings.stencil", plugin: "A").description ==
-            "No template Strings.stencil found in a plugin A"
+                "No template Strings.stencil found in a plugin A"
         )
     }
 
     @Test func pluginNotFound_error() {
         #expect(
             ResourceSynthesizerPathLocatorError.pluginNotFound("A", ["B", "C"]).description ==
-            "Plugin A was not found. Available plugins: B, C"
+                "Plugin A was not found. Available plugins: B, C"
         )
     }
 }

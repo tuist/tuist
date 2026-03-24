@@ -1,10 +1,10 @@
+import FileSystemTesting
 import Mockable
+import Testing
 import TuistLoader
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistKit
 
@@ -28,7 +28,7 @@ struct PluginArchiveServiceTests {
         )
     }
 
-    @Test func test_run_when_no_task_products_defined() async throws {
+    @Test func run_when_no_task_products_defined() async throws {
         try await withMockedDependencies {
             // Given
             given(packageInfoLoader)

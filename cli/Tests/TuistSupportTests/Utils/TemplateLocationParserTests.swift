@@ -10,9 +10,8 @@ struct TemplateLocationParserTests {
         subject = TemplateLocationParser(system: system)
     }
 
-
     @Test
-    func test_parse_branch_name_for_given_url_template() {
+    func parse_branch_name_for_given_url_template() {
         // Given
         let urlTemplate = "https://github.com/tuist/ExampleTuistTemplate@develop"
 
@@ -21,11 +20,11 @@ struct TemplateLocationParserTests {
 
         // Then
         #expect(branch != nil)
-        #expect("develop" == branch)
+        #expect(branch == "develop")
     }
 
     @Test
-    func test_parse_branch_name_for_given_ssh_url_template() {
+    func parse_branch_name_for_given_ssh_url_template() {
         // Given
         let urlTemplate = "git@github.com:tuist/ExampleTuistTemplate.git@develop"
 
@@ -34,11 +33,11 @@ struct TemplateLocationParserTests {
 
         // Then
         #expect(branch != nil)
-        #expect("develop" == branch)
+        #expect(branch == "develop")
     }
 
     @Test
-    func test_nil_branch_when_not_branch_found_in_template_url() {
+    func nil_branch_when_not_branch_found_in_template_url() {
         // Given
         let urlTemplate = "https://github.com/tuist/ExampleTuistTemplate"
 
@@ -50,7 +49,7 @@ struct TemplateLocationParserTests {
     }
 
     @Test
-    func test_nil_branch_when_not_branch_found_in_template_ssh_url() {
+    func nil_branch_when_not_branch_found_in_template_ssh_url() {
         // Given
         let urlTemplate = "git@github.com:tuist/ExampleTuistTemplate.git"
 
@@ -62,7 +61,7 @@ struct TemplateLocationParserTests {
     }
 
     @Test
-    func test_parse_template_url_when_template_url_has_branch_name_on_it() {
+    func parse_template_url_when_template_url_has_branch_name_on_it() {
         // Given
         let urlTemplate = "https://github.com/tuist/ExampleTuistTemplate@develop"
 
@@ -70,11 +69,11 @@ struct TemplateLocationParserTests {
         let repositoryURL = subject.parseRepositoryURL(from: urlTemplate)
 
         // Then
-        #expect("https://github.com/tuist/ExampleTuistTemplate" == repositoryURL)
+        #expect(repositoryURL == "https://github.com/tuist/ExampleTuistTemplate")
     }
 
     @Test
-    func test_parse_template_url_when_template_ssh_url_has_branch_name_on_it() {
+    func parse_template_url_when_template_ssh_url_has_branch_name_on_it() {
         // Given
         let urlTemplate = "git@github.com:tuist/ExampleTuistTemplate.git@develop"
 
@@ -82,11 +81,11 @@ struct TemplateLocationParserTests {
         let repositoryURL = subject.parseRepositoryURL(from: urlTemplate)
 
         // Then
-        #expect("git@github.com:tuist/ExampleTuistTemplate.git" == repositoryURL)
+        #expect(repositoryURL == "git@github.com:tuist/ExampleTuistTemplate.git")
     }
 
     @Test
-    func test_parse_template_url_when_template_url_has_not_branch_name_on_it() {
+    func parse_template_url_when_template_url_has_not_branch_name_on_it() {
         // Given
         let urlTemplate = "https://github.com/tuist/ExampleTuistTemplate"
 
@@ -94,11 +93,11 @@ struct TemplateLocationParserTests {
         let repositoryURL = subject.parseRepositoryURL(from: urlTemplate)
 
         // Then
-        #expect("https://github.com/tuist/ExampleTuistTemplate" == repositoryURL)
+        #expect(repositoryURL == "https://github.com/tuist/ExampleTuistTemplate")
     }
 
     @Test
-    func test_parse_template_url_when_template_ssh_url_has_not_branch_name_on_it() {
+    func parse_template_url_when_template_ssh_url_has_not_branch_name_on_it() {
         // Given
         let urlTemplate = "git@github.com:tuist/ExampleTuistTemplate.git"
 
@@ -106,6 +105,6 @@ struct TemplateLocationParserTests {
         let repositoryURL = subject.parseRepositoryURL(from: urlTemplate)
 
         // Then
-        #expect("git@github.com:tuist/ExampleTuistTemplate.git" == repositoryURL)
+        #expect(repositoryURL == "git@github.com:tuist/ExampleTuistTemplate.git")
     }
 }

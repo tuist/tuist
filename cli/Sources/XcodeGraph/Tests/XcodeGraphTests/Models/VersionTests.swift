@@ -1,6 +1,6 @@
 import Foundation
-import XcodeGraph
 import Testing
+import XcodeGraph
 
 struct VersionTests {
     @Test func test_xcodeStringValue() {
@@ -14,7 +14,7 @@ struct VersionTests {
         #expect(got == "123")
     }
 
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let version = Version(stringLiteral: "1.2.3")
 

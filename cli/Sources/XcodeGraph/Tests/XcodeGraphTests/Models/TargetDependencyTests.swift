@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct TargetDependencyTests {
-    @Test func test_codable_framework() throws {
+    @Test func codable_framework() throws {
         // Given
         let subject = TargetDependency.framework(
             path: try AbsolutePath(validating: "/path/to/framework"),
@@ -20,7 +20,7 @@ struct TargetDependencyTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_project() throws {
+    @Test func codable_project() throws {
         // Given
         let subject = TargetDependency.project(target: "target", path: try AbsolutePath(validating: "/path/to/target"))
 
@@ -33,7 +33,7 @@ struct TargetDependencyTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_library() throws {
+    @Test func codable_library() throws {
         // Given
         let subject = TargetDependency.library(
             path: try AbsolutePath(validating: "/path/to/library"),
@@ -50,7 +50,7 @@ struct TargetDependencyTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_filtering() throws {
+    @Test func filtering() throws {
         let expected: PlatformCondition? = .when([.macos])
 
         let subjects: [TargetDependency] = [
@@ -79,7 +79,7 @@ struct TargetDependencyTests {
         }
     }
 
-    @Test func test_xctest_platformFilters_alwaysReturnAll() {
+    @Test func xctest_platformFilters_alwaysReturnAll() {
         let subject = TargetDependency.xctest
 
         #expect(subject.condition == nil)

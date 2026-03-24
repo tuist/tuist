@@ -1,7 +1,7 @@
 import Foundation
+import Testing
 import TuistCore
 import XcodeGraph
-import Testing
 @testable import TuistGenerator
 
 struct InfoPlistContentProviderTests {
@@ -11,7 +11,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_wheniOSApp_withiPadSupport() {
+    func content_wheniOSApp_withiPadSupport() {
         // Given
         let target = Target.test(
             destinations: [.iPhone, .iPad, .macWithiPadDesign],
@@ -58,7 +58,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_wheniOSApp_withoutiPadSupport() {
+    func content_wheniOSApp_withoutiPadSupport() {
         // Given
         let target = Target.test(
             destinations: [.iPhone, .macWithiPadDesign],
@@ -99,7 +99,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_whenMacosApp() {
+    func content_whenMacosApp() {
         // Given
         let target = Target.test(destinations: .macOS, product: .app)
 
@@ -130,7 +130,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_whenMacosFrameworkWithSources() {
+    func content_whenMacosFrameworkWithSources() {
         // Given
         let target = Target.test(destinations: .macOS, product: .framework, sources: ["/Example.swift"])
 
@@ -157,7 +157,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_whenMacosFrameworkWithoutSources() {
+    func content_whenMacosFrameworkWithoutSources() {
         // Given
         let target = Target.test(destinations: .macOS, product: .framework)
 
@@ -184,7 +184,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_whenMacosBundleWithoutSources() {
+    func content_whenMacosBundleWithoutSources() {
         // Given
         let target = Target.test(destinations: .macOS, product: .bundle)
 
@@ -210,7 +210,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_whenMacosStaticLibrary() {
+    func content_whenMacosStaticLibrary() {
         // Given
         let target = Target.test(destinations: .macOS, product: .staticLibrary)
 
@@ -226,7 +226,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_whenMacosDynamicLibrary() {
+    func content_whenMacosDynamicLibrary() {
         // Given
         let target = Target.test(destinations: .macOS, product: .dynamicLibrary)
 
@@ -242,7 +242,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_wheniOSResourceBundle() {
+    func content_wheniOSResourceBundle() {
         // Given
         let target = Target.test(destinations: .iOS, product: .bundle)
 
@@ -267,7 +267,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_whenwatchOSResourceBundle() {
+    func content_whenwatchOSResourceBundle() {
         // Given
         let target = Target.test(destinations: .watchOS, product: .bundle)
 
@@ -292,7 +292,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_contentPackageType() {
+    func contentPackageType() {
         func content(for target: Target) -> [String: Any]? {
             subject.content(
                 project: .empty(),
@@ -312,7 +312,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_whenWatchOSApp() {
+    func content_whenWatchOSApp() {
         // Given
         let watchApp = Target.test(
             name: "MyWatchApp",
@@ -364,7 +364,7 @@ struct InfoPlistContentProviderTests {
     }
 
     @Test
-    func test_content_whenWatchOSAppExtension() {
+    func content_whenWatchOSAppExtension() {
         // Given
         let watchAppExtension = Target.test(
             name: "MyWatchAppExtension",
@@ -417,7 +417,7 @@ struct InfoPlistContentProviderTests {
 
     // MARK: - Helpers
 
-    fileprivate func assertPackageType(
+    private func assertPackageType(
         _ lhs: [String: Any]?,
         _ packageType: String?,
         sourceLocation: SourceLocation = #_sourceLocation
@@ -439,7 +439,7 @@ struct InfoPlistContentProviderTests {
         }
     }
 
-    fileprivate func assertEqual(
+    private func assertEqual(
         _ lhs: [String: Any]?,
         _ rhs: [String: Any],
         sourceLocation: SourceLocation = #_sourceLocation

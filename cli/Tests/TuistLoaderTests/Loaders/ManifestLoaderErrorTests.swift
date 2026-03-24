@@ -10,19 +10,19 @@ struct ManifestLoaderErrorTests {
     @Test func test_description() throws {
         #expect(
             ManifestLoaderError.projectDescriptionNotFound(try AbsolutePath(validating: "/test")).description ==
-            "Couldn't find ProjectDescription.framework at path /test"
+                "Couldn't find ProjectDescription.framework at path /test"
         )
         #expect(
             ManifestLoaderError.unexpectedOutput(try AbsolutePath(validating: "/test/")).description ==
-            "Unexpected output trying to parse the manifest at path /test"
+                "Unexpected output trying to parse the manifest at path /test"
         )
         #expect(
             ManifestLoaderError.manifestNotFound(.project, try AbsolutePath(validating: "/test/")).description ==
-            "Project.swift not found at path /test"
+                "Project.swift not found at path /test"
         )
         #expect(
             ManifestLoaderError.manifestNotFound(nil, try AbsolutePath(validating: "/test/")).description ==
-            "Manifest not found at path /test"
+                "Manifest not found at path /test"
         )
         #expect(
             ManifestLoaderError.manifestLoadingFailed(

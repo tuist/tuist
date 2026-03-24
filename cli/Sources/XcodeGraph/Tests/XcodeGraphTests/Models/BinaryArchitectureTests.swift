@@ -1,7 +1,7 @@
 import Foundation
 import Path
-import XcodeGraph
 import Testing
+import XcodeGraph
 
 struct BinaryArchitectureTests {
     @Test func test_rawValue() {

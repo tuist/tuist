@@ -1,14 +1,14 @@
 import Foundation
 import Path
-import TuistSupport
 import Testing
+import TuistSupport
 
 @testable import TuistCore
 @testable import TuistSupport
 @testable import TuistTesting
 
 struct GraphDependencyReferenceTests {
-    @Test func test_compare() {
+    @Test func compare() {
         // Given
         let subject: [GraphDependencyReference] = [
             .testXCFramework(path: "/xcframeworks/A.xcframework"),
@@ -46,7 +46,7 @@ struct GraphDependencyReferenceTests {
         ])
     }
 
-    @Test func test_compare_isStable() {
+    @Test func compare_isStable() {
         // Given
         let sampleNames = [
             "A",

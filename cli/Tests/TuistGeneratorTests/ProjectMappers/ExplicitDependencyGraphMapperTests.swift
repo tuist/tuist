@@ -1,10 +1,10 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 @testable import TuistGenerator
 
 struct ExplicitDependencyGraphMapperTests {
@@ -88,29 +88,69 @@ struct ExplicitDependencyGraphMapperTests {
         let gotAProject = try #require(got.0.projects[projectAPath])
         let gotATargets = Array(gotAProject.targets.values).sorted()
         #expect(gotATargets[0] == .test(
-                name: "App",
-                product: .app,
-                dependencies: [
-                    .target(name: "FrameworkA"),
-                ]
-            ))
+            name: "App",
+            product: .app,
+            dependencies: [
+                .target(name: "FrameworkA"),
+            ]
+        ))
         let gotFrameworkA = try #require(gotATargets[2])
         #expect(gotFrameworkA.name == "FrameworkA")
         #expect(gotFrameworkA.product == .framework)
-        #expect(gotFrameworkA.settings?.baseDebug["BUILT_PRODUCTS_DIR"] == "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)")
-        #expect(gotFrameworkA.settings?.baseDebug["TARGET_BUILD_DIR"] == "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)")
+        #expect(gotFrameworkA.settings?
+            .baseDebug["BUILT_PRODUCTS_DIR"] == "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)")
+        #expect(gotFrameworkA.settings?
+            .baseDebug["TARGET_BUILD_DIR"] == "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)")
         switch gotFrameworkA.settings?.baseDebug["FRAMEWORK_SEARCH_PATHS"] {
         case let .array(array):
             #expect(Set(array) == Set(
-                    [
-                        "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/DynamicLibraryB",
-                        "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/ExternalFrameworkC",
-                    ]
-                ))
+                [
+                    "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/DynamicLibraryB",
+                    "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/ExternalFrameworkC",
+                ]
+            ))
         default:
             Issue.record("Invalid case for FRAMEWORK_SEARCH_PATHS")
         }
         #expect(gotFrameworkA.scripts == [
+            TargetScript(
+                name: "Copy Built Products for Explicit Dependencies",
+                order: .post,
+                script: .embedded("""
+                # This script copies built products into the shared directory to be available for app and other targets that don't have scoped directories
+                # If you try to archive any of the configurations seen in the output paths, the operation will fail due to `Multiple commands produce` error
+
+                FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.framework"
+                DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.framework"
+                \(copyScript)
+                """),
+                inputPaths: [
+                    "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).framework",
+                ],
+                outputPaths: [
+                    "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).framework",
+                ]
+            ),
+        ])
+        #expect(gotFrameworkA.dependencies == [
+            .target(name: "DynamicLibraryB"),
+            .project(target: "ExternalFrameworkC", path: externalProjectBPath),
+        ])
+
+        #expect(gotATargets[1] == .test(
+            name: "DynamicLibraryB",
+            product: .dynamicLibrary,
+            settings: .test(
+                baseDebug: [
+                    "BUILT_PRODUCTS_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
+                    "TARGET_BUILD_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
+                ],
+                configurations: [
+                    .debug: .test(),
+                    .release: .test(),
+                ]
+            ),
+            scripts: [
                 TargetScript(
                     name: "Copy Built Products for Explicit Dependencies",
                     order: .post,
@@ -118,34 +158,33 @@ struct ExplicitDependencyGraphMapperTests {
                     # This script copies built products into the shared directory to be available for app and other targets that don't have scoped directories
                     # If you try to archive any of the configurations seen in the output paths, the operation will fail due to `Multiple commands produce` error
 
-                    FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.framework"
-                    DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.framework"
+                    FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.swiftmodule"
+                    DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.swiftmodule"
                     \(copyScript)
                     """),
                     inputPaths: [
-                        "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).framework",
+                        "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).swiftmodule",
                     ],
                     outputPaths: [
-                        "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).framework",
+                        "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).swiftmodule",
                     ]
                 ),
-            ])
-        #expect(gotFrameworkA.dependencies == [
-                .target(name: "DynamicLibraryB"),
-                .project(target: "ExternalFrameworkC", path: externalProjectBPath),
-            ])
-
-        #expect(gotATargets[1] == .test(
-                name: "DynamicLibraryB",
-                product: .dynamicLibrary,
+            ]
+        ))
+        let gotExternalBProject = try #require(got.0.projects[externalProjectBPath])
+        let gotExternalBTargets = Array(gotExternalBProject.targets.values)
+        #expect(gotExternalBTargets == [
+            .test(
+                name: "ExternalFrameworkC",
+                product: .staticFramework,
+                productName: "ExternalFrameworkC",
                 settings: .test(
                     baseDebug: [
                         "BUILT_PRODUCTS_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
                         "TARGET_BUILD_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
-                    ],
-                    configurations: [
-                        .debug: .test(),
-                        .release: .test(),
+                        "FRAMEWORK_SEARCH_PATHS": [
+                            "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)",
+                        ],
                     ]
                 ),
                 scripts: [
@@ -156,61 +195,24 @@ struct ExplicitDependencyGraphMapperTests {
                         # This script copies built products into the shared directory to be available for app and other targets that don't have scoped directories
                         # If you try to archive any of the configurations seen in the output paths, the operation will fail due to `Multiple commands produce` error
 
-                        FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.swiftmodule"
-                        DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.swiftmodule"
+                        FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.framework"
+                        DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.framework"
                         \(copyScript)
                         """),
                         inputPaths: [
-                            "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).swiftmodule",
+                            "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).framework",
                         ],
                         outputPaths: [
-                            "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).swiftmodule",
+                            "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).framework",
                         ]
                     ),
                 ]
-            ))
-        let gotExternalBProject = try #require(got.0.projects[externalProjectBPath])
-        let gotExternalBTargets = Array(gotExternalBProject.targets.values)
-        #expect(gotExternalBTargets == [
-                .test(
-                    name: "ExternalFrameworkC",
-                    product: .staticFramework,
-                    productName: "ExternalFrameworkC",
-                    settings: .test(
-                        baseDebug: [
-                            "BUILT_PRODUCTS_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
-                            "TARGET_BUILD_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
-                            "FRAMEWORK_SEARCH_PATHS": [
-                                "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)",
-                            ],
-                        ]
-                    ),
-                    scripts: [
-                        TargetScript(
-                            name: "Copy Built Products for Explicit Dependencies",
-                            order: .post,
-                            script: .embedded("""
-                            # This script copies built products into the shared directory to be available for app and other targets that don't have scoped directories
-                            # If you try to archive any of the configurations seen in the output paths, the operation will fail due to `Multiple commands produce` error
-
-                            FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.framework"
-                            DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.framework"
-                            \(copyScript)
-                            """),
-                            inputPaths: [
-                                "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).framework",
-                            ],
-                            outputPaths: [
-                                "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).framework",
-                            ]
-                        ),
-                    ]
-                ),
-            ])
+            ),
+        ])
     }
 
     @Test
-    func test_enabling_testing_search_paths() async throws {
+    func enabling_testing_search_paths() async throws {
         // Given
         let projectAPath = try AbsolutePath(validating: "/tmp/ProjectA")
         let externalProjectBPath = try AbsolutePath(validating: "/tmp/ProjectB")

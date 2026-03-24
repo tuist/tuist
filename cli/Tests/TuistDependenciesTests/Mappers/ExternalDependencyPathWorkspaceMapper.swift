@@ -1,11 +1,11 @@
+import FileSystemTesting
 import Foundation
+import Testing
 import TuistConstants
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistDependencies
 
@@ -14,7 +14,6 @@ struct ExternalDependencyPathWorkspaceMapperTests {
     init() {
         subject = ExternalDependencyPathWorkspaceMapper()
     }
-
 
     @Test(.inTemporaryDirectory)
     func test_map() throws {
@@ -67,26 +66,26 @@ struct ExternalDependencyPathWorkspaceMapperTests {
             ]
         )
         #expect(gotWorkspaceWithProjects.projects == [
-                Project.test(
-                    path: projectPath,
-                    sourceRootPath: projectPath,
-                    xcodeProjPath: projectPath.appending(component: "A.xcodeproj"),
-                    name: "A"
+            Project.test(
+                path: projectPath,
+                sourceRootPath: projectPath,
+                xcodeProjPath: projectPath.appending(component: "A.xcodeproj"),
+                name: "A"
+            ),
+            Project.test(
+                path: externalProjectPath,
+                sourceRootPath: externalProject.sourceRootPath,
+                xcodeProjPath: expectedXcodeprojPath,
+                name: "ExternalDependency",
+                settings: Settings.test(
+                    base: [
+                        "SRCROOT": .string(externalProject.sourceRootPath.relative(to: expectedXcodeprojPath.parentDirectory)
+                            .pathString
+                        ),
+                    ]
                 ),
-                Project.test(
-                    path: externalProjectPath,
-                    sourceRootPath: externalProject.sourceRootPath,
-                    xcodeProjPath: expectedXcodeprojPath,
-                    name: "ExternalDependency",
-                    settings: Settings.test(
-                        base: [
-                            "SRCROOT": .string(externalProject.sourceRootPath.relative(to: expectedXcodeprojPath.parentDirectory)
-                                .pathString
-                            ),
-                        ]
-                    ),
-                    type: .external(hash: nil)
-                ),
-            ])
+                type: .external(hash: nil)
+            ),
+        ])
     }
 }

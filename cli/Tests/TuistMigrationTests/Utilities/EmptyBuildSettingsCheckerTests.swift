@@ -6,10 +6,13 @@ import Testing
 struct EmptyBuildSettingsCheckerErrorTests {
     @Test
     func test_description() {
-        #expect(EmptyBuildSettingsCheckerError.missingXcodeProj("/tuist.xcodeproj").description == "Couldn't find Xcode project at path /tuist.xcodeproj.")
+        #expect(EmptyBuildSettingsCheckerError.missingXcodeProj("/tuist.xcodeproj")
+            .description == "Couldn't find Xcode project at path /tuist.xcodeproj.")
         #expect(EmptyBuildSettingsCheckerError.missingProject.description == "The project's pbxproj file contains no projects.")
-        #expect(EmptyBuildSettingsCheckerError.targetNotFound("Tuist").description == "Couldn't find target with name 'Tuist' in the project.")
-        #expect(EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Tuist"]).description == "The following configurations have non-empty build settings: Tuist")
+        #expect(EmptyBuildSettingsCheckerError.targetNotFound("Tuist")
+            .description == "Couldn't find target with name 'Tuist' in the project.")
+        #expect(EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Tuist"])
+            .description == "The following configurations have non-empty build settings: Tuist")
     }
 
     @Test

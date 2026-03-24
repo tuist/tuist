@@ -12,7 +12,7 @@ struct PlatformFilterTests {
         #expect(PlatformFilter.watchos.xcodeprojValue == "watchos")
     }
 
-    @Test func test_platformfilters_xcodeprojValue() {
+    @Test func platformfilters_xcodeprojValue() {
         func xcodeProjValueFor(_ filters: PlatformFilters) -> [String] {
             filters.xcodeprojValue
         }

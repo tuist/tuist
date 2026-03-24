@@ -1,13 +1,13 @@
 import FileSystemTesting
 import Path
+import Testing
 import TuistSupport
 import XcodeGraph
-import Testing
 @testable import TuistCore
 @testable import TuistTesting
 
 struct FrameworkLoaderErrorTests {
-    @Test func test_type_when_frameworkNotFound() {
+    @Test func type_when_frameworkNotFound() {
         // Given
         let path = try! AbsolutePath(validating: "/frameworks/tuist.framework")
         let subject = FrameworkLoaderError.frameworkNotFound(path)
@@ -19,7 +19,7 @@ struct FrameworkLoaderErrorTests {
         #expect(got == .abort)
     }
 
-    @Test func test_description_when_frameworkNotFound() {
+    @Test func description_when_frameworkNotFound() {
         // Given
         let path = try! AbsolutePath(validating: "/frameworks/tuist.framework")
         let subject = FrameworkLoaderError.frameworkNotFound(path)
@@ -41,7 +41,7 @@ struct FrameworkLoaderTests {
         subject = FrameworkLoader(frameworkMetadataProvider: frameworkMetadataProvider)
     }
 
-    @Test(.inTemporaryDirectory) func test_load_when_the_framework_doesnt_exist() async throws {
+    @Test(.inTemporaryDirectory) func load_when_the_framework_doesnt_exist() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let frameworkPath = path.appending(component: "tuist.framework")
@@ -52,7 +52,7 @@ struct FrameworkLoaderTests {
         }
     }
 
-    @Test(.inTemporaryDirectory) func test_load_when_the_framework_exists() async throws {
+    @Test(.inTemporaryDirectory) func load_when_the_framework_exists() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let binaryPath = path.appending(component: "tuist")
@@ -82,15 +82,15 @@ struct FrameworkLoaderTests {
         // Then
         #expect(
             got ==
-            .framework(
-                path: frameworkPath,
-                binaryPath: binaryPath,
-                dsymPath: dsymPath,
-                bcsymbolmapPaths: bcsymbolmapPaths,
-                linking: linking,
-                architectures: architectures,
-                status: .required
-            )
+                .framework(
+                    path: frameworkPath,
+                    binaryPath: binaryPath,
+                    dsymPath: dsymPath,
+                    bcsymbolmapPaths: bcsymbolmapPaths,
+                    linking: linking,
+                    architectures: architectures,
+                    status: .required
+                )
         )
     }
 }

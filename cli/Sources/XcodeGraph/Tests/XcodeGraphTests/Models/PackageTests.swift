@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct PackageTests {
-    @Test func test_codable_local() throws {
+    @Test func codable_local() throws {
         // Given
         let subject = Package.local(path: try AbsolutePath(validating: "/path/to/workspace"))
 
@@ -17,7 +17,7 @@ struct PackageTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_remote() throws {
+    @Test func codable_remote() throws {
         // Given
         let subject = Package.remote(
             url: "/url/to/package",
@@ -33,7 +33,7 @@ struct PackageTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_is_remote_local() throws {
+    @Test func is_remote_local() throws {
         // Given
         let subject = Package.local(path: try AbsolutePath(validating: "/path/to/package"))
 
@@ -41,7 +41,7 @@ struct PackageTests {
         #expect(!subject.isRemote)
     }
 
-    @Test func test_is_remote_remote() {
+    @Test func is_remote_remote() {
         // Given
         let subject = Package.remote(
             url: "/url/to/package",

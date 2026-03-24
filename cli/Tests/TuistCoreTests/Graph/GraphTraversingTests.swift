@@ -1,12 +1,12 @@
 import Mockable
 import Path
+import Testing
 import TuistTesting
 import XcodeGraph
-import Testing
 @testable import TuistCore
 
 struct GraphTraversingTests {
-    @Test func test_filterIncludedTargets_when_graph_is_empty() {
+    @Test func filterIncludedTargets_when_graph_is_empty() {
         // Given
         let subject = MockGraphTraversing()
 
@@ -27,7 +27,7 @@ struct GraphTraversingTests {
         #expect(got == [])
     }
 
-    @Test func test_filterIncludedTargets_when_testPlan() {
+    @Test func filterIncludedTargets_when_testPlan() {
         // Given
         let targetA = Target.test(name: "Target")
         let targetB = Target.test(name: "TargetTests")
@@ -64,7 +64,7 @@ struct GraphTraversingTests {
         #expect(got == [graphTargetB])
     }
 
-    @Test func test_filterIncludedTargets_when_excludingExternalTargets() {
+    @Test func filterIncludedTargets_when_excludingExternalTargets() {
         // Given
         let targetA = Target.test(name: "a")
         let targetB = Target.test(name: "b")
@@ -93,7 +93,7 @@ struct GraphTraversingTests {
         #expect(got == [graphTargetA])
     }
 
-    @Test func test_filterIncludedTargets_when_included_targets_is_unused_tag() {
+    @Test func filterIncludedTargets_when_included_targets_is_unused_tag() {
         // Given
         let targetA = Target.test(name: "a", metadata: .test(tags: ["tag"]))
         let targetB = Target.test(name: "b")
@@ -119,7 +119,7 @@ struct GraphTraversingTests {
         #expect(got == [])
     }
 
-    @Test func test_filterIncludedTargets_when_included_targets_is_name() {
+    @Test func filterIncludedTargets_when_included_targets_is_name() {
         // Given
         let targetA = Target.test(name: "a", metadata: .test(tags: ["tag"]))
         let targetB = Target.test(name: "b")
@@ -145,7 +145,7 @@ struct GraphTraversingTests {
         #expect(got == [graphTargetB])
     }
 
-    @Test func test_filterIncludedTargets_when_included_targets_is_tag() {
+    @Test func filterIncludedTargets_when_included_targets_is_tag() {
         // Given
         let targetA = Target.test(name: "a", metadata: .test(tags: ["tag"]))
         let targetB = Target.test(name: "b")
@@ -171,7 +171,7 @@ struct GraphTraversingTests {
         #expect(got == [graphTargetA])
     }
 
-    @Test func test_filterIncludedTargets_when_excluded_targets_is_name() {
+    @Test func filterIncludedTargets_when_excluded_targets_is_name() {
         // Given
         let targetA = Target.test(name: "a", metadata: .test(tags: ["tag"]))
         let targetB = Target.test(name: "b")
@@ -197,7 +197,7 @@ struct GraphTraversingTests {
         #expect(got == [graphTargetA])
     }
 
-    @Test func test_filterIncludedTargets_when_excluded_targets_is_tag() {
+    @Test func filterIncludedTargets_when_excluded_targets_is_tag() {
         // Given
         let targetA = Target.test(name: "a", metadata: .test(tags: ["tag"]))
         let targetB = Target.test(name: "b")

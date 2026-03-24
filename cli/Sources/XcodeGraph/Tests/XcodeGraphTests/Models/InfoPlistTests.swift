@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct InfoPlistTests {
-    @Test func test_codable_file() throws {
+    @Test func codable_file() throws {
         // Given
         let subject = InfoPlist.file(path: try AbsolutePath(validating: "/path/to/file"))
 
@@ -17,7 +17,7 @@ struct InfoPlistTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_dictionary() throws {
+    @Test func codable_dictionary() throws {
         // Given
         let subject = InfoPlist.dictionary([
             "key1": "value1",
@@ -34,7 +34,7 @@ struct InfoPlistTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_path_when_file() throws {
+    @Test func path_when_file() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/Info.list")
         let subject: InfoPlist = .file(path: path)
@@ -43,7 +43,7 @@ struct InfoPlistTests {
         #expect(subject.path == path)
     }
 
-    @Test func test_expressive_by_string_literal() throws {
+    @Test func expressive_by_string_literal() throws {
         // Given
         let subject: InfoPlist = "/path/Info.list"
 
@@ -51,7 +51,7 @@ struct InfoPlistTests {
         #expect(subject.path == try AbsolutePath(validating: "/path/Info.list"))
     }
 
-    @Test func test_expressive_by_string_literal_using_build_variable() {
+    @Test func expressive_by_string_literal_using_build_variable() {
         // Given
         let subject1: InfoPlist = "$(CONFIGURATION)/Info.list"
         let subject2: InfoPlist = "${CONFIGURATION}/Info.list"

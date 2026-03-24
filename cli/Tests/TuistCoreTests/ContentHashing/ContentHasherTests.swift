@@ -1,7 +1,7 @@
 import FileSystemTesting
 import Path
-import TuistSupport
 import Testing
+import TuistSupport
 @testable import TuistCore
 @testable import TuistTesting
 
@@ -16,7 +16,7 @@ struct ContentHasherTests {
 
     // MARK: - Tests
 
-    @Test(.inTemporaryDirectory) func test_hashstring_foo_returnsItsMd5() throws {
+    @Test(.inTemporaryDirectory) func hashstring_foo_returnsItsMd5() throws {
         // Given
         let hash = try subject.hash("foo")
 
@@ -24,7 +24,7 @@ struct ContentHasherTests {
         #expect(hash == "acbd18db4cc2f85cedef654fccc4a4d8")
     }
 
-    @Test(.inTemporaryDirectory) func test_hashstring_bar_returnsItsMd5() throws {
+    @Test(.inTemporaryDirectory) func hashstring_bar_returnsItsMd5() throws {
         // Given
         let hash = try subject.hash("bar")
 
@@ -32,7 +32,7 @@ struct ContentHasherTests {
         #expect(hash == "37b51d194a7513e45b56f6524f2d51f2")
     }
 
-    @Test(.inTemporaryDirectory) func test_hashstrings_foo_bar_returnsAnotherMd5() throws {
+    @Test(.inTemporaryDirectory) func hashstrings_foo_bar_returnsAnotherMd5() throws {
         // Given
         let hash = try subject.hash(["foo", "bar"])
 
@@ -40,7 +40,7 @@ struct ContentHasherTests {
         #expect(hash == "3858f62230ac3c915f300c664312c63f")
     }
 
-    @Test(.inTemporaryDirectory) func test_hashdict_returnsMd5OfConcatenation() throws {
+    @Test(.inTemporaryDirectory) func hashdict_returnsMd5OfConcatenation() throws {
         // Given
         let hash = try subject.hash(["1": "foo", "2": "bar"])
         let expectedHash = try subject.hash("1:foo-2:bar")
@@ -48,7 +48,7 @@ struct ContentHasherTests {
         #expect(hash == expectedHash)
     }
 
-    @Test(.inTemporaryDirectory) func test_hashFile_hashesTheExpectedFile() async throws {
+    @Test(.inTemporaryDirectory) func hashFile_hashesTheExpectedFile() async throws {
         // Given
         let path = try writeToTemporaryPath(content: "foo")
 
@@ -59,7 +59,7 @@ struct ContentHasherTests {
         #expect(hash == "acbd18db4cc2f85cedef654fccc4a4d8")
     }
 
-    @Test(.inTemporaryDirectory) func test_hashFile_isNotHarcoded() async throws {
+    @Test(.inTemporaryDirectory) func hashFile_isNotHarcoded() async throws {
         // Given
         let path = try writeToTemporaryPath(content: "bar")
 
@@ -70,7 +70,7 @@ struct ContentHasherTests {
         #expect(hash == "37b51d194a7513e45b56f6524f2d51f2")
     }
 
-    @Test(.inTemporaryDirectory) func test_hashFile_whenFileDoesntExist_itThrowsFileNotFound() async throws {
+    @Test(.inTemporaryDirectory) func hashFile_whenFileDoesntExist_itThrowsFileNotFound() async throws {
         // Given
         let wrongPath = try AbsolutePath(validating: "/shakirashakira")
 
@@ -80,7 +80,7 @@ struct ContentHasherTests {
         }
     }
 
-    @Test(.inTemporaryDirectory) func test_hash_sortedContentsOfADirectorySkippingDSStore() async throws {
+    @Test(.inTemporaryDirectory) func hash_sortedContentsOfADirectorySkippingDSStore() async throws {
         // given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let folderPath = temporaryPath.appending(component: "assets.xcassets")
@@ -102,7 +102,7 @@ struct ContentHasherTests {
         #expect(hash == "224e2539f52203eb33728acd228b4432-37b51d194a7513e45b56f6524f2d51f2")
     }
 
-    @Test(.inTemporaryDirectory) func test_hash_ContentsOfADirectoryIncludingSymbolicLinksWithRelativePaths() async throws {
+    @Test(.inTemporaryDirectory) func hash_ContentsOfADirectoryIncludingSymbolicLinksWithRelativePaths() async throws {
         // Given
         let fileSystem = FileSystem()
         try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
@@ -122,7 +122,7 @@ struct ContentHasherTests {
             // Then
             #expect(
                 hash ==
-                "6990a54322d9232390a784c5c9247dd6-6990a54322d9232390a784c5c9247dd6-acbd18db4cc2f85cedef654fccc4a4d8"
+                    "6990a54322d9232390a784c5c9247dd6-6990a54322d9232390a784c5c9247dd6-acbd18db4cc2f85cedef654fccc4a4d8"
             )
         }
     }

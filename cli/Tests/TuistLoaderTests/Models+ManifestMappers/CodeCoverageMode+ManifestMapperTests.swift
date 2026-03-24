@@ -27,7 +27,7 @@ struct CodeCoverageManifestMapperTests {
             .from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        #expect(.all == got)
+        #expect(got == .all)
     }
 
     @Test(.inTemporaryDirectory) func from_returnsTheCorrectValue_whenManifestIsRelevant() throws {
@@ -44,7 +44,7 @@ struct CodeCoverageManifestMapperTests {
             .from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        #expect(.relevant == got)
+        #expect(got == .relevant)
     }
 
     @Test(.inTemporaryDirectory) func from_returnsTheCorrectValue_whenManifestIsTargets() throws {
@@ -64,12 +64,12 @@ struct CodeCoverageManifestMapperTests {
         // Then
         #expect(
             got ==
-            .targets([
-                TargetReference(
-                    projectPath: try generatorPaths.resolveSchemeActionProjectPath(nil),
-                    name: "Target"
-                ),
-            ])
+                .targets([
+                    TargetReference(
+                        projectPath: try generatorPaths.resolveSchemeActionProjectPath(nil),
+                        name: "Target"
+                    ),
+                ])
         )
     }
 }

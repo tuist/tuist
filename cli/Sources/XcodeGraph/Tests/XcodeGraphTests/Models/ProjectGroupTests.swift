@@ -3,7 +3,7 @@ import Testing
 @testable import XcodeGraph
 
 struct ProjectGroupTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject = ProjectGroup.group(name: "name")
 

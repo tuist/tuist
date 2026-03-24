@@ -40,7 +40,7 @@ struct TargetScriptManifestMapperTests {
         #expect(model.order == .pre)
     }
 
-    @Test(.inTemporaryDirectory) func test_doesntGlob_whenVariable() async throws {
+    @Test(.inTemporaryDirectory) func doesntGlob_whenVariable() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
@@ -104,7 +104,7 @@ struct TargetScriptManifestMapperTests {
         #expect(model.outputFileListPaths == ["$(SRCROOT)/foo/bar/**/*.swift"])
     }
 
-    @Test(.inTemporaryDirectory) func test_doesntGlob_whenNotGlobPattern() async throws {
+    @Test(.inTemporaryDirectory) func doesntGlob_whenNotGlobPattern() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
@@ -144,7 +144,7 @@ struct TargetScriptManifestMapperTests {
         #expect(model.outputFileListPaths == ["foo/bar/outputPathList1.swift"])
     }
 
-    @Test(.inTemporaryDirectory) func test_glob_whenExcluding() async throws {
+    @Test(.inTemporaryDirectory) func glob_whenExcluding() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
@@ -208,7 +208,7 @@ struct TargetScriptManifestMapperTests {
         #expect(model.outputFileListPaths == ["$(SRCROOT)/foo/bar/**/*.swift"])
     }
 
-    @Test(.inTemporaryDirectory) func test_relativeToManifest_paths_are_kept_as_strings() async throws {
+    @Test(.inTemporaryDirectory) func relativeToManifest_paths_are_kept_as_strings() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
@@ -254,7 +254,7 @@ struct TargetScriptManifestMapperTests {
         #expect(model.outputPaths.contains(expectedOutputRootPath))
     }
 
-    @Test(.inTemporaryDirectory) func test_inputPaths_with_build_variables_are_kept_as_strings() async throws {
+    @Test(.inTemporaryDirectory) func inputPaths_with_build_variables_are_kept_as_strings() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(

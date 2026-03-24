@@ -1,23 +1,25 @@
+import FileSystemTesting
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistAutomation
 
 struct TargetBuilderErrorTests {
     @Test
-    func test_errorDescription() {
-        #expect(TargetBuilderError.schemeWithoutBuildableTargets(scheme: "MyScheme").description == "The scheme MyScheme cannot be built because it contains no buildable targets.")
-        #expect(TargetBuilderError.buildProductsNotFound(path: "/path/to/products").description == "The expected build products at /path/to/products were not found.")
+    func errorDescription() {
+        #expect(TargetBuilderError.schemeWithoutBuildableTargets(scheme: "MyScheme")
+            .description == "The scheme MyScheme cannot be built because it contains no buildable targets.")
+        #expect(TargetBuilderError.buildProductsNotFound(path: "/path/to/products")
+            .description == "The expected build products at /path/to/products were not found.")
     }
 
     @Test
-    func test_errorType() {
+    func errorType() {
         #expect(TargetBuilderError.schemeWithoutBuildableTargets(scheme: "MyScheme").type == .abort)
         #expect(TargetBuilderError.buildProductsNotFound(path: "/path/to/products").type == .bug)
     }
@@ -54,9 +56,8 @@ struct TargetBuilderTests {
             .willReturn()
     }
 
-
     @Test
-    func test_buildScheme_callsXcodeBuildControllerWithArguments() async throws {
+    func buildScheme_callsXcodeBuildControllerWithArguments() async throws {
         // Given
         let scheme = Scheme.test(name: "A")
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
@@ -132,7 +133,7 @@ struct TargetBuilderTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_copiesBuildProducts_to_outputPath_defaultConfiguration() async throws {
+    func copiesBuildProducts_to_outputPath_defaultConfiguration() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let buildOutputPath = path.appending(component: ".build")
@@ -193,13 +194,13 @@ struct TargetBuilderTests {
         #expect(try fileHandler.contentsOfDirectory(buildOutputPath).sorted() == [buildOutputPath.appending(component: "Debug")])
 
         #expect(try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: "Debug")).sorted() == [
-                buildOutputPath.appending(components: "Debug", "App.app"),
-                buildOutputPath.appending(components: "Debug", "App.swiftmodule"),
-            ])
+            buildOutputPath.appending(components: "Debug", "App.app"),
+            buildOutputPath.appending(components: "Debug", "App.swiftmodule"),
+        ])
     }
 
     @Test(.inTemporaryDirectory)
-    func test_copiesBuildProducts_to_outputPath_customConfiguration() async throws {
+    func copiesBuildProducts_to_outputPath_customConfiguration() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let buildOutputPath = path.appending(component: ".build")
@@ -258,11 +259,12 @@ struct TargetBuilderTests {
         )
 
         // Then
-        #expect(try fileHandler.contentsOfDirectory(buildOutputPath).sorted() == [buildOutputPath.appending(component: configuration)])
+        #expect(try fileHandler.contentsOfDirectory(buildOutputPath)
+            .sorted() == [buildOutputPath.appending(component: configuration)])
 
         #expect(try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: configuration)).sorted() == [
-                buildOutputPath.appending(components: configuration, "App.app"),
-                buildOutputPath.appending(components: configuration, "App.swiftmodule"),
-            ])
+            buildOutputPath.appending(components: configuration, "App.app"),
+            buildOutputPath.appending(components: configuration, "App.swiftmodule"),
+        ])
     }
 }

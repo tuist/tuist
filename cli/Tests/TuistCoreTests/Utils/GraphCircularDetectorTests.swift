@@ -10,7 +10,7 @@ struct GraphCircularDetectorTests {
         subject = GraphCircularDetector()
     }
 
-    @Test mutating func test_cycleDetected_1() throws {
+    @Test mutating func cycleDetected_1() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -25,7 +25,7 @@ struct GraphCircularDetectorTests {
         #expect(throws: GraphLoadingError.circularDependency([a, b, c])) { try subject.complete() }
     }
 
-    @Test mutating func test_cycleDetected_2() throws {
+    @Test mutating func cycleDetected_2() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -44,7 +44,7 @@ struct GraphCircularDetectorTests {
         #expect(throws: (any Error).self) { try subject.complete() }
     }
 
-    @Test mutating func test_cycleDetected_3() throws {
+    @Test mutating func cycleDetected_3() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -63,7 +63,7 @@ struct GraphCircularDetectorTests {
         #expect(throws: (any Error).self) { try subject.complete() }
     }
 
-    @Test mutating func test_noCycleDetected_1() throws {
+    @Test mutating func noCycleDetected_1() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -79,7 +79,7 @@ struct GraphCircularDetectorTests {
         try subject.complete()
     }
 
-    @Test mutating func test_noCycleDetected_2() throws {
+    @Test mutating func noCycleDetected_2() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -94,7 +94,7 @@ struct GraphCircularDetectorTests {
         try subject.complete()
     }
 
-    @Test mutating func test_noCycleDetected_3() throws {
+    @Test mutating func noCycleDetected_3() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -121,7 +121,7 @@ struct GraphCircularDetectorTests {
         try subject.complete()
     }
 
-    @Test mutating func test_noCycleDetected_detachedGraphs() throws {
+    @Test mutating func noCycleDetected_detachedGraphs() throws {
         // Given
         let a = node("a")
         let b = node("b")
@@ -140,7 +140,7 @@ struct GraphCircularDetectorTests {
         try subject.complete()
     }
 
-    @Test mutating func test_cycleDetected_detachedGraphs() throws {
+    @Test mutating func cycleDetected_detachedGraphs() throws {
         // Given
         let a = node("a")
         let b = node("b")

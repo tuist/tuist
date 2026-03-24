@@ -1,7 +1,7 @@
-import TuistSupport
-import TuistTesting
 import FileSystemTesting
 import Testing
+import TuistSupport
+import TuistTesting
 @testable import TuistKit
 
 struct PluginBuildServiceTests {
@@ -11,7 +11,7 @@ struct PluginBuildServiceTests {
         subject = PluginBuildService()
     }
 
-    @Test func test_run_with_arguments() throws {
+    @Test func run_with_arguments() throws {
         // Given
         let path = try temporaryPath()
 
@@ -29,17 +29,16 @@ struct PluginBuildServiceTests {
 
         // When / Then
         try subject.run(
-                path: path.pathString,
-                configuration: .release,
-                buildTests: true,
-                showBinPath: true,
-                targets: ["MyTarget1", "MyTarget2"],
-                products: ["MyProduct1", "MyProduct2"]
-            )
+            path: path.pathString,
+            configuration: .release,
+            buildTests: true,
+            showBinPath: true,
+            targets: ["MyTarget1", "MyTarget2"],
+            products: ["MyProduct1", "MyProduct2"]
         )
     }
 
-    @Test func test_run_with_no_arguments() throws {
+    @Test func run_with_no_arguments() throws {
         // Given
         system.succeedCommand([
             "swift", "build",
@@ -48,13 +47,12 @@ struct PluginBuildServiceTests {
 
         // When / Then
         try subject.run(
-                path: nil,
-                configuration: .debug,
-                buildTests: false,
-                showBinPath: false,
-                targets: [],
-                products: []
-            )
+            path: nil,
+            configuration: .debug,
+            buildTests: false,
+            showBinPath: false,
+            targets: [],
+            products: []
         )
     }
 }

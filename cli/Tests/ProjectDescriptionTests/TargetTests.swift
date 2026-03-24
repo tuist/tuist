@@ -5,7 +5,7 @@ import TuistTesting
 @testable import ProjectDescription
 
 struct TargetTests {
-    @Test func test_toJSON() throws {
+    @Test func toJSON() throws {
         let subject: Target = .target(
             name: "name",
             destinations: [.iPhone, .iPad],
@@ -42,7 +42,7 @@ struct TargetTests {
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_toJSON_withFileList() throws {
+    @Test func toJSON_withFileList() throws {
         let subject: Target = .target(
             name: "name",
             destinations: [.iPhone, .iPad, .macWithiPadDesign],

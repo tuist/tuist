@@ -1,11 +1,11 @@
+import FileSystemTesting
 import Mockable
+import Testing
 import TuistConfigLoader
 import TuistLoader
 import TuistPlugin
 import TuistSupport
 import TuistTesting
-import FileSystemTesting
-import Testing
 
 @testable import TuistKit
 
@@ -23,7 +23,7 @@ struct TuistServiceTests {
         )
     }
 
-    @Test func test_run_when_command_not_found() async throws {
+    @Test func run_when_command_not_found() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -31,12 +31,12 @@ struct TuistServiceTests {
 
         // When / Then
         await XCTAssertThrowsSpecific(
-            { try await self.subject.run(arguments: ["my-command"], tuistBinaryPath: "") },
+            { try await subject.run(arguments: ["my-command"], tuistBinaryPath: "") },
             TuistServiceError.taskUnavailable
         )
     }
 
-    @Test func test_run_when_plugin_executable() async throws {
+    @Test func run_when_plugin_executable() async throws {
         // Given
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project")
@@ -63,11 +63,11 @@ struct TuistServiceTests {
 
         // When/Then
         XCTAssertNoThrow(
-            { try await self.subject.run(arguments: ["command-b", "--path", projectPath.pathString], tuistBinaryPath: "") }
+            { try await subject.run(arguments: ["command-b", "--path", projectPath.pathString], tuistBinaryPath: "") }
         )
     }
 
-    @Test func test_run_when_command_is_global() async throws {
+    @Test func run_when_command_is_global() async throws {
         // Given
         var whichCommand: String?
         system.whichStub = { invokedWhichCommand in

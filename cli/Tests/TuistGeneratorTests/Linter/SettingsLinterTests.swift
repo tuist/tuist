@@ -1,9 +1,9 @@
+import FileSystemTesting
 import Foundation
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import FileSystemTesting
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
@@ -14,7 +14,7 @@ struct SettingsLinterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_project_when_config_files_are_missing() async throws {
+    func lint_project_when_config_files_are_missing() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let debugPath = temporaryPath.appending(component: "Debug.xcconfig")
@@ -30,16 +30,16 @@ struct SettingsLinterTests {
 
         // Then
         #expect(got == [
-                LintingIssue(reason: "Configuration file not found at path \(debugPath.pathString)", severity: .error),
-                LintingIssue(
-                    reason: "Configuration file not found at path \(releasePath.pathString)",
-                    severity: .error
-                ),
-            ])
+            LintingIssue(reason: "Configuration file not found at path \(debugPath.pathString)", severity: .error),
+            LintingIssue(
+                reason: "Configuration file not found at path \(releasePath.pathString)",
+                severity: .error
+            ),
+        ])
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_target_when_config_files_are_missing() async throws {
+    func lint_target_when_config_files_are_missing() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let debugPath = temporaryPath.appending(component: "Debug.xcconfig")
@@ -55,16 +55,16 @@ struct SettingsLinterTests {
 
         // Then
         #expect(got == [
-                LintingIssue(reason: "Configuration file not found at path \(debugPath.pathString)", severity: .error),
-                LintingIssue(
-                    reason: "Configuration file not found at path \(releasePath.pathString)",
-                    severity: .error
-                ),
-            ])
+            LintingIssue(reason: "Configuration file not found at path \(debugPath.pathString)", severity: .error),
+            LintingIssue(
+                reason: "Configuration file not found at path \(releasePath.pathString)",
+                severity: .error
+            ),
+        ])
     }
 
     @Test
-    func test_lint_project_when_no_configurations() async throws {
+    func lint_project_when_no_configurations() async throws {
         // Given
         let settings = Settings(base: ["A": "B"], configurations: [:])
         let project = Project.test(settings: settings)
@@ -77,7 +77,7 @@ struct SettingsLinterTests {
     }
 
     @Test
-    func test_lint_target_when_no_configurations() async throws {
+    func lint_target_when_no_configurations() async throws {
         // Given
         let settings = Settings(base: ["A": "B"], configurations: [:])
         let target = Target.test(settings: settings)
@@ -90,7 +90,7 @@ struct SettingsLinterTests {
     }
 
     @Test
-    func test_lint_project_when_platform_and_deployment_target_are_compatible() async throws {
+    func lint_project_when_platform_and_deployment_target_are_compatible() async throws {
         // Given
         let target = Target.test(platform: .macOS, deploymentTarget: .macOS("10.14.5"))
 
@@ -102,7 +102,7 @@ struct SettingsLinterTests {
     }
 
     @Test
-    func test_lint_project_when_platform_and_deployment_target_are_not_compatible() async throws {
+    func lint_project_when_platform_and_deployment_target_are_not_compatible() async throws {
         // Given
         let target = Target.test(platform: .iOS, deploymentTarget: .macOS("10.14.5"))
 
@@ -111,13 +111,13 @@ struct SettingsLinterTests {
 
         // Then
         #expect(got == [LintingIssue(
-                reason: "Found deployment platforms (macOS) missing corresponding destination",
-                severity: .error
-            )])
+            reason: "Found deployment platforms (macOS) missing corresponding destination",
+            severity: .error
+        )])
     }
 
     @Test
-    func test_lint_project_when_default_config_name_is_valid() async throws {
+    func lint_project_when_default_config_name_is_valid() async throws {
         // Given
         let settings = Settings(
             configurations: [
@@ -138,7 +138,7 @@ struct SettingsLinterTests {
     }
 
     @Test
-    func test_lint_project_when_default_config_name_is_not_valid() async throws {
+    func lint_project_when_default_config_name_is_not_valid() async throws {
         // Given
         let settings = Settings(
             configurations: [
@@ -156,13 +156,13 @@ struct SettingsLinterTests {
 
         // Then
         #expect(got == [LintingIssue(
-                reason: "The project '\(project.name)' specifies a default configuration '\(settings.defaultConfiguration ?? "")', which is not included in its available configurations: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
-                severity: .error
-            )])
+            reason: "The project '\(project.name)' specifies a default configuration '\(settings.defaultConfiguration ?? "")', which is not included in its available configurations: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
+            severity: .error
+        )])
     }
 
     @Test
-    func test_lint_target_when_no_default_config_name_provided() async throws {
+    func lint_target_when_no_default_config_name_provided() async throws {
         // Given
         let settings = Settings(
             configurations: [
@@ -182,7 +182,7 @@ struct SettingsLinterTests {
     }
 
     @Test
-    func test_lint_target_when_default_config_name_is_valid() async throws {
+    func lint_target_when_default_config_name_is_valid() async throws {
         // Given
         let settings = Settings(
             configurations: [
@@ -200,13 +200,13 @@ struct SettingsLinterTests {
 
         // Then
         #expect(got == [LintingIssue(
-                reason: "The default configuration '\(settings.defaultConfiguration ?? "")' for target '\(target.name)' will be overridden by the project’s default configuration.",
-                severity: .warning
-            )])
+            reason: "The default configuration '\(settings.defaultConfiguration ?? "")' for target '\(target.name)' will be overridden by the project’s default configuration.",
+            severity: .warning
+        )])
     }
 
     @Test
-    func test_lint_target_when_default_config_name_is_not_valid() async throws {
+    func lint_target_when_default_config_name_is_not_valid() async throws {
         // Given
         let settings = Settings(
             configurations: [
@@ -224,14 +224,14 @@ struct SettingsLinterTests {
 
         // Then
         #expect(got == [
-                LintingIssue(
-                    reason: "The target '\(target.name)' specifies a default configuration '\(settings.defaultConfiguration ?? "")', which is not included in its available configurations: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
-                    severity: .error
-                ),
-                LintingIssue(
-                    reason: "The default configuration '\(settings.defaultConfiguration ?? "")' for target '\(target.name)' will be overridden by the project’s default configuration.",
-                    severity: .warning
-                ),
-            ])
+            LintingIssue(
+                reason: "The target '\(target.name)' specifies a default configuration '\(settings.defaultConfiguration ?? "")', which is not included in its available configurations: \(settings.configurations.keys.map(\.name).joined(separator: ", "))",
+                severity: .error
+            ),
+            LintingIssue(
+                reason: "The default configuration '\(settings.defaultConfiguration ?? "")' for target '\(target.name)' will be overridden by the project’s default configuration.",
+                severity: .warning
+            ),
+        ])
     }
 }

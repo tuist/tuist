@@ -1,10 +1,10 @@
 import FileSystem
+import FileSystemTesting
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeProj
-import FileSystemTesting
-import Testing
 
 @testable import TuistGenerator
 @testable import TuistSupport
@@ -17,7 +17,7 @@ struct StableXcodeProjIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func testXcodeProjStructureDoesNotChangeAfterRegeneration() async throws {
+    func xcodeProjStructureDoesNotChangeAfterRegeneration() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         var capturedProjects = [[XcodeProj]]()
@@ -94,7 +94,7 @@ struct StableXcodeProjIntegrationTests {
         let projectsPaths = try workspace.projectPaths.map { temporaryPath.appending(try RelativePath(validating: $0)) }
         let parentDir = projectsPaths.map { $0.appending(relativePath) }
         let schemes: [XCScheme] = try await parentDir.concurrentMap {
-            try await self.fileSystem.glob(
+            try await fileSystem.glob(
                 directory: $0,
                 include: ["**/*.xcscheme", "*.xcscheme"]
             )

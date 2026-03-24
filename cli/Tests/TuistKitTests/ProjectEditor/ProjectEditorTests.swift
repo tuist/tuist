@@ -1,6 +1,8 @@
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistConstants
 import TuistCore
 import TuistEnvironment
@@ -10,8 +12,6 @@ import TuistPlugin
 import TuistScaffold
 import TuistSupport
 import XcodeGraph
-import FileSystemTesting
-import Testing
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -51,7 +51,7 @@ struct ProjectEditorTests {
         projectDescriptionHelpersBuilder = MockProjectDescriptionHelpersBuilder()
         projectDescriptionHelpersBuilderFactory = MockProjectDescriptionHelpersBuilderFactory()
         projectDescriptionHelpersBuilderFactory
-            .projectDescriptionHelpersBuilderStub = { _ in self.projectDescriptionHelpersBuilder }
+            .projectDescriptionHelpersBuilderStub = { _ in projectDescriptionHelpersBuilder }
 
         subject = ProjectEditor(
             generator: generator,
@@ -134,7 +134,7 @@ struct ProjectEditorTests {
         #expect(mapArgs?.packageManifestPath == packageManifestPath)
     }
 
-    @Test func test_edit_when_there_are_no_editable_files() async throws {
+    @Test func edit_when_there_are_no_editable_files() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -172,7 +172,7 @@ struct ProjectEditorTests {
         )
     }
 
-    @Test func test_edit_with_plugin() async throws {
+    @Test func edit_with_plugin() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -216,7 +216,7 @@ struct ProjectEditorTests {
         #expect(mapArgs?.pluginProjectDescriptionHelpersModule == [])
     }
 
-    @Test func test_edit_with_many_plugins() async throws {
+    @Test func edit_with_many_plugins() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -269,7 +269,7 @@ struct ProjectEditorTests {
         #expect(mapArgs?.pluginProjectDescriptionHelpersModule == [])
     }
 
-    @Test func test_edit_project_with_local_plugins() async throws {
+    @Test func edit_project_with_local_plugins() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -334,7 +334,7 @@ struct ProjectEditorTests {
         #expect(mapArgs?.pluginProjectDescriptionHelpersModule == [])
     }
 
-    @Test func test_edit_project_with_local_plugin_outside_editing_path() async throws {
+    @Test func edit_project_with_local_plugin_outside_editing_path() async throws {
         // Given
         let rootPath = try temporaryPath()
         let editingPath = rootPath.appending(component: "Editing")
@@ -396,7 +396,7 @@ struct ProjectEditorTests {
         #expect(mapArgs?.pluginProjectDescriptionHelpersModule == [])
     }
 
-    @Test func test_edit_project_deduplicates_plugins_with_same_directory_name() async throws {
+    @Test func edit_project_deduplicates_plugins_with_same_directory_name() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
@@ -452,7 +452,7 @@ struct ProjectEditorTests {
         }
     }
 
-    @Test func test_edit_project_with_remote_plugin() async throws {
+    @Test func edit_project_with_remote_plugin() async throws {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")

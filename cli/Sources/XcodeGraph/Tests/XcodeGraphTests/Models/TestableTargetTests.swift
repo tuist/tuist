@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct TestableTargetTests {
-    @Test func test_codable_with_deprecated_parallelizable() throws {
+    @Test func codable_with_deprecated_parallelizable() throws {
         // Given
         let subject = TestableTarget.test(
             target: .init(
@@ -25,7 +25,7 @@ struct TestableTargetTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject = TestableTarget(
             target: .init(

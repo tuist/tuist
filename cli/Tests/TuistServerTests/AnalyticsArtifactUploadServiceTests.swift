@@ -1,12 +1,12 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import TuistCore
 import TuistServer
 import TuistSupport
 import TuistTesting
-import FileSystemTesting
-import Testing
 
 @testable import TuistServer
 
@@ -45,9 +45,8 @@ struct AnalyticsArtifactUploadServiceTests {
         )
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_upload_analytics_artifact() async throws {
+    func upload_analytics_artifact() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let resultBundle = temporaryDirectory.appending(component: "artifact.bundle")
@@ -194,7 +193,7 @@ struct AnalyticsArtifactUploadServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_upload_session() async throws {
+    func upload_session() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let sessionDirectory = temporaryDirectory.appending(component: "session")

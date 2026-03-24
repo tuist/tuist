@@ -1,9 +1,9 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistDependencies
 
@@ -13,9 +13,8 @@ struct PruneOrphanExternalTargetsGraphMapperTests {
         subject = PruneOrphanExternalTargetsGraphMapper()
     }
 
-
     @Test
-    func test_map_when_external_targets_to_prune() async throws {
+    func map_when_external_targets_to_prune() async throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
@@ -67,11 +66,13 @@ struct PruneOrphanExternalTargetsGraphMapperTests {
         // Then
 
         #expect(gotGraph.projects[project.path]?.targets[app.name]?.metadata.tags.contains("tuist:prunable") == false)
-        #expect(gotGraph.projects[packageProject.path]?.targets[directPackageProduct.name]?.metadata.tags.contains("tuist:prunable") == false)
+        #expect(gotGraph.projects[packageProject.path]?.targets[directPackageProduct.name]?.metadata.tags
+            .contains("tuist:prunable") == false)
         #expect(gotGraph.projects[packageProject.path]?.targets[transitivePackageProduct.name]?.metadata.tags
-                .contains("tuist:prunable") == false)
-        #expect(gotGraph.projects[packageProject.path]?.targets[packageDevProduct.name]?.metadata.tags.contains("tuist:prunable") == true)
+            .contains("tuist:prunable") == false)
+        #expect(gotGraph.projects[packageProject.path]?.targets[packageDevProduct.name]?.metadata.tags
+            .contains("tuist:prunable") == true)
         #expect(gotGraph.projects[packageProject.path]?.targets[transitivePackageProductWithNoDestinations.name]?.metadata.tags
-                .contains("tuist:prunable") == true)
+            .contains("tuist:prunable") == true)
     }
 }

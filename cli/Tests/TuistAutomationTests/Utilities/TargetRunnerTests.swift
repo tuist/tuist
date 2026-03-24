@@ -1,20 +1,22 @@
+import FileSystemTesting
 import Mockable
+import Testing
 import struct TSCUtility.Version
 import TuistCore
 import TuistOpener
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistAutomation
 
 struct TargetRunnerErrorTests {
     @Test
-    func test_description() {
-        #expect(TargetRunnerError.runnableNotFound(path: "/path/to/product").localizedDescription == "The runnable product was expected but not found at /path/to/product.")
-        #expect(TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app)).localizedDescription == "Product type app of Target is not runnable")
+    func description() {
+        #expect(TargetRunnerError.runnableNotFound(path: "/path/to/product")
+            .localizedDescription == "The runnable product was expected but not found at /path/to/product.")
+        #expect(TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app))
+            .localizedDescription == "Product type app of Target is not runnable")
     }
 }
 
@@ -37,9 +39,8 @@ struct TargetRunnerTests {
         )
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_throwsError_when_buildProductNotFound() async throws {
+    func throwsError_when_buildProductNotFound() async throws {
         // Given
         let target = GraphTarget.test()
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -57,20 +58,20 @@ struct TargetRunnerTests {
 
         // When / Then
         await #expect(throws: TargetRunnerError.runnableNotFound(path: productPath.pathString)) { try await subject.runTarget(
-                target,
-                platform: .iOS,
-                workspacePath: workspacePath,
-                schemeName: "MyScheme",
-                configuration: nil,
-                minVersion: nil,
-                version: nil,
-                deviceName: nil,
-                arguments: []
-            ) }
+            target,
+            platform: .iOS,
+            workspacePath: workspacePath,
+            schemeName: "MyScheme",
+            configuration: nil,
+            minVersion: nil,
+            version: nil,
+            deviceName: nil,
+            arguments: []
+        ) }
     }
 
     @Test(.inTemporaryDirectory)
-    func test_usesDefaultConfiguration_when_noConfiguration() async throws {
+    func usesDefaultConfiguration_when_noConfiguration() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -116,7 +117,7 @@ struct TargetRunnerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_runsExecutable_when_platform_is_macOS_and_product_is_commandLineTool() async throws {
+    func runsExecutable_when_platform_is_macOS_and_product_is_commandLineTool() async throws {
         // Given
         let workspacePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "App.xcworkspace")
         let target = Target.test(platform: .macOS, product: .commandLineTool)
@@ -156,7 +157,7 @@ struct TargetRunnerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_runsApp_when_platform_is_iOS_and_product_is_app() async throws {
+    func runsApp_when_platform_is_iOS_and_product_is_app() async throws {
         // Given
         let workspacePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "App.xcworkspace")
         let target = Target.test(platform: .iOS, product: .app)
@@ -257,7 +258,7 @@ struct TargetRunnerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_runsApp_when_platform_is_macOS_and_product_is_app_and_device_is_absent() async throws {
+    func runsApp_when_platform_is_macOS_and_product_is_app_and_device_is_absent() async throws {
         // Given
         let workspacePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "App.xcworkspace")
         let target = Target.test(destinations: [.mac], product: .app)
@@ -315,7 +316,7 @@ struct TargetRunnerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_runsApp_when_platform_is_macOS_and_product_is_app_and_device_is_macos() async throws {
+    func runsApp_when_platform_is_macOS_and_product_is_app_and_device_is_macos() async throws {
         // Given
         let workspacePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "App.xcworkspace")
         let target = Target.test(destinations: [.mac], product: .app)

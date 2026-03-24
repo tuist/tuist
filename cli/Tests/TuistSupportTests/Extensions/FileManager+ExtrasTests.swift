@@ -1,5 +1,5 @@
-import Foundation
 import FileSystemTesting
+import Foundation
 import Testing
 
 @testable import TuistSupport
@@ -7,7 +7,7 @@ import Testing
 
 struct FileManagerExtrasTests {
     @Test(.inTemporaryDirectory)
-    func testSubdirectoriesResolvingSymbolicLinks_whenNoSymbolicLinks() throws {
+    func subdirectoriesResolvingSymbolicLinks_whenNoSymbolicLinks() throws {
         // Given
         let fileManager = FileManager.default
 
@@ -34,7 +34,7 @@ struct FileManagerExtrasTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinksToFiles() throws {
+    func subdirectoriesResolvingSymbolicLinks_whenSymbolicLinksToFiles() throws {
         // Given
         let fileManager = FileManager.default
 
@@ -65,7 +65,7 @@ struct FileManagerExtrasTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinksToDirectory() throws {
+    func subdirectoriesResolvingSymbolicLinks_whenSymbolicLinksToDirectory() throws {
         // Given
         let fileManager = FileManager.default
 
@@ -94,7 +94,7 @@ struct FileManagerExtrasTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinkAndOriginalInSameSubtree() throws {
+    func subdirectoriesResolvingSymbolicLinks_whenSymbolicLinkAndOriginalInSameSubtree() throws {
         // Given
         let fileManager = FileManager.default
 
@@ -120,7 +120,7 @@ struct FileManagerExtrasTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func testSubdirectoriesResolvingSymbolicLinks_whenNestedDirectories() throws {
+    func subdirectoriesResolvingSymbolicLinks_whenNestedDirectories() throws {
         // Given
         let fileManager = FileManager.default
 
@@ -160,7 +160,7 @@ struct FileManagerExtrasTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func testSubdirectoriesResolvingSymbolicLinks_whenNestedSymlinks() throws {
+    func subdirectoriesResolvingSymbolicLinks_whenNestedSymlinks() throws {
         // Given
         let fileManager = FileManager.default
 
@@ -200,7 +200,7 @@ struct FileManagerExtrasTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func testSubdirectoriesResolvingSymbolicLinks_whenRelativeSymlink() throws {
+    func subdirectoriesResolvingSymbolicLinks_whenRelativeSymlink() throws {
         // Given
         let fileManager = FileManager.default
 

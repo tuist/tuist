@@ -1,11 +1,11 @@
 
 import FileSystem
+import FileSystemTesting
 import Foundation
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeProj
-import FileSystemTesting
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
@@ -18,7 +18,7 @@ struct XcodeProjWriterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_writeProject() async throws {
+    func writeProject() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
@@ -33,7 +33,7 @@ struct XcodeProjWriterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_writeProject_fileSideEffects() async throws {
+    func writeProject_fileSideEffects() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
@@ -60,7 +60,7 @@ struct XcodeProjWriterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_writeProject_deleteFileSideEffects() async throws {
+    func writeProject_deleteFileSideEffects() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
@@ -84,7 +84,7 @@ struct XcodeProjWriterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_doesNotWipeUserData() async throws {
+    func generate_doesNotWipeUserData() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let paths = try await TuistTest.createFiles([
@@ -104,12 +104,12 @@ struct XcodeProjWriterTests {
         }
 
         // Then
-        let exists = try await paths.concurrentMap { try await self.fileSystem.exists($0) }
+        let exists = try await paths.concurrentMap { try await fileSystem.exists($0) }
         #expect(exists.allSatisfy { $0 })
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_replacesProjectSharedSchemes() async throws {
+    func generate_replacesProjectSharedSchemes() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
@@ -142,7 +142,7 @@ struct XcodeProjWriterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_preservesProjectUserSchemes() async throws {
+    func generate_preservesProjectUserSchemes() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
@@ -174,7 +174,7 @@ struct XcodeProjWriterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_replacesWorkspaceSharedSchemes() async throws {
+    func generate_replacesWorkspaceSharedSchemes() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
@@ -207,7 +207,7 @@ struct XcodeProjWriterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_preservesWorkspaceUserSchemes() async throws {
+    func generate_preservesWorkspaceUserSchemes() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
@@ -239,7 +239,7 @@ struct XcodeProjWriterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_local_scheme() async throws {
+    func generate_local_scheme() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")

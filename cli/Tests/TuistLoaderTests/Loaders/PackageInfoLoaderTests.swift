@@ -1,7 +1,7 @@
 import FileSystem
 import FileSystemTesting
-import TSCUtility
 import Testing
+import TSCUtility
 import TuistCore
 import TuistSupport
 import TuistTesting

@@ -1,15 +1,15 @@
 import FileSystemTesting
 import Mockable
+import Testing
 import TuistSupport
 import XcodeGraph
 import XcodeMetadata
-import Testing
 
 @testable import TuistCore
 @testable import TuistTesting
 
 struct XCFrameworkLoaderErrorTests {
-    @Test func test_type_when_xcframeworkNotFound() {
+    @Test func type_when_xcframeworkNotFound() {
         // Given
         let subject = XCFrameworkLoaderError.xcframeworkNotFound("/frameworks/tuist.xcframework")
 
@@ -17,7 +17,7 @@ struct XCFrameworkLoaderErrorTests {
         #expect(subject.type == .abort)
     }
 
-    @Test func test_description_when_xcframeworkNotFound() {
+    @Test func description_when_xcframeworkNotFound() {
         // Given
         let subject = XCFrameworkLoaderError.xcframeworkNotFound("/frameworks/tuist.xcframework")
 
@@ -35,7 +35,7 @@ struct XCFrameworkLoaderTests {
         subject = XCFrameworkLoader(xcframeworkMetadataProvider: xcframeworkMetadataProvider)
     }
 
-    @Test(.inTemporaryDirectory) func test_load_throws_when_the_xcframework_doesnt_exist() async throws {
+    @Test(.inTemporaryDirectory) func load_throws_when_the_xcframework_doesnt_exist() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
@@ -46,7 +46,7 @@ struct XCFrameworkLoaderTests {
         }
     }
 
-    @Test(.inTemporaryDirectory) func test_load_when_the_xcframework_exists() async throws {
+    @Test(.inTemporaryDirectory) func load_when_the_xcframework_exists() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
@@ -74,13 +74,13 @@ struct XCFrameworkLoaderTests {
         // Then
         #expect(
             got ==
-            .testXCFramework(
-                path: xcframeworkPath,
-                infoPlist: infoPlist,
-                linking: linking,
-                mergeable: false,
-                status: .required
-            )
+                .testXCFramework(
+                    path: xcframeworkPath,
+                    infoPlist: infoPlist,
+                    linking: linking,
+                    mergeable: false,
+                    status: .required
+                )
         )
     }
 }

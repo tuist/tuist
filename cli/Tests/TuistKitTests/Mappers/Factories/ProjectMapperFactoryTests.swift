@@ -1,7 +1,7 @@
 import Foundation
+import Testing
 import TuistAutomation
 import TuistLoader
-import Testing
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistKit
@@ -14,7 +14,7 @@ struct ProjectMapperFactoryTests {
         subject = ProjectMapperFactory()
     }
 
-    @Test func test_default_when_synthesizing_of_resource_interfaces_is_disabled() {
+    @Test func default_when_synthesizing_of_resource_interfaces_is_disabled() {
         // When
         let got = subject.default(tuist: .default)
 
@@ -23,7 +23,7 @@ struct ProjectMapperFactoryTests {
         XCTAssertContainsElementOfType(got, SynthesizedResourceInterfaceProjectMapper.self)
     }
 
-    @Test func test_default_contains_target_mapper() {
+    @Test func default_contains_target_mapper() {
         // When
         let got = subject.default(tuist: .default)
 
@@ -32,7 +32,7 @@ struct ProjectMapperFactoryTests {
         XCTAssertContainsElementOfType(got, TargetActionDisableShowEnvVarsProjectMapper.self)
     }
 
-    @Test func test_default_when_bundle_accessors_are_enabled() {
+    @Test func default_when_bundle_accessors_are_enabled() {
         // When
         let got = subject.default(tuist: .default)
 
@@ -42,7 +42,7 @@ struct ProjectMapperFactoryTests {
         XCTAssertContainsElementOfType(got, ResourcesProjectMapper.self, after: DeleteDerivedDirectoryProjectMapper.self)
     }
 
-    @Test func test_default_contains_the_generate_info_plist_mapper() {
+    @Test func default_contains_the_generate_info_plist_mapper() {
         // When
         let got = subject.default(tuist: .default)
 
@@ -50,7 +50,7 @@ struct ProjectMapperFactoryTests {
         XCTAssertContainsElementOfType(got, GenerateInfoPlistProjectMapper.self, after: DeleteDerivedDirectoryProjectMapper.self)
     }
 
-    @Test func test_default_contains_the_generate_privacy_manifest_mapper() {
+    @Test func default_contains_the_generate_privacy_manifest_mapper() {
         // When
         let got = subject.default(tuist: .default)
 
@@ -62,7 +62,7 @@ struct ProjectMapperFactoryTests {
         )
     }
 
-    @Test func test_default_contains_the_ide_template_macros_mapper() {
+    @Test func default_contains_the_ide_template_macros_mapper() {
         // When
         let got = subject.default(tuist: .default)
 
@@ -70,7 +70,7 @@ struct ProjectMapperFactoryTests {
         XCTAssertContainsElementOfType(got, IDETemplateMacrosMapper.self)
     }
 
-    @Test func test_automation_contains_the_skip_ui_tests_mapper_when_skip_ui_tests_is_true() {
+    @Test func automation_contains_the_skip_ui_tests_mapper_when_skip_ui_tests_is_true() {
         // When
         let got = subject.automation(
             skipUITests: true,
@@ -82,7 +82,7 @@ struct ProjectMapperFactoryTests {
         XCTAssertContainsElementOfType(got, SkipUITestsProjectMapper.self)
     }
 
-    @Test func test_automation_doesnt_contain_the_skip_ui_tests_mapper_when_skip_ui_tests_is_false() {
+    @Test func automation_doesnt_contain_the_skip_ui_tests_mapper_when_skip_ui_tests_is_false() {
         // When
         let got = subject.automation(
             skipUITests: false,
@@ -94,7 +94,7 @@ struct ProjectMapperFactoryTests {
         XCTAssertDoesntContainElementOfType(got, SkipUITestsProjectMapper.self)
     }
 
-    @Test func test_automation_contains_the_skip_unit_tests_mapper_when_skip_unit_tests_is_true() {
+    @Test func automation_contains_the_skip_unit_tests_mapper_when_skip_unit_tests_is_true() {
         // When
         let got = subject.automation(
             skipUITests: false,
@@ -106,7 +106,7 @@ struct ProjectMapperFactoryTests {
         XCTAssertContainsElementOfType(got, SkipUnitTestsProjectMapper.self)
     }
 
-    @Test func test_automation_doesnt_contain_the_skip_unit_tests_mapper_when_skip_unit_tests_is_false() {
+    @Test func automation_doesnt_contain_the_skip_unit_tests_mapper_when_skip_unit_tests_is_false() {
         // When
         let got = subject.automation(
             skipUITests: false,

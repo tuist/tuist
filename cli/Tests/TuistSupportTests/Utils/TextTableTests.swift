@@ -5,7 +5,7 @@ import Testing
 
 struct TextTableTests {
     @Test
-    func test_renders_data() throws {
+    func renders_data() throws {
         // Given
         let columns = [
             "Key 1  0    ",
@@ -38,7 +38,7 @@ struct TextTableTests {
     }
 
     @Test
-    func test_renders_empty_string_when_data_is_empty() throws {
+    func renders_empty_string_when_data_is_empty() throws {
         // Given
         let table = TextTable<Record> { [
             TextTable.Column(title: "Key", value: $0.key),

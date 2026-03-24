@@ -1,7 +1,7 @@
 import Foundation
 import Path
-import TuistSupport
 import Testing
+import TuistSupport
 
 @testable import TuistCacheEE
 @testable import TuistTesting
@@ -16,9 +16,8 @@ struct PayloadEncryptorTests {
         subject = PayloadEncryptor()
     }
 
-
     @Test
-    func test_encrypt_and_decrypt_work() throws {
+    func encrypt_and_decrypt_work() throws {
         // Given
         let payload = TestPayload(name: "test")
         let encrypted = try subject.encrypt(TestPayload(name: "test"), signableAttribute: \.name)
@@ -29,7 +28,7 @@ struct PayloadEncryptorTests {
     }
 
     @Test
-    func test_decrypt_returnsNil_when_theValueIsInvalid() throws {
+    func decrypt_returnsNil_when_theValueIsInvalid() throws {
         // When
         let decrypted: TestPayload? = try subject.decrypt("invalid", signableAttribute: \.name)
 
@@ -38,7 +37,7 @@ struct PayloadEncryptorTests {
     }
 
     @Test
-    func test_decrypt_returnsNil_when_theSignatureIsInvalid() throws {
+    func decrypt_returnsNil_when_theSignatureIsInvalid() throws {
         // Given
         var encrypted = try subject.encrypt(TestPayload(name: "test"), signableAttribute: \.name)
         encrypted = "\(encrypted.split(separator: ".")[0]).invalid"

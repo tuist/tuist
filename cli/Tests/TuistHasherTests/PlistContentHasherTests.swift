@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistHasher
 
@@ -22,9 +22,8 @@ struct InfoPlistContentHasherTests {
             .willProduce { $0 + "-hash" }
     }
 
-
     @Test
-    func test_hash_whenPlistIsFile_tellsContentHasherToHashFileContent() async throws {
+    func hash_whenPlistIsFile_tellsContentHasherToHashFileContent() async throws {
         // Given
         let infoPlist = InfoPlist.file(path: filePath1)
         given(contentHasher)
@@ -42,7 +41,7 @@ struct InfoPlistContentHasherTests {
     }
 
     @Test
-    func test_hash_whenPlistIsGeneratedFile_tellsContentHasherToHashFileContent() async throws {
+    func hash_whenPlistIsGeneratedFile_tellsContentHasherToHashFileContent() async throws {
         // Given
         let infoPlist = InfoPlist.generatedFile(
             path: filePath1,
@@ -63,7 +62,7 @@ struct InfoPlistContentHasherTests {
     }
 
     @Test
-    func test_hash_whenPlistIsDictionary_allDictionaryValuesAreConsideredForHash() async throws {
+    func hash_whenPlistIsDictionary_allDictionaryValuesAreConsideredForHash() async throws {
         // Given
         let infoPlist = InfoPlist.dictionary([
             "1": 23,
@@ -80,11 +79,12 @@ struct InfoPlistContentHasherTests {
         verify(contentHasher)
             .hash(Parameter<String>.any)
             .called(1)
-        #expect(hash == "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([XcodeGraph.Plist.Value.string(\"5a\"), XcodeGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": XcodeGraph.Plist.Value.string(\"6value\")]);-hash")
+        #expect(hash ==
+            "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([XcodeGraph.Plist.Value.string(\"5a\"), XcodeGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": XcodeGraph.Plist.Value.string(\"6value\")]);-hash")
     }
 
     @Test
-    func test_hash_whenPlistIsExtendingDefault_allDictionaryValuesAreConsideredForHash() async throws {
+    func hash_whenPlistIsExtendingDefault_allDictionaryValuesAreConsideredForHash() async throws {
         // Given
         let infoPlist = InfoPlist.extendingDefault(with: [
             "1": 23,
@@ -102,6 +102,7 @@ struct InfoPlistContentHasherTests {
         verify(contentHasher)
             .hash(Parameter<String>.any)
             .called(1)
-        #expect(hash == "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([XcodeGraph.Plist.Value.string(\"5a\"), XcodeGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": XcodeGraph.Plist.Value.string(\"6value\")]);-hash")
+        #expect(hash ==
+            "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([XcodeGraph.Plist.Value.string(\"5a\"), XcodeGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": XcodeGraph.Plist.Value.string(\"6value\")]);-hash")
     }
 }

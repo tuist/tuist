@@ -28,7 +28,8 @@ struct ProjectDescriptionHelpersBuilderIntegrationTests {
             cacheDirectory: path,
             helpersDirectoryLocator: helpersDirectoryLocator
         )
-        let helpersPath = path.appending(try RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
+        let helpersPath = path
+            .appending(try RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
         try FileHandler.shared.createFolder(path.appending(component: Constants.tuistDirectoryName))
         try FileHandler.shared.createFolder(helpersPath)
         try FileHandler.shared.write(
@@ -48,7 +49,8 @@ struct ProjectDescriptionHelpersBuilderIntegrationTests {
         }
 
         #expect(Set(paths).count == 1)
-        let swiftModule = try await fileSystem.glob(directory: path, include: ["*/ProjectDescriptionHelpers.swiftmodule"]).collect().first
+        let swiftModule = try await fileSystem.glob(directory: path, include: ["*/ProjectDescriptionHelpers.swiftmodule"])
+            .collect().first
         #expect(swiftModule != nil)
         let dylib = try await fileSystem.glob(directory: path, include: ["*/libProjectDescriptionHelpers.dylib"]).collect().first
         #expect(dylib != nil)

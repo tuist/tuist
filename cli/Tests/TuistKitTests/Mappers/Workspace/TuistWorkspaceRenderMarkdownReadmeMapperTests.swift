@@ -1,9 +1,9 @@
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistCore
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistKit
 @testable import TuistTesting
@@ -17,7 +17,7 @@ struct TuistWorkspaceRenderMarkdownReadmeMapperTests {
         subject = .init()
     }
 
-    @Test func test_map_with_readme_rendered() throws {
+    @Test func map_with_readme_rendered() throws {
         // Given
         let workspace = Workspace.test(generationOptions: Workspace.GenerationOptions(
             enableAutomaticXcodeSchemes: false,
@@ -53,7 +53,7 @@ struct TuistWorkspaceRenderMarkdownReadmeMapperTests {
         )
     }
 
-    @Test func test_map_without_readme_rendered() throws {
+    @Test func map_without_readme_rendered() throws {
         // Given
         let workspace = Workspace.test(generationOptions: Workspace.GenerationOptions(
             enableAutomaticXcodeSchemes: false,

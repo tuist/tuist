@@ -115,11 +115,11 @@ struct CoreDataModelManifestMapperTests {
         // Then
         #expect(
             got ==
-            XcodeGraph.CoreDataModel(
-                path: temporaryPath.appending(component: "model.xcdatamodeld"),
-                versions: [],
-                currentVersion: "model"
-            )
+                XcodeGraph.CoreDataModel(
+                    path: temporaryPath.appending(component: "model.xcdatamodeld"),
+                    versions: [],
+                    currentVersion: "model"
+                )
         )
     }
 

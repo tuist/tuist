@@ -1,8 +1,8 @@
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistCacheEE
 
@@ -12,9 +12,8 @@ struct ArtifactSignaturePayloadProviderTests {
         subject = ArtifactSignaturePayloadProvider()
     }
 
-
     @Test
-    func test_fetch_returnsAPayloadWithNonEmptyMacAddress() throws {
+    func fetch_returnsAPayloadWithNonEmptyMacAddress() throws {
         // Given/When
         let got = try subject.fetch()
 

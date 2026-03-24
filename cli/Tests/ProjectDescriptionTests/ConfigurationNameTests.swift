@@ -5,7 +5,7 @@ import TuistTesting
 @testable import ProjectDescription
 
 struct ConfigurationNameTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         #expect(try isCodableRoundTripable(ConfigurationName.debug))
         #expect(try isCodableRoundTripable(ConfigurationName.release))
     }

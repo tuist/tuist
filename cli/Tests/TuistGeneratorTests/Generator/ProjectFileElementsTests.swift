@@ -1,11 +1,11 @@
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import XcodeGraph
 import XcodeProj
-import FileSystemTesting
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
@@ -71,7 +71,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_addElement() throws {
+    func addElement() throws {
         // Given
         let element = GroupFileElement.file(
             path: "/path/myfolder/resources/a.png",
@@ -94,7 +94,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_addElement_withDotFolders() throws {
+    func addElement_withDotFolders() throws {
         // Given
         let element = GroupFileElement.file(
             path: "/path/my.folder/resources/a.png",
@@ -117,7 +117,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_addElement_fileReference() throws {
+    func addElement_fileReference() throws {
         // Given
         let element = GroupFileElement.folder(
             path: "/path/myfolder/resources/generated_images",
@@ -140,7 +140,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_addElement_parentDirectories() throws {
+    func addElement_parentDirectories() throws {
         // Given
         let element = GroupFileElement.file(
             path: "/path/another/path/resources/a.png",
@@ -163,7 +163,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_addElement_xcassets() throws {
+    func addElement_xcassets() throws {
         // Given
         let element = GroupFileElement.file(
             path: "/path/myfolder/resources/assets.xcassets",
@@ -186,7 +186,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_addElement_docc() throws {
+    func addElement_docc() throws {
         // Given
         let element = GroupFileElement.file(
             path: "/path/myfolder/resources/ImportantDocumentation.docc",
@@ -209,7 +209,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_addElement_scnassets() throws {
+    func addElement_scnassets() throws {
         // Given
         let element = GroupFileElement.file(
             path: "/path/myfolder/resources/assets.scnassets",
@@ -232,7 +232,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_addElement_lproj_multiple_files() async throws {
+    func addElement_lproj_multiple_files() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources = try await createFiles([
@@ -280,7 +280,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_addElement_lproj_variant_groups() async throws {
+    func addElement_lproj_variant_groups() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources = try await createFiles([
@@ -334,7 +334,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_addElement_lproj_knownRegions() async throws {
+    func addElement_lproj_knownRegions() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let resources = try await createFiles([
@@ -459,7 +459,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_generateProduct() throws {
+    func generateProduct() throws {
         // Given
         let pbxproj = PBXProj()
         let project = Project.test(
@@ -493,7 +493,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_generateProducts_stableOrder() throws {
+    func generateProducts_stableOrder() throws {
         for _ in 0 ..< 5 {
             let pbxproj = PBXProj()
             let subject = ProjectFileElements()
@@ -537,7 +537,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_generateProduct_fileReferencesProperties() throws {
+    func generateProduct_fileReferencesProperties() throws {
         // Given
         let pbxproj = PBXProj()
         let project = Project.test(
@@ -566,7 +566,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_generateDependencies_whenPrecompiledNode() throws {
+    func generateDependencies_whenPrecompiledNode() throws {
         let pbxproj = PBXProj()
         let sourceRootPath = try AbsolutePath(validating: "/")
         let target = Target.test()
@@ -599,7 +599,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_generateDependencies_whenPrecompiledNodeFromSPMBuildDirectory() throws {
+    func generateDependencies_whenPrecompiledNodeFromSPMBuildDirectory() throws {
         let pbxproj = PBXProj()
         let sourceRootPath = try AbsolutePath(validating: "/path/to/project")
         let target = Target.test()
@@ -639,7 +639,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_generatePath_whenGroupIsSpecified() throws {
+    func generatePath_whenGroupIsSpecified() throws {
         // Given
         let pbxproj = PBXProj()
         let path = try AbsolutePath(validating: "/a/b/c/file.swift")
@@ -706,7 +706,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_addPlayground() throws {
+    func addPlayground() throws {
         // Given
         let from = try AbsolutePath(validating: "/project/")
         let fileAbsolutePath = try AbsolutePath(validating: "/project/MyPlayground.playground")
@@ -762,7 +762,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_addFileElement() throws {
+    func addFileElement() throws {
         let from = try AbsolutePath(validating: "/project/")
         let fileAbsolutePath = try AbsolutePath(validating: "/project/file.swift")
         let fileRelativePath = try RelativePath(validating: "./file.swift")
@@ -813,7 +813,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_normalize_whenLocalized() {
+    func normalize_whenLocalized() {
         let path = try! AbsolutePath(validating: "/test/es.lproj/Main.storyboard")
         let normalized = subject.normalize(path)
         #expect(normalized == try AbsolutePath(validating: "/test/es.lproj"))
@@ -835,7 +835,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generateDependencies_sdks() throws {
+    func generateDependencies_sdks() throws {
         // Given
         let pbxproj = PBXProj()
         let sourceRootPath = try AbsolutePath(validating: "/a/project/")
@@ -877,7 +877,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_generateDependencies_when_cacheCompiledArtifacts() throws {
+    func generateDependencies_when_cacheCompiledArtifacts() throws {
         // Given
         let pbxproj = PBXProj()
         let sourceRootPath = try AbsolutePath(validating: "/a/project/")
@@ -925,7 +925,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generateDependencies_when_cacheCompiledArtifacts_and_sdk() throws {
+    func generateDependencies_when_cacheCompiledArtifacts_and_sdk() throws {
         // Given
         let pbxproj = PBXProj()
         let sourceRootPath = try AbsolutePath(validating: "/a/project/")
@@ -992,7 +992,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_generateDependencies_remoteSwiftPackage_doNotGenerateElements() throws {
+    func generateDependencies_remoteSwiftPackage_doNotGenerateElements() throws {
         // Given
         let pbxproj = PBXProj()
         let target = Target.empty(name: "TargetA")
@@ -1102,7 +1102,7 @@ struct ProjectFileElementsTests {
     }
 
     @Test
-    func test_generateDependencies_localSwiftPackageEmbedded_doNotGenerateElements() throws {
+    func generateDependencies_localSwiftPackageEmbedded_doNotGenerateElements() throws {
         // Given
         let pbxproj = PBXProj()
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")

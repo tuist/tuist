@@ -1,8 +1,8 @@
+import FileSystemTesting
+import Testing
 import TuistCore
 import TuistGenerator
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistTesting
 
@@ -13,7 +13,7 @@ struct LastUpgradeVersionWorkspaceMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_maps_last_upgrade_version() throws {
+    func maps_last_upgrade_version() throws {
         // Given
         subject = LastUpgradeVersionWorkspaceMapper()
 
@@ -74,12 +74,12 @@ struct LastUpgradeVersionWorkspaceMapperTests {
         )
 
         #expect(gotWorkspaceWithProjects == WorkspaceWithProjects(
-                workspace: workspace,
-                projects: [
-                    mappedProjectA,
-                    mappedProjectB,
-                ]
-            ))
+            workspace: workspace,
+            projects: [
+                mappedProjectA,
+                mappedProjectB,
+            ]
+        ))
         #expect(gotSideEffects == [])
     }
 }

@@ -1,5 +1,5 @@
-import TuistTesting
 import Testing
+import TuistTesting
 
 @testable import TuistInspectCommand
 
@@ -10,7 +10,7 @@ struct ImportSourceCodeScannerTests {
         subject = ImportSourceCodeScanner()
     }
 
-    @Test func test_whenObjcCodeWithImports() throws {
+    @Test func whenObjcCodeWithImports() throws {
         // Given
         let code = """
         #import <UIKit/UIKit.h>
@@ -30,7 +30,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["UIKit", "A"])
     }
 
-    @Test func test_whenObjcCodeWithOneLineImports() throws {
+    @Test func whenObjcCodeWithOneLineImports() throws {
         // Given
         let code = """
         @import ModuleA; @import ModuleB;
@@ -49,7 +49,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["ModuleA", "ModuleB"])
     }
 
-    @Test func test_whenObjcCodeWithSubmoduleImport() throws {
+    @Test func whenObjcCodeWithSubmoduleImport() throws {
         // Given
         let code = """
         @import ModuleA.Submodule;
@@ -68,7 +68,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["ModuleA"])
     }
 
-    @Test func test_whenObjcWithSemanticImports() throws {
+    @Test func whenObjcWithSemanticImports() throws {
         // Given
         let code = """
         @import Cocoa ;
@@ -89,7 +89,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["Cocoa", "LuaSkin"])
     }
 
-    @Test func test_whenObjcWithInclude() throws {
+    @Test func whenObjcWithInclude() throws {
         // Given
         let code = """
         #import <Foundation/Foundation.h>
@@ -110,7 +110,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["Foundation", "mach-o", "objc"])
     }
 
-    @Test func test_whenSwiftWithDefaultImport() throws {
+    @Test func whenSwiftWithDefaultImport() throws {
         // Given
         let code = """
         import PackageDescription
@@ -128,7 +128,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["PackageDescription"])
     }
 
-    @Test func test_whenSwiftWithDefaultImportWithComment() throws {
+    @Test func whenSwiftWithDefaultImportWithComment() throws {
         // Given
         let code = """
         ////        import PackageDescription
@@ -146,7 +146,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == [])
     }
 
-    @Test func test_whenSwiftWithDefaultImportWithMultilineComment() throws {
+    @Test func whenSwiftWithDefaultImportWithMultilineComment() throws {
         // Given
         let code = """
         /*
@@ -166,7 +166,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == [])
     }
 
-    @Test func test_whenSwiftWithOneLineImports() throws {
+    @Test func whenSwiftWithOneLineImports() throws {
         // Given
         let code = """
         import ModuleA; import ModuleB
@@ -184,7 +184,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["ModuleA", "ModuleB"])
     }
 
-    @Test func test_whenSwiftWithOneLineImportsWithComment() throws {
+    @Test func whenSwiftWithOneLineImportsWithComment() throws {
         // Given
         let code = """
         //// import ModuleA; import ModuleB
@@ -202,7 +202,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == [])
     }
 
-    @Test func test_whenSwiftWithOneLineImportsWithOneParticularComment() throws {
+    @Test func whenSwiftWithOneLineImportsWithOneParticularComment() throws {
         // Given
         let code = """
         import ModuleA; /* import ModuleB */
@@ -220,7 +220,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["ModuleA"])
     }
 
-    @Test func test_whenSwiftWithSubmoduleImport() throws {
+    @Test func whenSwiftWithSubmoduleImport() throws {
         // Given
         let code = """
         import ModuleC.Submodule
@@ -238,7 +238,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["ModuleC"])
     }
 
-    @Test func test_whenSwiftWithTypeImports() throws {
+    @Test func whenSwiftWithTypeImports() throws {
         // Given
         let code = """
         import struct ModuleA.SomeStruct
@@ -263,7 +263,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["ModuleA", "ModuleB", "ModuleC", "ModuleD", "ModuleE", "ModuleF", "ModuleG", "ModuleH"])
     }
 
-    @Test func test_whenSwiftWithIfImport() throws {
+    @Test func whenSwiftWithIfImport() throws {
         // Given
         let code = """
         #if TUIST
@@ -288,7 +288,7 @@ struct ImportSourceCodeScannerTests {
         #expect(imports == ["ProjectDescription", "ProjectDescriptionHelpers"])
     }
 
-    @Test func test_whenSwiftWithTestableImport() throws {
+    @Test func whenSwiftWithTestableImport() throws {
         // Given
         let code = """
             @testable import ProjectDescription

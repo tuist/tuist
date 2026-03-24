@@ -1,12 +1,12 @@
+import Testing
 import TuistCore
 import XcodeGraph
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
 struct TargetActionDisableShowEnvVarsProjectMapperTests {
     @Test
-    func test_map_environmentLoggingDisables() throws {
+    func map_environmentLoggingDisables() throws {
         // Given
         let subject = TargetActionDisableShowEnvVarsProjectMapper()
         let scriptA = TargetScript(name: "Pre Script", order: .pre)
@@ -31,7 +31,7 @@ struct TargetActionDisableShowEnvVarsProjectMapperTests {
     }
 
     @Test
-    func test_map_environmentLoggingEnables() throws {
+    func map_environmentLoggingEnables() throws {
         // Given
         let subject = TargetActionDisableShowEnvVarsProjectMapper()
         let scriptA = TargetScript(name: "Pre Script", order: .pre)

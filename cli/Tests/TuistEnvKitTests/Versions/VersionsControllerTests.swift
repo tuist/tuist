@@ -1,8 +1,8 @@
 import Foundation
+import Testing
 import TSCBasic
 import struct TSCUtility.Version
 import TuistSupport
-import Testing
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
@@ -20,7 +20,6 @@ struct VersionsControllerTests {
         subject = VersionsController()
     }
 
-
     @Test
     func test_install() throws {
         try subject.install(version: "3.2.1") { path in
@@ -35,7 +34,7 @@ struct VersionsControllerTests {
     }
 
     @Test
-    func test_path_for_version() {
+    func path_for_version() {
         let got = subject.path(version: "ref")
 
         #expect(got == environment.versionsDirectory.appending(component: "ref"))
@@ -53,7 +52,7 @@ struct VersionsControllerTests {
     }
 
     @Test
-    func test_semverVersions_ordered() throws {
+    func semverVersions_ordered() throws {
         // Given
         let versions = [
             "0.12.0",

@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistSupport
 import XcodeGraph
 import XcodeMetadata
-import Testing
 
 @testable import TuistCore
 @testable import TuistTesting
@@ -25,7 +25,7 @@ struct GraphLoaderTests {
 
     // MARK: - Load Workspace
 
-    @Test func test_loadWorkspace_unreferencedProjectsAreExcluded() async throws {
+    @Test func loadWorkspace_unreferencedProjectsAreExcluded() async throws {
         // Given
         let projectA = Project.test(path: "/A", name: "A", targets: [])
         let projectB = Project.test(path: "/B", name: "B", targets: [])
@@ -50,7 +50,7 @@ struct GraphLoaderTests {
         #expect(graph.dependencies.isEmpty)
     }
 
-    @Test func test_loadWorkspace_unlinkedReferencedProjectsAreIncluded() async throws {
+    @Test func loadWorkspace_unlinkedReferencedProjectsAreIncluded() async throws {
         // Given
         let projectA = Project.test(path: "/A", name: "A", targets: [])
         let projectB = Project.test(path: "/B", name: "B", targets: [])
@@ -76,7 +76,7 @@ struct GraphLoaderTests {
         #expect(graph.dependencies.isEmpty)
     }
 
-    @Test func test_loadWorkspace_linkedReferencedProjectsAreIncluded() async throws {
+    @Test func loadWorkspace_linkedReferencedProjectsAreIncluded() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "B", path: "/B")])
         let targetB = Target.test(name: "B", dependencies: [])
@@ -109,7 +109,7 @@ struct GraphLoaderTests {
 
     // MARK: - Load Project
 
-    @Test func test_loadProject_unlinkedProjectsAreExcluded() async throws {
+    @Test func loadProject_unlinkedProjectsAreExcluded() async throws {
         // Given
         let projectA = Project.test(path: "/A", name: "A", targets: [])
         let projectB = Project.test(path: "/B", name: "B", targets: [])
@@ -133,7 +133,7 @@ struct GraphLoaderTests {
         #expect(graph.dependencies.isEmpty)
     }
 
-    @Test func test_loadProject_linkedProjectsAreIncluded() async throws {
+    @Test func loadProject_linkedProjectsAreIncluded() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "B", path: "/B")])
         let targetB = Target.test(name: "B", dependencies: [])
@@ -165,7 +165,7 @@ struct GraphLoaderTests {
 
     // MARK: - Frameworks
 
-    @Test mutating func test_loadWorkspace_frameworkDependency() async throws {
+    @Test mutating func loadWorkspace_frameworkDependency() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.framework(path: "/Frameworks/F1.framework", status: .required)])
         let targetB = Target.test(name: "B", dependencies: [.framework(path: "/Frameworks/F2.framework", status: .required)])
@@ -226,7 +226,7 @@ struct GraphLoaderTests {
         ])
     }
 
-    @Test mutating func test_loadWorkspace_frameworkDependencyReferencedMultipleTimes() async throws {
+    @Test mutating func loadWorkspace_frameworkDependencyReferencedMultipleTimes() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.framework(path: "/Frameworks/F.framework", status: .required)])
         let targetB = Target.test(name: "B", dependencies: [.framework(path: "/Frameworks/F.framework", status: .required)])
@@ -275,7 +275,7 @@ struct GraphLoaderTests {
 
     // MARK: - Libraries
 
-    @Test mutating func test_loadWorkspace_libraryDependency() async throws {
+    @Test mutating func loadWorkspace_libraryDependency() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [
             .library(path: "/libs/lib1/libL1.dylib", publicHeaders: "/libs/lib1/include", swiftModuleMap: nil),
@@ -342,7 +342,7 @@ struct GraphLoaderTests {
 
     // MARK: - XCFrameworks
 
-    @Test mutating func test_loadWorkspace_xcframeworkDependency() async throws {
+    @Test mutating func loadWorkspace_xcframeworkDependency() async throws {
         // Given
         let targetA = Target.test(
             name: "A",
@@ -386,7 +386,7 @@ struct GraphLoaderTests {
         ])
     }
 
-    @Test mutating func test_loadWorkspace_mergeableXCFrameworkDependency() async throws {
+    @Test mutating func loadWorkspace_mergeableXCFrameworkDependency() async throws {
         // Given
         let targetA = Target.test(
             name: "A",
@@ -430,7 +430,7 @@ struct GraphLoaderTests {
         ])
     }
 
-    @Test mutating func test_loadWorkspace_xcframeworkDependencyWithDifferentStatusPerTarget() async throws {
+    @Test mutating func loadWorkspace_xcframeworkDependencyWithDifferentStatusPerTarget() async throws {
         // Given
         let targetA = Target.test(
             name: "A",
@@ -491,7 +491,7 @@ struct GraphLoaderTests {
 
     // MARK: - SDKs
 
-    @Test func test_loadWorkspace_sdkDependency() async throws {
+    @Test func loadWorkspace_sdkDependency() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.sdk(name: "libc++.tbd", status: .required)])
         let targetB = Target.test(name: "B", dependencies: [.sdk(name: "SwiftUI.framework", status: .optional)])
@@ -539,7 +539,7 @@ struct GraphLoaderTests {
 
     // MARK: - Packages
 
-    @Test func test_loadWorkspace_packages() async throws {
+    @Test func loadWorkspace_packages() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [
             .package(product: "PackageLibraryA1", type: .runtime),
@@ -595,7 +595,7 @@ struct GraphLoaderTests {
         ])
     }
 
-    @Test func test_loadWorkspace_package_plugin() async throws {
+    @Test func loadWorkspace_package_plugin() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [
             .package(product: "PackagePlugin", type: .plugin),
@@ -628,7 +628,7 @@ struct GraphLoaderTests {
         ])
     }
 
-    @Test func test_loadWorkspace_package_embedded() async throws {
+    @Test func loadWorkspace_package_embedded() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [
             .package(product: "PackageEmbedded", type: .runtimeEmbedded),
@@ -663,7 +663,7 @@ struct GraphLoaderTests {
 
     // MARK: - Error Cases
 
-    @Test func test_loadWorkspace_missingProjectReferenceInWorkspace() async throws {
+    @Test func loadWorkspace_missingProjectReferenceInWorkspace() async throws {
         // Given
         let projectA = Project.test(path: "/A", name: "A", targets: [])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/Missing"])
@@ -680,7 +680,7 @@ struct GraphLoaderTests {
         }
     }
 
-    @Test func test_loadWorkspace_missingProjectReferenceInDependency() async throws {
+    @Test func loadWorkspace_missingProjectReferenceInDependency() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "Missing", path: "/Missing")])
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
@@ -698,7 +698,7 @@ struct GraphLoaderTests {
         }
     }
 
-    @Test func test_loadWorkspace_missingTargetReferenceInLocalProject() async throws {
+    @Test func loadWorkspace_missingTargetReferenceInLocalProject() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.target(name: "Missing")])
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
@@ -716,7 +716,7 @@ struct GraphLoaderTests {
         }
     }
 
-    @Test func test_loadWorkspace_missingTargetReferenceInOtherProject() async throws {
+    @Test func loadWorkspace_missingTargetReferenceInOtherProject() async throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "Missing", path: "/B")])
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
@@ -801,12 +801,13 @@ struct GraphLoaderTests {
     private mutating func stubXCFramework(metadata: XCFrameworkMetadata) {
         stubbedXCFrameworks[metadata.path] = metadata
         let stubbedXCFrameworks = stubbedXCFrameworks
-        given(xcframeworkMetadataProvider).loadMetadata(at: .any, expectedSignature: .any, status: .any).willProduce { path, _, _ in
-            guard let metadata = stubbedXCFrameworks[path] else {
-                throw XCFrameworkMetadataProviderError.xcframeworkNotFound(path)
+        given(xcframeworkMetadataProvider).loadMetadata(at: .any, expectedSignature: .any, status: .any)
+            .willProduce { path, _, _ in
+                guard let metadata = stubbedXCFrameworks[path] else {
+                    throw XCFrameworkMetadataProviderError.xcframeworkNotFound(path)
+                }
+                return metadata
             }
-            return metadata
-        }
     }
 
     // MARK: - Helper types

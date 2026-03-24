@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistHasher
 
@@ -24,9 +24,8 @@ struct HeadersContentHasherTests {
         subject = HeadersContentHasher(contentHasher: contentHasher)
     }
 
-
     @Test
-    func test_hash_callsContentHasherWithTheExpectedParameters() async throws {
+    func hash_callsContentHasherWithTheExpectedParameters() async throws {
         // Given
         given(contentHasher)
             .hash(path: .value(filePath1))

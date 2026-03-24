@@ -5,17 +5,17 @@ import TuistTesting
 @testable import ProjectDescription
 
 struct TargetScriptTests {
-    @Test func test_toJSON_whenPath() throws {
+    @Test func toJSON_whenPath() throws {
         let subject = TargetScript.post(path: "path", arguments: ["arg"], name: "name")
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_toJSON_whenTool() throws {
+    @Test func toJSON_whenTool() throws {
         let subject = TargetScript.post(tool: "tool", arguments: ["arg"], name: "name")
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_embedded_script() {
+    @Test func embedded_script() {
         let script = """
         echo 'Hello World'
         wd=$(pwd)
@@ -26,7 +26,7 @@ struct TargetScriptTests {
         #expect(subject.script == .embedded(script))
     }
 
-    @Test func test_toJSON_when_embedded() throws {
+    @Test func toJSON_when_embedded() throws {
         let script = """
         echo 'Hello World'
         wd=$(pwd)

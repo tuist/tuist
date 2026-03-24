@@ -5,7 +5,7 @@ import TuistTesting
 @testable import ProjectDescription
 
 struct CoreDataModelTests {
-    @Test func test_toJSON() throws {
+    @Test func toJSON() throws {
         let subject: CoreDataModel = .coreDataModel("path", currentVersion: "current")
         #expect(try isCodableRoundTripable(subject))
     }

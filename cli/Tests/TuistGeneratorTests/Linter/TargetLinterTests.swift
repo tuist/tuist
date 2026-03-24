@@ -1,10 +1,10 @@
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import FileSystemTesting
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
@@ -15,9 +15,9 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_target_has_invalid_product_name() async throws {
+    func lint_when_target_has_invalid_product_name() async throws {
         let XCTAssertInvalidProductNameApp: (Target) async throws -> Void = { target in
-            let got = try await self.subject.lint(target: target, options: .test())
+            let got = try await subject.lint(target: target, options: .test())
             let reason: String
             switch target.product {
             case .framework, .staticFramework:
@@ -32,7 +32,7 @@ struct TargetLinterTests {
         }
 
         let XCTAssertValidProductNameApp: (Target) async throws -> Void = { target in
-            let got = try await self.subject.lint(target: target, options: .test())
+            let got = try await subject.lint(target: target, options: .test())
             #expect(got.first(where: { $0.description.contains("Invalid product name") }) == nil)
         }
 
@@ -50,7 +50,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_inconsistentProductNameBuildSettingAcrossConfigurations() async throws {
+    func lint_when_inconsistentProductNameBuildSettingAcrossConfigurations() async throws {
         // Given
         let target = Target.test(settings: .test(
             base: ["PRODUCT_NAME": "1"],
@@ -69,7 +69,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_productNameBuildSettingWithVariables() async throws {
+    func lint_when_productNameBuildSettingWithVariables() async throws {
         // Given
         let target = Target.test(settings: .test(
             base: ["PRODUCT_NAME": "$VARIABLE"],
@@ -88,17 +88,17 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_target_has_invalid_bundle_identifier() async throws {
+    func lint_when_target_has_invalid_bundle_identifier() async throws {
         let XCTAssertInvalidBundleId: (String) async throws -> Void = { bundleId in
             let target = Target.test(bundleId: bundleId)
-            let got = try await self.subject.lint(target: target, options: .test())
+            let got = try await subject.lint(target: target, options: .test())
             let reason =
                 "Invalid bundle identifier '\(bundleId)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
             #expect(got.contains(LintingIssue(reason: reason, severity: .error)))
         }
         let XCTAssertValidBundleId: (String) async throws -> Void = { bundleId in
             let target = Target.test(bundleId: bundleId)
-            let got = try await self.subject.lint(target: target, options: .test())
+            let got = try await subject.lint(target: target, options: .test())
             #expect(got.first(where: { $0.description.contains("Invalid bundle identifier") }) == nil)
         }
 
@@ -110,7 +110,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_target_no_source_files_but_remote() async throws {
+    func lint_when_target_no_source_files_but_remote() async throws {
         let target = Target(
             name: "Target",
             destinations: .iOS,
@@ -126,27 +126,27 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_target_no_source_files_but_has_dependency() async throws {
+    func lint_when_target_no_source_files_but_has_dependency() async throws {
         let target = Target.test(sources: [], dependencies: [
             TargetDependency.sdk(name: "libc++.tbd", status: .optional),
         ])
         let got = try await subject.lint(target: target, options: .test())
 
-        #expect(0 == got.count)
+        #expect(got.count == 0)
     }
 
     @Test
-    func test_lint_when_target_no_source_files_but_has_actions() async throws {
+    func lint_when_target_no_source_files_but_has_actions() async throws {
         let target = Target.test(sources: [], scripts: [
             TargetScript(name: "Test script", order: .post, script: .embedded("echo 'This is a test'")),
         ])
         let got = try await subject.lint(target: target, options: .test())
 
-        #expect(0 == got.count)
+        #expect(got.count == 0)
     }
 
     @Test
-    func test_lint_when_a_infoplist_file_is_being_copied() async throws {
+    func lint_when_a_infoplist_file_is_being_copied() async throws {
         let infoPlistPath = try! AbsolutePath(validating: "/Info.plist")
         let googeServiceInfoPlistPath = try! AbsolutePath(validating: "/GoogleService-Info.plist")
 
@@ -173,7 +173,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_a_entitlements_file_is_being_copied() async throws {
+    func lint_when_a_entitlements_file_is_being_copied() async throws {
         let path = try! AbsolutePath(validating: "/App.entitlements")
         let target = Target.test(resources: .init([.file(path: path)]))
 
@@ -186,7 +186,7 @@ struct TargetLinterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_when_entitlements_not_missing() async throws {
+    func lint_when_entitlements_not_missing() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "Info.plist")
         let target = Target.test(infoPlist: .file(path: path))
@@ -200,7 +200,7 @@ struct TargetLinterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_when_infoplist_not_found() async throws {
+    func lint_when_infoplist_not_found() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "App.entitlements")
         let target = Target.test(entitlements: .file(path: path))
@@ -214,7 +214,7 @@ struct TargetLinterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_when_library_has_resources() async throws {
+    func lint_when_library_has_resources() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "Image.png")
         let element = ResourceFileElement.file(path: path)
@@ -242,7 +242,7 @@ struct TargetLinterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_when_library_has_resources_with_disable_bundle_accessors() async throws {
+    func lint_when_library_has_resources_with_disable_bundle_accessors() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "Image.png")
         let element = ResourceFileElement.file(path: path)
@@ -272,7 +272,7 @@ struct TargetLinterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_when_framework_has_resources() async throws {
+    func lint_when_framework_has_resources() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "Image.png")
         let element = ResourceFileElement.file(path: path)
@@ -300,7 +300,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_macos_bundle_has_no_sources() async throws {
+    func lint_when_macos_bundle_has_no_sources() async throws {
         // Given
         let bundle = Target.empty(
             destinations: .macOS,
@@ -317,7 +317,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_valid_ios_bundle() async throws {
+    func lint_valid_ios_bundle() async throws {
         // Given
         let bundle = Target.empty(
             destinations: .iOS,
@@ -337,7 +337,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_deployment_target_version_is_valid() async throws {
+    func lint_when_deployment_target_version_is_valid() async throws {
         let validVersions = ["10.0", "9.0.1"]
         for version in validVersions {
             // Given
@@ -352,7 +352,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_visionos_iPad_designed_deployment_target_is_valid() async throws {
+    func lint_when_visionos_iPad_designed_deployment_target_is_valid() async throws {
         let targets = [
             Target(
                 name: "visionOS",
@@ -386,7 +386,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_deployment_target_version_is_invalid() async throws {
+    func lint_when_deployment_target_version_is_invalid() async throws {
         let validVersions = ["tuist", "tuist9.0.1", "1.0tuist", "10_0", "1_1_3"]
         for version in validVersions {
             // Given
@@ -401,7 +401,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_target_platform_and_deployment_target_property_mismatch() async throws {
+    func lint_when_target_platform_and_deployment_target_property_mismatch() async throws {
         let invalidCombinations: [(Platform, DeploymentTargets)] = [
             (.iOS, .macOS("10.0.0")),
             (.watchOS, .macOS("10.0.0")),
@@ -425,7 +425,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_invalidProductPlatformCombinations() async throws {
+    func lint_invalidProductPlatformCombinations() async throws {
         // Given
         let invalidTargets: [Target] = [
             .empty(name: "WatchApp_for_iOS", destinations: .iOS, product: .watch2App),
@@ -434,7 +434,7 @@ struct TargetLinterTests {
 
         // When
         let got = try await invalidTargets
-            .concurrentMap { try await self.subject.lint(target: $0, options: .test()) }
+            .concurrentMap { try await subject.lint(target: $0, options: .test()) }
             .flatMap { $0 }
 
         // Then
@@ -452,7 +452,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_target_has_duplicate_dependencies_specified() async throws {
+    func lint_when_target_has_duplicate_dependencies_specified() async throws {
         let testDependency: TargetDependency = .sdk(name: "libc++.tbd", status: .optional)
 
         // Given
@@ -469,7 +469,7 @@ struct TargetLinterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_when_target_has_non_existing_core_data_models() async throws {
+    func lint_when_target_has_non_existing_core_data_models() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let dataModelPath = path.appending(component: "Model.xcdatamodeld")
@@ -488,7 +488,7 @@ struct TargetLinterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_when_target_has_core_data_models_with_default_versions_that_dont_exist() async throws {
+    func lint_when_target_has_core_data_models_with_default_versions_that_dont_exist() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let dataModelPath = path.appending(component: "Model.xcdatamodeld")
@@ -509,7 +509,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_target_has_valid_codegen_sources() async throws {
+    func lint_when_target_has_valid_codegen_sources() async throws {
         // Given
         let target = Target.empty(
             name: "MyTarget",
@@ -533,7 +533,7 @@ struct TargetLinterTests {
     }
 
     @Test
-    func test_lint_when_target_has_invalid_on_demand_resources_tags() async throws {
+    func lint_when_target_has_invalid_on_demand_resources_tags() async throws {
         // Given
         let target = Target.empty(
             onDemandResourcesTags: .init(

@@ -1,12 +1,12 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistHasher
 
@@ -20,11 +20,10 @@ struct CopyFilesContentHasherTests {
         )
     }
 
-
     // MARK: - Tests
 
     @Test(.inTemporaryDirectory)
-    func test_hash_isDeterministicAcrossRuns() async throws {
+    func hash_isDeterministicAcrossRuns() async throws {
         // Given
         let fileSystem = FileSystem()
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -54,7 +53,7 @@ struct CopyFilesContentHasherTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_hash_returnsTheRightContent() async throws {
+    func hash_returnsTheRightContent() async throws {
         // Given
         let fileSystem = FileSystem()
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

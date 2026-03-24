@@ -1,10 +1,10 @@
 import Command
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
-import TuistTesting
-import FileSystemTesting
 import Testing
+import TuistTesting
 
 @testable import TuistAutomation
 
@@ -18,20 +18,19 @@ struct DeviceControllerTests {
         )
     }
 
-
     @Test
     func test_findAvailableDevices() async throws {
         // Given
         given(commandRunner)
             .run(arguments: .any, environment: .any, workingDirectory: .any)
             .willProduce { arguments, _, _ in
-                #expect([
-                        "/usr/bin/xcrun", "devicectl",
-                        "list", "devices",
-                        "--json-output",
-                    ] == arguments.dropLast())
+                #expect(arguments.dropLast() == [
+                    "/usr/bin/xcrun", "devicectl",
+                    "list", "devices",
+                    "--json-output",
+                ])
 
-                return self.write(text: self.devicesOutputJSON, at: arguments.last!)
+                return write(text: devicesOutputJSON, at: arguments.last!)
             }
 
         // When
@@ -39,56 +38,56 @@ struct DeviceControllerTests {
 
         // Then
         #expect([
-                PhysicalDevice(
-                    id: "00008027-0018084C1122002E",
-                    name: "Marek iPad",
-                    platform: .iOS,
-                    osVersion: "17.6.1",
-                    transportType: .wifi,
-                    connectionState: .disconnected
-                ),
-                PhysicalDevice(
-                    id: "00008120-001109881103C01E",
-                    name: "Marek\'s iPhone",
-                    platform: .iOS,
-                    osVersion: "17.6.1",
-                    transportType: .wifi,
-                    connectionState: .disconnected
-                ),
-                PhysicalDevice(
-                    id: "00008132-0103524335E2F624",
-                    name: "My iPhone",
-                    platform: .iOS,
-                    osVersion: "17.3.1",
-                    transportType: .usb,
-                    connectionState: .connected
-                ),
-                PhysicalDevice(
-                    id: "00008301-F856EAF4350DA92F",
-                    name: "My Watch",
-                    platform: .watchOS,
-                    osVersion: nil,
-                    transportType: .wifi,
-                    connectionState: .disconnected
-                ),
-                PhysicalDevice(
-                    id: "00008120-A9123890F89EA35B",
-                    name: "My Watch S8",
-                    platform: .watchOS,
-                    osVersion: "11.0.1",
-                    transportType: nil,
-                    connectionState: .disconnected
-                ),
-            ] == got)
+            PhysicalDevice(
+                id: "00008027-0018084C1122002E",
+                name: "Marek iPad",
+                platform: .iOS,
+                osVersion: "17.6.1",
+                transportType: .wifi,
+                connectionState: .disconnected
+            ),
+            PhysicalDevice(
+                id: "00008120-001109881103C01E",
+                name: "Marek\'s iPhone",
+                platform: .iOS,
+                osVersion: "17.6.1",
+                transportType: .wifi,
+                connectionState: .disconnected
+            ),
+            PhysicalDevice(
+                id: "00008132-0103524335E2F624",
+                name: "My iPhone",
+                platform: .iOS,
+                osVersion: "17.3.1",
+                transportType: .usb,
+                connectionState: .connected
+            ),
+            PhysicalDevice(
+                id: "00008301-F856EAF4350DA92F",
+                name: "My Watch",
+                platform: .watchOS,
+                osVersion: nil,
+                transportType: .wifi,
+                connectionState: .disconnected
+            ),
+            PhysicalDevice(
+                id: "00008120-A9123890F89EA35B",
+                name: "My Watch S8",
+                platform: .watchOS,
+                osVersion: "11.0.1",
+                transportType: nil,
+                connectionState: .disconnected
+            ),
+        ] == got)
     }
 
     @Test
-    func test_findAvailableDevices_when_fetching_devices_failed() async throws {
+    func findAvailableDevices_when_fetching_devices_failed() async throws {
         // Given
         given(commandRunner)
             .run(arguments: .any, environment: .any, workingDirectory: .any)
             .willProduce { arguments, _, _ in
-                self.write(text: "", at: arguments.last!)
+                write(text: "", at: arguments.last!)
             }
 
         // When / Then
@@ -134,7 +133,7 @@ struct DeviceControllerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_installApp_when_app_verification_failed() async throws {
+    func installApp_when_app_verification_failed() async throws {
         // Given
         given(commandRunner)
             .run(arguments: .any, environment: .any, workingDirectory: .any)
@@ -150,9 +149,9 @@ struct DeviceControllerTests {
 
         // When / Then
         await #expect(throws: DeviceControllerError.applicationVerificationFailed) { try await subject.installApp(
-                at: appPath,
-                device: .test(id: "iphone-id")
-            ) }
+            at: appPath,
+            device: .test(id: "iphone-id")
+        ) }
     }
 
     @Test
@@ -197,7 +196,7 @@ struct DeviceControllerTests {
         }
         return .init(
             unfolding: {
-                try await self.fileSystem.writeText(text, at: outputPath)
+                try await fileSystem.writeText(text, at: outputPath)
                 return nil
             }
         )

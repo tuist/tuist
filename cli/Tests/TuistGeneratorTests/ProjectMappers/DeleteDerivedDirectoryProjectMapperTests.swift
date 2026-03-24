@@ -1,10 +1,10 @@
+import FileSystemTesting
 import Foundation
+import Testing
 import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import FileSystemTesting
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
@@ -15,7 +15,7 @@ struct DeleteDerivedDirectoryProjectMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_map_returns_sideEffectsToDeleteDerivedDirectories() async throws {
+    func map_returns_sideEffectsToDeleteDerivedDirectories() async throws {
         // Given
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let derivedDirectory = projectPath.appending(component: Constants.DerivedDirectory.name)

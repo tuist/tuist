@@ -1,12 +1,12 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistServer
 import TuistSupport
-import FileSystemTesting
-import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
@@ -28,9 +28,8 @@ struct CacheLocalStorageIntegrationTests {
         )
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_fetch_when_a_cached_xcframework_exists_and_is_not_signed() async throws {
+    func fetch_when_a_cached_xcframework_exists_and_is_not_signed() async throws {
         // Given
         let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
@@ -51,7 +50,7 @@ struct CacheLocalStorageIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_fetch_when_a_cached_xcframework_exists_and_has_a_valid_signature() async throws {
+    func fetch_when_a_cached_xcframework_exists_and_has_a_valid_signature() async throws {
         // Given
         let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
@@ -74,7 +73,7 @@ struct CacheLocalStorageIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_fetch_when_a_cached_xcframework_does_not_exist() async throws {
+    func fetch_when_a_cached_xcframework_does_not_exist() async throws {
         // When
         let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
@@ -90,7 +89,7 @@ struct CacheLocalStorageIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_fetch_when_a_test_hash_exists() async throws {
+    func fetch_when_a_test_hash_exists() async throws {
         // Given
         let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)
@@ -111,7 +110,7 @@ struct CacheLocalStorageIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_fetch_when_a_test_hash_does_not_exist() async throws {
+    func fetch_when_a_test_hash_does_not_exist() async throws {
         // When
         let cacheDirectory = try #require(FileSystem.temporaryTestDirectory)
         given(cacheDirectoriesProvider)

@@ -1,11 +1,11 @@
+import FileSystemTesting
 import Mockable
+import Testing
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistTesting
-import FileSystemTesting
-import Testing
 
 @testable import TuistKit
 
@@ -26,7 +26,7 @@ struct ListServiceTests {
         )
     }
 
-    @Test func test_lists_available_templates_table_format() async throws {
+    @Test func lists_available_templates_table_format() async throws {
         try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate"]
@@ -55,7 +55,7 @@ struct ListServiceTests {
         }
     }
 
-    @Test func test_lists_available_templates_json_format() async throws {
+    @Test func lists_available_templates_json_format() async throws {
         try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate"]
@@ -90,7 +90,7 @@ struct ListServiceTests {
         }
     }
 
-    @Test func test_lists_available_templates_with_plugins() async throws {
+    @Test func lists_available_templates_with_plugins() async throws {
         try await withMockedDependencies {
             // Given
             let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]

@@ -1,16 +1,16 @@
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistCore
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
 
 struct GenerateCacheableSchemesGraphMapperTests {
     @Test(.inTemporaryDirectory)
-    func test_generate_binary_and_bundles_schemes() async throws {
+    func generate_binary_and_bundles_schemes() async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
 
@@ -44,52 +44,52 @@ struct GenerateCacheableSchemesGraphMapperTests {
 
         // Then
         #expect(updatedGraph.workspace.schemes.map(\.name) == [
-                "Binaries-Cache-iOS",
-                "Bundles-Cache-iOS",
-                "Macros-Cache-iOS",
-                "Binaries-Cache-macOS",
-                "Bundles-Cache-macOS",
-                "Macros-Cache-macOS",
-                "Binaries-Cache-tvOS",
-                "Bundles-Cache-tvOS",
-                "Macros-Cache-tvOS",
-                "Binaries-Cache-watchOS",
-                "Bundles-Cache-watchOS",
-                "Macros-Cache-watchOS",
-                "Binaries-Cache-visionOS",
-                "Bundles-Cache-visionOS",
-                "Macros-Cache-visionOS",
-            ])
+            "Binaries-Cache-iOS",
+            "Bundles-Cache-iOS",
+            "Macros-Cache-iOS",
+            "Binaries-Cache-macOS",
+            "Bundles-Cache-macOS",
+            "Macros-Cache-macOS",
+            "Binaries-Cache-tvOS",
+            "Bundles-Cache-tvOS",
+            "Macros-Cache-tvOS",
+            "Binaries-Cache-watchOS",
+            "Bundles-Cache-watchOS",
+            "Macros-Cache-watchOS",
+            "Binaries-Cache-visionOS",
+            "Bundles-Cache-visionOS",
+            "Macros-Cache-visionOS",
+        ])
 
         #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
-                .buildAction?.targets
-                .map(\.name) == [
+            .buildAction?.targets
+            .map(\.name) == [
                 "A",
             ])
         #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-macOS" })?
-                .buildAction?.targets
-                .map(\.name) == [
+            .buildAction?.targets
+            .map(\.name) == [
                 "C",
             ])
         #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Bundles-Cache-tvOS" })?
-                .buildAction?.targets
-                .map(\.name) == [
+            .buildAction?.targets
+            .map(\.name) == [
                 "Bundle",
             ])
 
         #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Macros-Cache-tvOS" })?
-                .buildAction?.targets.map(\.name) == [
+            .buildAction?.targets.map(\.name) == [
                 "Macro",
             ])
 
         #expect(updatedGraph.workspace.schemes.flatMap { $0.buildAction?.targets ?? [] }.map(
-                \.name
-            ) == includedTargets)
+            \.name
+        ) == includedTargets)
         #expect(sideEffects.isEmpty)
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_catalyst_scheme_for_targets_that_support_catalyst() async throws {
+    func generate_catalyst_scheme_for_targets_that_support_catalyst() async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
 
@@ -114,21 +114,21 @@ struct GenerateCacheableSchemesGraphMapperTests {
         #expect(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
 
         #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-Catalyst" })?
-                .buildAction?.targets
-                .map(\.name) == [
+            .buildAction?.targets
+            .map(\.name) == [
                 "WithCatalyst",
             ])
 
         #expect(updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
-                .buildAction?.targets
-                .map(\.name) == [
+            .buildAction?.targets
+            .map(\.name) == [
                 "WithCatalyst",
                 "WithoutCatalyst",
             ])
     }
 
     @Test(.inTemporaryDirectory)
-    func test_does_not_generate_catalyst_scheme_when_no_targets_support_catalyst() async throws {
+    func does_not_generate_catalyst_scheme_when_no_targets_support_catalyst() async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
 

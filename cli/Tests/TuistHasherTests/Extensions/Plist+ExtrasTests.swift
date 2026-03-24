@@ -1,6 +1,6 @@
+import Testing
 import TuistCore
 import XcodeGraph
-import Testing
 @testable import TuistHasher
 
 struct PlistrExtrasTests {

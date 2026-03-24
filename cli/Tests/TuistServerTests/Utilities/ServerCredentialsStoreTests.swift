@@ -1,7 +1,7 @@
-import Foundation
-import TuistSupport
 import FileSystemTesting
+import Foundation
 import Testing
+import TuistSupport
 
 @testable import TuistServer
 @testable import TuistTesting
@@ -9,9 +9,8 @@ import Testing
 struct ServerCredentialsStoreTests {
     let subject: ServerCredentialsStore
 
-
     @Test(.inTemporaryDirectory)
-    func test_crud() async throws {
+    func crud() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let subject = ServerCredentialsStore(

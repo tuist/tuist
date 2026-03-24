@@ -7,7 +7,7 @@ import Testing
 
 struct AbsolutePathExtrasTests {
     @Test
-    func test_commonAncestor_siblings() {
+    func commonAncestor_siblings() {
         // Given
         let pathA = try! AbsolutePath(validating: "/path/to/A")
         let pathB = try! AbsolutePath(validating: "/path/to/B")
@@ -20,7 +20,7 @@ struct AbsolutePathExtrasTests {
     }
 
     @Test
-    func test_commonAncestor_parent() {
+    func commonAncestor_parent() {
         // Given
         let pathA = try! AbsolutePath(validating: "/path/to/A")
         let pathB = try! AbsolutePath(validating: "/path/to/")
@@ -33,7 +33,7 @@ struct AbsolutePathExtrasTests {
     }
 
     @Test
-    func test_commonAncestor_none() {
+    func commonAncestor_none() {
         // Given
         let pathA = try! AbsolutePath(validating: "/path/to/A")
         let pathB = try! AbsolutePath(validating: "/another/path")
@@ -46,7 +46,7 @@ struct AbsolutePathExtrasTests {
     }
 
     @Test
-    func test_commonAncestor_commutative() {
+    func commonAncestor_commutative() {
         // Given
         let pathA = try! AbsolutePath(validating: "/path/to/A")
         let pathB = try! AbsolutePath(validating: "/path/to/B")
@@ -61,19 +61,19 @@ struct AbsolutePathExtrasTests {
 
     @Test
     func test_isInOpaqueDirectory() throws {
-        #expect(!try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
-        #expect(!try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
-        #expect(!try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
-        #expect(!try AbsolutePath(validating: "/test/directory.scnassets").isInOpaqueDirectory)
-        #expect(!try AbsolutePath(validating: "/test/directory.xcdatamodeld").isInOpaqueDirectory)
-        #expect(!try AbsolutePath(validating: "/test/directory.docc").isInOpaqueDirectory)
-        #expect(!try AbsolutePath(validating: "/test/directory.playground").isInOpaqueDirectory)
-        #expect(!try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
-        #expect(!try AbsolutePath(validating: "/test/directory.xcmappingmodel").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.scnassets").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.xcdatamodeld").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.docc").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.playground").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.xcmappingmodel").isInOpaqueDirectory)
 
-        #expect(!try AbsolutePath(validating: "/").isInOpaqueDirectory)
-        #expect(!try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
-        #expect(!try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
+        #expect(! try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").isInOpaqueDirectory)
         #expect(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png").isInOpaqueDirectory)
 
         #expect(try AbsolutePath(validating: "/test/directory.bundle/file.png").isInOpaqueDirectory)
@@ -87,7 +87,7 @@ struct AbsolutePathExtrasTests {
     }
 
     @Test
-    func test_opaqueDirectory() async throws {
+    func opaqueDirectory() async throws {
         for directory in [
             "/test/directory.bundle",
             "/test/directory.xcassets",
@@ -102,7 +102,8 @@ struct AbsolutePathExtrasTests {
         #expect(try AbsolutePath(validating: "/").opaqueParentDirectory() == nil)
         #expect(try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").opaqueParentDirectory() == nil)
         #expect(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").opaqueParentDirectory() == nil)
-        #expect(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png").opaqueParentDirectory() == try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle"))
+        #expect(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png")
+            .opaqueParentDirectory() == try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle"))
 
         for file in [
             "/test/directory.bundle/file.png",

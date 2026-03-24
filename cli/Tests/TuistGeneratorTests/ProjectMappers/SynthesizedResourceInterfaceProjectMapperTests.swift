@@ -1,12 +1,12 @@
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistConstants
 import TuistCore
 import TuistSupport
 import TuistThreadSafe
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistGenerator
 @testable import TuistTesting
@@ -19,8 +19,8 @@ struct SynthesizedResourceInterfaceProjectMapperTests {
         synthesizedResourceInterfacesGenerator = MockSynthesizedResourceInterfaceGenerator()
         contentHasher = ContentHasher()
         subject = SynthesizedResourceInterfaceProjectMapper(
-        synthesizedResourceInterfacesGenerator: synthesizedResourceInterfacesGenerator,
-        contentHasher: contentHasher
+            synthesizedResourceInterfacesGenerator: synthesizedResourceInterfacesGenerator,
+            contentHasher: contentHasher
         )
     }
 
@@ -289,13 +289,13 @@ struct SynthesizedResourceInterfaceProjectMapperTests {
             #expect(mappedProject.targets[targetA.name]?.resources == targetA.resources)
             #expect(mappedProject.targets[targetA.name]?.coreDataModels == targetA.coreDataModels)
             #expect(templateStrings.value.sorted() == [
-                    SynthesizedResourceInterfaceTemplates.assetsTemplate,
-                    "strings template",
-                    SynthesizedResourceInterfaceTemplates.plistsTemplate,
-                    SynthesizedResourceInterfaceTemplates.fontsTemplate,
-                    "lottie template",
-                    "core data template",
-                ].sorted())
+                SynthesizedResourceInterfaceTemplates.assetsTemplate,
+                "strings template",
+                SynthesizedResourceInterfaceTemplates.plistsTemplate,
+                SynthesizedResourceInterfaceTemplates.fontsTemplate,
+                "lottie template",
+                "core data template",
+            ].sorted())
             [
                 ResourceSynthesizer.Parser.assets,
                 ResourceSynthesizer.Parser.strings,
@@ -304,13 +304,14 @@ struct SynthesizedResourceInterfaceProjectMapperTests {
                 ResourceSynthesizer.Parser.json,
                 ResourceSynthesizer.Parser.coreData,
             ].forEach { parser in
-                #expect(parserOptionsStrings.value[parser] == "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test")
+                #expect(parserOptionsStrings
+                    .value[parser] == "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test")
             }
         }
     }
 
     @Test(.inTemporaryDirectory)
-    func testMap_whenUseBuildableFolders() async throws {
+    func map_whenUseBuildableFolders() async throws {
         try await withMockedDependencies {
             // Given
             let templateStrings = ThreadSafe<[String]>([])
@@ -573,13 +574,13 @@ struct SynthesizedResourceInterfaceProjectMapperTests {
             #expect(mappedProject.targets[targetA.name]?.name == targetA.name)
             #expect(mappedProject.targets[targetA.name]?.coreDataModels == targetA.coreDataModels)
             #expect(templateStrings.value.sorted() == [
-                    SynthesizedResourceInterfaceTemplates.assetsTemplate,
-                    "strings template",
-                    SynthesizedResourceInterfaceTemplates.plistsTemplate,
-                    SynthesizedResourceInterfaceTemplates.fontsTemplate,
-                    "lottie template",
-                    "core data template",
-                ].sorted())
+                SynthesizedResourceInterfaceTemplates.assetsTemplate,
+                "strings template",
+                SynthesizedResourceInterfaceTemplates.plistsTemplate,
+                SynthesizedResourceInterfaceTemplates.fontsTemplate,
+                "lottie template",
+                "core data template",
+            ].sorted())
             [
                 ResourceSynthesizer.Parser.assets,
                 ResourceSynthesizer.Parser.strings,
@@ -588,13 +589,14 @@ struct SynthesizedResourceInterfaceProjectMapperTests {
                 ResourceSynthesizer.Parser.json,
                 ResourceSynthesizer.Parser.coreData,
             ].forEach { parser in
-                #expect(parserOptionsStrings.value[parser] == "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test")
+                #expect(parserOptionsStrings
+                    .value[parser] == "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test")
             }
         }
     }
 
     @Test(.inTemporaryDirectory)
-    func testMap_whenDisableSynthesizedResourceAccessors() throws {
+    func map_whenDisableSynthesizedResourceAccessors() throws {
         // Given
         let templateStrings = ThreadSafe<[String]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, templateString, _, _, paths in
@@ -731,7 +733,7 @@ struct SynthesizedResourceInterfaceProjectMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func testMap_bundleName_whenBundleAccessorsAreEnabled() throws {
+    func map_bundleName_whenBundleAccessorsAreEnabled() throws {
         // Given
         let bundleNames = ThreadSafe<[String?]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
@@ -771,7 +773,7 @@ struct SynthesizedResourceInterfaceProjectMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func testMap_bundleName_whenBundleAccessorsAreDisabled() throws {
+    func map_bundleName_whenBundleAccessorsAreDisabled() throws {
         // Given
         let bundleNames = ThreadSafe<[String?]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
@@ -811,7 +813,7 @@ struct SynthesizedResourceInterfaceProjectMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func testMap_whenResourceContainsBinaryPlist() throws {
+    func map_whenResourceContainsBinaryPlist() throws {
         // Given
         let plistNames = ThreadSafe<[String]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, paths in

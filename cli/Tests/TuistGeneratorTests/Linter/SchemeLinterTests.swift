@@ -1,11 +1,11 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import FileSystemTesting
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
@@ -16,7 +16,7 @@ struct SchemeLinterTests {
     }
 
     @Test
-    func test_lint_missingConfigurations() async throws {
+    func lint_missingConfigurations() async throws {
         // Given
         let settings = Settings(configurations: [
             .release("Beta"): .test(),
@@ -34,12 +34,14 @@ struct SchemeLinterTests {
         // Then
         #expect(got.first?.severity == .error)
         #expect(got.last?.severity == .error)
-        #expect(got.first?.reason == "The build configuration 'CustomDebug' specified in the scheme's run action isn't defined in the project.")
-        #expect(got.last?.reason == "The build configuration 'Alpha' specified in the scheme's test action isn't defined in the project.")
+        #expect(got.first?
+            .reason == "The build configuration 'CustomDebug' specified in the scheme's run action isn't defined in the project.")
+        #expect(got.last?
+            .reason == "The build configuration 'Alpha' specified in the scheme's test action isn't defined in the project.")
     }
 
     @Test
-    func test_lint_referenceLocalTarget() async throws {
+    func lint_referenceLocalTarget() async throws {
         // Given
         let project = Project.test(schemes: [
             .init(
@@ -57,7 +59,7 @@ struct SchemeLinterTests {
     }
 
     @Test
-    func test_lint_referenceRemoteTargetBuildAction() async throws {
+    func lint_referenceRemoteTargetBuildAction() async throws {
         // Given
         let project = Project.test(schemes: [
             .init(
@@ -75,11 +77,13 @@ struct SchemeLinterTests {
 
         // Then
         #expect(got.first?.severity == .error)
-        #expect(got.first?.reason == "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
+        #expect(got.first?
+            .reason ==
+            "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
     }
 
     @Test
-    func test_lint_referenceRemoteTargetTestAction() async throws {
+    func lint_referenceRemoteTargetTestAction() async throws {
         // Given
         let settings = Settings(configurations: [
             .release("Beta"): .test(),
@@ -115,11 +119,13 @@ struct SchemeLinterTests {
 
         // Then
         #expect(got.first?.severity == .error)
-        #expect(got.first?.reason == "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
+        #expect(got.first?
+            .reason ==
+            "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
     }
 
     @Test
-    func test_lint_referenceRemoteTargetExecutionAction() async throws {
+    func lint_referenceRemoteTargetExecutionAction() async throws {
         // Given
         let project = Project.test(schemes: [
             .init(
@@ -142,11 +148,13 @@ struct SchemeLinterTests {
 
         // Then
         #expect(got.first?.severity == .error)
-        #expect(got.first?.reason == "The target 'Target2' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
+        #expect(got.first?
+            .reason ==
+            "The target 'Target2' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
     }
 
     @Test
-    func test_lint_missingStoreKitConfiguration() async throws {
+    func lint_missingStoreKitConfiguration() async throws {
         // Given
         let project = Project.test(
             settings: Settings(configurations: [
@@ -172,9 +180,10 @@ struct SchemeLinterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_existingStoreKitConfiguration() async throws {
+    func lint_existingStoreKitConfiguration() async throws {
         // Given
-        let storeKitConfigurationPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "configuration.storekit")
+        let storeKitConfigurationPath = try #require(FileSystem.temporaryTestDirectory)
+            .appending(component: "configuration.storekit")
         let project = Project.test(
             settings: Settings(configurations: [
                 BuildConfiguration.debug: Configuration(settings: .init(), xcconfig: nil),

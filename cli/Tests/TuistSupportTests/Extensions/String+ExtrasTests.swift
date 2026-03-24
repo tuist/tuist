@@ -1,6 +1,6 @@
 import Foundation
-import TSCUtility
 import Testing
+import TSCUtility
 
 @testable import TuistSupport
 @testable import TuistTesting
@@ -19,7 +19,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_camelized_edge_cases() {
+    func camelized_edge_cases() {
         // Given
         let subject = "_1Flow"
 
@@ -31,7 +31,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_to_valid_swift_identifier_starting_with_lowercase_letter() {
+    func to_valid_swift_identifier_starting_with_lowercase_letter() {
         // Given
         let subject = "classname"
 
@@ -43,7 +43,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_to_valid_swift_identifier_string_starting_with_numbers() {
+    func to_valid_swift_identifier_string_starting_with_numbers() {
         // Given
         let subject = "123invalidName"
 
@@ -55,7 +55,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_to_valid_swift_identifier_string_with_special_characters() {
+    func to_valid_swift_identifier_string_with_special_characters() {
         // Given
         let subject = "class$name"
 
@@ -67,7 +67,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_to_valid_swift_identifier_string_is_already_a_valid_swift_identifier() {
+    func to_valid_swift_identifier_string_is_already_a_valid_swift_identifier() {
         // Given
         let subject = "ValidClassName"
 
@@ -79,7 +79,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_to_valid_in_bundle_identifier_when_string_is_already_valid() {
+    func to_valid_in_bundle_identifier_when_string_is_already_valid() {
         // Given
         let subject = "TestBundleIdentifier.tuist"
 
@@ -91,7 +91,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_to_valid_in_bundle_identifier_when_string_contains_under_bars() {
+    func to_valid_in_bundle_identifier_when_string_contains_under_bars() {
         // Given
         let subject = "_test_bundle_identifier_"
 
@@ -103,7 +103,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_to_valid_in_bundle_identifier_when_string_contains_special_characters() {
+    func to_valid_in_bundle_identifier_when_string_contains_special_characters() {
         // Given
         let subject = "$test+bundle@identifier"
 
@@ -115,7 +115,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_to_valid_in_bundle_identifier_when_string_contains_white_spaces() {
+    func to_valid_in_bundle_identifier_when_string_contains_white_spaces() {
         // Given
         let subject = "test  bundle  identifier"
 
@@ -127,7 +127,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_string_doesnt_match_GitURL_regex() {
+    func string_doesnt_match_GitURL_regex() {
         // Given
         let stringToEvaluate = "not a url string"
 
@@ -139,7 +139,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_string_does_match_http_GitURL_with_branch_regex() {
+    func string_does_match_http_GitURL_with_branch_regex() {
         // Given
         let stringToEvaluate = "https://github.com/tuist/ExampleTuistTemplate.git@develop"
 
@@ -151,7 +151,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_string_does_match_http_GitURL_without_branch_regex() {
+    func string_does_match_http_GitURL_without_branch_regex() {
         // Given
         let stringToEvaluate = "https://github.com/tuist/ExampleTuistTemplate.git"
 
@@ -163,7 +163,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_string_does_match_ssh_GitURL_with_branch_regex() {
+    func string_does_match_ssh_GitURL_with_branch_regex() {
         // Given
         let stringToEvaluate = "git@github.com:user/repo.git@develop"
 
@@ -175,7 +175,7 @@ struct StringExtrasTests {
     }
 
     @Test
-    func test_string_does_match_ssh_GitURL_without_branch_regex() {
+    func string_does_match_ssh_GitURL_without_branch_regex() {
         // Given
         let stringToEvaluate = "git@github.com:user/repo.git"
 
@@ -189,7 +189,7 @@ struct StringExtrasTests {
 
 struct StringsArrayTests {
     @Test
-    func test_listed_when_no_elements() {
+    func listed_when_no_elements() {
         // Given
         let list: [String] = []
 
@@ -201,7 +201,7 @@ struct StringsArrayTests {
     }
 
     @Test
-    func test_listed_when_only_one_element() {
+    func listed_when_only_one_element() {
         // Given
         let list = ["App"]
 
@@ -213,7 +213,7 @@ struct StringsArrayTests {
     }
 
     @Test
-    func test_listed_when_two_elements() {
+    func listed_when_two_elements() {
         // Given
         let list = ["App", "Tests"]
 
@@ -225,7 +225,7 @@ struct StringsArrayTests {
     }
 
     @Test
-    func test_listed_when_more_than_two_elements() {
+    func listed_when_more_than_two_elements() {
         // Given
         let list = ["App", "Tests", "Framework"]
 

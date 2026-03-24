@@ -1,12 +1,12 @@
 import Foundation
-import TSCBasic
 import Testing
+import TSCBasic
 @testable import TuistSupport
 @testable import TuistTesting
 
 struct ProcessResultTests {
     @Test
-    func test_command_returns_the_right_command_when_xcrun() {
+    func command_returns_the_right_command_when_xcrun() {
         // Given
         let subject = ProcessResult(
             arguments: ["/usr/bin/xcrun", "swiftc"],

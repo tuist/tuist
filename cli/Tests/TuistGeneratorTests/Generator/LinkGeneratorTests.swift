@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistTesting
 import XcodeGraph
 import XcodeProj
-import Testing
 
 @testable import TuistGenerator
 
@@ -14,7 +14,8 @@ struct LinkGeneratorPathTests {
     func test_xcodeValue() {
         let path = try! AbsolutePath(validating: "/my-path")
         #expect(LinkGeneratorPath.absolutePath(path).xcodeValue(sourceRootPath: .root) == "$(SRCROOT)/my-path")
-        #expect(LinkGeneratorPath.string("$(DEVELOPER_FRAMEWORKS_DIR)").xcodeValue(sourceRootPath: .root) == "$(DEVELOPER_FRAMEWORKS_DIR)")
+        #expect(LinkGeneratorPath.string("$(DEVELOPER_FRAMEWORKS_DIR)")
+            .xcodeValue(sourceRootPath: .root) == "$(DEVELOPER_FRAMEWORKS_DIR)")
     }
 }
 
@@ -27,14 +28,16 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_linkGeneratorError_description() {
+    func linkGeneratorError_description() {
         #expect(LinkGeneratorError.missingProduct(name: "name").description == "Couldn't find a reference for the product name.")
-        #expect(LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/")).description == "Couldn't find a reference for the file at path /.")
-        #expect(LinkGeneratorError.missingConfigurationList(targetName: "target").description == "The target target doesn't have a configuration list.")
+        #expect(LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/"))
+            .description == "Couldn't find a reference for the file at path /.")
+        #expect(LinkGeneratorError.missingConfigurationList(targetName: "target")
+            .description == "The target target doesn't have a configuration list.")
     }
 
     @Test
-    func test_linkGeneratorError_type() {
+    func linkGeneratorError_type() {
         #expect(LinkGeneratorError.missingProduct(name: "name").type == .bug)
         #expect(LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/")).type == .bug)
         #expect(LinkGeneratorError.missingConfigurationList(targetName: "target").type == .bug)
@@ -99,7 +102,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateEmbedPhaseWithNoEmbeddableFrameworks() throws {
+    func generateEmbedPhaseWithNoEmbeddableFrameworks() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.product(
@@ -148,7 +151,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateEmbedPhase_includesSymbols_when_nonTestTarget() throws {
+    func generateEmbedPhase_includesSymbols_when_nonTestTarget() throws {
         try Product.allCases.filter { !$0.testsBundle }.forEach { product in
             // Given
 
@@ -195,7 +198,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateEmbedPhase_doesNot_includesSymbols_when_testTarget() throws {
+    func generateEmbedPhase_doesNot_includesSymbols_when_testTarget() throws {
         for product in Product.allCases.filter(\.testsBundle) {
             // Given
 
@@ -242,7 +245,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
+    func generateEmbedPhase_throws_when_aProductIsMissing() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.product(
             target: "Test",
@@ -272,7 +275,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenXCFrameworkIsPresent() throws {
+    func generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenXCFrameworkIsPresent() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testXCFramework(path: "/Frameworks/Test.xcframework"))
@@ -313,7 +316,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateLinks_generatesEmbeddedFrameworksForLocalEmbedPackage() throws {
+    func generateLinks_generatesEmbeddedFrameworksForLocalEmbedPackage() throws {
         // Given
         let (pbxTarget, target) = createTargets(product: .framework)
         let pbxproj = PBXProj()
@@ -408,7 +411,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenPackageProductIsPresent() throws {
+    func generateEmbedPhase_setupEmbedFrameworksBuildPhase_whenPackageProductIsPresent() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testPackageProduct())
@@ -458,11 +461,13 @@ struct LinkGeneratorTests {
         #expect(Set(buildFiles.map(\.settings)) == [
             ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
         ])
-        #expect(buildFiles.reduce(into: [String: String]()) { $0[$1.product?.productName] = $1.platformFilter } == ["ProductWithPlatformCondition": "maccatalyst"])
+        #expect(buildFiles
+            .reduce(into: [String: String]()) { $0[$1.product?.productName] = $1.platformFilter } ==
+            ["ProductWithPlatformCondition": "maccatalyst"])
     }
 
     @Test
-    func test_setupRunPathSearchPath() throws {
+    func setupRunPathSearchPath() throws {
         // Given
         let paths = [
             try AbsolutePath(validating: "/path/Dependencies/Frameworks/"),
@@ -578,7 +583,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_setupHeadersSearchPaths_extendCustomSettings() throws {
+    func setupHeadersSearchPaths_extendCustomSettings() throws {
         // Given
         let searchPaths = [
             try AbsolutePath(validating: "/path/to/libraries"),
@@ -614,7 +619,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_setupHeadersSearchPaths_mergesDuplicates() throws {
+    func setupHeadersSearchPaths_mergesDuplicates() throws {
         // Given
         let searchPaths = [
             try AbsolutePath(validating: "/path/to/libraries"),
@@ -648,7 +653,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_setupHeadersSearchPath_throws_whenTheConfigurationListIsMissing() throws {
+    func setupHeadersSearchPath_throws_whenTheConfigurationListIsMissing() throws {
         let headersFolders = [try AbsolutePath(validating: "/headers")]
         let pbxproj = PBXProj()
 
@@ -674,7 +679,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_setupLibrarySearchPaths_multiplePaths() throws {
+    func setupLibrarySearchPaths_multiplePaths() throws {
         // Given
         let searchPaths = [
             try AbsolutePath(validating: "/path/to/libraries"),
@@ -711,7 +716,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_setupLibrarySearchPaths_noPaths() throws {
+    func setupLibrarySearchPaths_noPaths() throws {
         // Given
         let searchPaths: [AbsolutePath] = []
         let sourceRootPath = try AbsolutePath(validating: "/path")
@@ -739,7 +744,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_setupLibrarySearchPaths_noLibraryPaths_withSwiftToolchainLdFlag() throws {
+    func setupLibrarySearchPaths_noLibraryPaths_withSwiftToolchainLdFlag() throws {
         // Given: A dynamic framework with no library search paths gets the Swift toolchain
         // path added to OTHER_LDFLAGS so that auto-linked Swift compatibility libraries
         // can be found when linking with clang (ObjC-only targets)
@@ -770,7 +775,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_setupSwiftIncludePaths_multiplePaths() throws {
+    func setupSwiftIncludePaths_multiplePaths() throws {
         // Given
         let searchPaths = [
             try AbsolutePath(validating: "/path/to/libraries"),
@@ -801,7 +806,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_setupSwiftIncludePaths_noPaths() throws {
+    func setupSwiftIncludePaths_noPaths() throws {
         // Given
         let searchPaths: [AbsolutePath] = []
         let sourceRootPath = try AbsolutePath(validating: "/path")
@@ -869,7 +874,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateLinkingPhase_requiredProduct() throws {
+    func generateLinkingPhase_requiredProduct() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
         dependencies.insert(GraphDependencyReference.product(
@@ -908,7 +913,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateLinkingPhase_optionalProduct() throws {
+    func generateLinkingPhase_optionalProduct() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
         dependencies.insert(GraphDependencyReference.product(
@@ -948,7 +953,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateLinkingPhase_optionalFramework() throws {
+    func generateLinkingPhase_optionalFramework() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework", status: .optional))
         dependencies.insert(GraphDependencyReference.product(
@@ -987,7 +992,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateLinkingPhase_throws_whenFileReferenceIsMissing() throws {
+    func generateLinkingPhase_throws_whenFileReferenceIsMissing() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
         let pbxproj = PBXProj()
@@ -1012,7 +1017,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateLinkingPhase_throws_whenProductIsMissing() throws {
+    func generateLinkingPhase_throws_whenProductIsMissing() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.product(
             target: "Test",
@@ -1040,7 +1045,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateLinkingPhase_sdk() throws {
+    func generateLinkingPhase_sdk() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.sdk(
@@ -1091,7 +1096,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateCopyProductsBuildPhase_staticTargetDependsOnStaticProducts() throws {
+    func generateCopyProductsBuildPhase_staticTargetDependsOnStaticProducts() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/")
         var dependencies: Set<GraphDependencyReference> = []
@@ -1131,7 +1136,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateCopyProductsBuildPhase_staticTargetDependsOnStaticXCFramework2() throws {
+    func generateCopyProductsBuildPhase_staticTargetDependsOnStaticXCFramework2() throws {
         // Given
         let path = AbsolutePath("/path/")
         let target: Target = .test(name: "StaticFramework", product: .staticFramework)
@@ -1193,7 +1198,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateCopyProductsBuildPhase_dynamicTargetDependsOnStaticProducts() throws {
+    func generateCopyProductsBuildPhase_dynamicTargetDependsOnStaticProducts() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
@@ -1231,7 +1236,7 @@ struct LinkGeneratorTests {
     }
 
     @Test
-    func test_generateCopyProductsBuildPhase_resourceBundles() throws {
+    func generateCopyProductsBuildPhase_resourceBundles() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/")
         let resourceBundle = Target.test(name: "ResourceBundle", product: .bundle)

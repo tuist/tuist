@@ -1,8 +1,8 @@
 import Foundation
+import Testing
 import TSCBasic
 import TuistSupport
 import TuistSupportTesting
-import Testing
 @testable import TuistEnvKit
 
 struct BuildCopierTests {
@@ -12,7 +12,6 @@ struct BuildCopierTests {
         fileManager = .default
         subject = BuildCopier()
     }
-
 
     @Test
     func test_files() {
@@ -50,7 +49,7 @@ struct BuildCopierTests {
     }
 
     @Test
-    func test_copy_without_templates() throws {
+    func copy_without_templates() throws {
         let fromDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let fromPath = fromDir.path
 

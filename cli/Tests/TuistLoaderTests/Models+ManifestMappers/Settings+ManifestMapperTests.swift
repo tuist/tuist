@@ -48,7 +48,7 @@ struct SettingsManifestMapperTests {
             #expect(configuration.1?.settings.count == manifestConfiguration.settings.count)
             #expect(
                 configuration.1?.xcconfig ==
-                (try manifestConfiguration.xcconfig.map { try generatorPaths.resolve(path: $0) })
+                    (try manifestConfiguration.xcconfig.map { try generatorPaths.resolve(path: $0) })
             )
         }
     }

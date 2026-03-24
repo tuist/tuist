@@ -87,7 +87,7 @@ struct CopyFilesManifestMapperTests {
         #expect(model.subpath == "Templates")
         #expect(
             model.files ==
-            (try cleanFiles.map { .file(path: temporaryPath.appending(try RelativePath(validating: $0))) })
+                (try cleanFiles.map { .file(path: temporaryPath.appending(try RelativePath(validating: $0))) })
         )
     }
 }

@@ -1,9 +1,9 @@
 import Foundation
 import Path
+import Testing
 import TSCUtility
 import TuistLoader
 import XcodeGraph
-import Testing
 @testable import TuistAutomation
 @testable import TuistCore
 @testable import TuistGenerator
@@ -22,7 +22,7 @@ struct WorkspaceMapperFactoryTests {
         projectMapperFactory = ProjectMapperFactory()
     }
 
-    @Test func test_default_contains_the_project_workspace_mapper() {
+    @Test func default_contains_the_project_workspace_mapper() {
         // Given
         subject = WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(
@@ -39,7 +39,7 @@ struct WorkspaceMapperFactoryTests {
         XCTAssertContainsElementOfType(got, ProjectWorkspaceMapper.self)
     }
 
-    @Test func test_default_contains_the_tuist_workspace_identifier_mapper() {
+    @Test func default_contains_the_tuist_workspace_identifier_mapper() {
         // Given
         subject = WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(
@@ -56,7 +56,7 @@ struct WorkspaceMapperFactoryTests {
         XCTAssertContainsElementOfType(got, TuistWorkspaceIdentifierMapper.self)
     }
 
-    @Test func test_default_contains_the_tuist_workspace_render_markdown_readme_mapper() {
+    @Test func default_contains_the_tuist_workspace_render_markdown_readme_mapper() {
         // Given
         subject = WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(
@@ -73,7 +73,7 @@ struct WorkspaceMapperFactoryTests {
         XCTAssertContainsElementOfType(got, TuistWorkspaceRenderMarkdownReadmeMapper.self)
     }
 
-    @Test func test_default_contains_the_tide_template_macros_mapper() {
+    @Test func default_contains_the_tide_template_macros_mapper() {
         // Given
         subject = WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(
@@ -90,7 +90,7 @@ struct WorkspaceMapperFactoryTests {
         XCTAssertContainsElementOfType(got, IDETemplateMacrosMapper.self)
     }
 
-    @Test func test_default_contains_the_last_upgrade_version_mapper() {
+    @Test func default_contains_the_last_upgrade_version_mapper() {
         // Given
         subject = WorkspaceMapperFactory(
             projectMapper: SequentialProjectMapper(

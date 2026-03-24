@@ -1,9 +1,9 @@
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistRootDirectoryLocator
 import TuistSupport
-import FileSystemTesting
-import Testing
 
 @testable import TuistCore
 @testable import TuistScaffold
@@ -15,9 +15,8 @@ struct TemplatesDirectoryLocatorIntegrationTests {
         subject = TemplatesDirectoryLocator(rootDirectoryLocator: RootDirectoryLocator())
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_locate_when_a_templates_and_git_directory_exists() async throws {
+    func locate_when_a_templates_and_git_directory_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git"])
@@ -34,7 +33,7 @@ struct TemplatesDirectoryLocatorIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_locate_when_a_templates_directory_exists() async throws {
+    func locate_when_a_templates_directory_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates"])
@@ -51,7 +50,7 @@ struct TemplatesDirectoryLocatorIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_locate_when_a_git_directory_exists() async throws {
+    func locate_when_a_git_directory_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Templates"])
@@ -68,7 +67,7 @@ struct TemplatesDirectoryLocatorIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_locate_when_multiple_tuist_directories_exists() async throws {
+    func locate_when_multiple_tuist_directories_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         try createFolders(["this/is/a/very/nested/Tuist/Templates", "this/is/Tuist/Templates"])
@@ -79,7 +78,7 @@ struct TemplatesDirectoryLocatorIntegrationTests {
 
         // When
         let got = try await paths.concurrentMap {
-            try await self.subject.locateUserTemplates(
+            try await subject.locateUserTemplates(
                 at: temporaryDirectory.appending(try RelativePath(validating: $0))
             )
         }

@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct WorkspaceTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject = Workspace.test(
             path: try AbsolutePath(validating: "/path/to/workspace"),

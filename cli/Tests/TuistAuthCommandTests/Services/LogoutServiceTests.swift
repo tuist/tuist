@@ -1,10 +1,10 @@
 #if os(macOS)
     import Foundation
     import Mockable
+    import Testing
     import TuistConfigLoader
     import TuistCore
     import TuistServer
-    import Testing
 
     @testable import TuistAuthCommand
     @testable import TuistTesting
@@ -24,7 +24,6 @@
                 configLoader: configLoader
             )
         }
-
 
         @Test
         func test_logout() async throws {

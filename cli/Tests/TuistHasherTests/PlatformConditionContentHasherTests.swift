@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistHasher
 
@@ -13,7 +13,6 @@ struct PlatformConditionContentHasherTests {
     init() throws {
         subject = PlatformConditionContentHasher(contentHasher: ContentHasher())
     }
-
 
     @Test
     func test_hash() throws {

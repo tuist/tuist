@@ -1,10 +1,10 @@
 import Foundation
 import Path
 import PathKit
+import Testing
 import TuistCore
 import XcodeGraph
 import XcodeProj
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
@@ -17,28 +17,28 @@ struct ProjectGroupsTests {
         let path = try! AbsolutePath(validating: "/test/")
         sourceRootPath = try! AbsolutePath(validating: "/test/")
         project = Project(
-        path: path,
-        sourceRootPath: path,
-        xcodeProjPath: path.appending(component: "Project.xcodeproj"),
-        name: "Project",
-        organizationName: nil,
-        classPrefix: nil,
-        defaultKnownRegions: nil,
-        developmentRegion: nil,
-        options: .test(),
-        settings: .default,
-        filesGroup: .group(name: "Project"),
-        targets: [
-        .test(name: "A", filesGroup: .group(name: "Target")),
-        .test(name: "B"),
-        ],
-        packages: [],
-        schemes: [],
-        ideTemplateMacros: nil,
-        additionalFiles: [],
-        resourceSynthesizers: [],
-        lastUpgradeCheck: nil,
-        type: .local
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            name: "Project",
+            organizationName: nil,
+            classPrefix: nil,
+            defaultKnownRegions: nil,
+            developmentRegion: nil,
+            options: .test(),
+            settings: .default,
+            filesGroup: .group(name: "Project"),
+            targets: [
+                .test(name: "A", filesGroup: .group(name: "Target")),
+                .test(name: "B"),
+            ],
+            packages: [],
+            schemes: [],
+            ideTemplateMacros: nil,
+            additionalFiles: [],
+            resourceSynthesizers: [],
+            lastUpgradeCheck: nil,
+            type: .local
         )
         pbxproj = PBXProj()
         subject = ProjectGroups.generate(
@@ -84,7 +84,7 @@ struct ProjectGroupsTests {
     }
 
     @Test
-    mutating func test_generate_groupsOrder() throws {
+    mutating func generate_groupsOrder() throws {
         // Given
         let target1 = Target.test(name: "Target1", filesGroup: .group(name: "B"))
         let target2 = Target.test(name: "Target2", filesGroup: .group(name: "C"))
@@ -115,7 +115,7 @@ struct ProjectGroupsTests {
     }
 
     @Test
-    mutating func test_removeEmptyAuxiliaryGroups_removesEmptyGroups() throws {
+    mutating func removeEmptyAuxiliaryGroups_removesEmptyGroups() throws {
         // Given
         let project = Project.test()
         subject = ProjectGroups.generate(
@@ -135,7 +135,7 @@ struct ProjectGroupsTests {
     }
 
     @Test
-    mutating func test_removeEmptyAuxiliaryGroups_preservesNonEmptyGroups() throws {
+    mutating func removeEmptyAuxiliaryGroups_preservesNonEmptyGroups() throws {
         // Given
         let project = Project.test()
         subject = ProjectGroups.generate(
@@ -173,7 +173,7 @@ struct ProjectGroupsTests {
     }
 
     @Test
-    mutating func test_projectGroup_unknownProjectGroups() throws {
+    mutating func projectGroup_unknownProjectGroups() throws {
         // Given
         subject = ProjectGroups.generate(
             project: project,
@@ -187,7 +187,7 @@ struct ProjectGroupsTests {
     }
 
     @Test
-    mutating func test_projectGroup_knownProjectGroups() throws {
+    mutating func projectGroup_knownProjectGroups() throws {
         // Given
         let target1 = Target.test(name: "1", filesGroup: .group(name: "A"))
         let target2 = Target.test(name: "2", filesGroup: .group(name: "B"))
@@ -212,17 +212,17 @@ struct ProjectGroupsTests {
     }
 
     @Test
-    func test_projectGroupsError_description() {
+    func projectGroupsError_description() {
         #expect(ProjectGroupsError.missingGroup("abc").description == "Couldn't find group: abc")
     }
 
     @Test
-    func test_projectGroupsError_type() {
+    func projectGroupsError_type() {
         #expect(ProjectGroupsError.missingGroup("abc").type == .bug)
     }
 
     @Test
-    func test_generate_with_text_settings() {
+    func generate_with_text_settings() {
         // Given
         let textSettings = Project.Options.TextSettings.test()
         let project = Project.test(options: .test(textSettings: textSettings))
@@ -241,7 +241,7 @@ struct ProjectGroupsTests {
     }
 
     @Test
-    func test_generate_without_text_settings() {
+    func generate_without_text_settings() {
         // Given
         let textSettings = Project.Options.TextSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
         let project = Project.test(options: .test(textSettings: textSettings))

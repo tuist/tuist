@@ -62,40 +62,40 @@ struct ProjectManifestMapperTests {
         // Then
         #expect(
             got ==
-            XcodeGraph.Project(
-                path: "/",
-                sourceRootPath: "/",
-                xcodeProjPath: "/XcodeName.xcodeproj",
-                name: "Name",
-                organizationName: "Organization",
-                classPrefix: "ClassPrefix",
-                defaultKnownRegions: ["en-US", "Base"],
-                developmentRegion: "us",
-                options: .init(
-                    automaticSchemesOptions: .enabled(
-                        targetSchemesGrouping: .byNameSuffix(build: ["build"], test: ["test"], run: ["run"]),
-                        codeCoverageEnabled: true,
-                        testingOptions: [.parallelizable]
+                XcodeGraph.Project(
+                    path: "/",
+                    sourceRootPath: "/",
+                    xcodeProjPath: "/XcodeName.xcodeproj",
+                    name: "Name",
+                    organizationName: "Organization",
+                    classPrefix: "ClassPrefix",
+                    defaultKnownRegions: ["en-US", "Base"],
+                    developmentRegion: "us",
+                    options: .init(
+                        automaticSchemesOptions: .enabled(
+                            targetSchemesGrouping: .byNameSuffix(build: ["build"], test: ["test"], run: ["run"]),
+                            codeCoverageEnabled: true,
+                            testingOptions: [.parallelizable]
+                        ),
+                        disableBundleAccessors: true,
+                        disableShowEnvironmentVarsInScriptPhases: true,
+                        disableSynthesizedResourceAccessors: true,
+                        textSettings: .init(usesTabs: true, indentWidth: 1, tabWidth: 2, wrapsLines: true)
                     ),
-                    disableBundleAccessors: true,
-                    disableShowEnvironmentVarsInScriptPhases: true,
-                    disableSynthesizedResourceAccessors: true,
-                    textSettings: .init(usesTabs: true, indentWidth: 1, tabWidth: 2, wrapsLines: true)
-                ),
-                settings: .default,
-                filesGroup: .group(name: "Project"),
-                targets: [],
-                packages: [
-                    .remote(url: "url", requirement: .branch("b")),
-                    .local(path: "/path"),
-                ],
-                schemes: [],
-                ideTemplateMacros: .init(fileHeader: "123"),
-                additionalFiles: [.file(path: swiftFilePath)],
-                resourceSynthesizers: [],
-                lastUpgradeCheck: nil,
-                type: .local
-            )
+                    settings: .default,
+                    filesGroup: .group(name: "Project"),
+                    targets: [],
+                    packages: [
+                        .remote(url: "url", requirement: .branch("b")),
+                        .local(path: "/path"),
+                    ],
+                    schemes: [],
+                    ideTemplateMacros: .init(fileHeader: "123"),
+                    additionalFiles: [.file(path: swiftFilePath)],
+                    resourceSynthesizers: [],
+                    lastUpgradeCheck: nil,
+                    type: .local
+                )
         )
     }
 }

@@ -3,7 +3,7 @@ import Testing
 @testable import XcodeGraph
 
 struct WorkspaceGenerationOptionsTests {
-    @Test func test_codable_whenDefault() throws {
+    @Test func codable_whenDefault() throws {
         // Given
         let subject = Workspace.GenerationOptions.test()
 

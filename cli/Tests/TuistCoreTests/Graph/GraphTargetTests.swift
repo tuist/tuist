@@ -1,11 +1,11 @@
 import Foundation
-import XcodeGraph
 import Testing
+import XcodeGraph
 @testable import TuistCore
 @testable import TuistTesting
 
 struct GraphTargetTests {
-    @Test func test_comparable() {
+    @Test func comparable() {
         #expect(GraphTarget.test(target: Target.test(name: "a")) < GraphTarget.test(target: Target.test(name: "b")))
         #expect(!(GraphTarget.test(target: Target.test(name: "b")) < GraphTarget.test(target: Target.test(name: "a"))))
         #expect(

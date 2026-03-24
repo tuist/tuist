@@ -1,10 +1,10 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import Testing
 
 @testable import TuistGenerator
 @testable import TuistTesting
@@ -18,7 +18,7 @@ struct SchemeDescriptorsGeneratorTests {
     // MARK: - Build Action Tests
 
     @Test
-    func test_schemeBuildAction_whenSingleProject() throws {
+    func schemeBuildAction_whenSingleProject() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
@@ -64,7 +64,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeBuildAction_findImplicitDependenciesFalse() throws {
+    func schemeBuildAction_findImplicitDependenciesFalse() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
@@ -104,7 +104,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeBuildAction_whenSingleProjectAndXcodeProjPathDiffers() throws {
+    func schemeBuildAction_whenSingleProjectAndXcodeProjPathDiffers() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let xcodeProjPath = try AbsolutePath(validating: "/differentpath/Workspace/project.xcodeproj")
@@ -150,7 +150,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeBuildAction_whenMultipleProject() throws {
+    func schemeBuildAction_whenMultipleProject() throws {
         // Given
         let projectAPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/ProjectA")
         let xcodeProjAPath = projectAPath.appending(component: "project.xcodeproj")
@@ -223,7 +223,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeBuildAction_with_executionAction() throws {
+    func schemeBuildAction_with_executionAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
@@ -293,7 +293,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_buildAction_parallelizedBuild() throws {
+    func buildAction_parallelizedBuild() throws {
         // Given
         let schemeA = Scheme(
             name: "SchemeA",
@@ -330,7 +330,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_buildAction_runPostActionsOnFailure() throws {
+    func buildAction_runPostActionsOnFailure() throws {
         // Given
         let schemeA = Scheme(
             name: "SchemeA",
@@ -368,7 +368,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_buildAction_workspaceScheme_executionActionTargetContainerPath() throws {
+    func buildAction_workspaceScheme_executionActionTargetContainerPath() throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/workspace")
         let projectPath = workspacePath.appending(components: ["Projects", "Project"])
@@ -420,7 +420,7 @@ struct SchemeDescriptorsGeneratorTests {
     // MARK: - Test Action Tests
 
     @Test
-    func test_schemeTestAction_when_testsTarget() throws {
+    func schemeTestAction_when_testsTarget() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
@@ -477,7 +477,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeTestAction_with_expandVariable() throws {
+    func schemeTestAction_with_expandVariable() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
@@ -533,7 +533,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_with_expandVariable() throws {
+    func schemeLaunchAction_with_expandVariable() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let app = Target.test(name: "App", product: .app)
@@ -579,7 +579,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_with_customWorkingDirectoryEnabled() throws {
+    func schemeLaunchAction_with_customWorkingDirectoryEnabled() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let app = Target.test(name: "App", product: .app)
@@ -619,7 +619,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_with_launchStyle() throws {
+    func schemeLaunchAction_with_launchStyle() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let app = Target.test(name: "App", product: .app)
@@ -667,7 +667,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_with_appClips() throws {
+    func schemeLaunchAction_with_appClips() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let app = Target.test(name: "App", product: .app)
@@ -717,7 +717,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeTestAction_with_codeCoverageTargets() throws {
+    func schemeTestAction_with_codeCoverageTargets() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
 
@@ -763,7 +763,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeTestAction_when_notTestsTarget() throws {
+    func schemeTestAction_when_notTestsTarget() throws {
         // Given
         let scheme = Scheme.test()
         let project = Project.test()
@@ -792,7 +792,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeTestAction_when_usingTestPlans() throws {
+    func schemeTestAction_when_usingTestPlans() throws {
         // Given
         let project = Project.test()
         let planPath = try AbsolutePath(validating: "folder/Plan.xctestplan", relativeTo: project.path)
@@ -821,7 +821,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeTestAction_when_usingTestPlans_with_disabled_attachDebugger() throws {
+    func schemeTestAction_when_usingTestPlans_with_disabled_attachDebugger() throws {
         // Given
         let project = Project.test()
         let planPath = try AbsolutePath(validating: "folder/Plan.xctestplan", relativeTo: project.path)
@@ -850,7 +850,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeTestAction_with_testable_info() throws {
+    func schemeTestAction_with_testable_info() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
@@ -896,7 +896,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeTestAction_with_disabled_attachDebugger() throws {
+    func schemeTestAction_with_disabled_attachDebugger() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
@@ -935,7 +935,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeTestAction_with_preferredScreenCaptureFormat() throws {
+    func schemeTestAction_with_preferredScreenCaptureFormat() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
 
@@ -1025,7 +1025,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeTestAction_with_executionAction() throws {
+    func schemeTestAction_with_executionAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
@@ -1104,7 +1104,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeTestAction_when_testsTarget_with_skippedTests() throws {
+    func schemeTestAction_when_testsTarget_with_skippedTests() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
@@ -1248,14 +1248,16 @@ struct SchemeDescriptorsGeneratorTests {
         #expect(buildableReference.buildableName == "App.app")
         #expect(buildableReference.blueprintName == "App")
         #expect(buildableReference.buildableIdentifier == "primary")
-        #expect(result.storeKitConfigurationFileReference == .init(identifier: "../Projects/Project/nested/configuration/configuration.storekit"))
+        #expect(result
+            .storeKitConfigurationFileReference ==
+            .init(identifier: "../Projects/Project/nested/configuration/configuration.storekit"))
         #expect(result.locationScenarioReference?.referenceType == "1")
         #expect(result.locationScenarioReference?.identifier == "New York, NY, USA")
         #expect(result.language == "pl")
     }
 
     @Test
-    func test_schemeLaunchAction_argumentsOrder() throws {
+    func schemeLaunchAction_argumentsOrder() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let launchArguments = [
@@ -1302,7 +1304,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_when_notRunnableTarget() throws {
+    func schemeLaunchAction_when_notRunnableTarget() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
 
@@ -1342,7 +1344,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_with_path() throws {
+    func schemeLaunchAction_with_path() throws {
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
 
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
@@ -1387,7 +1389,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_with_executionAction() throws {
+    func schemeLaunchAction_with_executionAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
@@ -1446,7 +1448,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_with_disabled_attachDebugger() throws {
+    func schemeLaunchAction_with_disabled_attachDebugger() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
@@ -1482,7 +1484,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_without_explicit_runAction() throws {
+    func schemeLaunchAction_without_explicit_runAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
@@ -1513,7 +1515,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_for_app_extension() throws {
+    func schemeLaunchAction_for_app_extension() throws {
         // Given
         let path = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let app = Target.test(name: "App", product: .app)
@@ -1559,7 +1561,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_for_app_extension_with_disabled_attachDebugger() throws {
+    func schemeLaunchAction_for_app_extension_with_disabled_attachDebugger() throws {
         // Given
         let path = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let app = Target.test(name: "App", product: .app)
@@ -1605,7 +1607,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeLaunchAction_askForAppToLaunch() throws {
+    func schemeLaunchAction_askForAppToLaunch() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
         let target = Target.test(name: "App", product: .app)
@@ -1643,7 +1645,7 @@ struct SchemeDescriptorsGeneratorTests {
     // MARK: - Profile Action Tests
 
     @Test
-    func test_schemeProfileAction_when_runnableTarget() throws {
+    func schemeProfileAction_when_runnableTarget() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
@@ -1692,7 +1694,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeProfileAction_when_notRunnableTarget() throws {
+    func schemeProfileAction_when_notRunnableTarget() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
 
@@ -1752,7 +1754,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeProfileAction_when_contains_launch_arguments() throws {
+    func schemeProfileAction_when_contains_launch_arguments() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
@@ -1795,13 +1797,16 @@ struct SchemeDescriptorsGeneratorTests {
         #expect(result.ignoresPersistentStateOnLaunch == false)
         #expect(result.useCustomWorkingDirectory == false)
         #expect(result.debugDocumentVersioning == true)
-        #expect(result.commandlineArguments == XCScheme.CommandLineArguments(arguments: [.init(name: "something", enabled: true)]))
+        #expect(result.commandlineArguments == XCScheme.CommandLineArguments(arguments: [.init(
+            name: "something",
+            enabled: true
+        )]))
         #expect(result.environmentVariables == [])
         #expect(result.enableTestabilityWhenProfilingTests == true)
     }
 
     @Test
-    func test_defaultSchemeProfileAction_when_runActionIsSpecified() throws {
+    func defaultSchemeProfileAction_when_runActionIsSpecified() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
@@ -1858,7 +1863,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeProfileAction_with_executionAction() throws {
+    func schemeProfileAction_with_executionAction() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
@@ -1908,7 +1913,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeProfileAction_askForAppToLaunch() throws {
+    func schemeProfileAction_askForAppToLaunch() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
@@ -2019,7 +2024,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeArchiveAction_whenNoBuildActionSpecified() throws {
+    func schemeArchiveAction_whenNoBuildActionSpecified() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
@@ -2055,7 +2060,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeGenerationModes_customOnly() throws {
+    func schemeGenerationModes_customOnly() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let framework = Target.test(name: "Framework", product: .framework)
@@ -2093,7 +2098,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_generate_appExtensionScheme() throws {
+    func generate_appExtensionScheme() throws {
         let path = try AbsolutePath(validating: "/test")
         let app = Target.test(name: "App", product: .app)
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
@@ -2139,7 +2144,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeGenerationLastUpgradeCheck_workspace() throws {
+    func schemeGenerationLastUpgradeCheck_workspace() throws {
         // Given
         let target = Target.test()
         let project = Project.test(
@@ -2173,7 +2178,7 @@ struct SchemeDescriptorsGeneratorTests {
     }
 
     @Test
-    func test_schemeGenerationLastUpgradeCheck_project() throws {
+    func schemeGenerationLastUpgradeCheck_project() throws {
         // Given
         let target = Target.test()
         let project = Project.test(

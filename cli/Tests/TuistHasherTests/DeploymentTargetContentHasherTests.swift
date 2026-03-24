@@ -1,10 +1,10 @@
 import Foundation
 import Mockable
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistHasher
 
@@ -19,9 +19,8 @@ struct DeploymentTargetContentHasherTests {
             .willProduce { $0 + "-hash" }
     }
 
-
     @Test
-    func test_hash_whenIosIphoneV1_callsContentHasherWithExpectedStrings() throws {
+    func hash_whenIosIphoneV1_callsContentHasherWithExpectedStrings() throws {
         // When
         let deploymentTargets = DeploymentTargets.iOS("v1")
 
@@ -34,7 +33,7 @@ struct DeploymentTargetContentHasherTests {
     }
 
     @Test
-    func test_hash_whenIosIpadV2_callsContentHasherWithExpectedStrings() throws {
+    func hash_whenIosIpadV2_callsContentHasherWithExpectedStrings() throws {
         // When
         let deploymentTargets = DeploymentTargets.iOS("v2")
 
@@ -47,7 +46,7 @@ struct DeploymentTargetContentHasherTests {
     }
 
     @Test
-    func test_hash_whenMacOSV2_callsContentHasherWithExpectedStrings() throws {
+    func hash_whenMacOSV2_callsContentHasherWithExpectedStrings() throws {
         // When
         let deploymentTargets = DeploymentTargets.macOS("v2")
 
@@ -60,7 +59,7 @@ struct DeploymentTargetContentHasherTests {
     }
 
     @Test
-    func test_hash_whenWatchOSV2_callsContentHasherWithExpectedStrings() throws {
+    func hash_whenWatchOSV2_callsContentHasherWithExpectedStrings() throws {
         // When
         let deploymentTargets = DeploymentTargets.watchOS("v2")
 
@@ -73,7 +72,7 @@ struct DeploymentTargetContentHasherTests {
     }
 
     @Test
-    func test_hash_whentvOSV2_callsContentHasherWithExpectedStrings() throws {
+    func hash_whentvOSV2_callsContentHasherWithExpectedStrings() throws {
         // When
         let deploymentTargets = DeploymentTargets.tvOS("v2")
 

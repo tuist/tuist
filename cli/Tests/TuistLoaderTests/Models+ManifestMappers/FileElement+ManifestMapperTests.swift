@@ -14,7 +14,10 @@ import XcodeGraph
 struct FileElementManifestMapperTests {
     private let fileSystem = FileSystem()
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies()) func from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies()
+    ) func from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(
@@ -69,7 +72,10 @@ struct FileElementManifestMapperTests {
         #expect(got.map(\.path) == files)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies()) func from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies()
+    ) func from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(

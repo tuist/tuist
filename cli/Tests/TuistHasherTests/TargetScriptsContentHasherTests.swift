@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistHasher
 
@@ -28,7 +28,6 @@ struct TargetScriptsContentHasherTests {
             .hash(Parameter<[String]>.any)
             .willProduce { $0.joined(separator: ";") }
     }
-
 
     private func makeTargetScript(
         name: String = "1",
@@ -56,7 +55,7 @@ struct TargetScriptsContentHasherTests {
     // MARK: - Tests
 
     @Test
-    func test_hash_targetAction_withBuildVariables_callsMockHasherWithOnlyPathWithoutBuildVariable() async throws {
+    func hash_targetAction_withBuildVariables_callsMockHasherWithOnlyPathWithoutBuildVariable() async throws {
         // Given
         let inputFileListPaths1 = "inputFileListPaths1-hash"
         given(contentHasher)
@@ -101,7 +100,7 @@ struct TargetScriptsContentHasherTests {
     }
 
     @Test
-    func test_hash_targetAction_callsMockHasherWithExpectedStrings() async throws {
+    func hash_targetAction_callsMockHasherWithExpectedStrings() async throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
         let inputFileListPaths1 = "inputFileListPaths1-hash"
@@ -139,7 +138,7 @@ struct TargetScriptsContentHasherTests {
     }
 
     @Test
-    func test_hash_targetAction_when_path_nil_callsMockHasherWithExpectedStrings() async throws {
+    func hash_targetAction_when_path_nil_callsMockHasherWithExpectedStrings() async throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
         let inputFileListPaths1 = "inputFileListPaths1-hash"
@@ -178,7 +177,7 @@ struct TargetScriptsContentHasherTests {
     }
 
     @Test
-    func test_hash_targetAction_valuesAreNotHardcoded() async throws {
+    func hash_targetAction_valuesAreNotHardcoded() async throws {
         // Given
         let inputPaths2Hash = "inputPaths2-hash"
         let inputFileListPaths2 = "inputFileListPaths2-hash"
@@ -226,7 +225,7 @@ struct TargetScriptsContentHasherTests {
     }
 
     @Test
-    func test_hash_isIndependentFromInputFilesOrder() async throws {
+    func hash_isIndependentFromInputFilesOrder() async throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
         let inputPaths2Hash = "inputPaths2-hash"
@@ -349,7 +348,7 @@ struct TargetScriptsContentHasherTests {
     }
 
     @Test
-    func test_hash_targetAction_withRelativePathsAndSRCROOTReplacement() async throws {
+    func hash_targetAction_withRelativePathsAndSRCROOTReplacement() async throws {
         // Given
         let sourceRootPath = try AbsolutePath(validating: "/project/root")
         let relativeInputHash = "relativeInput-hash"

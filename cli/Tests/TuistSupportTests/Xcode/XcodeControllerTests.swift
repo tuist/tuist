@@ -1,7 +1,7 @@
-import Foundation
-import struct TSCUtility.Version
 import FileSystemTesting
+import Foundation
 import Testing
+import struct TSCUtility.Version
 
 @testable import TuistSupport
 @testable import TuistTesting
@@ -12,9 +12,8 @@ struct XcodeControllerTests {
         subject = XcodeController()
     }
 
-
     @Test
-    func test_selected_when_xcodeSelectDoesntReturnThePath() async throws {
+    func selected_when_xcodeSelectDoesntReturnThePath() async throws {
         // Given
         system.errorCommand(["xcode-select", "-p"])
 
@@ -26,7 +25,7 @@ struct XcodeControllerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_selected_is_cached() async throws {
+    func selected_is_cached() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let contentsPath = temporaryPath.appending(component: "Contents")
@@ -50,7 +49,7 @@ struct XcodeControllerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_selected_when_xcodeSelectReturnsThePath() async throws {
+    func selected_when_xcodeSelectReturnsThePath() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let contentsPath = temporaryPath.appending(component: "Contents")
@@ -71,7 +70,7 @@ struct XcodeControllerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_selectedVersion_when_xcodeSelectReturnsThePath() async throws {
+    func selectedVersion_when_xcodeSelectReturnsThePath() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let contentsPath = temporaryPath.appending(component: "Contents")

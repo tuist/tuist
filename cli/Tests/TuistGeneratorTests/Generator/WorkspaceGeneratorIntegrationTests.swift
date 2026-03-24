@@ -1,11 +1,11 @@
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import FileSystemTesting
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
@@ -18,7 +18,7 @@ struct WorkspaceGeneratorIntegrationTests {
     // MARK: - Tests
 
     @Test(.inTemporaryDirectory)
-    func test_generate_stressTest() async throws {
+    func generate_stressTest() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let projects: [AbsolutePath: Project] = (0 ..< 20).reduce(into: [:]) { acc, index in

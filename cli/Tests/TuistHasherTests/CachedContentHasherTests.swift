@@ -1,9 +1,9 @@
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
-import Testing
 
 @testable import TuistHasher
 
@@ -18,11 +18,10 @@ struct CachedContentHasherTests {
             .willProduce { $0.joined(separator: ";") }
     }
 
-
     // MARK: - Tests
 
     @Test
-    func test_hashString_callsContentHasherWithExpectedString() throws {
+    func hashString_callsContentHasherWithExpectedString() throws {
         // Given
         given(contentHasher)
             .hash(.value("foo"))
@@ -38,7 +37,7 @@ struct CachedContentHasherTests {
     }
 
     @Test
-    func test_hashStrings_callsContentHasherWithExpectedStrings() throws {
+    func hashStrings_callsContentHasherWithExpectedStrings() throws {
         // Given
         given(contentHasher)
             .hash(.value("foo"))
@@ -57,7 +56,7 @@ struct CachedContentHasherTests {
     }
 
     @Test
-    func test_hashpath_callsContentHasherWithExpectedPath() async throws {
+    func hashpath_callsContentHasherWithExpectedPath() async throws {
         // Given
         let path = try AbsolutePath(validating: "/foo")
         given(contentHasher)
@@ -74,7 +73,7 @@ struct CachedContentHasherTests {
     }
 
     @Test
-    func test_hashpath_secondTime_doesntCallContentHasher() async throws {
+    func hashpath_secondTime_doesntCallContentHasher() async throws {
         // Given
         let path = try AbsolutePath(validating: "/foo")
         given(contentHasher)

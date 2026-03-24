@@ -1,9 +1,9 @@
+import FileSystemTesting
 import Foundation
+import Testing
 import TuistCore
 import TuistLoader
 import TuistSupport
-import FileSystemTesting
-import Testing
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -23,7 +23,7 @@ struct ManifestGraphLoaderIntegrationTests {
 
     // MARK: - Tests
 
-    @Test func test_load_workspace() async throws {
+    @Test func load_workspace() async throws {
         // Given
         let path = try await temporaryFixture("WorkspaceWithPlugins")
 
@@ -39,7 +39,7 @@ struct ManifestGraphLoaderIntegrationTests {
         ])
     }
 
-    @Test func test_load_project() async throws {
+    @Test func load_project() async throws {
         // Given
         let path = try await temporaryFixture("WorkspaceWithPlugins")
             .appending(component: "App")

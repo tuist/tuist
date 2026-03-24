@@ -1,8 +1,8 @@
+import FileSystemTesting
+import Testing
 import TuistCore
 import TuistGenerator
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistTesting
 
@@ -13,7 +13,7 @@ struct ModuleMapMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_maps_modulemap_build_flag_to_setting() throws {
+    func maps_modulemap_build_flag_to_setting() throws {
         // Given
         let workspace = Workspace.test()
         let projectAPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "A")
@@ -144,10 +144,10 @@ struct ModuleMapMapperTests {
         #expect(
             Graph.test(
                 workspace: workspace ==
-                projects: [
-                    projectAPath: mappedProjectA,
-                    projectBPath: mappedProjectB,
-                ],
+                    projects: [
+                        projectAPath: mappedProjectA,
+                        projectBPath: mappedProjectB,
+                    ],
                 dependencies: [
                     .target(name: targetA.name, path: projectAPath): [
                         .target(name: targetB1.name, path: projectBPath),
@@ -163,7 +163,7 @@ struct ModuleMapMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_maps_modulemap_build_flag_to_target_with_empty_settings() throws {
+    func maps_modulemap_build_flag_to_target_with_empty_settings() throws {
         // Given
         let workspace = Workspace.test()
         let projectAPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "A")
@@ -266,10 +266,10 @@ struct ModuleMapMapperTests {
         #expect(
             Graph.test(
                 workspace: workspace ==
-                projects: [
-                    projectAPath: mappedProjectA,
-                    projectBPath: mappedProjectB,
-                ],
+                    projects: [
+                        projectAPath: mappedProjectA,
+                        projectBPath: mappedProjectB,
+                    ],
                 dependencies: [
                     .target(name: projectA.name, path: projectAPath): [
                         .target(name: projectB.name, path: projectBPath),
@@ -282,7 +282,7 @@ struct ModuleMapMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_maps_modulemap_flags_to_configurations_that_override_other_swift_flags() throws {
+    func maps_modulemap_flags_to_configurations_that_override_other_swift_flags() throws {
         // Given
         let workspace = Workspace.test()
         let projectAPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "A")
@@ -358,39 +358,39 @@ struct ModuleMapMapperTests {
         // Base settings should have the module map flags
         #expect(
             gotTargetA.settings?.base["OTHER_SWIFT_FLAGS"] ==
-            .array([
-                "Other",
-                "-Xcc",
-                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
-            ])
+                .array([
+                    "Other",
+                    "-Xcc",
+                    "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                ])
         )
         #expect(
             gotTargetA.settings?.base["OTHER_CFLAGS"] ==
-            .array([
-                "Other",
-                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
-            ])
+                .array([
+                    "Other",
+                    "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                ])
         )
 
         // Debug configuration overrides OTHER_SWIFT_FLAGS and OTHER_CFLAGS, so it should also get the flags
         let debugConfiguration = try #require(gotTargetA.settings?.configurations[debugConfig] as? Configuration)
         #expect(
             debugConfiguration.settings["OTHER_SWIFT_FLAGS"] ==
-            .array([
-                "-D",
-                "DEBUG",
-                "-D",
-                "FEATURE",
-                "-Xcc",
-                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
-            ])
+                .array([
+                    "-D",
+                    "DEBUG",
+                    "-D",
+                    "FEATURE",
+                    "-Xcc",
+                    "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                ])
         )
         #expect(
             debugConfiguration.settings["OTHER_CFLAGS"] ==
-            .array([
-                "-DDEBUG",
-                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
-            ])
+                .array([
+                    "-DDEBUG",
+                    "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                ])
         )
 
         // Release configuration does not override these keys, so it should remain unchanged

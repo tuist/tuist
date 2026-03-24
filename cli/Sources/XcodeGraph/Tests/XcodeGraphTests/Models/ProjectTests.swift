@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct ProjectTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let framework = Target.test(name: "Framework", product: .framework)
         let app = Target.test(name: "App", product: .app)
@@ -23,7 +23,7 @@ struct ProjectTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_defaultDebugBuildConfigurationName_when_defaultDebugConfigExists() {
+    @Test func defaultDebugBuildConfigurationName_when_defaultDebugConfigExists() {
         // Given
         let project = Project.test(settings: Settings.test())
 
@@ -34,7 +34,7 @@ struct ProjectTests {
         #expect(got == "Debug")
     }
 
-    @Test func test_defaultDebugBuildConfigurationName_when_defaultDebugConfigDoesntExist() {
+    @Test func defaultDebugBuildConfigurationName_when_defaultDebugConfigDoesntExist() {
         // Given
         let settings = Settings.test(base: [:], configurations: [.debug("Test"): Configuration.test()])
         let project = Project.test(settings: settings)

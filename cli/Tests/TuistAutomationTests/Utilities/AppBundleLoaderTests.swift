@@ -1,12 +1,12 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistAutomation
 
@@ -18,9 +18,8 @@ struct AppBundleLoaderTests {
         )
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_load_ipa_when_it_does_not_contain_any_app_bundle() async throws {
+    func load_ipa_when_it_does_not_contain_any_app_bundle() async throws {
         // Given
         let ipaPath = try #require(FileSystem.temporaryTestDirectory).appending(components: "App.ipa")
         let payloadPath = try #require(FileSystem.temporaryTestDirectory).appending(components: "Payload")
@@ -40,12 +39,12 @@ struct AppBundleLoaderTests {
 
         // When / Then
         await #expect(throws: AppBundleLoaderError.appBundleInIPANotFound(ipaPath)) { try await subject.load(
-                ipa: ipaPath
-            ) }
+            ipa: ipaPath
+        ) }
     }
 
     @Test
-    func test_load_ipa() async throws {
+    func load_ipa() async throws {
         // Given
         let ipaPath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "App.ipa"))
 
@@ -54,27 +53,27 @@ struct AppBundleLoaderTests {
 
         // Then
         #expect(appBundle == AppBundle(
-                path: ipaPath,
-                infoPlist: AppBundle.InfoPlist(
-                    version: "0.9.0",
-                    buildVersion: "0.9.0",
-                    name: "Tuist",
-                    executableName: "Tuist",
-                    bundleId: "io.tuist.app",
-                    minimumOSVersion: Version("18.4"),
-                    supportedPlatforms: [.device(.iOS)],
-                    bundleIcons: AppBundle.InfoPlist.BundleIcons(
-                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
-                            name: "AppIcon",
-                            iconFiles: ["AppIcon60x60"]
-                        )
+            path: ipaPath,
+            infoPlist: AppBundle.InfoPlist(
+                version: "0.9.0",
+                buildVersion: "0.9.0",
+                name: "Tuist",
+                executableName: "Tuist",
+                bundleId: "io.tuist.app",
+                minimumOSVersion: Version("18.4"),
+                supportedPlatforms: [.device(.iOS)],
+                bundleIcons: AppBundle.InfoPlist.BundleIcons(
+                    primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
+                        name: "AppIcon",
+                        iconFiles: ["AppIcon60x60"]
                     )
                 )
-            ))
+            )
+        ))
     }
 
     @Test
-    func test_load_app_bundle() async throws {
+    func load_app_bundle() async throws {
         // Given
         let appBundlePath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "App.app"))
 
@@ -83,27 +82,27 @@ struct AppBundleLoaderTests {
 
         // Then
         #expect(appBundle == AppBundle(
-                path: appBundlePath,
-                infoPlist: AppBundle.InfoPlist(
-                    version: "1.0",
-                    buildVersion: "1",
-                    name: "App",
-                    executableName: "App",
-                    bundleId: "io.tuist.MainApp",
-                    minimumOSVersion: Version("17.0"),
-                    supportedPlatforms: [.simulator(.iOS)],
-                    bundleIcons: AppBundle.InfoPlist.BundleIcons(
-                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
-                            name: "AppIcon",
-                            iconFiles: ["AppIcon60x60"]
-                        )
+            path: appBundlePath,
+            infoPlist: AppBundle.InfoPlist(
+                version: "1.0",
+                buildVersion: "1",
+                name: "App",
+                executableName: "App",
+                bundleId: "io.tuist.MainApp",
+                minimumOSVersion: Version("17.0"),
+                supportedPlatforms: [.simulator(.iOS)],
+                bundleIcons: AppBundle.InfoPlist.BundleIcons(
+                    primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
+                        name: "AppIcon",
+                        iconFiles: ["AppIcon60x60"]
                     )
                 )
-            ))
+            )
+        ))
     }
 
     @Test
-    func test_load_iphoneos_app_bundle() async throws {
+    func load_iphoneos_app_bundle() async throws {
         // Given
         let appBundlePath = fixturePath(
             path: try RelativePath(validating: "ios_app_with_frameworks_iphoneos-App.app")
@@ -114,22 +113,22 @@ struct AppBundleLoaderTests {
 
         // Then
         #expect(appBundle == AppBundle(
-                path: appBundlePath,
-                infoPlist: AppBundle.InfoPlist(
-                    version: "1.0",
-                    buildVersion: "1",
-                    name: "App",
-                    executableName: "App",
-                    bundleId: "io.tuist.App",
-                    minimumOSVersion: Version("17.0"),
-                    supportedPlatforms: [.device(.iOS)],
-                    bundleIcons: nil
-                )
-            ))
+            path: appBundlePath,
+            infoPlist: AppBundle.InfoPlist(
+                version: "1.0",
+                buildVersion: "1",
+                name: "App",
+                executableName: "App",
+                bundleId: "io.tuist.App",
+                minimumOSVersion: Version("17.0"),
+                supportedPlatforms: [.device(.iOS)],
+                bundleIcons: nil
+            )
+        ))
     }
 
     @Test(.inTemporaryDirectory)
-    func test_load_appletv_info_plist() async throws {
+    func load_appletv_info_plist() async throws {
         // Given
         let appBundlePath = try #require(FileSystem.temporaryTestDirectory)
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
@@ -166,27 +165,27 @@ struct AppBundleLoaderTests {
 
         // Then
         #expect(appBundle == AppBundle(
-                path: appBundlePath,
-                infoPlist: AppBundle.InfoPlist(
-                    version: "1.0",
-                    buildVersion: "1",
-                    name: "App",
-                    executableName: nil,
-                    bundleId: "io.tuist.TVApp",
-                    minimumOSVersion: Version("18.2"),
-                    supportedPlatforms: [.device(.tvOS)],
-                    bundleIcons: AppBundle.InfoPlist.BundleIcons(
-                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
-                            name: "App Icon",
-                            iconFiles: nil
-                        )
+            path: appBundlePath,
+            infoPlist: AppBundle.InfoPlist(
+                version: "1.0",
+                buildVersion: "1",
+                name: "App",
+                executableName: nil,
+                bundleId: "io.tuist.TVApp",
+                minimumOSVersion: Version("18.2"),
+                supportedPlatforms: [.device(.tvOS)],
+                bundleIcons: AppBundle.InfoPlist.BundleIcons(
+                    primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
+                        name: "App Icon",
+                        iconFiles: nil
                     )
                 )
-            ))
+            )
+        ))
     }
 
     @Test(.inTemporaryDirectory)
-    func test_load_info_plist_with_primary_icon_and_and_no_bundle_icon_name() async throws {
+    func load_info_plist_with_primary_icon_and_and_no_bundle_icon_name() async throws {
         // Given
         let appBundlePath = try #require(FileSystem.temporaryTestDirectory)
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
@@ -230,27 +229,27 @@ struct AppBundleLoaderTests {
 
         // Then
         #expect(appBundle == AppBundle(
-                path: appBundlePath,
-                infoPlist: AppBundle.InfoPlist(
-                    version: "1.0",
-                    buildVersion: "1",
-                    name: "App",
-                    executableName: nil,
-                    bundleId: "io.tuist.TVApp",
-                    minimumOSVersion: Version("18.2"),
-                    supportedPlatforms: [.device(.tvOS)],
-                    bundleIcons: AppBundle.InfoPlist.BundleIcons(
-                        primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
-                            name: "AppIcon",
-                            iconFiles: ["AppIcon"]
-                        )
+            path: appBundlePath,
+            infoPlist: AppBundle.InfoPlist(
+                version: "1.0",
+                buildVersion: "1",
+                name: "App",
+                executableName: nil,
+                bundleId: "io.tuist.TVApp",
+                minimumOSVersion: Version("18.2"),
+                supportedPlatforms: [.device(.tvOS)],
+                bundleIcons: AppBundle.InfoPlist.BundleIcons(
+                    primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon(
+                        name: "AppIcon",
+                        iconFiles: ["AppIcon"]
                     )
                 )
-            ))
+            )
+        ))
     }
 
     @Test(.inTemporaryDirectory)
-    func test_load_macos_app_bundle() async throws {
+    func load_macos_app_bundle() async throws {
         // Given
         let appBundlePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "App.app")
         let contentsPath = appBundlePath.appending(component: "Contents")
@@ -286,37 +285,42 @@ struct AppBundleLoaderTests {
 
         // Then
         #expect(appBundle == AppBundle(
-                path: appBundlePath,
-                infoPlist: AppBundle.InfoPlist(
-                    version: "1.0",
-                    buildVersion: "1",
-                    name: "MacApp",
-                    executableName: "MacApp",
-                    bundleId: "io.tuist.MacApp",
-                    minimumOSVersion: Version("14.0"),
-                    supportedPlatforms: [.device(.macOS)],
-                    bundleIcons: nil
-                )
-            ))
+            path: appBundlePath,
+            infoPlist: AppBundle.InfoPlist(
+                version: "1.0",
+                buildVersion: "1",
+                name: "MacApp",
+                executableName: "MacApp",
+                bundleId: "io.tuist.MacApp",
+                minimumOSVersion: Version("14.0"),
+                supportedPlatforms: [.device(.macOS)],
+                bundleIcons: nil
+            )
+        ))
     }
 
     @Test(.inTemporaryDirectory)
-    func test_load_app_bundle_when_info_plist_is_missing_does_not_exist() async throws {
+    func load_app_bundle_when_info_plist_is_missing_does_not_exist() async throws {
         // Given
         let appBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
         // When / Then
-        await #expect(throws: AppBundleLoaderError.missingInfoPlist(appBundlePath.appending(component: "Info.plist"))) { try await subject.load(appBundlePath) }
+        await #expect(throws: AppBundleLoaderError.missingInfoPlist(appBundlePath.appending(component: "Info.plist"))) {
+            try await subject.load(appBundlePath)
+        }
     }
 
     @Test(.inTemporaryDirectory)
-    func test_load_app_bundle_when_decoding_info_plist_failed() async throws {
+    func load_app_bundle_when_decoding_info_plist_failed() async throws {
         // Given
         let appBundlePath = try #require(FileSystem.temporaryTestDirectory)
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
         try fileHandler.write("{}", path: infoPlistPath, atomically: true)
 
         // When / Then
-        await #expect(throws: AppBundleLoaderError.failedDecodingInfoPlist(infoPlistPath, "The data couldn’t be read because it is missing.")) { try await subject.load(appBundlePath) }
+        await #expect(throws: AppBundleLoaderError.failedDecodingInfoPlist(
+            infoPlistPath,
+            "The data couldn’t be read because it is missing."
+        )) { try await subject.load(appBundlePath) }
     }
 }

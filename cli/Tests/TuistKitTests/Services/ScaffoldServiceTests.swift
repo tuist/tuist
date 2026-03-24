@@ -1,13 +1,13 @@
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import TuistConfigLoader
 import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
-import FileSystemTesting
-import Testing
 
 @testable import TuistKit
 @testable import TuistTesting
@@ -38,7 +38,7 @@ struct ScaffoldServiceTests {
         )
     }
 
-    @Test func test_load_template_options() async throws {
+    @Test func load_template_options() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -70,7 +70,7 @@ struct ScaffoldServiceTests {
         #expect(options.optional == expectedOptions.optional)
     }
 
-    @Test func test_load_template_plugin_options() async throws {
+    @Test func load_template_plugin_options() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -111,7 +111,7 @@ struct ScaffoldServiceTests {
         #expect(options.optional == expectedOptions.optional)
     }
 
-    @Test func test_fails_when_template_not_found() async throws {
+    @Test func fails_when_template_not_found() async throws {
         let templateName = "template"
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -128,7 +128,7 @@ struct ScaffoldServiceTests {
         )
     }
 
-    @Test func test_fails_when_required_attribute_not_provided() async throws {
+    @Test func fails_when_required_attribute_not_provided() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -147,7 +147,7 @@ struct ScaffoldServiceTests {
         )
     }
 
-    @Test func test_optional_attribute_is_taken_from_template() async throws {
+    @Test func optional_attribute_is_taken_from_template() async throws {
         // Given
         given(templateLoader)
             .loadTemplate(at: .any, plugins: .any)
@@ -180,7 +180,7 @@ struct ScaffoldServiceTests {
             .called(1)
     }
 
-    @Test func test_optional_dictionary_attribute_is_taken_from_template() async throws {
+    @Test func optional_dictionary_attribute_is_taken_from_template() async throws {
         // Given
         let context: Template.Attribute.Value = .dictionary([
             "key1": .string("value1"),
@@ -218,7 +218,7 @@ struct ScaffoldServiceTests {
             .called(1)
     }
 
-    @Test func test_optional_integer_attribute_is_taken_from_template() async throws {
+    @Test func optional_integer_attribute_is_taken_from_template() async throws {
         // Given
         let defaultIntegerValue: Template.Attribute.Value = .integer(999)
 
@@ -253,7 +253,7 @@ struct ScaffoldServiceTests {
             .called(1)
     }
 
-    @Test func test_attributes_are_passed_to_generator() async throws {
+    @Test func attributes_are_passed_to_generator() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)

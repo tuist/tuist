@@ -1,10 +1,10 @@
 #if os(macOS)
     import Foundation
     import Mockable
+    import Testing
     import TuistConfigLoader
     import TuistCore
     import TuistServer
-    import Testing
 
     @testable import TuistAuthCommand
     @testable import TuistTesting
@@ -25,9 +25,8 @@
             )
         }
 
-
         @Test
-        func test_whoami_when_logged_in() async throws {
+        func whoami_when_logged_in() async throws {
             try await withMockedDependencies {
                 // Given
                 given(serverSessionController)
@@ -43,14 +42,17 @@
         }
 
         @Test
-        func test_whoami_when_logged_out() async throws {
+        func whoami_when_logged_out() async throws {
             try await withMockedDependencies {
                 // Given
                 given(serverSessionController)
                     .authenticatedHandle(serverURL: .value(serverURL))
                     .willThrow(ServerSessionControllerError.unauthenticated)
 
-                await #expect(throws: ServerSessionControllerError.unauthenticated) { try await subject.run(directory: nil, serverURL: nil) }
+                await #expect(throws: ServerSessionControllerError.unauthenticated) { try await subject.run(
+                    directory: nil,
+                    serverURL: nil
+                ) }
             }
         }
     }

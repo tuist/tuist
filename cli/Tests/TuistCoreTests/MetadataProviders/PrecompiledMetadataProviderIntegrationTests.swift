@@ -2,8 +2,8 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import TuistSupport
 import Testing
+import TuistSupport
 
 @testable import TuistCore
 @testable import TuistTesting

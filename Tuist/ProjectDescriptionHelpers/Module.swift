@@ -1666,6 +1666,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .loader:
                 [
@@ -1698,12 +1699,14 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .migration:
                 [
                     .target(name: Module.testing.targetName),
                     .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.support.targetName),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .dependencies:
                 [
@@ -1713,6 +1716,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .automation:
                 [
@@ -1789,6 +1793,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.constants.targetName),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .git:
                 [

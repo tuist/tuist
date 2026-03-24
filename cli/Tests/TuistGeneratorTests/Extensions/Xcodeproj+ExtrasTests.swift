@@ -1,11 +1,11 @@
+import Testing
 import XcodeGraph
 import XcodeProj
-import Testing
 @testable import TuistGenerator
 
 struct XcodeprojExtrasTests {
     @Test
-    func test_pbxFileElement_sort() {
+    func pbxFileElement_sort() {
         // Given
         let elements = [
             PBXFileReference(name: "d"),
@@ -34,7 +34,7 @@ struct XcodeprojExtrasTests {
     }
 
     @Test
-    func test_platform_filter_application_when_matching() throws {
+    func platform_filter_application_when_matching() throws {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .mac])
         let buildFile = PBXBuildFile()
@@ -49,7 +49,7 @@ struct XcodeprojExtrasTests {
     }
 
     @Test
-    func test_platform_filter_application_when_empty() {
+    func platform_filter_application_when_empty() {
         // Given
         let buildFile = PBXBuildFile()
         let dependencyFilters: PlatformFilters = []
@@ -63,7 +63,7 @@ struct XcodeprojExtrasTests {
     }
 
     @Test
-    func test_platform_filter_application_when_target_has_less_than_dependency() throws {
+    func platform_filter_application_when_target_has_less_than_dependency() throws {
         // Given
         let target = Target.test(destinations: [.mac])
         let buildFile = PBXBuildFile()
@@ -78,7 +78,7 @@ struct XcodeprojExtrasTests {
     }
 
     @Test
-    func test_platform_filter_application_when_target_has_more_than_dependency() throws {
+    func platform_filter_application_when_target_has_more_than_dependency() throws {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .mac, .appleVision])
         let buildFile = PBXBuildFile()
@@ -93,7 +93,7 @@ struct XcodeprojExtrasTests {
     }
 
     @Test
-    func test_platform_filter_application_when_target_has_single_intersection() throws {
+    func platform_filter_application_when_target_has_single_intersection() throws {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .appleVision])
         let buildFile = PBXBuildFile()
@@ -108,7 +108,7 @@ struct XcodeprojExtrasTests {
     }
 
     @Test
-    func test_platform_filter_application_when_disjoint() throws {
+    func platform_filter_application_when_disjoint() throws {
         // Given
         let target = Target.test(destinations: [.appleVision])
         let buildFile = PBXBuildFile()

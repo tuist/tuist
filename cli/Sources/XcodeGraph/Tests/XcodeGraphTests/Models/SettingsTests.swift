@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct SettingsTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject = Settings.default
 
@@ -52,7 +52,7 @@ struct SettingsTests {
         #expect(got.map(\.0.name) == ["A", "B", "C", "D"])
     }
 
-    @Test func testDefaultDebugConfigurationWhenDefaultExists() {
+    @Test func defaultDebugConfigurationWhenDefaultExists() {
         // Given
         // .debug (i.e. name: "Debug", variant: .debug) is the default debug
         let configurations: [BuildConfiguration: Configuration?] = [
@@ -70,7 +70,7 @@ struct SettingsTests {
         #expect(got == .debug)
     }
 
-    @Test func testDefaultDebugConfigurationWhenDefaultDoesNotExist() {
+    @Test func defaultDebugConfigurationWhenDefaultDoesNotExist() {
         // Given
         // .debug (i.e. name: "Debug", variant: .debug) is the default debug
         let configurations: [BuildConfiguration: Configuration?] = [
@@ -87,7 +87,7 @@ struct SettingsTests {
         #expect(got == .debug("A"))
     }
 
-    @Test func testDefaultDebugConfigurationWhenNoDebugConfigurationsExist() {
+    @Test func defaultDebugConfigurationWhenNoDebugConfigurationsExist() {
         // Given
         let configurations: [BuildConfiguration: Configuration?] = [
             .release("C"): nil,
@@ -102,7 +102,7 @@ struct SettingsTests {
         #expect(got == nil)
     }
 
-    @Test func testDefaultReleaseConfigurationWhenDefaultExist() {
+    @Test func defaultReleaseConfigurationWhenDefaultExist() {
         // Given
         // .release (i.e. name: "Release", variant: .release) is the default release
         let configurations: [BuildConfiguration: Configuration?] = [
@@ -120,7 +120,7 @@ struct SettingsTests {
         #expect(got == .release)
     }
 
-    @Test func testDefaultReleaseConfigurationWhenDefaultDoesNotExist() {
+    @Test func defaultReleaseConfigurationWhenDefaultDoesNotExist() {
         // Given
         // .release (i.e. name: "Release", variant: .release) is the default release
         let configurations: [BuildConfiguration: Configuration?] = [
@@ -137,7 +137,7 @@ struct SettingsTests {
         #expect(got == .release("B"))
     }
 
-    @Test func testDefaultReleaseConfigurationWhenNoReleaseConfigurationsExist() {
+    @Test func defaultReleaseConfigurationWhenNoReleaseConfigurationsExist() {
         // Given
         let configurations: [BuildConfiguration: Configuration?] = [
             .debug("A"): nil,

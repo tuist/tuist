@@ -1,6 +1,6 @@
+import FileSystemTesting
 import Foundation
 import Path
-import FileSystemTesting
 import Testing
 
 @testable import TuistOpener
@@ -27,9 +27,8 @@ struct OpenerTests {
         subject = Opener()
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_open_when_path_doesnt_exist() async throws {
+    func open_when_path_doesnt_exist() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "tool")
 
@@ -37,7 +36,7 @@ struct OpenerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_open_when_wait_is_false() async throws {
+    func open_when_wait_is_false() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let path = temporaryPath.appending(component: "tool")
         try FileHandler.shared.touch(path)

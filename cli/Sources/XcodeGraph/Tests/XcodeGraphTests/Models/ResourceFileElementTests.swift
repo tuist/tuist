@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct ResourceFileElementTests {
-    @Test func test_codable_file() throws {
+    @Test func codable_file() throws {
         // Given
         let subject = ResourceFileElement.file(
             path: try AbsolutePath(validating: "/path/to/element"),
@@ -22,7 +22,7 @@ struct ResourceFileElementTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_folderReference() throws {
+    @Test func codable_folderReference() throws {
         // Given
         let subject = ResourceFileElement.folderReference(
             path: try AbsolutePath(validating: "/path/to/folder"),

@@ -7,7 +7,7 @@ struct SchemeTests {
     private var encoder = JSONEncoder()
     private var decoder = JSONDecoder()
 
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject: Scheme = .scheme(
             name: "scheme",
@@ -56,7 +56,7 @@ struct SchemeTests {
         #expect(decoded == subject)
     }
 
-    @Test func test_defaultConfigurationNames() throws {
+    @Test func defaultConfigurationNames() throws {
         // Given / When
         let subject: Scheme = .scheme(
             name: "scheme",

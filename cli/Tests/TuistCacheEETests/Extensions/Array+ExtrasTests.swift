@@ -1,8 +1,8 @@
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting

@@ -1,5 +1,5 @@
-import Foundation
 import FileSystemTesting
+import Foundation
 import Testing
 
 @testable import TuistSupport
@@ -8,7 +8,9 @@ import Testing
 struct XcodeErrorTests {
     @Test
     func test_description() {
-        #expect(XcodeError.infoPlistNotFound(.root).description == "Couldn't find Xcode's Info.plist at /. Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app")
+        #expect(XcodeError.infoPlistNotFound(.root)
+            .description ==
+            "Couldn't find Xcode's Info.plist at /. Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app")
     }
 
     @Test
@@ -22,7 +24,6 @@ struct XcodeTests {
     init() {
         plistEncoder = PropertyListEncoder()
     }
-
 
     @Test(.inTemporaryDirectory)
     func test_read() async throws {
@@ -44,7 +45,7 @@ struct XcodeTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_read_when_infoPlist_doesnt_exist() async throws {
+    func read_when_infoPlist_doesnt_exist() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let contentsPath = temporaryPath.appending(component: "Contents")

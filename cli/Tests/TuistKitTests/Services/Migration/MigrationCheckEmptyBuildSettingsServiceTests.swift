@@ -1,9 +1,9 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistMigration
 import TuistSupport
-import Testing
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -29,7 +29,7 @@ struct MigrationCheckEmptyBuildSettingsServiceTests {
         #expect(emptyBuildSettingsChecker.invokedCheckParameters?.targetName == target)
     }
 
-    @Test func test_run_rethrows_errors_thrown_by_the_checker() async throws {
+    @Test func run_rethrows_errors_thrown_by_the_checker() async throws {
         // Given
         let xcodeprojPath = try AbsolutePath(validating: "/test.xcodeproj")
         let target = "test"

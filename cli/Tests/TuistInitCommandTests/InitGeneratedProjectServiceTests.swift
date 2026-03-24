@@ -1,14 +1,14 @@
 #if os(macOS)
+    import FileSystemTesting
     import Foundation
     import Mockable
+    import Testing
     import TuistConstants
     import TuistCore
     import TuistLoader
     import TuistScaffold
     import TuistSupport
     import TuistTesting
-    import FileSystemTesting
-import Testing
 
     @testable import TuistInitCommand
 
@@ -31,9 +31,8 @@ import Testing
             )
         }
 
-
         @Test(.inTemporaryDirectory)
-        func test_init_default_when_no_template() async throws {
+        func init_default_when_no_template() async throws {
             // Given
             let defaultTemplatePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "default")
             given(templatesDirectoryLocator)
@@ -72,7 +71,7 @@ import Testing
         }
 
         @Test(.inTemporaryDirectory)
-        func test_init_default_platform() async throws {
+        func init_default_platform() async throws {
             // Given
             let defaultTemplatePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "default")
             given(templatesDirectoryLocator)
@@ -111,7 +110,7 @@ import Testing
         }
 
         @Test(.inTemporaryDirectory)
-        func test_init_default_with_unusual_name() async throws {
+        func init_default_with_unusual_name() async throws {
             // Given
             let defaultTemplatePath = try #require(FileSystem.temporaryTestDirectory).appending(component: "default")
             given(templatesDirectoryLocator)

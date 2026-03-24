@@ -192,10 +192,10 @@ struct HeadersManifestMapperTests {
         )
 
         #expect(model.public == (try ["Sources/A1.h", "Sources/A2.h"]
-            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
         #expect(model.private == [])
         #expect(model.project.sorted() == (try ["Sources/A1+Project.h", "Sources/A2+Protected.h"]
-            .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
     @Test(.inTemporaryDirectory) func from_and_excluding_in_nested_folder() async throws {
@@ -218,10 +218,10 @@ struct HeadersManifestMapperTests {
         )
 
         #expect(model.public == (try ["Sources/group/A1.h", "Sources/group/A2.h"]
-            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
         #expect(model.private == [])
         #expect(model.project.sorted() == (try ["Sources/group/A1+Project.h", "Sources/group/A2+Protected.h"]
-            .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
     @Test(.inTemporaryDirectory) func exclusionRule_projectExcludesPrivateAndPublic() async throws {
@@ -247,11 +247,11 @@ struct HeadersManifestMapperTests {
         )
 
         #expect(model.public == (try ["Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h"]
-            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
         #expect(model.private == (try ["Sources/group/A4+Private.h"]
-            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
         #expect(model.project.sorted() == (try ["Sources/group/A1+Project.h", "Sources/group/A2+Protected.h"]
-            .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
     @Test(.inTemporaryDirectory) func exclusionRule_publicExcludesPrivateAndProject() async throws {
@@ -275,11 +275,11 @@ struct HeadersManifestMapperTests {
         )
 
         #expect(model.public == (try ["Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h"]
-            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
         #expect(model.private == (try ["Sources/group/A4+Private.h"]
-            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
         #expect(model.project.sorted() == (try ["Sources/group/A1+Project.h", "Sources/group/A2+Protected.h"]
-            .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
     @Test(.inTemporaryDirectory) func load_from_umbrella() async throws {
@@ -354,9 +354,9 @@ struct HeadersManifestMapperTests {
             "Sources/Umbrella.h", "Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h",
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
         #expect(model.private == (try ["Sources/group/A4+Private.h"]
-            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
         #expect(model.project.sorted() == (try ["Sources/group/A2+Protected.h"]
-            .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
     }
 
     @Test(.inTemporaryDirectory) func load_from_umbrella_withExcluding_withOutProject() async throws {
@@ -393,7 +393,7 @@ struct HeadersManifestMapperTests {
             "Sources/Umbrella.h", "Sources/group/A1.h", "Sources/group/A2.h", "Sources/group/A3.h",
         ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) }))
         #expect(model.private == (try ["Sources/group/A4+Private.h"]
-            .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
+                .map { temporaryPath.appending(try RelativePath(validating: $0)) }))
         #expect(model.project.sorted() == [])
     }
 

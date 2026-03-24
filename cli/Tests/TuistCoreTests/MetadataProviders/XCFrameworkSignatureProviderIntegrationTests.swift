@@ -1,8 +1,8 @@
 import FileSystem
 import Mockable
 import Path
-import TuistTesting
 import Testing
+import TuistTesting
 
 @testable import TuistCore
 
@@ -24,7 +24,7 @@ struct XCFrameworkSignatureProviderIntegrationTests {
         )
     }
 
-    @Test func test_signature_unsigned() async throws {
+    @Test func signature_unsigned() async throws {
         // Given
         given(codesignController)
             .signature(of: .value(path))
@@ -37,7 +37,7 @@ struct XCFrameworkSignatureProviderIntegrationTests {
         #expect(result == .unsigned)
     }
 
-    @Test func test_signature_appleSigned() async throws {
+    @Test func signature_appleSigned() async throws {
         // Given
         let codesignOutput = """
         Identifier=SignedXCFramework
@@ -58,7 +58,7 @@ struct XCFrameworkSignatureProviderIntegrationTests {
         #expect(result == .signedWithAppleCertificate(teamIdentifier: "U6LC622NKF", teamName: "Tuist GmbH"))
     }
 
-    @Test func test_signature_appleSignedNoTeamIdInAuthority() async throws {
+    @Test func signature_appleSignedNoTeamIdInAuthority() async throws {
         // Given
         let codesignOutput = """
         Identifier=SignedXCFramework
@@ -79,7 +79,7 @@ struct XCFrameworkSignatureProviderIntegrationTests {
         #expect(result == .signedWithAppleCertificate(teamIdentifier: "U6LC622NKF", teamName: "Tuist GmbH"))
     }
 
-    @Test func test_signature_selfSigned() async throws {
+    @Test func signature_selfSigned() async throws {
         // Given
         let codesign0FixturePath = SwiftTestingHelper.fixturePath(
             path: try RelativePath(validating: "SelfSignedXCFrameworkCodesign0/codesign0")

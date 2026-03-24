@@ -1,8 +1,10 @@
 import DOT
+import FileSystemTesting
 import Foundation
 import GraphViz
 import Mockable
 import ProjectAutomation
+import Testing
 import TuistConfigLoader
 import TuistCore
 import TuistLoader
@@ -12,8 +14,6 @@ import TuistSupport
 import TuistTesting
 import XcodeGraph
 import XcodeProj
-import FileSystemTesting
-import Testing
 
 @testable import TuistKit
 
@@ -41,7 +41,7 @@ struct GraphServiceTests {
         )
     }
 
-    @Test func test_run_whenDot() async throws {
+    @Test func run_whenDot() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
@@ -83,7 +83,7 @@ struct GraphServiceTests {
         }
     }
 
-    @Test func test_run_when_legacyJSON() async throws {
+    @Test func run_when_legacyJSON() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
@@ -127,7 +127,7 @@ struct GraphServiceTests {
         }
     }
 
-    @Test func test_run_when_json() async throws {
+    @Test func run_when_json() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()
@@ -171,7 +171,7 @@ struct GraphServiceTests {
         }
     }
 
-    @Test func test_run_when_json_and_has_no_root_manifest() async throws {
+    @Test func run_when_json_and_has_no_root_manifest() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try temporaryPath()

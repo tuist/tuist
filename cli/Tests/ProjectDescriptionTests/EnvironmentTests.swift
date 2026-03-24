@@ -4,7 +4,7 @@ import Testing
 @testable import ProjectDescription
 
 struct EnvironmentTests {
-    @Test func test_booleanTrueValues() throws {
+    @Test func booleanTrueValues() throws {
         let environment: [String: String] = [
             "TUIST_0": "1",
             "TUIST_1": "true",
@@ -18,7 +18,7 @@ struct EnvironmentTests {
         }
     }
 
-    @Test func test_booleanFalseValues() throws {
+    @Test func booleanFalseValues() throws {
         let environment: [String: String] = [
             "TUIST_0": "0",
             "TUIST_1": "false",
@@ -44,7 +44,7 @@ struct EnvironmentTests {
         }
     }
 
-    @Test func test_unknownKeysReturnNil() {
+    @Test func unknownKeysReturnNil() {
         let environment: [String: String] = [
             "TUIST_0": "0",
         ]

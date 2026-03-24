@@ -22,12 +22,12 @@ struct MetalOptionsManifestMapperTests {
         // Then
         #expect(
             got ==
-            XcodeGraph.MetalOptions(
-                apiValidation: true,
-                shaderValidation: false,
-                showGraphicsOverview: false,
-                logGraphicsOverview: false
-            )
+                XcodeGraph.MetalOptions(
+                    apiValidation: true,
+                    shaderValidation: false,
+                    showGraphicsOverview: false,
+                    logGraphicsOverview: false
+                )
         )
     }
 }

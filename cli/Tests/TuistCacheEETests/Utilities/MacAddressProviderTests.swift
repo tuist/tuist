@@ -1,7 +1,7 @@
 import Foundation
 import Path
-import TuistSupport
 import Testing
+import TuistSupport
 
 @testable import TuistCacheEE
 @testable import TuistTesting
@@ -12,9 +12,8 @@ struct MacAddressProviderTests {
         subject = MacAddressProvider()
     }
 
-
     @Test
-    func test_macAddress_returnsANonEmptyAddress() throws {
+    func macAddress_returnsANonEmptyAddress() throws {
         // When/Given
         let got = try subject.macAddress()
 

@@ -1,12 +1,12 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import XcodeGraph
-import Testing
 @testable import TuistTesting
 
 struct ProjectWorkspaceMapperTests {
-    @Test func test_map_workspace() async throws {
+    @Test func map_workspace() async throws {
         // Given
         let projectMapper = ProjectMapper {
             var updated = $0
@@ -30,7 +30,7 @@ struct ProjectWorkspaceMapperTests {
         #expect(sideEffects.isEmpty)
     }
 
-    @Test func test_map_sideEffects() async throws {
+    @Test func map_sideEffects() async throws {
         // Given
         let projectMapper = ProjectMapper {
             var updated = $0

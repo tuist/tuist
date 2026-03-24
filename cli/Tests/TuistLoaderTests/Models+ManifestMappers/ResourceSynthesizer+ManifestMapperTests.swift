@@ -163,11 +163,14 @@ struct ResourceSynthesizerManifestMapperTests {
 
     @Test(.inTemporaryDirectory) func locate_when_multiple_tuist_directories_exists() async throws {
         let resourceSynthesizerDirectory = try #require(FileSystem.temporaryTestDirectory)
-        try await TuistTest.createFolders(["this/is/a/very/nested/Tuist/ResourceSynthesizers", "this/is/Tuist/ResourceSynthesizers"])
+        try await TuistTest.createFolders([
+            "this/is/a/very/nested/Tuist/ResourceSynthesizers",
+            "this/is/Tuist/ResourceSynthesizers",
+        ])
         let paths = ["this/is/a/very/directory", "this/is/a/very/nested/directory"]
 
         let got = try await paths.concurrentMap {
-            try await self.subject.locate(at: resourceSynthesizerDirectory.appending(try RelativePath(validating: $0)))
+            try await subject.locate(at: resourceSynthesizerDirectory.appending(try RelativePath(validating: $0)))
         }
 
         #expect(got == (try [

@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistHasher
 
@@ -24,7 +24,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsTarget_returnsTheRightHash() async throws {
+    func hash_whenDependencyIsTarget_returnsTheRightHash() async throws {
         // Given
         let dependency = TargetDependency.target(name: "foo")
 
@@ -40,7 +40,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsTarget_throwsWhenTheDependencyHasntBeenHashed() async throws {
+    func hash_whenDependencyIsTarget_throwsWhenTheDependencyHasntBeenHashed() async throws {
         // Given
         let dependency = TargetDependency.target(name: "foo")
 
@@ -51,11 +51,15 @@ struct DependenciesContentHasherTests {
             dependencyProjectPath: graphTarget.path,
             dependencyTargetName: "foo"
         )
-        await #expect(throws: expectedError) { try await subject.hash(graphTarget: graphTarget, hashedTargets: [:], hashedPaths: [:]).hash }
+        await #expect(throws: expectedError) { try await subject.hash(
+            graphTarget: graphTarget,
+            hashedTargets: [:],
+            hashedPaths: [:]
+        ).hash }
     }
 
     @Test
-    func test_hash_whenDependencyIsProject_returnsTheRightHash() async throws {
+    func hash_whenDependencyIsProject_returnsTheRightHash() async throws {
         // Given
         let dependency = TargetDependency.project(target: "foo", path: filePath1)
 
@@ -71,7 +75,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsProjectWithACondition_returnsTheRightHash() async throws {
+    func hash_whenDependencyIsProjectWithACondition_returnsTheRightHash() async throws {
         // Given
         let dependency = TargetDependency.project(target: "foo", path: filePath1, condition: .when([.ios]))
 
@@ -87,7 +91,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsProject_throwsAnErrorIfTheDependencyHashDoesntExist() async throws {
+    func hash_whenDependencyIsProject_throwsAnErrorIfTheDependencyHashDoesntExist() async throws {
         // Given
         let dependency = TargetDependency.project(target: "foo", path: filePath1)
 
@@ -99,11 +103,15 @@ struct DependenciesContentHasherTests {
             dependencyProjectPath: filePath1,
             dependencyTargetName: "foo"
         )
-        await #expect(throws: expectedError) { try await subject.hash(graphTarget: graphTarget, hashedTargets: [:], hashedPaths: [:]).hash }
+        await #expect(throws: expectedError) { try await subject.hash(
+            graphTarget: graphTarget,
+            hashedTargets: [:],
+            hashedPaths: [:]
+        ).hash }
     }
 
     @Test
-    func test_hash_whenDependencyIsFramework_callsContentHasherAsExpected() async throws {
+    func hash_whenDependencyIsFramework_callsContentHasherAsExpected() async throws {
         // Given
         let dependency = TargetDependency.framework(path: filePath1, status: .required)
         given(contentHasher)
@@ -122,7 +130,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsXCFramework_callsContentHasherAsExpected() async throws {
+    func hash_whenDependencyIsXCFramework_callsContentHasherAsExpected() async throws {
         // Given
         let dependency = TargetDependency.xcframework(path: filePath1, expectedSignature: nil, status: .required)
         given(contentHasher)
@@ -141,7 +149,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsLibrary_callsContentHasherAsExpected() async throws {
+    func hash_whenDependencyIsLibrary_callsContentHasherAsExpected() async throws {
         // Given
         let dependency = TargetDependency.library(
             path: filePath1,
@@ -173,7 +181,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsLibrary_swiftModuleMapIsNil_callsContentHasherAsExpected() async throws {
+    func hash_whenDependencyIsLibrary_swiftModuleMapIsNil_callsContentHasherAsExpected() async throws {
         // Given
         let dependency = TargetDependency.library(
             path: filePath1,
@@ -202,7 +210,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsPackage_callsContentHasherAsExpected() async throws {
+    func hash_whenDependencyIsPackage_callsContentHasherAsExpected() async throws {
         // Given
         let dependency = TargetDependency.package(product: "foo", type: .runtime)
 
@@ -218,7 +226,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsOptionalSDK_callsContentHasherAsExpected() async throws {
+    func hash_whenDependencyIsOptionalSDK_callsContentHasherAsExpected() async throws {
         // Given
         let dependency = TargetDependency.sdk(name: "foo", status: .optional)
 
@@ -234,7 +242,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsRequiredSDK_callsContentHasherAsExpected() async throws {
+    func hash_whenDependencyIsRequiredSDK_callsContentHasherAsExpected() async throws {
         // Given
         let dependency = TargetDependency.sdk(name: "foo", status: .required)
 
@@ -250,7 +258,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_whenDependencyIsXCTest_callsContentHasherAsExpected() async throws {
+    func hash_whenDependencyIsXCTest_callsContentHasherAsExpected() async throws {
         // Given
         let dependency = TargetDependency.xctest
 
@@ -266,7 +274,7 @@ struct DependenciesContentHasherTests {
     }
 
     @Test
-    func test_hash_sorts_dependency_hashes() async throws {
+    func hash_sorts_dependency_hashes() async throws {
         // Given
         let dependencyFoo = TargetDependency.target(name: "foo")
         let dependencyBar = TargetDependency.target(name: "bar")

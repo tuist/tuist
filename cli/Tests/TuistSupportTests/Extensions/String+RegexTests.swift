@@ -3,7 +3,7 @@ import Testing
 
 struct StringRegexTests {
     @Test
-    func test_string_regex() {
+    func string_regex() {
         let osVersionPattern = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
         #expect("10.0.1".matches(pattern: osVersionPattern))
         #expect(!"tuist".matches(pattern: osVersionPattern))

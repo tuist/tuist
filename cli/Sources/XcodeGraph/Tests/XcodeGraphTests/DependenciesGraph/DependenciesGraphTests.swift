@@ -3,7 +3,7 @@ import Testing
 @testable import XcodeGraph
 
 struct DependenciesGraphTests {
-    @Test func test_codable_xcframework() throws {
+    @Test func codable_xcframework() throws {
         // Given
         let subject = DependenciesGraph.test()
 

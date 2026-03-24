@@ -4,7 +4,7 @@ import Testing
 
 struct XcodeProjectPathHasherTests {
     @Test
-    func test_hash_for_a_given_project_path() throws {
+    func hash_for_a_given_project_path() throws {
         // Given
         let hash1 = try XcodeProjectPathHasher.hashString(for: "user/natanrolnik/Sportify/SuperApp.xcodeproj")
 

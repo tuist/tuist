@@ -1,8 +1,8 @@
 import Foundation
 import Path
+import Testing
 import TuistConfig
 import XcodeGraph
-import Testing
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistTesting
@@ -14,7 +14,7 @@ struct StaticProductsGraphLinterTests {
     }
 
     @Test
-    func test_lint_whenPackageDependencyLinkedTwice() throws {
+    func lint_whenPackageDependencyLinkedTwice() throws {
         // Given
         let path: AbsolutePath = "/project"
         let app = Target.test(name: "App")

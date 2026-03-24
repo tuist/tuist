@@ -1,6 +1,6 @@
 import Path
-import XcodeGraph
 import Testing
+import XcodeGraph
 @testable import TuistCore
 @testable import TuistTesting
 

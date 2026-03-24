@@ -5,12 +5,12 @@ import TuistTesting
 @testable import ProjectDescription
 
 struct WorkspaceTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         let subject = Workspace(name: "name", projects: ["/path/to/project"])
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_codable_withAdditionalFiles() throws {
+    @Test func codable_withAdditionalFiles() throws {
         let subject = Workspace(
             name: "name",
             projects: ["ProjectA"],
@@ -21,7 +21,7 @@ struct WorkspaceTests {
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_codable_withGenerationOptions() throws {
+    @Test func codable_withGenerationOptions() throws {
         let subject = Workspace(
             name: "name",
             projects: ["ProjectA"],

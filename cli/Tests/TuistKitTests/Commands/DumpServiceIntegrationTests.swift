@@ -1,11 +1,11 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import ProjectDescription
+import Testing
 import TuistConstants
 import TuistSupport
-import FileSystemTesting
-import Testing
 
 @testable import TuistConfigLoader
 @testable import TuistKit
@@ -21,7 +21,7 @@ struct DumpServiceTests {
         subject = DumpService()
     }
 
-    @Test func test_prints_the_manifest_when_project_manifest() async throws {
+    @Test func prints_the_manifest_when_project_manifest() async throws {
         try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
@@ -92,7 +92,7 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func test_prints_the_manifest_when_workspace_manifest() async throws {
+    @Test func prints_the_manifest_when_workspace_manifest() async throws {
         try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
@@ -146,7 +146,7 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func test_prints_the_manifest_when_config_manifest() async throws {
+    @Test func prints_the_manifest_when_config_manifest() async throws {
         try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
@@ -259,7 +259,7 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func test_prints_the_manifest_when_template_manifest() async throws {
+    @Test func prints_the_manifest_when_template_manifest() async throws {
         try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
@@ -294,7 +294,7 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func test_prints_the_manifest_when_plugin_manifest() async throws {
+    @Test func prints_the_manifest_when_plugin_manifest() async throws {
         try await withMockedDependencies {
             let tmpDir = try temporaryPath()
             let config = """
@@ -321,7 +321,7 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func test_prints_the_manifest_when_package_manifest() async throws {
+    @Test func prints_the_manifest_when_package_manifest() async throws {
         try await withMockedDependencies {
             // Given
             let tmpDir = try temporaryPath()
@@ -389,7 +389,7 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func test_prints_the_manifest_when_package_manifest_without_package_settings() async throws {
+    @Test func prints_the_manifest_when_package_manifest_without_package_settings() async throws {
         try await withMockedDependencies {
             // Given
             let tmpDir = try temporaryPath()
@@ -453,27 +453,27 @@ struct DumpServiceTests {
         }
     }
 
-    @Test func test_run_throws_when_project_and_file_doesnt_exist() async throws {
+    @Test func run_throws_when_project_and_file_doesnt_exist() async throws {
         try await assertLoadingRaisesWhenManifestNotFound(manifest: .project)
     }
 
-    @Test func test_run_throws_when_workspace_and_file_doesnt_exist() async throws {
+    @Test func run_throws_when_workspace_and_file_doesnt_exist() async throws {
         try await assertLoadingRaisesWhenManifestNotFound(manifest: .workspace)
     }
 
-    @Test func test_run_throws_when_config_and_file_doesnt_exist() async throws {
+    @Test func run_throws_when_config_and_file_doesnt_exist() async throws {
         try await assertLoadingRaisesWhenManifestNotFound(manifest: .config)
     }
 
-    @Test func test_run_throws_when_template_and_file_doesnt_exist() async throws {
+    @Test func run_throws_when_template_and_file_doesnt_exist() async throws {
         try await assertLoadingRaisesWhenManifestNotFound(manifest: .template)
     }
 
-    @Test func test_run_throws_when_plugin_and_file_doesnt_exist() async throws {
+    @Test func run_throws_when_plugin_and_file_doesnt_exist() async throws {
         try await assertLoadingRaisesWhenManifestNotFound(manifest: .plugin)
     }
 
-    @Test func test_run_throws_when_the_manifest_loading_fails() async throws {
+    @Test func run_throws_when_the_manifest_loading_fails() async throws {
         for manifest in DumpableManifest.allCases {
             let tmpDir = try temporaryPath()
             try "invalid config".write(
@@ -496,12 +496,12 @@ struct DumpServiceTests {
         try await fileHandler.inTemporaryDirectory { tmpDir in
             var expectedDirectory = tmpDir
             if manifest == .config {
-                if try await !self.fileSystem.exists(expectedDirectory) {
-                    try await self.fileSystem.makeDirectory(at: expectedDirectory)
+                if try await !fileSystem.exists(expectedDirectory) {
+                    try await fileSystem.makeDirectory(at: expectedDirectory)
                 }
             }
-            await self.XCTAssertThrowsSpecific(
-                try await self.subject.run(path: tmpDir.pathString, manifest: manifest),
+            await XCTAssertThrowsSpecific(
+                try await subject.run(path: tmpDir.pathString, manifest: manifest),
                 ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)
             )
         }

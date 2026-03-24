@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct TestPlanTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject = TestPlan(
             path: try AbsolutePath(validating: "/path/to"),

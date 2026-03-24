@@ -55,14 +55,14 @@ struct WorkspaceManifestMapperTests {
         // Then
         #expect(
             got ==
-            XcodeGraph.Workspace(
-                path: workspacePath,
-                xcWorkspacePath: workspacePath.appending(component: "Workspace.xcworkspace"),
-                name: "Workspace",
-                projects: [
-                    workspacePath,
-                ]
-            )
+                XcodeGraph.Workspace(
+                    path: workspacePath,
+                    xcWorkspacePath: workspacePath.appending(component: "Workspace.xcworkspace"),
+                    name: "Workspace",
+                    projects: [
+                        workspacePath,
+                    ]
+                )
         )
     }
 }

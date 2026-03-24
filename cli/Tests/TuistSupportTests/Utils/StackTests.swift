@@ -3,7 +3,7 @@ import Testing
 
 struct StackTests {
     @Test
-    func testEmpty() {
+    func empty() {
         var stack = Stack<Int>()
         #expect(stack.isEmpty)
         #expect(stack.count == 0)
@@ -11,7 +11,7 @@ struct StackTests {
     }
 
     @Test
-    func testOneElement() {
+    func oneElement() {
         var stack = Stack<Int>()
 
         stack.push(123)
@@ -26,7 +26,7 @@ struct StackTests {
     }
 
     @Test
-    func testTwoElements() {
+    func twoElements() {
         var stack = Stack<Int>()
 
         stack.push(123)
@@ -47,7 +47,7 @@ struct StackTests {
     }
 
     @Test
-    func testMakeEmpty() {
+    func makeEmpty() {
         var stack = Stack<Int>()
 
         stack.push(123)

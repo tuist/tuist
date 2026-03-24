@@ -1,9 +1,9 @@
+import FileSystemTesting
 import Foundation
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import FileSystemTesting
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
@@ -14,7 +14,7 @@ struct TargetScriptLinterTests {
     }
 
     @Test
-    func test_lint_whenTheToolDoesntExist() async throws {
+    func lint_whenTheToolDoesntExist() async throws {
         let action = TargetScript(
             name: "name",
             order: .pre,
@@ -30,7 +30,7 @@ struct TargetScriptLinterTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_lint_whenPathDoesntExist() async throws {
+    func lint_whenPathDoesntExist() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let action = TargetScript(
             name: "name",
@@ -47,7 +47,7 @@ struct TargetScriptLinterTests {
     }
 
     @Test
-    func test_lint_succeeds_when_embedded() async throws {
+    func lint_succeeds_when_embedded() async throws {
         let action = TargetScript(
             name: "name",
             order: .pre,
@@ -60,7 +60,7 @@ struct TargetScriptLinterTests {
     }
 
     @Test
-    func test_lint_warns_when_embedded_script_empty() async throws {
+    func lint_warns_when_embedded_script_empty() async throws {
         let action = TargetScript(
             name: "name",
             order: .pre,

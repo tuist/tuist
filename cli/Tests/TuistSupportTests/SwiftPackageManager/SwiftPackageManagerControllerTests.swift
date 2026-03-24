@@ -1,11 +1,11 @@
 import Command
+import FileSystemTesting
 import Mockable
+import Testing
 import TSCUtility
 import TuistCore
 import TuistTesting
 import XcodeGraph
-import FileSystemTesting
-import Testing
 @testable import TuistSupport
 
 struct SwiftPackageManagerControllerTests {
@@ -16,10 +16,9 @@ struct SwiftPackageManagerControllerTests {
         subject = SwiftPackageManagerController(
             system: system,
             fileSystem: fileSystem,
-            commandRunner: { self.commandRunner }
+            commandRunner: { commandRunner }
         )
     }
-
 
     @Test(.inTemporaryDirectory)
     func test_resolve() throws {
@@ -36,10 +35,10 @@ struct SwiftPackageManagerControllerTests {
 
         // When / Then
         try subject.resolve(
-                at: path,
-                arguments: ["--replace-scm-with-registry"],
-                printOutput: false
-            )
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
+        )
     }
 
     @Test(.inTemporaryDirectory)
@@ -57,14 +56,14 @@ struct SwiftPackageManagerControllerTests {
 
         // When / Then
         try subject.update(
-                at: path,
-                arguments: ["--replace-scm-with-registry"],
-                printOutput: false
-            )
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
+        )
     }
 
     @Test(.inTemporaryDirectory)
-    func test_setToolsVersion_specificVersion() throws {
+    func setToolsVersion_specificVersion() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let version = Version("5.4.0")
@@ -129,7 +128,7 @@ struct SwiftPackageManagerControllerTests {
     }
 
     @Test
-    func test_package_registry_login() async throws {
+    func package_registry_login() async throws {
         // Given
         given(commandRunner)
             .run(
@@ -166,7 +165,7 @@ struct SwiftPackageManagerControllerTests {
     }
 
     @Test
-    func test_package_registry_logout() async throws {
+    func package_registry_logout() async throws {
         // Given
         given(commandRunner)
             .run(

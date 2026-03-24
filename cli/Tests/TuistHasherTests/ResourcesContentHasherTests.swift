@@ -1,12 +1,12 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistHasher
 
@@ -18,9 +18,8 @@ struct ResourcesContentHasherTests {
         subject = ResourcesContentHasher(contentHasher: contentHasher)
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_hash_is_deterministic() async throws {
+    func hash_is_deterministic() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
@@ -51,7 +50,7 @@ struct ResourcesContentHasherTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_hash_changes_after_resource_rename() async throws {
+    func hash_changes_after_resource_rename() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
@@ -81,7 +80,7 @@ struct ResourcesContentHasherTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_hash_returnsTheRightMerkleNode() async throws {
+    func hash_returnsTheRightMerkleNode() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()

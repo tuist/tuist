@@ -1,9 +1,9 @@
 import Foundation
 import Mockable
+import Testing
 import TuistOpener
 import TuistSupport
 import TuistUniqueIDGenerator
-import Testing
 
 @testable import TuistServer
 @testable import TuistTesting
@@ -34,9 +34,8 @@ struct ServerSessionControllerTests {
             .willReturn()
     }
 
-
     @Test
-    func test_authenticate_when_tokenAndAccountParametersAreIncluded() async throws {
+    func authenticate_when_tokenAndAccountParametersAreIncluded() async throws {
         // Given
         given(getAuthTokenService)
             .getAuthToken(serverURL: .any, deviceCode: .any)
@@ -71,7 +70,7 @@ struct ServerSessionControllerTests {
     }
 
     @Test
-    func test_whoami_when_logged_in() async throws {
+    func whoami_when_logged_in() async throws {
         // Given
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
@@ -96,7 +95,7 @@ struct ServerSessionControllerTests {
     }
 
     @Test
-    func test_whoami_when_logged_out() async throws {
+    func whoami_when_logged_out() async throws {
         // Given
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
@@ -112,7 +111,7 @@ struct ServerSessionControllerTests {
     }
 
     @Test
-    func test_get_authenticated_handle_when_logged_in() async throws {
+    func get_authenticated_handle_when_logged_in() async throws {
         // Given
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
@@ -137,7 +136,7 @@ struct ServerSessionControllerTests {
     }
 
     @Test
-    func test_get_authenticated_handle_when_logged_out() async throws {
+    func get_authenticated_handle_when_logged_out() async throws {
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .value(serverURL))
             .willReturn(
@@ -145,11 +144,13 @@ struct ServerSessionControllerTests {
             )
 
         // Then
-        await #expect(throws: ServerSessionControllerError.unauthenticated) { try await subject.authenticatedHandle(serverURL: serverURL) }
+        await #expect(throws: ServerSessionControllerError.unauthenticated) {
+            try await subject.authenticatedHandle(serverURL: serverURL)
+        }
     }
 
     @Test
-    func test_logout_deletesCredentials() async throws {
+    func logout_deletesCredentials() async throws {
         try await withMockedDependencies {
             // Given
             let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
@@ -174,7 +175,7 @@ struct ServerSessionControllerTests {
         }
     }
 
-    fileprivate func authURL() -> URL {
+    private func authURL() -> URL {
         var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
         components.path = "/auth/device_codes/\(uniqueIDGenerator.uniqueID())"
         components.queryItems = [

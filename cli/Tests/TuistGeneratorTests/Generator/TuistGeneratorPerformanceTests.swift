@@ -1,20 +1,19 @@
+import FileSystemTesting
+import Testing
 import TuistCore
 import TuistLoader
 import TuistSupport
 import XcodeProj
-import FileSystemTesting
-import Testing
 
 @testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistTesting
 
 struct TuistGeneratorPerformanceTests {
-
     // MARK: - Tests
 
     @Test(.inTemporaryDirectory)
-    func test_generateWorkspace_performance() async throws {
+    func generateWorkspace_performance() async throws {
         guard !isRunningInDebug() else {
             return
         }

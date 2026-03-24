@@ -54,7 +54,8 @@ struct ProjectDescriptionHelpersBuilderTests {
         #expect(allModules.uniqued().count == 3)
     }
 
-    @Test(.inTemporaryDirectory) func build_dylid_once_for_unique_path_when_built_many_times_when_new_builder_created_between_runs() async throws {
+    @Test(.inTemporaryDirectory) func build_dylid_once_for_unique_path_when_built_many_times_when_new_builder_created_between_runs(
+    ) async throws {
         let paths: [AbsolutePath] = [
             "/path/to/helpers/1", "/path/to/helpers/2", "/path/to/helpers/3",
         ].flatMap { path in Array(repeating: path, count: 5) }.shuffled()

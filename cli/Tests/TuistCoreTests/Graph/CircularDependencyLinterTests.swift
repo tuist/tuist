@@ -1,7 +1,7 @@
 import Foundation
+import Testing
 import TuistSupport
 import XcodeGraph
-import Testing
 
 @testable import TuistCore
 @testable import TuistTesting
@@ -9,7 +9,7 @@ import Testing
 struct CircularDependencyLinterTests {
     // MARK: - Dependency Cycle
 
-    @Test func test_loadWorkspace_differentProjectDependencyCycle() throws {
+    @Test func loadWorkspace_differentProjectDependencyCycle() throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "B", path: "/B")])
         let targetB = Target.test(name: "B", dependencies: [.project(target: "C", path: "/C")])
@@ -37,7 +37,7 @@ struct CircularDependencyLinterTests {
         }
     }
 
-    @Test func test_loadWorkspace_crossProjectsReferenceWithNoDependencyCycle() throws {
+    @Test func loadWorkspace_crossProjectsReferenceWithNoDependencyCycle() throws {
         // Given
         let targetA1 = Target.test(name: "A1", dependencies: [.project(target: "B1", path: "/B")])
         let targetA2 = Target.test(name: "A2", dependencies: [.project(target: "B2", path: "/B")])
@@ -61,7 +61,7 @@ struct CircularDependencyLinterTests {
         )
     }
 
-    @Test func test_loadWorkspace_crossProjectsReferenceWithDependencyCycle() throws {
+    @Test func loadWorkspace_crossProjectsReferenceWithDependencyCycle() throws {
         // Given
         let targetA1 = Target.test(name: "A1", dependencies: [.project(target: "B1", path: "/B")])
         let targetA2 = Target.test(name: "A2", dependencies: [.project(target: "B2", path: "/B")])
@@ -90,7 +90,7 @@ struct CircularDependencyLinterTests {
 }
 
 extension GraphLoadingError {
-    fileprivate var isCycleError: Bool {
+    private var isCycleError: Bool {
         switch self {
         case .circularDependency:
             return true

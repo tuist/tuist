@@ -3,7 +3,7 @@ import Testing
 @testable import XcodeGraph
 
 struct RequirementTests {
-    @Test func test_codable_range() throws {
+    @Test func codable_range() throws {
         // Given
         let subject = Requirement.range(from: "1.0.0", to: "2.0.0")
 
@@ -16,7 +16,7 @@ struct RequirementTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_upToNextMajor() throws {
+    @Test func codable_upToNextMajor() throws {
         // Given
         let subject = Requirement.upToNextMajor("1.2.3")
 

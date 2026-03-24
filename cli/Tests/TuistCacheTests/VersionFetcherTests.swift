@@ -1,12 +1,12 @@
 import Foundation
-import TuistTesting
 import Testing
+import TuistTesting
 
 @testable import TuistCache
 
 struct CacheVersionFetcherTests {
     @Test
-    func test_return_the_right_version() {
+    func return_the_right_version() {
         // Given
         let subject = CacheVersionFetcher()
 

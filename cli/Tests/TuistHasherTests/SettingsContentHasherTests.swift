@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistHasher
 
@@ -27,11 +27,10 @@ struct SettingsContentHasherTests {
             .willProduce { $0 + "-hash" }
     }
 
-
     // MARK: - Tests
 
     @Test
-    func test_hash_whenRecommended_withXCConfig_callsContentHasherWithExpectedStrings() async throws {
+    func hash_whenRecommended_withXCConfig_callsContentHasherWithExpectedStrings() async throws {
         given(xcconfigHasher)
             .hash(path: .value(filePath1))
             .willReturn("xconfigHash")
@@ -50,11 +49,12 @@ struct SettingsContentHasherTests {
         let hash = try await subject.hash(settings: settings)
 
         // Then
-        #expect(hash == "CURRENT_PROJECT_VERSION:string(\"1\")-hash;devdebugSWIFT_VERSION:string(\"5\")-hashxconfigHash;recommended")
+        #expect(hash ==
+            "CURRENT_PROJECT_VERSION:string(\"1\")-hash;devdebugSWIFT_VERSION:string(\"5\")-hashxconfigHash;recommended")
     }
 
     @Test
-    func test_hash_whenEssential_withoutXCConfig_callsContentHasherWithExpectedStrings() async throws {
+    func hash_whenEssential_withoutXCConfig_callsContentHasherWithExpectedStrings() async throws {
         given(xcconfigHasher)
             .hash(path: .value(filePath1))
             .willReturn("xconfigHash")
@@ -77,7 +77,7 @@ struct SettingsContentHasherTests {
     }
 
     @Test
-    func test_hash_filtersWarningFlags() async throws {
+    func hash_filtersWarningFlags() async throws {
         // Given
         let settings = Settings(
             base: [
@@ -110,6 +110,7 @@ struct SettingsContentHasherTests {
         let hash = try await subject.hash(settings: settings)
 
         // Then: Warning flags should be filtered out, but non-warning flags should be kept
-        #expect(hash == "OTHER_SWIFT_FLAGS:array([\"-Xfrontend\", \"-enable-actor-data-race-checks\", \"-O\"])-SWIFT_VERSION:string(\"5\")-hash;DebugdebugGCC_OPTIMIZATION_LEVEL:string(\"0\")-hash;none")
+        #expect(hash ==
+            "OTHER_SWIFT_FLAGS:array([\"-Xfrontend\", \"-enable-actor-data-race-checks\", \"-O\"])-SWIFT_VERSION:string(\"5\")-hash;DebugdebugGCC_OPTIMIZATION_LEVEL:string(\"0\")-hash;none")
     }
 }

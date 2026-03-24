@@ -1,9 +1,9 @@
 import Foundation
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 @testable import TuistHasher
 
 struct PrivacyManifestContentHasherTests {
@@ -12,9 +12,8 @@ struct PrivacyManifestContentHasherTests {
         subject = PrivacyManifestContentHasher(contentHasher: ContentHasher())
     }
 
-
     @Test
-    func test_hash_isDeterministic() throws {
+    func hash_isDeterministic() throws {
         // Given
         let privacyManifest = PrivacyManifest(
             tracking: true,
@@ -34,7 +33,7 @@ struct PrivacyManifestContentHasherTests {
     }
 
     @Test
-    func test_hash_returnsACorrectMerkleNode() throws {
+    func hash_returnsACorrectMerkleNode() throws {
         // Given
         let privacyManifest = PrivacyManifest(
             tracking: true,

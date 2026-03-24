@@ -5,7 +5,7 @@ import Testing
 
 struct ArrayExecutionContextTests {
     @Test
-    func test_concurrentMap_success() {
+    func concurrentMap_success() {
         // Given
         let numbers = Array(0 ... 1000)
         let transform: (Int) -> String = { "Number \($0)" }
@@ -18,7 +18,7 @@ struct ArrayExecutionContextTests {
     }
 
     @Test
-    func test_concurrentMap_errors() throws {
+    func concurrentMap_errors() throws {
         // Given
         let numbers = Array(0 ... 1000)
         let transform: (Int) throws -> String = {
@@ -33,7 +33,7 @@ struct ArrayExecutionContextTests {
     }
 
     @Test
-    func test_concurrentForEach_success() {
+    func concurrentForEach_success() {
         // Given
         let numbers = Array(0 ... 1000)
         var performedNumbers = Set<Int>()
@@ -55,7 +55,7 @@ struct ArrayExecutionContextTests {
     }
 
     @Test
-    func test_concurrentForEach_error() {
+    func concurrentForEach_error() {
         // Given
         let numbers = Array(0 ... 1000)
         let perform: (Int) throws -> Void = {

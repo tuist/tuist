@@ -1,13 +1,13 @@
 import FileSystemTesting
 import Foundation
+import Testing
 import TuistCore
 import TuistSupport
-import Testing
 
 @testable import TuistTesting
 
 struct XcodeBuildTargetTests {
-    @Test(.inTemporaryDirectory) func test_xcodebuildArguments_returns_the_right_arguments_when_project() throws {
+    @Test(.inTemporaryDirectory) func xcodebuildArguments_returns_the_right_arguments_when_project() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcodeprojPath = path.appending(component: "Project.xcodeproj")
@@ -20,7 +20,7 @@ struct XcodeBuildTargetTests {
         #expect(got == ["-project", xcodeprojPath.pathString])
     }
 
-    @Test(.inTemporaryDirectory) func test_xcodebuildArguments_returns_the_right_arguments_when_workspace() throws {
+    @Test(.inTemporaryDirectory) func xcodebuildArguments_returns_the_right_arguments_when_workspace() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")

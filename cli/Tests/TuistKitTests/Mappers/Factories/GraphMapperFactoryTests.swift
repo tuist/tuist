@@ -1,12 +1,12 @@
 import Foundation
 import Path
+import Testing
 import TuistAutomation
 import TuistConfig
 import TuistDependencies
 import TuistLoader
 import TuistServer
 import XcodeGraph
-import Testing
 
 #if canImport(TuistCacheEE)
     import TuistCacheEE
@@ -24,7 +24,7 @@ struct GraphMapperFactoryTests {
         subject = GraphMapperFactory()
     }
 
-    @Test func test_default_contains_the_update_workspace_projects_graph_mapper() {
+    @Test func default_contains_the_update_workspace_projects_graph_mapper() {
         // When
         let got = subject.default(config: .test())
 
@@ -32,7 +32,7 @@ struct GraphMapperFactoryTests {
         XCTAssertContainsElementOfType(got, UpdateWorkspaceProjectsGraphMapper.self)
     }
 
-    @Test func test_default_contains_the_explicit_dependency_graph_mapper_when_explcit_dependencies_are_enforced() {
+    @Test func default_contains_the_explicit_dependency_graph_mapper_when_explcit_dependencies_are_enforced() {
         // When
         let got = subject.default(
             config: .test(project: .generated(.test(generationOptions: .test(enforceExplicitDependencies: true))))
@@ -42,7 +42,7 @@ struct GraphMapperFactoryTests {
         XCTAssertContainsElementOfType(got, ExplicitDependencyGraphMapper.self)
     }
 
-    @Test func test_default_does_not_contain_the_explicit_dependency_graph_mapper() {
+    @Test func default_does_not_contain_the_explicit_dependency_graph_mapper() {
         // When
         let got = subject.default(config: .test())
 
@@ -50,7 +50,7 @@ struct GraphMapperFactoryTests {
         XCTAssertDoesntContainElementOfType(got, ExplicitDependencyGraphMapper.self)
     }
 
-    @Test func test_default_contains_the_modulemap_mapper() {
+    @Test func default_contains_the_modulemap_mapper() {
         // When
         let got = subject.default(config: .test())
 

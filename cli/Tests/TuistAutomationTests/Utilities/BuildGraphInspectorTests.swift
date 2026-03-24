@@ -1,11 +1,11 @@
+import FileSystemTesting
 import Foundation
+import Testing
 import TSCBasic
 import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistAutomation
 @testable import TuistTesting
@@ -15,7 +15,6 @@ struct BuildGraphInspectorTests {
     init() {
         subject = BuildGraphInspector()
     }
-
 
     @Test(.inTemporaryDirectory)
     func test_allTestPlans() throws {
@@ -73,7 +72,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test
-    func test_buildArguments_when_skipSigning() throws {
+    func buildArguments_when_skipSigning() throws {
         // Given
         let target = Target.test(platform: .iOS)
 
@@ -90,7 +89,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test
-    func test_buildArguments_when_theGivenConfigurationExists() throws {
+    func buildArguments_when_theGivenConfigurationExists() throws {
         // Given
         let settings = Settings.test(base: [:], debug: .test(), release: .test())
         let target = Target.test(settings: settings)
@@ -103,7 +102,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test
-    func test_buildArguments_when_theGivenConfigurationExistsInTheProject() throws {
+    func buildArguments_when_theGivenConfigurationExistsInTheProject() throws {
         // Given
         let settings = Settings.test(base: [:], debug: .test(), release: .test())
         let target = Target.test(settings: nil)
@@ -121,7 +120,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test
-    func test_buildArguments_when_theGivenConfigurationDoesntExist() throws {
+    func buildArguments_when_theGivenConfigurationDoesntExist() throws {
         // Given
         let settings = Settings.test(base: [:], configurations: [:])
         let target = Target.test(settings: settings)
@@ -160,7 +159,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_testableTarget_whenNoTestActions_returnsNil() throws {
+    func ableTarget_whenNoTestActions_returnsNil() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
@@ -185,7 +184,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_testableTarget_whenNoTestPlan_returnsFirstTarget() throws {
+    func ableTarget_whenNoTestPlan_returnsFirstTarget() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
@@ -222,7 +221,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_testableTarget_withTestPlan_noFilters_returnsFirstEnabledTarget() throws {
+    func ableTarget_withTestPlan_noFilters_returnsFirstEnabledTarget() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
@@ -272,7 +271,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_testableTarget_withTestPlan_filtersIncluded_returnsMachingTarget() throws {
+    func ableTarget_withTestPlan_filtersIncluded_returnsMachingTarget() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
@@ -322,7 +321,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_testableTarget_withTestPlan_filtersExcluded_returnsMachingTarget() throws {
+    func ableTarget_withTestPlan_filtersExcluded_returnsMachingTarget() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
@@ -372,7 +371,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_testableTarget_withTestPlan_filtersIncludedDisabledTarget_returnsNil() throws {
+    func ableTarget_withTestPlan_filtersIncludedDisabledTarget_returnsNil() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
@@ -457,10 +456,10 @@ struct BuildGraphInspectorTests {
 
         // Then
         #expect(got == [
-                coreScheme,
-                kitScheme,
-                workspaceScheme,
-            ])
+            coreScheme,
+            kitScheme,
+            workspaceScheme,
+        ])
     }
 
     @Test(.inTemporaryDirectory)
@@ -534,9 +533,9 @@ struct BuildGraphInspectorTests {
 
         // Then
         #expect(got == [
-                coreTestsScheme,
-                kitTestsScheme,
-            ])
+            coreTestsScheme,
+            kitTestsScheme,
+        ])
     }
 
     @Test(.inTemporaryDirectory)
@@ -597,15 +596,15 @@ struct BuildGraphInspectorTests {
 
         // Then
         #expect(got == [
-                coreScheme,
-                coreTestsScheme,
-                coreTestPlanScheme,
-                coreTestPlanTestsScheme,
-            ])
+            coreScheme,
+            coreTestsScheme,
+            coreTestPlanScheme,
+            coreTestPlanTestsScheme,
+        ])
     }
 
     @Test(.inTemporaryDirectory)
-    func test_buildableEntrySchemes_only_includes_entryTargets() throws {
+    func buildableEntrySchemes_only_includes_entryTargets() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
 
@@ -659,7 +658,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_workspacePath_when_no_tuist_workspace_is_present() async throws {
+    func workspacePath_when_no_tuist_workspace_is_present() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -673,7 +672,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_workspacePath_when_multiple_workspaces_are_present() async throws {
+    func workspacePath_when_multiple_workspaces_are_present() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let nonTuistWorkspacePath = path.appending(components: "SPM.xcworkspace")
@@ -690,7 +689,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test
-    func test_projectSchemes_when_multiple_platforms() {
+    func projectSchemes_when_multiple_platforms() {
         // Given
         let graph: Graph = .test(
             workspace: .test(
@@ -708,12 +707,12 @@ struct BuildGraphInspectorTests {
 
         // Then
         #expect(got == [
-                .test(name: "WorkspaceName-Workspace"),
-            ])
+            .test(name: "WorkspaceName-Workspace"),
+        ])
     }
 
     @Test
-    func test_projectSchemes_when_single_platform() {
+    func projectSchemes_when_single_platform() {
         // Given
         let graph: Graph = .test(
             workspace: .test(
@@ -731,12 +730,12 @@ struct BuildGraphInspectorTests {
 
         // Then
         #expect(got == [
-                .test(name: "WorkspaceName-Workspace"),
-            ])
+            .test(name: "WorkspaceName-Workspace"),
+        ])
     }
 
     @Test(.inTemporaryDirectory)
-    func test_testableTarget_withMultipleTestPlans_noneSpecified_usesDefaultTetPlan() throws {
+    func ableTarget_withMultipleTestPlans_noneSpecified_usesDefaultTetPlan() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
@@ -793,7 +792,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_testableTarget_withMultipleTestPlans_noneSpecified_findsTargetInNonDefaultPlan_when_action_is_build() throws {
+    func ableTarget_withMultipleTestPlans_noneSpecified_findsTargetInNonDefaultPlan_when_action_is_build() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project.xcodeproj")
@@ -850,7 +849,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_runnableSchemes_when_no_runnable_item_in_scheme() async throws {
+    func runnableSchemes_when_no_runnable_item_in_scheme() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "App.xcodeproj")
@@ -879,7 +878,7 @@ struct BuildGraphInspectorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_runnableSchemes_when_runnable_item_in_scheme() async throws {
+    func runnableSchemes_when_runnable_item_in_scheme() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "App.xcodeproj")

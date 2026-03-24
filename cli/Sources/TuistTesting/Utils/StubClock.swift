@@ -1,6 +1,6 @@
 import Foundation
-import TuistSupport
 import Testing
+import TuistSupport
 
 /// A stub clock that can be primed with
 /// multiple dates and timers.

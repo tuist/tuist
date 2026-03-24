@@ -1,6 +1,8 @@
+import FileSystemTesting
 import Mockable
 import struct ProjectDescription.Plugin
 import struct ProjectDescription.PluginLocation
+import Testing
 import TSCBasic
 import TuistConfig
 import TuistConstants
@@ -10,8 +12,6 @@ import TuistLoader
 import TuistScaffold
 import TuistSupport
 import TuistTesting
-import FileSystemTesting
-import Testing
 @testable import TuistPlugin
 
 struct PluginServiceTests {
@@ -46,7 +46,6 @@ struct PluginServiceTests {
             fileClient: fileClient
         )
     }
-
 
     @Test(.inTemporaryDirectory)
     func test_remotePluginPaths() async throws {
@@ -85,24 +84,24 @@ struct PluginServiceTests {
 
         // Then
         #expect(Set(remotePluginPaths) == Set([
-                RemotePluginPaths(
-                    repositoryPath: pluginADirectory.appending(component: PluginServiceConstants.repository),
-                    releasePath: nil
-                ),
-                RemotePluginPaths(
-                    repositoryPath: pluginBDirectory.appending(component: PluginServiceConstants.repository),
-                    releasePath: pluginBDirectory.appending(component: PluginServiceConstants.release)
-                ),
-                RemotePluginPaths(
-                    repositoryPath: pluginCDirectory.appending(component: PluginServiceConstants.repository)
-                        .appending(component: "Sub").appending(component: "Subfolder"),
-                    releasePath: nil
-                ),
-            ]))
+            RemotePluginPaths(
+                repositoryPath: pluginADirectory.appending(component: PluginServiceConstants.repository),
+                releasePath: nil
+            ),
+            RemotePluginPaths(
+                repositoryPath: pluginBDirectory.appending(component: PluginServiceConstants.repository),
+                releasePath: pluginBDirectory.appending(component: PluginServiceConstants.release)
+            ),
+            RemotePluginPaths(
+                repositoryPath: pluginCDirectory.appending(component: PluginServiceConstants.repository)
+                    .appending(component: "Sub").appending(component: "Subfolder"),
+                releasePath: nil
+            ),
+        ]))
     }
 
     @Test(.inTemporaryDirectory)
-    func test_fetchRemotePlugins_when_git_sha() async throws {
+    func fetchRemotePlugins_when_git_sha() async throws {
         // Given
         let pluginGitURL = "https://url/to/repo.git"
         let pluginGitSha = "abc"
@@ -147,7 +146,7 @@ struct PluginServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_fetchRemotePlugins_when_git_tag_and_repository_not_cached() async throws {
+    func fetchRemotePlugins_when_git_tag_and_repository_not_cached() async throws {
         // Given
         let pluginGitURL = "https://url/to/repo.git"
         let pluginGitTag = "1.0.0"
@@ -192,7 +191,7 @@ struct PluginServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_fetchRemotePlugins_when_git_tag_and_repository_cached() async throws {
+    func fetchRemotePlugins_when_git_tag_and_repository_cached() async throws {
         // Given
         let pluginGitURL = "https://url/to/repo.git"
         let pluginGitTag = "1.0.0"
@@ -222,7 +221,7 @@ struct PluginServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_loadPlugins_WHEN_localHelpers() async throws {
+    func loadPlugins_WHEN_localHelpers() async throws {
         // Given
         let pluginPath = try #require(FileSystem.temporaryTestDirectory).appending(component: "Plugin")
         let pluginName = "TestPlugin"
@@ -257,7 +256,7 @@ struct PluginServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_loadPlugins_WHEN_gitHelpers() async throws {
+    func loadPlugins_WHEN_gitHelpers() async throws {
         // Given
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
@@ -308,7 +307,7 @@ struct PluginServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_loadPlugins_when_localResourceSynthesizer() async throws {
+    func loadPlugins_when_localResourceSynthesizer() async throws {
         // Given
         let pluginPath = try #require(FileSystem.temporaryTestDirectory)
         let pluginName = "TestPlugin"
@@ -342,7 +341,7 @@ struct PluginServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_loadPlugins_when_remoteResourceSynthesizer() async throws {
+    func loadPlugins_when_remoteResourceSynthesizer() async throws {
         // Given
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
@@ -389,7 +388,7 @@ struct PluginServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_loadPlugins_WHEN_localTemplate() async throws {
+    func loadPlugins_WHEN_localTemplate() async throws {
         // Given
         let pluginPath = try #require(FileSystem.temporaryTestDirectory)
         let pluginName = "TestPlugin"
@@ -426,7 +425,7 @@ struct PluginServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_loadPlugins_WHEN_gitTemplate() async throws {
+    func loadPlugins_WHEN_gitTemplate() async throws {
         // Given
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"

@@ -9,7 +9,7 @@ struct SortedPBXGroupTests {
     var references: [PBXFileElement] = []
 
     @Test
-    mutating func test_projectGroupsSort_simpleGroupsCase() throws {
+    mutating func projectGroupsSort_simpleGroupsCase() throws {
         // Given
         let mainGroup = PBXGroup(children: [
             file("somefile1.swift"),
@@ -41,7 +41,7 @@ struct SortedPBXGroupTests {
     }
 
     @Test
-    mutating func test_projectGroupsSort_nestedGroupsCase() throws {
+    mutating func projectGroupsSort_nestedGroupsCase() throws {
         // Given
         let mainGroup = PBXGroup(children: [
             file("somefile1.swift"),
@@ -85,7 +85,7 @@ struct SortedPBXGroupTests {
     }
 
     @Test
-    mutating func test_projectGroupsSort_simpleEmptyFoldersCase() throws {
+    mutating func projectGroupsSort_simpleEmptyFoldersCase() throws {
         // Given
         let mainGroup = PBXGroup(children: [
             file("file3"),
@@ -107,7 +107,7 @@ struct SortedPBXGroupTests {
     }
 
     @Test
-    mutating func test_projectGroupsSort_simpleEmptyFoldersAndGroupsCase() throws {
+    mutating func projectGroupsSort_simpleEmptyFoldersAndGroupsCase() throws {
         // Given
         let mainGroup = PBXGroup(children: [
             file("file3"),
@@ -135,7 +135,7 @@ struct SortedPBXGroupTests {
     }
 
     @Test
-    mutating func test_projectGroupsSort_simpleEmptyFoldersAndGroupsCaseDeeperNesting() throws {
+    mutating func projectGroupsSort_simpleEmptyFoldersAndGroupsCaseDeeperNesting() throws {
         // Given
         let mainGroup = PBXGroup(children: [
             file("somerootfile.md"),

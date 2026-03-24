@@ -1,5 +1,7 @@
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import TSCUtility
 import TuistConfig
 import TuistConfigLoader
@@ -9,8 +11,6 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import TuistTesting
-import FileSystemTesting
-import Testing
 
 @testable import TuistKit
 
@@ -23,7 +23,6 @@ struct InstallServiceTests {
     private var subject: InstallService!
 
     init() {
-
         pluginService = MockPluginService()
         configLoader = MockConfigLoading()
         swiftPackageManagerController = MockSwiftPackageManagerControlling()
@@ -37,7 +36,7 @@ struct InstallServiceTests {
         )
     }
 
-    @Test func test_run_when_updating_dependencies() async throws {
+    @Test func run_when_updating_dependencies() async throws {
         // Given
         let stubbedPath = try temporaryPath()
         let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
@@ -90,7 +89,7 @@ struct InstallServiceTests {
         #expect(savedPackageResolvedContents == "resolved")
     }
 
-    @Test func test_run_when_installing_plugins() async throws {
+    @Test func run_when_installing_plugins() async throws {
         // Given
         let config = Tuist.test(project: .generated(.test(plugins: [
             .git(url: "url", gitReference: .tag("tag"), directory: nil, releaseUrl: nil),
@@ -119,7 +118,7 @@ struct InstallServiceTests {
         #expect(invokedConfig == config.project.generatedProject)
     }
 
-    @Test func test_run_when_installing_dependencies() async throws {
+    @Test func run_when_installing_dependencies() async throws {
         // Given
         let stubbedPath = try temporaryPath()
         let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
@@ -170,7 +169,7 @@ struct InstallServiceTests {
         #expect(savedPackageResolvedContents == "resolved")
     }
 
-    @Test func test_run_when_installing_dependencies_passing_additional_arguments() async throws {
+    @Test func run_when_installing_dependencies_passing_additional_arguments() async throws {
         // Given
         let stubbedPath = try temporaryPath()
         let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
@@ -221,7 +220,7 @@ struct InstallServiceTests {
         #expect(savedPackageResolvedContents == "resolved")
     }
 
-    @Test func test_install_when_from_a_tuist_project_directory() async throws {
+    @Test func install_when_from_a_tuist_project_directory() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         let expectedFoundPackageLocation = temporaryDirectory.appending(
@@ -265,7 +264,7 @@ struct InstallServiceTests {
         #expect(savedPackageResolvedContents == "resolved")
     }
 
-    @Test func test_resolve_with_spm_arguments_from_config() async throws {
+    @Test func resolve_with_spm_arguments_from_config() async throws {
         // Given
         let stubbedPath = try temporaryPath()
 
@@ -315,7 +314,7 @@ struct InstallServiceTests {
             .called(1)
     }
 
-    @Test func test_update_with_spm_arguments_from_config() async throws {
+    @Test func update_with_spm_arguments_from_config() async throws {
         // Given
         let stubbedPath = try temporaryPath()
 
@@ -365,7 +364,7 @@ struct InstallServiceTests {
             .called(0)
     }
 
-    @Test func test_update_with_config_and_passthrough_arguments() async throws {
+    @Test func update_with_config_and_passthrough_arguments() async throws {
         // Given
         let stubbedPath = try temporaryPath()
 

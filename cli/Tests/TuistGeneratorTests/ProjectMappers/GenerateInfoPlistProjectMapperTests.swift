@@ -1,10 +1,10 @@
 import Foundation
 import Path
+import Testing
 import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 

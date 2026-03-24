@@ -1,13 +1,13 @@
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import TuistCache
 import TuistConfig
 import TuistCore
 import TuistHasher
 import TuistServer
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
@@ -33,9 +33,8 @@ struct TargetsToCacheBinariesGraphMapperTests {
         )
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_map_when_sources_are_tests() async throws {
+    func map_when_sources_are_tests() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(path: path)
 
@@ -133,7 +132,7 @@ struct TargetsToCacheBinariesGraphMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_map_when_all_binaries_are_fetched_successfully() async throws {
+    func map_when_all_binaries_are_fetched_successfully() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(path: path)
 
@@ -236,7 +235,7 @@ struct TargetsToCacheBinariesGraphMapperTests {
     /// Targets from the same package have the same hash as instead of hashing the targets individually, we use the package
     /// reference hash.
     @Test(.inTemporaryDirectory)
-    func test_map_when_all_package_binaries_are_fetched_successfully() async throws {
+    func map_when_all_package_binaries_are_fetched_successfully() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(path: path)
 
@@ -346,7 +345,7 @@ struct TargetsToCacheBinariesGraphMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_map_forwards_correct_artifactType_to_hasher() async throws {
+    func map_forwards_correct_artifactType_to_hasher() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(path: path)
@@ -413,7 +412,7 @@ struct TargetsToCacheBinariesGraphMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_map_when_excluded_targets_are_passed() async throws {
+    func map_when_excluded_targets_are_passed() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given
@@ -475,7 +474,7 @@ struct TargetsToCacheBinariesGraphMapperTests {
     }
 
     @Test
-    func test_map_returns_early_when_graph_has_no_targets() async throws {
+    func map_returns_early_when_graph_has_no_targets() async throws {
         // Given
         let inputGraph = Graph.test(name: "empty")
 
@@ -491,7 +490,7 @@ struct TargetsToCacheBinariesGraphMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_map_stores_subhashes_in_run_metadata_storage() async throws {
+    func map_stores_subhashes_in_run_metadata_storage() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let project = Project.test(path: path)
         let runMetadataStorage = RunMetadataStorage()

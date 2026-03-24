@@ -1,7 +1,7 @@
 import Path
 import ProjectDescription
-import TSCUtility
 import Testing
+import TSCUtility
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -27,7 +27,11 @@ struct SettingsMapperTests {
             .init(tool: .cxx, name: .define, condition: nil, value: ["CXX_DEFINE=CXX_VALUE"]),
             .init(tool: .cxx, name: .define, condition: nil, value: ["CXX_DEFINE_2"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["GCC_PREPROCESSOR_DEFINITIONS"] == .array([
             "$(inherited)", "CXX_DEFINE=CXX_VALUE", "CXX_DEFINE_2=1", "C_DEFINE=C_VALUE", "C_DEFINE_2=1",
@@ -38,7 +42,11 @@ struct SettingsMapperTests {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .interoperabilityMode, condition: nil, value: ["Cxx"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["SWIFT_OBJC_INTEROP_MODE"] == .string("objcxx"))
     }
@@ -47,7 +55,11 @@ struct SettingsMapperTests {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .interoperabilityMode, condition: nil, value: ["C"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["SWIFT_OBJC_INTEROP_MODE"] == .string("objc"))
     }
@@ -57,9 +69,17 @@ struct SettingsMapperTests {
             .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["cPath"]),
             .init(tool: .cxx, name: .headerSearchPath, condition: nil, value: ["cxxPath"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
-        #expect(resolvedSettings["HEADER_SEARCH_PATHS"] == .array(["$(inherited)", "$(SRCROOT)/path/cPath", "$(SRCROOT)/path/cxxPath"]))
+        #expect(resolvedSettings["HEADER_SEARCH_PATHS"] == .array([
+            "$(inherited)",
+            "$(SRCROOT)/path/cPath",
+            "$(SRCROOT)/path/cxxPath",
+        ]))
     }
 
     @Test func set_SWIFT_ACTIVE_COMPILATION_CONDITIONS() throws {
@@ -67,7 +87,11 @@ struct SettingsMapperTests {
             .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),
             .init(tool: .swift, name: .define, condition: nil, value: ["Define2"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == .array(["$(inherited)", "Define1", "Define2"]))
     }
@@ -76,7 +100,11 @@ struct SettingsMapperTests {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .c, name: .unsafeFlags, condition: nil, value: ["ArbitraryFlag"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["OTHER_CFLAGS"] == .array(["$(inherited)", "ArbitraryFlag"]))
     }
@@ -85,7 +113,11 @@ struct SettingsMapperTests {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .cxx, name: .unsafeFlags, condition: nil, value: ["ArbitraryFlag"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["OTHER_CPLUSPLUSFLAGS"] == .array(["$(inherited)", "ArbitraryFlag"]))
     }
@@ -97,7 +129,11 @@ struct SettingsMapperTests {
             .init(tool: .swift, name: .enableExperimentalFeature, condition: nil, value: ["Experimental"]),
             .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["5"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["OTHER_SWIFT_FLAGS"] == .array([
             "$(inherited)", "ArbitraryFlag",
@@ -111,7 +147,11 @@ struct SettingsMapperTests {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .linker, name: .unsafeFlags, condition: nil, value: ["ArbitraryFlag"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["OTHER_LDFLAGS"] == .array(["$(inherited)", "ArbitraryFlag"]))
     }
@@ -120,7 +160,11 @@ struct SettingsMapperTests {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .swiftLanguageMode, condition: nil, value: ["6"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["SWIFT_VERSION"] == .string("6"))
     }
@@ -128,9 +172,18 @@ struct SettingsMapperTests {
     @Test func set_Combined() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),
-            .init(tool: .swift, name: .define, condition: PackageInfo.PackageConditionDescription(platformNames: ["ios", "tvos"], config: nil), value: ["Define2"]),
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(platformNames: ["ios", "tvos"], config: nil),
+                value: ["Define2"]
+            ),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
 
         let allPlatformSettings = try mapper.settingsDictionary()
         #expect(allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == .array(["$(inherited)", "Define1"]))
@@ -139,19 +192,44 @@ struct SettingsMapperTests {
         #expect(iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == .array(["$(inherited)", "Define1", "Define2"]))
 
         let combinedSettings = try mapper.mapSettings()
-        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"] == .array(["$(inherited)", "Define1", "Define2"]))
-        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"] == .array(["$(inherited)", "Define1", "Define2"]))
-        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvos*]"] == .array(["$(inherited)", "Define1", "Define2"]))
-        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvsimulator*]"] == .array(["$(inherited)", "Define1", "Define2"]))
+        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"] == .array([
+            "$(inherited)",
+            "Define1",
+            "Define2",
+        ]))
+        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"] == .array([
+            "$(inherited)",
+            "Define1",
+            "Define2",
+        ]))
+        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvos*]"] == .array([
+            "$(inherited)",
+            "Define1",
+            "Define2",
+        ]))
+        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvsimulator*]"] == .array([
+            "$(inherited)",
+            "Define1",
+            "Define2",
+        ]))
         #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == .array(["$(inherited)", "Define1"]))
     }
 
     @Test func set_maccatalyst() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .define, condition: nil, value: ["Define1"]),
-            .init(tool: .swift, name: .define, condition: PackageInfo.PackageConditionDescription(platformNames: ["maccatalyst"], config: nil), value: ["Define2"]),
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(platformNames: ["maccatalyst"], config: nil),
+                value: ["Define2"]
+            ),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
 
         let allPlatformSettings = try mapper.settingsDictionary()
         #expect(allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == .array(["$(inherited)", "Define1"]))
@@ -160,8 +238,16 @@ struct SettingsMapperTests {
         #expect(iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == .array(["$(inherited)", "Define1", "Define2"]))
 
         let combinedSettings = try mapper.mapSettings()
-        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"] == .array(["$(inherited)", "Define1", "Define2"]))
-        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"] == .array(["$(inherited)", "Define1", "Define2"]))
+        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"] == .array([
+            "$(inherited)",
+            "Define1",
+            "Define2",
+        ]))
+        #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"] == .array([
+            "$(inherited)",
+            "Define1",
+            "Define2",
+        ]))
         #expect(combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == .array(["$(inherited)", "Define1"]))
     }
 
@@ -169,7 +255,11 @@ struct SettingsMapperTests {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .strictMemorySafety, condition: nil, value: ["warnings"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)", "-strict-memory-safety"]))
     }
@@ -178,16 +268,28 @@ struct SettingsMapperTests {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .strictMemorySafety, condition: nil, value: ["errors"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
-        #expect(resolvedSettings["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)", "-strict-memory-safety", "-Werror=StrictMemorySafety"]))
+        #expect(resolvedSettings["OTHER_SWIFT_FLAGS"] == .array([
+            "$(inherited)",
+            "-strict-memory-safety",
+            "-Werror=StrictMemorySafety",
+        ]))
     }
 
     @Test func set_OTHER_CFLAGS_with_disableWarning() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .c, name: .disableWarning, condition: nil, value: ["unused-variable"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["OTHER_CFLAGS"] == .array(["$(inherited)", "-Wno-unused-variable"]))
     }
@@ -196,7 +298,11 @@ struct SettingsMapperTests {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .cxx, name: .disableWarning, condition: nil, value: ["deprecated"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["OTHER_CPLUSPLUSFLAGS"] == .array(["$(inherited)", "-Wno-deprecated"]))
     }
@@ -205,7 +311,11 @@ struct SettingsMapperTests {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .swift, name: .disableWarning, condition: nil, value: ["unused-parameter"]),
         ]
-        let mapper = SettingsMapper(headerSearchPaths: [], mainRelativePath: try RelativePath(validating: "path"), settings: settings)
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
         let resolvedSettings = try mapper.settingsDictionary()
         #expect(resolvedSettings["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)", "-Wno-unused-parameter"]))
     }

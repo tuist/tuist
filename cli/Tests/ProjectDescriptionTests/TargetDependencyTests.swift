@@ -4,22 +4,22 @@ import TuistTesting
 @testable import ProjectDescription
 
 struct TargetDependencyTests {
-    @Test func test_toJSON_when_target() throws {
+    @Test func toJSON_when_target() throws {
         let subject = TargetDependency.target(name: "Target")
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_toJSON_when_project() throws {
+    @Test func toJSON_when_project() throws {
         let subject = TargetDependency.project(target: "target", path: "path")
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_toJSON_when_framework() throws {
+    @Test func toJSON_when_framework() throws {
         let subject = TargetDependency.framework(path: "/path/framework.framework")
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_toJSON_when_library() throws {
+    @Test func toJSON_when_library() throws {
         let subject = TargetDependency.library(
             path: "/path/library.a",
             publicHeaders: "/path/headers",
@@ -28,7 +28,7 @@ struct TargetDependencyTests {
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_sdk_codable() throws {
+    @Test func sdk_codable() throws {
         // Given
         let sdks: [TargetDependency] = [
             .sdk(name: "A", type: .framework),
@@ -44,7 +44,7 @@ struct TargetDependencyTests {
         #expect(decoded == sdks)
     }
 
-    @Test func test_xcframework_codable() throws {
+    @Test func xcframework_codable() throws {
         // Given
         let subject: [TargetDependency] = [
             .xcframework(path: "/path/framework.xcframework"),
@@ -54,7 +54,7 @@ struct TargetDependencyTests {
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_instanceTarget() {
+    @Test func instanceTarget() {
         let target: Target = .target(name: "Target", destinations: .iOS, product: .framework, bundleId: "bundleId")
         let subject = TargetDependency.target(target)
         #expect(subject == TargetDependency.target(name: "Target"))

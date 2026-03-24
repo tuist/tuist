@@ -3,7 +3,7 @@ import Testing
 @testable import XcodeGraph
 
 struct GraphDependencyTests {
-    @Test func test_codable_target() throws {
+    @Test func codable_target() throws {
         // Given
         let subject = GraphDependency.testTarget()
 
@@ -16,7 +16,7 @@ struct GraphDependencyTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_framework() throws {
+    @Test func codable_framework() throws {
         // Given
         let subject = GraphDependency.testFramework()
 

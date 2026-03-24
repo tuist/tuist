@@ -2,8 +2,8 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
-import TSCUtility
 import Testing
+import TSCUtility
 import TuistCore
 import TuistRootDirectoryLocator
 import TuistSupport

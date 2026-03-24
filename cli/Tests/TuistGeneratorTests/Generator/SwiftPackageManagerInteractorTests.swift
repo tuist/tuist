@@ -1,13 +1,13 @@
 
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
 import XcodeProj
-import FileSystemTesting
-import Testing
 
 @testable import TuistGenerator
 @testable import TuistTesting
@@ -20,13 +20,13 @@ struct SwiftPackageManagerInteractorTests {
         system = MockSystem()
         fileSystem = FileSystem()
         subject = SwiftPackageManagerInteractor(
-        fileSystem: fileSystem,
-        system: system
+            fileSystem: fileSystem,
+            system: system
         )
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_addsPackageDependencyManager_withRemotePackageDependency() async throws {
+    func generate_addsPackageDependencyManager_withRemotePackageDependency() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = anyTarget(dependencies: [
@@ -60,7 +60,7 @@ struct SwiftPackageManagerInteractorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_addsPackageDependencyManager_withLocalPackageDependency() async throws {
+    func generate_addsPackageDependencyManager_withLocalPackageDependency() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = anyTarget(dependencies: [
@@ -94,7 +94,7 @@ struct SwiftPackageManagerInteractorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_usesSystemGitCredentials() async throws {
+    func generate_usesSystemGitCredentials() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
 
@@ -145,7 +145,7 @@ struct SwiftPackageManagerInteractorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_linksRootPackageResolved_before_resolving() async throws {
+    func generate_linksRootPackageResolved_before_resolving() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = anyTarget(dependencies: [
@@ -190,7 +190,7 @@ struct SwiftPackageManagerInteractorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_doesNotAddPackageDependencyManager() async throws {
+    func generate_doesNotAddPackageDependencyManager() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = anyTarget()
@@ -215,7 +215,7 @@ struct SwiftPackageManagerInteractorTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_generate_sets_cloned_source_packages_dir_path() async throws {
+    func generate_sets_cloned_source_packages_dir_path() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let spmPath = temporaryPath.appending(component: "spm")

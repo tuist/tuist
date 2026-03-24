@@ -1,8 +1,8 @@
+import FileSystemTesting
 import Foundation
 import Path
-import TuistSupport
-import FileSystemTesting
 import Testing
+import TuistSupport
 
 @testable import TuistCacheEE
 @testable import TuistCore
@@ -14,9 +14,8 @@ struct ExtendedAttributesControllerIntegrationTests {
         subject = ExtendedAttributesController()
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_setAttribute_and_getAttribute_set_and_return_attributes_when_file() throws {
+    func setAttribute_and_getAttribute_set_and_return_attributes_when_file() throws {
         // Given
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let filePath = tmpDir.appending(component: "file.txt")
@@ -31,7 +30,7 @@ struct ExtendedAttributesControllerIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_setAttribute_and_getAttribute_set_and_return_attributes_when_directory() throws {
+    func setAttribute_and_getAttribute_set_and_return_attributes_when_directory() throws {
         // Given
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
 
@@ -44,7 +43,7 @@ struct ExtendedAttributesControllerIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_getAttribute_returnsNil_when_theAttributeIsMissing_when_file() throws {
+    func getAttribute_returnsNil_when_theAttributeIsMissing_when_file() throws {
         // Given
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let filePath = tmpDir.appending(component: "file.txt")
@@ -58,7 +57,7 @@ struct ExtendedAttributesControllerIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_getAttribute_returnsNil_when_theAttributeIsMissing_when_directory() throws {
+    func getAttribute_returnsNil_when_theAttributeIsMissing_when_directory() throws {
         // Given
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
 
@@ -70,7 +69,7 @@ struct ExtendedAttributesControllerIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_removeAttribute_removesTheAttribute_when_file() throws {
+    func removeAttribute_removesTheAttribute_when_file() throws {
         // Given
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let filePath = tmpDir.appending(component: "file.txt")
@@ -86,7 +85,7 @@ struct ExtendedAttributesControllerIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_removeAttribute_removesTheAttribute_when_file_with_absent_attribute() throws {
+    func removeAttribute_removesTheAttribute_when_file_with_absent_attribute() throws {
         // Given
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
         let filePath = tmpDir.appending(component: "file.txt")
@@ -101,7 +100,7 @@ struct ExtendedAttributesControllerIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_removeAttribute_removesTheAttribute_when_directory() throws {
+    func removeAttribute_removesTheAttribute_when_directory() throws {
         // Given
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
 
@@ -115,7 +114,7 @@ struct ExtendedAttributesControllerIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_removeAttribute_removesTheAttribute_when_directory_with_absent_attribute() throws {
+    func removeAttribute_removesTheAttribute_when_directory_with_absent_attribute() throws {
         // Given
         let tmpDir = try #require(FileSystem.temporaryTestDirectory)
 

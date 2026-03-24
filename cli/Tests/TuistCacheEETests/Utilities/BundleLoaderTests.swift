@@ -1,14 +1,14 @@
-import Path
-import TuistSupport
 import FileSystemTesting
+import Path
 import Testing
+import TuistSupport
 
 @testable import TuistCacheEE
 @testable import TuistTesting
 
 struct BundleLoaderErrorTests {
     @Test
-    func test_type_when_bundleNotFound() throws {
+    func type_when_bundleNotFound() throws {
         // Given
         let path = try AbsolutePath(validating: "/bundles/tuist.bundle")
         let subject = BundleLoaderError.bundleNotFound(path)
@@ -21,7 +21,7 @@ struct BundleLoaderErrorTests {
     }
 
     @Test
-    func test_description_when_bundleNotFound() throws {
+    func description_when_bundleNotFound() throws {
         // Given
         let path = try AbsolutePath(validating: "/bundles/tuist.bundle")
         let subject = BundleLoaderError.bundleNotFound(path)
@@ -42,9 +42,8 @@ struct BundleLoaderTests {
         )
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_load_when_the_framework_doesnt_exist() async throws {
+    func load_when_the_framework_doesnt_exist() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let bundlePath = path.appending(component: "tuist.bundle")
@@ -54,7 +53,7 @@ struct BundleLoaderTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_load_when_the_framework_exists() async throws {
+    func load_when_the_framework_exists() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let bundlePath = path.appending(component: "tuist.bundle")

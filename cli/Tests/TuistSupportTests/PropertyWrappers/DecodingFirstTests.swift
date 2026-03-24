@@ -4,7 +4,7 @@ import Testing
 
 struct DecodingFirstTests {
     @Test
-    func test_decodes_only_first() throws {
+    func decodes_only_first() throws {
         // Given
         let holderJson = #"{"element": ["elementOne", "elementTwo"]}"#
 
@@ -19,15 +19,15 @@ struct DecodingFirstTests {
     }
 
     @Test
-    func test_decode_fails_when_no_values() throws {
+    func decode_fails_when_no_values() throws {
         // Given
         let holderJson = #"{"element": []}"#
 
         // Then
         #expect(throws: (any Error).self) { try JSONDecoder().decode(
-                ArrayHolder.self,
-                from: try #require(holderJson.data(using: .utf8))
-            ) }
+            ArrayHolder.self,
+            from: try #require(holderJson.data(using: .utf8))
+        ) }
     }
 }
 

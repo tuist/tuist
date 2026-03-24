@@ -1,11 +1,11 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import Testing
 
 @testable import TuistHasher
 
@@ -30,11 +30,10 @@ struct CoreDataModelsContentHasherTests {
             .willProduce { $0.joined(separator: ";") }
     }
 
-
     // MARK: - Tests
 
     @Test
-    func test_hash_returnsSameValue() async throws {
+    func hash_returnsSameValue() async throws {
         // Given
         coreDataModel = try buildCoreDataModel(versions: ["v1", "v2"], currentVersion: "currentV1")
         given(contentHasher)
@@ -49,7 +48,7 @@ struct CoreDataModelsContentHasherTests {
     }
 
     @Test
-    func test_hash_fileContentChangesHash() async throws {
+    func hash_fileContentChangesHash() async throws {
         // Given
         let name = "CoreDataModel"
         coreDataModel = try buildCoreDataModel()
@@ -69,7 +68,7 @@ struct CoreDataModelsContentHasherTests {
     }
 
     @Test
-    func test_hash_currentVersionChangesHash() async throws {
+    func hash_currentVersionChangesHash() async throws {
         // Given
         coreDataModel = try buildCoreDataModel(currentVersion: "2")
         given(contentHasher)
@@ -83,7 +82,7 @@ struct CoreDataModelsContentHasherTests {
     }
 
     @Test
-    func test_hash_versionsChangeHash() async throws {
+    func hash_versionsChangeHash() async throws {
         // Given
         coreDataModel = try buildCoreDataModel(versions: ["1", "2", "3"])
         given(contentHasher)
@@ -98,7 +97,7 @@ struct CoreDataModelsContentHasherTests {
     }
 
     @Test
-    func test_hash_isDeterministicRegardlessOfInputOrder() async throws {
+    func hash_isDeterministicRegardlessOfInputOrder() async throws {
         // Given
         let modelA = CoreDataModel(
             path: try AbsolutePath(validating: "/AlphaModel+path"),

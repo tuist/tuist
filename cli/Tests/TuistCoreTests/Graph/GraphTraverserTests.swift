@@ -1,15 +1,15 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistSupport
 import XcodeGraph
-import FileSystemTesting
-import Testing
 @testable import TuistCore
 @testable import TuistTesting
 
 struct GraphTraverserTests {
-    @Test func test_dependsOnXCTest_when_is_framework() {
+    @Test func dependsOnXCTest_when_is_framework() {
         // Given
         let target = Target.test(
             name: "Framework",
@@ -30,7 +30,7 @@ struct GraphTraverserTests {
         #expect(!got)
     }
 
-    @Test func test_dependsOnXCTest_when_is_tests_bundle() {
+    @Test func dependsOnXCTest_when_is_tests_bundle() {
         // Given
         let target = Target.test(
             name: "UnitTests",
@@ -51,7 +51,7 @@ struct GraphTraverserTests {
         #expect(got)
     }
 
-    @Test func test_dependsOnXCTest_when_direct_dependency_is_XCTest_SDK() {
+    @Test func dependsOnXCTest_when_direct_dependency_is_XCTest_SDK() {
         // Given
         let target = Target.test(
             name: "Framework",
@@ -81,7 +81,7 @@ struct GraphTraverserTests {
         #expect(got)
     }
 
-    @Test func test_dependsOnXCTest_when_settings_enables_search_paths() {
+    @Test func dependsOnXCTest_when_settings_enables_search_paths() {
         // Given
         let target = Target.test(
             name: "Framework",
@@ -169,7 +169,11 @@ struct GraphTraverserTests {
         let got = subject.directStaticDependencies(path: path, name: framework.name).sorted()
 
         // Then
-        #expect(got == [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension, condition: nil)])
+        #expect(got == [.product(
+            target: staticLibrary.name,
+            productName: staticLibrary.productNameWithExtension,
+            condition: nil
+        )])
     }
 
     @Test func test_directLocalTargetDependencies() {
@@ -199,7 +203,7 @@ struct GraphTraverserTests {
         #expect(got.map(\.target) == [b])
     }
 
-    @Test func test_directLocalTargetDependencies_returnsLocalProjectTargetsOnly() {
+    @Test func directLocalTargetDependencies_returnsLocalProjectTargetsOnly() {
         // Given
         // Project A: A1 -> A2
         //               -> (Project B) B1
@@ -230,7 +234,7 @@ struct GraphTraverserTests {
         #expect(got.map(\.target) == [a2])
     }
 
-    @Test func test_directTargetDependencies_returnsAllTargets() {
+    @Test func directTargetDependencies_returnsAllTargets() {
         // Given
         // Project A: A1 -> A2
         //               -> (Project B) B1
@@ -261,12 +265,12 @@ struct GraphTraverserTests {
 
         // Then
         #expect(got == [
-                GraphTargetReference(target: GraphTarget(path: projectA.path, target: a2, project: projectA)),
-                GraphTargetReference(target: GraphTarget(path: projectB.path, target: b1, project: projectB)),
-            ])
+            GraphTargetReference(target: GraphTarget(path: projectA.path, target: a2, project: projectA)),
+            GraphTargetReference(target: GraphTarget(path: projectB.path, target: b1, project: projectB)),
+        ])
     }
 
-    @Test func test_resourceBundleDependencies_returns_an_empty_list_when_a_dependency_can_host_resources() {
+    @Test func resourceBundleDependencies_returns_an_empty_list_when_a_dependency_can_host_resources() {
         // Given
         // App -> WatchApp -> Bundle
         let app = Target.test(name: "App", platform: .iOS, product: .app)
@@ -326,7 +330,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_resourceBundleDependencies_when_app_depends_on_external_static_framework_with_resources_via_dynamic_framework() {
+    @Test func resourceBundleDependencies_when_app_depends_on_external_static_framework_with_resources_via_dynamic_framework() {
         // Given
         // App -> DynamicFramework -> StaticLibrary (External) -> Bundle
         let app = Target.test(name: "App", product: .app)
@@ -378,7 +382,7 @@ struct GraphTraverserTests {
         #expect(dynamicFrameworkBundleDependencies == [])
     }
 
-    @Test func test_resourceBundleDependencies_when_app_extension_depends_on_external_static_framework_with_resources() {
+    @Test func resourceBundleDependencies_when_app_extension_depends_on_external_static_framework_with_resources() {
         // Given
         // AppExtension -> StaticLibrary (External) -> Bundle
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
@@ -424,7 +428,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_resourceBundleDependencies_when_the_target_doesnt_support_resources() {
+    @Test func resourceBundleDependencies_when_the_target_doesnt_support_resources() {
         // Given
         // StaticLibrary -> Bundle
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
@@ -451,7 +455,7 @@ struct GraphTraverserTests {
         #expect(got == [])
     }
 
-    @Test func test_resourceBundleDependencies_fromTargetDependency() {
+    @Test func resourceBundleDependencies_fromTargetDependency() {
         // Given
         let bundle = Target.test(name: "Bundle1", product: .bundle)
         let app = Target.test(name: "App", product: .bundle)
@@ -479,7 +483,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_resourceBundleDependencies_fromProjectDependency() {
+    @Test func resourceBundleDependencies_fromProjectDependency() {
         // Given
         let bundle = Target.test(name: "Bundle1", product: .bundle)
         let projectA = Project.test(path: "/path/a", targets: [bundle])
@@ -512,7 +516,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_resourceBundleDependencies_transitivelyViaSingleStaticFramework() {
+    @Test func resourceBundleDependencies_transitivelyViaSingleStaticFramework() {
         // Given
         let bundle = Target.test(name: "ResourceBundle", product: .bundle)
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
@@ -547,7 +551,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_resourceBundleDependencies_transitivelyViaMultipleStaticFrameworks() {
+    @Test func resourceBundleDependencies_transitivelyViaMultipleStaticFrameworks() {
         // Given
         let bundle1 = Target.test(name: "ResourceBundle1", product: .bundle)
         let bundle2 = Target.test(name: "ResourceBundle2", product: .bundle)
@@ -593,7 +597,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_resourceBundleDependencies_transitivelyToDynamicFramework() {
+    @Test func resourceBundleDependencies_transitivelyToDynamicFramework() {
         // Given
         // App -> Dynamic Framework ----
         //                              |--> Static Framework 2 -> Bundle
@@ -650,7 +654,7 @@ struct GraphTraverserTests {
         #expect(staticFramework2Results == [])
     }
 
-    @Test func test_resourceBundleDependencies_precompiledResourceBundles_testBundle() {
+    @Test func resourceBundleDependencies_precompiledResourceBundles_testBundle() {
         // Given
         let bundlePath = try! AbsolutePath(validating: "/path/cache/CachedStaticFrameworkA.bundle")
         let bundle = GraphDependency.bundle(path: bundlePath)
@@ -702,7 +706,7 @@ struct GraphTraverserTests {
         #expect(frameworkResults == [])
     }
 
-    @Test func test_resourceBundleDependencies_precompiledResourceBundles_staticFramework() {
+    @Test func resourceBundleDependencies_precompiledResourceBundles_staticFramework() {
         // Given
         let bundlePath = try! AbsolutePath(validating: "/path/cache/CachedStaticFrameworkA.bundle")
         let bundle = GraphDependency.bundle(path: bundlePath)
@@ -754,7 +758,7 @@ struct GraphTraverserTests {
         #expect(frameworkResults == [])
     }
 
-    @Test func test_resourceBundleDependencies_precompiledResourceBundles_dynamicFramework() {
+    @Test func resourceBundleDependencies_precompiledResourceBundles_dynamicFramework() {
         // Given
         let bundlePath = try! AbsolutePath(validating: "/path/cache/CachedStaticFrameworkA.bundle")
         let bundle = GraphDependency.bundle(path: bundlePath)
@@ -801,14 +805,14 @@ struct GraphTraverserTests {
 
         // Then
         #expect(appResults == [
-                .bundle(path: bundlePath),
-            ])
+            .bundle(path: bundlePath),
+        ])
         #expect(frameworkResults == [
-                .bundle(path: bundlePath),
-            ])
+            .bundle(path: bundlePath),
+        ])
     }
 
-    @Test func test_containsResources_is_true_when_buildable_folders_contain_resources() {
+    @Test func containsResources_is_true_when_buildable_folders_contain_resources() {
         let target = Target.test(
             product: .staticFramework,
             resources: .init([]),
@@ -826,7 +830,7 @@ struct GraphTraverserTests {
         #expect(target.containsResources)
     }
 
-    @Test func test_containsResources_is_false_when_buildable_folders_contain_only_sources() {
+    @Test func containsResources_is_false_when_buildable_folders_contain_only_sources() {
         let target = Target.test(
             product: .staticFramework,
             resources: .init([]),
@@ -843,7 +847,7 @@ struct GraphTraverserTests {
         #expect(!target.containsResources)
     }
 
-    @Test func test_resourceBundleDependencies_when_static_framework_has_resources_in_buildable_folders() {
+    @Test func resourceBundleDependencies_when_static_framework_has_resources_in_buildable_folders() {
         // Given
         // App -> StaticFramework (buildable folder resources) -> ResourceBundle
         let bundle = Target.test(name: "App_StaticFramework", product: .bundle)
@@ -891,7 +895,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_target_from_dependency() {
+    @Test func target_from_dependency() {
         // Given
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(targets: [app])
@@ -911,7 +915,7 @@ struct GraphTraverserTests {
         #expect(got?.target == app)
     }
 
-    @Test func test_allDependencies() throws {
+    @Test func allDependencies() throws {
         // Given
         // App -> StaticLibrary -> Bundle
         let app = Target.test(name: "App", product: .app)
@@ -946,7 +950,7 @@ struct GraphTraverserTests {
         ]))
     }
 
-    @Test func test_filterDependencies_skips_branches() {
+    @Test func filterDependencies_skips_branches() {
         // Given
         // App -> StaticLibrary -> Bundle
         //     |
@@ -997,7 +1001,7 @@ struct GraphTraverserTests {
         ]))
     }
 
-    @Test func test_appExtensionDependencies_when_dependencyIsAppExtension() throws {
+    @Test func appExtensionDependencies_when_dependencyIsAppExtension() throws {
         // Given
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "AppExtension", product: .appExtension)
@@ -1022,7 +1026,7 @@ struct GraphTraverserTests {
         #expect(got.first?.target.name == "AppExtension")
     }
 
-    @Test func test_appExtensionDependencies_when_dependencyIsStickerPackExtension() throws {
+    @Test func appExtensionDependencies_when_dependencyIsStickerPackExtension() throws {
         // When
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
@@ -1047,7 +1051,7 @@ struct GraphTraverserTests {
         #expect(got.first?.target.name == "StickerPackExtension")
     }
 
-    @Test func test_appExtensionDependencies_when_dependencyIsMessageExtension() throws {
+    @Test func appExtensionDependencies_when_dependencyIsMessageExtension() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let messageExtension = Target.test(name: "MessageExtension", product: .messagesExtension)
@@ -1098,7 +1102,7 @@ struct GraphTraverserTests {
         #expect(got == GraphTargetReference(target: expectedTarget))
     }
 
-    @Test func test_buildsForMacCatalyst_returns_false_when_someDependenciesCantBuildForMacCatalyst() {
+    @Test func buildsForMacCatalyst_returns_false_when_someDependenciesCantBuildForMacCatalyst() {
         // Given
         let app = Target.test(name: "app", destinations: [.macCatalyst], product: .app)
         let library = Target.test(name: "library-a", destinations: [.iPhone], product: .dynamicLibrary)
@@ -1128,7 +1132,7 @@ struct GraphTraverserTests {
         #expect(!got)
     }
 
-    @Test func test_buildsForMacCatalyst_returns_false_when_aTargetDoesntSupportCatalystRegardlessOfItsDependencies() {
+    @Test func buildsForMacCatalyst_returns_false_when_aTargetDoesntSupportCatalystRegardlessOfItsDependencies() {
         // Given
         let app = Target.test(name: "app", destinations: [.iPhone], product: .app)
         let library = Target.test(name: "library-a", destinations: [.macCatalyst], product: .dynamicLibrary)
@@ -1158,7 +1162,7 @@ struct GraphTraverserTests {
         #expect(!got)
     }
 
-    @Test func test_buildsForMacCatalyst_returns_true_when_aTargetAndItsDependenciesSupportCatalyst() {
+    @Test func buildsForMacCatalyst_returns_true_when_aTargetAndItsDependenciesSupportCatalyst() {
         // Given
         let app = Target.test(name: "app", destinations: [.macCatalyst], product: .app)
         let library = Target.test(name: "library-a", destinations: [.macCatalyst], product: .dynamicLibrary)
@@ -1188,7 +1192,7 @@ struct GraphTraverserTests {
         #expect(got)
     }
 
-    @Test func test_embeddableFrameworks_when_macroExecutableInBetween() throws {
+    @Test func embeddableFrameworks_when_macroExecutableInBetween() throws {
         // Target > Macro XCFramework > Macro Executable > Dynamic SwiftSyntax
         //
         // Having a macro executable that links dynamic dependencies is an scenario that Tuist might support in the future.
@@ -1222,7 +1226,7 @@ struct GraphTraverserTests {
         #expect(got == [GraphDependencyReference(precompiledMacro)])
     }
 
-    @Test func test_embeddableFrameworks_when_targetIsNotApp() throws {
+    @Test func embeddableFrameworks_when_targetIsNotApp() throws {
         // Given
         let target = Target.test(name: "Main", product: .framework)
         let dependency = Target.test(name: "Dependency", product: .framework)
@@ -1247,7 +1251,7 @@ struct GraphTraverserTests {
         #expect(got.first == nil)
     }
 
-    @Test func test_embeddableFrameworks_when_dependencyIsATarget() throws {
+    @Test func embeddableFrameworks_when_dependencyIsATarget() throws {
         // Given
         let mergeableSettings = Settings.test(base: ["MERGEABLE_LIBRARY": "YES"])
         let target = Target.test(name: "Main")
@@ -1275,12 +1279,12 @@ struct GraphTraverserTests {
 
         // Then
         #expect(got == [
-                .product(target: "DependencyA", productName: "DependencyA.framework"),
-                .product(target: "DependencyB", productName: "DependencyB.framework"),
-            ])
+            .product(target: "DependencyA", productName: "DependencyA.framework"),
+            .product(target: "DependencyB", productName: "DependencyB.framework"),
+        ])
     }
 
-    @Test func test_embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {
+    @Test func embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {
         // Given
         let target = Target.test(name: "Main", mergedBinaryType: .automatic)
         let dependencyA = Target.test(name: "DependencyA", product: .framework)
@@ -1306,10 +1310,10 @@ struct GraphTraverserTests {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        #expect(got, [.product(target: "DependencyA" == productName: "DependencyA.framework")])
+        #expect(got, [.product(target: productName == "DependencyA": "DependencyA.framework")])
     }
 
-    @Test func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
+    @Test func embeddableFrameworks_when_dependencyIsAFramework() throws {
         // Given
         let frameworkPath = try AbsolutePath(validating: "/test/test.framework")
         let target = Target.test(name: "Main", platform: .iOS)
@@ -1339,7 +1343,7 @@ struct GraphTraverserTests {
         #expect(got.first == GraphDependencyReference(frameworkDependency))
     }
 
-    @Test func test_embeddableFrameworks_when_transitiveXCFrameworks() throws {
+    @Test func embeddableFrameworks_when_transitiveXCFrameworks() throws {
         // Given
         let app = Target.test(name: "App", platform: .iOS, product: .app)
         let project = Project.test(targets: [app])
@@ -1401,7 +1405,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_embeddableFrameworks_when_appMergesDependencies() throws {
+    @Test func embeddableFrameworks_when_appMergesDependencies() throws {
         // Given
         let app = Target.test(
             name: "App",
@@ -1466,7 +1470,7 @@ struct GraphTraverserTests {
         // E should not be present in the list as it is mergeable and app is mergeable
     }
 
-    @Test func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
+    @Test func embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {
         // Given
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .framework)
@@ -1501,7 +1505,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_embeddableFrameworks_when_precompiledStaticFramework() throws {
+    @Test func embeddableFrameworks_when_precompiledStaticFramework() throws {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
@@ -1530,7 +1534,7 @@ struct GraphTraverserTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_embeddableFrameworks_when_watchExtension() throws {
+    @Test func embeddableFrameworks_when_watchExtension() throws {
         // Given
         let frameworkA = Target.test(name: "FrameworkA", product: .framework)
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
@@ -1565,7 +1569,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_embeddableFrameworks_when_macOS_xpc() throws {
+    @Test func embeddableFrameworks_when_macOS_xpc() throws {
         // Given
         let frameworkA = Target.test(name: "FrameworkA", destinations: .macOS, product: .framework)
         let frameworkB = Target.test(name: "FrameworkB", destinations: .macOS, product: .framework)
@@ -1600,7 +1604,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_embeddableDependencies_whenHostedTestTarget() throws {
+    @Test func embeddableDependencies_whenHostedTestTarget() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -1630,7 +1634,7 @@ struct GraphTraverserTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_embeddableDependencies_when_nonHostedTestTarget_dynamic_dependencies() throws {
+    @Test func embeddableDependencies_when_nonHostedTestTarget_dynamic_dependencies() throws {
         // Given
         let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
         let target = Target.test(name: "LocallyBuiltFramework", product: .framework)
@@ -1665,7 +1669,7 @@ struct GraphTraverserTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_embeddableFrameworks_whenHostedTestTarget_transitiveDependencies() throws {
+    @Test func embeddableFrameworks_whenHostedTestTarget_transitiveDependencies() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -1710,7 +1714,7 @@ struct GraphTraverserTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {
+    @Test func embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
@@ -1743,7 +1747,7 @@ struct GraphTraverserTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_embeddableFrameworks_when_appExtensionWithFrameworkDependency() throws {
+    @Test func embeddableFrameworks_when_appExtensionWithFrameworkDependency() throws {
         // Given
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let framework = Target.test(name: "Framework", product: .framework)
@@ -1823,7 +1827,7 @@ struct GraphTraverserTests {
         #expect(got == try [AbsolutePath(validating: "/test")])
     }
 
-    @Test func test_linkableDependencies_whenMacros() throws {
+    @Test func linkableDependencies_whenMacros() throws {
         // Given
         let target = Target.test(name: "Main", product: .app)
         let macroXCFramework = GraphDependency.testXCFramework(
@@ -1856,7 +1860,7 @@ struct GraphTraverserTests {
         #expect(got.first == GraphDependencyReference(macroXCFramework))
     }
 
-    @Test func test_linkableDependencies_doesntReturnTransitiveStaticPrecompiledBinaries_when_thereAreIntermediatePrecompiledBinariesThatCanLink(
+    @Test func linkableDependencies_doesntReturnTransitiveStaticPrecompiledBinaries_when_thereAreIntermediatePrecompiledBinariesThatCanLink(
     ) throws {
         // Given
         let target = Target.test(name: "Main")
@@ -1892,7 +1896,7 @@ struct GraphTraverserTests {
         #expect(got == [GraphDependencyReference(precompiledDynamicFramework)])
     }
 
-    @Test func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledStaticBinaryDependency(
+    @Test func linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledStaticBinaryDependency(
     ) throws {
         // App ---(depends on)---> Precompiled static binary (A) ---> Precompiled static binary (B)
 
@@ -1945,7 +1949,7 @@ struct GraphTraverserTests {
         #expect(embeddable.isEmpty)
     }
 
-    @Test func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledDynamicBinaryDependency(
+    @Test func linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledDynamicBinaryDependency(
     ) throws {
         // App ---(depends on)---> Precompiled dynamic binary (A) ----> Precompiled dynamic binary (B)
 
@@ -2002,7 +2006,9 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(.inTemporaryDirectory) func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependency(
+    @Test(
+        .inTemporaryDirectory
+    ) func linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> Static XCFramework (B)
 
@@ -2064,7 +2070,9 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(.inTemporaryDirectory) func test_linkableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
+    @Test(
+        .inTemporaryDirectory
+    ) func linkableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Objective-C XCFramework (A)
 
@@ -2107,7 +2115,9 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(.inTemporaryDirectory) func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependencyWithALinkedSystemLibrary(
+    @Test(
+        .inTemporaryDirectory
+    ) func linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticXCFrameworkDependencyWithALinkedSystemLibrary(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static XCFramework (A) ----> libc++.tbd
 
@@ -2169,7 +2179,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledDynamicBinaryDependency(
+    @Test func linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledDynamicBinaryDependency(
     ) throws {
         // App ---(depends on)---> Precompiled static binary (A) ----> Precompiled dynamic binary (B)
 
@@ -2224,7 +2234,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledStaticBinaryDependency(
+    @Test func linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledStaticBinaryDependency(
     ) throws {
         // App ---(depends on)---> Precompiled dynamic binary (A) ----> Precompiled static binary (B)
 
@@ -2278,7 +2288,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableFrameworks_when_staticFrameworkDependsOnTransitivePrecompiledStaticFramework() throws {
+    @Test func linkableFrameworks_when_staticFrameworkDependsOnTransitivePrecompiledStaticFramework() throws {
         // Given
         // App
         //  -> StaticFramework (Target .staticFramework)
@@ -2331,7 +2341,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableDependencies_whenALibraryTarget() throws {
+    @Test func linkableDependencies_whenALibraryTarget() throws {
         // Given
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .staticLibrary)
@@ -2352,10 +2362,10 @@ struct GraphTraverserTests {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        #expect(got.first, .product(target: "Dependency" == productName: "libDependency.a"))
+        #expect(got.first, .product(target: productName == "Dependency": "libDependency.a"))
     }
 
-    @Test func test_linkableDependencies_whenAFrameworkTarget() throws {
+    @Test func linkableDependencies_whenAFrameworkTarget() throws {
         // Given
         let target = Target.test(name: "Main")
         let dependency = Target.test(name: "Dependency", product: .framework)
@@ -2385,7 +2395,7 @@ struct GraphTraverserTests {
 
         // Then
         #expect(got.count == 1)
-        #expect(got.first, .product(target: "Dependency" == productName: "Dependency.framework"))
+        #expect(got.first, .product(target: productName == "Dependency": "Dependency.framework"))
 
         let frameworkGot = try subject.linkableDependencies(path: project.path, name: dependency.name)
 
@@ -2396,7 +2406,7 @@ struct GraphTraverserTests {
         )
     }
 
-    @Test func test_linkableDependencies_transitiveDynamicLibrariesOneStaticHop() throws {
+    @Test func linkableDependencies_transitiveDynamicLibrariesOneStaticHop() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFramework",
@@ -2434,16 +2444,16 @@ struct GraphTraverserTests {
 
         // Then
         #expect(got == [
-                GraphDependencyReference
-                    .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
-                GraphDependencyReference.product(
-                    target: "StaticFramework",
-                    productName: "StaticFramework.framework"
-                ),
-            ])
+            GraphDependencyReference
+                .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
+            GraphDependencyReference.product(
+                target: "StaticFramework",
+                productName: "StaticFramework.framework"
+            ),
+        ])
     }
 
-    @Test func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
+    @Test func linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
         // Given
         let dynamicFramework1 = Target.test(
             name: "DynamicFramework1",
@@ -2524,7 +2534,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableDependencies_transitiveDynamicLibrariesCheckNoDuplicatesInParentDynamic() throws {
+    @Test func linkableDependencies_transitiveDynamicLibrariesCheckNoDuplicatesInParentDynamic() throws {
         // Given
         let dynamicFramework1 = Target.test(
             name: "DynamicFramework1",
@@ -2594,12 +2604,12 @@ struct GraphTraverserTests {
 
         // Then
         #expect(dynamicFramework1Got == [
-                GraphDependencyReference
-                    .product(target: "DynamicFramework2", productName: "DynamicFramework2.framework"),
-            ])
+            GraphDependencyReference
+                .product(target: "DynamicFramework2", productName: "DynamicFramework2.framework"),
+        ])
     }
 
-    @Test func test_linkableDependencies_transitiveSDKDependenciesStatic() throws {
+    @Test func linkableDependencies_transitiveSDKDependenciesStatic() throws {
         // Given
         let staticFrameworkA = Target.test(
             name: "StaticFrameworkA",
@@ -2646,7 +2656,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableDependencies_transitiveSDKDependenciesDynamic() throws {
+    @Test func linkableDependencies_transitiveSDKDependenciesDynamic() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFramework",
@@ -2693,7 +2703,7 @@ struct GraphTraverserTests {
         #expect(dynamicGot.compactMap(sdkDependency) == [SDKPathAndStatus(name: "some.framework", status: .optional)])
     }
 
-    @Test func test_linkableDependencies_transitiveSDKDependenciesNotDuplicated() throws {
+    @Test func linkableDependencies_transitiveSDKDependenciesNotDuplicated() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFramework",
@@ -2736,7 +2746,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableDependencies_transitiveSDKDependenciesImmediateDependencies() throws {
+    @Test func linkableDependencies_transitiveSDKDependenciesImmediateDependencies() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFrameworkA",
@@ -2777,12 +2787,12 @@ struct GraphTraverserTests {
 
         // Then
         #expect(got.compactMap(sdkDependency) == [
-                SDKPathAndStatus(name: "thingone.framework", status: .optional),
-                SDKPathAndStatus(name: "thingtwo.framework", status: .required),
-            ])
+            SDKPathAndStatus(name: "thingone.framework", status: .optional),
+            SDKPathAndStatus(name: "thingtwo.framework", status: .required),
+        ])
     }
 
-    @Test func test_linkableDependencies_NoTransitiveSDKDependenciesForStaticFrameworks() throws {
+    @Test func linkableDependencies_NoTransitiveSDKDependenciesForStaticFrameworks() throws {
         // Given
         let staticFrameworkA = Target.test(
             name: "StaticFrameworkA",
@@ -2828,7 +2838,7 @@ struct GraphTraverserTests {
         #expect(got.compactMap(sdkDependency) == [SDKPathAndStatus(name: "ThingOne.framework", status: .optional)])
     }
 
-    @Test func test_linkableDependencies_includeTransitivePrecompiledDependenciesOfStaticFrameworks() throws {
+    @Test func linkableDependencies_includeTransitivePrecompiledDependenciesOfStaticFrameworks() throws {
         // Given
         // App > StaticFramework > PrecompiledDynamicFramework
         let app = Target.test(name: "App", product: .app)
@@ -2875,7 +2885,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks() throws {
+    @Test func linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks() throws {
         // Given
         // App > DynamicFramework > PrecompiledDynamicFramework
         let app = Target.test(name: "App", product: .app)
@@ -2912,7 +2922,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks2() throws {
+    @Test func linkableDependencies_doNotIncludeTransitivePrecompiledDependenciesOfDynamicFrameworks2() throws {
         // Given
         // App > StaticFramework > DynamicFramework > PrecompiledDynamicFramework
         let app = Target.test(name: "App", product: .app)
@@ -2954,7 +2964,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableDependencies_when_watchExtension() throws {
+    @Test func linkableDependencies_when_watchExtension() throws {
         // Given
         let frameworkA = Target.test(name: "FrameworkA", product: .framework)
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
@@ -2988,7 +2998,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableDependencies_when_watchExtension_staticDependency() throws {
+    @Test func linkableDependencies_when_watchExtension_staticDependency() throws {
         // Given
         let frameworkA = Target.test(name: "FrameworkA", product: .staticFramework)
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
@@ -3023,7 +3033,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableDependencies_whenHostedTestTarget_withCommonStaticProducts() throws {
+    @Test func linkableDependencies_whenHostedTestTarget_withCommonStaticProducts() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFramework",
@@ -3060,7 +3070,7 @@ struct GraphTraverserTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_linkableDependencies_whenAppClipHostedTestTarget_withCommonStaticProducts() throws {
+    @Test func linkableDependencies_whenAppClipHostedTestTarget_withCommonStaticProducts() throws {
         // Given
         let staticFramework = Target.test(
             name: "StaticFramework",
@@ -3095,7 +3105,7 @@ struct GraphTraverserTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_linkableDependencies_whenHostedTestTarget_withCommonDynamicProducts() throws {
+    @Test func linkableDependencies_whenHostedTestTarget_withCommonDynamicProducts() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -3130,7 +3140,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableDependencies_whenHostedTestTarget_doNotIncludeRedundantDependencies() throws {
+    @Test func linkableDependencies_whenHostedTestTarget_doNotIncludeRedundantDependencies() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -3160,7 +3170,7 @@ struct GraphTraverserTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_linkableDependencies_when_appClipSDKNode() throws {
+    @Test func linkableDependencies_when_appClipSDKNode() throws {
         // Given
         let target = Target.test(name: "AppClip", product: .appClip)
         let project = Project.test(path: "/path/a", targets: [target])
@@ -3201,11 +3211,11 @@ struct GraphTraverserTests {
         )
         .path
         #expect(got == [
-                .sdk(path: path, status: .required, source: .system, condition: .when([.ios])),
-            ])
+            .sdk(path: path, status: .required, source: .system, condition: .when([.ios])),
+        ])
     }
 
-    @Test func test_embeddableFrameworks_when_appClipDependsOnDynamicFramework() throws {
+    @Test func embeddableFrameworks_when_appClipDependsOnDynamicFramework() throws {
         // Given
         let appClipTarget = Target.test(name: "AppClip", product: .appClip)
         let frameworkTarget = Target.test(name: "MyFramework", product: .framework)
@@ -3237,7 +3247,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_embeddableFrameworks_when_transitiveXCFrameworkWithDifferentStatuses() throws {
+    @Test func embeddableFrameworks_when_transitiveXCFrameworkWithDifferentStatuses() throws {
         // Given
         // App depends on FrameworkA and FrameworkB
         // FrameworkA depends on XCFramework with .optional status
@@ -3303,7 +3313,7 @@ struct GraphTraverserTests {
         }
     }
 
-    @Test func test_linkableDependencies_when_dependencyIsAFramework() throws {
+    @Test func linkableDependencies_when_dependencyIsAFramework() throws {
         // Given
         let frameworkPath = try AbsolutePath(validating: "/test/test.framework")
         let target = Target.test(name: "Main", platform: .iOS)
@@ -3335,7 +3345,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableFrameworks_when_precompiledStaticFramework() throws {
+    @Test func linkableFrameworks_when_precompiledStaticFramework() throws {
         // Given
         let target = Target.test(name: "Main")
         let project = Project.test(targets: [target])
@@ -3369,7 +3379,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_when_staticFrameworkDependsOnPrecompiledStaticFramework() throws {
+    @Test func when_staticFrameworkDependsOnPrecompiledStaticFramework() throws {
         // Given
         // App > StaticFramework > PrecompiledStaticFramework
         let app = Target.test(name: "App", product: .app)
@@ -3433,7 +3443,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_when_staticFrameworkDependsOnPrecompiledStaticLibaryXCFramework() throws {
+    @Test func when_staticFrameworkDependsOnPrecompiledStaticLibaryXCFramework() throws {
         // Given
         // App > StaticFramework > PrecompiledStaticXCFramework
         let app = Target.test(name: "App", product: .app)
@@ -3496,7 +3506,7 @@ struct GraphTraverserTests {
         #expect(staticFrameworkSearchPaths.sorted() == [])
     }
 
-    @Test func test_when_staticFrameworkDependsOnPrecompiledStaticLibary() throws {
+    @Test func when_staticFrameworkDependsOnPrecompiledStaticLibary() throws {
         // Given
         // App > StaticFramework > PrecompiledStaticXCFramework
         let app = Target.test(name: "App", product: .app)
@@ -3574,7 +3584,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableFrameworks_when_transitivePrecompiledStaticFramework() throws {
+    @Test func linkableFrameworks_when_transitivePrecompiledStaticFramework() throws {
         // Given
         let unitTests = Target.test(name: "MyStaticFrameworkTests", product: .unitTests)
         let staticFramework = Target.test(name: "MyStaticFramework", product: .staticFramework)
@@ -3611,7 +3621,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableFrameworks_when_transitivePrecompiledStaticFrameworkLinkedByDynamicFramework() throws {
+    @Test func linkableFrameworks_when_transitivePrecompiledStaticFrameworkLinkedByDynamicFramework() throws {
         // Given
         let unitTests = Target.test(name: "MyDynamicFrameworkTests", product: .unitTests)
         let dynamicFramework = Target.test(name: "MyDynamicFramework", product: .framework)
@@ -3659,7 +3669,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_linkableFrameworks_when_precompiledStaticFrameworkLinkedByHostApp() throws {
+    @Test func linkableFrameworks_when_precompiledStaticFrameworkLinkedByHostApp() throws {
         // Given
         let hostApp = Target.test(name: "App", product: .app)
         let unitTests = Target.test(name: "AppTests", product: .unitTests)
@@ -3691,7 +3701,7 @@ struct GraphTraverserTests {
         #expect(results.sorted() == [])
     }
 
-    @Test func test_linkableFrameworks_when_transitivePrecompiledStaticFrameworkLinkedByHostApp() throws {
+    @Test func linkableFrameworks_when_transitivePrecompiledStaticFrameworkLinkedByHostApp() throws {
         // Given
         let hostApp = Target.test(name: "App", product: .app)
         let unitTests = Target.test(name: "MyHostAppTests", product: .unitTests)
@@ -3732,7 +3742,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_searchablePathDependencies_when_transitivePrecompiledStaticFrameworkLinkedByHostApp() throws {
+    @Test func searchablePathDependencies_when_transitivePrecompiledStaticFrameworkLinkedByHostApp() throws {
         // Given
         let hostApp = Target.test(name: "App", product: .app)
         let unitTests = Target.test(name: "MyHostAppTests", product: .unitTests)
@@ -3774,7 +3784,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_searchablePathDependencies_when_transitiveStaticDependenciesThroughDynamicFramework() throws {
+    @Test func searchablePathDependencies_when_transitiveStaticDependenciesThroughDynamicFramework() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let dynamicFramework = Target.test(name: "MyDynamicFramework", product: .framework)
@@ -3878,7 +3888,7 @@ struct GraphTraverserTests {
         #expect(got == try [AbsolutePath(validating: "/test")])
     }
 
-    @Test func test_runPathSearchPaths_when_unit_tests_with_hosted_target() throws {
+    @Test func runPathSearchPaths_when_unit_tests_with_hosted_target() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
@@ -3913,7 +3923,7 @@ struct GraphTraverserTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_hostTargetNode_watchApp() {
+    @Test func hostTargetNode_watchApp() {
         // Given
         let app = Target.test(name: "App", platform: .iOS, product: .app)
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
@@ -3936,7 +3946,7 @@ struct GraphTraverserTests {
         #expect(got?.target == app)
     }
 
-    @Test func test_hostTargetNode_watchAppExtension() {
+    @Test func hostTargetNode_watchAppExtension() {
         // Given
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
         let watchAppExtension = Target.test(name: "WatchAppExtension", platform: .watchOS, product: .watch2Extension)
@@ -3989,7 +3999,7 @@ struct GraphTraverserTests {
         #expect(got.contains(GraphTarget(path: project.path, target: tvosApp, project: project)))
     }
 
-    @Test func test_allTargets_returns_all_the_targets() {
+    @Test func allTargets_returns_all_the_targets() {
         // Given
         let firstPath = try! AbsolutePath(validating: "/first")
         let secondPath = try! AbsolutePath(validating: "/second")
@@ -4017,7 +4027,7 @@ struct GraphTraverserTests {
         #expect(got.last?.target == secondTarget)
     }
 
-    @Test func test_hasRemotePackages_when_has_remotePackages() {
+    @Test func hasRemotePackages_when_has_remotePackages() {
         // Given
         let path = try! AbsolutePath(validating: "/project")
         let package = Package.remote(url: "https://git.tuist.io", requirement: .branch("main"))
@@ -4031,7 +4041,7 @@ struct GraphTraverserTests {
         #expect(graphTraverser.hasRemotePackages)
     }
 
-    @Test func test_hasRemotePackages_when_doesnt_have_remote_packages() {
+    @Test func hasRemotePackages_when_doesnt_have_remote_packages() {
         // Given
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -4040,7 +4050,7 @@ struct GraphTraverserTests {
         #expect(!graphTraverser.hasRemotePackages)
     }
 
-    @Test func test_extensionKitExtensionDependencies_when_dependencyIsExtensionKitExtension() throws {
+    @Test func extensionKitExtensionDependencies_when_dependencyIsExtensionKitExtension() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let extensionKitExtension = Target.test(name: "ExtensionKitExtension", product: .extensionKitExtension)
@@ -4067,7 +4077,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_recursiveDependencies_whet_targetHasRecursiveDependencies() throws {
+    @Test func recursiveDependencies_whet_targetHasRecursiveDependencies() throws {
         let targetC = Target.test(name: "C")
         let targetD = Target.test(name: "D")
         let targetB = Target.test(name: "B")
@@ -4105,7 +4115,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_copyProductDependencies_when_targetHasTransitiveStaticXCFrameworks() throws {
+    @Test func copyProductDependencies_when_targetHasTransitiveStaticXCFrameworks() throws {
         // XCFrameworks are copied into the products directory to let Xcode's compilation process pick the right architecture and
         // platform at build-time. The logic that determines which xcframeworks to include should traverse the .xcframework
         // dependencies
@@ -4227,7 +4237,7 @@ struct GraphTraverserTests {
         ].sorted())
     }
 
-    @Test func test_copyProductDependencies_when_targetHasDirectStaticDependencies() throws {
+    @Test func copyProductDependencies_when_targetHasDirectStaticDependencies() throws {
         // Given
         let staticLibrary = Target.test(name: "StaticLibrary", destinations: [.iPhone], product: .staticLibrary)
         let aDependency = Target.test(name: "StaticDependency", destinations: [.iPhone], product: .staticLibrary)
@@ -4254,7 +4264,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_copyProductDependencies_when_targetHasBundleDependencies() throws {
+    @Test func copyProductDependencies_when_targetHasBundleDependencies() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let bundle = Target.test(name: "Bundle", destinations: [.iPhone], product: .bundle)
@@ -4281,7 +4291,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_executableDependencies_when_targetHasExecutableNonLocalDependencies() {
+    @Test func executableDependencies_when_targetHasExecutableNonLocalDependencies() {
         // Given
         let mainApp = Target.test(name: "App", product: .app)
         let localExecutable = Target.test(name: "LocalExecutable", product: .app)
@@ -4317,7 +4327,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_platformFilters_transitiveDependencyInheritedPlatformFilter() throws {
+    @Test func platformFilters_transitiveDependencyInheritedPlatformFilter() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let staticFramework = Target.test(
@@ -4358,7 +4368,7 @@ struct GraphTraverserTests {
 
     /// Given A -> B -> C, if A -> B has a filter of [.ios], and B -> C has a filter of `[.macos]`, A->C should return `nil` for
     /// platform filters
-    @Test func test_platformFilters_transitiveDependencyHasNilPlatformFilters_whenDependencyHasDisjointFilters() throws {
+    @Test func platformFilters_transitiveDependencyHasNilPlatformFilters_whenDependencyHasDisjointFilters() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.mac], product: .app)
         let staticFramework = Target.test(
@@ -4398,7 +4408,7 @@ struct GraphTraverserTests {
         #expect(result == .incompatible)
     }
 
-    @Test func test_platformFilters_transitivePlatformFilter() throws {
+    @Test func platformFilters_transitivePlatformFilter() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let staticFramework = Target.test(
@@ -4437,7 +4447,7 @@ struct GraphTraverserTests {
         #expect(result == .condition(.when([.ios])))
     }
 
-    @Test func test_platformFilters_transitivePlatformFilter_siblingDependenciesDontImpactEachOther() throws {
+    @Test func platformFilters_transitivePlatformFilter_siblingDependenciesDontImpactEachOther() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let staticFrameworkA = Target.test(
@@ -4503,7 +4513,7 @@ struct GraphTraverserTests {
         #expect(appToSDKFilters == .condition(.when([.ios])))
     }
 
-    @Test func test_platformFilters_transitivePlatformFilter_noFiltersHaveHigherPrecedence() throws {
+    @Test func platformFilters_transitivePlatformFilter_noFiltersHaveHigherPrecedence() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let staticFrameworkA = Target.test(
@@ -4564,7 +4574,7 @@ struct GraphTraverserTests {
         #expect(result == .condition(nil))
     }
 
-    @Test func test_directSwiftMacroExecutables_when_targetHasDirectMacroDependencies() {
+    @Test func directSwiftMacroExecutables_when_targetHasDirectMacroDependencies() {
         // Given
         let framework = Target.test(name: "StaticFramework", destinations: [.iPhone], product: .staticFramework)
         let macro = Target.test(name: "Macro", destinations: [.mac], product: .macro)
@@ -4590,7 +4600,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_directSwiftMacroExecutables_returns_nothing_when_targetDoesntHaveDirectMacroDependencies() {
+    @Test func directSwiftMacroExecutables_returns_nothing_when_targetDoesntHaveDirectMacroDependencies() {
         // Given
         let framework = Target.test(name: "StaticFramework", destinations: [.iPhone], product: .staticFramework)
         let project = Project.test(targets: [framework])
@@ -4613,7 +4623,7 @@ struct GraphTraverserTests {
         #expect(got.sorted() == [])
     }
 
-    @Test func test_directSwiftMacroTargets_when_targetHasADirectMacroStaticFrameworkDependency() {
+    @Test func directSwiftMacroTargets_when_targetHasADirectMacroStaticFrameworkDependency() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let staticFrameworkMacro = Target.test(name: "StaticFrameworkMacro", destinations: [.iPhone], product: .staticFramework)
@@ -4675,7 +4685,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_directSwiftMacroTargets_doesntReturnATarget_when_theItDoesntDependOnAMacroExecutable(
+    @Test func directSwiftMacroTargets_doesntReturnATarget_when_theItDoesntDependOnAMacroExecutable(
     ) {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
@@ -4701,7 +4711,7 @@ struct GraphTraverserTests {
         #expect(got.sorted() == [])
     }
 
-    @Test func test_allSwiftMacroTargets_returnsTransitiveSwiftMacros() {
+    @Test func allSwiftMacroTargets_returnsTransitiveSwiftMacros() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let directMacroFramework = Target.test(name: "DirectMacroFramework", destinations: [.iPhone], product: .staticFramework)
@@ -4749,7 +4759,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test func test_directTargetDependenciesWithConditions() throws {
+    @Test func directTargetDependenciesWithConditions() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let framework = Target.test(name: "Framework", destinations: [.iPhone], product: .framework)
@@ -4784,7 +4794,7 @@ struct GraphTraverserTests {
     }
 
     /// https://github.com/tuist/tuist/issues/5746
-    @Test func test_transitiveTargetDependenciesWhenIntermediateDependenciesHaveConditions() throws {
+    @Test func transitiveTargetDependenciesWhenIntermediateDependenciesHaveConditions() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone, .mac], product: .app)
         let frameworkA = Target.test(name: "FrameworkA", destinations: [.iPhone, .mac], product: .framework)
@@ -4840,7 +4850,7 @@ struct GraphTraverserTests {
         }
     }
 
-    @Test func test_orphanExternalDependencies() throws {
+    @Test func orphanExternalDependencies() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
@@ -4876,7 +4886,7 @@ struct GraphTraverserTests {
         #expect(got, Set([GraphTarget(path: packageProject.path, target: packageDevProduct == project: packageProject)]))
     }
 
-    @Test func test_orphanExternalDependencies_when_a_dependency_condition_platforms_are_not_used_downstream() throws {
+    @Test func orphanExternalDependencies_when_a_dependency_condition_platforms_are_not_used_downstream() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let project = Project.test(path: try! AbsolutePath(validating: "/App"), targets: [app])
@@ -4916,14 +4926,14 @@ struct GraphTraverserTests {
 
         // Then
         #expect(got == Set(
-                [
-                    GraphTarget(
-                        path: packageProject.path,
-                        target: directPackageProduct,
-                        project: packageProject
-                    ),
-                ]
-            ))
+            [
+                GraphTarget(
+                    path: packageProject.path,
+                    target: directPackageProduct,
+                    project: packageProject
+                ),
+            ]
+        ))
     }
 
     @Test func test_targetsWithExternalDependencies() {
@@ -4992,7 +5002,8 @@ struct GraphTraverserTests {
         #expect(got, Set([GraphTarget(path: packageProject.path, target: directPackageProduct == project: packageProject)]))
     }
 
-    @Test(.inTemporaryDirectory) func test_externalTargetSupportedPlatforms_when_external_dependency_without_platform_filter() async throws {
+    @Test(.inTemporaryDirectory) func externalTargetSupportedPlatforms_when_external_dependency_without_platform_filter(
+    ) async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
@@ -5040,10 +5051,13 @@ struct GraphTraverserTests {
         // Then
         #expect(got[GraphTarget(path: project.path, target: appTarget, project: project)] == nil)
         #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([.iOS]))
-        #expect(got[GraphTarget(path: externalProject.path, target: externalPackageTargetB, project: externalProject)] == Set([.iOS]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalPackageTargetB, project: externalProject)] ==
+            Set([.iOS]))
     }
 
-    @Test(.inTemporaryDirectory) func test_test_externalTargetSupportedPlatforms_when_external_transitive_dependency_without_platform_filter() async throws {
+    @Test(
+        .inTemporaryDirectory
+    ) func externalTargetSupportedPlatforms_when_external_transitive_dependency_without_platform_filter() async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
@@ -5090,11 +5104,13 @@ struct GraphTraverserTests {
 
         // Then
         #expect(got[GraphTarget(path: project.path, target: appTarget, project: project)] == nil)
-        #expect(got[GraphTarget(path: externalProject.path, target: directExternalPackage, project: externalProject)] == Set([.iOS]))
-        #expect(got[GraphTarget(path: externalProject.path, target: transitiveExternalPackage, project: externalProject)] == Set([.iOS]))
+        #expect(got[GraphTarget(path: externalProject.path, target: directExternalPackage, project: externalProject)] ==
+            Set([.iOS]))
+        #expect(got[GraphTarget(path: externalProject.path, target: transitiveExternalPackage, project: externalProject)] ==
+            Set([.iOS]))
     }
 
-    @Test(.inTemporaryDirectory) func test_externalTargetSupportedPlatforms_when_external_macro_dependency() async throws {
+    @Test(.inTemporaryDirectory) func externalTargetSupportedPlatforms_when_external_macro_dependency() async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
@@ -5140,13 +5156,16 @@ struct GraphTraverserTests {
 
         // Then
         #expect(got[GraphTarget(path: project.path, target: appTarget, project: project)] == nil)
-        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroFramework, project: externalProject)] == Set([.iOS]))
-        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroExecutable, project: externalProject)] == Set([.macOS]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroFramework, project: externalProject)] ==
+            Set([.iOS]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroExecutable, project: externalProject)] ==
+            Set([.macOS]))
     }
 
     // MARK: - externalTargetSupportedDestinations
 
-    @Test(.inTemporaryDirectory) func test_externalTargetSupportedDestinations_filters_catalyst_when_app_does_not_support_it() async throws {
+    @Test(.inTemporaryDirectory) func externalTargetSupportedDestinations_filters_catalyst_when_app_does_not_support_it(
+    ) async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
@@ -5182,10 +5201,13 @@ struct GraphTraverserTests {
         let got = GraphTraverser(graph: graph).externalTargetSupportedDestinations()
 
         // Then
-        #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([.iPad, .iPhone]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([
+            .iPad,
+            .iPhone,
+        ]))
     }
 
-    @Test(.inTemporaryDirectory) func test_externalTargetSupportedDestinations_includes_catalyst_when_app_supports_it() async throws {
+    @Test(.inTemporaryDirectory) func externalTargetSupportedDestinations_includes_catalyst_when_app_supports_it() async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
@@ -5221,10 +5243,14 @@ struct GraphTraverserTests {
         let got = GraphTraverser(graph: graph).externalTargetSupportedDestinations()
 
         // Then
-        #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([.iPad, .iPhone, .macCatalyst]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([
+            .iPad,
+            .iPhone,
+            .macCatalyst,
+        ]))
     }
 
-    @Test(.inTemporaryDirectory) func test_externalTargetSupportedDestinations_with_platform_condition() async throws {
+    @Test(.inTemporaryDirectory) func externalTargetSupportedDestinations_with_platform_condition() async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
@@ -5267,10 +5293,13 @@ struct GraphTraverserTests {
 
         // Then
         // Platform condition is .ios, which maps to iPhone and iPad destinations (not macCatalyst which is .catalyst)
-        #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([.iPad, .iPhone]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)] == Set([
+            .iPad,
+            .iPhone,
+        ]))
     }
 
-    @Test(.inTemporaryDirectory) func test_externalTargetSupportedDestinations_macro_gets_mac_destination() async throws {
+    @Test(.inTemporaryDirectory) func externalTargetSupportedDestinations_macro_gets_mac_destination() async throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let packagesDirectory = directory.appending(component: "Dependencies")
@@ -5315,8 +5344,12 @@ struct GraphTraverserTests {
         let got = GraphTraverser(graph: graph).externalTargetSupportedDestinations()
 
         // Then
-        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroFramework, project: externalProject)] == Set([.iPad, .iPhone]))
-        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroExecutable, project: externalProject)] == Set([.mac]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroFramework, project: externalProject)] == Set([
+            .iPad,
+            .iPhone,
+        ]))
+        #expect(got[GraphTarget(path: externalProject.path, target: externalMacroExecutable, project: externalProject)] ==
+            Set([.mac]))
     }
 
     @Test(.inTemporaryDirectory) func test_directTargetExternalDependencies() throws {
@@ -5367,7 +5400,9 @@ struct GraphTraverserTests {
         ]))
     }
 
-    @Test(.inTemporaryDirectory) func test_allSwiftPluginExecutables_includesAllXCFrameworkMacros_when_theyAreDirectOrTransitiveDependencies() throws {
+    @Test(
+        .inTemporaryDirectory
+    ) func allSwiftPluginExecutables_includesAllXCFrameworkMacros_when_theyAreDirectOrTransitiveDependencies() throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let appTarget = Target.test(name: "App", destinations: [.appleWatch])
@@ -5395,7 +5430,9 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(.inTemporaryDirectory) func test_allSwiftPluginExecutables_staticFrameworksThatDependOnMacroTargets_when_theyAreDirectOrTransitiveDependencies(
+    @Test(
+        .inTemporaryDirectory
+    ) func allSwiftPluginExecutables_staticFrameworksThatDependOnMacroTargets_when_theyAreDirectOrTransitiveDependencies(
     ) throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
@@ -5461,7 +5498,7 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(.inTemporaryDirectory) func test_allSwiftPluginExecutables_when_staticMacroFrameworkThatDependOnMacroPrecompiledExecutable(
+    @Test(.inTemporaryDirectory) func allSwiftPluginExecutables_when_staticMacroFrameworkThatDependOnMacroPrecompiledExecutable(
     ) throws {
         // Given
         let directory = try #require(FileSystem.temporaryTestDirectory)
@@ -5502,7 +5539,9 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(.inTemporaryDirectory) func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
+    @Test(
+        .inTemporaryDirectory
+    ) func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticObjcXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Objective-C XCFramework (A)
 
@@ -5551,7 +5590,9 @@ struct GraphTraverserTests {
         ])
     }
 
-    @Test(.inTemporaryDirectory) func test_staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticSwiftXCFrameworkDependency(
+    @Test(
+        .inTemporaryDirectory
+    ) func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies_when_appDependensOnPrecompiledDynamicXCFrameworkWithStaticSwiftXCFrameworkDependency(
     ) async throws {
         // App ---(depends on)---> Dynamic XCFramework ----> Static Swift XCFramework (A)
 
@@ -5593,7 +5634,7 @@ struct GraphTraverserTests {
         #expect(got.isEmpty)
     }
 
-    @Test func test_schemeRunnableTarget_when_no_executable_nor_build_targets() {
+    @Test func schemeRunnableTarget_when_no_executable_nor_build_targets() {
         // Given
         let scheme = Scheme.test(buildAction: .test(targets: []), runAction: .test(executable: nil))
         let graph = Graph.test(projects: [:])
@@ -5603,7 +5644,7 @@ struct GraphTraverserTests {
         #expect(subject.schemeRunnableTarget(scheme: scheme) == nil)
     }
 
-    @Test func test_schemeRunnableTarget_when_executable_and_present_target() {
+    @Test func schemeRunnableTarget_when_executable_and_present_target() {
         // Given
         let target = Target.test(name: "App", product: .app)
         let project = Project.test(targets: [target])
@@ -5616,7 +5657,7 @@ struct GraphTraverserTests {
         #expect(subject.schemeRunnableTarget(scheme: scheme)?.target == target)
     }
 
-    @Test func test_schemeRunnableTarget_when_executable_and_absent_target() {
+    @Test func schemeRunnableTarget_when_executable_and_absent_target() {
         // Given
         let project = Project.test(targets: [])
         let targetReference = TargetReference(projectPath: project.path, name: "App")
@@ -5628,7 +5669,7 @@ struct GraphTraverserTests {
         #expect(subject.schemeRunnableTarget(scheme: scheme) == nil)
     }
 
-    @Test func test_schemeRunnableTarget_when_absent_executable_runnable_build_target_and_present_target() {
+    @Test func schemeRunnableTarget_when_absent_executable_runnable_build_target_and_present_target() {
         // Given
         let target = Target.test(name: "App", product: .app)
         let project = Project.test(targets: [target])
@@ -5641,7 +5682,7 @@ struct GraphTraverserTests {
         #expect(subject.schemeRunnableTarget(scheme: scheme)?.target == target)
     }
 
-    @Test func test_schemeRunnableTarget_when_absent_executable_runnable_build_target_and_absent_target() {
+    @Test func schemeRunnableTarget_when_absent_executable_runnable_build_target_and_absent_target() {
         // Given
         let project = Project.test(targets: [])
         let targetReference = TargetReference(projectPath: project.path, name: "App")

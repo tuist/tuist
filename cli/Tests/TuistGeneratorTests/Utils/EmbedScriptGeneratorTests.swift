@@ -1,8 +1,8 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
-import Testing
 
 @testable import TuistGenerator
 @testable import TuistTesting
@@ -14,7 +14,7 @@ struct EmbedScriptGeneratorTests {
     }
 
     @Test
-    func test_script_when_includingSymbolsInFileLists() throws {
+    func script_when_includingSymbolsInFileLists() throws {
         // Given
         let path = try AbsolutePath(validating: "/frameworks/tuist.framework")
         let dsymPath = try AbsolutePath(validating: "/frameworks/tuist.dSYM")
@@ -48,7 +48,7 @@ struct EmbedScriptGeneratorTests {
     }
 
     @Test
-    func test_script_when_not_includingSymbolsInFileLists() throws {
+    func script_when_not_includingSymbolsInFileLists() throws {
         // Given
         let path = try AbsolutePath(validating: "/frameworks/tuist.framework")
         let dsymPath = try AbsolutePath(validating: "/frameworks/tuist.dSYM")

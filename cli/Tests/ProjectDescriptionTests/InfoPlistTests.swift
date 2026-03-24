@@ -5,12 +5,12 @@ import TuistTesting
 @testable import ProjectDescription
 
 struct InfoPlistTests {
-    @Test func test_toJSON_when_file() throws {
+    @Test func toJSON_when_file() throws {
         let subject = InfoPlist.file(path: "path/Info.plist")
         #expect(try isCodableRoundTripable(subject))
     }
 
-    @Test func test_toJSON_when_dictionary() throws {
+    @Test func toJSON_when_dictionary() throws {
         let subject = InfoPlist.dictionary([
             "string": "string",
             "number": 1,

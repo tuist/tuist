@@ -1,9 +1,9 @@
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistCore
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistCacheEE
 @testable import TuistTesting
@@ -20,7 +20,6 @@ struct CacheGraphMutatorTests {
         )
     }
 
-
     /// First scenario
     ///       +---->B (Cached XCFramework)+
     ///       |                         |
@@ -28,7 +27,7 @@ struct CacheGraphMutatorTests {
     ///       |                         |
     ///       +---->C (Cached XCFramework)+
     @Test(.inTemporaryDirectory)
-    func test_map_when_first_scenario() async throws {
+    func map_when_first_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given: D
@@ -124,21 +123,21 @@ struct CacheGraphMutatorTests {
             .testXCFramework(path: bXCFrameworkPath), default: Set()
         ]
         #expect(bDependencies == [
-                .testXCFramework(path: dXCFrameworkPath),
-            ])
+            .testXCFramework(path: dXCFrameworkPath),
+        ])
         let cDependencies = got.dependencies[
             .testXCFramework(path: cXCFrameworkPath), default: Set()
         ]
         #expect(cDependencies == [
-                .testXCFramework(path: dXCFrameworkPath),
-            ])
+            .testXCFramework(path: dXCFrameworkPath),
+        ])
         let appDependencies = got.dependencies[
             .target(name: app.name, path: appTargetGraphTarget.path), default: Set()
         ]
         #expect(appDependencies == [
-                .testXCFramework(path: bXCFrameworkPath),
-                .testXCFramework(path: cXCFrameworkPath),
-            ])
+            .testXCFramework(path: bXCFrameworkPath),
+            .testXCFramework(path: cXCFrameworkPath),
+        ])
     }
 
     /// Second scenario
@@ -148,7 +147,7 @@ struct CacheGraphMutatorTests {
     ///       |                         |
     ///       +---->C (Cached XCFramework)+
     @Test(.inTemporaryDirectory)
-    func test_map_when_second_scenario() async throws {
+    func map_when_second_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given: D
@@ -261,7 +260,7 @@ struct CacheGraphMutatorTests {
     ///       |                         |
     ///       +---->C (Cached XCFramework)+------>E Precompiled .xcframework
     @Test(.inTemporaryDirectory)
-    func test_map_when_third_scenario() async throws {
+    func map_when_third_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given nodes
@@ -382,7 +381,7 @@ struct CacheGraphMutatorTests {
     ///       |
     ///       +---->C (Cached XCFramework)+------>E Precompiled .xcframework
     @Test(.inTemporaryDirectory)
-    func test_map_when_fourth_scenario() async throws {
+    func map_when_fourth_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given nodes
@@ -495,7 +494,7 @@ struct CacheGraphMutatorTests {
     ///
     ///    App ---->B (Framework)+------>C (Framework that depends on XCTest)
     @Test(.inTemporaryDirectory)
-    func test_map_when_fith_scenario() async throws {
+    func map_when_fith_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given nodes
@@ -563,7 +562,7 @@ struct CacheGraphMutatorTests {
     ///       |                         |
     ///       +---->C (Cached Framework)+
     @Test(.inTemporaryDirectory)
-    func test_map_when_sixth_scenario() async throws {
+    func map_when_sixth_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given: D
@@ -659,21 +658,21 @@ struct CacheGraphMutatorTests {
             .testFramework(path: bCachedFrameworkPath), default: Set()
         ]
         #expect(bDependencies == [
-                .testFramework(path: dCachedFrameworkPath),
-            ])
+            .testFramework(path: dCachedFrameworkPath),
+        ])
         let cDependencies = got.dependencies[
             .testFramework(path: cCachedFrameworkPath), default: Set()
         ]
         #expect(cDependencies == [
-                .testFramework(path: dCachedFrameworkPath),
-            ])
+            .testFramework(path: dCachedFrameworkPath),
+        ])
         let appDependencies = got.dependencies[
             .target(name: appTarget.name, path: appGraphTarget.path), default: Set()
         ]
         #expect(appDependencies == [
-                .testFramework(path: bCachedFrameworkPath),
-                .testFramework(path: cCachedFrameworkPath),
-            ])
+            .testFramework(path: bCachedFrameworkPath),
+            .testFramework(path: cCachedFrameworkPath),
+        ])
     }
 
     /// Seventh scenario
@@ -683,7 +682,7 @@ struct CacheGraphMutatorTests {
     ///       |                         |
     ///       +---->C (Cached Framework)+
     @Test(.inTemporaryDirectory)
-    func test_map_when_seventh_scenario() async throws {
+    func map_when_seventh_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given: D
@@ -796,7 +795,7 @@ struct CacheGraphMutatorTests {
     ///       |                         |
     ///       +---->C (Cached Framework)+------>E Precompiled .xcframework
     @Test(.inTemporaryDirectory)
-    func test_map_when_eighth_scenario() async throws {
+    func map_when_eighth_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given nodes
@@ -919,7 +918,7 @@ struct CacheGraphMutatorTests {
     ///       |
     ///       +---->C (Cached Framework)+------>E Precompiled .xcframework
     @Test(.inTemporaryDirectory)
-    func test_map_when_nineth_scenario() async throws {
+    func map_when_nineth_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given nodes
@@ -1030,7 +1029,7 @@ struct CacheGraphMutatorTests {
     ///
     ///    App+----->B (Cached Framework)+--(macOS condition)---->C Precompiled .framework
     @Test(.inTemporaryDirectory)
-    func test_map_when_ninth_scenario() async throws {
+    func map_when_ninth_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given nodes
@@ -1140,7 +1139,7 @@ struct CacheGraphMutatorTests {
     ///          │  Macro │     │ Macro│
     ///          └────────┘     └──────┘
     @Test(.inTemporaryDirectory)
-    func test_map_when_tenth_scenario() async throws {
+    func map_when_tenth_scenario() async throws {
         // TODO: Adjust with the new macro mutation logic
         //        let path = try #require(FileSystem.temporaryTestDirectory)
         //
@@ -1240,7 +1239,7 @@ struct CacheGraphMutatorTests {
         //                    ]),
         //                .target(name: app.name, path: project.path): Set([GraphDependency.testFramework(path: bMacroXCFrameworkPath)]),
         //            ]
-        //)
+        // )
     }
 
     ///          Not Cached
@@ -1248,7 +1247,7 @@ struct CacheGraphMutatorTests {
     /// │App├────► MacroB ├─────►Exec. │
     /// └───┘    └────┬───┘     └───┬──┘
     @Test(.inTemporaryDirectory)
-    func test_map_when_eleventh_scenario() async throws {
+    func map_when_eleventh_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given nodes
@@ -1311,7 +1310,7 @@ struct CacheGraphMutatorTests {
     /// │ App ├──►Dynamic framework├─►Static fram.  │
     /// └─────┘  └─────────────────┘ └──────────────┘
     @Test(.inTemporaryDirectory)
-    func test_map_when_twelfth_scenario() async throws {
+    func map_when_twelfth_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given
@@ -1372,14 +1371,14 @@ struct CacheGraphMutatorTests {
 
         // Then
         #expect(got.dependencies == [
-                .testXCFramework(path: staticXCFrameworkPath): [],
-                .target(name: app.name, path: project.path): [
-                    .testXCFramework(path: dynamicXCFrameworkPath),
-                ],
-                .testXCFramework(path: dynamicXCFrameworkPath): [
-                    .testXCFramework(path: staticXCFrameworkPath),
-                ],
-            ])
+            .testXCFramework(path: staticXCFrameworkPath): [],
+            .target(name: app.name, path: project.path): [
+                .testXCFramework(path: dynamicXCFrameworkPath),
+            ],
+            .testXCFramework(path: dynamicXCFrameworkPath): [
+                .testXCFramework(path: staticXCFrameworkPath),
+            ],
+        ])
     }
 
     ///                         (Cached)
@@ -1387,7 +1386,7 @@ struct CacheGraphMutatorTests {
     /// │ App ├──►  Dynamic framework (.none LinkingStatus)
     /// └─────┘  └─────────────────┘
     @Test(.inTemporaryDirectory)
-    func test_map_when_thirteenth_scenario() async throws {
+    func map_when_thirteenth_scenario() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given
@@ -1434,9 +1433,9 @@ struct CacheGraphMutatorTests {
 
         // Then
         #expect(got.dependencies == [
-                .target(name: app.name, path: project.path): [],
-                .testXCFramework(path: dynamicXCFrameworkPath): [],
-            ])
+            .target(name: app.name, path: project.path): [],
+            .testXCFramework(path: dynamicXCFrameworkPath): [],
+        ])
     }
 
     ///                         (Cached)
@@ -1444,7 +1443,7 @@ struct CacheGraphMutatorTests {
     /// │ App ├──►  Dynamic framework (.none LinkingStatus)
     /// └─────┘  └─────────────────┘
     @Test(.inTemporaryDirectory)
-    func test_map_when_thirteenth_scenario_with_keeping_source_targets() async throws {
+    func map_when_thirteenth_scenario_with_keeping_source_targets() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given
@@ -1491,12 +1490,12 @@ struct CacheGraphMutatorTests {
 
         // Then
         #expect(got.projects[project.path]?.targets.values.first(where: { $0.name == dynamicFramework.name })?.metadata.tags
-                .contains("tuist:binary-sources") == true)
+            .contains("tuist:binary-sources") == true)
         #expect(got.dependencies == [
-                .target(name: app.name, path: project.path): [],
-                .target(name: dynamicFramework.name, path: project.path): [],
-                .testXCFramework(path: dynamicXCFrameworkPath): [],
-            ])
+            .target(name: app.name, path: project.path): [],
+            .target(name: dynamicFramework.name, path: project.path): [],
+            .testXCFramework(path: dynamicXCFrameworkPath): [],
+        ])
     }
 
     ///           (Cached)  (Cached)  (Cached)
@@ -1504,7 +1503,7 @@ struct CacheGraphMutatorTests {
     /// │ App           ├──► A          ├──► B          ├──► C         │
     /// └─────┘  └─────┘  └─────┘  └─────┘
     @Test(.inTemporaryDirectory)
-    func test_map_when_fourteenth_scenario_with_keeping_source_targets() async throws {
+    func map_when_fourteenth_scenario_with_keeping_source_targets() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given
@@ -1590,7 +1589,7 @@ struct CacheGraphMutatorTests {
     ///                                                │ (staticFw, cached)│
     ///                                                └──────────────────┘
     @Test(.inTemporaryDirectory)
-    func test_map_when_unit_test_depends_on_cached_dynamic_framework_with_static_deps() async throws {
+    func map_when_unit_test_depends_on_cached_dynamic_framework_with_static_deps() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
 
         // Given: DepLib (static framework, cached)
@@ -1688,14 +1687,16 @@ struct CacheGraphMutatorTests {
             .target(name: tests.name, path: testsGraphTarget.path), default: Set()
         ]
         #expect(testDependencies == [
-                .testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic),
-            ])
+            .testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic),
+        ])
 
         let sharedCounterDeps = got.dependencies[
             .testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic), default: Set()
         ]
-        #expect(sharedCounterDeps == [],
-            "Dynamic xcframework should not have static deps as edges (they are baked in)")
+        #expect(
+            sharedCounterDeps == [],
+            "Dynamic xcframework should not have static deps as edges (they are baked in)"
+        )
 
         // TCALib is a static framework so it does NOT bake in its static deps.
         // Its edge to DepLib should be preserved in the graph.

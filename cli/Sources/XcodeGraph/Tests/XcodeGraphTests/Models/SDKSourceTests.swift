@@ -3,7 +3,7 @@ import Testing
 @testable import XcodeGraph
 
 struct SDKSourceTests {
-    @Test func test_codable_developer() throws {
+    @Test func codable_developer() throws {
         // Given
         let subject = SDKSource.developer
 
@@ -16,7 +16,7 @@ struct SDKSourceTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_system() throws {
+    @Test func codable_system() throws {
         // Given
         let subject = SDKSource.system
 

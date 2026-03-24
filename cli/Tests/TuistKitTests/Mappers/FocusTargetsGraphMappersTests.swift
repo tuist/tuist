@@ -1,13 +1,13 @@
+import FileSystemTesting
 import Foundation
+import Testing
 import TuistCore
 import TuistTesting
 import XcodeGraph
-import FileSystemTesting
-import Testing
 @testable import TuistKit
 
 struct FocusTargetsGraphMappersTests {
-    @Test func test_map_when_included_targets_is_empty_no_targets_are_pruned() throws {
+    @Test func map_when_included_targets_is_empty_no_targets_are_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
@@ -38,7 +38,7 @@ struct FocusTargetsGraphMappersTests {
         #expect(pruningTargets.map(\.name.isEmpty))
     }
 
-    @Test func test_map_when_included_targets_is_empty_no_internal_targets_are_pruned() throws {
+    @Test func map_when_included_targets_is_empty_no_internal_targets_are_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz", "lorem", "ipsum"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
@@ -80,7 +80,7 @@ struct FocusTargetsGraphMappersTests {
         )
     }
 
-    @Test func test_map_when_included_targets_is_target_with_no_dependency_all_other_targets_are_pruned() throws {
+    @Test func map_when_included_targets_is_target_with_no_dependency_all_other_targets_are_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
@@ -116,7 +116,7 @@ struct FocusTargetsGraphMappersTests {
         )
     }
 
-    @Test func test_map_when_included_targets_is_target_with_dependencies_all_non_dependant_targets_are_pruned() throws {
+    @Test func map_when_included_targets_is_target_with_dependencies_all_non_dependant_targets_are_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
@@ -152,7 +152,7 @@ struct FocusTargetsGraphMappersTests {
         )
     }
 
-    @Test func test_map_when_included_targets_is_target_with_no_dependency_but_with_test_target_also_test_target_is_pruned() throws {
+    @Test func map_when_included_targets_is_target_with_no_dependency_but_with_test_target_also_test_target_is_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
@@ -192,7 +192,7 @@ struct FocusTargetsGraphMappersTests {
         )
     }
 
-    @Test func test_map_when_included_targets_do_not_exist() throws {
+    @Test func map_when_included_targets_do_not_exist() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"]
         let aTarget = Target.test(name: targetNames[0])
@@ -220,7 +220,7 @@ struct FocusTargetsGraphMappersTests {
         )
     }
 
-    @Test func test_map_when_included_products_prunes_non_test_dependency_targets() throws {
+    @Test func map_when_included_products_prunes_non_test_dependency_targets() throws {
         // Given
         let framework = Target.test(name: "Framework")
         let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
@@ -250,7 +250,7 @@ struct FocusTargetsGraphMappersTests {
         #expect(pruningTargets.map(\.name) == [exampleApp.name])
     }
 
-    @Test func test_map_when_included_products_does_not_prune_pre_action_build_settings_target() throws {
+    @Test func map_when_included_products_does_not_prune_pre_action_build_settings_target() throws {
         // Given
         let appTarget = Target.test(name: "App", product: .app)
         let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
@@ -301,7 +301,7 @@ struct FocusTargetsGraphMappersTests {
         #expect(pruningTargets.map(\.name.isEmpty))
     }
 
-    @Test func test_map_when_included_products_prunes_pre_action_target_from_fully_pruned_scheme() throws {
+    @Test func map_when_included_products_prunes_pre_action_target_from_fully_pruned_scheme() throws {
         // Given
         // A scheme whose only build target is an app (not a test) — the entire scheme will be pruned,
         // so its pre-action target should also be pruned
@@ -355,7 +355,7 @@ struct FocusTargetsGraphMappersTests {
         )
     }
 
-    @Test func test_map_when_included_products_with_explicit_filters_uses_filters() throws {
+    @Test func map_when_included_products_with_explicit_filters_uses_filters() throws {
         // Given
         let framework = Target.test(name: "Framework")
         let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
@@ -390,7 +390,7 @@ struct FocusTargetsGraphMappersTests {
         )
     }
 
-    @Test func test_map_when_included_targets_were_pruned_by_selective_testing_does_not_throw() throws {
+    @Test func map_when_included_targets_were_pruned_by_selective_testing_does_not_throw() throws {
         // Given
         let aTarget = Target.test(name: "App", product: .app)
         let aTests = Target.test(name: "AppTests", product: .unitTests)
@@ -427,7 +427,7 @@ struct FocusTargetsGraphMappersTests {
         #expect(gotSideEffects.isEmpty)
     }
 
-    @Test func test_map_when_some_included_targets_were_pruned_and_others_do_not_exist_throws() throws {
+    @Test func map_when_some_included_targets_were_pruned_and_others_do_not_exist_throws() throws {
         // Given
         let aTarget = Target.test(name: "App", product: .app)
         let aTests = Target.test(name: "AppTests", product: .unitTests)
@@ -464,7 +464,7 @@ struct FocusTargetsGraphMappersTests {
         )
     }
 
-    @Test func test_map_when_included_targets_is_unused_tag() throws {
+    @Test func map_when_included_targets_is_unused_tag() throws {
         // Given
         let targetNames = ["foo"]
         let aTarget = Target.test(name: targetNames[0])

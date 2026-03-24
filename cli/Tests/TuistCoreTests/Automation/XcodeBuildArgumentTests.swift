@@ -5,7 +5,7 @@ import Testing
 @testable import TuistTesting
 
 struct XcodeBuildArgumentTests {
-    @Test func test_arguments_returns_the_right_value_when_sdk() {
+    @Test func arguments_returns_the_right_value_when_sdk() {
         // Given
         let subject = XcodeBuildArgument.sdk("sdk")
 
@@ -16,7 +16,7 @@ struct XcodeBuildArgumentTests {
         #expect(got == ["-sdk", "sdk"])
     }
 
-    @Test func test_arguments_returns_the_right_value_when_destination() {
+    @Test func arguments_returns_the_right_value_when_destination() {
         // Given
         let subject = XcodeBuildArgument.destination("destination")
 
@@ -27,7 +27,7 @@ struct XcodeBuildArgumentTests {
         #expect(got == ["-destination", "destination"])
     }
 
-    @Test func test_arguments_returns_the_right_value_when_derivedDataPath() {
+    @Test func arguments_returns_the_right_value_when_derivedDataPath() {
         // Given
         let path = AbsolutePath.root
         let subject = XcodeBuildArgument.derivedDataPath(path)
@@ -39,7 +39,7 @@ struct XcodeBuildArgumentTests {
         #expect(got == ["-derivedDataPath", path.pathString])
     }
 
-    @Test func test_arguments_returns_the_right_value_when_xcarg() {
+    @Test func arguments_returns_the_right_value_when_xcarg() {
         // Given
         let subject = XcodeBuildArgument.xcarg("key", "value")
 
@@ -50,7 +50,7 @@ struct XcodeBuildArgumentTests {
         #expect(got == ["key=value"])
     }
 
-    @Test func test_arguments_returns_the_right_value_when_xcarg_with_spaces() {
+    @Test func arguments_returns_the_right_value_when_xcarg_with_spaces() {
         // Given
         let subject = XcodeBuildArgument.xcarg("key", "value with spaces")
 
@@ -61,7 +61,7 @@ struct XcodeBuildArgumentTests {
         #expect(got == ["key=\'value with spaces\'"])
     }
 
-    @Test func test_arguments_returns_the_right_value_when_retry_count() {
+    @Test func arguments_returns_the_right_value_when_retry_count() {
         // Given
         let subject = XcodeBuildArgument.retryCount(5)
 

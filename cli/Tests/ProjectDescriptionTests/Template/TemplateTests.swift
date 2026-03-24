@@ -3,7 +3,7 @@ import Testing
 import TuistTesting
 
 struct TemplateTests {
-    @Test func test_template_codable() throws {
+    @Test func template_codable() throws {
         // Given
         let template = Template(
             description: "",

@@ -1,6 +1,6 @@
+import FileSystemTesting
 import Foundation
 import Path
-import FileSystemTesting
 import Testing
 @testable import TuistSupport
 @testable import TuistTesting
@@ -8,8 +8,10 @@ import Testing
 struct FileHandlerErrorTests {
     @Test
     func test_description() {
-        #expect(FileHandlerError.invalidTextEncoding(try AbsolutePath(validating: "/path")).description == "The file at /path is not a utf8 text file")
-        #expect(FileHandlerError.writingError(try AbsolutePath(validating: "/path")).description == "Couldn't write to the file /path")
+        #expect(FileHandlerError.invalidTextEncoding(try AbsolutePath(validating: "/path"))
+            .description == "The file at /path is not a utf8 text file")
+        #expect(FileHandlerError.writingError(try AbsolutePath(validating: "/path"))
+            .description == "Couldn't write to the file /path")
     }
 }
 
@@ -24,7 +26,6 @@ struct FileHandlerTests {
     init() {
         subject = FileHandler()
     }
-
 
     // MARK: - Tests
 
@@ -45,14 +46,14 @@ struct FileHandlerTests {
     }
 
     @Test
-    func test_decode() throws {
+    func decode() throws {
         let testPlistPath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "Test.plist"))
         let xcframeworkInfoPlist: TestPlist = try subject.readPlistFile(testPlistPath)
         #expect(xcframeworkInfoPlist != nil)
     }
 
     @Test(.inTemporaryDirectory)
-    func test_replace_cleans_up_temp() throws {
+    func replace_cleans_up_temp() throws {
         // FIX: This test runs fine locally but it fails on CI.
         // // Given
         // let temporaryPath = try self.try #require(FileSystem.temporaryTestDirectory)
@@ -70,7 +71,7 @@ struct FileHandlerTests {
     }
 
     @Test
-    func test_base64MD5() throws {
+    func base64MD5() throws {
         // Given
         let testZippedFrameworkPath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip"))
 
@@ -82,7 +83,7 @@ struct FileHandlerTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_readPlistFile_throwsAnError_when_invalidPlist() throws {
+    func readPlistFile_throwsAnError_when_invalidPlist() throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let plistPath = temporaryDirectory.appending(component: "file.plist")
@@ -95,7 +96,10 @@ struct FileHandlerTests {
         } catch {
             _error = error
         }
-        #expect(_error as? FileHandlerError == FileHandlerError.propertyListDecodeError(plistPath, description: "The given data was not a valid property list."))
+        #expect(_error as? FileHandlerError == FileHandlerError.propertyListDecodeError(
+            plistPath,
+            description: "The given data was not a valid property list."
+        ))
     }
 
     // MARK: - Private

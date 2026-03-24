@@ -1,9 +1,9 @@
 import Foundation
 import GraphViz
 import Path
+import Testing
 import TuistCore
 import XcodeGraph
-import Testing
 
 @testable import TuistGenerator
 @testable import TuistTesting
@@ -39,7 +39,7 @@ struct GraphToGraphVizMapperTests {
     }
 
     @Test
-    func test_map_skipping_external_dependencies() throws {
+    func map_skipping_external_dependencies() throws {
         // Given
         let graph = try makeGivenGraph()
 
@@ -64,7 +64,7 @@ struct GraphToGraphVizMapperTests {
     }
 
     @Test
-    func test_map_skipping_tests() throws {
+    func map_skipping_tests() throws {
         // Given
         let graph = try makeGivenGraph()
 
@@ -89,7 +89,7 @@ struct GraphToGraphVizMapperTests {
     }
 
     @Test
-    func test_map_filter_platform() throws {
+    func map_filter_platform() throws {
         // Given
         let graph = try makeGivenGraph()
 
@@ -113,7 +113,7 @@ struct GraphToGraphVizMapperTests {
     }
 
     @Test
-    func test_map_filter_targets() throws {
+    func map_filter_targets() throws {
         // Given
         let graph = try makeGivenGraph()
         var expected = GraphViz.Graph(directed: true, strict: false)

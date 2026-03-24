@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct XCFrameworkInfoPlistTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject: XCFrameworkInfoPlist = .test()
 
@@ -19,7 +19,7 @@ struct XCFrameworkInfoPlistTests {
 
     // MARK: - SupportedPlatformVariant decode (tuist/tuist#9723)
 
-    @Test func test_decode_from_plist_with_SupportedPlatformVariant() throws {
+    @Test func decode_from_plist_with_SupportedPlatformVariant() throws {
         // Given
         let plistData = """
         <?xml version="1.0" encoding="UTF-8"?>

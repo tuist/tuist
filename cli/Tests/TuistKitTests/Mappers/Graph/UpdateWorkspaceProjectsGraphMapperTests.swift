@@ -1,9 +1,9 @@
 import Foundation
 import Path
+import Testing
 import TuistGenerator
 import TuistSupport
 import XcodeGraph
-import Testing
 
 @testable import TuistCore
 @testable import TuistKit
@@ -16,7 +16,7 @@ struct UpdateWorkspaceProjectsGraphMapperTests {
         subject = UpdateWorkspaceProjectsGraphMapper()
     }
 
-    @Test func test_map_removesNonExistingProjects() throws {
+    @Test func map_removesNonExistingProjects() throws {
         // Given
         let firstProjectPath: AbsolutePath = "/first-project"
         let secondProjectPath: AbsolutePath = "/second-project"

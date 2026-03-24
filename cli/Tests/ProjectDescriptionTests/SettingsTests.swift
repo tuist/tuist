@@ -8,7 +8,7 @@ struct SettingsTests {
     private var encoder = JSONEncoder()
     private var decoder = JSONDecoder()
 
-    @Test func test_codable_release_debug() throws {
+    @Test func codable_release_debug() throws {
         // Given
         let debug: Configuration = .debug(
             name: .debug,
@@ -40,7 +40,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_codable_config_with_exclusions() throws {
+    @Test func codable_config_with_exclusions() throws {
         // Given
         let recommendedSubject = Settings(
             base: [:],
@@ -58,7 +58,7 @@ struct SettingsTests {
         #expect(try isCodableRoundTripable(essentialSubject))
     }
 
-    @Test func test_codable_multi_configs() throws {
+    @Test func codable_multi_configs() throws {
         // Given
         let configurations: [Configuration] = [
             .debug(name: .debug),
@@ -85,7 +85,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_settingsDictionary_chainingMultipleValues() {
+    @Test func settingsDictionary_chainingMultipleValues() {
         // Given / When
         let settings = SettingsDictionary()
             .codeSignIdentityAppleDevelopment()
@@ -125,7 +125,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_settingsDictionary_codeSignManual() {
+    @Test func settingsDictionary_codeSignManual() {
         // Given/When
         let settings = SettingsDictionary()
             .manualCodeSigning(identity: "Apple Distribution", provisioningProfileSpecifier: "ABC")
@@ -138,7 +138,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_settingsDictionary_otherSwiftFlags() {
+    @Test func settingsDictionary_otherSwiftFlags() {
         // Given/When
         let settingsVariadic = SettingsDictionary()
             .otherSwiftFlags("FIRST", "SECOND", "THIRD")
@@ -158,7 +158,7 @@ struct SettingsTests {
         #expect(settingsVariadic == settingsArray)
     }
 
-    @Test func test_settingsDictionary_swiftActiveCompilationConditions() {
+    @Test func settingsDictionary_swiftActiveCompilationConditions() {
         // Given/When
         let settingsVariadic = SettingsDictionary()
             .swiftActiveCompilationConditions("FIRST", "SECOND", "THIRD")
@@ -178,7 +178,7 @@ struct SettingsTests {
         #expect(settingsVariadic == settingsArray)
     }
 
-    @Test func test_settingsDictionary_SwiftCompilationMode() {
+    @Test func settingsDictionary_SwiftCompilationMode() {
         // Given/When
         let settings1 = SettingsDictionary()
             .swiftCompilationMode(.singlefile)
@@ -198,7 +198,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_settingsDictionary_SwiftOptimizationLevel() {
+    @Test func settingsDictionary_SwiftOptimizationLevel() {
         // Given/When
         let settings1 = SettingsDictionary()
             .swiftOptimizationLevel(.o)
@@ -227,7 +227,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_settingsDictionary_swiftObjcBridgingHeaderPath() {
+    @Test func settingsDictionary_swiftObjcBridgingHeaderPath() {
         // Given/When
         let settings = SettingsDictionary()
             .swiftObjcBridgingHeaderPath("/my/bridging/header/path.h")
@@ -238,7 +238,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_settingsDictionary_otherCFlags() {
+    @Test func settingsDictionary_otherCFlags() {
         // Given/When
         let settings = SettingsDictionary()
             .otherCFlags(["$(inherited)", "-my-c-flag"])
@@ -249,7 +249,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_settingsDictionary_otherLinkerFlags() {
+    @Test func settingsDictionary_otherLinkerFlags() {
         // Given/When
         let settings = SettingsDictionary()
             .otherLinkerFlags(["$(inherited)", "-my-linker-flag"])
@@ -260,7 +260,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_settingsDictionary_SwiftOptimizeObjectLifetimes() {
+    @Test func settingsDictionary_SwiftOptimizeObjectLifetimes() {
         // Given/When
         let settings1 = SettingsDictionary()
             .swiftOptimizeObjectLifetimes(true)
@@ -280,7 +280,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_settingsDictionary_marketingVersion() {
+    @Test func settingsDictionary_marketingVersion() {
         // Given/When
         let settings = SettingsDictionary()
             .marketingVersion("1.0.0")
@@ -291,7 +291,7 @@ struct SettingsTests {
         ])
     }
 
-    @Test func test_settingsDictionary_debugInformationFormat() {
+    @Test func settingsDictionary_debugInformationFormat() {
         // Given/When
         let settings1 = SettingsDictionary()
             .debugInformationFormat(.dwarf)

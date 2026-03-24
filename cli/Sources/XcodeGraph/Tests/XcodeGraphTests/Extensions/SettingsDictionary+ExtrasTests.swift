@@ -3,7 +3,7 @@ import Testing
 @testable import XcodeGraph
 
 struct SettingsDictionaryExtrasTest {
-    @Test func testOverlay_addsPlatformSpecifierWhenSettingsDiffer() {
+    @Test func overlay_addsPlatformSpecifierWhenSettingsDiffer() {
         // Given
         var settings: [String: SettingValue] = [
             "A": "a value",

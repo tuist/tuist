@@ -3,7 +3,7 @@ import Testing
 @testable import XcodeGraph
 
 struct PlatformTests {
-    @Test func test_codable_iOS() throws {
+    @Test func codable_iOS() throws {
         // Given
         let subject = Platform.iOS
 
@@ -16,7 +16,7 @@ struct PlatformTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_tvOS() throws {
+    @Test func codable_tvOS() throws {
         // Given
         let subject = Platform.tvOS
 
@@ -29,7 +29,7 @@ struct PlatformTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_caseInsensitiveCommandInput() {
+    @Test func caseInsensitiveCommandInput() {
         #expect(Platform.macOS == Platform(commandLineValue: "macos"))
         #expect(Platform.macOS == Platform(commandLineValue: "macOS"))
         #expect(Platform.macOS == Platform(commandLineValue: "MACOS"))
@@ -44,7 +44,7 @@ struct PlatformTests {
         #expect(Platform.visionOS == Platform(commandLineValue: "visionOS"))
     }
 
-    @Test func test_caseInvalidPlatform_throws() {
+    @Test func caseInvalidPlatform_throws() {
         do {
             _ = try Platform.from(commandLineValue: "not_a_platform")
             Issue.record("Expected erro to be thrown")
@@ -55,13 +55,13 @@ struct PlatformTests {
         }
     }
 
-    @Test func test_caseValidPlatform_doesNotThrow() throws {
+    @Test func caseValidPlatform_doesNotThrow() throws {
         #expect(Platform.iOS == try Platform.from(commandLineValue: "iOS"))
         #expect(Platform.macOS == try Platform.from(commandLineValue: "macOS"))
         #expect(Platform.macOS == try Platform.from(commandLineValue: "macos"))
     }
 
-    @Test func test_xcodeSdkRoot_returns_the_right_value() {
+    @Test func xcodeSdkRoot_returns_the_right_value() {
         #expect(Platform.macOS.xcodeSdkRoot == "macosx")
         #expect(Platform.iOS.xcodeSdkRoot == "iphoneos")
         #expect(Platform.tvOS.xcodeSdkRoot == "appletvos")

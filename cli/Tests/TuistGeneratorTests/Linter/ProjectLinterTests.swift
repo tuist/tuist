@@ -1,8 +1,8 @@
 import Foundation
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import Testing
 @testable import TuistGenerator
 
 struct ProjectLinterTests {
@@ -17,15 +17,15 @@ struct ProjectLinterTests {
         settingsLinter = MockSettingsLinter()
         packageLinter = MockPackageLinter()
         subject = ProjectLinter(
-        targetLinter: targetLinter,
-        settingsLinter: settingsLinter,
-        schemeLinter: schemeLinter,
-        packageLinter: packageLinter
+            targetLinter: targetLinter,
+            settingsLinter: settingsLinter,
+            schemeLinter: schemeLinter,
+            packageLinter: packageLinter
         )
     }
 
     @Test
-    func test_lint_valid_watchTargetBundleIdentifiers() async throws {
+    func lint_valid_watchTargetBundleIdentifiers() async throws {
         // Given
         let app = Target.test(name: "App", product: .app, bundleId: "app")
         let watchApp = Target.test(name: "WatchApp", product: .watch2App, bundleId: "app.watchapp")

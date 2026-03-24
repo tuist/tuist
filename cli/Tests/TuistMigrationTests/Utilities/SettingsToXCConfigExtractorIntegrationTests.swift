@@ -1,9 +1,9 @@
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistNooraTesting
 import TuistSupport
-import FileSystemTesting
-import Testing
 
 @testable import TuistMigration
 @testable import TuistTesting
@@ -14,9 +14,8 @@ struct SettingsToXCConfigExtractorIntegrationTests {
         subject = SettingsToXCConfigExtractor()
     }
 
-
     @Test(.inTemporaryDirectory)
-    func test_extract_when_target() async throws {
+    func extract_when_target() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -62,7 +61,7 @@ struct SettingsToXCConfigExtractorIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_extract_when_project() async throws {
+    func extract_when_project() async throws {
         try await withMockedDependencies {
             // Given
             let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -154,7 +153,7 @@ struct SettingsToXCConfigExtractorIntegrationTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func test_extract_when_target_is_not_found() async throws {
+    func extract_when_target_is_not_found() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let xcodeprojPath = fixturePath(
@@ -164,14 +163,14 @@ struct SettingsToXCConfigExtractorIntegrationTests {
 
         // When
         await #expect(throws: SettingsToXCConfigExtractorError.targetNotFound("UnexistingTarget")) { try await subject.extract(
-                xcodeprojPath: xcodeprojPath,
-                targetName: "UnexistingTarget",
-                xcconfigPath: xcconfigPath
-            ) }
+            xcodeprojPath: xcodeprojPath,
+            targetName: "UnexistingTarget",
+            xcconfigPath: xcconfigPath
+        ) }
     }
 
     @Test(.inTemporaryDirectory)
-    func test_extract_when_project_is_not_found() async throws {
+    func extract_when_project_is_not_found() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let xcodeprojPath = fixturePath(
@@ -181,9 +180,9 @@ struct SettingsToXCConfigExtractorIntegrationTests {
 
         // When
         await #expect(throws: SettingsToXCConfigExtractorError.missingXcodeProj(xcodeprojPath)) { try await subject.extract(
-                xcodeprojPath: xcodeprojPath,
-                targetName: nil,
-                xcconfigPath: xcconfigPath
-            ) }
+            xcodeprojPath: xcodeprojPath,
+            targetName: nil,
+            xcconfigPath: xcconfigPath
+        ) }
     }
 }

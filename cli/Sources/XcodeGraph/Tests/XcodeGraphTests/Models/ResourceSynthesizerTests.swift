@@ -3,7 +3,7 @@ import Testing
 @testable import XcodeGraph
 
 struct ResourceSynthesizerTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject = ResourceSynthesizer(
             parser: .coreData,

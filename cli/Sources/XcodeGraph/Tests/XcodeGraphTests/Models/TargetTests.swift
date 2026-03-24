@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct TargetTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject = Target.test(name: "Test", product: .staticLibrary)
 
@@ -17,7 +17,7 @@ struct TargetTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_sequence_testBundles() {
+    @Test func sequence_testBundles() {
         let app = Target.test(product: .app)
         let tests = Target.test(product: .unitTests)
         let targets = [app, tests]
@@ -25,7 +25,7 @@ struct TargetTests {
         #expect(targets.testBundles == [tests])
     }
 
-    @Test func test_sequence_apps() {
+    @Test func sequence_apps() {
         let app = Target.test(product: .app)
         let tests = Target.test(product: .unitTests)
         let targets = [app, tests]
@@ -33,7 +33,7 @@ struct TargetTests {
         #expect(targets.apps == [app])
     }
 
-    @Test func test_sequence_appClips() {
+    @Test func sequence_appClips() {
         let appClip = Target.test(product: .appClip)
         let tests = Target.test(product: .unitTests)
         let targets = [appClip, tests]
@@ -41,7 +41,7 @@ struct TargetTests {
         #expect(targets.apps == [appClip])
     }
 
-    @Test func test_dependencyPlatformFilters_when_iOS_targets_mac() {
+    @Test func dependencyPlatformFilters_when_iOS_targets_mac() {
         // Given
         let target = Target.test(destinations: [.macCatalyst])
 
@@ -52,7 +52,7 @@ struct TargetTests {
         #expect(got == [PlatformFilter.catalyst])
     }
 
-    @Test func test_dependencyPlatformFilters_when_iOS_and_doesnt_target_mac() {
+    @Test func dependencyPlatformFilters_when_iOS_and_doesnt_target_mac() {
         // Given
         let target = Target.test(destinations: .iOS)
 
@@ -63,7 +63,7 @@ struct TargetTests {
         #expect(got == [PlatformFilter.ios])
     }
 
-    @Test func test_dependencyPlatformFilters_when_iOS_and_catalyst() {
+    @Test func dependencyPlatformFilters_when_iOS_and_catalyst() {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .macCatalyst])
 
@@ -74,7 +74,7 @@ struct TargetTests {
         #expect(got == [PlatformFilter.ios, PlatformFilter.catalyst])
     }
 
-    @Test func test_dependencyPlatformFilters_when_using_many_destinations() {
+    @Test func dependencyPlatformFilters_when_using_many_destinations() {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .macCatalyst, .mac, .appleVision])
 
@@ -85,7 +85,7 @@ struct TargetTests {
         #expect(got == [PlatformFilter.ios, PlatformFilter.catalyst, PlatformFilter.macos, PlatformFilter.visionos])
     }
 
-    @Test func test_supportsCatalyst_returns_true_when_the_destinations_include_macCatalyst() {
+    @Test func supportsCatalyst_returns_true_when_the_destinations_include_macCatalyst() {
         // Given
         let target = Target.test(destinations: [.macCatalyst])
 
@@ -96,7 +96,7 @@ struct TargetTests {
         #expect(got)
     }
 
-    @Test func test_supportsCatalyst_returns_false_when_the_destinations_include_macCatalyst() {
+    @Test func supportsCatalyst_returns_false_when_the_destinations_include_macCatalyst() {
         // Given
         let target = Target.test(destinations: [.iPad])
 
@@ -107,7 +107,7 @@ struct TargetTests {
         #expect(!got)
     }
 
-    @Test func test_supportsResources_returns_true_for_static_frameworks() {
+    @Test func supportsResources_returns_true_for_static_frameworks() {
         // Given
         let target = Target.test(product: .staticFramework)
 
@@ -118,7 +118,7 @@ struct TargetTests {
         #expect(got)
     }
 
-    @Test func test_supportsResources_returns_true_for_command_line_tools() {
+    @Test func supportsResources_returns_true_for_command_line_tools() {
         // Given
         let target = Target.test(destinations: .macOS, product: .commandLineTool)
 
@@ -129,7 +129,7 @@ struct TargetTests {
         #expect(got)
     }
 
-    @Test func test_supportsResources_returns_true_for_macros() {
+    @Test func supportsResources_returns_true_for_macros() {
         // Given
         let target = Target.test(destinations: .macOS, product: .macro)
 
@@ -140,7 +140,7 @@ struct TargetTests {
         #expect(got)
     }
 
-    @Test func test_supportsResources_returns_true_for_xpc_services() {
+    @Test func supportsResources_returns_true_for_xpc_services() {
         // Given
         let target = Target.test(destinations: .macOS, product: .xpc)
 
@@ -151,7 +151,7 @@ struct TargetTests {
         #expect(got)
     }
 
-    @Test func test_supportsResources_returns_false_for_static_libraries() {
+    @Test func supportsResources_returns_false_for_static_libraries() {
         // Given
         let target = Target.test(product: .staticLibrary)
 
@@ -162,7 +162,7 @@ struct TargetTests {
         #expect(!got)
     }
 
-    @Test func test_supportsResources_returns_false_for_dynamic_libraries() {
+    @Test func supportsResources_returns_false_for_dynamic_libraries() {
         // Given
         let target = Target.test(product: .dynamicLibrary)
 

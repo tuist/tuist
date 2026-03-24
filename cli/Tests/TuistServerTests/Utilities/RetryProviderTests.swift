@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
-import TuistTesting
 import Testing
+import TuistTesting
 
 @testable import TuistServer
 
@@ -18,7 +18,7 @@ struct RetryProviderTests {
     }
 
     @Test
-    func test_exists_whenSucceeds_doesNotRetry() async throws {
+    func exists_whenSucceeds_doesNotRetry() async throws {
         // Given / When
         let operationCalls = Counter()
         try await subject.runWithRetries {
@@ -30,7 +30,7 @@ struct RetryProviderTests {
     }
 
     @Test
-    func test_exists_whenFails_retries() async throws {
+    func exists_whenFails_retries() async throws {
         // Given / When
         let operationCalls = Counter()
         try await subject.runWithRetries {
@@ -45,16 +45,16 @@ struct RetryProviderTests {
     }
 
     @Test
-    func test_exists_whenFailsFourTimes_throws() async throws {
+    func exists_whenFailsFourTimes_throws() async throws {
         // Given
         let error = TestError("exists failed")
         let operationCalls = Counter()
 
         // When
         await #expect(throws: error) { try await subject.runWithRetries {
-                operationCalls.increment()
-                throw error
-            } }
+            operationCalls.increment()
+            throw error
+        } }
 
         // Then
         #expect(operationCalls.value == 4)

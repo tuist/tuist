@@ -8,9 +8,8 @@ struct XcodeControllerIntegrationTests {
         subject = XcodeController()
     }
 
-
     @Test
-    func test_selected_version_succeeds() async throws {
+    func selected_version_succeeds() async throws {
         // When
         let got = try await subject.selectedVersion()
 

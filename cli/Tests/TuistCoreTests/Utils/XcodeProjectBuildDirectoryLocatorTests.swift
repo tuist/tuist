@@ -1,7 +1,7 @@
 import Foundation
 import Path
-import TuistTesting
 import Testing
+import TuistTesting
 
 @testable import TuistCore
 
@@ -14,7 +14,7 @@ struct XcodeProjectBuildDirectoryLocatorTests {
         subject = XcodeProjectBuildDirectoryLocator(derivedDataLocator: derivedDataLocator)
     }
 
-    @Test func test_locate_WHEN_destination_platform_IS_device_macOS() async throws {
+    @Test func locate_WHEN_destination_platform_IS_device_macOS() async throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
@@ -34,7 +34,7 @@ struct XcodeProjectBuildDirectoryLocatorTests {
         #expect(path == expectedPath)
     }
 
-    @Test func test_locate_WHEN_destination_platform_IS_simulator_iOS() async throws {
+    @Test func locate_WHEN_destination_platform_IS_simulator_iOS() async throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
@@ -56,7 +56,7 @@ struct XcodeProjectBuildDirectoryLocatorTests {
         #expect(path == expectedPath)
     }
 
-    @Test func test_locate_WHEN_destination_platform_IS_device_iOS() async throws {
+    @Test func locate_WHEN_destination_platform_IS_device_iOS() async throws {
         // GIVEN
         let projectName = "TestProject"
         let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")

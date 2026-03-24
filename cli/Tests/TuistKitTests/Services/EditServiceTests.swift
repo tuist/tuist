@@ -1,5 +1,6 @@
 import Mockable
 import Path
+import Testing
 import TuistConfigLoader
 import TuistCore
 import TuistLoader
@@ -7,7 +8,6 @@ import TuistOpener
 import TuistPlugin
 import TuistSupport
 import XcodeProj
-import Testing
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -45,7 +45,7 @@ struct EditServiceTests {
         )
     }
 
-    @Test func test_edit_uses_caches_directory() async throws {
+    @Test func edit_uses_caches_directory() async throws {
         // Given
         let path: AbsolutePath = "/private/tmp"
         let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)
@@ -80,7 +80,7 @@ struct EditServiceTests {
             .called(1)
     }
 
-    @Test func test_edit_permanent_does_not_open_workspace() async throws {
+    @Test func edit_permanent_does_not_open_workspace() async throws {
         // Given
         let path: AbsolutePath = "/private/tmp"
         let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .editProjects)

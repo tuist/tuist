@@ -1,13 +1,13 @@
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
-import Testing
 @testable import TuistGenerator
 @testable import TuistTesting
 
 struct WorkspaceStructureGeneratorTests {
-    fileprivate let fileHandler: InMemoryFileHandler
+    private let fileHandler: InMemoryFileHandler
     let subject: WorkspaceStructureGenerator
     init() {
         fileHandler = InMemoryFileHandler()
@@ -15,7 +15,7 @@ struct WorkspaceStructureGeneratorTests {
     }
 
     @Test
-    func test_generateStructure_projects() throws {
+    func generateStructure_projects() throws {
         // Given
         let xcodeProjPaths = try createFolders([
             "/path/to/workspace/Modules/A/Project.xcodeproj",
@@ -46,7 +46,7 @@ struct WorkspaceStructureGeneratorTests {
     }
 
     @Test
-    func test_generateStructure_projectsAndFiles() throws {
+    func generateStructure_projectsAndFiles() throws {
         // Given
         let xcodeProjPaths = try createFolders([
             "/path/to/workspace/Modules/A/Project.xcodeproj",
@@ -92,7 +92,7 @@ struct WorkspaceStructureGeneratorTests {
     }
 
     @Test
-    func test_generateStructure_folderReferences() throws {
+    func generateStructure_folderReferences() throws {
         // Given
         try createFolders([
             "/path/to/workspace/Documentation/Guides",
@@ -129,7 +129,7 @@ struct WorkspaceStructureGeneratorTests {
     }
 
     @Test
-    func test_generateStructure_collapseDirectories() throws {
+    func generateStructure_collapseDirectories() throws {
         // Given
         try createFiles([
             "/path/to/workspace/Documentation/README.md",
@@ -167,7 +167,7 @@ struct WorkspaceStructureGeneratorTests {
     }
 
     @Test
-    func test_generateStructure_excludesFolders() throws {
+    func generateStructure_excludesFolders() throws {
         // Given
         try createFolders([
             "/path/to/workspace",
@@ -193,7 +193,7 @@ struct WorkspaceStructureGeneratorTests {
     }
 
     @Test
-    func test_generateStructure_includesContainerTypes() throws {
+    func generateStructure_includesContainerTypes() throws {
         // Given
 
         try createFolders([
@@ -223,7 +223,7 @@ struct WorkspaceStructureGeneratorTests {
     }
 
     @Test
-    func test_generateStructure_projectsAndFilesOverlap() throws {
+    func generateStructure_projectsAndFilesOverlap() throws {
         // Given
         let xcodeProjPaths = try createFolders([
             "/path/to/workspace/Modules/A/Project.xcodeproj",
@@ -254,7 +254,7 @@ struct WorkspaceStructureGeneratorTests {
     }
 
     @Test
-    func test_generateStructure_projectsAndNestedFiles() throws {
+    func generateStructure_projectsAndNestedFiles() throws {
         // Given
         let xcodeProjPaths = try createFolders([
             "/path/to/workspace/Modules/A/Project.xcodeproj",
@@ -286,7 +286,7 @@ struct WorkspaceStructureGeneratorTests {
     }
 
     @Test
-    func test_generateStructure_addsDependenciesToADependenciesGroup() throws {
+    func generateStructure_addsDependenciesToADependenciesGroup() throws {
         // Given
         let xcodeProjPaths = try createFolders([
             "/path/to/workspace/Tuist/.build/tuist-derived/AEXML/AEXML.xcodeproj",

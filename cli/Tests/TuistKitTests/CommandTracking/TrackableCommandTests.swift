@@ -2,13 +2,13 @@ import ArgumentParser
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistGit
 import TuistLogging
 import TuistProcess
 import TuistServer
 import TuistSupport
-import Testing
 
 @testable import TuistKit
 @testable import TuistTesting
@@ -57,7 +57,7 @@ struct TrackableCommandTests {
 
     // MARK: - Tests
 
-    @Test func test_whenCommandFails_uploadsEventWithExpectedInfo() async throws {
+    @Test func whenCommandFails_uploadsEventWithExpectedInfo() async throws {
         // Given
         makeSubject(flag: false, shouldFail: true)
         // When
@@ -81,7 +81,7 @@ struct TrackableCommandTests {
             .called(1)
     }
 
-    @Test func test_whenPathIsInArguments() async throws {
+    @Test func whenPathIsInArguments() async throws {
         // Given
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
@@ -97,7 +97,7 @@ struct TrackableCommandTests {
             .called(1)
     }
 
-    @Test func test_whenPathIsInArguments_and_no_fullHandle_is_set() async throws {
+    @Test func whenPathIsInArguments_and_no_fullHandle_is_set() async throws {
         // Given
         makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
@@ -113,7 +113,7 @@ struct TrackableCommandTests {
             .called(0)
     }
 
-    @Test func test_whenPathIsNotInArguments() async throws {
+    @Test func whenPathIsNotInArguments() async throws {
         // Given
         makeSubject(commandArguments: ["cache", "warm"])
 

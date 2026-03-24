@@ -14,7 +14,10 @@ import XcodeGraph
 struct ResourceFileElementManifestMapperTests {
     private let fileSystem = FileSystem()
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies()) func from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies()
+    ) func from_outputs_a_warning_when_the_paths_point_to_directories() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
         try await TuistTest.createFiles(["Documentation/README.md", "Documentation/USAGE.md"])
@@ -44,7 +47,10 @@ struct ResourceFileElementManifestMapperTests {
         #expect(model == [])
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies()) func from_outputs_a_warning_when_specific_file_not_found() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies()
+    ) func from_outputs_a_warning_when_specific_file_not_found() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
         try await fileSystem.makeDirectory(at: temporaryPath.appending(component: "Resources"))
@@ -89,7 +95,10 @@ struct ResourceFileElementManifestMapperTests {
         #expect(model == [.file(path: assetsDirectory, tags: [], inclusionCondition: nil)])
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies()) func from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies()
+    ) func from_outputs_a_warning_when_the_folder_reference_is_invalid() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
         try await TuistTest.createFiles(["README.md"])
@@ -103,7 +112,10 @@ struct ResourceFileElementManifestMapperTests {
         #expect(model == [])
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies()) func resourceFileElement_warning_withMissingFolderReference() async throws {
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedDependencies()
+    ) func resourceFileElement_warning_withMissingFolderReference() async throws {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath, rootDirectory: temporaryPath)
         let manifest = ProjectDescription.ResourceFileElement.folderReference(path: "Documentation")
@@ -187,7 +199,10 @@ struct ResourceFileElementManifestMapperTests {
         try await fileSystem.makeDirectory(at: resourcesFolder)
         try await fileSystem.writeText("", at: resourcesFolder.appending(component: "excluded.xib"))
 
-        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/excluded.xib", excluding: ["Resources/excluded.xib"])
+        let manifest = ProjectDescription.ResourceFileElement.glob(
+            pattern: "Resources/excluded.xib",
+            excluding: ["Resources/excluded.xib"]
+        )
         let got = try await XcodeGraph.ResourceFileElement.from(
             manifest: manifest, generatorPaths: generatorPaths, fileSystem: fileSystem
         )

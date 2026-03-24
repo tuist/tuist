@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct HeadersTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject = Headers(
             public: [

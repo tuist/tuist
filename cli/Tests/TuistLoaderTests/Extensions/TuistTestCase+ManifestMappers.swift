@@ -33,14 +33,17 @@ func assertSettingsMatchesManifest(
 func assertTargetMatchesManifest(
     target: XcodeGraph.Target,
     matches manifest: ProjectDescription.Target,
-    at path: AbsolutePath,
+    at _: AbsolutePath,
     generatorPaths: GeneratorPaths,
     sourceLocation: SourceLocation = #_sourceLocation
 ) throws {
     #expect(target.name == manifest.name, sourceLocation: sourceLocation)
     #expect(target.bundleId == manifest.bundleId, sourceLocation: sourceLocation)
     #expect(target.supportedPlatforms.count == 1, sourceLocation: sourceLocation)
-    #expect(target.destinations.map(\.rawValue).sorted() == manifest.destinations.map(\.rawValue).sorted(), sourceLocation: sourceLocation)
+    #expect(
+        target.destinations.map(\.rawValue).sorted() == manifest.destinations.map(\.rawValue).sorted(),
+        sourceLocation: sourceLocation
+    )
     #expect(
         target.infoPlist?.path == (try generatorPaths.resolve(path: manifest.infoPlist!.path!)),
         sourceLocation: sourceLocation

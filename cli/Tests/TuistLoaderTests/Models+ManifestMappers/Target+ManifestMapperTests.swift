@@ -24,7 +24,7 @@ struct TargetManifestMapperErrorTests {
         // Then
         #expect(
             got ==
-            "Generated source files must be explicit. The target Target has a generated source file at /path/to/A that has a glob pattern."
+                "Generated source files must be explicit. The target Target has a generated source file at /path/to/A that has a glob pattern."
         )
     }
 }
@@ -107,26 +107,26 @@ struct TargetManifestMapperTests {
         #expect(got.sources[1].contentHash == "mock-hash")
         #expect(
             got.buildableFolders ==
-            [
-                BuildableFolder(
-                    path: buildableSourcesDirectory,
-                    exceptions: [
-                        BuildableFolderException(excluded: [
-                            try generatorPaths.resolve(path: "BuildableSources/excluded.swift"),
-                        ], compilerFlags: [
-                            try generatorPaths.resolve(path: "BuildableSources/flags.swift"): "-print-stats",
-                        ], publicHeaders: [
-                            try generatorPaths.resolve(path: "BuildableSources/headers/public.h"),
-                        ], privateHeaders: [
-                            try generatorPaths.resolve(path: "BuildableSources/headers/private.h"),
-                        ]),
-                    ],
-                    resolvedFiles: [
-                        BuildableFolderFile(path: buildableFlagsFile, compilerFlags: "-print-stats"),
-                        BuildableFolderFile(path: buildableSourceFile, compilerFlags: nil),
-                    ]
-                ),
-            ]
+                [
+                    BuildableFolder(
+                        path: buildableSourcesDirectory,
+                        exceptions: [
+                            BuildableFolderException(excluded: [
+                                try generatorPaths.resolve(path: "BuildableSources/excluded.swift"),
+                            ], compilerFlags: [
+                                try generatorPaths.resolve(path: "BuildableSources/flags.swift"): "-print-stats",
+                            ], publicHeaders: [
+                                try generatorPaths.resolve(path: "BuildableSources/headers/public.h"),
+                            ], privateHeaders: [
+                                try generatorPaths.resolve(path: "BuildableSources/headers/private.h"),
+                            ]),
+                        ],
+                        resolvedFiles: [
+                            BuildableFolderFile(path: buildableFlagsFile, compilerFlags: "-print-stats"),
+                            BuildableFolderFile(path: buildableSourceFile, compilerFlags: nil),
+                        ]
+                    ),
+                ]
         )
     }
 
@@ -138,7 +138,10 @@ struct TargetManifestMapperTests {
         // When
         let mockContentHasher = MockContentHashing()
 
-        await #expect(throws: TargetManifestMapperError.nonSpecificGeneratedResource(targetName: "Target", generatedSource: sourcePath)) {
+        await #expect(throws: TargetManifestMapperError.nonSpecificGeneratedResource(
+            targetName: "Target",
+            generatedSource: sourcePath
+        )) {
             try await XcodeGraph.Target.from(
                 manifest: .test(
                     name: "Target",

@@ -1,8 +1,8 @@
 import Foundation
+import Testing
 import TuistCore
 import XcodeGraph
 import XcodeProj
-import Testing
 @testable import TuistGenerator
 
 struct SettingsHelpersTests {
@@ -12,7 +12,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenNoSettings() {
+    func extend_whenNoSettings() {
         // Given
         var settings: [String: SettingValue] = [:]
 
@@ -24,7 +24,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenNoSettingsAndNewSettings() {
+    func extend_whenNoSettingsAndNewSettings() {
         // Given
         var settings: [String: SettingValue] = [:]
 
@@ -36,7 +36,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenExistingSettingsAndNewSettings() {
+    func extend_whenExistingSettingsAndNewSettings() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = "A_VALUE"
@@ -49,7 +49,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenExistingSettingsAndNewWithDifferentValues() {
+    func extend_whenExistingSettingsAndNewWithDifferentValues() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = "A_VALUE"
@@ -63,7 +63,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenExistingSettingsAndNewWithInheritedDeclaration() {
+    func extend_whenExistingSettingsAndNewWithInheritedDeclaration() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = "A_VALUE"
@@ -81,7 +81,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenArraySettings() {
+    func extend_whenArraySettings() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = "A_VALUE"
@@ -95,7 +95,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testNotExtend_whenExistingSettingsAndNewWithSameValues() {
+    func notExtend_whenExistingSettingsAndNewWithSameValues() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = "A_VALUE"
@@ -109,7 +109,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testNotExtend_whenExistingSettingsAndNewWithInheritedDeclarationAndSameValues() {
+    func notExtend_whenExistingSettingsAndNewWithInheritedDeclarationAndSameValues() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = "$(inherited) A_VALUE"
@@ -122,7 +122,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenExistingSettingsArrayAndNewWithSomeStringValue() {
+    func extend_whenExistingSettingsArrayAndNewWithSomeStringValue() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = ["A_VALUE"]
@@ -135,7 +135,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndSomeStringValue() {
+    func extend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndSomeStringValue() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = ["A_VALUE"]
@@ -148,7 +148,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenExistingSettingsArrayAndNewWithSomeArrayValue() {
+    func extend_whenExistingSettingsArrayAndNewWithSomeArrayValue() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = ["A_VALUE"]
@@ -161,7 +161,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndSomeArrayValue() {
+    func extend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndSomeArrayValue() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = ["A_VALUE"]
@@ -174,7 +174,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndArrayWithInheritedDeclaration() {
+    func extend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndArrayWithInheritedDeclaration() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = ["$(inherited)", "A_VALUE"]
@@ -187,7 +187,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenExistingSettingsArrayWithDuplicatesAndNewWithInheritedDeclaration() {
+    func extend_whenExistingSettingsArrayWithDuplicatesAndNewWithInheritedDeclaration() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = ["$(inherited)", "A_VALUE", "B_VALUE", "A_VALUE", "C_VALUE"]
@@ -207,7 +207,7 @@ struct SettingsHelpersTests {
     }
 
     @Test
-    func testExtend_whenExistingSettingsStringWithDuplicatesAndNewWithInheritedDeclaration() {
+    func extend_whenExistingSettingsStringWithDuplicatesAndNewWithInheritedDeclaration() {
         // Given
         var settings: [String: SettingValue] = [:]
         settings["A"] = "$(inherited) A_VALUE B_VALUE A_VALUE C_VALUE"

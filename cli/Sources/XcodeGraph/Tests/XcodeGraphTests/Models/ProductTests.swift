@@ -3,7 +3,7 @@ import Testing
 @testable import XcodeGraph
 
 struct ProductTests {
-    @Test func test_codable_app() throws {
+    @Test func codable_app() throws {
         // Given
         let subject = Product.app
 
@@ -16,7 +16,7 @@ struct ProductTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_staticFramework() throws {
+    @Test func codable_staticFramework() throws {
         // Given
         let subject = Product.staticFramework
 
@@ -29,7 +29,7 @@ struct ProductTests {
         #expect(subject == decoded)
     }
 
-    @Test func test_codable_watch2AppContainer() throws {
+    @Test func codable_watch2AppContainer() throws {
         // Given
         let subject = Product.watch2AppContainer
 
@@ -55,7 +55,7 @@ struct ProductTests {
         #expect(Product.watch2AppContainer.description == "watch 2 app container")
     }
 
-    @Test func test_forPlatform_when_ios() {
+    @Test func forPlatform_when_ios() {
         let got = Product.forPlatform(.iOS)
         let expected: [Product] = [
             .app,
@@ -73,7 +73,7 @@ struct ProductTests {
         #expect(Set(got) == Set(expected))
     }
 
-    @Test func test_forPlatform_when_macOS() {
+    @Test func forPlatform_when_macOS() {
         let got = Product.forPlatform(.macOS)
         let expected: [Product] = [
             .app,
@@ -90,7 +90,7 @@ struct ProductTests {
         #expect(got == Set(expected))
     }
 
-    @Test func test_forPlatform_when_tvOS() {
+    @Test func forPlatform_when_tvOS() {
         let got = Product.forPlatform(.tvOS)
         let expected: [Product] = [
             .app,
@@ -137,7 +137,7 @@ struct ProductTests {
         }
     }
 
-    @Test func test_can_host_tests() {
+    @Test func can_host_tests() {
         // App
         var subject = Product.app
         #expect(subject.canHostTests())

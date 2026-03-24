@@ -5,7 +5,6 @@ import Mockable
 import Path
 import Testing
 import TuistCore
-import Testing
 
 @testable import TuistCacheEE
 @testable import TuistSupport
@@ -19,7 +18,8 @@ struct CacheLocalStorageErrorTests {
 
     @Test
     func test_description() {
-        #expect(CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").description == "xcframework with hash 'hash' not found in the local cache")
+        #expect(CacheLocalStorageError.compiledArtifactNotFound(hash: "hash")
+            .description == "xcframework with hash 'hash' not found in the local cache")
     }
 }
 

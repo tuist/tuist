@@ -10,7 +10,7 @@ echo "$wd"
 """
 
 struct TargetScriptTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject = TargetScript(name: "name", order: .pre, script: .embedded(script))
 

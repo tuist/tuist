@@ -4,32 +4,32 @@ import Testing
 @testable import TuistCore
 
 struct GraphLoadingErrorTests {
-    @Test func test_description_returns_the_right_value_when_manifestNotFound() throws {
+    @Test func description_returns_the_right_value_when_manifestNotFound() throws {
         let path = try AbsolutePath(validating: "/test/Project.swift")
         #expect(
             GraphLoadingError.manifestNotFound(path).description ==
-            "Couldn't find manifest at path: '/test/Project.swift'"
+                "Couldn't find manifest at path: '/test/Project.swift'"
         )
     }
 
-    @Test func test_description_returns_the_right_value_when_targetNotFound() throws {
+    @Test func description_returns_the_right_value_when_targetNotFound() throws {
         let path = try AbsolutePath(validating: "/test/Project.swift")
         #expect(
             GraphLoadingError.targetNotFound("Target", path).description ==
-            "Couldn't find target 'Target' at '/test/Project.swift'"
+                "Couldn't find target 'Target' at '/test/Project.swift'"
         )
     }
 
-    @Test func test_description_returns_the_right_value_when_missingFile() throws {
+    @Test func description_returns_the_right_value_when_missingFile() throws {
         let path = try AbsolutePath(validating: "/path/file.swift")
         #expect(GraphLoadingError.missingFile(path).description == "Couldn't find file at path '/path/file.swift'")
     }
 
-    @Test func test_description_returns_the_right_value_when_unexpected() {
+    @Test func description_returns_the_right_value_when_unexpected() {
         #expect(GraphLoadingError.unexpected("message").description == "message")
     }
 
-    @Test func test_description_returns_the_right_value_when_circularDependency() throws {
+    @Test func description_returns_the_right_value_when_circularDependency() throws {
         let from = GraphCircularDetectorNode(path: try AbsolutePath(validating: "/from"), name: "FromTarget")
         let to = GraphCircularDetectorNode(path: try AbsolutePath(validating: "/to"), name: "ToTarget")
         let error = GraphLoadingError.circularDependency([from, to])

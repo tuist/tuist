@@ -5,25 +5,25 @@ import TuistTesting
 @testable import ProjectDescription
 
 struct ResourceSynthesizerTests {
-    @Test func test_codable_when_plugin() throws {
+    @Test func codable_when_plugin() throws {
         #expect(try isCodableRoundTripable(
             ResourceSynthesizer.assets(plugin: "Plugin")
         ))
     }
 
-    @Test func test_codable_when_default() throws {
+    @Test func codable_when_default() throws {
         #expect(try isCodableRoundTripable(
             ResourceSynthesizer.strings()
         ))
     }
 
-    @Test func test_codable_when_parserOptions() throws {
+    @Test func codable_when_parserOptions() throws {
         #expect(try isCodableRoundTripable(
             ResourceSynthesizer.strings(parserOptions: ["separator": "/"])
         ))
     }
 
-    @Test func test_codable_when_custom() throws {
+    @Test func codable_when_custom() throws {
         #expect(try isCodableRoundTripable(
             ResourceSynthesizer.custom(
                 name: "Custom",

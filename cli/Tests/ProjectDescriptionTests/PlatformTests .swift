@@ -4,7 +4,7 @@ import Testing
 @testable import ProjectDescription
 
 struct PlatformTests {
-    @Test func test_toJSON() throws {
+    @Test func toJSON() throws {
         let decoder = JSONDecoder()
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase

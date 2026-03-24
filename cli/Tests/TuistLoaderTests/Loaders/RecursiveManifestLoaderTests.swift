@@ -90,7 +90,10 @@ struct RecursiveManifestLoaderTests {
     }
 
     @Test(.inTemporaryDirectory) func loadProject_projectWithDependencies() async throws {
-        let projectA = createProject(name: "ProjectA", targets: ["TargetA": [.project(target: "TargetB", path: "../B"), .project(target: "TargetC", path: "../C")]])
+        let projectA = createProject(
+            name: "ProjectA",
+            targets: ["TargetA": [.project(target: "TargetB", path: "../B"), .project(target: "TargetC", path: "../C")]]
+        )
         let projectB = createProject(name: "ProjectB", targets: ["TargetB": []])
         let projectC = createProject(name: "ProjectC", targets: ["TargetC": []])
         try await stub(manifest: projectA, at: try RelativePath(validating: "Some/Path/A"))
@@ -140,14 +143,16 @@ struct RecursiveManifestLoaderTests {
     }
 
     private mutating func stub(manifest: Project, at relativePath: RelativePath) async throws {
-        let manifestPath = path.appending(relativePath).appending(component: Manifest.project.fileName(path.appending(relativePath)))
+        let manifestPath = path.appending(relativePath)
+            .appending(component: Manifest.project.fileName(path.appending(relativePath)))
         try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
         try await fileSystem.touch(manifestPath)
         projectManifests[manifestPath.parentDirectory] = manifest
     }
 
     private mutating func stub(workspace manifest: Workspace, at relativePath: RelativePath) throws {
-        let manifestPath = path.appending(relativePath).appending(component: Manifest.workspace.fileName(path.appending(relativePath)))
+        let manifestPath = path.appending(relativePath)
+            .appending(component: Manifest.workspace.fileName(path.appending(relativePath)))
         try fileHandler.touch(manifestPath)
         workspaceManifests[manifestPath.parentDirectory] = manifest
     }

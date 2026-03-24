@@ -1,12 +1,12 @@
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
 import XcodeGraph
-import FileSystemTesting
-import Testing
 
 @testable import TuistHasher
 
@@ -26,11 +26,10 @@ struct SourceFilesContentHasherTests {
         sourceFile2Path = temporaryDir.appending(component: "sourceFile2")
     }
 
-
     // MARK: - Tests
 
     @Test
-    func test_hash_when_sourcesHaveAHashSet() async throws {
+    func hash_when_sourcesHaveAHashSet() async throws {
         // Given
         let sourceFile1 = SourceFile(path: sourceFile1Path, contentHash: "first")
         let sourceFile2 = SourceFile(path: sourceFile2Path, contentHash: "second")
@@ -58,7 +57,7 @@ struct SourceFilesContentHasherTests {
     }
 
     @Test
-    func test_hash_when_sourcesHaveNoHashSet() async throws {
+    func hash_when_sourcesHaveNoHashSet() async throws {
         // Given
         let sourceFile1 = SourceFile(
             path: sourceFile1Path,

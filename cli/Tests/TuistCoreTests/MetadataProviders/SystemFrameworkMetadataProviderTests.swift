@@ -1,5 +1,5 @@
-import XcodeGraph
 import Testing
+import XcodeGraph
 @testable import TuistCore
 @testable import TuistTesting
 
@@ -10,7 +10,7 @@ struct SystemFrameworkMetadataProviderTests {
         subject = SystemFrameworkMetadataProvider()
     }
 
-    @Test func test_loadMetadata_framework() throws {
+    @Test func loadMetadata_framework() throws {
         // Given
         let sdkName = "UIKit.framework"
 
@@ -26,7 +26,7 @@ struct SystemFrameworkMetadataProviderTests {
         ))
     }
 
-    @Test func test_loadMetadata_library() throws {
+    @Test func loadMetadata_library() throws {
         // Given
         let sdkName = "libc++.tbd"
 
@@ -42,7 +42,7 @@ struct SystemFrameworkMetadataProviderTests {
         ))
     }
 
-    @Test func test_loadMetadata_swiftLibrary() throws {
+    @Test func loadMetadata_swiftLibrary() throws {
         // Given
         let sdkName = "libswiftObservation.tbd"
 
@@ -58,7 +58,7 @@ struct SystemFrameworkMetadataProviderTests {
         ))
     }
 
-    @Test func test_loadMetadata_unsupportedType() throws {
+    @Test func loadMetadata_unsupportedType() throws {
         // Given
         let sdkName = "UIKit.xcframework"
 
@@ -68,7 +68,7 @@ struct SystemFrameworkMetadataProviderTests {
         }
     }
 
-    @Test func test_loadMetadata_developerSource_supportedPlatform() throws {
+    @Test func loadMetadata_developerSource_supportedPlatform() throws {
         // Given
         let sdkName = "XCTest.framework"
         let source = SDKSource.developer

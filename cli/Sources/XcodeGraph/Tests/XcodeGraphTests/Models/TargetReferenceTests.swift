@@ -4,7 +4,7 @@ import Testing
 @testable import XcodeGraph
 
 struct TargetReferenceTests {
-    @Test func test_codable() throws {
+    @Test func codable() throws {
         // Given
         let subject = TargetReference(
             projectPath: try AbsolutePath(validating: "/path/to/project"),

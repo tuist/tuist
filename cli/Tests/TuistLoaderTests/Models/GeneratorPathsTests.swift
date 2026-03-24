@@ -22,7 +22,7 @@ struct GeneratorPathsTests {
         )
     }
 
-    @Test(.inTemporaryDirectory) func test_resolve_when_relative_to_current_file() throws {
+    @Test(.inTemporaryDirectory) func resolve_when_relative_to_current_file() throws {
         // Given
         let filePath = Path(
             "file.swift",
@@ -37,7 +37,7 @@ struct GeneratorPathsTests {
         #expect(got == path.removingLastComponent().appending(component: "file.swift"))
     }
 
-    @Test(.inTemporaryDirectory) func test_resolve_when_relative_to_manifest() throws {
+    @Test(.inTemporaryDirectory) func resolve_when_relative_to_manifest() throws {
         // Given
         let filePath = Path.relativeToManifest("file.swift")
 
@@ -48,7 +48,7 @@ struct GeneratorPathsTests {
         #expect(got == path.appending(component: "file.swift"))
     }
 
-    @Test(.inTemporaryDirectory) func test_resolve_when_relative_to_root_directory() throws {
+    @Test(.inTemporaryDirectory) func resolve_when_relative_to_root_directory() throws {
         // Given
         let filePath = Path.relativeToRoot("file.swift")
 

@@ -1,10 +1,10 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistGenerator
 import TuistTesting
 import XcodeGraph
-import Testing
 
 struct IDETemplateMacrosMapperTests {
     let subject: IDETemplateMacrosMapper
@@ -13,7 +13,7 @@ struct IDETemplateMacrosMapperTests {
     }
 
     @Test
-    func test_project_map_template_macros_creates_macros_plist() throws {
+    func project_map_template_macros_creates_macros_plist() throws {
         // Given
         let templateMacros = IDETemplateMacros.test()
         let project = Project.test(ideTemplateMacros: templateMacros)
@@ -36,7 +36,7 @@ struct IDETemplateMacrosMapperTests {
     }
 
     @Test
-    func test_project_map_empty_template_macros() throws {
+    func project_map_empty_template_macros() throws {
         // Given
         let project = Project.empty()
 
@@ -49,7 +49,7 @@ struct IDETemplateMacrosMapperTests {
     }
 
     @Test
-    func test_workspace_map_template_macros_creates_macros_plist() throws {
+    func workspace_map_template_macros_creates_macros_plist() throws {
         // Given
         let templateMacros = IDETemplateMacros.test()
         let workspace = Workspace.test(ideTemplateMacros: templateMacros)
@@ -74,7 +74,7 @@ struct IDETemplateMacrosMapperTests {
     }
 
     @Test
-    func test_workspace_map_empty_template_macros() throws {
+    func workspace_map_empty_template_macros() throws {
         // Given
         let workspace = Workspace.test(ideTemplateMacros: nil)
         let workspaceWithProjects = WorkspaceWithProjects.test(workspace: workspace)

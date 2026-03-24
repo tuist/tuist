@@ -67,7 +67,7 @@ struct StencilManifestMapperTests {
 
         // When
         let got = try await paths.concurrentMap {
-            try await self.subject.locate(at: stencilDirectory.appending(try RelativePath(validating: $0)))
+            try await subject.locate(at: stencilDirectory.appending(try RelativePath(validating: $0)))
         }
 
         // Then
