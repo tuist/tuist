@@ -15,7 +15,6 @@
     public protocol ShardPlanServicing {
         func plan(
             xctestproductsPath: AbsolutePath,
-            schemes: [String],
             destination: String?,
             reference: String?,
             shardGranularity: ShardGranularity,
@@ -86,7 +85,6 @@
 
         public func plan(
             xctestproductsPath: AbsolutePath,
-            schemes: [String],
             destination: String? = nil,
             reference: String?,
             shardGranularity: ShardGranularity,

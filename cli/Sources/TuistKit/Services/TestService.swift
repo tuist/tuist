@@ -472,7 +472,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
-                schemes: schemes.map(\.name),
                 destination: shardDestination,
                 reference: shardReference,
                 shardGranularity: shardGranularity,

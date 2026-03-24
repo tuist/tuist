@@ -107,7 +107,6 @@ struct XcodeBuildBuildCommandService {
             let destination = passedValue(for: "-destination", arguments: passthroughXcodebuildArguments)
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
-                schemes: [schemeName],
                 destination: destination,
                 reference: shardReference,
                 shardGranularity: shardGranularity,
