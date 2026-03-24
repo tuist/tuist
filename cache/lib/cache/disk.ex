@@ -334,18 +334,21 @@ defmodule Cache.Disk do
 
   defp classify_paths(paths) do
     Enum.reduce_while(paths, {:ok, {[], []}}, fn path, {:ok, {regular_acc, dir_acc}} ->
-      case File.stat(path) do
+      case File.lstat(path) do
         {:ok, %File.Stat{type: :regular}} ->
           {:cont, {:ok, {[path | regular_acc], dir_acc}}}
 
         {:ok, %File.Stat{type: :directory}} ->
           {:cont, {:ok, {regular_acc, [path | dir_acc]}}}
 
+        {:ok, %File.Stat{type: :symlink}} ->
+          {:cont, {:ok, {regular_acc, dir_acc}}}
+
         {:ok, _stat} ->
           {:cont, {:ok, {regular_acc, dir_acc}}}
 
         {:error, reason} ->
-          {:halt, {:error, {:stat_failed, path, reason}}}
+          {:halt, {:error, {:lstat_failed, path, reason}}}
       end
     end)
   end

@@ -13,6 +13,7 @@ defmodule Cache.KeyValueEvictionWorker do
     unique: [period: :infinity, states: [:available, :scheduled, :executing, :retryable]]
 
   alias Cache.Config
+  alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
   alias Cache.KeyValueRepo
   alias Cache.SQLiteHelpers
@@ -86,11 +87,7 @@ defmodule Cache.KeyValueEvictionWorker do
     if deadline_reached?(deadline_ms) do
       {:time, %{}, 0, :time_limit_reached}
     else
-      {grouped_hashes, count, status} =
-        KeyValueEntries.delete_expired(max_age_days,
-          max_duration_ms: remaining_time(deadline_ms),
-          batch_size: @default_batch_size
-        )
+      {grouped_hashes, count, status} = delete_expired_entries(max_age_days, deadline_ms)
 
       {:time, grouped_hashes, count, status}
     end
@@ -115,10 +112,7 @@ defmodule Cache.KeyValueEvictionWorker do
       {:size, hashes_acc, count_acc, :time_limit_reached}
     else
       {batch_hashes, batch_count, batch_status} =
-        KeyValueEntries.delete_one_expired_batch(min_retention_days,
-          batch_size: @default_batch_size,
-          max_duration_ms: remaining_time(deadline_ms)
-        )
+        delete_one_expired_batch(min_retention_days, deadline_ms)
 
       merged_hashes = merge_grouped_hashes(hashes_acc, batch_hashes)
       total_count = count_acc + batch_count
@@ -304,6 +298,34 @@ defmodule Cache.KeyValueEvictionWorker do
     Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
       (left_hashes ++ right_hashes) |> Enum.uniq() |> Enum.sort()
     end)
+  end
+
+  defp delete_expired_entries(max_age_days, deadline_ms) do
+    opts = maybe_add_tracker_cleanup(max_duration_ms: remaining_time(deadline_ms), batch_size: @default_batch_size)
+
+    KeyValueEntries.delete_expired(max_age_days, opts)
+  end
+
+  defp delete_one_expired_batch(min_retention_days, deadline_ms) do
+    opts = maybe_add_tracker_cleanup(batch_size: @default_batch_size, max_duration_ms: remaining_time(deadline_ms))
+
+    KeyValueEntries.delete_one_expired_batch(min_retention_days, opts)
+  end
+
+  defp maybe_add_tracker_cleanup(opts) do
+    if Config.distributed_kv_enabled?() do
+      Keyword.put(opts, :on_deleted_keys, &clear_tracker_state/1)
+    else
+      opts
+    end
+  end
+
+  defp clear_tracker_state(keys) do
+    Enum.each(keys, fn key ->
+      :ok = KeyValueAccessTracker.clear(key)
+    end)
+
+    :ok
   end
 
   defp emit_telemetry(trigger, status, entries_deleted, started_at) do

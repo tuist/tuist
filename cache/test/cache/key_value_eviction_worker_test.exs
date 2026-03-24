@@ -3,9 +3,11 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   use Mimic
   use Oban.Testing, repo: Cache.Repo
 
+  import Ecto.Query
   import ExUnit.CaptureLog
 
   alias Cache.Config
+  alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
@@ -84,6 +86,44 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     end)
 
     assert KeyValueRepo.get_by!(KeyValueEntry, key: "pending-entry")
+  end
+
+  test "distributed eviction clears tracker state for repeated key churn" do
+    ensure_tracker_started()
+
+    stub(Config, :key_value_mode, fn -> :distributed end)
+    stub(Config, :distributed_kv_enabled?, fn -> true end)
+
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    for cycle <- 1..3 do
+      churn_keys =
+        for index <- 1..20 do
+          key = "churn-entry-#{cycle}-#{index}"
+
+          KeyValueRepo.insert!(%KeyValueEntry{
+            key: key,
+            json_payload: ~s({"hash": "#{key}"}),
+            last_accessed_at: old_time,
+            source_updated_at: old_time
+          })
+
+          :ok = KeyValueAccessTracker.mark_shared_lineage(key)
+          _allowed = KeyValueAccessTracker.allow_access_bump?(key)
+          key
+        end
+
+      capture_log(fn ->
+        assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+      end)
+
+      Enum.each(churn_keys, fn key ->
+        assert [] == :ets.lookup(KeyValueAccessTracker, {:lineage, key})
+        assert [] == :ets.lookup(KeyValueAccessTracker, {:throttle, key})
+      end)
+
+      assert KeyValueRepo.all(from(entry in KeyValueEntry, where: entry.key in ^churn_keys)) == []
+    end
   end
 
   test "size-based eviction emits telemetry" do
@@ -171,6 +211,19 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       {measurements, metadata}
     after
       :telemetry.detach(handler_id)
+    end
+  end
+
+  defp ensure_tracker_started do
+    case Process.whereis(KeyValueAccessTracker) do
+      nil ->
+        case start_supervised(KeyValueAccessTracker) do
+          {:ok, _pid} -> :ok
+          {:error, {:already_started, _pid}} -> :ok
+        end
+
+      _pid ->
+        :ok
     end
   end
 end

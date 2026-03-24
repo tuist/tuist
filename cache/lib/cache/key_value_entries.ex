@@ -37,9 +37,10 @@ defmodule Cache.KeyValueEntries do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
     max_duration_ms = Keyword.get(opts, :max_duration_ms, @default_max_duration_ms)
     batch_size = Keyword.get(opts, :batch_size, @default_batch_size)
+    on_deleted_keys = Keyword.get(opts, :on_deleted_keys)
     deadline_ms = System.monotonic_time(:millisecond) + max(max_duration_ms, 0)
 
-    delete_expired_loop(cutoff, batch_size, deadline_ms)
+    delete_expired_loop(cutoff, batch_size, deadline_ms, on_deleted_keys)
   end
 
   @doc """
@@ -49,6 +50,7 @@ defmodule Cache.KeyValueEntries do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
     batch_size = Keyword.get(opts, :batch_size, @default_batch_size)
     max_duration_ms = Keyword.get(opts, :max_duration_ms, @default_max_duration_ms)
+    on_deleted_keys = Keyword.get(opts, :on_deleted_keys)
     deadline_ms = System.monotonic_time(:millisecond) + max(max_duration_ms, 0)
     timeout = Config.key_value_maintenance_busy_timeout_ms()
 
@@ -62,7 +64,7 @@ defmodule Cache.KeyValueEntries do
 
           batch ->
             ids_to_delete = Enum.map(batch, &elem(&1, 0))
-            {count, status} = delete_expired_entries(ids_to_delete, cutoff)
+            {count, status} = delete_expired_entries(ids_to_delete, cutoff, on_deleted_keys)
             :timer.sleep(@batch_sleep_ms)
             {%{}, count, status}
         end
@@ -500,7 +502,7 @@ defmodule Cache.KeyValueEntries do
     KeyValueRepo.aggregate(KeyValueEntry, :count)
   end
 
-  defp delete_expired_loop(cutoff, batch_size, deadline_ms, cursor \\ nil, count_acc \\ 0) do
+  defp delete_expired_loop(cutoff, batch_size, deadline_ms, on_deleted_keys, cursor \\ nil, count_acc \\ 0) do
     if time_limit_reached?(deadline_ms) do
       {%{}, count_acc, :time_limit_reached}
     else
@@ -509,7 +511,7 @@ defmodule Cache.KeyValueEntries do
       result =
         try do
           SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout, fn ->
-            delete_candidate_batch(cutoff, batch_size, cursor)
+            delete_candidate_batch(cutoff, batch_size, cursor, on_deleted_keys)
           end)
         rescue
           error ->
@@ -525,19 +527,19 @@ defmodule Cache.KeyValueEntries do
 
         {:ok, batch_count, new_cursor} ->
           :timer.sleep(@batch_sleep_ms)
-          delete_expired_loop(cutoff, batch_size, deadline_ms, new_cursor, count_acc + batch_count)
+          delete_expired_loop(cutoff, batch_size, deadline_ms, on_deleted_keys, new_cursor, count_acc + batch_count)
       end
     end
   end
 
-  defp delete_candidate_batch(cutoff, batch_size, cursor) do
+  defp delete_candidate_batch(cutoff, batch_size, cursor, on_deleted_keys) do
     case candidate_batch(cutoff, batch_size, cursor) do
       [] ->
         :empty
 
       rows ->
         ids = Enum.map(rows, &elem(&1, 0))
-        {batch_count, status} = delete_expired_entries(ids, cutoff)
+        {batch_count, status} = delete_expired_entries(ids, cutoff, on_deleted_keys)
 
         case status do
           :busy -> :busy
@@ -611,12 +613,15 @@ defmodule Cache.KeyValueEntries do
     KeyValueRepo.all(query)
   end
 
-  defp delete_expired_entries(ids_to_delete, cutoff) do
+  defp delete_expired_entries(ids_to_delete, cutoff, on_deleted_keys) do
     ids_to_delete
     |> Enum.chunk_every(@id_chunk_size)
     |> Enum.reduce_while({0, :complete}, fn ids_chunk, {count_acc, _status} ->
       try do
-        deleted_count = delete_chunk(ids_chunk, cutoff)
+        {deleted_count, deleted_keys} = delete_chunk(ids_chunk, cutoff)
+
+        :ok = maybe_notify_deleted_keys(on_deleted_keys, deleted_keys)
+
         {:cont, {count_acc + deleted_count, :complete}}
       rescue
         error ->
@@ -630,15 +635,18 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp delete_chunk(ids_chunk, cutoff) do
-    {:ok, deleted_count} =
+    {:ok, {deleted_count, deleted_keys}} =
       KeyValueRepo.transaction(fn ->
-        verified_ids =
+        verified_entries =
           KeyValueEntry
           |> where([entry], entry.id in ^ids_chunk)
           |> where([entry], is_nil(entry.last_accessed_at) or entry.last_accessed_at < ^cutoff)
           |> apply_evictable_filter()
-          |> select([entry], entry.id)
+          |> select([entry], {entry.id, entry.key})
           |> KeyValueRepo.all()
+
+        verified_ids = Enum.map(verified_entries, &elem(&1, 0))
+        verified_keys = Enum.map(verified_entries, &elem(&1, 1))
 
         {deleted_count, _} =
           KeyValueEntry
@@ -647,10 +655,10 @@ defmodule Cache.KeyValueEntries do
           |> apply_evictable_filter()
           |> KeyValueRepo.delete_all()
 
-        deleted_count
+        {deleted_count, verified_keys}
       end)
 
-    deleted_count
+    {deleted_count, deleted_keys}
   end
 
   defp batch_cursor(batch) do

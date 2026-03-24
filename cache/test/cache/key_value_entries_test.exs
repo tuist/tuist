@@ -69,6 +69,27 @@ defmodule Cache.KeyValueEntriesTest do
     assert KeyValueRepo.get(KeyValueEntry, pending_entry.id)
   end
 
+  test "delete_expired emits deleted keys through on_deleted_keys callback" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    KeyValueRepo.insert!(%KeyValueEntry{key: "old-entry-1", json_payload: "{}", last_accessed_at: old_time})
+    KeyValueRepo.insert!(%KeyValueEntry{key: "old-entry-2", json_payload: "{}", last_accessed_at: old_time})
+
+    {:ok, deleted_keys_ref} = Agent.start_link(fn -> [] end)
+
+    {_grouped_hashes, count, status} =
+      KeyValueEntries.delete_expired(30,
+        on_deleted_keys: fn keys ->
+          Agent.update(deleted_keys_ref, fn acc -> keys ++ acc end)
+          :ok
+        end
+      )
+
+    assert count == 2
+    assert status == :complete
+    assert Enum.sort(Agent.get(deleted_keys_ref, & &1)) == ["old-entry-1", "old-entry-2"]
+  end
+
   test "clear_replication_tokens clears only rows that still match their original token" do
     old_token = DateTime.add(DateTime.utc_now(), -60, :second)
     new_token = DateTime.utc_now()

@@ -188,21 +188,34 @@ defmodule Cache.DiskIntegrationTest do
       end
     end
 
-    test "returns an error when stat fails for a traversed path" do
+    test "does not traverse symlinked directories outside the project root" do
       account = unique_account()
-      project = "dangling_symlink_project"
+      project = "symlink_escape_project"
       project_path = Disk.artifact_path("#{account}/#{project}")
-      broken_link = Path.join(project_path, "dangling")
-      missing_target = Path.join(project_path, "missing-target")
-      cutoff = DateTime.truncate(DateTime.utc_now(), :second)
+      symlink_path = Path.join(project_path, "escape")
+
+      {:ok, external_dir} = Briefly.create(directory: true)
+      external_file = Path.join(external_dir, "external-old")
+      in_tree_file = Path.join(project_path, "in-tree-old")
 
       assert :ok = File.mkdir_p(project_path)
-      assert :ok = File.ln_s(missing_target, broken_link)
+      assert :ok = File.ln_s(external_dir, symlink_path)
+      File.write!(external_file, "external")
+      File.write!(in_tree_file, "local")
 
-      assert {:error, {:stat_failed, ^broken_link, :enoent}} =
-               Disk.delete_project_files_before(account, project, cutoff)
+      cutoff = DateTime.truncate(DateTime.utc_now(), :second)
+      old_unix_seconds = DateTime.to_unix(DateTime.add(cutoff, -1, :second), :second)
+      assert :ok = File.touch(external_file, old_unix_seconds)
+      assert :ok = File.touch(in_tree_file, old_unix_seconds)
+
+      assert {:ok, 1} = Disk.delete_project_files_before(account, project, cutoff)
+
+      assert File.exists?(external_file)
+      refute File.exists?(in_tree_file)
+      assert File.exists?(symlink_path)
 
       _ = File.rm_rf(project_path)
+      _ = File.rm_rf(external_dir)
     end
   end
 end
