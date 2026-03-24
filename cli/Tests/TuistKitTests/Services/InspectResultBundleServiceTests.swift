@@ -153,7 +153,9 @@ struct UploadResultBundleServiceTests {
         let result = try await subject.uploadResultBundle(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -195,7 +197,9 @@ struct UploadResultBundleServiceTests {
             try await subject.uploadResultBundle(
                 testSummary: testSummary,
                 projectDerivedDataDirectory: nil,
-                config: .test(fullHandle: nil)
+                config: .test(fullHandle: nil),
+                shardPlanId: nil,
+                shardIndex: nil
             )
         }
     }
@@ -227,7 +231,9 @@ struct UploadResultBundleServiceTests {
         _ = try await subject.uploadResultBundle(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -282,7 +288,9 @@ struct UploadResultBundleServiceTests {
         _ = try await subject.uploadResultBundle(
             testSummary: testSummary,
             projectDerivedDataDirectory: derivedDataDirectory,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -354,7 +362,9 @@ struct UploadResultBundleServiceTests {
         _ = try await subject.uploadResultBundle(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -412,7 +422,9 @@ struct UploadResultBundleServiceTests {
         _ = try await subject.uploadResultBundle(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -575,7 +587,9 @@ struct UploadResultBundleServiceTests {
         _ = try await subject.uploadResultBundle(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -699,7 +713,9 @@ struct UploadResultBundleServiceTests {
         _ = try await subject.uploadResultBundle(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then

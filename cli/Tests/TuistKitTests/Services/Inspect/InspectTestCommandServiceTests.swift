@@ -18,7 +18,6 @@ import TuistXCResultService
 @testable import TuistInspectCommand
 @testable import TuistKit
 
-@Suite(.serialized)
 struct InspectTestCommandServiceTests {
     private let subject: InspectTestCommandService
     private let configLoader = MockConfigLoading()
