@@ -494,7 +494,9 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             """
             if [[ -f "$BUILD_DIR/$CONFIGURATION/\($0)" ]]; then
                 mkdir -p "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/"
-                cp -f "$BUILD_DIR/$CONFIGURATION/\($0)" "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)"
+                if [[ "$BUILD_DIR/$CONFIGURATION/\($0)" != "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)" ]]; then
+                    cp -f "$BUILD_DIR/$CONFIGURATION/\($0)" "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)"
+                fi
             fi
             """
         }
