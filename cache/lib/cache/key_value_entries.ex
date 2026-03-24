@@ -484,7 +484,6 @@ defmodule Cache.KeyValueEntries do
     KeyValueRepo.aggregate(KeyValueEntry, :count)
   end
 
-  def parse_scope(key), do: KeyValueEntry.scope_from_key(key)
 
   defp delete_expired_loop(cutoff, batch_size, deadline_ms, cursor \\ nil, count_acc \\ 0) do
     if time_limit_reached?(deadline_ms) do

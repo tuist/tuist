@@ -299,11 +299,11 @@ defmodule Cache.S3 do
     bucket
     |> ExAws.S3.list_objects(prefix: prefix)
     |> ExAws.stream!()
-    |> Stream.map(& &1.key)
+    |> Stream.map(fn obj -> {obj.key, obj.last_modified} end)
     |> Stream.chunk_every(@cleanup_progress_chunk_size)
-    |> Enum.reduce_while({:ok, 0}, fn keys_chunk, {:ok, count} ->
+    |> Enum.reduce_while({:ok, 0}, fn objects_chunk, {:ok, count} ->
       with :ok <- on_progress.(),
-           {:ok, chunk_count} <- delete_objects_in_chunk_if_before(bucket, keys_chunk, cutoff) do
+           {:ok, chunk_count} <- delete_objects_in_chunk_if_before(bucket, objects_chunk, cutoff) do
         {:cont, {:ok, count + chunk_count}}
       else
         {:error, reason} -> {:halt, {:error, reason}}
@@ -311,9 +311,9 @@ defmodule Cache.S3 do
     end)
   end
 
-  defp delete_objects_in_chunk_if_before(bucket, keys, cutoff) do
-    Enum.reduce_while(keys, {:ok, 0}, fn key, {:ok, count} ->
-      case delete_object_if_before(bucket, key, cutoff) do
+  defp delete_objects_in_chunk_if_before(bucket, objects, cutoff) do
+    Enum.reduce_while(objects, {:ok, 0}, fn {key, last_modified_iso}, {:ok, count} ->
+      case delete_object_if_before(bucket, key, last_modified_iso, cutoff) do
         :deleted -> {:cont, {:ok, count + 1}}
         :skipped -> {:cont, {:ok, count}}
         {:error, reason} -> {:halt, {:error, reason}}
@@ -321,18 +321,20 @@ defmodule Cache.S3 do
     end)
   end
 
-  defp delete_object_if_before(bucket, key, cutoff) do
-    with {:ok, response} <- head_object_response(bucket, key),
-         {:ok, last_modified} <- last_modified_from_response(response),
-         true <- DateTime.before?(last_modified, cutoff) do
-      case bucket |> ExAws.S3.delete_object(key) |> ExAws.request() do
-        {:ok, _} -> :deleted
-        {:error, reason} -> {:error, reason}
-      end
-    else
-      {:error, {:http_error, 404, _}} -> :skipped
-      {:error, reason} -> {:error, reason}
-      false -> :skipped
+  defp delete_object_if_before(bucket, key, last_modified_iso, cutoff) do
+    case parse_iso8601_datetime(last_modified_iso) do
+      {:ok, last_modified} ->
+        if DateTime.before?(last_modified, cutoff) do
+          case bucket |> ExAws.S3.delete_object(key) |> ExAws.request() do
+            {:ok, _} -> :deleted
+            {:error, reason} -> {:error, reason}
+          end
+        else
+          :skipped
+        end
+
+      :error ->
+        :skipped
     end
   end
 
@@ -467,34 +469,18 @@ defmodule Cache.S3 do
     end
   end
 
-  defp head_object_response(bucket, key, request_opts \\ []) do
+  defp head_object_response(bucket, key, request_opts) do
     bucket
     |> ExAws.S3.head_object(key)
     |> ExAws.request(request_opts)
   end
 
-  defp last_modified_from_response(%{headers: headers}) when is_map(headers) do
-    headers
-    |> Map.get("Last-Modified", Map.get(headers, "last-modified"))
-    |> parse_http_date()
-  end
-
-  defp last_modified_from_response(_response), do: {:error, :missing_last_modified}
-
-  defp parse_http_date(nil), do: {:error, :missing_last_modified}
-
-  defp parse_http_date(value) when is_binary(value) do
-    case :httpd_util.convert_request_date(String.to_charlist(value)) do
-      {{year, month, day}, {hour, minute, second}} ->
-        year
-        |> NaiveDateTime.new(month, day, hour, minute, second)
-        |> case do
-          {:ok, naive} -> DateTime.from_naive(naive, "Etc/UTC")
-          error -> error
-        end
-
-      _ ->
-        {:error, :invalid_last_modified}
+  defp parse_iso8601_datetime(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, dt, _offset} -> {:ok, dt}
+      {:error, _} -> :error
     end
   end
+
+  defp parse_iso8601_datetime(_), do: :error
 end

@@ -576,14 +576,8 @@ defmodule Cache.S3Test do
       key = "#{prefix}cas/AB/CD/hash1"
       cutoff = ~U[2026-03-12 12:00:00Z]
 
-      expect(ExAws, :stream!, fn _operation -> [%{key: key}] end)
-
-      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
-      end)
-
-      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
-        {:ok, %{headers: %{"Last-Modified" => "Thu, 12 Mar 2026 12:00:00 GMT"}}}
+      expect(ExAws, :stream!, fn _operation ->
+        [%{key: key, last_modified: "2026-03-12T12:00:00.000Z"}]
       end)
 
       assert {:ok, 0} = S3.delete_objects_with_prefix_before(prefix, cutoff)
@@ -594,14 +588,8 @@ defmodule Cache.S3Test do
       key = "#{prefix}cas/AB/CD/hash1"
       cutoff = ~U[2026-03-12 12:00:00Z]
 
-      expect(ExAws, :stream!, fn _operation -> [%{key: key}] end)
-
-      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
-      end)
-
-      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
-        {:ok, %{headers: %{"Last-Modified" => "Thu, 12 Mar 2026 11:59:59 GMT"}}}
+      expect(ExAws, :stream!, fn _operation ->
+        [%{key: key, last_modified: "2026-03-12T11:59:59.000Z"}]
       end)
 
       expect(ExAws.S3, :delete_object, fn "test-bucket", ^key ->

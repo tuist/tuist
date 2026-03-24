@@ -12,6 +12,8 @@ defmodule Cache.KeyValueReplicationShipper do
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
 
+  require Logger
+
   @telemetry_event [:cache, :kv, :replication, :ship, :flush]
   @pending_rows_event [:cache, :kv, :replication, :ship, :pending_rows]
 
@@ -67,7 +69,20 @@ defmodule Cache.KeyValueReplicationShipper do
   defp ship_entries([]), do: :ok
 
   defp ship_entries(pending_rows) do
-    prepared_rows = Enum.map(pending_rows, &prepare_pending_row/1)
+    {prepared_rows, skipped_entries} =
+      Enum.reduce(pending_rows, {[], []}, fn entry, {good, bad} ->
+        case prepare_pending_row(entry) do
+          {:ok, row} -> {[row | good], bad}
+          :skip -> {good, [entry | bad]}
+        end
+      end)
+
+    prepared_rows = Enum.reverse(prepared_rows)
+
+    if skipped_entries != [] do
+      Logger.warning("Skipped #{length(skipped_entries)} rows with malformed keys during replication")
+      _ = KeyValueEntries.clear_replication_tokens(Enum.reverse(skipped_entries))
+    end
 
     cleanup_cutoffs =
       prepared_rows
@@ -83,20 +98,24 @@ defmodule Cache.KeyValueReplicationShipper do
   end
 
   defp prepare_pending_row(entry) do
-    scope = Cache.KeyValueEntry.scope_from_key(entry.key)
+    case Cache.KeyValueEntry.scope_from_key(entry.key) do
+      {:ok, scope} ->
+        incoming = %{
+          key: entry.key,
+          account_handle: scope.account_handle,
+          project_handle: scope.project_handle,
+          cas_id: scope.cas_id,
+          json_payload: entry.json_payload,
+          source_node: pending_source_node(entry),
+          source_updated_at: entry.source_updated_at,
+          last_accessed_at: entry.last_accessed_at
+        }
 
-    incoming = %{
-      key: entry.key,
-      account_handle: scope.account_handle,
-      project_handle: scope.project_handle,
-      cas_id: scope.cas_id,
-      json_payload: entry.json_payload,
-      source_node: pending_source_node(entry),
-      source_updated_at: entry.source_updated_at,
-      last_accessed_at: entry.last_accessed_at
-    }
+        {:ok, %{entry: entry, scope: scope, incoming: incoming}}
 
-    %{entry: entry, scope: scope, incoming: incoming}
+      :error ->
+        :skip
+    end
   end
 
   defp pending_source_node(entry) do
