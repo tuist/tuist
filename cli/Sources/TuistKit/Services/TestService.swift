@@ -690,9 +690,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testSummary: summary,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
-            action: .testWithoutBuilding,
-            shardPlanId: shard.shardPlanId,
-            shardIndex: shardIndex
+            action: .testWithoutBuilding
         )
 
         try await storeSuccessfulTestHashesFromGraph(
