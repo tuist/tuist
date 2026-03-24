@@ -1,4 +1,5 @@
 import DOT
+import FileSystem
 import FileSystemTesting
 import Foundation
 import GraphViz

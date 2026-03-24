@@ -1,3 +1,4 @@
+import FileSystem
 import FileSystemTesting
 import Testing
 import TuistSupport

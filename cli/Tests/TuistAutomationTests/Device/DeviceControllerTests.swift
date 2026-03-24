@@ -1,4 +1,5 @@
 import Command
+import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
