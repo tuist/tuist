@@ -87,8 +87,8 @@ struct DumpServiceTests {
 
             """
 
-            XCTAssertPrinterOutputContains(expectedStart)
-            XCTAssertPrinterOutputContains(expectedEnd)
+            TuistTest.expectLogs(expectedStart)
+            TuistTest.expectLogs(expectedEnd)
         }
     }
 
@@ -142,7 +142,7 @@ struct DumpServiceTests {
 
             """
 
-            XCTAssertPrinterOutputContains(expected)
+            TuistTest.expectLogs(expected)
         }
     }
 
@@ -255,7 +255,7 @@ struct DumpServiceTests {
             }
             """
 
-            XCTAssertPrinterOutputContains(expected)
+            TuistTest.expectLogs(expected)
         }
     }
 
@@ -290,7 +290,7 @@ struct DumpServiceTests {
 
             """
 
-            XCTAssertPrinterOutputContains(expected)
+            TuistTest.expectLogs(expected)
         }
     }
 
@@ -317,7 +317,7 @@ struct DumpServiceTests {
 
             """
 
-            XCTAssertPrinterOutputContains(expected)
+            TuistTest.expectLogs(expected)
         }
     }
 
@@ -385,7 +385,7 @@ struct DumpServiceTests {
               },
             """
 
-            XCTAssertPrinterOutputContains(expected)
+            TuistTest.expectLogs(expected)
         }
     }
 
@@ -449,7 +449,7 @@ struct DumpServiceTests {
               },
             """
 
-            XCTAssertPrinterOutputContains(expected)
+            TuistTest.expectLogs(expected)
         }
     }
 
@@ -500,10 +500,9 @@ struct DumpServiceTests {
                     try await fileSystem.makeDirectory(at: expectedDirectory)
                 }
             }
-            await XCTAssertThrowsSpecific(
-                try await subject.run(path: tmpDir.pathString, manifest: manifest),
-                ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)
-            )
+            await #expect(throws: ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)) {
+                try await subject.run(path: tmpDir.pathString, manifest: manifest)
+            }
         }
     }
 }

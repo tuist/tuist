@@ -126,10 +126,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertBetterEqual(
-            expectedGraph,
-            gotGraph
-        )
+        #expect(expectedGraph == gotGraph)
         #expect(
             [
                 .directory(
@@ -240,10 +237,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertBetterEqual(
-            expectedGraph,
-            gotGraph
-        )
+        #expect(expectedGraph == gotGraph)
         #expect(gotSideEffects.isEmpty)
     }
 
@@ -360,10 +354,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         )
 
         // Then
-        XCTAssertBetterEqual(
-            expectedGraph,
-            gotGraph
-        )
+        #expect(expectedGraph == gotGraph)
         #expect(gotSideEffects.isEmpty)
     }
 
@@ -464,10 +455,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertBetterEqual(
-            expectedGraph,
-            gotGraph
-        )
+        #expect(expectedGraph == gotGraph)
         #expect(
             [
                 .directory(
@@ -607,10 +595,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let (gotGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertBetterEqual(
-            expectedGraph,
-            gotGraph
-        )
+        #expect(expectedGraph == gotGraph)
     }
 
     @Test func map_when_static_xcframework_linked_via_cached_dynamic_xcframework_at_different_path() async throws {
@@ -743,10 +728,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertBetterEqual(
-            expectedGraph,
-            gotGraph
-        )
+        #expect(expectedGraph == gotGraph)
         #expect(
             [
                 .directory(
@@ -869,10 +851,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertBetterEqual(
-            expectedGraph,
-            gotGraph
-        )
+        #expect(expectedGraph == gotGraph)
         #expect(gotSideEffects.isEmpty)
     }
 
@@ -1033,10 +1012,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let (gotGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertBetterEqual(
-            expectedGraph,
-            gotGraph
-        )
+        #expect(expectedGraph == gotGraph)
     }
 
     @Test func map_when_static_xcframework_linked_via_target_with_dynamic_xcframework_dependency() async throws {
@@ -1142,9 +1118,9 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
 
         // CachedFramework should have paths relative to its project (.cache/.../HASH/)
         let cachedFrameworkSettings = gotGraph.projects[cachedFrameworkProjectPath]?.targets["CachedFramework"]?.settings?.base
-        XCTAssertEqual(
-            cachedFrameworkSettings?["HEADER_SEARCH_PATHS"],
-            .array(["\"$(SRCROOT)/../../../../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""])
+        #expect(
+            cachedFrameworkSettings?["HEADER_SEARCH_PATHS"] ==
+                .array(["\"$(SRCROOT)/../../../../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""])
         )
 
         // App gets CachedFramework's settings via combination.
@@ -1153,9 +1129,9 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let appHeaderSearchPaths = appSettings?["HEADER_SEARCH_PATHS"]
 
         // App's path should be relative to its own project (Project/), not to CachedFramework's project
-        XCTAssertEqual(
-            appHeaderSearchPaths,
-            .array(["\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""])
+        #expect(
+            appHeaderSearchPaths ==
+                .array(["\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""])
         )
     }
 
@@ -1261,10 +1237,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertBetterEqual(
-            expectedGraph,
-            gotGraph
-        )
+        #expect(expectedGraph == gotGraph)
         #expect(
             [
                 .directory(
@@ -1373,10 +1346,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertBetterEqual(
-            expectedGraph,
-            gotGraph
-        )
+        #expect(expectedGraph == gotGraph)
         #expect(gotSideEffects.isEmpty)
     }
 
@@ -1430,10 +1400,7 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertBetterEqual(
-            graph,
-            gotGraph
-        )
+        #expect(graph == gotGraph)
         #expect(gotSideEffects.isEmpty)
     }
 
@@ -1461,22 +1428,22 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let got = settings.removeOtherSwiftFlagsDuplicates()
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
-                "OTHER_SWIFT_FLAGS": .array(
-                    [
-                        "value-one",
-                        "-Xcc", "value-two",
-                        "-Xcc", "value-three",
-                        "-I", "value-one",
-                        "-I", "value-two",
-                        "-Xfrontend", "value-five",
-                        "-Xfrontend", "value-two",
-                        "value-four",
-                    ]
-                ),
-            ]
+        #expect(
+            got ==
+                [
+                    "OTHER_SWIFT_FLAGS": .array(
+                        [
+                            "value-one",
+                            "-Xcc", "value-two",
+                            "-Xcc", "value-three",
+                            "-I", "value-one",
+                            "-I", "value-two",
+                            "-Xfrontend", "value-five",
+                            "-Xfrontend", "value-two",
+                            "value-four",
+                        ]
+                    ),
+                ]
         )
     }
 
@@ -1499,18 +1466,18 @@ struct StaticXCFrameworkModuleMapGraphMapperTests {
         let got = settings.removeOtherSwiftFlagsDuplicates()
 
         // Then
-        XCTAssertEqual(
-            got,
-            [
-                "OTHER_SWIFT_FLAGS": .array(
-                    [
-                        "-enable-upcoming-feature", "DeprecateApplicationMain",
-                        "-enable-upcoming-feature", "NonfrozenEnumExhaustivity",
-                        "-enable-experimental-feature", "StrictConcurrency",
-                        "-enable-experimental-feature", "TypedThrows",
-                    ]
-                ),
-            ]
+        #expect(
+            got ==
+                [
+                    "OTHER_SWIFT_FLAGS": .array(
+                        [
+                            "-enable-upcoming-feature", "DeprecateApplicationMain",
+                            "-enable-upcoming-feature", "NonfrozenEnumExhaustivity",
+                            "-enable-experimental-feature", "StrictConcurrency",
+                            "-enable-experimental-feature", "TypedThrows",
+                        ]
+                    ),
+                ]
         )
     }
 }

@@ -33,10 +33,7 @@ struct TreeShakePrunedTargetsGraphMapperTests {
 
         // Then
         #expect(gotSideEffects.isEmpty)
-        XCTAssertEqual(
-            gotGraph,
-            expectedGraph
-        )
+        #expect(gotGraph == expectedGraph)
     }
 
     @Test func map_removes_pruned_targets_from_projects() throws {
@@ -230,30 +227,30 @@ struct TreeShakePrunedTargetsGraphMapperTests {
         // Then
         #expect(gotSideEffects.isEmpty)
         #expect(!gotGraph.projects.isEmpty)
-        XCTAssertEqual(
-            gotGraph.projects.values.flatMap(\.schemes),
-            [
-                .test(
-                    buildAction: .test(targets: []),
-                    testAction: .test(
-                        targets: [],
-                        testPlans: [
-                            TestPlan(
-                                path: "/Test.xctestplan",
-                                testTargets: [
-                                    .test(
-                                        target: TargetReference(
-                                            projectPath: path,
-                                            name: keptTarget.name
-                                        )
-                                    ),
-                                ],
-                                isDefault: true
-                            ),
-                        ]
-                    )
-                ),
-            ]
+        #expect(
+            gotGraph.projects.values.flatMap(\.schemes) ==
+                [
+                    .test(
+                        buildAction: .test(targets: []),
+                        testAction: .test(
+                            targets: [],
+                            testPlans: [
+                                TestPlan(
+                                    path: "/Test.xctestplan",
+                                    testTargets: [
+                                        .test(
+                                            target: TargetReference(
+                                                projectPath: path,
+                                                name: keptTarget.name
+                                            )
+                                        ),
+                                    ],
+                                    isDefault: true
+                                ),
+                            ]
+                        )
+                    ),
+                ]
         )
     }
 

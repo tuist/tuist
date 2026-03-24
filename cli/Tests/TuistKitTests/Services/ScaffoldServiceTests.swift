@@ -122,10 +122,9 @@ struct ScaffoldServiceTests {
         given(templatesDirectoryLocator)
             .templateDirectories(at: .any)
             .willReturn([])
-        await XCTAssertThrowsSpecific(
-            try await subject.testRun(templateName: templateName),
-            ScaffoldServiceError.templateNotFound(templateName, searchPaths: [])
-        )
+        await #expect(throws: ScaffoldServiceError.templateNotFound(templateName, searchPaths: [])) {
+            try await subject.testRun(templateName: templateName)
+        }
     }
 
     @Test func fails_when_required_attribute_not_provided() async throws {
@@ -141,10 +140,9 @@ struct ScaffoldServiceTests {
             .willReturn([try temporaryPath().appending(component: "template")])
 
         // Then
-        await XCTAssertThrowsSpecific(
-            try await subject.testRun(),
-            ScaffoldServiceError.attributeNotProvided("required")
-        )
+        await #expect(throws: ScaffoldServiceError.attributeNotProvided("required")) {
+            try await subject.testRun()
+        }
     }
 
     @Test func optional_attribute_is_taken_from_template() async throws {

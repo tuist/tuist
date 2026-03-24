@@ -585,17 +585,11 @@ struct GenerateAcceptanceTestiOSAppWithBuildVariables {
         let xcodeproj = try XcodeProj(
             pathString: fixturePath.appending(components: "App", "App.xcodeproj").pathString
         )
-        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let target = try TuistAcceptanceTest.requireTarget("App", in: xcodeproj)
         let buildPhases = target.buildPhases
 
-        XCTAssertEqual(
-            buildPhases.first?.name(),
-            "Tuist"
-        )
-        XCTAssertEqual(
-            (buildPhases.first as? PBXShellScriptBuildPhase)?.outputPaths,
-            ["$(DERIVED_FILE_DIR)/output.txt"]
-        )
+        #expect(buildPhases.first?.name() == "Tuist")
+        #expect((buildPhases.first as? PBXShellScriptBuildPhase)?.outputPaths == ["$(DERIVED_FILE_DIR)/output.txt"])
         try await run(BuildCommand.self)
     }
 }
@@ -657,13 +651,10 @@ struct GenerateAcceptanceTestiOSAppWithExtensions {
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
-        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let target = try TuistAcceptanceTest.requireTarget("App", in: xcodeproj)
         let sourceFileNames = try target.sourceFiles().compactMap(\.path)
 
-        XCTAssertTrue(
-            sourceFileNames.contains(where: { $0.hasSuffix("Documentation.docc") }),
-            "Expected Documentation to be included in generated project"
-        )
+        #expect(sourceFileNames.contains(where: { $0.hasSuffix("Documentation.docc") }))
 
         try await XCTAssertProductWithDestinationContainsExtension(
             "App.app",
@@ -743,7 +734,7 @@ struct GenerateAcceptanceTestInvalidManifest {
             try await run(GenerateCommand.self)
             Issue.record("Generate command should have failed")
         } catch let error as FatalError {
-            XCTAssertTrue(error.description.contains("error: expected ',' separator"))
+            #expect(error.description.contains("error: expected ',' separator"))
         }
     }
 }
@@ -762,7 +753,7 @@ struct GenerateAcceptanceTestiOSWorkspaceWithDependencyCycle {
             try await run(GenerateCommand.self)
             Issue.record("Generate command should have failed")
         } catch let error as FatalError {
-            XCTAssertTrue(error.description.contains("Found circular dependency between targets"))
+            #expect(error.description.contains("Found circular dependency between targets"))
         }
     }
 }
@@ -794,7 +785,7 @@ struct GenerateAcceptanceTestiOSAppWithCoreData {
                 ]
             )
         )
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 }
 
@@ -895,12 +886,10 @@ struct GenerateAcceptanceTestmacOSAppWithCopyFiles {
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
-        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let target = try TuistAcceptanceTest.requireTarget("App", in: xcodeproj)
         let buildPhases = target.buildPhases
 
-        XCTAssertTrue(
-            buildPhases.contains(where: { $0.name() == "Copy Templates" })
-        )
+        #expect(buildPhases.contains(where: { $0.name() == "Copy Templates" }))
     }
 }
 
@@ -924,7 +913,7 @@ struct GenerateAcceptanceTestsProjectWithClassPrefix {
         )
         let attributes = try xcodeproj.pbxproj.rootProject()?.attributes
 
-        XCTAssertEqual(attributes?["CLASSPREFIX"]?.stringValue, "TUIST")
+        #expect(attributes?["CLASSPREFIX"]?.stringValue == "TUIST")
     }
 }
 
@@ -943,7 +932,7 @@ struct GenerateAcceptanceTestProjectWithFileHeaderTemplate {
                 ]
             )
         )
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 }
 
@@ -962,7 +951,7 @@ struct GenerateAcceptanceTestProjectWithInlineFileHeaderTemplate {
                 ]
             )
         )
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 }
 
@@ -981,7 +970,7 @@ struct GenerateAcceptanceTestWorkspaceWithFileHeaderTemplate {
                 ]
             )
         )
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 }
 
@@ -1000,7 +989,7 @@ struct GenerateAcceptanceTestWorkspaceWithInlineFileHeaderTemplate {
                 ]
             )
         )
-        XCTAssertTrue(exists)
+        #expect(exists)
     }
 }
 
@@ -1020,7 +1009,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndDisabledResources {
                 ]
             )
         )
-        XCTAssertFalse(appExists)
+        #expect(!appExists)
         let frameworkOneExists = try await fileSystem.exists(
             fixturePath.appending(
                 components: [
@@ -1031,7 +1020,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndDisabledResources {
                 ]
             )
         )
-        XCTAssertFalse(frameworkOneExists)
+        #expect(!frameworkOneExists)
         let staticFrameworkExists = try await fileSystem.exists(
             fixturePath.appending(
                 components: [
@@ -1042,7 +1031,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndDisabledResources {
                 ]
             )
         )
-        XCTAssertFalse(staticFrameworkExists)
+        #expect(!staticFrameworkExists)
     }
 }
 
@@ -1082,19 +1071,13 @@ struct GenerateAcceptanceTestiOSAppWithNoneLinkingStatusFramework {
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
-        let target = try XCTUnwrapTarget("App", in: xcodeproj)
-        guard try target.frameworksBuildPhase()?.files?
-            .contains(where: { $0.file?.nameOrPath == "MyFramework.framework" }) == false
-        else {
-            XCTFail("App shouldn't link MyFramework.framework")
-            return
-        }
-        guard try target.frameworksBuildPhase()?.files?
-            .contains(where: { $0.file?.nameOrPath == "ThyFramework.framework" }) == true
-        else {
-            XCTFail("App doesn't link ThyFramework.framework")
-            return
-        }
+        let target = try TuistAcceptanceTest.requireTarget("App", in: xcodeproj)
+        let linksMyFramework = try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "MyFramework.framework" }) ?? false
+        #expect(!linksMyFramework, "App shouldn't link MyFramework.framework")
+        let linksThyFramework = try target.frameworksBuildPhase()?.files?
+            .contains(where: { $0.file?.nameOrPath == "ThyFramework.framework" }) ?? false
+        #expect(linksThyFramework, "App doesn't link ThyFramework.framework")
     }
 }
 
@@ -1109,17 +1092,13 @@ struct GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework {
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
-        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let target = try TuistAcceptanceTest.requireTarget("App", in: xcodeproj)
         let frameworksBuildPhase = try target.frameworksBuildPhase()
-        guard let frameworkFiles = frameworksBuildPhase?.files,
-              let frameworkFile = frameworkFiles.first,
-              let settings = frameworkFile.settings
-        else {
-            XCTFail("App target should have a linked framework with settings")
-            return
-        }
+        let frameworkFiles = try #require(frameworksBuildPhase?.files)
+        let frameworkFile = try #require(frameworkFiles.first)
+        let settings = try #require(frameworkFile.settings)
         let expected = ["ATTRIBUTES": BuildFileSetting.array(["Weak"])]
-        XCTAssertEqualDictionaries(settings, expected)
+        #expect(NSDictionary(dictionary: settings) == NSDictionary(dictionary: expected))
     }
 }
 
@@ -1176,8 +1155,8 @@ struct GenerateAcceptanceTestAppWithDefaultConfigurationSettings {
             pathString: xcodeprojPath.pathString
         )
 
-        let project = try XCTUnwrap(xcodeproj.pbxproj.projects.first)
-        XCTAssertEqual(project.buildConfigurationList.defaultConfigurationName, "CustomDebug")
+        let project = try #require(xcodeproj.pbxproj.projects.first)
+        #expect(project.buildConfigurationList.defaultConfigurationName == "CustomDebug")
 
         try await run(BuildCommand.self)
     }
@@ -1194,11 +1173,11 @@ struct GenerateAcceptanceTestAppWithCustomScheme {
             pathString: xcodeprojPath.pathString
         )
 
-        let scheme = try XCTUnwrap(xcodeproj.sharedData?.schemes.first)
-        XCTAssertEqual(scheme.name, "App")
+        let scheme = try #require(xcodeproj.sharedData?.schemes.first)
+        #expect(scheme.name == "App")
 
-        let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertFalse(buildAction.buildImplicitDependencies)
+        let buildAction = try #require(scheme.buildAction)
+        #expect(!buildAction.buildImplicitDependencies)
 
         try await run(BuildCommand.self)
     }
@@ -1309,14 +1288,8 @@ struct GenerateAcceptanceTestAppWithGlobs {
         let allFileReferences = xcodeproj.pbxproj.fileReferences
         let allFilePaths = allFileReferences.compactMap(\.path)
 
-        XCTAssertTrue(
-            allFilePaths.contains(where: { $0.contains(".hidden.yml") }),
-            "Expected .hidden.yml to be included in the project"
-        )
-        XCTAssertFalse(
-            allFilePaths.contains(where: { $0.contains(".secret.yml") }),
-            "Expected .secret.yml to be excluded from the project"
-        )
+        #expect(allFilePaths.contains(where: { $0.contains(".hidden.yml") }))
+        #expect(!allFilePaths.contains(where: { $0.contains(".secret.yml") }))
     }
 }
 
@@ -1374,7 +1347,7 @@ struct GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies {
         {
             let workspacePackageResolvedData = try Data(contentsOf: workspacePackageResolved.url)
             let fixturePackageResolvedData = try Data(contentsOf: fixturePackageResolved.url)
-            XCTAssertEqual(workspacePackageResolvedData, fixturePackageResolvedData)
+            #expect(workspacePackageResolvedData == fixturePackageResolvedData)
         }
     }
 }
@@ -1392,23 +1365,23 @@ struct GenerateAcceptanceTestAppWithNonLocalAppDependencies {
             pathString: fixturePath.appending(components: "MainApp", "MainApp.xcodeproj").pathString
         )
 
-        let target = try XCTUnwrapTarget("MainApp", in: xcodeproj)
+        let target = try TuistAcceptanceTest.requireTarget("MainApp", in: xcodeproj)
         let buildPhases = target.buildPhases
-        XCTAssertTrue(buildPhases.contains(where: { $0.name() == "Dependencies" }))
+        #expect(buildPhases.contains(where: { $0.name() == "Dependencies" }))
 
         let dependenciesBuildPhase = buildPhases.first(where: { $0.name() == "Dependencies" }) as? PBXCopyFilesBuildPhase
         let targetFileNames = dependenciesBuildPhase?.files?.compactMap { $0.file?.nameOrPath }.sorted()
         let expectedTargetFileNames = ["AppExtension.appex"]
-        XCTAssertEqual(targetFileNames, expectedTargetFileNames)
+        #expect(targetFileNames == expectedTargetFileNames)
 
-        let testTarget = try XCTUnwrapTarget("MainAppTests", in: xcodeproj)
+        let testTarget = try TuistAcceptanceTest.requireTarget("MainAppTests", in: xcodeproj)
         let testBuildPhases = testTarget.buildPhases
-        XCTAssertTrue(testBuildPhases.contains(where: { $0.name() == "Dependencies" }))
+        #expect(testBuildPhases.contains(where: { $0.name() == "Dependencies" }))
 
         let testDependenciesBuildPhase = testBuildPhases.first(where: { $0.name() == "Dependencies" }) as? PBXCopyFilesBuildPhase
         let testTargetFileNames = testDependenciesBuildPhase?.files?.compactMap { $0.file?.nameOrPath }.sorted()
         let expectedTestTargetFileNames = ["TestHost.app"]
-        XCTAssertEqual(testTargetFileNames, expectedTestTargetFileNames)
+        #expect(testTargetFileNames == expectedTestTargetFileNames)
     }
 }
 
@@ -1424,7 +1397,7 @@ struct GenerateAcceptanceTestAppWithGeneratedSources {
             pathString: fixturePath.appending(components: "App.xcodeproj").pathString
         )
 
-        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let target = try TuistAcceptanceTest.requireTarget("App", in: xcodeproj)
         let sourceFiles = try target.sourceFiles()
         let sourceFilesNames = sourceFiles.compactMap { file in
             let parent = file.parent?.path ?? ""
@@ -1436,7 +1409,7 @@ struct GenerateAcceptanceTestAppWithGeneratedSources {
             "Generated/GeneratedEmptyFile.swift",
             "Sources/AppDelegate.swift",
         ]
-        XCTAssertEqual(sourceFilesNames, expectedPathsWithParents)
+        #expect(sourceFilesNames == expectedPathsWithParents)
     }
 }
 
@@ -1597,10 +1570,7 @@ struct GenerateAcceptanceTestAppWithMacBundle {
             arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
         ).concatenatedString()
 
-        XCTAssertTrue(
-            listOutput.contains("UIKitApplication:dev.tuist.App"),
-            "App should still be running. If it crashed, the bundle accessor for external dynamic frameworks with resources may be broken."
-        )
+        #expect(listOutput.contains("UIKitApplication:dev.tuist.App"))
     }
 }
 
@@ -2097,65 +2067,4 @@ private func XCTAssertContainsMetalOptions(
         "The launch action of '\(scheme)' doesn't have 'Log Graphics Overview' set.",
         sourceLocation: sourceLocation
     )
-}
-
-private func XCTAssertTrue(
-    _ expression: @autoclosure () throws -> Bool,
-    _: String = "",
-    sourceLocation: SourceLocation = #_sourceLocation
-) rethrows {
-    #expect(try expression(), sourceLocation: sourceLocation)
-}
-
-private func XCTAssertFalse(
-    _ expression: @autoclosure () throws -> Bool,
-    _: String = "",
-    sourceLocation: SourceLocation = #_sourceLocation
-) rethrows {
-    #expect(try expression() == false, sourceLocation: sourceLocation)
-}
-
-private func XCTAssertEqual<T: Equatable>(
-    _ first: @autoclosure () throws -> T,
-    _ second: @autoclosure () throws -> T,
-    _: String = "",
-    sourceLocation: SourceLocation = #_sourceLocation
-) rethrows {
-    #expect(try first() == second(), sourceLocation: sourceLocation)
-}
-
-private func XCTAssertEqualDictionaries<T: Hashable>(
-    _ first: [T: Any],
-    _ second: [T: Any],
-    sourceLocation: SourceLocation = #_sourceLocation
-) {
-    let firstDictionary = NSDictionary(dictionary: first)
-    let secondDictionary = NSDictionary(dictionary: second)
-    #expect(firstDictionary.isEqual(secondDictionary), sourceLocation: sourceLocation)
-}
-
-private func XCTFail(
-    _ message: String,
-    sourceLocation: SourceLocation = #_sourceLocation
-) {
-    Issue.record(message, sourceLocation: sourceLocation)
-}
-
-private func XCTUnwrap<T>(
-    _ value: T?,
-    _ message: String = "",
-    sourceLocation: SourceLocation = #_sourceLocation
-) throws -> T {
-    if !message.isEmpty, value == nil {
-        Issue.record(message, sourceLocation: sourceLocation)
-    }
-    return try #require(value, sourceLocation: sourceLocation)
-}
-
-private func XCTUnwrapTarget(
-    _ targetName: String,
-    in xcodeproj: XcodeProj,
-    sourceLocation: SourceLocation = #_sourceLocation
-) throws -> PBXTarget {
-    try TuistAcceptanceTest.requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
 }

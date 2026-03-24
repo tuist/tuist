@@ -49,10 +49,9 @@ struct PluginArchiveServiceTests {
             try await subject.run(path: nil)
 
             // Then
-            XCTAssertPrinterContains(
+            TuistTest.expectLogs(
                 "No tasks found - make sure you have executable products with `tuist-` prefix defined in your manifest.",
-                at: .warning,
-                ==
+                at: .warning
             )
         }
     }

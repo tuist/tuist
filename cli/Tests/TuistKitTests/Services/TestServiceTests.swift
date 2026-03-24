@@ -282,39 +282,36 @@ struct TestServiceTests {
         let testTargets = try [TestIdentifier(string: "test1")]
         let skipTestTargets = try [TestIdentifier(string: "test1")]
         let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
-        XCTAssertThrowsSpecific(
+        #expect(throws: error) {
             try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
-            ),
-            error
-        )
+            )
+        }
     }
 
     @Test func validateParameters_duplicatedParameters_targetClass() throws {
         let testTargets = try [TestIdentifier(string: "test1/class1")]
         let skipTestTargets = try [TestIdentifier(string: "test1/class1")]
         let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
-        XCTAssertThrowsSpecific(
+        #expect(throws: error) {
             try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
-            ),
-            error
-        )
+            )
+        }
     }
 
     @Test func validateParameters_duplicatedParameters_targetClassMethod() throws {
         let testTargets = try [TestIdentifier(string: "test1/class1/method1")]
         let skipTestTargets = try [TestIdentifier(string: "test1/class1/method1")]
         let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
-        XCTAssertThrowsSpecific(
+        #expect(throws: error) {
             try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
-            ),
-            error
-        )
+            )
+        }
     }
 
     @Test func throws_an_error_when_config_is_not_for_generated_project() async throws {
@@ -329,18 +326,17 @@ struct TestServiceTests {
             .willReturn((path, .test(), MapperEnvironment()))
 
         // When
-        await XCTAssertThrowsSpecific(
-            {
-                try await testRun(
-                    path: path
-                )
-            },
-            TuistConfigError
+        await #expect(
+            throws: TuistConfigError
                 .notAGeneratedProjectNorSwiftPackage(
                     errorMessageOverride:
                     "The 'tuist test' command is for generated projects or Swift packages. Please use 'tuist xcodebuild test' instead."
                 )
-        )
+        ) {
+            try await testRun(
+                path: path
+            )
+        }
     }
 
     @Test func run_generates_project() async throws {
@@ -576,12 +572,12 @@ struct TestServiceTests {
         )
 
         // Then
-        XCTAssertEqual(
-            testedSchemes,
-            [
-                "ProjectSchemeOne",
-                "ProjectSchemeTwo",
-            ]
+        #expect(
+            testedSchemes ==
+                [
+                    "ProjectSchemeOne",
+                    "ProjectSchemeTwo",
+                ]
         )
     }
 
@@ -767,8 +763,7 @@ struct TestServiceTests {
             )
 
             // Then
-            XCTAssertStandardOutput(
-                pattern:
+            TuistTest.expectLogs(
                 "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
             )
             #expect(testedSchemes.isEmpty)
@@ -798,16 +793,17 @@ struct TestServiceTests {
             .willReturn(.test(project: .testGeneratedProject()))
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await testRun(
-                schemeName: "ProjectSchemeOne",
-                path: try temporaryPath()
-            ),
-            TestServiceError.schemeNotFound(
+        await #expect(
+            throws: TestServiceError.schemeNotFound(
                 scheme: "ProjectSchemeOne",
                 existing: ["ProjectSchemeTwo"]
             )
-        )
+        ) {
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath()
+            )
+        }
     }
 
     @Test func throws_scheme_does_not_exist_in_initial_graph() async throws {
@@ -842,16 +838,17 @@ struct TestServiceTests {
             }
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            try await testRun(
-                schemeName: "ProjectSchemeOne",
-                path: try temporaryPath()
-            ),
-            TestServiceError.schemeNotFound(
+        await #expect(
+            throws: TestServiceError.schemeNotFound(
                 scheme: "ProjectSchemeOne",
                 existing: ["ProjectSchemeTwo"]
             )
-        )
+        ) {
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath()
+            )
+        }
     }
 
     @Test func skips_running_tests_when_scheme_is_in_initial_graph_only() async throws {
@@ -885,8 +882,7 @@ struct TestServiceTests {
 
             // Then
             #expect(testedSchemes.isEmpty)
-            XCTAssertStandardOutput(
-                pattern:
+            TuistTest.expectLogs(
                 "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
             )
         }
@@ -922,7 +918,7 @@ struct TestServiceTests {
 
             // Then
             #expect(testedSchemes.isEmpty)
-            XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
+            TuistTest.expectLogs("There are no tests to run, finishing early")
         }
     }
 
@@ -962,7 +958,7 @@ struct TestServiceTests {
 
             // Then
             #expect(testedSchemes.isEmpty)
-            XCTAssertStandardOutput(pattern: "There are no tests to run, finishing early")
+            TuistTest.expectLogs("There are no tests to run, finishing early")
         }
     }
 
@@ -1098,31 +1094,30 @@ struct TestServiceTests {
 
             // Then
             #expect(testedSchemes == ["ProjectSchemeOne"])
-            XCTAssertStandardOutput(
-                pattern:
+            TuistTest.expectLogs(
                 "The following targets have not changed since the last successful run and will be skipped: TargetB, TargetC"
             )
             let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
-            XCTAssertEqual(
-                selectiveTestingCacheItems,
-                [
-                    projectPathOne: [
-                        "TargetA": .test(
-                            name: "TargetA",
-                            hash: "hash-a",
-                            source: .miss,
-                            cacheCategory: .selectiveTests
-                        ),
-                        "TargetB": .test(
-                            source: .local,
-                            cacheCategory: .selectiveTests
-                        ),
-                        "TargetC": .test(
-                            source: .remote,
-                            cacheCategory: .selectiveTests
-                        ),
-                    ],
-                ]
+            #expect(
+                selectiveTestingCacheItems ==
+                    [
+                        projectPathOne: [
+                            "TargetA": .test(
+                                name: "TargetA",
+                                hash: "hash-a",
+                                source: .miss,
+                                cacheCategory: .selectiveTests
+                            ),
+                            "TargetB": .test(
+                                source: .local,
+                                cacheCategory: .selectiveTests
+                            ),
+                            "TargetC": .test(
+                                source: .remote,
+                                cacheCategory: .selectiveTests
+                            ),
+                        ],
+                    ]
             )
             verify(cacheStorage)
                 .store(
@@ -1359,11 +1354,11 @@ struct TestServiceTests {
             )
             Issue.record("Should throw")
         } catch {}
-        XCTAssertEqual(
-            testedSchemes,
-            [
-                "UnitTests",
-            ]
+        #expect(
+            testedSchemes ==
+                [
+                    "UnitTests",
+                ]
         )
 
         verify(cacheStorage)
@@ -1517,8 +1512,7 @@ struct TestServiceTests {
 
             // Then
             #expect(testedSchemes == ["ProjectSchemeTwo"])
-            XCTAssertStandardOutput(
-                pattern:
+            TuistTest.expectLogs(
                 "The following targets have not changed since the last successful run and will be skipped: TargetC"
             )
             verify(cacheStorage)
@@ -1741,11 +1735,11 @@ struct TestServiceTests {
             )
             Issue.record("Should throw")
         } catch {}
-        XCTAssertEqual(
-            testedSchemes,
-            [
-                "ProjectScheme",
-            ]
+        #expect(
+            testedSchemes ==
+                [
+                    "ProjectScheme",
+                ]
         )
         //        #expect(!
         //            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .selectiveTests).appending(component: "A"))
@@ -1776,7 +1770,7 @@ struct TestServiceTests {
 
             // Then
             #expect(testedSchemes.isEmpty)
-            XCTAssertPrinterOutputContains("There are no tests to run, finishing early")
+            TuistTest.expectLogs("There are no tests to run, finishing early")
         }
     }
 
@@ -2292,18 +2286,18 @@ struct TestServiceTests {
             )
             .called(1)
         let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
-        XCTAssertEqual(
-            selectiveTestingCacheItems,
-            [
-                projectPath: [
-                    "TargetA": .test(
-                        name: "TargetA",
-                        hash: "hash-a",
-                        source: .miss,
-                        cacheCategory: .selectiveTests
-                    ),
-                ],
-            ]
+        #expect(
+            selectiveTestingCacheItems ==
+                [
+                    projectPath: [
+                        "TargetA": .test(
+                            name: "TargetA",
+                            hash: "hash-a",
+                            source: .miss,
+                            cacheCategory: .selectiveTests
+                        ),
+                    ],
+                ]
         )
     }
 
@@ -2424,17 +2418,17 @@ struct TestServiceTests {
         // Then
         #expect(testedSchemes == ["TestScheme"])
         let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
-        XCTAssertEqual(
-            selectiveTestingCacheItems,
-            [
-                projectPath: [
-                    "TargetA": .test(
-                        name: "TargetA",
-                        hash: "hash-a",
-                        source: .miss
-                    ),
-                ],
-            ]
+        #expect(
+            selectiveTestingCacheItems ==
+                [
+                    projectPath: [
+                        "TargetA": .test(
+                            name: "TargetA",
+                            hash: "hash-a",
+                            source: .miss
+                        ),
+                    ],
+                ]
         )
     }
 

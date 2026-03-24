@@ -37,6 +37,6 @@ struct MigrationCheckEmptyBuildSettingsServiceTests {
         emptyBuildSettingsChecker.stubbedCheckError = error
 
         // When
-        await XCTAssertThrowsSpecific(try await subject.run(xcodeprojPath: xcodeprojPath, target: target), error)
+        await #expect(throws: error) { try await subject.run(xcodeprojPath: xcodeprojPath, target: target) }
     }
 }

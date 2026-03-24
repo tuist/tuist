@@ -45,11 +45,11 @@ struct TuistWorkspaceRenderMarkdownReadmeMapperTests {
             gotWorkspaceWithProjects.workspace.generationOptions.renderMarkdownReadme
         )
         #expect(gotWorkspaceWithProjects.workspace.projects.isEmpty)
-        XCTAssertEqual(
-            sideEffects,
-            [
-                .file(tuistGeneratedFileDescriptor),
-            ]
+        #expect(
+            sideEffects ==
+                [
+                    .file(tuistGeneratedFileDescriptor),
+                ]
         )
     }
 
@@ -81,11 +81,11 @@ struct TuistWorkspaceRenderMarkdownReadmeMapperTests {
             gotWorkspaceWithProjects.workspace.generationOptions.renderMarkdownReadme
         )
         #expect(gotWorkspaceWithProjects.workspace.projects.isEmpty)
-        XCTAssertEqual(
-            sideEffects,
-            [
-                .file(tuistGeneratedFileDescriptor),
-            ]
+        #expect(
+            sideEffects ==
+                [
+                    .file(tuistGeneratedFileDescriptor),
+                ]
         )
     }
 }

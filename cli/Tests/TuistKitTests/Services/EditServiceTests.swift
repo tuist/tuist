@@ -20,7 +20,6 @@ struct EditServiceTests {
     var projectEditor: MockProjectEditing!
 
     init() throws {
-        super.setUp()
         opener = MockOpening()
         configLoader = MockConfigLoading()
         pluginService = MockPluginService()

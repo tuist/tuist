@@ -553,7 +553,7 @@ struct RunCommandServiceTests {
         }
     }
 
-    func test_run_preview_with_specifier_when_preview_is_not_found() async throws {
+    @Test func run_preview_with_specifier_when_preview_is_not_found() async throws {
         // Given
         given(configLoader)
             .loadConfig(path: .any)

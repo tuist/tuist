@@ -30,10 +30,9 @@ struct TuistServiceTests {
             .willReturn(.default)
 
         // When / Then
-        await XCTAssertThrowsSpecific(
-            { try await subject.run(arguments: ["my-command"], tuistBinaryPath: "") },
-            TuistServiceError.taskUnavailable
-        )
+        await #expect(throws: TuistServiceError.taskUnavailable) {
+            try await subject.run(arguments: ["my-command"], tuistBinaryPath: "")
+        }
     }
 
     @Test func run_when_plugin_executable() async throws {
@@ -62,9 +61,7 @@ struct TuistServiceTests {
         system.succeedCommand(["tuist-command-b"])
 
         // When/Then
-        XCTAssertNoThrow(
-            { try await subject.run(arguments: ["command-b", "--path", projectPath.pathString], tuistBinaryPath: "") }
-        )
+        try await subject.run(arguments: ["command-b", "--path", projectPath.pathString], tuistBinaryPath: "")
     }
 
     @Test func run_when_command_is_global() async throws {

@@ -20,7 +20,7 @@ struct ProjectMapperFactoryTests {
 
         // Then
 
-        XCTAssertContainsElementOfType(got, SynthesizedResourceInterfaceProjectMapper.self)
+        #expect(got.contains(where: { $0 is SynthesizedResourceInterfaceProjectMapper }))
     }
 
     @Test func default_contains_target_mapper() {
@@ -29,7 +29,7 @@ struct ProjectMapperFactoryTests {
 
         // Then
 
-        XCTAssertContainsElementOfType(got, TargetActionDisableShowEnvVarsProjectMapper.self)
+        #expect(got.contains(where: { $0 is TargetActionDisableShowEnvVarsProjectMapper }))
     }
 
     @Test func default_when_bundle_accessors_are_enabled() {
@@ -38,8 +38,14 @@ struct ProjectMapperFactoryTests {
 
         // Then
 
-        XCTAssertContainsElementOfType(got, ResourcesProjectMapper.self)
-        XCTAssertContainsElementOfType(got, ResourcesProjectMapper.self, after: DeleteDerivedDirectoryProjectMapper.self)
+        #expect(got.contains(where: { $0 is ResourcesProjectMapper }))
+        if let elementIndex = got.lastIndex(where: { $0 is ResourcesProjectMapper }),
+           let previousIndex = got.firstIndex(where: { $0 is DeleteDerivedDirectoryProjectMapper })
+        {
+            #expect(elementIndex > previousIndex)
+        } else {
+            Issue.record("Expected element of type ResourcesProjectMapper after DeleteDerivedDirectoryProjectMapper")
+        }
     }
 
     @Test func default_contains_the_generate_info_plist_mapper() {
@@ -47,7 +53,13 @@ struct ProjectMapperFactoryTests {
         let got = subject.default(tuist: .default)
 
         // Then
-        XCTAssertContainsElementOfType(got, GenerateInfoPlistProjectMapper.self, after: DeleteDerivedDirectoryProjectMapper.self)
+        if let elementIndex = got.lastIndex(where: { $0 is GenerateInfoPlistProjectMapper }),
+           let previousIndex = got.firstIndex(where: { $0 is DeleteDerivedDirectoryProjectMapper })
+        {
+            #expect(elementIndex > previousIndex)
+        } else {
+            Issue.record("Expected element of type GenerateInfoPlistProjectMapper after DeleteDerivedDirectoryProjectMapper")
+        }
     }
 
     @Test func default_contains_the_generate_privacy_manifest_mapper() {
@@ -55,11 +67,14 @@ struct ProjectMapperFactoryTests {
         let got = subject.default(tuist: .default)
 
         // Then
-        XCTAssertContainsElementOfType(
-            got,
-            GeneratePrivacyManifestProjectMapper.self,
-            after: DeleteDerivedDirectoryProjectMapper.self
-        )
+        if let elementIndex = got.lastIndex(where: { $0 is GeneratePrivacyManifestProjectMapper }),
+           let previousIndex = got.firstIndex(where: { $0 is DeleteDerivedDirectoryProjectMapper })
+        {
+            #expect(elementIndex > previousIndex)
+        } else {
+            Issue
+                .record("Expected element of type GeneratePrivacyManifestProjectMapper after DeleteDerivedDirectoryProjectMapper")
+        }
     }
 
     @Test func default_contains_the_ide_template_macros_mapper() {
@@ -67,7 +82,7 @@ struct ProjectMapperFactoryTests {
         let got = subject.default(tuist: .default)
 
         // Then
-        XCTAssertContainsElementOfType(got, IDETemplateMacrosMapper.self)
+        #expect(got.contains(where: { $0 is IDETemplateMacrosMapper }))
     }
 
     @Test func automation_contains_the_skip_ui_tests_mapper_when_skip_ui_tests_is_true() {
@@ -79,7 +94,7 @@ struct ProjectMapperFactoryTests {
         )
 
         // Then
-        XCTAssertContainsElementOfType(got, SkipUITestsProjectMapper.self)
+        #expect(got.contains(where: { $0 is SkipUITestsProjectMapper }))
     }
 
     @Test func automation_doesnt_contain_the_skip_ui_tests_mapper_when_skip_ui_tests_is_false() {
@@ -91,7 +106,7 @@ struct ProjectMapperFactoryTests {
         )
 
         // Then
-        XCTAssertDoesntContainElementOfType(got, SkipUITestsProjectMapper.self)
+        #expect(!got.contains(where: { $0 is SkipUITestsProjectMapper }))
     }
 
     @Test func automation_contains_the_skip_unit_tests_mapper_when_skip_unit_tests_is_true() {
@@ -103,7 +118,7 @@ struct ProjectMapperFactoryTests {
         )
 
         // Then
-        XCTAssertContainsElementOfType(got, SkipUnitTestsProjectMapper.self)
+        #expect(got.contains(where: { $0 is SkipUnitTestsProjectMapper }))
     }
 
     @Test func automation_doesnt_contain_the_skip_unit_tests_mapper_when_skip_unit_tests_is_false() {
@@ -115,6 +130,6 @@ struct ProjectMapperFactoryTests {
         )
 
         // Then
-        XCTAssertDoesntContainElementOfType(got, SkipUnitTestsProjectMapper.self)
+        #expect(!got.contains(where: { $0 is SkipUnitTestsProjectMapper }))
     }
 }

@@ -74,10 +74,7 @@ struct FocusTargetsGraphMappersTests {
 
         // Then
         #expect(gotSideEffects.isEmpty)
-        XCTAssertEqual(
-            pruningTargets.map(\.name).sorted(),
-            expectingTargets.map(\.name).sorted()
-        )
+        #expect(pruningTargets.map(\.name).sorted() == expectingTargets.map(\.name).sorted())
     }
 
     @Test func map_when_included_targets_is_target_with_no_dependency_all_other_targets_are_pruned() throws {
@@ -110,10 +107,7 @@ struct FocusTargetsGraphMappersTests {
 
         // Then
         #expect(gotSideEffects.isEmpty)
-        XCTAssertEqual(
-            pruningTargets.map(\.name).sorted(),
-            expectingTargets.map(\.name).sorted()
-        )
+        #expect(pruningTargets.map(\.name).sorted() == expectingTargets.map(\.name).sorted())
     }
 
     @Test func map_when_included_targets_is_target_with_dependencies_all_non_dependant_targets_are_pruned() throws {
@@ -146,10 +140,7 @@ struct FocusTargetsGraphMappersTests {
 
         // Then
         #expect(gotSideEffects.isEmpty)
-        XCTAssertEqual(
-            pruningTargets.map(\.name).sorted(),
-            expectingTargets.map(\.name).sorted()
-        )
+        #expect(pruningTargets.map(\.name).sorted() == expectingTargets.map(\.name).sorted())
     }
 
     @Test func map_when_included_targets_is_target_with_no_dependency_but_with_test_target_also_test_target_is_pruned() throws {
@@ -186,10 +177,7 @@ struct FocusTargetsGraphMappersTests {
 
         // Then
         #expect(gotSideEffects.isEmpty)
-        XCTAssertEqual(
-            pruningTargets.map(\.name).sorted(),
-            expectingTargets.map(\.name).sorted()
-        )
+        #expect(pruningTargets.map(\.name).sorted() == expectingTargets.map(\.name).sorted())
     }
 
     @Test func map_when_included_targets_do_not_exist() throws {
@@ -214,10 +202,9 @@ struct FocusTargetsGraphMappersTests {
         )
 
         // When
-        XCTAssertThrowsSpecific(
-            try subject.map(graph: graph, environment: MapperEnvironment()),
-            FocusTargetsGraphMappersError.targetsNotFound(["bar"])
-        )
+        #expect(throws: FocusTargetsGraphMappersError.targetsNotFound(["bar"])) {
+            try subject.map(graph: graph, environment: MapperEnvironment())
+        }
     }
 
     @Test func map_when_included_products_prunes_non_test_dependency_targets() throws {
@@ -349,10 +336,7 @@ struct FocusTargetsGraphMappersTests {
             .filter { $0.metadata.tags.contains("tuist:prunable") }
 
         // Then — App and Helper should both be pruned since the scheme has no surviving test targets
-        XCTAssertEqual(
-            pruningTargets.map(\.name).sorted(),
-            ["App", "Helper"]
-        )
+        #expect(pruningTargets.map(\.name).sorted() == ["App", "Helper"])
     }
 
     @Test func map_when_included_products_with_explicit_filters_uses_filters() throws {
@@ -384,10 +368,7 @@ struct FocusTargetsGraphMappersTests {
             .filter { $0.metadata.tags.contains("tuist:prunable") }
 
         // Then
-        XCTAssertEqual(
-            pruningTargets.map(\.name).sorted(),
-            [frameworkTests.name]
-        )
+        #expect(pruningTargets.map(\.name).sorted() == [frameworkTests.name])
     }
 
     @Test func map_when_included_targets_were_pruned_by_selective_testing_does_not_throw() throws {
@@ -458,10 +439,9 @@ struct FocusTargetsGraphMappersTests {
         environment.initialGraph = initialGraph
 
         // When / Then — LibTests is in initialGraph so it's fine, but NonExistent is truly missing
-        XCTAssertThrowsSpecific(
-            try subject.map(graph: graph, environment: environment),
-            FocusTargetsGraphMappersError.targetsNotFound(["NonExistent"])
-        )
+        #expect(throws: FocusTargetsGraphMappersError.targetsNotFound(["NonExistent"])) {
+            try subject.map(graph: graph, environment: environment)
+        }
     }
 
     @Test func map_when_included_targets_is_unused_tag() throws {
@@ -477,9 +457,8 @@ struct FocusTargetsGraphMappersTests {
         )
 
         // When
-        XCTAssertThrowsSpecific(
-            try subject.map(graph: graph, environment: MapperEnvironment()),
-            FocusTargetsGraphMappersError.noTargetsFound
-        )
+        #expect(throws: FocusTargetsGraphMappersError.noTargetsFound) {
+            try subject.map(graph: graph, environment: MapperEnvironment())
+        }
     }
 }

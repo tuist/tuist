@@ -36,7 +36,7 @@ struct WorkspaceMapperFactoryTests {
         let got = subject.default(tuist: .default)
 
         // Then
-        XCTAssertContainsElementOfType(got, ProjectWorkspaceMapper.self)
+        #expect(got.contains(where: { $0 is ProjectWorkspaceMapper }))
     }
 
     @Test func default_contains_the_tuist_workspace_identifier_mapper() {
@@ -53,7 +53,7 @@ struct WorkspaceMapperFactoryTests {
         let got = subject.default(tuist: .default)
 
         // Then
-        XCTAssertContainsElementOfType(got, TuistWorkspaceIdentifierMapper.self)
+        #expect(got.contains(where: { $0 is TuistWorkspaceIdentifierMapper }))
     }
 
     @Test func default_contains_the_tuist_workspace_render_markdown_readme_mapper() {
@@ -70,7 +70,7 @@ struct WorkspaceMapperFactoryTests {
         let got = subject.default(tuist: .default)
 
         // Then
-        XCTAssertContainsElementOfType(got, TuistWorkspaceRenderMarkdownReadmeMapper.self)
+        #expect(got.contains(where: { $0 is TuistWorkspaceRenderMarkdownReadmeMapper }))
     }
 
     @Test func default_contains_the_tide_template_macros_mapper() {
@@ -87,7 +87,7 @@ struct WorkspaceMapperFactoryTests {
         let got = subject.default(tuist: .default)
 
         // Then
-        XCTAssertContainsElementOfType(got, IDETemplateMacrosMapper.self)
+        #expect(got.contains(where: { $0 is IDETemplateMacrosMapper }))
     }
 
     @Test func default_contains_the_last_upgrade_version_mapper() {
@@ -104,7 +104,7 @@ struct WorkspaceMapperFactoryTests {
         let got = subject.default(tuist: .default)
 
         // Then
-        XCTAssertContainsElementOfType(got, LastUpgradeVersionWorkspaceMapper.self)
+        #expect(got.contains(where: { $0 is LastUpgradeVersionWorkspaceMapper }))
     }
 }
 
@@ -114,11 +114,10 @@ struct WorkspaceMapperFactoryTests {
         var subject: CacheWorkspaceMapperFactory!
 
         init() {
-            super.setUp()
             projectMapperFactory = ProjectMapperFactory()
         }
 
-        func test_binaryCacheWarming_returns_default_mappers() throws {
+        @Test func binaryCacheWarming_returns_default_mappers() throws {
             // Given
             subject =
                 CacheWorkspaceMapperFactory(
@@ -131,7 +130,7 @@ struct WorkspaceMapperFactoryTests {
             let got = subject.binaryCacheWarming(tuist: .test())
 
             // Then
-            XCTAssertContainsElementOfType(got, ProjectWorkspaceMapper.self)
+            #expect(got.contains(where: { $0 is ProjectWorkspaceMapper }))
         }
     }
 

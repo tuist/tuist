@@ -21,9 +21,9 @@ struct ProjectEditorErrorTests {
     }
 
     @Test func test_description() {
-        XCTAssertEqual(
-            ProjectEditorError.noEditableFiles(AbsolutePath.root).description,
-            "There are no editable files at \(AbsolutePath.root.pathString)"
+        #expect(
+            ProjectEditorError.noEditableFiles(AbsolutePath.root).description ==
+                "There are no editable files at \(AbsolutePath.root.pathString)"
         )
     }
 }
@@ -165,11 +165,10 @@ struct ProjectEditorTests {
             .willReturn(nil)
 
         // Then
-        await XCTAssertThrowsSpecific(
-            // When
-            try await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test()),
-            ProjectEditorError.noEditableFiles(directory)
-        )
+        // When / Then
+        await #expect(throws: ProjectEditorError.noEditableFiles(directory)) {
+            try await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+        }
     }
 
     @Test func edit_with_plugin() async throws {
@@ -327,9 +326,9 @@ struct ProjectEditorTests {
         #expect(mapArgs?.sourceRootPath == directory)
         #expect(mapArgs?.projectDescriptionPath == projectDescriptionPath.parentDirectory)
         #expect(mapArgs?.editablePluginManifests.map(\.name) == ["LocalPlugin"])
-        XCTAssertEqual(
-            mapArgs?.editablePluginManifests.map(\.path.basename),
-            [pluginManifestPath].map(\.parentDirectory.basename)
+        #expect(
+            mapArgs?.editablePluginManifests.map(\.path.basename) ==
+                [pluginManifestPath].map(\.parentDirectory.basename)
         )
         #expect(mapArgs?.pluginProjectDescriptionHelpersModule == [])
     }
@@ -389,9 +388,9 @@ struct ProjectEditorTests {
         #expect(mapArgs?.sourceRootPath == editingPath)
         #expect(mapArgs?.projectDescriptionPath == projectDescriptionPath.parentDirectory)
         #expect(mapArgs?.editablePluginManifests.map(\.name) == ["LocalPlugin"])
-        XCTAssertEqual(
-            mapArgs?.editablePluginManifests.map(\.path.basename),
-            [pluginManifestPath].map(\.parentDirectory.basename)
+        #expect(
+            mapArgs?.editablePluginManifests.map(\.path.basename) ==
+                [pluginManifestPath].map(\.parentDirectory.basename)
         )
         #expect(mapArgs?.pluginProjectDescriptionHelpersModule == [])
     }
@@ -505,9 +504,12 @@ struct ProjectEditorTests {
         #expect(mapArgs?.sourceRootPath == directory)
         #expect(mapArgs?.projectDescriptionPath == projectDescriptionPath.parentDirectory)
         #expect(try #require(mapArgs?.editablePluginManifests.isEmpty))
-        XCTAssertEqual(
-            mapArgs?.pluginProjectDescriptionHelpersModule,
-            [ProjectDescriptionHelpersModule(name: "RemotePlugin", path: try AbsolutePath(validating: "/Some/Path/To/Plugin"))]
+        #expect(
+            mapArgs?.pluginProjectDescriptionHelpersModule ==
+                [ProjectDescriptionHelpersModule(
+                    name: "RemotePlugin",
+                    path: try AbsolutePath(validating: "/Some/Path/To/Plugin")
+                )]
         )
     }
 }

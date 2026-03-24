@@ -51,7 +51,7 @@ struct ListServiceTests {
             try await subject.run(path: nil, outputFormat: .table)
 
             // Then
-            XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
+            TuistTest.expectLogs(expectedOutput, at: .notice)
         }
     }
 
@@ -86,7 +86,7 @@ struct ListServiceTests {
             try await subject.run(path: nil, outputFormat: .json)
 
             // Then
-            XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
+            TuistTest.expectLogs(expectedOutput, at: .notice)
         }
     }
 
@@ -121,7 +121,7 @@ struct ListServiceTests {
             try await subject.run(path: nil, outputFormat: .table)
 
             // Then
-            XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
+            TuistTest.expectLogs(expectedOutput, at: .notice)
         }
     }
 }

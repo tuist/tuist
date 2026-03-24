@@ -61,14 +61,13 @@ struct TrackableCommandTests {
         // Given
         makeSubject(flag: false, shouldFail: true)
         // When
-        await XCTAssertThrowsSpecific(
+        await #expect(throws: TestCommand.TestError.commandFailed) {
             try await subject.run(
                 fullHandle: "tuist/tuist",
                 serverURL: .test(),
                 shouldTrackAnalytics: true
-            ),
-            TestCommand.TestError.commandFailed
-        )
+            )
+        }
 
         // Then
         verify(backgroundProcessRunner)

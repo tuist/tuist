@@ -31,7 +31,6 @@ struct CleanServiceTests {
     private var serverAuthenticationController: MockServerAuthenticationControlling!
 
     init() throws {
-        super.setUp()
         rootDirectoryLocator = .init()
         cacheDirectoriesProvider = .init()
         manifestFilesLocator = MockManifestFilesLocating()
@@ -257,7 +256,7 @@ struct CleanServiceTests {
                 verify(cleanCacheService)
                     .cleanCache(serverURL: .any, fullHandle: .any)
                     .called(1)
-                XCTAssertStandardOutput(pattern: "Successfully cleaned the remote storage.")
+                TuistTest.expectLogs("Successfully cleaned the remote storage.")
             }
         }
     }
@@ -326,7 +325,7 @@ struct CleanServiceTests {
                         serverAuthenticationController: .any
                     )
                     .called(1)
-                XCTAssertStandardOutput(pattern: "Successfully cleaned the remote storage.")
+                TuistTest.expectLogs("Successfully cleaned the remote storage.")
             }
         }
     }

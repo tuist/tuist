@@ -212,12 +212,12 @@ struct GraphServiceTests {
             // Then
             #expect(result == .test())
 
-            XCTAssertEqual(
-                ui(),
-                """
-                ✔ Success
-                  Graph exported to \(graphPath.pathString)
-                """
+            #expect(
+                ui() ==
+                    """
+                    ✔ Success
+                      Graph exported to \(graphPath.pathString)
+                    """
             )
         }
     }
