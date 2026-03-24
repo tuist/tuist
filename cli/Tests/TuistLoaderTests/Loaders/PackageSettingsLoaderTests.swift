@@ -84,6 +84,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 ],
                 defaultSettings: .recommended
             ),
+            expectedSignatures: [:],
             targetSettings: [:]
         )
         verify(manifestLoader)

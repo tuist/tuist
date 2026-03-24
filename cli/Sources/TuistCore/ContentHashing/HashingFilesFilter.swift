@@ -1,8 +1,8 @@
 import Path
 
-struct HashingFilesFilter {
+struct HashingFilesFilter: Sendable {
     /// an array of filters, which should return if a path should be included in hashing calculations or not.
-    private let filters: [(AbsolutePath) -> Bool]
+    private let filters: [@Sendable (AbsolutePath) -> Bool]
 
     init() {
         filters = [

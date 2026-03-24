@@ -15,6 +15,9 @@ public struct PackageSettings: Equatable, Codable {
     /// The base settings to be used for targets generated from SwiftPackageManager.
     public let baseSettings: Settings
 
+    /// Expected signatures for Swift Package Manager binary targets keyed by binary target name.
+    public let expectedSignatures: [String: XCFrameworkSignature]
+
     /// The custom `Settings` to be applied to SPM targets.
     public let targetSettings: [String: Settings]
 
@@ -33,6 +36,7 @@ public struct PackageSettings: Equatable, Codable {
         baseProductType: Product,
         productDestinations: [String: Destinations],
         baseSettings: Settings,
+        expectedSignatures: [String: XCFrameworkSignature],
         targetSettings: [String: Settings],
         projectOptions: [String: XcodeGraph.Project.Options] = [:]
     ) {
@@ -40,6 +44,7 @@ public struct PackageSettings: Equatable, Codable {
         self.baseProductType = baseProductType
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
+        self.expectedSignatures = expectedSignatures
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
     }
@@ -50,6 +55,7 @@ public struct PackageSettings: Equatable, Codable {
             baseProductType: Product = .staticFramework,
             productDestinations: [String: Destinations] = [:],
             baseSettings: Settings = Settings.default,
+            expectedSignatures: [String: XCFrameworkSignature] = [:],
             targetSettings: [String: Settings] = [:],
             projectOptions: [String: XcodeGraph.Project.Options] = [:]
         ) -> PackageSettings {
@@ -58,6 +64,7 @@ public struct PackageSettings: Equatable, Codable {
                 baseProductType: baseProductType,
                 productDestinations: productDestinations,
                 baseSettings: baseSettings,
+                expectedSignatures: expectedSignatures,
                 targetSettings: targetSettings,
                 projectOptions: projectOptions
             )

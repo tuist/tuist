@@ -49,6 +49,13 @@
           style="light-fill"
           size="large"
         />
+        <.badge
+          :if={@test_case_run.is_quarantined}
+          label={dgettext("dashboard_tests", "Quarantined")}
+          color="information"
+          style="light-fill"
+          size="large"
+        />
       </div>
       <.link_button
         :if={@test_case}

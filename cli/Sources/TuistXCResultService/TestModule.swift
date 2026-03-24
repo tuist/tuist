@@ -5,7 +5,7 @@ public struct TestModule {
     public let status: TestStatus
     public let duration: Int
     public let testSuites: [TestSuite]
-    public let testCases: [TestCase]
+    public var testCases: [TestCase]
 
     public init(name: String, status: TestStatus, duration: Int, testSuites: [TestSuite], testCases: [TestCase]) {
         self.name = name
