@@ -181,6 +181,13 @@ public enum EnvKey: String, CaseIterable {
     case testWithoutBuilding = "TUIST_TEST_WITHOUT_BUILDING"
     case testBuildOnly = "TUIST_TEST_BUILD_ONLY"
     case testSkipQuarantine = "TUIST_TEST_SKIP_QUARANTINE"
+    case testShardMax = "TUIST_TEST_SHARD_MAX"
+    case testShardMin = "TUIST_TEST_SHARD_MIN"
+    case testShardTotal = "TUIST_TEST_SHARD_TOTAL"
+    case testShardMaxDuration = "TUIST_TEST_SHARD_MAX_DURATION"
+    case testShardGranularity = "TUIST_TEST_SHARD_GRANULARITY"
+    case testShardIndex = "TUIST_SHARD_INDEX"
+    case testShardReference = "TUIST_SHARD_REFERENCE"
 
     // TEST SHOW
 
@@ -456,9 +463,7 @@ public enum EnvKey: String, CaseIterable {
     case cacheConfigPath = "TUIST_CACHE_CONFIG_PATH"
     case cacheConfigForceRefresh = "TUIST_CACHE_CONFIG_FORCE_REFRESH"
     case cacheConfigServerURL = "TUIST_CACHE_CONFIG_SERVER_URL"
-}
 
-extension EnvKey {
     public var envValueString: String? {
         Environment.current.tuistVariables[rawValue]
     }

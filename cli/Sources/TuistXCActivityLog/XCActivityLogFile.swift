@@ -15,10 +15,8 @@ public struct XCActivityLogFile: Equatable {
         self.timeStoppedRecording = timeStoppedRecording
         self.signature = signature
     }
-}
 
-#if DEBUG
-    extension XCActivityLogFile {
+    #if DEBUG
         public static func test(
             // swiftlint:disable:next force_try
             path: AbsolutePath = try! AbsolutePath(validating: "/udid.xcactivitylog"),
@@ -31,5 +29,5 @@ public struct XCActivityLogFile: Equatable {
                 signature: signature
             )
         }
-    }
-#endif
+    #endif
+}

@@ -28,6 +28,7 @@ public enum TestServiceError: FatalError, Equatable {
     case duplicatedTestTargets(Set<TestIdentifier>)
     case nothingToSkip(skipped: [TestIdentifier], included: [TestIdentifier])
     case actionInvalid
+    case testProductsNotFound
     case unspecifiedPlatform(target: String, platforms: [String])
 
     // Error description
@@ -67,6 +68,8 @@ public enum TestServiceError: FatalError, Equatable {
                 "Some of the targets specified in --skip-test-targets (\(skippedTargets.map(\.description).joined(separator: ", "))) will always be skipped as they are not included in the targets specified (\(includedTargets.map(\.description).joined(separator: ", ")))"
         case .actionInvalid:
             return "Cannot specify both --build-only and --without-building"
+        case .testProductsNotFound:
+            return "Could not find .xctestproducts bundle. Pass -derivedDataPath explicitly."
         case let .unspecifiedPlatform(target, platforms):
             return
                 "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
@@ -79,7 +82,7 @@ public enum TestServiceError: FatalError, Equatable {
         switch self {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound,
              .testIdentifierInvalid, .duplicatedTestTargets,
-             .nothingToSkip, .actionInvalid, .unspecifiedPlatform:
+             .nothingToSkip, .actionInvalid, .testProductsNotFound, .unspecifiedPlatform:
             return .abort
         }
     }
@@ -106,6 +109,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let ciController: CIControlling
     private let clock: Clock
     private let listTestCasesService: ListTestCasesServicing
+    private let shardPlanService: ShardPlanServicing
+    private let shardService: ShardServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -141,7 +146,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         ciController: CIControlling = CIController(),
         clock: Clock = WallClock(),
-        listTestCasesService: ListTestCasesServicing = ListTestCasesService()
+        listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
+        shardPlanService: ShardPlanServicing = ShardPlanService(),
+        shardService: ShardServicing = ShardService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -163,6 +170,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.ciController = ciController
         self.clock = clock
         self.listTestCasesService = listTestCasesService
+        self.shardPlanService = shardPlanService
+        self.shardService = shardService
     }
 
     public static func validateParameters(
@@ -202,7 +211,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
         ignoreSelectiveTesting: Bool,
         generateOnly: Bool,
         passthroughXcodeBuildArguments: [String],
-        skipQuarantine: Bool = false
+        skipQuarantine: Bool = false,
+        shardReference: String? = nil,
+        shardGranularity: ShardGranularity = .module,
+        shardMin: Int? = nil,
+        shardMax: Int? = nil,
+        shardTotal: Int? = nil,
+        shardMaxDuration: Int? = nil,
+        shardIndex: Int? = nil
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -216,6 +232,29 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 errorMessageOverride:
                 "The 'tuist test' command is for generated projects or Swift packages. Please use 'tuist xcodebuild test' instead."
             )
+
+        if let shardIndex, action == .testWithoutBuilding {
+            try await runShard(
+                shardIndex: shardIndex,
+                schemeName: schemeName,
+                path: path,
+                config: config,
+                deviceName: deviceName,
+                platform: platform,
+                osVersion: osVersion,
+                rosetta: rosetta,
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath,
+                retryCount: retryCount,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                testPlanConfiguration: testPlanConfiguration,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                runId: runId
+            )
+            return
+        }
+
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
         let destination = try await destination(
@@ -354,6 +393,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        var passthroughXcodeBuildArguments = passthroughXcodeBuildArguments
+
+        if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
+           !passthroughXcodeBuildArguments.contains("-testProductsPath")
+        {
+            let testProductsDir = try await fileSystem.makeTemporaryDirectory(prefix: "shard-test-products")
+            let productsPath = testProductsDir.appending(component: "TestProducts.xctestproducts")
+            passthroughXcodeBuildArguments += ["-testProductsPath", productsPath.pathString]
+        }
+
         let schemeTestTargetNames = Set(
             schemes.flatMap {
                 testActionTargetReferences(
@@ -399,6 +448,304 @@ public struct TestService { // swiftlint:disable:this type_body_length
         try await copyResultBundlePathIfNeeded(
             runResultBundlePath: runResultBundlePath,
             resultBundlePath: resultBundlePath
+        )
+
+        if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
+           let fullHandle = config.fullHandle
+        {
+            let testProductsPath = try await resolveTestProductsPath(
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                derivedDataPath: derivedDataPath
+            )
+
+            let selectiveTestingGraph = computeSelectiveTestingGraph(
+                mapperEnvironment: mapperEnvironment,
+                schemes: schemes,
+                testPlanConfiguration: testPlanConfiguration
+            )
+            let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+            try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
+
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            _ = try await shardPlanService.plan(
+                xctestproductsPath: testProductsPath,
+                schemes: schemes.map(\.name),
+                reference: shardReference,
+                shardGranularity: shardGranularity,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+        }
+    }
+
+    // MARK: - Shard Execute
+
+    // swiftlint:disable:next function_body_length function_parameter_count
+    private func runShard(
+        shardIndex: Int,
+        schemeName _: String?,
+        path _: AbsolutePath,
+        config: Tuist,
+        deviceName: String?,
+        platform: String?,
+        osVersion: String?,
+        rosetta: Bool,
+        resultBundlePath: AbsolutePath?,
+        derivedDataPath: String?,
+        retryCount _: Int,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String],
+        runId: String
+    ) async throws {
+        guard let fullHandle = config.fullHandle else {
+            throw TestServiceError.actionInvalid
+        }
+
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        let shard = try await shardService.shard(
+            shardIndex: shardIndex,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+
+        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+
+        let runResultBundlePath =
+            try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
+                .appending(components: runId, Constants.resultBundleName)
+
+        let resultBundlePath = try await self.resultBundlePath(
+            runResultBundlePath: runResultBundlePath,
+            passedResultBundlePath: resultBundlePath,
+            config: config
+        )
+
+        let derivedDataPath = try derivedDataPath.map {
+            try AbsolutePath(
+                validating: $0,
+                relativeTo: FileHandler.shared.currentPath
+            )
+        }
+
+        let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
+            testProductsPath: shard.testProductsPath,
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets,
+            testPlanConfiguration: testPlanConfiguration,
+            deviceName: deviceName,
+            platform: platform,
+            osVersion: osVersion,
+            rosetta: rosetta,
+            resultBundlePath: resultBundlePath,
+            derivedDataPath: derivedDataPath,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+        )
+
+        var testError: Error?
+
+        do {
+            try await xcodebuildController.run(arguments: xcodebuildArguments)
+        } catch {
+            testError = error
+        }
+
+        await inspectResultBundleIfNeeded(
+            resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: derivedDataPath,
+            config: config,
+            action: .testWithoutBuilding,
+            shardPlanId: shard.shardPlanId,
+            shardIndex: shardIndex
+        )
+
+        if let selectiveTestingGraph = shard.selectiveTestingGraph {
+            try await storeSuccessfulShardTestHashes(
+                selectiveTestingGraph: selectiveTestingGraph,
+                passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
+                cacheStorage: cacheStorage
+            )
+        }
+
+        try await copyResultBundlePathIfNeeded(
+            runResultBundlePath: runResultBundlePath,
+            resultBundlePath: resultBundlePath
+        )
+        try? await fileSystem.remove(shard.testProductsPath)
+
+        if let testError {
+            throw testError
+        }
+
+        AlertController.current.success(.alert("The project tests ran successfully"))
+    }
+
+    private func buildTestWithoutBuildingArguments(
+        testProductsPath: AbsolutePath,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testPlanConfiguration: TestPlanConfiguration?,
+        deviceName: String?,
+        platform: String?,
+        osVersion: String?,
+        rosetta: Bool,
+        resultBundlePath: AbsolutePath?,
+        derivedDataPath: AbsolutePath?,
+        passthroughXcodeBuildArguments: [String]
+    ) async throws -> [String] {
+        var arguments = ["test-without-building"]
+        arguments += ["-testProductsPath", testProductsPath.pathString]
+
+        for testTarget in testTargets {
+            arguments += ["-only-testing", testTarget.description]
+        }
+        for skipTarget in skipTestTargets {
+            arguments += ["-skip-testing", skipTarget.description]
+        }
+        if let testPlanConfiguration {
+            arguments += ["-testPlan", testPlanConfiguration.testPlan]
+        }
+
+        if !passthroughXcodeBuildArguments.contains("-destination") {
+            let destination = try await destination(
+                arguments: passthroughXcodeBuildArguments,
+                deviceName: deviceName,
+                osVersion: osVersion
+            )
+            if let destination {
+                arguments += [
+                    "-destination",
+                    "platform=iOS Simulator,id=\(destination.device.udid)",
+                ]
+            } else if let platform {
+                let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
+                switch buildPlatform {
+                case .iOS:
+                    arguments += ["-destination", "platform=iOS Simulator,name=iPhone"]
+                case .macOS:
+                    arguments += ["-destination", "platform=macOS"]
+                case .tvOS:
+                    arguments += ["-destination", "platform=tvOS Simulator,name=Apple TV"]
+                case .watchOS:
+                    arguments += ["-destination", "platform=watchOS Simulator,name=Apple Watch"]
+                case .visionOS:
+                    arguments += ["-destination", "platform=visionOS Simulator,name=Apple Vision Pro"]
+                }
+            }
+        }
+
+        if rosetta {
+            arguments += ["-arch", "x86_64"]
+        }
+
+        if let resultBundlePath {
+            arguments += ["-resultBundlePath", resultBundlePath.pathString]
+        }
+
+        if let derivedDataPath {
+            arguments += ["-derivedDataPath", derivedDataPath.pathString]
+        }
+
+        arguments += passthroughXcodeBuildArguments
+        return arguments
+    }
+
+    private func resolveTestProductsPath(
+        passthroughXcodeBuildArguments: [String],
+        derivedDataPath: AbsolutePath?
+    ) async throws -> AbsolutePath {
+        if let index = passthroughXcodeBuildArguments.firstIndex(of: "-testProductsPath"),
+           passthroughXcodeBuildArguments.indices.contains(index + 1)
+        {
+            return try AbsolutePath(validating: passthroughXcodeBuildArguments[index + 1])
+        }
+
+        guard let derivedDataPath else {
+            throw TestServiceError.testProductsNotFound
+        }
+        let buildProductsPath = derivedDataPath.appending(components: "Build", "Products")
+        let matches = try await fileSystem
+            .glob(directory: buildProductsPath, include: ["*.xctestproducts"])
+            .collect()
+        let pathsWithDates = try await matches
+            .concurrentCompactMap { path -> (path: AbsolutePath, date: Date)? in
+                guard let metadata = try? await fileSystem.fileMetadata(at: path) else { return nil }
+                return (path, metadata.lastModificationDate)
+            }
+        guard let match = pathsWithDates.sorted(by: { $0.date > $1.date }).first?.path else {
+            throw TestServiceError.testProductsNotFound
+        }
+        return match
+    }
+
+    private func computeSelectiveTestingGraph(
+        mapperEnvironment: MapperEnvironment,
+        schemes: [Scheme],
+        testPlanConfiguration: TestPlanConfiguration?
+    ) -> SelectiveTestingGraph {
+        guard let initialGraph = mapperEnvironment.initialGraph else {
+            return SelectiveTestingGraph(testTargetHashes: [:])
+        }
+
+        let graphTraverser = GraphTraverser(graph: initialGraph)
+        let initialSchemes = graphTraverser.schemes()
+        let matchingSchemes = initialSchemes.filter { initialScheme in
+            schemes.contains(where: { $0.name == initialScheme.name })
+        }
+        let allTestTargets = matchingSchemes.flatMap {
+            testActionTargetReferences(scheme: $0, testPlanConfiguration: testPlanConfiguration, action: .build)
+        }
+        .compactMap { ref -> GraphTarget? in
+            guard let project = initialGraph.projects[ref.projectPath],
+                  let target = project.targets[ref.name]
+            else { return nil }
+            return GraphTarget(path: ref.projectPath, target: target, project: project)
+        }
+
+        let testTargetHashes: [String: String] = allTestTargets.reduce(into: [:]) { result, testTarget in
+            if let hash = mapperEnvironment.targetTestHashes[testTarget.path]?[testTarget.target.name] {
+                result[testTarget.target.name] = hash
+            }
+        }
+
+        return SelectiveTestingGraph(testTargetHashes: testTargetHashes)
+    }
+
+    private func storeSuccessfulShardTestHashes(
+        selectiveTestingGraph: SelectiveTestingGraph,
+        passingTargetNames: Set<String>,
+        cacheStorage: CacheStoring
+    ) async throws {
+        let cacheableItems: [CacheStorableItem: [AbsolutePath]] = passingTargetNames
+            .compactMap { name -> (CacheStorableItem, [AbsolutePath])? in
+                guard let hash = selectiveTestingGraph.testTargetHashes[name] else { return nil }
+                return (CacheStorableItem(name: name, hash: hash), [])
+            }
+            .reduce(into: [:]) { $0[$1.0] = $1.1 }
+
+        guard !cacheableItems.isEmpty else { return }
+        try await cacheStorage.store(cacheableItems, cacheCategory: .selectiveTests)
+    }
+
+    private func passingTargetNames(resultBundlePath: AbsolutePath?) async -> Set<String> {
+        guard let resultBundlePath else { return [] }
+        let rootDirectory = try? await rootDirectory()
+        guard let rootDirectory,
+              let testSummary = try? await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
+        else { return [] }
+
+        let testCasesByModule = Dictionary(grouping: testSummary.testCases) { $0.module }
+        return Set(
+            testCasesByModule.compactMap { module, testCases -> String? in
+                guard let module else { return nil }
+                return testCases.allSatisfy { $0.status != .failed } ? module : nil
+            }
         )
     }
 
@@ -901,7 +1248,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
-        action: XcodeBuildTestAction
+        action: XcodeBuildTestAction,
+        shardPlanId: String? = nil,
+        shardIndex: Int? = nil
     ) async {
         guard let resultBundlePath, config.fullHandle != nil, action != .build,
               (try? await fileSystem.exists(resultBundlePath)) == true
@@ -911,7 +1260,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             _ = try await inspectResultBundleService.inspectResultBundle(
                 resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
-                config: config
+                config: config,
+                shardPlanId: shardPlanId,
+                shardIndex: shardIndex
             )
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
@@ -1002,7 +1353,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ciRunId: ciInfo?.runId,
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
-            ciProvider: ciInfo?.provider
+            ciProvider: ciInfo?.provider,
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)

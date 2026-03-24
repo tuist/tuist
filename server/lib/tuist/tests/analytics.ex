@@ -448,13 +448,13 @@ defmodule Tuist.Tests.Analytics do
   - skipped_tests: Number of skipped test targets
   - ran_tests: Number of test cases that actually ran
   """
-  def test_runs_metrics(test_runs) when is_list(test_runs) do
+  def test_runs_metrics(project_id, test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
 
     test_case_counts =
       ClickHouseRepo.all(
         from(t in TestCaseRun,
-          where: t.test_run_id in ^test_run_ids,
+          where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
           group_by: t.test_run_id,
           select: %{
             test_run_id: t.test_run_id,

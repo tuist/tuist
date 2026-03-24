@@ -94,7 +94,21 @@ defmodule Cache.Application do
           :request_id,
           :auth_account_handle,
           :selected_account_handle,
-          :selected_project_handle
+          :selected_project_handle,
+          :method,
+          :route,
+          :reason,
+          :error,
+          :kind,
+          :event,
+          :duration_ms,
+          :remote_address,
+          :remote_port,
+          :recv_oct,
+          :send_oct,
+          :req_body_bytes,
+          :request_span_context,
+          :connection_span_context
         ]
       )
     end

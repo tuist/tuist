@@ -81,15 +81,13 @@ enum RunCommandServiceError: LocalizedError, Equatable {
     }
 }
 
-enum DestinationDevice: Equatable {
+enum DestinationDevice: Equatable, CustomStringConvertible {
     case android(AndroidDevice)
     #if os(macOS)
         case simulator(SimulatorDeviceAndRuntime)
         case physical(PhysicalDevice)
     #endif
-}
 
-extension DestinationDevice {
     var isReady: Bool {
         switch self {
         case .android:
@@ -102,9 +100,7 @@ extension DestinationDevice {
         #endif
         }
     }
-}
 
-extension DestinationDevice: CustomStringConvertible {
     var description: String {
         switch self {
         case let .android(device):

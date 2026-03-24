@@ -50,9 +50,7 @@ public struct RunActionOptions: Equatable, Codable, Sendable {
         self.simulatedLocation = simulatedLocation
         self.enableGPUFrameCaptureMode = enableGPUFrameCaptureMode
     }
-}
 
-extension RunActionOptions {
     public enum GPUFrameCaptureMode: String, Codable, Equatable, Sendable {
         case autoEnabled
         case metal
