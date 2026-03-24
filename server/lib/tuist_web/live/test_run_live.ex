@@ -359,20 +359,11 @@ defmodule TuistWeb.TestRunLive do
     selected_test_tab = params["test-tab"] || "test-cases"
     run = socket.assigns.run
 
-    tab_loader = fn ->
-      case selected_test_tab do
-        "test-cases" -> {:test_cases, load_test_cases_data(run, params)}
-        "test-suites" -> {:test_suites, load_test_suites_data(run, params)}
-        "test-modules" -> {:test_modules, load_test_modules_data(run, params)}
-        _ -> {:test_cases, load_test_cases_data(run, params)}
-      end
-    end
-
     [{failed_test_case_runs, failures_meta}, flaky_runs_grouped, {tab_type, {tab_data, tab_meta}}] =
       Tuist.Tasks.parallel_tasks([
         fn -> load_failures_data(run, params) end,
         fn -> Tests.get_flaky_runs_for_test_run(run.id) end,
-        tab_loader
+        fn -> load_tab_data(selected_test_tab, run, params) end
       ])
 
     socket =
@@ -390,6 +381,15 @@ defmodule TuistWeb.TestRunLive do
       :test_cases -> assign_test_cases_data(socket, tab_data, tab_meta, params)
       :test_suites -> assign_test_suites_data(socket, tab_data, tab_meta, params)
       :test_modules -> assign_test_modules_data(socket, tab_data, tab_meta, params)
+    end
+  end
+
+  defp load_tab_data(selected_test_tab, run, params) do
+    case selected_test_tab do
+      "test-cases" -> {:test_cases, load_test_cases_data(run, params)}
+      "test-suites" -> {:test_suites, load_test_suites_data(run, params)}
+      "test-modules" -> {:test_modules, load_test_modules_data(run, params)}
+      _ -> {:test_cases, load_test_cases_data(run, params)}
     end
   end
 
