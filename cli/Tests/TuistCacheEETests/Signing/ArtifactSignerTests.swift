@@ -21,10 +21,10 @@ struct ArtifactSignerTests {
         try "Test".write(to: filePath.url, atomically: true, encoding: .utf8)
 
         // When
-        #expect(! try subject.isValid(filePath))
+        #expect(try ! subject.isValid(filePath))
         try subject.sign(filePath)
         #expect(try subject.isValid(filePath))
         try subject.removeSignature(filePath)
-        #expect(! try subject.isValid(filePath))
+        #expect(try ! subject.isValid(filePath))
     }
 }

@@ -61,19 +61,19 @@ struct AbsolutePathExtrasTests {
 
     @Test
     func test_isInOpaqueDirectory() throws {
-        #expect(! try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
-        #expect(! try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
-        #expect(! try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
-        #expect(! try AbsolutePath(validating: "/test/directory.scnassets").isInOpaqueDirectory)
-        #expect(! try AbsolutePath(validating: "/test/directory.xcdatamodeld").isInOpaqueDirectory)
-        #expect(! try AbsolutePath(validating: "/test/directory.docc").isInOpaqueDirectory)
-        #expect(! try AbsolutePath(validating: "/test/directory.playground").isInOpaqueDirectory)
-        #expect(! try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
-        #expect(! try AbsolutePath(validating: "/test/directory.xcmappingmodel").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.scnassets").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.xcdatamodeld").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.docc").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.playground").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.xcmappingmodel").isInOpaqueDirectory)
 
-        #expect(! try AbsolutePath(validating: "/").isInOpaqueDirectory)
-        #expect(! try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
-        #expect(! try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
+        #expect(try ! AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").isInOpaqueDirectory)
         #expect(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png").isInOpaqueDirectory)
 
         #expect(try AbsolutePath(validating: "/test/directory.bundle/file.png").isInOpaqueDirectory)
