@@ -8,7 +8,6 @@ defmodule TuistWeb.AuthController do
   alias OAuth2.Client
   alias OAuth2.Strategy.AuthCode
   alias Tuist.Accounts
-  alias Tuist.Accounts.CustomOAuth2
   alias Tuist.Accounts.Organization
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.UnauthorizedError
@@ -41,7 +40,7 @@ defmodule TuistWeb.AuthController do
     case params do
       %{"organization_id" => organization_id} ->
         with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
-             {:ok, config} <- CustomOAuth2.config_for_organization(organization) do
+             {:ok, config} <- Accounts.oauth2_config_for_organization(organization) do
           state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
 
           authorize_params =
@@ -83,7 +82,7 @@ defmodule TuistWeb.AuthController do
         route_provider = get_session(conn, :sso_route_provider) || :oauth2
 
         with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
-             {:ok, config} <- CustomOAuth2.config_for_organization(organization),
+             {:ok, config} <- Accounts.oauth2_config_for_organization(organization),
              {:ok, auth} <- sso_auth(conn, config, organization.sso_provider, route_provider) do
           conn
           |> delete_session(:sso_organization_id)
