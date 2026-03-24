@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistCI
 import TuistEnvironment
 import TuistLogging
 import TuistServer
@@ -13,9 +14,14 @@ public protocol ShardMatrixOutputServicing {
 
 public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
     private let fileSystem: FileSysteming
+    private let ciController: CIControlling
 
-    public init(fileSystem: FileSysteming = FileSystem()) {
+    public init(
+        fileSystem: FileSysteming = FileSystem(),
+        ciController: CIControlling = CIController()
+    ) {
         self.fileSystem = fileSystem
+        self.ciController = ciController
     }
 
     public func output(_ shardPlan: Components.Schemas.ShardPlan) async throws {
@@ -28,18 +34,28 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
 
         let env = Environment.current.variables
         let indices = (0 ..< shardPlan.shard_count).map { $0 }
+        let ciInfo = ciController.ciInfo()
 
-        if let githubOutputPath = env["GITHUB_OUTPUT"] {
-            try await writeGitHubActionsOutput(indices: indices, outputFilePath: githubOutputPath)
-        } else if env["GITLAB_CI"] != nil {
+        switch ciInfo?.provider {
+        case .github:
+            if let githubOutputPath = env["GITHUB_OUTPUT"] {
+                try await writeGitHubActionsOutput(indices: indices, outputFilePath: githubOutputPath)
+            } else {
+                try await writeFallbackJSON(shardPlan: shardPlan)
+            }
+        case .gitlab:
             try await writeGitLabCIOutput(indices: indices)
-        } else if env["CIRCLECI"] != nil {
+        case .circleci:
             try await writeCircleCIOutput(indices: indices)
-        } else if env["BUILDKITE"] != nil {
+        case .buildkite:
             try await writeBuildkiteOutput(indices: indices)
-        } else if let cmEnvPath = env["CM_ENV"] {
-            try await writeCodemagicOutput(indices: indices, cmEnvPath: cmEnvPath)
-        } else {
+        case .codemagic:
+            if let cmEnvPath = env["CM_ENV"] {
+                try await writeCodemagicOutput(indices: indices, cmEnvPath: cmEnvPath)
+            } else {
+                try await writeFallbackJSON(shardPlan: shardPlan)
+            }
+        case .bitrise, nil:
             try await writeFallbackJSON(shardPlan: shardPlan)
         }
     }
