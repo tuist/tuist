@@ -10,44 +10,22 @@
         /// Enumerates tests in the given test products using `xcodebuild -enumerate-tests`.
         /// - Parameters:
         ///   - testProductsPath: Path to the `.xctestproducts` bundle.
-        ///   - scheme: The Xcode scheme whose tests should be enumerated.
         ///   - destination: An optional xcodebuild destination string (e.g. `"platform=iOS Simulator,name=iPhone 16"`).
         /// - Returns: An array of test targets, each containing the target name and its test suite names.
         func enumerateTests(
             testProductsPath: AbsolutePath,
-            scheme: String,
             destination: String?
         ) async throws -> [XCTestRun.TestTarget]
     }
 
     public enum XCTestEnumeratorError: LocalizedError, Equatable {
         case enumerationFailed(String)
-        case invalidOutput(String)
 
         public var errorDescription: String? {
             switch self {
             case let .enumerationFailed(message):
                 return "Test enumeration failed: \(message)"
-            case let .invalidOutput(message):
-                return "Could not parse test enumeration output: \(message)"
             }
-        }
-    }
-
-    private struct EnumeratedTests: Decodable {
-        let values: [Entry]
-
-        struct Entry: Decodable {
-            var subtests: [Target]?
-        }
-
-        struct Target: Decodable {
-            let name: String
-            var subtests: [Suite]?
-        }
-
-        struct Suite: Decodable {
-            let name: String
         }
     }
 
@@ -60,7 +38,6 @@
 
         public func enumerateTests(
             testProductsPath: AbsolutePath,
-            scheme: String,
             destination: String?
         ) async throws -> [XCTestRun.TestTarget] {
             var arguments = [
@@ -68,7 +45,6 @@
                 "test-without-building",
                 "-enumerate-tests",
                 "-testProductsPath", testProductsPath.pathString,
-                "-scheme", scheme,
             ]
             if let destination {
                 arguments.append(contentsOf: ["-destination", destination])
@@ -79,23 +55,33 @@
                 output = try await commandRunner.run(arguments: arguments).concatenatedString()
             } catch {
                 throw XCTestEnumeratorError
-                    .enumerationFailed("scheme '\(scheme)' at \(testProductsPath.pathString): \(error.localizedDescription)")
+                    .enumerationFailed("\(testProductsPath.pathString): \(error.localizedDescription)")
             }
 
-            guard let data = output.data(using: .utf8) else {
-                throw XCTestEnumeratorError.invalidOutput("Output is not valid UTF-8")
+            return parseEnumerationOutput(output)
+        }
+
+        /// Parses the text output of `xcodebuild -enumerate-tests -testProductsPath`.
+        /// Format: tab-indented lines: `Target <name>` → `Class <name>` → `Test <name>()`
+        private func parseEnumerationOutput(_ output: String) -> [XCTestRun.TestTarget] {
+            var targets: [String: [String]] = [:]
+            var currentTarget: String?
+
+            for line in output.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("Class ") {
+                    let className = String(trimmed.dropFirst("Class ".count))
+                    if let target = currentTarget {
+                        targets[target, default: []].append(className)
+                    }
+                } else if trimmed.hasPrefix("Target ") {
+                    currentTarget = String(trimmed.dropFirst("Target ".count))
+                }
             }
 
-            let enumerated: EnumeratedTests
-            do {
-                enumerated = try JSONDecoder().decode(EnumeratedTests.self, from: data)
-            } catch {
-                throw XCTestEnumeratorError.invalidOutput(error.localizedDescription)
+            return targets.map { targetName, classNames in
+                XCTestRun.TestTarget(blueprintName: targetName, onlyTestIdentifiers: classNames)
             }
-
-            return enumerated.values
-                .flatMap { $0.subtests ?? [] }
-                .map { XCTestRun.TestTarget(blueprintName: $0.name, onlyTestIdentifiers: $0.subtests?.map(\.name)) }
         }
     }
 
