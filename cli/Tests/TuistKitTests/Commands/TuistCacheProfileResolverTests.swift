@@ -291,6 +291,36 @@ struct TuistCacheProfileResolverTests {
         #expect(result == .none)
     }
 
+    @Test func ignore_binary_cache_overrides_command_default_custom_profiles() throws {
+        // Given
+        let config = Tuist.test(project:
+            .generated(.test(cacheOptions: .test(
+                keepSourceTargets: false,
+                profiles: .init(
+                    [
+                        "ci": .init(
+                            base: .commandDefault,
+                            targetQueries: ["tag:cacheable"],
+                            exceptTargetQueries: ["tag:no-cache"]
+                        ),
+                    ],
+                    default: "ci"
+                )
+            )))
+        )
+
+        // When
+        let result = try config.resolveCacheProfile(
+            ignoreBinaryCache: true,
+            includedTargets: ["App"],
+            cacheProfile: "ci",
+            commandDefault: .allPossible
+        )
+
+        // Then
+        #expect(result == .none)
+    }
+
     @Test func falls_back_to_onlyExternal_when_no_explicit_and_no_config_default() throws {
         // Given
         let config = Tuist.test(project: .testGeneratedProject())
