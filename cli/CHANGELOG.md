@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.164.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* pass destination to test enumeration for suite sharding by [@fortmarek](https://github.com/fortmarek) in [#9986](https://github.com/tuist/tuist/pull/9986)
+* fix macro copy script failing on clean builds by [@pepicrft](https://github.com/pepicrft) in [#9995](https://github.com/tuist/tuist/pull/9995)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.164.0...4.164.1
+
 ## What's Changed in 4.164.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
