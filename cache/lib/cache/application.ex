@@ -26,6 +26,11 @@ defmodule Cache.Application do
     start_loki_logger()
     start_opentelemetry()
 
+    opts = [strategy: :one_for_one, name: Cache.Supervisor]
+    Supervisor.start_link(children(), opts)
+  end
+
+  def children do
     distributed_children =
       if Cache.Config.distributed_kv_enabled?() do
         [
@@ -57,24 +62,19 @@ defmodule Cache.Application do
       {Oban, Application.get_env(:cache, Oban)}
     ]
 
-    request_children = [
-      Cache.KeyValueStore,
+    analytics_children =
+      if Cache.Config.analytics_enabled?() do
+        [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline]
+      else
+        []
+      end
+
+    endpoint_children = [
       CacheWeb.Endpoint,
       Cache.SocketLinker
     ]
 
-    children =
-      if Cache.Config.analytics_enabled?() do
-        base_children ++
-          distributed_children ++
-          [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline] ++
-          request_children
-      else
-        base_children ++ distributed_children ++ request_children
-      end
-
-    opts = [strategy: :one_for_one, name: Cache.Supervisor]
-    Supervisor.start_link(children, opts)
+    base_children ++ [Cache.KeyValueStore] ++ distributed_children ++ analytics_children ++ endpoint_children
   end
 
   defp migrate do

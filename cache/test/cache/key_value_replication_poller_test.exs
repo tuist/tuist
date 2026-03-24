@@ -285,6 +285,11 @@ defmodule Cache.KeyValueReplicationPollerTest do
       :ok
     end)
 
+    stub(KeyValueEntries, :apply_remote_batch, fn _rows ->
+      send(parent, :steady_state_polled)
+      {:ok, batch_result([row])}
+    end)
+
     stub(Repo, :one, fn _query, _opts -> row end)
 
     stub(Repo, :all, fn _query, _opts ->
@@ -300,6 +305,8 @@ defmodule Cache.KeyValueReplicationPollerTest do
     row_key = row.key
     assert_receive {:bootstrap_attempted, ^row_key}, 10_000
     refute_receive :watermark_advanced, 200
+    refute_receive :steady_state_polled, 200
+    assert Agent.get(repo_calls_agent, & &1) == 1
   end
 
   test "bootstrap materializes rows in chunked local transactions" do

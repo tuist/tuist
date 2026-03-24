@@ -55,12 +55,17 @@ defmodule Cache.KeyValueReplicationPoller do
   end
 
   defp poll_once(state) do
-    maybe_bootstrap()
-
     started_at = System.monotonic_time(:millisecond)
-    lag_cutoff = DateTime.add(DateTime.utc_now(), -Config.distributed_kv_poll_lag_ms(), :millisecond)
 
-    {total_materialized, total_deleted} = drain_pages(lag_cutoff, started_at, {0, 0})
+    {total_materialized, total_deleted} =
+      case maybe_bootstrap() do
+        :ok ->
+          lag_cutoff = DateTime.add(DateTime.utc_now(), -Config.distributed_kv_poll_lag_ms(), :millisecond)
+          drain_pages(lag_cutoff, started_at, {0, 0})
+
+        :busy ->
+          {0, 0}
+      end
 
     new_state = maybe_emit_local_store_size(state)
 
@@ -131,6 +136,10 @@ defmodule Cache.KeyValueReplicationPoller do
       if cutoff && bootstrap_status == :complete do
         :ok = KeyValueEntries.put_distributed_watermark(cutoff.updated_at, cutoff.key)
       end
+
+      if bootstrap_status == :busy, do: :busy, else: :ok
+    else
+      :ok
     end
   end
 
