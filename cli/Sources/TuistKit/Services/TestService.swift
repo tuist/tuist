@@ -254,6 +254,28 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
+        if action == .testWithoutBuilding,
+           let testProductsPath = testProductsPathFromArguments(passthroughXcodeBuildArguments, relativeTo: path),
+           try await fileSystem.exists(testProductsPath.appending(component: SelectiveTestingGraph.fileName))
+        {
+            try await runTestWithoutBuildingFromBundle(
+                testProductsPath: testProductsPath,
+                config: config,
+                deviceName: deviceName,
+                platform: platform,
+                osVersion: osVersion,
+                rosetta: rosetta,
+                resultBundlePath: resultBundlePath,
+                derivedDataPath: derivedDataPath,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                testPlanConfiguration: testPlanConfiguration,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                runId: runId
+            )
+            return
+        }
+
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
         let destination = try await destination(
@@ -448,35 +470,39 @@ public struct TestService { // swiftlint:disable:this type_body_length
             resultBundlePath: resultBundlePath
         )
 
-        if shardMin != nil || shardMax != nil || shardTotal != nil, action == .build,
-           let fullHandle = config.fullHandle
-        {
-            let testProductsPath = try await resolveTestProductsPath(
+        if action == .build {
+            if let testProductsPath = try? await resolveTestProductsPath(
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 derivedDataPath: derivedDataPath
-            )
+            ) {
+                let selectiveTestingGraph = computeSelectiveTestingGraph(
+                    mapperEnvironment: mapperEnvironment,
+                    schemes: schemes,
+                    testPlanConfiguration: testPlanConfiguration
+                )
+                let selectiveTestingGraphPath = testProductsPath.appending(
+                    component: SelectiveTestingGraph.fileName
+                )
+                try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
 
-            let selectiveTestingGraph = computeSelectiveTestingGraph(
-                mapperEnvironment: mapperEnvironment,
-                schemes: schemes,
-                testPlanConfiguration: testPlanConfiguration
-            )
-            let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
-            try await fileSystem.writeAsJSON(selectiveTestingGraph, at: selectiveTestingGraphPath)
-
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            _ = try await shardPlanService.plan(
-                xctestproductsPath: testProductsPath,
-                schemes: schemes.map(\.name),
-                reference: shardReference,
-                shardGranularity: shardGranularity,
-                shardMin: shardMin,
-                shardMax: shardMax,
-                shardTotal: shardTotal,
-                shardMaxDuration: shardMaxDuration,
-                fullHandle: fullHandle,
-                serverURL: serverURL
-            )
+                if shardMin != nil || shardMax != nil || shardTotal != nil,
+                   let fullHandle = config.fullHandle
+                {
+                    let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+                    _ = try await shardPlanService.plan(
+                        xctestproductsPath: testProductsPath,
+                        schemes: schemes.map(\.name),
+                        reference: shardReference,
+                        shardGranularity: shardGranularity,
+                        shardMin: shardMin,
+                        shardMax: shardMax,
+                        shardTotal: shardTotal,
+                        shardMaxDuration: shardMaxDuration,
+                        fullHandle: fullHandle,
+                        serverURL: serverURL
+                    )
+                }
+            }
         }
     }
 
@@ -565,7 +591,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
-            try await storeSuccessfulShardTestHashes(
+            try await storeSuccessfulTestHashesFromGraph(
                 selectiveTestingGraph: selectiveTestingGraph,
                 passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
                 cacheStorage: cacheStorage
@@ -585,6 +611,116 @@ public struct TestService { // swiftlint:disable:this type_body_length
         AlertController.current.success(.alert("The project tests ran successfully"))
     }
 
+    // MARK: - Test Without Building (from bundle)
+
+    // swiftlint:disable:next function_body_length function_parameter_count
+    private func runTestWithoutBuildingFromBundle(
+        testProductsPath: AbsolutePath,
+        config: Tuist,
+        deviceName: String?,
+        platform: String?,
+        osVersion: String?,
+        rosetta: Bool,
+        resultBundlePath: AbsolutePath?,
+        derivedDataPath: String?,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testPlanConfiguration: TestPlanConfiguration?,
+        passthroughXcodeBuildArguments: [String],
+        runId: String
+    ) async throws {
+        Logger.current.notice(
+            "Skipping project generation, using selective testing graph from .xctestproducts bundle...",
+            metadata: .section
+        )
+
+        let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let selectiveTestingGraph: SelectiveTestingGraph = try await fileSystem.readJSONFile(
+            at: selectiveTestingGraphPath
+        )
+
+        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+
+        let runResultBundlePath =
+            try cacheDirectoriesProvider
+                .cacheDirectory(for: .runs)
+                .appending(components: runId, Constants.resultBundleName)
+
+        let resultBundlePath = try await self.resultBundlePath(
+            runResultBundlePath: runResultBundlePath,
+            passedResultBundlePath: resultBundlePath,
+            config: config
+        )
+
+        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        let derivedDataPath = try derivedDataPath.map {
+            try AbsolutePath(
+                validating: $0,
+                relativeTo: currentWorkingDirectory
+            )
+        }
+
+        let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
+            testProductsPath: testProductsPath,
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets,
+            testPlanConfiguration: testPlanConfiguration,
+            deviceName: deviceName,
+            platform: platform,
+            osVersion: osVersion,
+            rosetta: rosetta,
+            resultBundlePath: resultBundlePath,
+            derivedDataPath: derivedDataPath,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+        )
+
+        var testError: Error?
+
+        do {
+            try await xcodebuildController.run(arguments: xcodebuildArguments)
+        } catch {
+            testError = error
+        }
+
+        let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+        await uploadResultBundleIfNeeded(
+            testSummary: summary,
+            projectDerivedDataDirectory: derivedDataPath,
+            config: config,
+            action: .testWithoutBuilding,
+            shardPlanId: shard.shardPlanId,
+            shardIndex: shardIndex
+        )
+
+        try await storeSuccessfulTestHashesFromGraph(
+            selectiveTestingGraph: selectiveTestingGraph,
+            passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
+            cacheStorage: cacheStorage
+        )
+
+        try await copyResultBundlePathIfNeeded(
+            runResultBundlePath: runResultBundlePath,
+            resultBundlePath: resultBundlePath
+        )
+
+        if let testError {
+            throw testError
+        }
+
+        AlertController.current.success(.alert("The project tests ran successfully"))
+    }
+
+    private func testProductsPathFromArguments(_ arguments: [String], relativeTo path: AbsolutePath) -> AbsolutePath? {
+        guard let index = arguments.firstIndex(of: "-testProductsPath"),
+              arguments.indices.contains(index + 1)
+        else { return nil }
+        let value = arguments[index + 1]
+        if let absolute = try? AbsolutePath(validating: value) {
+            return absolute
+        }
+        return try? AbsolutePath(validating: value, relativeTo: path)
+    }
+
     private func buildTestWithoutBuildingArguments(
         testProductsPath: AbsolutePath,
         testTargets: [TestIdentifier],
@@ -599,7 +735,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String]
     ) async throws -> [String] {
         var arguments = ["test-without-building"]
-        arguments += ["-testProductsPath", testProductsPath.pathString]
+        if !passthroughXcodeBuildArguments.contains("-testProductsPath") {
+            arguments += ["-testProductsPath", testProductsPath.pathString]
+        }
 
         for testTarget in testTargets {
             arguments += ["-only-testing", testTarget.description]
@@ -716,7 +854,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return SelectiveTestingGraph(testTargetHashes: testTargetHashes)
     }
 
-    private func storeSuccessfulShardTestHashes(
+    private func storeSuccessfulTestHashesFromGraph(
         selectiveTestingGraph: SelectiveTestingGraph,
         passingTargetNames: Set<String>,
         cacheStorage: CacheStoring

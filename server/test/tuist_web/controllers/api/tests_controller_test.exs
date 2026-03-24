@@ -47,7 +47,7 @@ defmodule TuistWeb.API.TestsControllerTest do
          }}
       end)
 
-      stub(Analytics, :test_runs_metrics, fn _test_runs ->
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs ->
         [%{test_run_id: test_run_id, total_tests: 42, ran_tests: 40, skipped_tests: 2}]
       end)
 
@@ -90,7 +90,7 @@ defmodule TuistWeb.API.TestsControllerTest do
          }}
       end)
 
-      stub(Analytics, :test_runs_metrics, fn _test_runs -> [] end)
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
 
       # When
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests")
@@ -103,7 +103,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
     test "filters test runs by git_branch", %{conn: conn, user: user, project: project} do
       # Given
-      stub(Analytics, :test_runs_metrics, fn _test_runs -> [] end)
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
 
       expect(Tests, :list_test_runs, fn attrs ->
         assert %{field: :git_branch, op: :==, value: "main"} in attrs.filters
@@ -128,7 +128,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
     test "filters test runs by status", %{conn: conn, user: user, project: project} do
       # Given
-      stub(Analytics, :test_runs_metrics, fn _test_runs -> [] end)
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
 
       expect(Tests, :list_test_runs, fn attrs ->
         assert %{field: :status, op: :==, value: "failure"} in attrs.filters
@@ -153,7 +153,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
     test "filters test runs by scheme", %{conn: conn, user: user, project: project} do
       # Given
-      stub(Analytics, :test_runs_metrics, fn _test_runs -> [] end)
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
 
       expect(Tests, :list_test_runs, fn attrs ->
         assert %{field: :scheme, op: :==, value: "MyApp"} in attrs.filters
@@ -204,7 +204,7 @@ defmodule TuistWeb.API.TestsControllerTest do
          }}
       end)
 
-      stub(Analytics, :test_runs_metrics, fn _test_runs -> [] end)
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
 
       # When
       conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests")

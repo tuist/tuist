@@ -44,6 +44,35 @@ defmodule TuistCommon.Repo.PromExPlugin do
                 measurement: :count
               )
             ]
+          ),
+          Event.build(
+            :"#{@plugin_name}_repo_pool_pressure_metrics",
+            [
+              sum(
+                @metrics_prefix ++ [:checkout_queue, :observed],
+                event_name: @pool_metrics_event_name,
+                tags: [:repo, :database],
+                description:
+                  "The sum of queued DB checkout requests observed across repo pool polls.",
+                measurement: :checkout_queue_observed
+              ),
+              counter(
+                @metrics_prefix ++ [:checkout_queue, :busy_samples],
+                event_name: @pool_metrics_event_name,
+                tags: [:repo, :database],
+                description:
+                  "The number of repo pool polls where at least one DB checkout was queued.",
+                measurement: :checkout_queue_busy_count
+              ),
+              counter(
+                @metrics_prefix ++ [:checkout_queue, :starved_samples],
+                event_name: @pool_metrics_event_name,
+                tags: [:repo, :database],
+                description:
+                  "The number of repo pool polls where DB checkouts were queued and no ready connections were available.",
+                measurement: :checkout_queue_starved_count
+              )
+            ]
           )
         ]
       end
@@ -98,9 +127,26 @@ defmodule TuistCommon.Repo.PromExPlugin do
               :ok
 
             measurements ->
-              :telemetry.execute(@pool_metrics_event_name, measurements, metadata)
+              :telemetry.execute(
+                @pool_metrics_event_name,
+                enrich_measurements(measurements),
+                metadata
+              )
           end
         end
+      end
+
+      defp enrich_measurements(measurements) do
+        checkout_queue_length = Map.get(measurements, :checkout_queue_length, 0)
+        ready_conn_count = Map.get(measurements, :ready_conn_count, 0)
+
+        measurements
+        |> Map.put(:checkout_queue_observed, checkout_queue_length)
+        |> Map.put(:checkout_queue_busy_count, if(checkout_queue_length > 0, do: 1, else: 0))
+        |> Map.put(
+          :checkout_queue_starved_count,
+          if(checkout_queue_length > 0 and ready_conn_count == 0, do: 1, else: 0)
+        )
       end
     end
   end

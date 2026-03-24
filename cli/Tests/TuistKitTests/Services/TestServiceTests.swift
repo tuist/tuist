@@ -3114,6 +3114,107 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(generator)
     }
 
+    func test_run_testWithoutBuilding_skipsGeneration_whenSelectiveTestingGraphExists() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try FileHandler.shared.createFolder(testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["MyTests": "abc123"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let data = try JSONEncoder().encode(selectiveTestingGraph)
+        try data.write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — generator should NOT have been called
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any
+            )
+            .called(0)
+
+        // xcodebuild test-without-building should have been called
+        verify(xcodebuildController)
+            .run(arguments: .any)
+            .called(1)
+    }
+
+    func test_run_testWithoutBuilding_fallsBackToGeneration_whenNoSelectiveTestingGraph() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try FileHandler.shared.createFolder(testProductsPath)
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
+                    MapperEnvironment()
+                )
+            }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([.test(name: "TestScheme")])
+
+        // When
+        try await testRun(
+            path: path,
+            action: .testWithoutBuilding,
+            passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+        )
+
+        // Then — generator SHOULD have been called since no graph file exists
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any
+            )
+            .called(1)
+    }
+
     fileprivate func testRun(
         runId: String = "run-id",
         schemeName: String? = nil,
