@@ -2725,6 +2725,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 .parse(path: .any, rootDirectory: .any)
                 .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
 
+            uploadResultBundleService.reset()
             given(uploadResultBundleService)
                 .uploadResultBundle(
                     testSummary: .any,
