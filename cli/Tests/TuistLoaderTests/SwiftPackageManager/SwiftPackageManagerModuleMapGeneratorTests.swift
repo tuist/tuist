@@ -4,6 +4,7 @@ import Mockable
 import Path
 import Testing
 import TuistCore
+import TuistSupport
 import TuistTesting
 
 @testable import TuistLoader
