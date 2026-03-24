@@ -7,7 +7,7 @@ defmodule TuistWeb.DocsLive do
   alias Tuist.Docs.Paths
   alias TuistWeb.Errors.NotFoundError
 
-  @noora_icons_path Path.join([Mix.Project.deps_path(), "noora", "lib", "noora", "icons"])
+  @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
   @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
   @overview_headings [
     %{id: "learn-more", text: "Learn more about what Tuist offers", level: 2},
@@ -440,15 +440,19 @@ defmodule TuistWeb.DocsLive do
       headings={@page.headings}
       markdown={@page.markdown}
     >
-      <article id={"docs-body-#{@page.slug}"} data-part="docs-body" data-prose phx-hook="DocsContent">
+      <article id={"docs-body-#{@page.slug}"} class="tuist-docs" data-prose phx-hook="DocsContent">
         {raw(@page.body)}
       </article>
     </TuistWeb.Docs.Components.layout>
     """
   end
 
+  def handle_event("copy-page-markdown", _params, %{assigns: %{page: page}} = socket) do
+    {:noreply, push_event(socket, "docs:copy-to-clipboard", %{text: page.markdown})}
+  end
+
   def handle_event("copy-page-markdown", _params, socket) do
-    {:noreply, push_event(socket, "docs:copy-to-clipboard", %{text: socket.assigns.page.markdown})}
+    {:noreply, socket}
   end
 
   defp fetch_latest_videos do

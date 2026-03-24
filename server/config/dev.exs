@@ -86,6 +86,24 @@ config :esbuild,
     cd: Path.expand("../assets/marketing", __DIR__),
     env: %{"NODE_PATH" => deps_path}
   ],
+  docs: [
+    args: [
+      "docs.js",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--target=es2017",
+      "--outfile=../../priv/static/docs/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_source_path}/js/index.js",
+      "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
+    ],
+    cd: Path.expand("../assets/docs", __DIR__),
+    env: %{"NODE_PATH" => deps_path}
+  ],
   apidocs: [
     args:
       ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),

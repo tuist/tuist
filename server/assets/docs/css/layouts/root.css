@@ -183,7 +183,7 @@
       top: 0;
       bottom: 0;
       left: 0;
-      z-index: 30;
+      z-index: var(--noora-z-index-5);
       border-right: 1px solid var(--noora-content-divider-line);
       background: var(--noora-surface-background-tertiary);
       width: 280px;
@@ -196,7 +196,7 @@
 #docs-mobile-sidebar-overlay {
   display: none;
   position: fixed;
-  z-index: 20;
+  z-index: var(--noora-z-index-4);
   backdrop-filter: blur(2.5px);
   inset: 0;
   background: rgba(46, 51, 56, 0.24);

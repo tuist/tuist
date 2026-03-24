@@ -1,30 +1,30 @@
-[data-part="docs-body"] .noora-alert {
+.tuist-admonition {
   margin: var(--noora-spacing-6) 0;
 }
 
-[data-part="docs-body"] .noora-alert [data-part="description"] > * + * {
+.tuist-admonition [data-part="description"] > * + * {
   margin-top: var(--noora-spacing-5);
 }
 
-[data-part="docs-body"] .noora-alert [data-part="description"] > ul,
-[data-part="docs-body"] .noora-alert [data-part="description"] > ol {
+.tuist-admonition [data-part="description"] > ul,
+.tuist-admonition [data-part="description"] > ol {
   margin-top: 0;
   margin-bottom: 0;
 }
 
-[data-part="docs-body"] .noora-alert [data-part="description"] :is(ul, ol) {
+.tuist-admonition [data-part="description"] :is(ul, ol) {
   padding-left: var(--noora-spacing-5);
 }
 
-[data-part="docs-body"] .noora-alert [data-part="description"] > *:last-child {
+.tuist-admonition [data-part="description"] > *:last-child {
   margin-bottom: 0;
 }
 
-[data-part="docs-body"] .noora-alert [data-part="column"] {
+.tuist-admonition [data-part="column"] {
   flex: 1;
   min-width: 0;
 }
 
-[data-part="docs-body"] .noora-alert [data-part="description"] .code-window {
+.tuist-admonition [data-part="description"] .code-window {
   width: 100%;
 }

@@ -3,7 +3,7 @@ defmodule Tuist.Earmark.ASTProcessor do
   This module overrides the processing logic of the Earmark library to customize the HTML output of code blocks and headings. Code blocks are wrapped in a window-like container and headings get an anchor link.
   """
 
-  @noora_icons_path Path.join([Mix.Project.deps_path(), "noora", "lib", "noora", "icons"])
+  @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
   @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
   @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
 
@@ -34,7 +34,7 @@ defmodule Tuist.Earmark.ASTProcessor do
             {"data-part", "code"}
           ],
           [
-            {"shiki-highlight", [{"language", language}], code_children, code_opts}
+            {"pre", [], [{"code", code_attrs, code_children, code_opts}], %{}}
           ],
           %{}
         }

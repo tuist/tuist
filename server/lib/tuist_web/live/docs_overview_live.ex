@@ -5,7 +5,7 @@ defmodule TuistWeb.DocsOverviewLive do
 
   alias Tuist.Docs.Paths
 
-  @noora_icons_path Path.join([Mix.Project.deps_path(), "noora", "lib", "noora", "icons"])
+  @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
   @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
   @overview_headings [
     %{id: "learn-more", text: "Learn more about what Tuist offers", level: 2},

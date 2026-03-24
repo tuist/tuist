@@ -135,7 +135,7 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
-  @noora_icons_path Path.join([Mix.Project.deps_path(), "noora", "lib", "noora", "icons"])
+  @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
   @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
   @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
   @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
@@ -184,7 +184,7 @@ defmodule Tuist.Docs.Loader do
       status = Map.get(@github_alert_type_to_status, type, "information")
       icon = admonition_icon(status)
 
-      ~s(<div class="noora-alert" data-type="secondary" data-status="#{status}" data-size="large">) <>
+      ~s(<div class="noora-alert tuist-admonition" data-type="secondary" data-status="#{status}" data-size="large">) <>
         ~s(<div data-part="icon">#{icon}</div>) <>
         ~s(<div data-part="column">) <>
         ~s(<span data-part="title">#{title}</span>) <>
@@ -392,7 +392,7 @@ defmodule Tuist.Docs.Loader do
       |> String.replace(~r/<!--\s*-->/, "")
       |> String.trim()
 
-    ~s(<div class="noora-alert" data-type="secondary" data-status="#{status}" data-size="large">) <>
+    ~s(<div class="noora-alert tuist-admonition" data-type="secondary" data-status="#{status}" data-size="large">) <>
       ~s(<div data-part="icon">#{icon}</div>) <>
       ~s(<div data-part="column">) <>
       ~s(<span data-part="title">#{title_text}</span>) <>

@@ -24,15 +24,6 @@
         width: 280px;
         box-shadow: var(--noora-border-light-default);
       }
-
-      & > [data-state="open"] ~ [data-part="positioner"] {
-        right: auto;
-        left: 0;
-        justify-content: flex-start;
-        margin-top: var(--noora-spacing-1);
-        width: 280px;
-        min-width: 280px;
-      }
     }
   }
 
@@ -41,7 +32,7 @@
     flex-shrink: 0;
     align-items: center;
     gap: var(--noora-spacing-2);
-    padding: 0;
+    padding: var(--noora-spacing-7) 0 0 0;
     color: var(--noora-surface-label-primary);
 
     & svg {
