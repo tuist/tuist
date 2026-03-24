@@ -77,7 +77,6 @@ defmodule TuistWeb.AuthControllerTest do
 
   describe "GET /users/auth/okta" do
     test "redirects to Okta OAuth when organization is found and configured", %{conn: conn} do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       organization =
@@ -85,19 +84,16 @@ defmodule TuistWeb.AuthControllerTest do
           creator: user,
           sso_provider: :okta,
           sso_organization_id: "dev-123456",
-          okta_client_id: UUIDv7.generate(),
-          okta_client_secret: UUIDv7.generate()
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate()
         )
 
-      # When
       conn = get(conn, "/users/auth/okta?organization_id=#{organization.id}")
 
-      # Then
       assert redirected_to(conn) =~ "https://dev-123456/oauth2/v1/authorize"
     end
 
     test "includes login_hint in Okta OAuth redirect when provided", %{conn: conn} do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       organization =
@@ -105,16 +101,14 @@ defmodule TuistWeb.AuthControllerTest do
           creator: user,
           sso_provider: :okta,
           sso_organization_id: "dev-123456",
-          okta_client_id: UUIDv7.generate(),
-          okta_client_secret: UUIDv7.generate()
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate()
         )
 
       login_hint = "user@example.com"
 
-      # When
       conn = get(conn, "/users/auth/okta?organization_id=#{organization.id}&login_hint=#{login_hint}")
 
-      # Then
       redirect_url = redirected_to(conn)
       assert redirect_url =~ "https://dev-123456/oauth2/v1/authorize"
       assert redirect_url =~ "login_hint=user%40example.com"
@@ -127,7 +121,6 @@ defmodule TuistWeb.AuthControllerTest do
     end
 
     test "raises unauthorized error when organization not configured for Okta", %{conn: conn} do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       organization =
@@ -137,7 +130,6 @@ defmodule TuistWeb.AuthControllerTest do
           sso_organization_id: "example.com"
         )
 
-      # When/Then
       assert_error_sent 401, fn ->
         get(conn, "/users/auth/okta?organization_id=#{organization.id}")
       end
@@ -145,33 +137,61 @@ defmodule TuistWeb.AuthControllerTest do
   end
 
   describe "GET /users/auth/okta/callback" do
-    test "raises unauthorized error when organization has no Okta credentials", %{conn: conn} do
-      # Given
-      user = AccountsFixtures.user_fixture()
+    test "links the Okta identity to an existing user and logs them in", %{conn: conn} do
+      existing_user = AccountsFixtures.user_fixture(email: "existing-okta@example.com")
 
       organization =
         AccountsFixtures.organization_fixture(
-          creator: user,
+          creator: existing_user,
           sso_provider: :okta,
-          sso_organization_id: "dev-123456"
+          sso_organization_id: "dev-123456",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate()
         )
 
-      # When/Then
-      assert_error_sent 401, fn ->
+      expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
+        {:ok,
+         %OAuth2.Client{
+           token:
+             AccessToken.new(%{
+               "access_token" => "access-token",
+               "token_type" => "Bearer",
+               "scope" => "openid email profile"
+             })
+         }}
+      end)
+
+      expect(OAuth2.Client, :get, fn %OAuth2.Client{}, "https://dev-123456/oauth2/v1/userinfo" ->
+        {:ok,
+         %{
+           status_code: 200,
+           body: %{
+             "sub" => "okta-user-123",
+             "email" => existing_user.email,
+             "name" => "Existing User"
+           }
+         }}
+      end)
+
+      conn =
         conn
-        |> init_test_session(%{okta_organization_id: organization.id})
-        |> get("/users/auth/okta/callback")
-      end
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :okta
+        })
+        |> get("/users/auth/okta/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) =~ "/#{existing_user.account.name}"
+
+      {:ok, oauth_identity} =
+        Tuist.Accounts.get_oauth2_identity(:okta, "okta-user-123")
+
+      assert oauth_identity.user.id == existing_user.id
+      assert oauth_identity.provider_organization_id == "dev-123456"
     end
 
-    test "raises unauthorized error when organization not found in session", %{conn: conn} do
-      assert_error_sent 401, fn ->
-        get(conn, "/users/auth/okta/callback")
-      end
-    end
-
-    test "raises unauthorized error when organization not configured for Okta", %{conn: conn} do
-      # Given
+    test "raises unauthorized error when organization is not configured for SSO", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
 
       organization =
@@ -181,11 +201,16 @@ defmodule TuistWeb.AuthControllerTest do
           sso_organization_id: "example.com"
         )
 
-      # When/Then
       assert_error_sent 401, fn ->
         conn
-        |> init_test_session(%{okta_organization_id: organization.id})
-        |> get("/users/auth/okta/callback")
+        |> init_test_session(%{sso_organization_id: organization.id, sso_state: "state"})
+        |> get("/users/auth/okta/callback?state=state")
+      end
+    end
+
+    test "raises unauthorized error when session is missing", %{conn: conn} do
+      assert_error_sent 401, fn ->
+        get(conn, "/users/auth/okta/callback")
       end
     end
   end
@@ -197,13 +222,13 @@ defmodule TuistWeb.AuthControllerTest do
       organization =
         AccountsFixtures.organization_fixture(
           creator: user,
-          sso_provider: :custom_oauth2,
+          sso_provider: :oauth2,
           sso_organization_id: "https://auth.example.com",
-          custom_oauth2_client_id: UUIDv7.generate(),
-          custom_oauth2_client_secret: UUIDv7.generate(),
-          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
-          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
       conn = get(conn, "/users/auth/custom_oauth2?organization_id=#{organization.id}")
@@ -217,13 +242,13 @@ defmodule TuistWeb.AuthControllerTest do
       organization =
         AccountsFixtures.organization_fixture(
           creator: user,
-          sso_provider: :custom_oauth2,
+          sso_provider: :oauth2,
           sso_organization_id: "https://auth.example.com",
-          custom_oauth2_client_id: UUIDv7.generate(),
-          custom_oauth2_client_secret: UUIDv7.generate(),
-          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
-          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
       login_hint = "user@example.com"
@@ -257,13 +282,13 @@ defmodule TuistWeb.AuthControllerTest do
       organization =
         AccountsFixtures.organization_fixture(
           creator: existing_user,
-          sso_provider: :custom_oauth2,
+          sso_provider: :oauth2,
           sso_organization_id: "https://auth.example.com",
-          custom_oauth2_client_id: UUIDv7.generate(),
-          custom_oauth2_client_secret: UUIDv7.generate(),
-          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
-          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
       expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
@@ -293,15 +318,16 @@ defmodule TuistWeb.AuthControllerTest do
       conn =
         conn
         |> init_test_session(%{
-          custom_oauth2_organization_id: organization.id,
-          custom_oauth2_state: "expected-state"
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
         })
         |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
 
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
 
       {:ok, oauth_identity} =
-        Tuist.Accounts.get_oauth2_identity(:custom_oauth2, "custom-oauth2-user-123")
+        Tuist.Accounts.get_oauth2_identity(:oauth2, "custom-oauth2-user-123")
 
       assert oauth_identity.user.id == existing_user.id
       assert oauth_identity.provider_organization_id == "https://auth.example.com"
@@ -313,20 +339,21 @@ defmodule TuistWeb.AuthControllerTest do
       organization =
         AccountsFixtures.organization_fixture(
           creator: user,
-          sso_provider: :custom_oauth2,
+          sso_provider: :oauth2,
           sso_organization_id: "https://auth.example.com",
-          custom_oauth2_client_id: UUIDv7.generate(),
-          custom_oauth2_client_secret: UUIDv7.generate(),
-          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
-          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
       assert_error_sent 401, fn ->
         conn
         |> init_test_session(%{
-          custom_oauth2_organization_id: organization.id,
-          custom_oauth2_state: "expected-state"
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
         })
         |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=wrong-state")
       end
@@ -344,13 +371,13 @@ defmodule TuistWeb.AuthControllerTest do
       organization =
         AccountsFixtures.organization_fixture(
           creator: user,
-          sso_provider: :custom_oauth2,
+          sso_provider: :oauth2,
           sso_organization_id: "https://auth.example.com",
-          custom_oauth2_client_id: UUIDv7.generate(),
-          custom_oauth2_client_secret: UUIDv7.generate(),
-          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
-          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
       expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
@@ -360,8 +387,9 @@ defmodule TuistWeb.AuthControllerTest do
       assert_error_sent 401, fn ->
         conn
         |> init_test_session(%{
-          custom_oauth2_organization_id: organization.id,
-          custom_oauth2_state: "expected-state"
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
         })
         |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
       end
@@ -373,13 +401,13 @@ defmodule TuistWeb.AuthControllerTest do
       organization =
         AccountsFixtures.organization_fixture(
           creator: user,
-          sso_provider: :custom_oauth2,
+          sso_provider: :oauth2,
           sso_organization_id: "https://auth.example.com",
-          custom_oauth2_client_id: UUIDv7.generate(),
-          custom_oauth2_client_secret: UUIDv7.generate(),
-          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
-          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
       expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
@@ -408,8 +436,9 @@ defmodule TuistWeb.AuthControllerTest do
       assert_error_sent 401, fn ->
         conn
         |> init_test_session(%{
-          custom_oauth2_organization_id: organization.id,
-          custom_oauth2_state: "expected-state"
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
         })
         |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
       end
@@ -421,13 +450,13 @@ defmodule TuistWeb.AuthControllerTest do
       organization =
         AccountsFixtures.organization_fixture(
           creator: user,
-          sso_provider: :custom_oauth2,
+          sso_provider: :oauth2,
           sso_organization_id: "https://auth.example.com",
-          custom_oauth2_client_id: UUIDv7.generate(),
-          custom_oauth2_client_secret: UUIDv7.generate(),
-          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
-          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
         )
 
       expect(OAuth2.Client, :get_token, fn _client, [code: "auth-code"] ->
@@ -449,171 +478,12 @@ defmodule TuistWeb.AuthControllerTest do
       assert_error_sent 401, fn ->
         conn
         |> init_test_session(%{
-          custom_oauth2_organization_id: organization.id,
-          custom_oauth2_state: "expected-state"
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
         })
         |> get("/users/auth/custom_oauth2/callback?code=auth-code&state=expected-state")
       end
-    end
-  end
-
-  describe "callback/2 with OAuth" do
-    test "links OAuth identity to existing user with same email and logs them in", %{conn: conn} do
-      # Given: A user already exists with a specific email
-      existing_user = AccountsFixtures.user_fixture(email: "existing@example.com")
-
-      # Simulate OAuth callback with the same email but new OAuth identity
-      auth = %Ueberauth.Auth{
-        provider: :google,
-        uid: "google-uid-123",
-        info: %Info{email: "existing@example.com"},
-        extra: %{raw_info: %{user: %{"hd" => nil}}}
-      }
-
-      # When: OAuth callback is triggered (call controller directly to bypass Ueberauth middleware)
-      conn =
-        conn
-        |> init_test_session(%{})
-        |> assign(:ueberauth_auth, auth)
-        |> TuistWeb.AuthController.callback(%{})
-
-      # Then: User should be logged in (redirected to their dashboard, not choose-username)
-      assert redirected_to(conn) =~ "/#{existing_user.account.name}"
-
-      # And: OAuth identity should be linked to the existing user
-      {:ok, oauth_identity} = Tuist.Accounts.get_oauth2_identity(:google, "google-uid-123")
-      assert oauth_identity.user.id == existing_user.id
-    end
-
-    test "redirects to choose-username for new OAuth user without existing email", %{conn: conn} do
-      # Simulate OAuth callback with a new email
-      auth = %Ueberauth.Auth{
-        provider: :google,
-        uid: "google-uid-456",
-        info: %Info{email: "newuser@example.com"},
-        extra: %{raw_info: %{user: %{"hd" => nil}}}
-      }
-
-      # When: OAuth callback is triggered (call controller directly to bypass Ueberauth middleware)
-      conn =
-        conn
-        |> init_test_session(%{})
-        |> assign(:ueberauth_auth, auth)
-        |> TuistWeb.AuthController.callback(%{})
-
-      # Then: Should redirect to choose-username
-      assert redirected_to(conn) == "/users/choose-username"
-
-      # And: Session should have pending OAuth signup data
-      assert get_session(conn, :pending_oauth_signup)
-    end
-
-    test "logs in existing OAuth user directly", %{conn: conn} do
-      # Given: A user with an existing OAuth identity
-      user = AccountsFixtures.user_fixture(email: "oauth-user@example.com")
-
-      # Create OAuth identity for the user
-      {:ok, _oauth_identity} =
-        Tuist.Repo.insert(
-          Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
-            provider: :google,
-            id_in_provider: "google-uid-existing",
-            user_id: user.id
-          })
-        )
-
-      # Simulate OAuth callback with the same OAuth identity
-      auth = %Ueberauth.Auth{
-        provider: :google,
-        uid: "google-uid-existing",
-        info: %Info{email: "oauth-user@example.com"},
-        extra: %{raw_info: %{user: %{"hd" => nil}}}
-      }
-
-      # When: OAuth callback is triggered (call controller directly to bypass Ueberauth middleware)
-      conn =
-        conn
-        |> init_test_session(%{})
-        |> assign(:ueberauth_auth, auth)
-        |> TuistWeb.AuthController.callback(%{})
-
-      # Then: User should be logged in directly
-      assert redirected_to(conn) =~ "/#{user.account.name}"
-    end
-  end
-
-  describe "GET /auth/complete-signup" do
-    test "logs in user and redirects when token is valid", %{conn: conn} do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      token = Phoenix.Token.sign(TuistWeb.Endpoint, "signup_completion", %{user_id: user.id, oauth_return_url: nil})
-
-      # When
-      conn = get(conn, "/auth/complete-signup?token=#{token}")
-
-      # Then
-      assert redirected_to(conn) =~ "/#{user.account.name}"
-    end
-
-    test "redirects to oauth_return_url when provided in token", %{conn: conn} do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      return_url = "/some/return/path"
-
-      token =
-        Phoenix.Token.sign(TuistWeb.Endpoint, "signup_completion", %{user_id: user.id, oauth_return_url: return_url})
-
-      # When
-      conn = get(conn, "/auth/complete-signup?token=#{token}")
-
-      # Then
-      assert redirected_to(conn) == return_url
-    end
-
-    test "redirects to login with error when token is invalid", %{conn: conn} do
-      # When
-      conn = get(conn, "/auth/complete-signup?token=invalid-token")
-
-      # Then
-      assert redirected_to(conn) == "/users/log_in"
-    end
-
-    test "redirects to login with error when token is expired", %{conn: conn} do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      # Create an expired token (max_age is 300 seconds, so we simulate by using a very old timestamp)
-      token =
-        Phoenix.Token.sign(TuistWeb.Endpoint, "signup_completion", %{user_id: user.id, oauth_return_url: nil},
-          signed_at: System.system_time(:second) - 400
-        )
-
-      # When
-      conn = get(conn, "/auth/complete-signup?token=#{token}")
-
-      # Then
-      assert redirected_to(conn) == "/users/log_in"
-    end
-
-    test "redirects to login with error when token is missing", %{conn: conn} do
-      # When
-      conn = get(conn, "/auth/complete-signup")
-
-      # Then
-      assert redirected_to(conn) == "/users/log_in"
-    end
-
-    test "redirects to login with error when user does not exist", %{conn: conn} do
-      # Given
-      non_existent_user_id = 999_999_999
-
-      token =
-        Phoenix.Token.sign(TuistWeb.Endpoint, "signup_completion", %{user_id: non_existent_user_id, oauth_return_url: nil})
-
-      # When
-      conn = get(conn, "/auth/complete-signup?token=#{token}")
-
-      # Then
-      assert redirected_to(conn) == "/users/log_in"
     end
   end
 end

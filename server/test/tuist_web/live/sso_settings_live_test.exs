@@ -141,8 +141,8 @@ defmodule TuistWeb.SSOSettingsLiveTest do
         render_hook(lv, "validate_sso", %{
           "sso" => %{
             "okta_domain" => "company.okta.com",
-            "okta_client_id" => "test_client_id",
-            "okta_client_secret" => ""
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => ""
           }
         })
 
@@ -160,8 +160,8 @@ defmodule TuistWeb.SSOSettingsLiveTest do
         |> form("#sso-form", %{
           "sso" => %{
             "okta_domain" => "company.okta.com",
-            "okta_client_id" => "test_client_id",
-            "okta_client_secret" => "test_client_secret"
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => "test_client_secret"
           }
         })
         |> render_submit()
@@ -186,7 +186,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
       render_hook(lv, "toggle_sso")
-      html = render_hook(lv, "select_provider", %{"value" => ["custom_oauth2"]})
+      html = render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
 
       assert html =~ "disabled"
     end
@@ -195,18 +195,18 @@ defmodule TuistWeb.SSOSettingsLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
       render_hook(lv, "toggle_sso")
-      render_hook(lv, "select_provider", %{"value" => ["custom_oauth2"]})
+      render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
 
       html =
         lv
         |> form("#sso-form", %{
           "sso" => %{
-            "custom_oauth2_site" => "https://auth.example.com",
-            "custom_oauth2_client_id" => "test_client_id",
-            "custom_oauth2_client_secret" => "test_client_secret",
-            "custom_oauth2_authorize_url" => "https://auth.example.com/oauth2/authorize",
-            "custom_oauth2_token_url" => "https://auth.example.com/oauth2/token",
-            "custom_oauth2_user_info_url" => "https://auth.example.com/oauth2/userinfo"
+            "oauth2_site" => "https://auth.example.com",
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => "test_client_secret",
+            "oauth2_authorize_url" => "https://auth.example.com/oauth2/authorize",
+            "oauth2_token_url" => "https://auth.example.com/oauth2/token",
+            "oauth2_user_info_url" => "https://auth.example.com/oauth2/userinfo"
           }
         })
         |> render_submit()
@@ -219,7 +219,7 @@ defmodule TuistWeb.SSOSettingsLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
       render_hook(lv, "toggle_sso")
-      html = render_hook(lv, "select_provider", %{"value" => ["custom_oauth2"]})
+      html = render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
 
       assert html =~ "/users/auth/custom_oauth2/callback"
       assert html =~ "Provider URL"
@@ -381,8 +381,8 @@ defmodule TuistWeb.SSOSettingsLiveTest do
           creator: user,
           sso_provider: :okta,
           sso_organization_id: "company.okta.com",
-          okta_client_id: "test_client_id",
-          okta_client_secret: "test_secret",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_secret",
           preload: [:account]
         )
 
@@ -400,21 +400,21 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     end
 
     test "disables custom OAuth2 SSO", %{conn: conn, user: user} do
-      %{account: custom_oauth2_account} =
+      %{account: oauth2_account} =
         AccountsFixtures.organization_fixture(
           name: "custom-oauth2-sso-org",
           creator: user,
-          sso_provider: :custom_oauth2,
+          sso_provider: :oauth2,
           sso_organization_id: "https://auth.example.com",
-          custom_oauth2_client_id: "test_client_id",
-          custom_oauth2_client_secret: "test_secret",
-          custom_oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
-          custom_oauth2_token_url: "https://auth.example.com/oauth2/token",
-          custom_oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_secret",
+          oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+          oauth2_token_url: "https://auth.example.com/oauth2/token",
+          oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo",
           preload: [:account]
         )
 
-      {:ok, lv, _html} = live(conn, ~p"/#{custom_oauth2_account.name}/sso")
+      {:ok, lv, _html} = live(conn, ~p"/#{oauth2_account.name}/sso")
 
       render_hook(lv, "toggle_sso")
 

@@ -34,7 +34,9 @@ defmodule TuistWeb.UserOktaLoginLiveTest do
         organization_fixture(
           creator: user,
           sso_provider: :okta,
-          sso_organization_id: "company.okta.com"
+          sso_organization_id: "company.okta.com",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
       {:ok, lv, _html} = live(conn, ~p"/users/log_in/okta")

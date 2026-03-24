@@ -55,7 +55,7 @@
           >
             <:item value="google" label="Google" />
             <:item value="okta" label="Okta" />
-            <:item value="custom_oauth2" label={dgettext("dashboard_account", "Custom OAuth2")} />
+            <:item value="oauth2" label={dgettext("dashboard_account", "OAuth2")} />
           </.select>
         </div>
       </div>
@@ -81,6 +81,7 @@
         </div>
       </div>
 
+      <%!-- Okta setup instructions --%>
       <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
         <div data-part="label">
           <span data-part="title">
@@ -138,76 +139,8 @@
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
-        <div data-part="label">
-          <span data-part="title">
-            {dgettext("dashboard_account", "Okta domain")}
-          </span>
-          <span data-part="description">
-            {dgettext(
-              "dashboard_account",
-              "Your Okta organization URL without the https:// prefix."
-            )}
-          </span>
-        </div>
-        <div data-part="field">
-          <.text_input
-            field={@form[:okta_domain]}
-            type="basic"
-            placeholder="your-company.okta.com"
-          />
-        </div>
-      </div>
-
-      <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
-        <div data-part="label">
-          <span data-part="title">
-            {dgettext("dashboard_account", "Client ID")}
-          </span>
-          <span data-part="description">
-            {dgettext(
-              "dashboard_account",
-              "The client ID from your Okta OIDC application."
-            )}
-          </span>
-        </div>
-        <div data-part="field">
-          <.text_input
-            field={@form[:okta_client_id]}
-            type="basic"
-            placeholder={dgettext("dashboard_account", "Okta application client ID")}
-          />
-        </div>
-      </div>
-
-      <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
-        <div data-part="label">
-          <span data-part="title">
-            {dgettext("dashboard_account", "Client secret")}
-          </span>
-          <span data-part="description">
-            {dgettext(
-              "dashboard_account",
-              "The client secret from your Okta OIDC application."
-            )}
-          </span>
-        </div>
-        <div data-part="field">
-          <.text_input
-            field={@form[:okta_client_secret]}
-            type="password"
-            input_type="password"
-            placeholder={
-              if @organization.sso_provider == :okta and
-                   @organization.okta_encrypted_client_secret,
-                 do: "••••••••••••",
-                 else: nil
-            }
-          />
-        </div>
-      </div>
-
-      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+      <%!-- Custom OAuth2 setup instructions --%>
+      <div :if={@sso_enabled and @selected_provider == "oauth2"} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Setup instructions")}
@@ -257,7 +190,30 @@
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+      <%!-- Okta domain field --%>
+      <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Okta domain")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Your Okta organization URL without the https:// prefix."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:okta_domain]}
+            type="basic"
+            placeholder="your-company.okta.com"
+          />
+        </div>
+      </div>
+
+      <%!-- Custom OAuth2 provider URL --%>
+      <div :if={@sso_enabled and @selected_provider == "oauth2"} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Provider URL")}
@@ -271,14 +227,15 @@
         </div>
         <div data-part="field">
           <.text_input
-            field={@form[:custom_oauth2_site]}
+            field={@form[:oauth2_site]}
             type="basic"
             placeholder="https://auth.example.com"
           />
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+      <%!-- Custom OAuth2 endpoint URLs (only for custom_oauth2, not okta) --%>
+      <div :if={@sso_enabled and @selected_provider == "oauth2"} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Authorize URL")}
@@ -292,14 +249,14 @@
         </div>
         <div data-part="field">
           <.text_input
-            field={@form[:custom_oauth2_authorize_url]}
+            field={@form[:oauth2_authorize_url]}
             type="basic"
             placeholder="https://auth.example.com/oauth2/authorize"
           />
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+      <div :if={@sso_enabled and @selected_provider == "oauth2"} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Token URL")}
@@ -313,14 +270,14 @@
         </div>
         <div data-part="field">
           <.text_input
-            field={@form[:custom_oauth2_token_url]}
+            field={@form[:oauth2_token_url]}
             type="basic"
             placeholder="https://auth.example.com/oauth2/token"
           />
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+      <div :if={@sso_enabled and @selected_provider == "oauth2"} data-part="section">
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "User info URL")}
@@ -334,14 +291,18 @@
         </div>
         <div data-part="field">
           <.text_input
-            field={@form[:custom_oauth2_user_info_url]}
+            field={@form[:oauth2_user_info_url]}
             type="basic"
             placeholder="https://auth.example.com/oauth2/userinfo"
           />
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+      <%!-- Shared client ID field (both Okta and custom OAuth2) --%>
+      <div
+        :if={@sso_enabled and @selected_provider in ["okta", "oauth2"]}
+        data-part="section"
+      >
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Client ID")}
@@ -355,14 +316,18 @@
         </div>
         <div data-part="field">
           <.text_input
-            field={@form[:custom_oauth2_client_id]}
+            field={@form[:oauth2_client_id]}
             type="basic"
             placeholder={dgettext("dashboard_account", "OAuth2 application client ID")}
           />
         </div>
       </div>
 
-      <div :if={@sso_enabled and @selected_provider == "custom_oauth2"} data-part="section">
+      <%!-- Shared client secret field (both Okta and custom OAuth2) --%>
+      <div
+        :if={@sso_enabled and @selected_provider in ["okta", "oauth2"]}
+        data-part="section"
+      >
         <div data-part="label">
           <span data-part="title">
             {dgettext("dashboard_account", "Client secret")}
@@ -376,12 +341,12 @@
         </div>
         <div data-part="field">
           <.text_input
-            field={@form[:custom_oauth2_client_secret]}
+            field={@form[:oauth2_client_secret]}
             type="password"
             input_type="password"
             placeholder={
-              if @organization.sso_provider == :custom_oauth2 and
-                   @organization.custom_oauth2_encrypted_client_secret,
+              if @organization.sso_provider in [:okta, :oauth2] and
+                   @organization.oauth2_encrypted_client_secret,
                  do: "••••••••••••",
                  else: nil
             }

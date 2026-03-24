@@ -10,7 +10,6 @@ defmodule TuistWeb.AuthController do
   alias Tuist.Accounts
   alias Tuist.Accounts.CustomOAuth2
   alias Tuist.Accounts.Organization
-  alias Tuist.OAuth.Okta
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.UnauthorizedError
   alias Ueberauth.Auth
@@ -32,64 +31,80 @@ defmodule TuistWeb.AuthController do
           dgettext("dashboard", "The authentication URL is not supported")
   end
 
-  def okta_request(conn, params) do
-    log(:info, "Starting Okta request with params: #{inspect(params)}")
+  def okta_request(conn, params), do: sso_request(conn, params, :okta)
+  def oauth2_request(conn, params), do: sso_request(conn, params, :oauth2)
 
+  def okta_callback(conn, params), do: sso_callback(conn, params, :okta)
+  def oauth2_callback(conn, params), do: sso_callback(conn, params, :oauth2)
+
+  defp sso_request(conn, params, route_provider) do
     case params do
       %{"organization_id" => organization_id} ->
-        log(:info, "Successfully extracted organization_id: #{organization_id}")
+        with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
+             {:ok, config} <- CustomOAuth2.config_for_organization(organization) do
+          state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
 
-        case Accounts.get_organization_by_id(organization_id) do
-          {:ok, %Organization{} = organization} ->
-            log(:info, "Successfully found organization: #{inspect(organization.id)}")
-
-            case Okta.config_for_organization(organization) do
-              {:ok, config} ->
-                log(
-                  :info,
-                  "Successfully retrieved Okta config for organization: #{organization.id}, domain: #{config.domain}"
-                )
-
-                strategy_options = okta_strategy_options(config, params)
-
-                conn
-                |> put_session(:okta_organization_id, organization_id)
-                |> Ueberauth.run_request(
-                  "okta",
-                  {
-                    Ueberauth.Strategy.Okta,
-                    strategy_options
-                  }
-                )
-
-              error ->
-                log(
-                  :error,
-                  "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
-                )
-
-                raise UnauthorizedError,
-                      dgettext("dashboard", "Failed to authenticate with Okta.")
-            end
-
-          error ->
-            log(
-              :error,
-              "Failed to find organization with id #{organization_id}: #{inspect(error)}"
+          authorize_params =
+            maybe_put_login_hint(
+              [scope: "openid email profile", state: state],
+              params["login_hint"]
             )
 
+          url =
+            config
+            |> sso_client(sso_callback_url(route_provider))
+            |> Client.authorize_url!(authorize_params)
+
+          conn
+          |> put_session(:sso_organization_id, organization_id)
+          |> put_session(:sso_state, state)
+          |> put_session(:sso_route_provider, route_provider)
+          |> redirect(external: url)
+        else
+          _ ->
             raise UnauthorizedError,
-                  dgettext("dashboard", "Failed to authenticate with Okta.")
+                  dgettext("dashboard", "Failed to authenticate with the SSO provider.")
         end
 
-      error ->
-        log(
-          :error,
-          "Failed to extract organization_id from params: #{inspect(params)}, error: #{inspect(error)}"
-        )
-
+      _ ->
         raise UnauthorizedError,
-              dgettext("dashboard", "Failed to authenticate with Okta.")
+              dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+    end
+  end
+
+  defp sso_callback(conn, _params, _route_provider) do
+    case {get_session(conn, :sso_organization_id), get_session(conn, :sso_state)} do
+      {organization_id, state} when not is_nil(organization_id) and not is_nil(state) ->
+        if conn.params["state"] != state do
+          raise UnauthorizedError,
+                dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+        end
+
+        route_provider = get_session(conn, :sso_route_provider) || :oauth2
+
+        with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
+             {:ok, config} <- CustomOAuth2.config_for_organization(organization),
+             {:ok, auth} <- sso_auth(conn, config, organization.sso_provider, route_provider) do
+          conn
+          |> delete_session(:sso_organization_id)
+          |> delete_session(:sso_state)
+          |> delete_session(:sso_route_provider)
+          |> complete_oauth_callback(auth)
+        else
+          {:error, reason} ->
+            log(:error, "Failed SSO callback: #{inspect(reason)}")
+
+            raise UnauthorizedError,
+                  dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+
+          _ ->
+            raise UnauthorizedError,
+                  dgettext("dashboard", "Failed to authenticate with the SSO provider.")
+        end
+
+      _ ->
+        raise UnauthorizedError,
+              dgettext("dashboard", "Failed to authenticate with the SSO provider.")
     end
   end
 
@@ -112,73 +127,6 @@ defmodule TuistWeb.AuthController do
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
     complete_oauth_callback(conn, auth)
-  end
-
-  def custom_oauth2_request(conn, params) do
-    case params do
-      %{"organization_id" => organization_id} ->
-        with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
-             {:ok, config} <- CustomOAuth2.config_for_organization(organization) do
-          state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
-
-          authorize_params =
-            maybe_put_login_hint(
-              [scope: "openid email profile", state: state],
-              params["login_hint"]
-            )
-
-          url =
-            config
-            |> custom_oauth2_client(custom_oauth2_callback_url())
-            |> Client.authorize_url!(authorize_params)
-
-          conn
-          |> put_session(:custom_oauth2_organization_id, organization_id)
-          |> put_session(:custom_oauth2_state, state)
-          |> redirect(external: url)
-        else
-          _ ->
-            raise UnauthorizedError,
-                  dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
-        end
-
-      _ ->
-        raise UnauthorizedError,
-              dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
-    end
-  end
-
-  def custom_oauth2_callback(conn, _params) do
-    case {get_session(conn, :custom_oauth2_organization_id), get_session(conn, :custom_oauth2_state)} do
-      {organization_id, state} when not is_nil(organization_id) and not is_nil(state) ->
-        if conn.params["state"] != state do
-          raise UnauthorizedError,
-                dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
-        end
-
-        with {:ok, %Organization{} = organization} <- Accounts.get_organization_by_id(organization_id),
-             {:ok, config} <- CustomOAuth2.config_for_organization(organization),
-             {:ok, auth} <- custom_oauth2_auth(conn, config) do
-          conn
-          |> delete_session(:custom_oauth2_organization_id)
-          |> delete_session(:custom_oauth2_state)
-          |> complete_oauth_callback(auth)
-        else
-          {:error, reason} ->
-            log(:error, "Failed custom OAuth2 callback: #{inspect(reason)}")
-
-            raise UnauthorizedError,
-                  dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
-
-          _ ->
-            raise UnauthorizedError,
-                  dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
-        end
-
-      _ ->
-        raise UnauthorizedError,
-              dgettext("dashboard", "Failed to authenticate with the custom OAuth2 provider.")
-    end
   end
 
   defp complete_oauth_callback(conn, auth) do
@@ -235,71 +183,6 @@ defmodule TuistWeb.AuthController do
               Authentication.log_in_user(conn, existing_user, auth_params)
             end
         end
-    end
-  end
-
-  def okta_callback(conn, params) do
-    log(:info, "Starting Okta callback with params: #{inspect(params)}")
-    session_data = get_session(conn)
-    log(:info, "Session data: #{inspect(session_data)}")
-
-    case session_data do
-      %{"okta_organization_id" => organization_id} ->
-        log(:info, "Successfully extracted organization_id from session: #{organization_id}")
-
-        case Accounts.get_organization_by_id(organization_id) do
-          {:ok, %Organization{} = organization} ->
-            log(:info, "Successfully found organization: #{inspect(organization.id)}")
-
-            case Okta.config_for_organization(organization) do
-              {:ok, config} ->
-                log(
-                  :info,
-                  "Successfully retrieved Okta config for organization: #{organization.id}, domain: #{config.domain}"
-                )
-
-                conn
-                |> Ueberauth.run_callback(
-                  :okta,
-                  {
-                    Ueberauth.Strategy.Okta,
-                    [
-                      client_id: config.client_id,
-                      client_secret: config.client_secret,
-                      site: "https://#{config.domain}"
-                    ]
-                  }
-                )
-                |> callback(params)
-
-              error ->
-                log(
-                  :error,
-                  "Failed to get Okta config for organization #{organization.id}: #{inspect(error)}"
-                )
-
-                raise UnauthorizedError,
-                      dgettext("dashboard", "Failed to authenticate with Okta.")
-            end
-
-          error ->
-            log(
-              :error,
-              "Failed to find organization with id #{organization_id}: #{inspect(error)}"
-            )
-
-            raise UnauthorizedError,
-                  dgettext("dashboard", "Failed to authenticate with Okta.")
-        end
-
-      error ->
-        log(
-          :error,
-          "Failed to extract organization_id from session: #{inspect(session_data)}, error: #{inspect(error)}"
-        )
-
-        raise UnauthorizedError,
-              dgettext("dashboard", "Failed to authenticate with Okta.")
     end
   end
 
@@ -368,25 +251,7 @@ defmodule TuistWeb.AuthController do
     end
   end
 
-  defp okta_strategy_options(config, params) do
-    strategy_options = [
-      client_id: config.client_id,
-      client_secret: config.client_secret,
-      site: "https://#{config.domain}"
-    ]
-
-    case params["login_hint"] do
-      login_hint when is_binary(login_hint) ->
-        default_oauth2_params = [scope: "openid email profile"]
-        oauth2_params = Keyword.put(default_oauth2_params, :login_hint, login_hint)
-        Keyword.put(strategy_options, :oauth2_params, oauth2_params)
-
-      _ ->
-        strategy_options
-    end
-  end
-
-  defp custom_oauth2_client(config, redirect_uri) do
+  defp sso_client(config, redirect_uri) do
     [
       strategy: AuthCode,
       client_id: config.client_id,
@@ -400,14 +265,14 @@ defmodule TuistWeb.AuthController do
     |> Client.put_serializer("application/json", JSON)
   end
 
-  defp custom_oauth2_auth(conn, config) do
+  defp sso_auth(conn, config, sso_provider, route_provider) do
     params = [code: conn.params["code"]]
 
     with {:ok, %Client{token: token} = client} <-
-           Client.get_token(custom_oauth2_client(config, custom_oauth2_callback_url()), params),
+           Client.get_token(sso_client(config, sso_callback_url(route_provider)), params),
          {:ok, %{status_code: 200, body: userinfo}} <- Client.get(client, config.user_info_url),
-         {:ok, uid, email} <- validate_custom_oauth2_userinfo(userinfo) do
-      {:ok, build_custom_oauth2_auth(token, userinfo, uid, email, config.provider_organization_id)}
+         {:ok, uid, email} <- validate_sso_userinfo(userinfo) do
+      {:ok, build_sso_auth(token, userinfo, uid, email, sso_provider, config.provider_organization_id)}
     else
       {:ok, %{status_code: status_code, body: body}} -> {:error, {:userinfo_request_failed, status_code, body}}
       {:error, reason} -> {:error, reason}
@@ -415,7 +280,7 @@ defmodule TuistWeb.AuthController do
     end
   end
 
-  defp validate_custom_oauth2_userinfo(userinfo) do
+  defp validate_sso_userinfo(userinfo) do
     uid = userinfo["sub"] || userinfo["id"] || userinfo["email"]
     email = userinfo["email"]
 
@@ -431,11 +296,11 @@ defmodule TuistWeb.AuthController do
     end
   end
 
-  defp build_custom_oauth2_auth(token, userinfo, uid, email, provider_organization_id) do
+  defp build_sso_auth(token, userinfo, uid, email, sso_provider, provider_organization_id) do
     name = userinfo["name"] || userinfo["preferred_username"] || userinfo["email"] || userinfo["sub"]
 
     %Auth{
-      provider: :custom_oauth2,
+      provider: sso_provider,
       strategy: AuthCode,
       uid: uid,
       info: %Info{
@@ -463,7 +328,8 @@ defmodule TuistWeb.AuthController do
     }
   end
 
-  defp custom_oauth2_callback_url, do: TuistWeb.Endpoint.url() <> ~p"/users/auth/custom_oauth2/callback"
+  defp sso_callback_url(:okta), do: TuistWeb.Endpoint.url() <> ~p"/users/auth/okta/callback"
+  defp sso_callback_url(:oauth2), do: TuistWeb.Endpoint.url() <> ~p"/users/auth/custom_oauth2/callback"
 
   defp maybe_put_login_hint(params, login_hint) when is_binary(login_hint) and login_hint != "" do
     Keyword.put(params, :login_hint, login_hint)

@@ -239,77 +239,72 @@ msgstr ""
 msgid "Delete account"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:57
-#, elixir-autogen, elixir-format
-msgid "Custom OAuth2"
-msgstr ""
-
-#: lib/tuist_web/live/sso_settings_live.html.heex:232
+#: lib/tuist_web/live/sso_settings_live.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "OAuth2 application client ID"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:129
+#: lib/tuist_web/live/sso_settings_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Configure your OAuth2 provider to redirect users back to Tuist after authentication."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:142
+#: lib/tuist_web/live/sso_settings_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Create an OAuth2 application in your identity provider."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:152
+#: lib/tuist_web/live/sso_settings_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Copy the provider URL, authorize URL, token URL, user info URL, client ID, and client secret into the fields below."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:168
+#: lib/tuist_web/live/sso_settings_live.html.heex:219
 #, elixir-autogen, elixir-format
 msgid "Provider URL"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:173
+#: lib/tuist_web/live/sso_settings_live.html.heex:222
 #, elixir-autogen, elixir-format
 msgid "The base URL of your identity provider, for example https://auth.example.com."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:189
+#: lib/tuist_web/live/sso_settings_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Authorize URL"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:194
+#: lib/tuist_web/live/sso_settings_live.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "The full authorization endpoint URL used to start the OAuth2 flow."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:210
+#: lib/tuist_web/live/sso_settings_live.html.heex:262
 #, elixir-autogen, elixir-format
 msgid "Token URL"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:215
+#: lib/tuist_web/live/sso_settings_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "The full token endpoint URL used to exchange the authorization code."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:231
+#: lib/tuist_web/live/sso_settings_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "User info URL"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:236
+#: lib/tuist_web/live/sso_settings_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "The full user info endpoint URL that returns the authenticated user profile."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:257
+#: lib/tuist_web/live/sso_settings_live.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "The client ID from your OAuth2 application."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:278
+#: lib/tuist_web/live/sso_settings_live.html.heex:336
 #, elixir-autogen, elixir-format
 msgid "The client secret from your OAuth2 application."
 msgstr ""
@@ -926,7 +921,7 @@ msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:18
 #: lib/tuist_web/live/billing_live.ex:13
-#: lib/tuist_web/live/sso_settings_live.ex:15
+#: lib/tuist_web/live/sso_settings_live.ex:16
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr ""
@@ -1067,37 +1062,32 @@ msgstr ""
 msgid "No custom cache endpoints configured. Tuist will use the default Tuist-hosted cache until endpoints are added."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:164
+#: lib/tuist_web/live/sso_settings_live.html.heex:308
 #, elixir-autogen, elixir-format
 msgid "Client ID"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:185
+#: lib/tuist_web/live/sso_settings_live.html.heex:333
 #, elixir-autogen, elixir-format
 msgid "Client secret"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:117
+#: lib/tuist_web/live/sso_settings_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Copy the Client ID and Client Secret from the application settings"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:99
+#: lib/tuist_web/live/sso_settings_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Go to Applications > Applications > Create App Integration"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:65
+#: lib/tuist_web/live/sso_settings_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Google Workspace domain"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:177
-#, elixir-autogen, elixir-format
-msgid "Okta application client ID"
-msgstr ""
-
-#: lib/tuist_web/live/sso_settings_live.html.heex:143
+#: lib/tuist_web/live/sso_settings_live.html.heex:197
 #, elixir-autogen, elixir-format
 msgid "Okta domain"
 msgstr ""
@@ -1107,17 +1097,17 @@ msgstr ""
 msgid "Provider"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.ex:36
+#: lib/tuist_web/live/sso_settings_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "SSO"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.ex:20
+#: lib/tuist_web/live/sso_settings_live.ex:21
 #, elixir-autogen, elixir-format
 msgid "SSO settings are only available for organizations."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:105
+#: lib/tuist_web/live/sso_settings_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
 msgstr ""
@@ -1127,12 +1117,12 @@ msgstr ""
 msgid "Single Sign-On"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.ex:211
+#: lib/tuist_web/live/sso_settings_live.ex:238
 #, elixir-autogen, elixir-format
 msgid "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:89
+#: lib/tuist_web/live/sso_settings_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "Create an OIDC Web Application in your Okta admin dashboard before configuring the fields below."
 msgstr ""
@@ -1142,7 +1132,7 @@ msgstr ""
 msgid "SSO provider"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:233
+#: lib/tuist_web/live/sso_settings_live.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr ""
@@ -1152,27 +1142,18 @@ msgstr ""
 msgid "Select an SSO provider to allow users to sign in to Tuist and automatically join this organization."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:86
+#: lib/tuist_web/live/sso_settings_live.html.heex:88
+#: lib/tuist_web/live/sso_settings_live.html.heex:146
 #, elixir-autogen, elixir-format
 msgid "Setup instructions"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:167
-#, elixir-autogen, elixir-format
-msgid "The client ID from your Okta OIDC application."
-msgstr ""
-
-#: lib/tuist_web/live/sso_settings_live.html.heex:188
-#, elixir-autogen, elixir-format
-msgid "The client secret from your Okta OIDC application."
-msgstr ""
-
-#: lib/tuist_web/live/sso_settings_live.html.heex:68
+#: lib/tuist_web/live/sso_settings_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Users signing in with a Google account from this domain will be automatically added to this organization."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:146
+#: lib/tuist_web/live/sso_settings_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Your Okta organization URL without the https:// prefix."
 msgstr ""
@@ -1187,27 +1168,34 @@ msgstr ""
 msgid "Enable and configure SSO for your organization."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:123
+#: lib/tuist_web/live/sso_settings_live.html.heex:125
+#: lib/tuist_web/live/sso_settings_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Set the initiate login URI to:"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:111
+#: lib/tuist_web/live/sso_settings_live.html.heex:113
+#: lib/tuist_web/live/sso_settings_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Set the sign-in redirect URI to:"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:218
+#: lib/tuist_web/live/sso_settings_live.html.heex:366
 #, elixir-autogen, elixir-format
 msgid "Enforce SSO"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:221
+#: lib/tuist_web/live/sso_settings_live.html.heex:369
 #, elixir-autogen, elixir-format
 msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.ex:197
+#: lib/tuist_web/live/sso_settings_live.ex:224
 #, elixir-autogen, elixir-format
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "OAuth2"
 msgstr ""

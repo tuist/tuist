@@ -130,7 +130,6 @@ defmodule Tuist do
       Utilities.ThroughputFormatter,
       VCS,
       UUIDv7,
-      OAuth.Apple,
-      OAuth.Okta
+      OAuth.Apple
     ]
 end
