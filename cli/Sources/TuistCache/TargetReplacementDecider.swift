@@ -54,16 +54,24 @@ public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
         if focusedTargetNames.contains(target.name) { return false }
         if !target.metadata.tags.isDisjoint(with: focusedTargetTags) { return false }
 
+        let resolvedBase: BaseCacheProfile = switch base {
+        case .commandDefault:
+            assertionFailure("command-default cache profiles must be resolved before target replacement")
+            .none
+        default:
+            base
+        }
+
         switch project.type {
         case .external:
-            switch base {
+            switch resolvedBase {
             case .none:
                 return false
             case .onlyExternal, .allPossible:
                 return true
             }
         case .local:
-            switch base {
+            switch resolvedBase {
             case .allPossible:
                 return true
             case .onlyExternal, .none:
