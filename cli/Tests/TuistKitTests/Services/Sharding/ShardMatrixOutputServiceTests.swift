@@ -11,26 +11,12 @@ import TuistServer
 @testable import TuistKit
 
 struct ShardMatrixOutputServiceTests {
+    private let subject: ShardMatrixOutputService
     private let fileSystem = FileSystem()
     private let ciController = MockCIControlling()
 
-    private func makeSubject() -> ShardMatrixOutputService {
-        ShardMatrixOutputService(fileSystem: fileSystem, ciController: ciController)
-    }
-
-    private func makeShardPlan(shardCount: Int = 3) -> Components.Schemas.ShardPlan {
-        Components.Schemas.ShardPlan(
-            id: UUID().uuidString,
-            reference: "test-ref",
-            shard_count: shardCount,
-            shards: (0 ..< shardCount).map { index in
-                Components.Schemas.ShardPlan.shardsPayloadPayload(
-                    estimated_duration_ms: 1000,
-                    index: index,
-                    test_targets: ["Target\(index)"]
-                )
-            }
-        )
+    init() {
+        subject = ShardMatrixOutputService(fileSystem: fileSystem, ciController: ciController)
     }
 
     @Test(.inTemporaryDirectory)
@@ -42,7 +28,7 @@ struct ShardMatrixOutputServiceTests {
         given(ciController).ciInfo().willReturn(.test(provider: .github))
 
         try await Environment.$current.withValue(Environment(variables: ["GITHUB_OUTPUT": githubOutputPath.pathString])) {
-            try await makeSubject().output(makeShardPlan(shardCount: 3))
+            try await subject.output(.test(shardCount: 3))
         }
 
         let content = try await fileSystem.readTextFile(at: githubOutputPath)
@@ -56,7 +42,7 @@ struct ShardMatrixOutputServiceTests {
 
         given(ciController).ciInfo().willReturn(.test(provider: .gitlab))
 
-        try await makeSubject().output(makeShardPlan(shardCount: 2))
+        try await subject.output(.test(shardCount: 2))
 
         let outputPath = temporaryDirectory.appending(component: ".tuist-shard-child-pipeline.yml")
         let content = try await fileSystem.readTextFile(at: outputPath)
@@ -73,7 +59,7 @@ struct ShardMatrixOutputServiceTests {
 
         given(ciController).ciInfo().willReturn(.test(provider: .circleci))
 
-        try await makeSubject().output(makeShardPlan(shardCount: 2))
+        try await subject.output(.test(shardCount: 2))
 
         let outputPath = temporaryDirectory.appending(component: ".tuist-shard-continuation.json")
         let content = try await fileSystem.readTextFile(at: outputPath)
@@ -88,7 +74,7 @@ struct ShardMatrixOutputServiceTests {
 
         given(ciController).ciInfo().willReturn(.test(provider: .buildkite))
 
-        try await makeSubject().output(makeShardPlan(shardCount: 2))
+        try await subject.output(.test(shardCount: 2))
 
         let outputPath = temporaryDirectory.appending(component: ".tuist-shard-pipeline.yml")
         let content = try await fileSystem.readTextFile(at: outputPath)
@@ -107,7 +93,7 @@ struct ShardMatrixOutputServiceTests {
         given(ciController).ciInfo().willReturn(.test(provider: .codemagic))
 
         try await Environment.$current.withValue(Environment(variables: ["CM_ENV": cmEnvPath.pathString])) {
-            try await makeSubject().output(makeShardPlan(shardCount: 2))
+            try await subject.output(.test(shardCount: 2))
         }
 
         let content = try await fileSystem.readTextFile(at: cmEnvPath)
@@ -124,7 +110,7 @@ struct ShardMatrixOutputServiceTests {
         given(ciController).ciInfo().willReturn(.test(provider: .bitrise))
 
         try await Environment.$current.withValue(Environment(variables: ["BITRISE_DEPLOY_DIR": deployDir.pathString])) {
-            try await makeSubject().output(makeShardPlan(shardCount: 2))
+            try await subject.output(.test(shardCount: 2))
         }
 
         let outputPath = deployDir.appending(component: ".tuist-shard-matrix.json")
@@ -139,11 +125,28 @@ struct ShardMatrixOutputServiceTests {
 
         given(ciController).ciInfo().willReturn(nil)
 
-        try await makeSubject().output(makeShardPlan(shardCount: 2))
+        try await subject.output(.test(shardCount: 2))
 
         let outputPath = temporaryDirectory.appending(component: ".tuist-shard-matrix.json")
         let content = try await fileSystem.readTextFile(at: outputPath)
         #expect(content.contains("shard_count"))
         #expect(content.contains("test_targets"))
+    }
+}
+
+fileprivate extension Components.Schemas.ShardPlan {
+    static func test(shardCount: Int = 3) -> Self {
+        Components.Schemas.ShardPlan(
+            id: UUID().uuidString,
+            reference: "test-ref",
+            shard_count: shardCount,
+            shards: (0 ..< shardCount).map { index in
+                Components.Schemas.ShardPlan.shardsPayloadPayload(
+                    estimated_duration_ms: 1000,
+                    index: index,
+                    test_targets: ["Target\(index)"]
+                )
+            }
+        )
     }
 }
