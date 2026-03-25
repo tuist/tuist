@@ -54,5 +54,5 @@ backend = "aqua:getsops/sops"
 "platforms.windows-x64" = { checksum = "sha256:df9372dd551a872918d70fcc4394e58a498d4f16bae414b1995555059ba8d4f6", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.exe"}
 
 [[tools."ubi:aquasecurity/trivy"]]
-version = "0.63.0"
+version = "0.69.3"
 backend = "ubi:aquasecurity/trivy"

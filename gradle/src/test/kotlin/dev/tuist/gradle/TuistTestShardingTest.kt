@@ -17,7 +17,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class TuistTestShardingServiceTest {
+class TuistTestShardingTest {
 
     private lateinit var mockWebServer: MockWebServer
 
@@ -41,6 +41,33 @@ class TuistTestShardingServiceTest {
             projectHandle = "test-project"
         )
     }
+
+    private fun createTask(projectDir: File): TuistPrepareTestShardsTask {
+        val project = org.gradle.testfixtures.ProjectBuilder.builder()
+            .withProjectDir(projectDir)
+            .build()
+        return project.tasks.create("testShards", TuistPrepareTestShardsTask::class.java)
+    }
+
+    private fun shardPlan(shardCount: Int = 2) = ShardPlan(
+        reference = "test-ref",
+        shardCount = shardCount,
+        shards = (0 until shardCount).map { index ->
+            ShardPlanShardsInner(
+                index = index,
+                testTargets = listOf("com.example.Test$index"),
+                estimatedDurationMs = 1000
+            )
+        },
+        id = java.util.UUID.fromString("00000000-0000-0000-0000-000000000000")
+    )
+
+    private fun envWith(vararg pairs: Pair<String, String>): EnvironmentProvider {
+        val map = pairs.toMap()
+        return EnvironmentProvider { name -> map[name] }
+    }
+
+    // MARK: - createShardPlan
 
     @Test
     fun `createShardPlan sends correct request and parses response`() {
@@ -91,6 +118,8 @@ class TuistTestShardingServiceTest {
         }
     }
 
+    // MARK: - getShard
+
     @Test
     fun `getShard returns shard with modules and suites`() {
         val service = createService()
@@ -119,9 +148,8 @@ class TuistTestShardingServiceTest {
             service.getShard("nonexistent", 0)
         }
     }
-}
 
-class DeriveReferenceTest {
+    // MARK: - deriveReference
 
     @Test
     fun `deriveReference returns null without CI environment`() {
@@ -139,6 +167,118 @@ class DeriveReferenceTest {
         ) {
             assertNull(service.deriveReference())
         }
+    }
+
+    // MARK: - writeShardMatrixOutput
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseJson(content: String): Map<String, Any> =
+        Gson().fromJson(content, Map::class.java) as Map<String, Any>
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseJsonList(content: String): List<Any> =
+        Gson().fromJson(content, List::class.java) as List<Any>
+
+    @Test
+    fun `writeShardMatrixOutput writes GitHub Actions matrix to output file`(@TempDir tempDir: File) {
+        val githubOutputFile = File(tempDir, "github_output").apply { writeText("") }
+        val task = createTask(tempDir)
+
+        task.writeShardMatrixOutput(
+            listOf(0, 1, 2), "test-ref", shardPlan(3),
+            envWith("GITHUB_ACTIONS" to "true", "GITHUB_OUTPUT" to githubOutputFile.absolutePath)
+        )
+
+        val line = githubOutputFile.readText().trim()
+        assertTrue(line.startsWith("matrix="))
+        val json = parseJson(line.removePrefix("matrix="))
+        assertEquals(listOf(0.0, 1.0, 2.0), json["shard"])
+    }
+
+    @Test
+    fun `writeShardMatrixOutput writes GitLab CI child pipeline yml`(@TempDir tempDir: File) {
+        val task = createTask(tempDir)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("GITLAB_CI" to "true"))
+
+        val content = File(tempDir, ".tuist-shard-child-pipeline.yml").readText()
+        assertTrue(content.contains("shard-0:"))
+        assertTrue(content.contains("shard-1:"))
+        assertTrue(content.contains("extends: .tuist-shard"))
+        assertTrue(content.contains("TUIST_SHARD_INDEX: \"0\""))
+        assertTrue(content.contains("TUIST_SHARD_INDEX: \"1\""))
+    }
+
+    @Test
+    fun `writeShardMatrixOutput writes CircleCI continuation json`(@TempDir tempDir: File) {
+        val task = createTask(tempDir)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("CIRCLECI" to "true"))
+
+        val json = parseJson(File(tempDir, ".tuist-shard-continuation.json").readText())
+        assertEquals("0,1", json["shard-indices"])
+        assertEquals(2.0, json["shard-count"])
+    }
+
+    @Test
+    fun `writeShardMatrixOutput writes Buildkite pipeline yml`(@TempDir tempDir: File) {
+        val task = createTask(tempDir)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("BUILDKITE" to "true"))
+
+        val content = File(tempDir, ".tuist-shard-pipeline.yml").readText()
+        assertTrue(content.contains("steps:"))
+        assertTrue(content.contains("label: \"Shard #0\""))
+        assertTrue(content.contains("label: \"Shard #1\""))
+        assertTrue(content.contains("TUIST_SHARD_INDEX: \"0\""))
+        assertTrue(content.contains("TUIST_SHARD_INDEX: \"1\""))
+    }
+
+    @Test
+    fun `writeShardMatrixOutput writes Codemagic env vars to CM_ENV file`(@TempDir tempDir: File) {
+        val cmEnvFile = File(tempDir, "cm_env").apply { writeText("") }
+        val task = createTask(tempDir)
+
+        task.writeShardMatrixOutput(
+            listOf(0, 1), "test-ref", shardPlan(),
+            envWith("CM_BUILD_ID" to "123", "CM_ENV" to cmEnvFile.absolutePath)
+        )
+
+        val lines = cmEnvFile.readLines()
+        val matrixLine = lines.first { it.startsWith("TUIST_SHARD_MATRIX=") }
+        val matrixJson = parseJson(matrixLine.removePrefix("TUIST_SHARD_MATRIX="))
+        assertEquals(listOf(0.0, 1.0), matrixJson["shard"])
+        assertTrue(lines.any { it == "TUIST_SHARD_COUNT=2" })
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    @Test
+    fun `writeShardMatrixOutput writes Bitrise matrix to deploy dir`(@TempDir tempDir: File) {
+        val deployDir = File(tempDir, "deploy").apply { mkdirs() }
+        val task = createTask(tempDir)
+
+        task.writeShardMatrixOutput(
+            listOf(0, 1), "test-ref", shardPlan(),
+            envWith("BITRISE_IO" to "true", "BITRISE_DEPLOY_DIR" to deployDir.absolutePath)
+        )
+
+        val json = parseJson(File(deployDir, ".tuist-shard-matrix.json").readText())
+        assertEquals(listOf(0.0, 1.0), json["shard"])
+        assertEquals(2.0, json["shard_count"])
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    @Test
+    fun `writeShardMatrixOutput writes fallback json when no CI detected`(@TempDir tempDir: File) {
+        val task = createTask(tempDir)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith())
+
+        val json = parseJson(File(tempDir, ".tuist-shard-matrix.json").readText())
+        assertEquals("test-ref", json["reference"])
+        assertEquals(2.0, json["shard_count"])
+        val shards = json["shards"] as List<Map<String, Any>>
+        assertEquals(2, shards.size)
+        assertEquals(0.0, shards[0]["index"])
+        assertEquals(listOf("com.example.Test0"), shards[0]["test_targets"])
+        assertEquals(1.0, shards[1]["index"])
+        assertEquals(listOf("com.example.Test1"), shards[1]["test_targets"])
     }
 }
 

@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.166.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.167.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add native shard matrix output for all CI providers by [@fortmarek](https://github.com/fortmarek) in [#10009](https://github.com/tuist/tuist/pull/10009)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.166.2...4.167.0
+
+## What's Changed in 4.166.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
@@ -10,7 +20,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.166.0...4.166.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.166.0...4.166.2
 
 ## What's Changed in 4.166.0<!-- RELEASE NOTES START -->
 
