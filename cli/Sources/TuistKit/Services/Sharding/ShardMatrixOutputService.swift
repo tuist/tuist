@@ -50,7 +50,7 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         case .bitrise:
             try await writeBitriseOutput(indices: indices, deployDir: env["BITRISE_DEPLOY_DIR"]!)
         case nil:
-            try await writeFallbackJSON(shardPlan: shardPlan)
+            try await writeShardMatrixJSON(shardPlan: shardPlan)
         }
     }
 
@@ -75,12 +75,10 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         }
         var yaml = ""
         for index in indices {
-            yaml += """
-                shard-\(index):
-                  extends: .tuist-shard
-                  variables:
-                    TUIST_SHARD_INDEX: "\(index)"\n\n
-                """
+            yaml += "shard-\(index):\n"
+            yaml += "  extends: .tuist-shard\n"
+            yaml += "  variables:\n"
+            yaml += "    TUIST_SHARD_INDEX: \"\(index)\"\n\n"
         }
         try await fileSystem.writeText(yaml, at: outputPath, encoding: .utf8)
         Logger.current.debug("GitLab CI child pipeline written to \(outputPath.pathString)")
@@ -114,11 +112,9 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         }
         var yaml = "steps:\n"
         for index in indices {
-            yaml += """
-                  - label: "Shard #\(index)"
-                    env:
-                      TUIST_SHARD_INDEX: "\(index)"\n\n
-                """
+            yaml += "  - label: \"Shard #\(index)\"\n"
+            yaml += "    env:\n"
+            yaml += "      TUIST_SHARD_INDEX: \"\(index)\"\n\n"
         }
         try await fileSystem.writeText(yaml, at: outputPath, encoding: .utf8)
         Logger.current.debug("Buildkite pipeline written to \(outputPath.pathString)")
@@ -148,7 +144,7 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         Logger.current.debug("Bitrise shard matrix written to \(outputPath.pathString)")
     }
 
-    private func writeFallbackJSON(shardPlan: Components.Schemas.ShardPlan) async throws {
+    private func writeShardMatrixJSON(shardPlan: Components.Schemas.ShardPlan) async throws {
         let currentDirectory = try await Environment.current.currentWorkingDirectory()
         let outputPath = currentDirectory.appending(component: ".tuist-shard-matrix.json")
         if try await fileSystem.exists(outputPath) {

@@ -118,7 +118,7 @@ jobs:
 
 ### GitLab CI {#gitlab-ci}
 
-On GitLab CI, Tuist generates a `.tuist-shard-child-pipeline.yml` file that you trigger as a [child pipeline](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines). Define a `.tuist-shard` template job that the generated shard jobs extend:
+Tuist generates a `.tuist-shard-child-pipeline.yml` that you trigger as a [child pipeline](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines). Define a `.tuist-shard` template job that the generated shard jobs extend:
 
 ```yaml
 # .gitlab-ci.yml
@@ -157,7 +157,7 @@ The child pipeline needs a `.tuist-shard` job template:
 
 ### CircleCI {#circleci}
 
-On CircleCI, Tuist writes a `.tuist-shard-continuation.json` file with `shard-indices` and `shard-count` parameters. Use the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation) to trigger a follow-up pipeline:
+Tuist generates a `.tuist-shard-continuation.json` with parameters for the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation):
 
 ```yaml
 # .circleci/config.yml
@@ -227,7 +227,7 @@ workflows:
 
 ### Buildkite {#buildkite}
 
-On Buildkite, Tuist generates a `.tuist-shard-pipeline.yml` file with one step per shard. Upload it with `buildkite-agent pipeline upload` to dynamically add shard steps:
+Tuist generates a `.tuist-shard-pipeline.yml` with one step per shard. Upload it with `buildkite-agent pipeline upload`:
 
 ```yaml
 # pipeline.yml
