@@ -49,6 +49,14 @@ defmodule TuistCommon.Repo.PromExPlugin do
             :"#{@plugin_name}_repo_pool_pressure_metrics",
             [
               sum(
+                @metrics_prefix ++ [:checkout_queue, :total_samples],
+                event_name: @pool_metrics_event_name,
+                tags: [:repo, :database],
+                description:
+                  "The total number of repo pool polls taken (increments by 1 on every poll).",
+                measurement: :checkout_queue_total_count
+              ),
+              sum(
                 @metrics_prefix ++ [:checkout_queue, :observed],
                 event_name: @pool_metrics_event_name,
                 tags: [:repo, :database],
@@ -141,6 +149,7 @@ defmodule TuistCommon.Repo.PromExPlugin do
         ready_conn_count = Map.get(measurements, :ready_conn_count, 0)
 
         measurements
+        |> Map.put(:checkout_queue_total_count, 1)
         |> Map.put(:checkout_queue_observed, checkout_queue_length)
         |> Map.put(:checkout_queue_busy_count, if(checkout_queue_length > 0, do: 1, else: 0))
         |> Map.put(
