@@ -139,8 +139,7 @@
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
                 shardGranularity: shardGranularity,
-                buildRunId: buildRunId,
-                gradleBuildId: nil
+                buildRunId: buildRunId
             )
 
             Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)

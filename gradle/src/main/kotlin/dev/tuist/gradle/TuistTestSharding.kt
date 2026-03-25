@@ -43,7 +43,6 @@ class TuistTestShardingService(
         shardMax: Int,
         shardMin: Int?,
         shardMaxDuration: Int?,
-        buildRunId: String? = null,
         gradleBuildId: String? = null
     ): ShardPlan {
         val body = CreateShardPlanParams1(
@@ -53,7 +52,6 @@ class TuistTestShardingService(
             shardMax = shardMax,
             shardMaxDuration = shardMaxDuration,
             granularity = CreateShardPlanParams1.Granularity.suite,
-            buildRunId = buildRunId,
             gradleBuildId = gradleBuildId
         )
 
