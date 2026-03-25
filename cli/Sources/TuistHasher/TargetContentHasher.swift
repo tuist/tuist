@@ -223,8 +223,8 @@ public struct TargetContentHasher: TargetContentHashing {
             .map { ($0, $0.resolvedFiles.sorted(by: { $0.path < $1.path })) }
             .concurrentFlatMap {
                 (buildableFolder: BuildableFolder, buildableFiles: [BuildableFolderFile]) in
-                let publicHeaders = buildableFolder.exceptions.flatMap(\.publicHeaders)
-                let privateHeaders = buildableFolder.exceptions.flatMap(\.privateHeaders)
+                let publicHeaders = Set(buildableFolder.exceptions.flatMap(\.publicHeaders))
+                let privateHeaders = Set(buildableFolder.exceptions.flatMap(\.privateHeaders))
 
                 return try await buildableFiles.concurrentMap { buildableFile in
                     let fileHash = try await contentHasher.hash(path: buildableFile.path)
