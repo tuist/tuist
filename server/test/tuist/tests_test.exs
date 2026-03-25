@@ -1749,6 +1749,85 @@ defmodule Tuist.TestsTest do
       assert shard_run.status == "success"
       assert shard_run.shard_plan_id == plan.id
     end
+
+    test "first shard inherits build_run_id from shard plan" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: account.id)
+
+      plan =
+        ShardsFixtures.shard_plan_fixture(
+          project_id: project.id,
+          shard_count: 2,
+          build_run_id: build.id
+        )
+
+      {:ok, test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert test.build_run_id == build.id
+    end
+
+    test "first shard inherits gradle_build_id from shard plan" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      gradle_build_id = Ecto.UUID.generate()
+
+      plan =
+        ShardsFixtures.shard_plan_fixture(
+          project_id: project.id,
+          shard_count: 2,
+          gradle_build_id: gradle_build_id
+        )
+
+      {:ok, test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          build_system: "gradle",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert test.gradle_build_id == gradle_build_id
+    end
+
+    test "shard plan without build IDs creates test with nil build IDs" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert is_nil(test.build_run_id)
+      assert is_nil(test.gradle_build_id)
+    end
   end
 
   describe "upload_crash_report/1" do

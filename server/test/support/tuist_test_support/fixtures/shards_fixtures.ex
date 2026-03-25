@@ -22,6 +22,8 @@ defmodule TuistTestSupport.Fixtures.ShardsFixtures do
       project_id: project_id,
       shard_count: Keyword.get(attrs, :shard_count, 2),
       granularity: Keyword.get(attrs, :granularity, "module"),
+      build_run_id: Keyword.get(attrs, :build_run_id),
+      gradle_build_id: Keyword.get(attrs, :gradle_build_id),
       inserted_at: Keyword.get(attrs, :inserted_at, now)
     }
 

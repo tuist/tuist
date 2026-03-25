@@ -67,6 +67,38 @@ defmodule Tuist.ShardsTest do
       result = Shards.create_shard_plan(project, params)
       assert result.shard_count == 2
     end
+
+    test "stores build_run_id on the shard plan" do
+      project = ProjectsFixtures.project_fixture()
+      build_run_id = Ecto.UUID.generate()
+
+      params = %{
+        reference: "build-link-1",
+        modules: ["AppTests"],
+        shard_max: 2,
+        build_run_id: build_run_id
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      {:ok, plan} = Shards.get_shard_plan(result.plan.id)
+      assert plan.build_run_id == build_run_id
+    end
+
+    test "stores gradle_build_id on the shard plan" do
+      project = ProjectsFixtures.project_fixture()
+      gradle_build_id = Ecto.UUID.generate()
+
+      params = %{
+        reference: "gradle-link-1",
+        modules: ["AppTests"],
+        shard_max: 2,
+        gradle_build_id: gradle_build_id
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      {:ok, plan} = Shards.get_shard_plan(result.plan.id)
+      assert plan.gradle_build_id == gradle_build_id
+    end
   end
 
   describe "create_shard_plan/2 edge cases" do

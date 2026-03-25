@@ -113,6 +113,64 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert is_integer(response["shard_count"])
     end
 
+    test "accepts build_run_id parameter", %{conn: conn, user: user, project: project} do
+      build_run_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :create_shard_plan, fn _project, params ->
+        assert params.build_run_id == build_run_id
+
+        %{
+          plan: %{id: Ecto.UUID.generate(), reference: params.reference},
+          shard_count: 1,
+          shard_assignments: [%{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 0}]
+        }
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "build-id-ref",
+            modules: ["AppTests"],
+            build_run_id: build_run_id
+          }
+        )
+
+      assert json_response(conn, :ok)
+    end
+
+    test "accepts gradle_build_id parameter", %{conn: conn, user: user, project: project} do
+      gradle_build_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :create_shard_plan, fn _project, params ->
+        assert params.gradle_build_id == gradle_build_id
+
+        %{
+          plan: %{id: Ecto.UUID.generate(), reference: params.reference},
+          shard_count: 1,
+          shard_assignments: [%{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 0}]
+        }
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "gradle-id-ref",
+            modules: ["AppTests"],
+            gradle_build_id: gradle_build_id
+          }
+        )
+
+      assert json_response(conn, :ok)
+    end
+
     test "response includes id field", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 
