@@ -44,18 +44,18 @@ struct ShardMatrixOutputServiceTests {
 
         let content = try await fileSystem.readTextFile(at: cwd.appending(component: ".tuist-shard-child-pipeline.yml"))
         #expect(content == """
-            shard-0:
-              extends: .tuist-shard
-              variables:
-                TUIST_SHARD_INDEX: "0"
+        shard-0:
+          extends: .tuist-shard
+          variables:
+            TUIST_SHARD_INDEX: "0"
 
-            shard-1:
-              extends: .tuist-shard
-              variables:
-                TUIST_SHARD_INDEX: "1"
+        shard-1:
+          extends: .tuist-shard
+          variables:
+            TUIST_SHARD_INDEX: "1"
 
 
-            """)
+        """)
     }
 
     @Test(.withMockedEnvironment())
@@ -68,11 +68,11 @@ struct ShardMatrixOutputServiceTests {
 
         let content = try await fileSystem.readTextFile(at: cwd.appending(component: ".tuist-shard-continuation.json"))
         #expect(content == """
-            {
-              "shard-count" : 2,
-              "shard-indices" : "0,1"
-            }
-            """)
+        {
+          "shard-count" : 2,
+          "shard-indices" : "0,1"
+        }
+        """)
     }
 
     @Test(.withMockedEnvironment())
@@ -85,17 +85,17 @@ struct ShardMatrixOutputServiceTests {
 
         let content = try await fileSystem.readTextFile(at: cwd.appending(component: ".tuist-shard-pipeline.yml"))
         #expect(content == """
-            steps:
-              - label: "Shard #0"
-                env:
-                  TUIST_SHARD_INDEX: "0"
+        steps:
+          - label: "Shard #0"
+            env:
+              TUIST_SHARD_INDEX: "0"
 
-              - label: "Shard #1"
-                env:
-                  TUIST_SHARD_INDEX: "1"
+          - label: "Shard #1"
+            env:
+              TUIST_SHARD_INDEX: "1"
 
 
-            """)
+        """)
     }
 
     @Test(.withMockedEnvironment())
@@ -138,33 +138,33 @@ struct ShardMatrixOutputServiceTests {
 
         let content = try await fileSystem.readTextFile(at: cwd.appending(component: ".tuist-shard-matrix.json"))
         #expect(content == """
+        {
+          "id" : "test-id",
+          "reference" : "test-ref",
+          "shard_count" : 2,
+          "shards" : [
             {
-              "id" : "test-id",
-              "reference" : "test-ref",
-              "shard_count" : 2,
-              "shards" : [
-                {
-                  "estimated_duration_ms" : 1000,
-                  "index" : 0,
-                  "test_targets" : [
-                    "Target0"
-                  ]
-                },
-                {
-                  "estimated_duration_ms" : 1000,
-                  "index" : 1,
-                  "test_targets" : [
-                    "Target1"
-                  ]
-                }
+              "estimated_duration_ms" : 1000,
+              "index" : 0,
+              "test_targets" : [
+                "Target0"
+              ]
+            },
+            {
+              "estimated_duration_ms" : 1000,
+              "index" : 1,
+              "test_targets" : [
+                "Target1"
               ]
             }
-            """)
+          ]
+        }
+        """)
     }
 }
 
-fileprivate extension Components.Schemas.ShardPlan {
-    static func test(shardCount: Int = 3) -> Self {
+extension Components.Schemas.ShardPlan {
+    fileprivate static func test(shardCount: Int = 3) -> Self {
         Components.Schemas.ShardPlan(
             id: "test-id",
             reference: "test-ref",

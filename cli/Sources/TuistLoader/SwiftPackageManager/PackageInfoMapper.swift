@@ -302,6 +302,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             uniquingKeysWith: { userDefined, _ in userDefined }
         )
 
+        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
         var mutableTargetToProducts: [String: Set<PackageInfo.Product>] = [:]
         for product in packageInfo.products {
             var targetsToProcess = Set(product.targets)
@@ -312,12 +313,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     continue
                 }
                 mutableTargetToProducts[target, default: []].insert(product)
-                let dependencies = packageInfo.targets.first(where: { $0.name == target })!.dependencies
-                for dependency in dependencies {
+                guard let targetInfo = targetsByName[target] else { continue }
+                for dependency in targetInfo.dependencies {
                     switch dependency {
                     case let .target(name, _):
                         targetsToProcess.insert(name)
-                    case let .byName(name, _) where packageInfo.targets.contains(where: { $0.name == name }):
+                    case let .byName(name, _) where targetsByName[name] != nil:
                         targetsToProcess.insert(name)
                     case .byName, .product:
                         continue
