@@ -6,15 +6,16 @@ defmodule Tuist.Environment do
     @env
   end
 
-  def git_branch do
-    if dev?() do
-      case System.cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"]) do
-        {branch, 0} -> String.trim(branch)
-        _ -> nil
+  def server_version_identifier do
+    System.get_env("TUIST_SERVER_VERSION_IDENTIFIER") ||
+      if dev?() do
+        case System.cmd("git", ["rev-parse", "--abbrev-ref", "HEAD"]) do
+          {branch, 0} -> String.trim(branch)
+          _ -> nil
+        end
+      else
+        nil
       end
-    else
-      nil
-    end
   end
 
   @doc ~S"""

@@ -385,8 +385,8 @@ defmodule TuistWeb.AppLayoutComponents do
       </div>
       <div data-part="right-section">
         <.badge
-          :if={Tuist.Environment.git_branch()}
-          label={Tuist.Environment.git_branch()}
+          :if={Tuist.Environment.server_version_identifier()}
+          label={Tuist.Environment.server_version_identifier()}
           color="attention"
           style="light-fill"
           size="large"
