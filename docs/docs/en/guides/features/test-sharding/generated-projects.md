@@ -37,7 +37,7 @@ This command:
 2. Builds your tests
 3. Creates a shard plan on the Tuist server using historical timing data
 4. Uploads the `.xctestproducts` bundle for use by shard runners
-5. Outputs a shard matrix in the detected CI provider's native format, or to `.tuist-shard-matrix.json` as a fallback
+5. Outputs a shard matrix for your CI system
 6. Persists the <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink> graph (if applicable) so shard runners don't need to regenerate the project
 
 ### Build options {#build-options}
@@ -76,7 +76,7 @@ Test sharding works seamlessly with <LocalizedLink href="/guides/features/select
 
 ## Continuous integration {#continuous-integration}
 
-Tuist automatically detects the following CI providers and writes shard matrix output in their native format:
+Tuist automatically detects the following CI providers:
 
 - [GitHub Actions](#github-actions)
 - [GitLab CI](#gitlab-ci)
@@ -85,7 +85,7 @@ Tuist automatically detects the following CI providers and writes shard matrix o
 - [Codemagic](#codemagic)
 - [Bitrise](#bitrise)
 
-For other providers, Tuist writes a `.tuist-shard-matrix.json` file that you can parse to set up parallel jobs.
+For other providers, refer to the `.tuist-shard-matrix.json` file to set up parallel jobs.
 
 ### GitHub Actions {#github-actions}
 

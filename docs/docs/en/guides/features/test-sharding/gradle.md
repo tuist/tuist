@@ -35,7 +35,7 @@ This task:
 1. Compiles the test classes
 2. Discovers test suites by scanning the compiled class files
 3. Creates a shard plan on the Tuist server using historical timing data
-4. Outputs a shard matrix in the detected CI provider's native format, or to `.tuist-shard-matrix.json` as a fallback
+4. Outputs a shard matrix for your CI system
 
 ### Build options {#build-options}
 
@@ -59,7 +59,7 @@ TUIST_SHARD_INDEX=0 ./gradlew test
 
 ## Continuous integration {#continuous-integration}
 
-Tuist automatically detects the following CI providers and writes shard matrix output in their native format:
+Tuist automatically detects the following CI providers:
 
 - [GitHub Actions](#github-actions)
 - [GitLab CI](#gitlab-ci)
@@ -68,7 +68,7 @@ Tuist automatically detects the following CI providers and writes shard matrix o
 - [Codemagic](#codemagic)
 - [Bitrise](#bitrise)
 
-For other providers, Tuist writes a `.tuist-shard-matrix.json` file that you can parse to set up parallel jobs.
+For other providers, refer to the `.tuist-shard-matrix.json` file to set up parallel jobs.
 
 ### GitHub Actions {#github-actions}
 
