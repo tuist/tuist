@@ -87,10 +87,9 @@ defmodule TuistWeb.DocsLive do
       <div id="docs-overview">
         <%!-- Hero --%>
         <section data-part="hero">
-          <h1>Make mobile your competitive advantage</h1>
+          <h1>{dgettext("docs", "Make mobile your competitive advantage")}</h1>
           <p>
-            Tuist helps teams scale app development and ship faster &mdash; transforming the complexity of large codebases into
-            a smooth, productive experience that grows with your team.
+            {dgettext("docs", "Tuist helps teams scale app development and ship faster — transforming the complexity of large codebases into a smooth, productive experience that grows with your team.")}
           </p>
         </section>
 
@@ -104,10 +103,10 @@ defmodule TuistWeb.DocsLive do
             phx-key="Enter"
             role="link"
             tabindex="0"
-            aria-label="Install Tuist CLI"
+            aria-label={dgettext("docs", "Install Tuist CLI")}
           >
             <div data-part="hero-card-bg"></div>
-            <h3>Install Tuist CLI</h3>
+            <h3>{dgettext("docs", "Install Tuist CLI")}</h3>
             <div data-part="terminal-group" id="docs-install-terminal" phx-hook="DocsInstallTabs">
               <div data-part="terminal">
                 <div data-part="terminal-header">
@@ -128,7 +127,7 @@ defmodule TuistWeb.DocsLive do
                   </div>
                   <button
                     data-part="terminal-copy"
-                    aria-label="Copy command"
+                    aria-label={dgettext("docs", "Copy command")}
                     phx-click={JS.exec("event.stopPropagation()", to: "window")}
                   >
                     <span data-part="copy-icon"><.copy /></span>
@@ -140,16 +139,16 @@ defmodule TuistWeb.DocsLive do
                 </div>
               </div>
               <p data-part="hero-card-hint">
-                or follow the instructions to
+                {dgettext("docs", "or follow the instructions to")}
                 <.link patch={@install_path} data-part="hero-card-link">
-                  install specific version of tuist
+                  {dgettext("docs", "install specific version of tuist")}
                 </.link>
               </p>
             </div>
           </div>
           <.link navigate="/tuist/tuist" data-part="hero-card" data-variant="dashboard">
             <div data-part="hero-card-bg"></div>
-            <h3>Explore dashboard</h3>
+            <h3>{dgettext("docs", "Explore dashboard")}</h3>
             <div data-part="browser-mockup">
               <div data-part="browser-bar">
                 <span data-part="browser-dot" data-color="red"></span>
@@ -189,41 +188,41 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- What Tuist offers --%>
         <section data-part="section-intro">
-          <h1 id="learn-more">Learn more about what Tuist offers</h1>
+          <h1 id="learn-more">{dgettext("docs", "Learn more about what Tuist offers")}</h1>
           <p>
-            Learn how to generate projects, automate your workflows, and scale your app development efficiently with Tuist.
+            {dgettext("docs", "Learn how to generate projects, automate your workflows, and scale your app development efficiently with Tuist.")}
           </p>
         </section>
 
         <%!-- Builds --%>
         <section data-part="feature-section">
-          <h2 id="builds">Builds</h2>
+          <h2 id="builds">{dgettext("docs", "Builds")}</h2>
           <p>
-            Skip the manual steps, auto-generate projects, speeds up builds, and explore insights with built-in analytics.
+            {dgettext("docs", "Skip the manual steps, auto-generate projects, speeds up builds, and explore insights with built-in analytics.")}
           </p>
           <div data-part="feature-cards">
             <.link
-              patch={docs_path("/en/guides/features/cache/module-cache")}
+              patch={docs_path("/#{@locale}/guides/features/cache/module-cache")}
               data-part="feature-card"
             >
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.database /></span>
-                <span data-part="feature-card-title">Cache</span>
+                <span data-part="feature-card-title">{dgettext("docs", "Cache")}</span>
               </div>
               <div data-part="feature-card-body">
                 <p>
-                  Speeds up builds by caching compiled modules, cutting down load times in both local development and CI workflows.
+                  {dgettext("docs", "Speeds up builds by caching compiled modules, cutting down load times in both local development and CI workflows.")}
                 </p>
               </div>
             </.link>
-            <.link patch={docs_path("/en/guides/features/build-insights")} data-part="feature-card">
+            <.link patch={docs_path("/#{@locale}/guides/features/build-insights")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.search /></span>
-                <span data-part="feature-card-title">Insights</span>
+                <span data-part="feature-card-title">{dgettext("docs", "Insights")}</span>
               </div>
               <div data-part="feature-card-body">
                 <p>
-                  Monitor build performance across your CI infrastructure to catch slowdowns before they impact development.
+                  {dgettext("docs", "Monitor build performance across your CI infrastructure to catch slowdowns before they impact development.")}
                 </p>
               </div>
             </.link>
@@ -232,47 +231,47 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- Tests --%>
         <section data-part="feature-section">
-          <h2 id="tests">Tests</h2>
+          <h2 id="tests">{dgettext("docs", "Tests")}</h2>
           <p>
-            Run only impacted tests based on your changes, faster feedback loops, less waiting, both locally and on CI.
+            {dgettext("docs", "Run only impacted tests based on your changes, faster feedback loops, less waiting, both locally and on CI.")}
           </p>
           <div data-part="feature-cards">
             <.link
-              patch={docs_path("/en/guides/features/selective-testing")}
+              patch={docs_path("/#{@locale}/guides/features/selective-testing")}
               data-part="feature-card"
             >
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.subtask /></span>
-                <span data-part="feature-card-title">Selective Testing</span>
+                <span data-part="feature-card-title">{dgettext("docs", "Selective Testing")}</span>
               </div>
               <div data-part="feature-card-body">
                 <p>
-                  Run only the tests that matter by detecting changes since your last successful run, cutting down test times both locally and on CI.
+                  {dgettext("docs", "Run only the tests that matter by detecting changes since your last successful run, cutting down test times both locally and on CI.")}
                 </p>
               </div>
             </.link>
             <.link
-              patch={docs_path("/en/guides/features/test-insights/flaky-tests")}
+              patch={docs_path("/#{@locale}/guides/features/test-insights/flaky-tests")}
               data-part="feature-card"
             >
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.progress_x /></span>
-                <span data-part="feature-card-title">Flaky Tests</span>
+                <span data-part="feature-card-title">{dgettext("docs", "Flaky Tests")}</span>
               </div>
               <div data-part="feature-card-body">
                 <p>
-                  Automatically detect flaky tests that fail without code changes and save time spent investigating false failures.
+                  {dgettext("docs", "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures.")}
                 </p>
               </div>
             </.link>
-            <.link patch={docs_path("/en/guides/features/test-insights")} data-part="feature-card">
+            <.link patch={docs_path("/#{@locale}/guides/features/test-insights")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.search /></span>
-                <span data-part="feature-card-title">Insights</span>
+                <span data-part="feature-card-title">{dgettext("docs", "Insights")}</span>
               </div>
               <div data-part="feature-card-body">
                 <p>
-                  Track test performance, catch slow tests early, and debug CI failures through real-time logs.
+                  {dgettext("docs", "Track test performance, catch slow tests early, and debug CI failures through real-time logs.")}
                 </p>
               </div>
             </.link>
@@ -281,30 +280,30 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- Artifacts --%>
         <section data-part="feature-section">
-          <h2 id="artifacts">Artifacts</h2>
+          <h2 id="artifacts">{dgettext("docs", "Artifacts")}</h2>
           <p>
-            From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating.
+            {dgettext("docs", "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating.")}
           </p>
           <div data-part="feature-cards">
-            <.link patch={docs_path("/en/guides/features/previews")} data-part="feature-card">
+            <.link patch={docs_path("/#{@locale}/guides/features/previews")} data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.devices /></span>
-                <span data-part="feature-card-title">Previews</span>
+                <span data-part="feature-card-title">{dgettext("docs", "Previews")}</span>
               </div>
               <div data-part="feature-card-body">
                 <p>
-                  Share your app instantly with a URL, no TestFlight or setup needed, so others can run it on their device or simulator in seconds.
+                  {dgettext("docs", "Share your app instantly with a URL, no TestFlight or setup needed, so others can run it on their device or simulator in seconds.")}
                 </p>
               </div>
             </.link>
             <div data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.checkup_list /></span>
-                <span data-part="feature-card-title">Agentic QA</span>
+                <span data-part="feature-card-title">{dgettext("docs", "Agentic QA")}</span>
               </div>
               <div data-part="feature-card-body">
                 <p>
-                  Mention @tuist on your PR and an AI agent tests your app for you, exploring edge cases and reporting issues with screenshots and logs.
+                  {dgettext("docs", "Mention @tuist on your PR and an AI agent tests your app for you, exploring edge cases and reporting issues with screenshots and logs.")}
                 </p>
               </div>
             </div>
@@ -313,9 +312,9 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- See Tuist in action --%>
         <section data-part="section-intro">
-          <h1 id="see-tuist-in-action">See Tuist in action</h1>
+          <h1 id="see-tuist-in-action">{dgettext("docs", "See Tuist in action")}</h1>
           <p>
-            Learn from real implementations and get inspired by what's possible when your toolchain just works.
+            {dgettext("docs", "Learn from real implementations and get inspired by what's possible when your toolchain just works.")}
           </p>
         </section>
 
@@ -339,10 +338,9 @@ defmodule TuistWeb.DocsLive do
 
         <%!-- Open source and community --%>
         <section data-part="section-intro">
-          <h1 id="open-source-and-community">Open source and community</h1>
+          <h1 id="open-source-and-community">{dgettext("docs", "Open source and community")}</h1>
           <p>
-            Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape
-            the future of app development tooling.
+            {dgettext("docs", "Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling.")}
           </p>
         </section>
 
@@ -357,7 +355,7 @@ defmodule TuistWeb.DocsLive do
               <.brand_github />
               <span>GitHub</span>
             </div>
-            <p>Contribute or report issues to our open source repository.</p>
+            <p>{dgettext("docs", "Contribute or report issues to our open source repository.")}</p>
           </a>
           <a
             href="https://slack.tuist.dev"
@@ -369,7 +367,7 @@ defmodule TuistWeb.DocsLive do
               <.brand_slack />
               <span>Slack</span>
             </div>
-            <p>Chat with the Tuist community in real-time.</p>
+            <p>{dgettext("docs", "Chat with the Tuist community in real-time.")}</p>
           </a>
           <a
             href="https://community.tuist.dev"
@@ -381,7 +379,7 @@ defmodule TuistWeb.DocsLive do
               <.message_circle />
               <span>Discourse</span>
             </div>
-            <p>Share your ideas, report issues, and discuss with other community members.</p>
+            <p>{dgettext("docs", "Share your ideas, report issues, and discuss with other community members.")}</p>
           </a>
           <a
             href="https://videos.tuist.dev"
@@ -391,9 +389,9 @@ defmodule TuistWeb.DocsLive do
           >
             <div data-part="community-card-header">
               <.player_play />
-              <span>Videos</span>
+              <span>{dgettext("docs", "Videos")}</span>
             </div>
-            <p>Learn from videos from the Tuist team and the community.</p>
+            <p>{dgettext("docs", "Learn from videos from the Tuist team and the community.")}</p>
           </a>
           <a
             href="https://bsky.app/profile/tuist.dev"
@@ -405,7 +403,7 @@ defmodule TuistWeb.DocsLive do
               <.brand_bluesky />
               <span>Bluesky</span>
             </div>
-            <p>Follow us on Bluesky to stay up to date with our work.</p>
+            <p>{dgettext("docs", "Follow us on Bluesky to stay up to date with our work.")}</p>
           </a>
           <a
             href="https://fosstodon.org/@tuist"
@@ -417,7 +415,7 @@ defmodule TuistWeb.DocsLive do
               <.brand_mastodon />
               <span>Mastodon</span>
             </div>
-            <p>Follow us on Mastodon to stay up to date with our work.</p>
+            <p>{dgettext("docs", "Follow us on Mastodon to stay up to date with our work.")}</p>
           </a>
           <a
             href="https://www.linkedin.com/company/tuistio"
@@ -429,7 +427,7 @@ defmodule TuistWeb.DocsLive do
               <.brand_linkedin />
               <span>LinkedIn</span>
             </div>
-            <p>Follow Tuist on LinkedIn for news and updates.</p>
+            <p>{dgettext("docs", "Follow Tuist on LinkedIn for news and updates.")}</p>
           </a>
         </section>
       </div>
