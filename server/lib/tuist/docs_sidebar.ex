@@ -180,6 +180,19 @@ defmodule Tuist.Docs.Sidebar do
                 icon: "gradle"
               }
             ]
+          },
+          %Item{
+            label: "Test sharding",
+            slug: "/en/guides/features/test-sharding",
+            items: [
+              %Item{label: "Xcode", slug: "/en/guides/features/test-sharding/xcode", icon: "xcode"},
+              %Item{
+                label: "Generated projects",
+                slug: "/en/guides/features/test-sharding/generated-projects",
+                icon: "xcode"
+              },
+              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "gradle"}
+            ]
           }
         ]
       },
