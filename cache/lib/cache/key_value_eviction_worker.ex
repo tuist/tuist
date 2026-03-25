@@ -246,9 +246,9 @@ defmodule Cache.KeyValueEvictionWorker do
   defp set_maintenance_busy_timeout do
     timeout = Config.key_value_maintenance_busy_timeout_ms()
 
-    case KeyValueRepo.query("PRAGMA busy_timeout = #{max(timeout, 0)}") do
+    case kv_query("PRAGMA busy_timeout = #{max(timeout, 0)}") do
       {:ok, _} -> :ok
-      {:error, _error} -> {:error, :busy}
+      {:error, :busy} -> {:error, :busy}
     end
   end
 
@@ -267,8 +267,8 @@ defmodule Cache.KeyValueEvictionWorker do
         if SQLiteHelpers.busy_error?(error) do
           {:error, :busy}
         else
-          Logger.warning("KV SQLite query failed: #{query} — #{inspect(error)}")
-          {:error, :busy}
+          Logger.error("KV SQLite query failed: #{query} — #{inspect(error)}")
+          raise error
         end
     end
   end

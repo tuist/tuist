@@ -190,6 +190,21 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert measurements.entries_deleted == 0
   end
 
+  test "non-busy SQLite query failures fail the job" do
+    stub(KeyValueRepo, :query, fn query ->
+      cond do
+        String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
+        query == "PRAGMA page_count" -> {:error, %Exqlite.Error{message: "disk I/O error"}}
+      end
+    end)
+
+    assert_raise Exqlite.Error, ~r/disk I\/O error/, fn ->
+      capture_log(fn ->
+        KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+      end)
+    end
+  end
+
   defp capture_eviction_telemetry(fun) do
     parent = self()
     ref = make_ref()

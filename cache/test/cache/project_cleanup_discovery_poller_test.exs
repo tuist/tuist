@@ -41,7 +41,8 @@ defmodule Cache.ProjectCleanupDiscoveryPollerTest do
                account_handle: "acme",
                project_handle: "ios",
                changeset: changeset
-             }}, %{watermark: ^current_watermark}} =
+             }},
+            %{watermark: ^current_watermark}} =
              ProjectCleanupDiscoveryPoller.handle_call(:poll, self(), %{watermark: current_watermark})
 
     refute changeset.valid?
