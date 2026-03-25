@@ -174,23 +174,22 @@ defmodule Tuist.Shards.Analytics do
 
   defp shard_balance_sessions(project_id, start_datetime, end_datetime) do
     ClickHouseRepo.all(
-      from(t in Test,
-        where: t.project_id == ^project_id,
-        where: not is_nil(t.shard_plan_id),
-        where: t.ran_at >= ^start_datetime,
-        where: t.ran_at <= ^end_datetime,
-        group_by: t.shard_plan_id,
+      from(sr in ShardRun,
+        where: sr.project_id == ^project_id,
+        where: sr.ran_at >= ^start_datetime,
+        where: sr.ran_at <= ^end_datetime,
+        group_by: sr.shard_plan_id,
         having: count() > 1,
         select: %{
-          plan_id: t.shard_plan_id,
+          plan_id: sr.shard_plan_id,
           balance:
             fragment(
               "if(avg(?) > 0, greatest(0, 1 - (stddevPop(?) / avg(?))), 1)",
-              t.duration,
-              t.duration,
-              t.duration
+              sr.duration,
+              sr.duration,
+              sr.duration
             ),
-          ran_at: max(t.ran_at)
+          ran_at: max(sr.ran_at)
         }
       )
     )
