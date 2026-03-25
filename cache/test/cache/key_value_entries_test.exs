@@ -126,7 +126,7 @@ defmodule Cache.KeyValueEntriesTest do
   test "materialize_remote_entry inserts new rows and updates watermark" do
     source_updated_at = DateTime.utc_now()
 
-    assert :inserted =
+    assert {:ok, :inserted} =
              KeyValueEntries.materialize_remote_entry(%{
                key: "keyvalue:acme:ios:cas",
                json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
@@ -158,7 +158,7 @@ defmodule Cache.KeyValueEntriesTest do
       replication_enqueued_at: local_source_updated_at
     })
 
-    assert :access_updated =
+    assert {:ok, :access_updated} =
              KeyValueEntries.materialize_remote_entry(%{
                key: "keyvalue:acme:ios:cas",
                json_payload: Jason.encode!(%{entries: [%{"value" => "remote"}]}),
@@ -185,7 +185,7 @@ defmodule Cache.KeyValueEntriesTest do
       replication_enqueued_at: local_source_updated_at
     })
 
-    assert :payload_updated =
+    assert {:ok, :payload_updated} =
              KeyValueEntries.materialize_remote_entry(%{
                key: "keyvalue:acme:ios:cas",
                json_payload: Jason.encode!(%{entries: [%{"value" => "remote"}]}),
@@ -216,7 +216,7 @@ defmodule Cache.KeyValueEntriesTest do
       replication_enqueued_at: local_access_token
     })
 
-    assert :payload_updated =
+    assert {:ok, :payload_updated} =
              KeyValueEntries.materialize_remote_entry(%{
                key: "keyvalue:acme:ios:cas",
                json_payload: Jason.encode!(%{entries: [%{"value" => "remote"}]}),

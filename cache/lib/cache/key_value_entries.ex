@@ -164,12 +164,12 @@ defmodule Cache.KeyValueEntries do
   end
 
   def materialize_remote_entry(attrs) when is_map(attrs) do
-    {:ok, result} = materialize_remote_entries([attrs])
-
-    cond do
-      result.inserted_count == 1 -> :inserted
-      result.payload_updated_count == 1 -> :payload_updated
-      true -> :access_updated
+    with {:ok, result} <- materialize_remote_entries([attrs]) do
+      cond do
+        result.inserted_count == 1 -> {:ok, :inserted}
+        result.payload_updated_count == 1 -> {:ok, :payload_updated}
+        true -> {:ok, :access_updated}
+      end
     end
   end
 
