@@ -142,6 +142,22 @@ class DeriveReferenceTest {
     }
 }
 
+class DetectCIProviderTest {
+
+    @Test
+    fun `detectCIProvider returns null without CI environment`() {
+        if (System.getenv("GITHUB_ACTIONS") == null &&
+            System.getenv("GITLAB_CI") == null &&
+            System.getenv("CIRCLECI") == null &&
+            System.getenv("BUILDKITE") == null &&
+            System.getenv("CM_BUILD_ID") == null &&
+            System.getenv("BITRISE_IO") == null
+        ) {
+            assertNull(detectCIProvider())
+        }
+    }
+}
+
 class DiscoverTestSuitesTest {
 
     @Test

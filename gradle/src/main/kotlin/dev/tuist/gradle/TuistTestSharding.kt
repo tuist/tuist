@@ -101,6 +101,16 @@ private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
         .create(ShardsApi::class.java)
 }
 
+internal fun detectCIProvider(): String? {
+    if (System.getenv("GITHUB_ACTIONS") != null) return "github"
+    if (System.getenv("GITLAB_CI") != null) return "gitlab"
+    if (System.getenv("CIRCLECI") != null) return "circleci"
+    if (System.getenv("BUILDKITE") != null) return "buildkite"
+    if (System.getenv("CM_BUILD_ID") != null) return "codemagic"
+    if (System.getenv("BITRISE_IO") != null) return "bitrise"
+    return null
+}
+
 internal fun discoverTestSuites(project: Project): List<String> {
     val classDirs = project.allprojects.flatMap { subproject ->
         subproject.tasks.withType(Test::class.java).flatMap { it.testClassesDirs.files }
@@ -259,16 +269,6 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                 logger.lifecycle("Tuist: Shard matrix written to ${outputFile.path}")
             }
         }
-    }
-
-    private fun detectCIProvider(): String? {
-        if (System.getenv("GITHUB_ACTIONS") != null) return "github"
-        if (System.getenv("GITLAB_CI") != null) return "gitlab"
-        if (System.getenv("CIRCLECI") != null) return "circleci"
-        if (System.getenv("BUILDKITE") != null) return "buildkite"
-        if (System.getenv("CM_BUILD_ID") != null) return "codemagic"
-        if (System.getenv("BITRISE_IO") != null) return "bitrise"
-        return null
     }
 
     private fun createShardingService(): TuistTestShardingService {
