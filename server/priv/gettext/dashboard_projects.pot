@@ -55,7 +55,7 @@ msgstr ""
 
 #: lib/tuist_web/live/project_notifications_live.ex:689
 #: lib/tuist_web/live/project_notifications_live.ex:692
-#: lib/tuist_web/live/xcode_overview_live.ex:211
+#: lib/tuist_web/live/xcode_overview_live.ex:212
 #: lib/tuist_web/live/xcode_overview_live.html.heex:15
 #: lib/tuist_web/live/xcode_overview_live.html.heex:755
 #, elixir-autogen, elixir-format
@@ -137,7 +137,7 @@ msgid "Bundles"
 msgstr ""
 
 #: lib/tuist_web/live/project_notifications_live.ex:691
-#: lib/tuist_web/live/xcode_overview_live.ex:213
+#: lib/tuist_web/live/xcode_overview_live.ex:214
 #: lib/tuist_web/live/xcode_overview_live.html.heex:31
 #: lib/tuist_web/live/xcode_overview_live.html.heex:771
 #, elixir-autogen, elixir-format
@@ -293,7 +293,7 @@ msgid "Latest app previews"
 msgstr ""
 
 #: lib/tuist_web/live/project_notifications_live.ex:690
-#: lib/tuist_web/live/xcode_overview_live.ex:212
+#: lib/tuist_web/live/xcode_overview_live.ex:213
 #: lib/tuist_web/live/xcode_overview_live.html.heex:23
 #: lib/tuist_web/live/xcode_overview_live.html.heex:763
 #, elixir-autogen, elixir-format
@@ -502,17 +502,17 @@ msgstr ""
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.ex:209
+#: lib/tuist_web/live/xcode_overview_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.ex:206
+#: lib/tuist_web/live/xcode_overview_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.ex:207
+#: lib/tuist_web/live/xcode_overview_live.ex:208
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -558,12 +558,12 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.ex:208
+#: lib/tuist_web/live/xcode_overview_live.ex:209
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.ex:205
+#: lib/tuist_web/live/xcode_overview_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""

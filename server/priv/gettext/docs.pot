@@ -1,0 +1,327 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:347
+#, elixir-autogen, elixir-format
+msgid "Agentic QA"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:322
+#, elixir-autogen, elixir-format
+msgid "Artifacts"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:293
+#, elixir-autogen, elixir-format
+msgid "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:148
+#, elixir-autogen, elixir-format
+msgid "Bluesky"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:211
+#, elixir-autogen, elixir-format
+msgid "Builds"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "Cache"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:424
+#, elixir-autogen, elixir-format
+msgid "Chat with the Tuist community in real-time."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:394
+#, elixir-autogen, elixir-format
+msgid "Connect with thousands of developers who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:412
+#, elixir-autogen, elixir-format
+msgid "Contribute or report issues to our open source repository."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:139
+#, elixir-autogen, elixir-format
+msgid "Copy command"
+msgstr ""
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:60
+#: lib/tuist_web/docs/components/page_layout.html.heex:67
+#: lib/tuist_web/docs/components/toc.html.heex:5
+#: lib/tuist_web/docs/components/toc.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Copy page"
+msgstr ""
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:68
+#: lib/tuist_web/docs/components/toc.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Copy page as markdown for LLMs"
+msgstr ""
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:34
+#, elixir-autogen, elixir-format
+msgid "Documentation navigation"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:160
+#, elixir-autogen, elixir-format
+msgid "Explore dashboard"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:289
+#, elixir-autogen, elixir-format
+msgid "Flaky Tests"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:489
+#, elixir-autogen, elixir-format
+msgid "Follow Tuist on LinkedIn for news and updates."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:465
+#, elixir-autogen, elixir-format
+msgid "Follow us on Bluesky to stay up to date with our work."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:477
+#, elixir-autogen, elixir-format
+msgid "Follow us on Mastodon to stay up to date with our work."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:324
+#, elixir-autogen, elixir-format
+msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:124
+#, elixir-autogen, elixir-format
+msgid "GitHub"
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "Guides"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:242
+#: lib/tuist_web/live/docs_live.ex:306
+#, elixir-autogen, elixir-format
+msgid "Insights"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:115
+#: lib/tuist_web/live/docs_live.ex:118
+#, elixir-autogen, elixir-format
+msgid "Install Tuist CLI"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:365
+#, elixir-autogen, elixir-format
+msgid "Learn from real implementations and get inspired by what's possible when your toolchain just works."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:453
+#, elixir-autogen, elixir-format
+msgid "Learn from videos from the Tuist team and the community."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:202
+#, elixir-autogen, elixir-format
+msgid "Learn how to generate projects, automate your workflows, and scale your app development efficiently with Tuist."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:200
+#, elixir-autogen, elixir-format
+msgid "Learn more about what Tuist offers"
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "Main navigation"
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:132
+#, elixir-autogen, elixir-format
+msgid "Mastodon"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:351
+#, elixir-autogen, elixir-format
+msgid "Mention @tuist on your PR and an AI agent tests your app for you, exploring edge cases and reporting issues with screenshots and logs."
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:188
+#, elixir-autogen, elixir-format
+msgid "Menu"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:246
+#, elixir-autogen, elixir-format
+msgid "Monitor build performance across your CI infrastructure to catch slowdowns before they impact development."
+msgstr ""
+
+#: lib/tuist_web/docs/components/toc.html.heex:36
+#: lib/tuist_web/docs/layouts/root.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "On this page"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:392
+#, elixir-autogen, elixir-format
+msgid "Open source and community"
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:172
+#, elixir-autogen, elixir-format
+msgid "Page navigation"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:333
+#, elixir-autogen, elixir-format
+msgid "Previews"
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "References"
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:95
+#, elixir-autogen, elixir-format
+msgid "Resources"
+msgstr ""
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Return to top"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:260
+#, elixir-autogen, elixir-format
+msgid "Run only impacted tests based on your changes, faster feedback loops, less waiting, both locally and on CI."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:276
+#, elixir-autogen, elixir-format
+msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times both locally and on CI."
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:155
+#, elixir-autogen, elixir-format
+msgid "Search"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:363
+#, elixir-autogen, elixir-format
+msgid "See Tuist in action"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:272
+#, elixir-autogen, elixir-format
+msgid "Selective Testing"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:337
+#, elixir-autogen, elixir-format
+msgid "Share your app instantly with a URL, no TestFlight or setup needed, so others can run it on their device or simulator in seconds."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:437
+#, elixir-autogen, elixir-format
+msgid "Share your ideas, report issues, and discuss with other community members."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:213
+#, elixir-autogen, elixir-format
+msgid "Skip the manual steps, auto-generate projects, speeds up builds, and explore insights with built-in analytics."
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Skip to content"
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:140
+#, elixir-autogen, elixir-format
+msgid "Slack"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:229
+#, elixir-autogen, elixir-format
+msgid "Speeds up builds by caching compiled modules, cutting down load times in both local development and CI workflows."
+msgstr ""
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:11
+#: lib/tuist_web/docs/components/toc.html.heex:1
+#, elixir-autogen, elixir-format
+msgid "Table of contents"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:258
+#, elixir-autogen, elixir-format
+msgid "Tests"
+msgstr ""
+
+#: lib/tuist_web/docs/layouts/root.html.heex:160
+#, elixir-autogen, elixir-format
+msgid "Toggle sidebar"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:310
+#, elixir-autogen, elixir-format
+msgid "Track test performance, catch slow tests early, and debug CI failures through real-time logs."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:451
+#, elixir-autogen, elixir-format
+msgid "Videos"
+msgstr ""
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:76
+#: lib/tuist_web/docs/components/toc.html.heex:21
+#, elixir-autogen, elixir-format
+msgid "View as Markdown"
+msgstr ""
+
+#: lib/tuist_web/docs/components/page_layout.html.heex:77
+#: lib/tuist_web/docs/components/toc.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "View this page as plain text"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:153
+#, elixir-autogen, elixir-format
+msgid "install specific version of tuist"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:151
+#, elixir-autogen, elixir-format
+msgid "or follow the instructions to"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:98
+#, elixir-autogen, elixir-format
+msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping."
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:96
+#, elixir-autogen, elixir-format
+msgid "Your mobile platform team, as a service"
+msgstr ""

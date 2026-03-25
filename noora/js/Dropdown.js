@@ -108,6 +108,7 @@ export default {
       closeOnSelect: getBooleanOption(this.el, "closeOnSelect"),
       typeahead: getBooleanOption(this.el, "typeahead"),
       positioning: {
+        placement: getOption(this.el, "positioningPlacement") || "bottom-start",
         offset: { mainAxis: getOption(this.el, "positioningOffsetMainAxis") },
       },
       onOpenChange: (details) => {
