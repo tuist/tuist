@@ -30,6 +30,7 @@ defmodule Cache.Application do
     Supervisor.start_link(children(), opts)
   end
 
+  @doc false
   def children do
     distributed_children =
       if Cache.Config.distributed_kv_enabled?() do

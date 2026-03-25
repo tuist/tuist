@@ -32,7 +32,7 @@ defmodule Cache.CleanProjectWorker do
   end
 
   defp perform_local_cleanup(account_handle, project_handle) do
-    :ok = invalidate_local_kv(account_handle, project_handle, DateTime.utc_now(), fn -> :ok end)
+    :ok = delete_project_kv_entries(account_handle, project_handle, DateTime.utc_now(), fn -> :ok end)
 
     case Disk.delete_project(account_handle, project_handle) do
       :ok ->
@@ -155,14 +155,14 @@ defmodule Cache.CleanProjectWorker do
 
   @doc false
   def perform_local_node_cleanup(account_handle, project_handle, cutoff, check_lease) do
-    with :ok <- invalidate_local_kv(account_handle, project_handle, cutoff, check_lease) do
+    with :ok <- delete_project_kv_entries(account_handle, project_handle, cutoff, check_lease) do
       delete_disk_with_cutoff(account_handle, project_handle, cutoff, check_lease)
     end
   end
 
-  defp invalidate_local_kv(account_handle, project_handle, cutoff, check_lease) do
+  defp delete_project_kv_entries(account_handle, project_handle, cutoff, check_lease) do
     opts =
-      [after_delete_batch: fn _keys -> check_lease.() end, on_deleted_keys: &invalidate_local_kv_keys/1]
+      [after_delete_batch: fn _keys -> check_lease.() end, on_deleted_keys: &invalidate_kv_cache_keys/1]
 
     opts =
       if Config.distributed_kv_enabled?() do
@@ -177,7 +177,7 @@ defmodule Cache.CleanProjectWorker do
     end
   end
 
-  defp invalidate_local_kv_keys(keys) do
+  defp invalidate_kv_cache_keys(keys) do
     distributed? = Config.distributed_kv_enabled?()
 
     Enum.each(keys, fn key ->
@@ -191,7 +191,7 @@ defmodule Cache.CleanProjectWorker do
   defp put_local_applied_generation_after_publish(account_handle, project_handle, generation) do
     Cleanup.put_local_applied_generation(account_handle, project_handle, generation)
   rescue
-    error ->
+    error in [Exqlite.Error, Ecto.StaleEntryError, DBConnection.ConnectionError, RuntimeError] ->
       Logger.warning(
         "Distributed cleanup was already published for #{account_handle}/#{project_handle}, " <>
           "but persisting the local applied generation failed: #{inspect(error)}"

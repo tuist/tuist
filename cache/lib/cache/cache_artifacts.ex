@@ -8,7 +8,6 @@ defmodule Cache.CacheArtifacts do
   alias Cache.CacheArtifact
   alias Cache.CacheArtifactsBuffer
   alias Cache.Disk
-  alias Cache.KeyValueEntries
   alias Cache.Repo
 
   @default_batch_size 500
@@ -48,7 +47,7 @@ defmodule Cache.CacheArtifacts do
 
   def delete_by_project(account_handle, project_handle) do
     prefix = "#{account_handle}/#{project_handle}/"
-    prefix_upper_bound = KeyValueEntries.next_lexicographic_string(prefix)
+    prefix_upper_bound = next_lexicographic_string(prefix)
 
     Repo.delete_all(from(a in CacheArtifact, where: a.key >= ^prefix and a.key < ^prefix_upper_bound))
     :ok
@@ -83,6 +82,22 @@ defmodule Cache.CacheArtifacts do
 
     :ok = CacheArtifactsBuffer.enqueue_access(key, size_bytes, last_accessed_at)
     :ok
+  end
+
+  defp next_lexicographic_string(value) do
+    value
+    |> String.to_charlist()
+    |> Enum.reverse()
+    |> increment_reversed_codepoints()
+    |> Enum.reverse()
+    |> List.to_string()
+  end
+
+  defp increment_reversed_codepoints([codepoint | rest]) when codepoint < 0x10FFFF, do: [codepoint + 1 | rest]
+  defp increment_reversed_codepoints([_codepoint | rest]), do: increment_reversed_codepoints(rest)
+
+  defp increment_reversed_codepoints([]) do
+    raise ArgumentError, "value has no lexicographic successor"
   end
 
   defp file_size_for(key) do

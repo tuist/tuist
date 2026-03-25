@@ -461,8 +461,10 @@ defmodule Cache.KeyValueEntries do
 
   Options:
     * `:include_pending` — include rows with pending replication tokens (default: `false`)
-    * `:on_deleted_keys` — callback receiving each batch of deleted keys; suppresses key accumulation
-    * `:after_delete_batch` — callback after each batch; return `{:error, reason}` to abort
+    * `:on_deleted_keys` — streaming callback receiving each batch of deleted keys.
+      When set, keys are not accumulated in the return value (the returned key list is `[]`).
+    * `:after_delete_batch` — validation callback invoked after each batch with the deleted keys.
+      Return `{:error, reason}` to abort further deletion. Keys are still accumulated in the return value.
   """
   def delete_project_entries_before(account_handle, project_handle, cutoff, opts \\ []) do
     include_pending = Keyword.get(opts, :include_pending, false)
@@ -618,7 +620,7 @@ defmodule Cache.KeyValueEntries do
       try do
         {deleted_count, deleted_keys} = delete_chunk(ids_chunk, cutoff)
 
-        :ok = maybe_notify_deleted_keys(on_deleted_keys, deleted_keys)
+        :ok = stream_deleted_keys(on_deleted_keys, deleted_keys)
 
         {:cont, {count_acc + deleted_count, :complete}}
       rescue
@@ -706,8 +708,8 @@ defmodule Cache.KeyValueEntries do
         {:ok, state}
 
       _ ->
-        with :ok <- maybe_notify_deleted_keys(state.on_deleted_keys, candidate_keys),
-             :ok <- maybe_after_delete_batch(state.after_delete_batch, candidate_keys) do
+        with :ok <- stream_deleted_keys(state.on_deleted_keys, candidate_keys),
+             :ok <- validate_batch_continuation(state.after_delete_batch, candidate_keys) do
           next_deleted_keys_acc =
             if state.collect_deleted_keys? do
               Enum.reverse(candidate_keys, state.deleted_keys_acc)
@@ -733,16 +735,16 @@ defmodule Cache.KeyValueEntries do
     end
   end
 
-  defp maybe_notify_deleted_keys(nil, _keys), do: :ok
+  defp stream_deleted_keys(nil, _keys), do: :ok
 
-  defp maybe_notify_deleted_keys(fun, keys) when is_function(fun, 1) do
+  defp stream_deleted_keys(fun, keys) when is_function(fun, 1) do
     :ok = fun.(keys)
     :ok
   end
 
-  defp maybe_after_delete_batch(nil, _keys), do: :ok
+  defp validate_batch_continuation(nil, _keys), do: :ok
 
-  defp maybe_after_delete_batch(fun, keys) when is_function(fun, 1) do
+  defp validate_batch_continuation(fun, keys) when is_function(fun, 1) do
     case fun.(keys) do
       :ok ->
         :ok
@@ -785,7 +787,7 @@ defmodule Cache.KeyValueEntries do
     {prefix, next_lexicographic_string(prefix)}
   end
 
-  def next_lexicographic_string(value) do
+  defp next_lexicographic_string(value) do
     value
     |> String.to_charlist()
     |> Enum.reverse()
