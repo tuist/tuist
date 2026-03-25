@@ -16,6 +16,7 @@ setup_file() {
     export GRADLE_PROJECT_DIR="${REPO_ROOT}/examples/gradle/simple_android_app"
     export TUIST_URL="${SERVER_URL}"
     export TUIST_SERVER_URL="${SERVER_URL}"
+    export TUIST_CACHE_ENDPOINT="http://localhost:${TUIST_CACHE_PORT:-8087}"
 
     # Use an isolated Gradle home to avoid touching the global cache
     export GRADLE_USER_HOME="${BATS_FILE_TMPDIR}/gradle-home"
