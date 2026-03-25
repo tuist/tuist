@@ -101,20 +101,6 @@ private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
         .create(ShardsApi::class.java)
 }
 
-enum class CIProvider {
-    GITHUB, GITLAB, CIRCLECI, BUILDKITE, CODEMAGIC, BITRISE
-}
-
-fun detectCIProvider(env: EnvironmentProvider = SystemEnvironmentProvider()): CIProvider? {
-    if (env.getenv("GITHUB_ACTIONS") != null) return CIProvider.GITHUB
-    if (env.getenv("GITLAB_CI") != null) return CIProvider.GITLAB
-    if (env.getenv("CIRCLECI") != null) return CIProvider.CIRCLECI
-    if (env.getenv("BUILDKITE") != null) return CIProvider.BUILDKITE
-    if (env.getenv("CM_BUILD_ID") != null) return CIProvider.CODEMAGIC
-    if (env.getenv("BITRISE_IO") != null) return CIProvider.BITRISE
-    return null
-}
-
 fun discoverTestSuites(project: Project): List<String> {
     val classDirs = project.allprojects.flatMap { subproject ->
         subproject.tasks.withType(Test::class.java).flatMap { it.testClassesDirs.files }
@@ -139,6 +125,20 @@ fun discoverTestSuitesFromDirs(classDirs: List<java.io.File>): List<String> {
 }
 
 abstract class TuistPrepareTestShardsTask : DefaultTask() {
+
+    private enum class CIProvider {
+        GITHUB, GITLAB, CIRCLECI, BUILDKITE, CODEMAGIC, BITRISE
+    }
+
+    private fun detectCIProvider(env: EnvironmentProvider): CIProvider? {
+        if (env.getenv("GITHUB_ACTIONS") != null) return CIProvider.GITHUB
+        if (env.getenv("GITLAB_CI") != null) return CIProvider.GITLAB
+        if (env.getenv("CIRCLECI") != null) return CIProvider.CIRCLECI
+        if (env.getenv("BUILDKITE") != null) return CIProvider.BUILDKITE
+        if (env.getenv("CM_BUILD_ID") != null) return CIProvider.CODEMAGIC
+        if (env.getenv("BITRISE_IO") != null) return CIProvider.BITRISE
+        return null
+    }
 
     /** Maximum number of shards to distribute tests across. */
     @get:Input
@@ -203,10 +203,9 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         indices: List<Int>,
         reference: String,
         response: ShardPlan,
-        ciProvider: CIProvider? = detectCIProvider(),
         env: EnvironmentProvider = SystemEnvironmentProvider()
     ) {
-        when (ciProvider) {
+        when (detectCIProvider(env)) {
             CIProvider.GITHUB -> {
                 val matrixJSON = """{"shard":$indices}"""
                 java.io.File(env.getenv("GITHUB_OUTPUT")!!).appendText("matrix=$matrixJSON\n")

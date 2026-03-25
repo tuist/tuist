@@ -15,7 +15,6 @@ import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class TuistTestShardingServiceTest {
 
@@ -142,49 +141,6 @@ class DeriveReferenceTest {
     }
 }
 
-class DetectCIProviderTest {
-
-    private fun envWith(vararg pairs: Pair<String, String>): EnvironmentProvider {
-        val map = pairs.toMap()
-        return EnvironmentProvider { name -> map[name] }
-    }
-
-    @Test
-    fun `returns null for empty environment`() {
-        assertNull(detectCIProvider(envWith()))
-    }
-
-    @Test
-    fun `detects GitHub Actions`() {
-        assertEquals(CIProvider.GITHUB, detectCIProvider(envWith("GITHUB_ACTIONS" to "true")))
-    }
-
-    @Test
-    fun `detects GitLab CI`() {
-        assertEquals(CIProvider.GITLAB, detectCIProvider(envWith("GITLAB_CI" to "true")))
-    }
-
-    @Test
-    fun `detects CircleCI`() {
-        assertEquals(CIProvider.CIRCLECI, detectCIProvider(envWith("CIRCLECI" to "true")))
-    }
-
-    @Test
-    fun `detects Buildkite`() {
-        assertEquals(CIProvider.BUILDKITE, detectCIProvider(envWith("BUILDKITE" to "true")))
-    }
-
-    @Test
-    fun `detects Codemagic`() {
-        assertEquals(CIProvider.CODEMAGIC, detectCIProvider(envWith("CM_BUILD_ID" to "123")))
-    }
-
-    @Test
-    fun `detects Bitrise`() {
-        assertEquals(CIProvider.BITRISE, detectCIProvider(envWith("BITRISE_IO" to "true")))
-    }
-}
-
 class WriteShardMatrixOutputTest {
 
     private fun createTask(projectDir: File): TuistPrepareTestShardsTask {
@@ -218,8 +174,8 @@ class WriteShardMatrixOutputTest {
         val task = createTask(tempDir)
 
         task.writeShardMatrixOutput(
-            listOf(0, 1, 2), "test-ref", shardPlan(3), CIProvider.GITHUB,
-            envWith("GITHUB_OUTPUT" to githubOutputFile.absolutePath)
+            listOf(0, 1, 2), "test-ref", shardPlan(3),
+            envWith("GITHUB_ACTIONS" to "true", "GITHUB_OUTPUT" to githubOutputFile.absolutePath)
         )
 
         assertEquals("""matrix={"shard":[0, 1, 2]}""" + "\n", githubOutputFile.readText())
@@ -228,7 +184,7 @@ class WriteShardMatrixOutputTest {
     @Test
     fun `gitlab writes child pipeline yml`(@TempDir tempDir: File) {
         val task = createTask(tempDir)
-        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.GITLAB)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("GITLAB_CI" to "true"))
 
         assertEquals(
             """
@@ -250,7 +206,7 @@ class WriteShardMatrixOutputTest {
     @Test
     fun `circleci writes continuation json`(@TempDir tempDir: File) {
         val task = createTask(tempDir)
-        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.CIRCLECI)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("CIRCLECI" to "true"))
 
         assertEquals(
             """{"shard-indices":"0,1","shard-count":2}""",
@@ -261,7 +217,7 @@ class WriteShardMatrixOutputTest {
     @Test
     fun `buildkite writes pipeline yml`(@TempDir tempDir: File) {
         val task = createTask(tempDir)
-        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.BUILDKITE)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("BUILDKITE" to "true"))
 
         assertEquals(
             """
@@ -285,8 +241,8 @@ class WriteShardMatrixOutputTest {
         val task = createTask(tempDir)
 
         task.writeShardMatrixOutput(
-            listOf(0, 1), "test-ref", shardPlan(), CIProvider.CODEMAGIC,
-            envWith("CM_ENV" to cmEnvFile.absolutePath)
+            listOf(0, 1), "test-ref", shardPlan(),
+            envWith("CM_BUILD_ID" to "123", "CM_ENV" to cmEnvFile.absolutePath)
         )
 
         assertEquals(
@@ -301,8 +257,8 @@ class WriteShardMatrixOutputTest {
         val task = createTask(tempDir)
 
         task.writeShardMatrixOutput(
-            listOf(0, 1), "test-ref", shardPlan(), CIProvider.BITRISE,
-            envWith("BITRISE_DEPLOY_DIR" to deployDir.absolutePath)
+            listOf(0, 1), "test-ref", shardPlan(),
+            envWith("BITRISE_IO" to "true", "BITRISE_DEPLOY_DIR" to deployDir.absolutePath)
         )
 
         assertEquals(
@@ -312,9 +268,9 @@ class WriteShardMatrixOutputTest {
     }
 
     @Test
-    fun `fallback writes shard matrix json`(@TempDir tempDir: File) {
+    fun `fallback writes shard matrix json when no CI detected`(@TempDir tempDir: File) {
         val task = createTask(tempDir)
-        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), null)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith())
 
         assertEquals(
             """{"reference":"test-ref","shard_count":2,"shards":[{"index":0,"test_targets":["com.example.Test0"],"estimated_duration_ms":1000},{"index":1,"test_targets":["com.example.Test1"],"estimated_duration_ms":1000}]}""",
