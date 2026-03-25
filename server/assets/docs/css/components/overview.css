@@ -644,7 +644,9 @@
     & [data-part="video-cards"] {
       overflow-x: auto;
       scroll-snap-type: x mandatory;
-      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      margin: 0 calc(-1 * var(--noora-spacing-4));
+      padding: 0 var(--noora-spacing-4);
     }
 
     & [data-part="video-card"],
