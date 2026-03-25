@@ -11,6 +11,8 @@ defmodule Cache.KeyValueReplicationShipper do
   alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
+  alias Cache.KeyValueEntry
+  alias Cache.KeyValueStore
 
   require Logger
 
@@ -108,7 +110,7 @@ defmodule Cache.KeyValueReplicationShipper do
   end
 
   defp prepare_pending_row(entry) do
-    case Cache.KeyValueEntry.scope_from_key(entry.key) do
+    case KeyValueEntry.scope_from_key(entry.key) do
       {:ok, scope} ->
         incoming = %{
           key: entry.key,
@@ -176,7 +178,7 @@ defmodule Cache.KeyValueReplicationShipper do
 
     # Shared rows resolve payload conflicts by source_updated_at, then source_node for equal timestamps.
     on_conflict =
-      from(e in Entry,
+      from(entry in Entry,
         update: [
           set: [
             account_handle: fragment("EXCLUDED.account_handle"),
@@ -185,37 +187,37 @@ defmodule Cache.KeyValueReplicationShipper do
             json_payload:
               fragment(
                 "CASE WHEN EXCLUDED.source_updated_at > ? OR (EXCLUDED.source_updated_at = ? AND EXCLUDED.source_node > ?) THEN EXCLUDED.json_payload ELSE ? END",
-                e.source_updated_at,
-                e.source_updated_at,
-                e.source_node,
-                e.json_payload
+                entry.source_updated_at,
+                entry.source_updated_at,
+                entry.source_node,
+                entry.json_payload
               ),
             source_node:
               fragment(
                 "CASE WHEN EXCLUDED.source_updated_at > ? OR (EXCLUDED.source_updated_at = ? AND EXCLUDED.source_node > ?) THEN EXCLUDED.source_node ELSE ? END",
-                e.source_updated_at,
-                e.source_updated_at,
-                e.source_node,
-                e.source_node
+                entry.source_updated_at,
+                entry.source_updated_at,
+                entry.source_node,
+                entry.source_node
               ),
             source_updated_at:
               fragment(
                 "CASE WHEN EXCLUDED.source_updated_at > ? OR (EXCLUDED.source_updated_at = ? AND EXCLUDED.source_node > ?) THEN EXCLUDED.source_updated_at ELSE ? END",
-                e.source_updated_at,
-                e.source_updated_at,
-                e.source_node,
-                e.source_updated_at
+                entry.source_updated_at,
+                entry.source_updated_at,
+                entry.source_node,
+                entry.source_updated_at
               ),
-            last_accessed_at: fragment("GREATEST(?, EXCLUDED.last_accessed_at)", e.last_accessed_at),
+            last_accessed_at: fragment("GREATEST(?, EXCLUDED.last_accessed_at)", entry.last_accessed_at),
             deleted_at:
               fragment(
                 "CASE WHEN (EXCLUDED.source_updated_at > ? OR (EXCLUDED.source_updated_at = ? AND EXCLUDED.source_node > ?)) AND ? IS NOT NULL AND EXCLUDED.source_updated_at > ? THEN NULL ELSE ? END",
-                e.source_updated_at,
-                e.source_updated_at,
-                e.source_node,
-                e.deleted_at,
-                e.deleted_at,
-                e.deleted_at
+                entry.source_updated_at,
+                entry.source_updated_at,
+                entry.source_node,
+                entry.deleted_at,
+                entry.deleted_at,
+                entry.deleted_at
               ),
             updated_at: fragment("clock_timestamp()::timestamp")
           ]
@@ -235,7 +237,7 @@ defmodule Cache.KeyValueReplicationShipper do
     _ = KeyValueEntries.delete_local_entry_if_before_or_equal(row.entry.key, row.entry.source_updated_at)
     _ = KeyValueEntries.clear_replication_token(row.entry.key, row.entry.replication_enqueued_at)
     KeyValueAccessTracker.clear(row.entry.key)
-    {:ok, _} = Cachex.del(:cache_keyvalue_store, row.entry.key)
+    {:ok, _} = Cachex.del(KeyValueStore.cache_name(), row.entry.key)
     :ok
   end
 

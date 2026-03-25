@@ -11,6 +11,7 @@ defmodule Cache.CleanProjectWorker do
   alias Cache.DistributedKV.Cleanup
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
+  alias Cache.KeyValueStore
   alias Cache.S3
 
   require Logger
@@ -181,7 +182,7 @@ defmodule Cache.CleanProjectWorker do
   defp invalidate_local_kv_keys(keys, distributed?) do
     Enum.each(keys, fn key ->
       if distributed?, do: :ok = KeyValueAccessTracker.clear(key)
-      {:ok, _deleted?} = Cachex.del(:cache_keyvalue_store, key)
+      {:ok, _deleted?} = Cachex.del(KeyValueStore.cache_name(), key)
     end)
 
     :ok

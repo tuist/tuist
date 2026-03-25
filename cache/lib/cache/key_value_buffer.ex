@@ -135,8 +135,8 @@ defmodule Cache.KeyValueBuffer do
     |> Enum.each(fn keys_chunk ->
       if distributed? do
         KeyValueRepo.update_all(
-          from(e in KeyValueEntry,
-            where: e.key in ^keys_chunk,
+          from(entry in KeyValueEntry,
+            where: entry.key in ^keys_chunk,
             update: [
               set: [
                 last_accessed_at: ^now,
@@ -149,7 +149,7 @@ defmodule Cache.KeyValueBuffer do
           []
         )
       else
-        KeyValueRepo.update_all(from(e in KeyValueEntry, where: e.key in ^keys_chunk),
+        KeyValueRepo.update_all(from(entry in KeyValueEntry, where: entry.key in ^keys_chunk),
           set: [last_accessed_at: now, updated_at: now_truncated]
         )
       end

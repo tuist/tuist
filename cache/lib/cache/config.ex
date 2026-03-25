@@ -194,10 +194,7 @@ defmodule Cache.Config do
   end
 
   def distributed_kv_node_name do
-    Application.get_env(:cache, :distributed_kv_node_name) ||
-      System.get_env("DISTRIBUTED_KV_NODE_NAME") ||
-      System.get_env("HOSTNAME") ||
-      cache_endpoint()
+    Application.get_env(:cache, :distributed_kv_node_name) || cache_endpoint()
   end
 
   def key_value_read_busy_timeout_ms do

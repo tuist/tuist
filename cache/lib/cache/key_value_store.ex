@@ -15,6 +15,8 @@ defmodule Cache.KeyValueStore do
 
   @cache_name :cache_keyvalue_store
   @contention_event [:cache, :kv, :get, :contention]
+
+  def cache_name, do: @cache_name
   # 1 week
   @ttl_ms to_timeout(week: 1)
 

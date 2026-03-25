@@ -11,6 +11,7 @@ defmodule Cache.KeyValueReplicationPoller do
   alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueEntries
+  alias Cache.KeyValueStore
 
   @completion_event [:cache, :kv, :replication, :poll, :complete]
   @lag_event [:cache, :kv, :replication, :poll, :lag_ms]
@@ -19,7 +20,7 @@ defmodule Cache.KeyValueReplicationPoller do
   @apply_chunk_size 100
   @bootstrap_page_size 500
   @max_poll_run_ms 10_000
-  @local_store_emit_interval_ms 10 * 60_000
+  @local_store_emit_interval_ms to_timeout(minute: 10)
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -288,7 +289,7 @@ defmodule Cache.KeyValueReplicationPoller do
 
   defp run_chunk_side_effects(result) do
     Enum.each(result.invalidate_keys, fn key ->
-      {:ok, _deleted?} = Cachex.del(:cache_keyvalue_store, key)
+      {:ok, _deleted?} = Cachex.del(KeyValueStore.cache_name(), key)
     end)
 
     Enum.each(result.mark_lineage_keys, fn key ->
