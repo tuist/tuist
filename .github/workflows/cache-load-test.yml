@@ -1,0 +1,445 @@
+name: Cache Load Test
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to test
+        required: true
+      pr_sha:
+        description: PR head SHA
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: cache-load-test-staging
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: >
+      (github.event_name == 'issue_comment' &&
+       github.event.action == 'created' &&
+       contains(github.event.comment.body, '/load-test')) ||
+      github.event_name == 'workflow_dispatch'
+    outputs:
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      pr_sha: ${{ steps.resolve.outputs.pr_sha }}
+      main_sha: ${{ steps.resolve.outputs.main_sha }}
+    steps:
+      - name: Resolve PR details
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_NUMBER="${{ inputs.pr_number }}"
+            PR_SHA="${{ inputs.pr_sha }}"
+          else
+            PR_NUMBER="${{ github.event.issue.number }}"
+
+            # Verify this is a PR comment, not an issue comment
+            PR_DATA=$(gh api "/repos/${{ github.repository }}/pulls/$PR_NUMBER" 2>/dev/null || echo "")
+            if [ -z "$PR_DATA" ]; then
+              echo "::error::Comment is not on a pull request"
+              exit 1
+            fi
+
+            PR_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
+            HEAD_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.full_name')
+
+            if [ "$HEAD_REPO" != "${{ github.repository }}" ]; then
+              echo "::error::Load tests only run on same-repo PRs"
+              exit 1
+            fi
+          fi
+
+          MAIN_SHA=$(gh api "/repos/${{ github.repository }}/commits/main" --jq '.sha')
+
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "pr_sha=$PR_SHA" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Check team membership
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          AUTHOR="${{ github.event.comment.user.login }}"
+          MEMBERSHIP=$(gh api "/orgs/tuist/teams/engineering/memberships/$AUTHOR" --jq '.state' 2>/dev/null || echo "not_found")
+          if [ "$MEMBERSHIP" != "active" ]; then
+            echo "::error::Only @tuist/engineering members can trigger load tests"
+            exit 1
+          fi
+
+      - name: Update PR comment - queued
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PR_NUMBER="${{ steps.resolve.outputs.pr_number }}"
+          MARKER="<!-- cache-load-test -->"
+          BODY="${MARKER}
+          ## Cache Load Test
+
+          **Status:** ⏳ Queued
+          **PR SHA:** \`${{ steps.resolve.outputs.pr_sha }}\`
+          **Workflow:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+          COMMENT_ID=$(gh api "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" --paginate --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -1)
+
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" -X PATCH -f body="$BODY"
+          else
+            gh api "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" -f body="$BODY"
+          fi
+
+  deploy-pr:
+    name: Deploy PR
+    needs: gate
+    runs-on: namespace-profile-default
+    timeout-minutes: 30
+    environment: cache-staging
+    defaults:
+      run:
+        working-directory: cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.pr_sha }}
+      - uses: 1password/install-cli-action@v2
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cache
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
+      - name: Deploy with Kamal
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+          SECRETS: ${{ secrets.CACHE_KAMAL_SECRETS }}
+        run: mise run deploy "staging"
+
+  test:
+    name: Test (${{ matrix.region }})
+    needs: [gate, deploy-pr]
+    runs-on: namespace-profile-default
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - region: eu-central
+            cache_host: cache-eu-central-staging.tuist.dev
+          - region: us-east
+            cache_host: cache-us-east-staging.tuist.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: grafana/setup-k6-action@v1
+      - name: Generate fixtures
+        run: |
+          mkdir -p cache/k6/fixtures
+          dd if=/dev/urandom of=cache/k6/fixtures/10kb.bin bs=1024 count=10 2>/dev/null
+          dd if=/dev/urandom of=cache/k6/fixtures/256kb.bin bs=1024 count=256 2>/dev/null
+          dd if=/dev/urandom of=cache/k6/fixtures/2mb.bin bs=$((1024*1024)) count=2 2>/dev/null
+          dd if=/dev/urandom of=cache/k6/fixtures/10mb.bin bs=$((1024*1024)) count=10 2>/dev/null
+          dd if=/dev/urandom of=cache/k6/fixtures/25mb.bin bs=$((1024*1024)) count=25 2>/dev/null
+          dd if=/dev/urandom of=cache/k6/fixtures/50mb.bin bs=$((1024*1024)) count=50 2>/dev/null
+      - name: Run k6
+        working-directory: cache/k6
+        run: |
+          k6 run src/main.ts \
+            -e CACHE_HOST=${{ matrix.cache_host }} \
+            -e SERVER_URL=https://staging.tuist.dev \
+            -e REGION=${{ matrix.region }} \
+            -e RUN_ID="lt-pr-${{ needs.gate.outputs.pr_number }}-${{ github.run_id }}-${{ matrix.region }}" \
+            -e COMMIT_SHA=${{ needs.gate.outputs.pr_sha }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-result-${{ matrix.region }}
+          path: cache/k6/result.json
+          retention-days: 30
+
+  compare:
+    name: Compare
+    needs: [gate, test]
+    if: always() && needs.gate.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      verdict: ${{ steps.compare.outputs.verdict }}
+    steps:
+      - name: Download PR results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: k6-result-*
+          merge-multiple: false
+
+      - name: Download baseline
+        id: baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_ID=$(gh api "/repos/${{ github.repository }}/actions/workflows/cache-load-test-baseline.yml/runs?status=success&branch=main&per_page=1" --jq '.workflow_runs[0].id // empty')
+          if [ -z "$RUN_ID" ]; then
+            echo "has_baseline=false" >> "$GITHUB_OUTPUT"
+            echo "No baseline found"
+            exit 0
+          fi
+          gh run download "$RUN_ID" -n cache-load-test-baseline -D baseline
+          echo "has_baseline=true" >> "$GITHUB_OUTPUT"
+
+      - name: Compare results
+        id: compare
+        env:
+          PR_SHA: ${{ needs.gate.outputs.pr_sha }}
+          MAIN_SHA: ${{ needs.gate.outputs.main_sha }}
+          HAS_BASELINE: ${{ steps.baseline.outputs.has_baseline }}
+        run: |
+          set -euo pipefail
+
+          THRESHOLD="1.03"
+          THROUGHPUT_THRESHOLD="0.97"
+          VERDICT="pass"
+          REGRESSIONS=""
+          SUMMARY=""
+
+          compare_metric() {
+            local region="$1" pr_file="$2" baseline_file="$3" metric="$4"
+
+            local pr_p50 pr_p95 pr_p99 pr_throughput pr_error_rate
+            local base_p50 base_p95 base_p99 base_throughput
+
+            pr_p50=$(jq -r ".metrics[\"$metric\"].p50 // 0" "$pr_file")
+            pr_p95=$(jq -r ".metrics[\"$metric\"].p95 // 0" "$pr_file")
+            pr_p99=$(jq -r ".metrics[\"$metric\"].p99 // 0" "$pr_file")
+            pr_throughput=$(jq -r ".metrics[\"$metric\"].throughput // 0" "$pr_file")
+            pr_error_rate=$(jq -r ".metrics[\"$metric\"].error_rate // 0" "$pr_file")
+
+            # Error rate: any > 0 is a fail
+            if [ "$(echo "$pr_error_rate > 0" | bc -l)" -eq 1 ]; then
+              local pct
+              pct=$(printf "%.2f" "$(echo "$pr_error_rate * 100" | bc -l)")
+              REGRESSIONS="${REGRESSIONS}| ${region} | ${metric} | error_rate | 0% | ${pct}% | - | ❌ |
+          "
+              VERDICT="fail"
+            fi
+
+            if [ "$HAS_BASELINE" != "true" ]; then
+              SUMMARY="${SUMMARY}| ${region} | ${metric} | $(printf '%.2f' "$pr_p50") | $(printf '%.2f' "$pr_p95") | $(printf '%.2f' "$pr_p99") | $(printf '%.1f' "$pr_throughput") | $(printf '%.2f' "$(echo "$pr_error_rate * 100" | bc -l)")% |
+          "
+              return
+            fi
+
+            base_p50=$(jq -r ".metrics[\"$metric\"].p50 // 0" "$baseline_file")
+            base_p95=$(jq -r ".metrics[\"$metric\"].p95 // 0" "$baseline_file")
+            base_p99=$(jq -r ".metrics[\"$metric\"].p99 // 0" "$baseline_file")
+            base_throughput=$(jq -r ".metrics[\"$metric\"].throughput // 0" "$baseline_file")
+
+            # Latency checks: p50, p95, p99
+            for pct_name in p50 p95 p99; do
+              local pr_val base_val
+              eval "pr_val=\$pr_$pct_name"
+              eval "base_val=\$base_$pct_name"
+
+              if [ "$(echo "$base_val > 0" | bc -l)" -eq 1 ]; then
+                if [ "$(echo "$pr_val > $base_val * $THRESHOLD" | bc -l)" -eq 1 ]; then
+                  local delta
+                  delta=$(printf "%.1f" "$(echo "($pr_val / $base_val - 1) * 100" | bc -l)")
+                  REGRESSIONS="${REGRESSIONS}| ${region} | ${metric} | ${pct_name} | $(printf '%.2f' "$base_val")ms | $(printf '%.2f' "$pr_val")ms | +${delta}% | ❌ |
+          "
+                  VERDICT="fail"
+                fi
+              fi
+            done
+
+            # Throughput check
+            if [ "$(echo "$base_throughput > 0" | bc -l)" -eq 1 ]; then
+              if [ "$(echo "$pr_throughput < $base_throughput * $THROUGHPUT_THRESHOLD" | bc -l)" -eq 1 ]; then
+                local delta
+                delta=$(printf "%.1f" "$(echo "(1 - $pr_throughput / $base_throughput) * 100" | bc -l)")
+                REGRESSIONS="${REGRESSIONS}| ${region} | ${metric} | throughput | $(printf '%.1f' "$base_throughput")/s | $(printf '%.1f' "$pr_throughput")/s | -${delta}% | ❌ |
+          "
+                VERDICT="fail"
+              fi
+            fi
+
+            SUMMARY="${SUMMARY}| ${region} | ${metric} | $(printf '%.2f' "$pr_p50") | $(printf '%.2f' "$pr_p95") | $(printf '%.2f' "$pr_p99") | $(printf '%.1f' "$pr_throughput") | $(printf '%.2f' "$(echo "$pr_error_rate * 100" | bc -l)")% |
+          "
+          }
+
+          # Compare each region
+          for region in eu-central us-east; do
+            PR_FILE="k6-result-${region}/result.json"
+            BASELINE_FILE="baseline/${region}.json"
+
+            if [ ! -f "$PR_FILE" ]; then
+              echo "Warning: no result for region $region"
+              VERDICT="fail"
+              continue
+            fi
+
+            METRICS=$(jq -r '.metrics | keys[]' "$PR_FILE")
+            for metric in $METRICS; do
+              compare_metric "$region" "$PR_FILE" "$BASELINE_FILE" "$metric"
+            done
+          done
+
+          # Build report
+          REPORT="<!-- cache-load-test -->
+          ## Cache Load Test
+          "
+
+          if [ "$VERDICT" = "fail" ]; then
+            REPORT="${REPORT}
+          **Status:** ❌ Regression detected"
+          else
+            REPORT="${REPORT}
+          **Status:** ✅ Passed"
+          fi
+
+          REPORT="${REPORT}
+          **PR SHA:** \`${PR_SHA}\`
+          **Baseline:** \`main\` @ \`${MAIN_SHA}\`
+          **Workflow:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          "
+
+          if [ -n "$REGRESSIONS" ]; then
+            REPORT="${REPORT}
+          ### Regressions
+          | Region | Metric | Check | Baseline | PR | Delta | Status |
+          |---|---|---|---:|---:|---:|---|
+          ${REGRESSIONS}"
+          fi
+
+          REPORT="${REPORT}
+          ### Summary
+          | Region | Metric | p50 (ms) | p95 (ms) | p99 (ms) | Throughput | Error Rate |
+          |---|---|---:|---:|---:|---:|---:|
+          ${SUMMARY}"
+
+          # Save outputs
+          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+
+          # Save report for comment job (use a file to handle multiline)
+          echo "$REPORT" > report.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-report
+          path: report.md
+          retention-days: 30
+
+  restore:
+    name: Restore main
+    needs: [gate, deploy-pr, test, compare]
+    if: always() && needs.gate.result == 'success'
+    runs-on: namespace-profile-default
+    timeout-minutes: 30
+    environment: cache-staging
+    defaults:
+      run:
+        working-directory: cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.main_sha }}
+      - uses: 1password/install-cli-action@v2
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cache
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
+      - name: Deploy main with Kamal
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+          SECRETS: ${{ secrets.CACHE_KAMAL_SECRETS }}
+        run: mise run deploy "staging"
+
+  comment:
+    name: Update PR comment
+    needs: [gate, deploy-pr, test, compare, restore]
+    if: always() && needs.gate.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download report
+        uses: actions/download-artifact@v4
+        with:
+          name: load-test-report
+        continue-on-error: true
+
+      - name: Update PR comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.gate.outputs.pr_number }}
+          PR_SHA: ${{ needs.gate.outputs.pr_sha }}
+          VERDICT: ${{ needs.compare.outputs.verdict }}
+          TEST_RESULT: ${{ needs.test.result }}
+          COMPARE_RESULT: ${{ needs.compare.result }}
+          RESTORE_RESULT: ${{ needs.restore.result }}
+        run: |
+          set -euo pipefail
+          MARKER="<!-- cache-load-test -->"
+
+          if [ -f report.md ]; then
+            BODY=$(cat report.md)
+          else
+            # Fallback if report wasn't generated
+            if [ "$TEST_RESULT" = "failure" ]; then
+              STATUS="❌ Test execution failed"
+            elif [ "$COMPARE_RESULT" = "failure" ]; then
+              STATUS="❌ Comparison failed"
+            elif [ "$VERDICT" = "fail" ]; then
+              STATUS="❌ Regression detected"
+            elif [ "$VERDICT" = "pass" ]; then
+              STATUS="✅ Passed"
+            else
+              STATUS="⚠️ Unknown (check workflow logs)"
+            fi
+
+            BODY="${MARKER}
+          ## Cache Load Test
+
+          **Status:** ${STATUS}
+          **PR SHA:** \`${PR_SHA}\`
+          **Workflow:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+          fi
+
+          COMMENT_ID=$(gh api "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" --paginate --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -1)
+
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" -X PATCH -f body="$BODY"
+          else
+            gh api "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" -f body="$BODY"
+          fi
+
+      - name: Fail on regression
+        if: needs.compare.outputs.verdict == 'fail' || needs.test.result == 'failure'
+        run: |
+          echo "::error::Load test detected regressions or test failures"
+          exit 1
