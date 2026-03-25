@@ -633,10 +633,8 @@
       height: auto;
     }
 
-    & [data-part="hero-card"][data-variant="dashboard"],
-    & [data-part="hero-card"][data-variant="dashboard"]:link,
-    & [data-part="hero-card"][data-variant="dashboard"]:visited {
-      height: 230px;
+    & a[data-part="hero-card"][data-variant="dashboard"] {
+      max-height: 230px;
     }
 
     & [data-part="feature-cards"] {
