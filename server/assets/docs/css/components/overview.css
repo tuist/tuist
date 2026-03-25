@@ -631,6 +631,10 @@
       height: auto;
     }
 
+    & [data-part="hero-card"][data-variant="dashboard"] {
+      height: 230px;
+    }
+
     & [data-part="feature-cards"] {
       flex-direction: column;
     }
