@@ -142,6 +142,47 @@ struct TestShowCommandServiceTests {
         #expect(ui().contains("Run:          run-id"))
     }
 
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedNoora
+    ) func run_with_selective_testing_data() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testRun = ServerTestRun.test(
+            scheme: "App",
+            selectiveTestingLocalHits: 10,
+            selectiveTestingRemoteHits: 5,
+            selectiveTestingTargets: 20,
+            totalTestCount: 100
+        )
+        given(getTestRunService).getTestRun(
+            fullHandle: .value(fullHandle),
+            testRunId: .value("run-789"),
+            serverURL: .value(serverURL)
+        ).willReturn(testRun)
+
+        // When
+        try await subject.run(
+            project: nil,
+            testRunId: "run-789",
+            path: nil,
+            json: false
+        )
+
+        // Then
+        #expect(ui().contains("Selective Testing"))
+        #expect(ui().contains("Targets:      20"))
+        #expect(ui().contains("Local Hits:   10"))
+        #expect(ui().contains("Remote Hits:  5"))
+        #expect(ui().contains("Misses:       5"))
+        #expect(ui().contains("Effectiveness: 75%"))
+    }
+
     @Test(.withMockedEnvironment(), .withMockedNoora) func run_with_explicit_project_handle() async throws {
         // Given
         let configFullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
