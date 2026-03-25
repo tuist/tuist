@@ -364,6 +364,14 @@ components:
       type: integer
       x-struct:
       x-validate:
+    SelectiveTestingTargetsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: SelectiveTestingTargetsPage
+      type: integer
+      x-struct:
+      x-validate:
     CommandEvent:
       description: A command event.
       example:
@@ -1180,6 +1188,15 @@ components:
       maximum: 100
       minimum: 1
       title: TestSuiteRunsPageSize
+      type: integer
+      x-struct:
+      x-validate:
+    SelectiveTestingTargetsPageSize:
+      default: 20
+      description: The maximum number of targets to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: SelectiveTestingTargetsPageSize
       type: integer
       x-struct:
       x-validate:
@@ -5152,6 +5169,15 @@ components:
       title: RunsTest
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.Test
+      x-validate:
+    SelectiveTestingHitStatus:
+      enum:
+        - miss
+        - local
+        - remote
+      title: SelectiveTestingHitStatus
+      type: string
+      x-struct:
       x-validate:
     PaginationMetadata:
       description: Pagination metadata.
@@ -13831,6 +13857,136 @@ paths:
       summary: List test case runs.
       tags:
         - Test Case Runs
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets:
+    get:
+      callbacks: {}
+      operationId: listSelectiveTestingTargets
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by selective testing hit status.
+          in: query
+          name: hit_status
+          required: false
+          schema:
+            enum:
+              - miss
+              - local
+              - remote
+            title: SelectiveTestingHitStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: SelectiveTestingTargetsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of targets to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: SelectiveTestingTargetsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  targets:
+                    items:
+                      properties:
+                        hash:
+                          description: The selective testing hash.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        hit_status:
+                          description: Selective testing hit status.
+                          enum:
+                            - miss
+                            - local
+                            - remote
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The test target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - hit_status
+                        - hash
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - targets
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of selective testing targets
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test run not found
+      summary: List selective testing targets for a test run.
+      tags:
+        - Tests
   /api/cache/exists:
     get:
       callbacks: {}

@@ -472,6 +472,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/get(listTestCaseRuns)`.
     func listTestCaseRuns(_ input: Operations.listTestCaseRuns.Input) async throws -> Operations.listTestCaseRuns.Output
+    /// List selective testing targets for a test run.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/get(listSelectiveTestingTargets)`.
+    func listSelectiveTestingTargets(_ input: Operations.listSelectiveTestingTargets.Input) async throws -> Operations.listSelectiveTestingTargets.Output
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -1771,6 +1776,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// List selective testing targets for a test run.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/get(listSelectiveTestingTargets)`.
+    public func listSelectiveTestingTargets(
+        path: Operations.listSelectiveTestingTargets.Input.Path,
+        query: Operations.listSelectiveTestingTargets.Input.Query = .init(),
+        headers: Operations.listSelectiveTestingTargets.Input.Headers = .init()
+    ) async throws -> Operations.listSelectiveTestingTargets.Output {
+        try await listSelectiveTestingTargets(Operations.listSelectiveTestingTargets.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -2672,6 +2692,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GradleTasksIndexPage`.
         public typealias GradleTasksIndexPage = Swift.Int
+        /// The page number to return.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SelectiveTestingTargetsPage`.
+        public typealias SelectiveTestingTargetsPage = Swift.Int
         /// A command event.
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEvent`.
@@ -3861,6 +3885,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestSuiteRunsPageSize`.
         public typealias TestSuiteRunsPageSize = Swift.Int
+        /// The maximum number of targets to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SelectiveTestingTargetsPageSize`.
+        public typealias SelectiveTestingTargetsPageSize = Swift.Int
         /// - Remark: Generated from `#/components/schemas/Invitation`.
         public struct Invitation: Codable, Hashable, Sendable {
             /// The invitation's unique identifier
@@ -9572,6 +9600,12 @@ public enum Components {
                 case _type = "type"
                 case url
             }
+        }
+        /// - Remark: Generated from `#/components/schemas/SelectiveTestingHitStatus`.
+        @frozen public enum SelectiveTestingHitStatus: String, Codable, Hashable, Sendable, CaseIterable {
+            case miss = "miss"
+            case local = "local"
+            case remote = "remote"
         }
         /// Pagination metadata.
         ///
@@ -36962,6 +36996,362 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List selective testing targets for a test run.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/get(listSelectiveTestingTargets)`.
+    public enum listSelectiveTestingTargets {
+        public static let id: Swift.String = "listSelectiveTestingTargets"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the test run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/path/test_run_id`.
+                public var test_run_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - test_run_id: The ID of the test run.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    test_run_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.test_run_id = test_run_id
+                }
+            }
+            public var path: Operations.listSelectiveTestingTargets.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/query/hit_status`.
+                @frozen public enum hit_statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case miss = "miss"
+                    case local = "local"
+                    case remote = "remote"
+                }
+                /// Filter by selective testing hit status.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/query/hit_status`.
+                public var hit_status: Operations.listSelectiveTestingTargets.Input.Query.hit_statusPayload?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - hit_status: Filter by selective testing hit status.
+                ///   - page:
+                ///   - page_size:
+                public init(
+                    hit_status: Operations.listSelectiveTestingTargets.Input.Query.hit_statusPayload? = nil,
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil
+                ) {
+                    self.hit_status = hit_status
+                    self.page = page
+                    self.page_size = page_size
+                }
+            }
+            public var query: Operations.listSelectiveTestingTargets.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listSelectiveTestingTargets.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listSelectiveTestingTargets.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listSelectiveTestingTargets.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listSelectiveTestingTargets.Input.Path,
+                query: Operations.listSelectiveTestingTargets.Input.Query = .init(),
+                headers: Operations.listSelectiveTestingTargets.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content/json/targetsPayload`.
+                        public struct targetsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The selective testing hash.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content/json/targetsPayload/hash`.
+                            public var hash: Swift.String
+                            /// Selective testing hit status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content/json/targetsPayload/hit_status`.
+                            @frozen public enum hit_statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case miss = "miss"
+                                case local = "local"
+                                case remote = "remote"
+                            }
+                            /// Selective testing hit status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content/json/targetsPayload/hit_status`.
+                            public var hit_status: Operations.listSelectiveTestingTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.hit_statusPayload
+                            /// The test target name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content/json/targetsPayload/name`.
+                            public var name: Swift.String
+                            /// Creates a new `targetsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - hash: The selective testing hash.
+                            ///   - hit_status: Selective testing hit status.
+                            ///   - name: The test target name.
+                            public init(
+                                hash: Swift.String,
+                                hit_status: Operations.listSelectiveTestingTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload.hit_statusPayload,
+                                name: Swift.String
+                            ) {
+                                self.hash = hash
+                                self.hit_status = hit_status
+                                self.name = name
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case hash
+                                case hit_status
+                                case name
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content/json/targets`.
+                        public typealias targetsPayload = [Operations.listSelectiveTestingTargets.Output.Ok.Body.jsonPayload.targetsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content/json/targets`.
+                        public var targets: Operations.listSelectiveTestingTargets.Output.Ok.Body.jsonPayload.targetsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - pagination_metadata:
+                        ///   - targets:
+                        public init(
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            targets: Operations.listSelectiveTestingTargets.Output.Ok.Body.jsonPayload.targetsPayload
+                        ) {
+                            self.pagination_metadata = pagination_metadata
+                            self.targets = targets
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
+                            case targets
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/200/content/application\/json`.
+                    case json(Operations.listSelectiveTestingTargets.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listSelectiveTestingTargets.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSelectiveTestingTargets.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSelectiveTestingTargets.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of selective testing targets
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/get(listSelectiveTestingTargets)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listSelectiveTestingTargets.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listSelectiveTestingTargets.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSelectiveTestingTargets.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSelectiveTestingTargets.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/get(listSelectiveTestingTargets)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listSelectiveTestingTargets.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listSelectiveTestingTargets.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSelectiveTestingTargets.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSelectiveTestingTargets.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Test run not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/selective-testing-targets/get(listSelectiveTestingTargets)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listSelectiveTestingTargets.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listSelectiveTestingTargets.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }

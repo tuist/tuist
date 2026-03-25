@@ -8,7 +8,7 @@ description: Analyzes Xcode selective testing effectiveness for a test run, show
 ## Quick Start
 
 1. Run `tuist test list --json` to find test runs.
-2. Use the MCP `list_xcode_selective_testing_targets` tool to drill into per-target selective testing status.
+2. Run `tuist test selective-testing list <test-run-id> --json` to see per-target selective testing status.
 3. If effectiveness dropped, compare targets between a known-good run and the regressed run.
 
 ## Step 1: Resolve Test Runs
@@ -37,7 +37,11 @@ Use this to confirm the run's branch, status, scheme, and environment (`xcode_ve
 
 ## Step 2: Drill Into Selective Testing Targets
 
-Use the MCP `list_xcode_selective_testing_targets` tool (available via the Tuist MCP server) to see per-target selective testing data for a test run.
+List per-target selective testing data for a test run:
+
+```bash
+tuist test selective-testing list <test-run-id> --json
+```
 
 Each target includes:
 - **name**: The test target name
@@ -45,8 +49,12 @@ Each target includes:
 - **hash**: The selective testing hash for this target
 
 Filter by status to focus your analysis:
-- `hit_status=miss` — targets that actually ran (were selected for testing)
-- `hit_status=local` or `hit_status=remote` — targets that were skipped
+
+```bash
+tuist test selective-testing list <test-run-id> --hit-status miss --json
+tuist test selective-testing list <test-run-id> --hit-status local --json
+tuist test selective-testing list <test-run-id> --hit-status remote --json
+```
 
 ### Assess effectiveness
 
@@ -82,16 +90,16 @@ Note: Tuist CLI version upgrades rarely cause hash invalidation — the hash ver
 
 If only some targets show as `miss`, a dependency change likely cascaded:
 
-1. Use `list_xcode_selective_testing_targets` for both the good and bad runs.
+1. Run `tuist test selective-testing list <good-run-id> --json` and `tuist test selective-testing list <bad-run-id> --json`.
 2. Match targets by name — identify those that changed from `local`/`remote` to `miss`.
 3. Compare hashes for changed targets — if a target's hash differs, its sources or dependencies changed.
 4. Look for a common dependency among the invalidated targets.
 
 ### Compare two test runs
 
-Use `list_xcode_selective_testing_targets` for both a known-good run and the regressed run. For each target:
+For each target:
 - Match by `name`
-- Compare `hit_status` (hit → miss = invalidated, miss → hit = improved)
+- Compare `hit_status` (hit -> miss = invalidated, miss -> hit = improved)
 - Compare `hash` (different hash = target or its dependencies changed)
 
 ## Step 4: Recommendations
@@ -137,7 +145,7 @@ Recommendations:
 ## Done Checklist
 
 - Identified the test run(s) to analyze
-- Drilled into per-target selective testing status
+- Drilled into per-target selective testing status via `tuist test selective-testing list`
 - Diagnosed root cause if effectiveness is low
 - Compared targets with baseline if regression detected
 - Provided actionable recommendations
