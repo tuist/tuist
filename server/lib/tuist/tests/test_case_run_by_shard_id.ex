@@ -23,5 +23,6 @@ defmodule Tuist.Tests.TestCaseRunByShardId do
     field :is_new, :boolean, default: false
     field :duration, Ch, type: "Int32"
     field :shard_index, Ch, type: "Nullable(Int32)"
+    field :project_id, Ch, type: "Int64"
   end
 end
