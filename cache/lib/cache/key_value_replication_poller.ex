@@ -363,7 +363,7 @@ defmodule Cache.KeyValueReplicationPoller do
     :telemetry.execute(
       @local_store_event,
       %{size_bytes: size_bytes},
-      %{node: Config.distributed_kv_node_name(), region: System.get_env("DEPLOY_REGION") || "unknown"}
+      %{node: Config.distributed_kv_node_name(), region: Config.deploy_region()}
     )
   end
 

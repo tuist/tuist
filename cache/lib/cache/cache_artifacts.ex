@@ -46,9 +46,10 @@ defmodule Cache.CacheArtifacts do
   """
 
   def delete_by_project(account_handle, project_handle) do
-    prefix = "#{account_handle}/#{project_handle}/%"
+    prefix = "#{account_handle}/#{project_handle}/"
+    prefix_upper_bound = prefix <> "\xFF"
 
-    Repo.delete_all(from(a in CacheArtifact, where: like(a.key, ^prefix)))
+    Repo.delete_all(from(a in CacheArtifact, where: a.key >= ^prefix and a.key < ^prefix_upper_bound))
     :ok
   end
 

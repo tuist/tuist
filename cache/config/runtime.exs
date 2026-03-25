@@ -201,7 +201,8 @@ if config_env() == :prod do
     distributed_kv_cleanup_lease_ms: String.to_integer(System.get_env("DISTRIBUTED_KV_CLEANUP_LEASE_MS") || "300000"),
     distributed_kv_cleanup_discovery_interval_ms:
       String.to_integer(System.get_env("DISTRIBUTED_KV_CLEANUP_DISCOVERY_INTERVAL_MS") || "30000"),
-    distributed_kv_node_name: System.get_env("DISTRIBUTED_KV_NODE_NAME") || System.get_env("HOSTNAME")
+    distributed_kv_node_name: System.get_env("DISTRIBUTED_KV_NODE_NAME") || System.get_env("HOSTNAME"),
+    deploy_region: System.get_env("DEPLOY_REGION")
 
   # Note: connect_options cannot be used with Finch
   # Connection settings are handled at the Finch pool level

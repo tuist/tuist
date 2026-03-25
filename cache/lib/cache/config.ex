@@ -197,6 +197,10 @@ defmodule Cache.Config do
     Application.get_env(:cache, :distributed_kv_node_name) || cache_endpoint()
   end
 
+  def deploy_region do
+    Application.get_env(:cache, :deploy_region, "unknown")
+  end
+
   def key_value_read_busy_timeout_ms do
     Application.get_env(:cache, :key_value_read_busy_timeout_ms, 2_000)
   end

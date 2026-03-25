@@ -257,7 +257,9 @@ defmodule Cache.DistributedKV.Cleanup do
           {project.account_handle, project.project_handle, project.published_cleanup_cutoff_at}
         )
         |> Repo.all(timeout: Config.distributed_kv_database_timeout_ms())
-        |> Map.new(fn {ah, ph, cutoff} -> {{ah, ph}, truncate_or_nil(cutoff)} end)
+        |> Map.new(fn {account_handle, project_handle, cutoff} ->
+          {{account_handle, project_handle}, truncate_or_nil(cutoff)}
+        end)
     end
   end
 
