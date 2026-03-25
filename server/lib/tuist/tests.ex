@@ -654,36 +654,53 @@ defmodule Tuist.Tests do
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
   def list_test_case_runs(attrs, opts \\ []) do
-    base_query =
-      case extract_mv_scope_filter(attrs) do
-        {:test_run_id, test_run_id} ->
-          mv_ids =
-            from(mv in TestCaseRunByTestRun,
-              where: mv.test_run_id == ^test_run_id,
-              select: mv.id
-            )
-
-          from(tcr in TestCaseRun, where: tcr.id in subquery(mv_ids))
-
-        {:shard_id, shard_id} ->
-          mv_ids =
-            from(mv in TestCaseRunByShardId,
-              where: mv.shard_id == ^shard_id,
-              select: mv.id
-            )
-
-          from(tcr in TestCaseRun, where: tcr.id in subquery(mv_ids))
-
-        nil ->
-          from(tcr in TestCaseRun)
-      end
-
     preloads = Keyword.get(opts, :preload, [])
 
+    case extract_mv_scope_filter(attrs) do
+      {:shard_id, _shard_id} ->
+        list_test_case_runs_via_shard_mv(attrs, preloads)
+
+      {:test_run_id, test_run_id} ->
+        mv_ids =
+          from(mv in TestCaseRunByTestRun,
+            where: mv.test_run_id == ^test_run_id,
+            select: mv.id
+          )
+
+        base_query = from(tcr in TestCaseRun, where: tcr.id in subquery(mv_ids))
+        list_test_case_runs_from(base_query, attrs, preloads)
+
+      nil ->
+        list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
+    end
+  end
+
+  defp list_test_case_runs_from(base_query, attrs, preloads) do
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
 
     results =
       results
+      |> ClickHouseRepo.preload(preloads)
+      |> Repo.preload(:ran_by_account)
+
+    {results, meta}
+  end
+
+  defp list_test_case_runs_via_shard_mv(attrs, preloads) do
+    base_query = from(mv in TestCaseRunByShardId)
+
+    {slim_results, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByShardId)
+
+    ids = Enum.map(slim_results, & &1.id)
+
+    full_results = ClickHouseRepo.all(from(tcr in TestCaseRun, hints: ["FINAL"], where: tcr.id in ^ids))
+
+    ordered_by_id = Map.new(full_results, &{&1.id, &1})
+    ordered = ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
+
+    results =
+      ordered
       |> ClickHouseRepo.preload(preloads)
       |> Repo.preload(:ran_by_account)
 
