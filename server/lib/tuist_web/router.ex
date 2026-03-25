@@ -468,7 +468,7 @@ defmodule TuistWeb.Router do
 
           get "/:test_run_id/modules", TestModuleRunsController, :index
           get "/:test_run_id/suites", TestSuiteRunsController, :index
-          get "/:test_run_id/selective-testing-targets", SelectiveTestingTargetsController, :index
+          get "/:test_run_id/targets", SelectiveTestingTargetsController, :index
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create

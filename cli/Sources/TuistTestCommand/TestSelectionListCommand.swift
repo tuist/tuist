@@ -3,12 +3,18 @@ import Foundation
 import Path
 import TuistNooraExtension
 
-public struct TestSelectionListCommand: AsyncParsableCommand, NooraReadyCommand {
+enum SelectiveTestingHitStatus: String, ExpressibleByArgument, CaseIterable {
+    case miss
+    case local
+    case remote
+}
+
+public struct TestXcodeTargetListCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
-            abstract: "Lists selective testing targets for a test run."
+            abstract: "Lists all targets for a test run."
         )
     }
 
@@ -32,7 +38,7 @@ public struct TestSelectionListCommand: AsyncParsableCommand, NooraReadyCommand 
         name: .long,
         help: "Filter by hit status (miss, local, or remote)."
     )
-    var hitStatus: String?
+    var hitStatus: SelectiveTestingHitStatus?
 
     @Option(
         name: .long,
@@ -52,7 +58,7 @@ public struct TestSelectionListCommand: AsyncParsableCommand, NooraReadyCommand 
     public var jsonThroughNoora: Bool = true
 
     public func run() async throws {
-        try await TestSelectionListCommandService().run(
+        try await TestXcodeTargetListCommandService().run(
             fullHandle: project,
             testRunId: testRunId,
             path: path,

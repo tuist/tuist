@@ -19,8 +19,8 @@ defmodule TuistWeb.API.SelectiveTestingTargetsController do
   tags ["Tests"]
 
   operation(:index,
-    summary: "List selective testing targets for a test run.",
-    operation_id: "listSelectiveTestingTargets",
+    summary: "List targets for a test run.",
+    operation_id: "listTestTargets",
     parameters: [
       account_handle: [
         in: :path,
@@ -52,7 +52,7 @@ defmodule TuistWeb.API.SelectiveTestingTargetsController do
       page: [
         in: :query,
         type: %Schema{
-          title: "SelectiveTestingTargetsPage",
+          title: "TestTargetsPage",
           description: "The page number to return.",
           type: :integer,
           default: 1,
@@ -62,7 +62,7 @@ defmodule TuistWeb.API.SelectiveTestingTargetsController do
       page_size: [
         in: :query,
         type: %Schema{
-          title: "SelectiveTestingTargetsPageSize",
+          title: "TestTargetsPageSize",
           description: "The maximum number of targets to return in a single page.",
           type: :integer,
           default: 20,
@@ -73,7 +73,7 @@ defmodule TuistWeb.API.SelectiveTestingTargetsController do
     ],
     responses: %{
       ok:
-        {"List of selective testing targets", "application/json",
+        {"List of test targets", "application/json",
          %Schema{
            type: :object,
            properties: %{
@@ -109,8 +109,8 @@ defmodule TuistWeb.API.SelectiveTestingTargetsController do
     case Tests.get_test(test_run_id) do
       {:ok, %{project_id: project_id} = run}
       when project_id == selected_project.id ->
-        page = Map.get(params, :page, 1)
-        page_size = Map.get(params, :page_size, 20)
+        page = params.page
+        page_size = params.page_size
 
         filters =
           case Map.get(params, :hit_status) do

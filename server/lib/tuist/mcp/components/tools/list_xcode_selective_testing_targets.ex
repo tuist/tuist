@@ -1,10 +1,10 @@
-defmodule Tuist.MCP.Components.Tools.ListXcodeSelectiveTestingTargets do
+defmodule Tuist.MCP.Components.Tools.ListXcodeTestTargets do
   @moduledoc """
   List Xcode test targets with their selective testing status (hit/miss) and hash for a given test run. The test_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/tests/test-runs/{id}.
   """
 
   use Tuist.MCP.Tool,
-    name: "list_xcode_selective_testing_targets",
+    name: "list_xcode_test_targets",
     schema: %{
       "type" => "object",
       "properties" => %{

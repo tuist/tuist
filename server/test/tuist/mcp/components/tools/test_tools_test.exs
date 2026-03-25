@@ -11,7 +11,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   alias Tuist.MCP.Components.Tools.ListTestModuleRuns
   alias Tuist.MCP.Components.Tools.ListTestRuns
   alias Tuist.MCP.Components.Tools.ListTestSuiteRuns
-  alias Tuist.MCP.Components.Tools.ListXcodeSelectiveTestingTargets
+  alias Tuist.MCP.Components.Tools.ListXcodeTestTargets
   alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
@@ -485,7 +485,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
     end
   end
 
-  describe "list_xcode_selective_testing_targets" do
+  describe "list_xcode_test_targets" do
     test "returns targets with selective testing status" do
       project = %{id: 1, name: "app"}
 
@@ -517,7 +517,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} =
-               ListXcodeSelectiveTestingTargets.call(conn, %{"test_run_id" => "run-1"})
+               ListXcodeTestTargets.call(conn, %{"test_run_id" => "run-1"})
 
       result = JSON.decode!(text)
       assert length(result["targets"]) == 3
@@ -546,7 +546,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
-               ListXcodeSelectiveTestingTargets.call(conn, %{"test_run_id" => "run-1"})
+               ListXcodeTestTargets.call(conn, %{"test_run_id" => "run-1"})
 
       assert text =~ "You do not have access to this resource."
     end

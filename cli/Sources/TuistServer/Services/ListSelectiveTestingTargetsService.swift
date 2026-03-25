@@ -4,18 +4,18 @@ import OpenAPIRuntime
 import TuistHTTP
 
 @Mockable
-public protocol ListSelectiveTestingTargetsServicing: Sendable {
-    func listSelectiveTestingTargets(
+public protocol ListTestTargetsServicing: Sendable {
+    func listTestTargets(
         fullHandle: String,
         serverURL: URL,
         testRunId: String,
         hitStatus: String?,
         page: Int?,
         pageSize: Int
-    ) async throws -> Operations.listSelectiveTestingTargets.Output.Ok.Body.jsonPayload
+    ) async throws -> Operations.listTestTargets.Output.Ok.Body.jsonPayload
 }
 
-enum ListSelectiveTestingTargetsServiceError: LocalizedError {
+enum ListTestTargetsServiceError: LocalizedError {
     case unknownError(Int)
     case forbidden(String)
     case notFound(String)
@@ -23,14 +23,14 @@ enum ListSelectiveTestingTargetsServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "We could not list the selective testing targets due to an unknown Tuist response of \(statusCode)."
+            return "We could not list the test targets due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message), let .notFound(message):
             return message
         }
     }
 }
 
-public struct ListSelectiveTestingTargetsService: ListSelectiveTestingTargetsServicing {
+public struct ListTestTargetsService: ListTestTargetsServicing {
     private let fullHandleService: FullHandleServicing
 
     public init() {
@@ -45,18 +45,18 @@ public struct ListSelectiveTestingTargetsService: ListSelectiveTestingTargetsSer
         self.fullHandleService = fullHandleService
     }
 
-    public func listSelectiveTestingTargets(
+    public func listTestTargets(
         fullHandle: String,
         serverURL: URL,
         testRunId: String,
         hitStatus: String?,
         page: Int?,
         pageSize: Int
-    ) async throws -> Operations.listSelectiveTestingTargets.Output.Ok.Body.jsonPayload {
+    ) async throws -> Operations.listTestTargets.Output.Ok.Body.jsonPayload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.listSelectiveTestingTargets(
+        let response = try await client.listTestTargets(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
@@ -65,7 +65,7 @@ public struct ListSelectiveTestingTargetsService: ListSelectiveTestingTargetsSer
                 ),
                 query: .init(
                     hit_status: hitStatus.flatMap {
-                        Operations.listSelectiveTestingTargets.Input.Query.hit_statusPayload(rawValue: $0)
+                        Operations.listTestTargets.Input.Query.hit_statusPayload(rawValue: $0)
                     },
                     page: page,
                     page_size: pageSize
@@ -82,15 +82,15 @@ public struct ListSelectiveTestingTargetsService: ListSelectiveTestingTargetsSer
         case let .forbidden(forbidden):
             switch forbidden.body {
             case let .json(error):
-                throw ListSelectiveTestingTargetsServiceError.forbidden(error.message)
+                throw ListTestTargetsServiceError.forbidden(error.message)
             }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
-                throw ListSelectiveTestingTargetsServiceError.notFound(error.message)
+                throw ListTestTargetsServiceError.notFound(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw ListSelectiveTestingTargetsServiceError.unknownError(statusCode)
+            throw ListTestTargetsServiceError.unknownError(statusCode)
         }
     }
 }

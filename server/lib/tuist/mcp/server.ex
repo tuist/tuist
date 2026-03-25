@@ -32,7 +32,7 @@ defmodule Tuist.MCP.Server do
       Tuist.MCP.Components.Tools.ListCacheRuns,
       Tuist.MCP.Components.Tools.GetCacheRun,
       Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets,
-      Tuist.MCP.Components.Tools.ListXcodeSelectiveTestingTargets,
+      Tuist.MCP.Components.Tools.ListXcodeTestTargets,
       Tuist.MCP.Components.Tools.ListProjects
     ],
     prompts: [

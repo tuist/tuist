@@ -60,7 +60,7 @@ defmodule Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting do
     - **list_projects**: List all accessible projects.
     - **list_test_runs**: List test runs for a project (supports git_branch, status, scheme filters).
     - **get_test_run**: Get detailed test run info including `xcode_selective_testing_targets`, `xcode_selective_testing_local_hits`, and `xcode_selective_testing_remote_hits`.
-    - **list_xcode_selective_testing_targets**: List per-target selective testing hit/miss status and hash for a test run. Supports `hit_status` filter (miss, local, remote).
+    - **list_xcode_test_targets**: List per-target selective testing hit/miss status and hash for a test run. Supports `hit_status` filter (miss, local, remote).
 
     ## Workflow
 
@@ -77,7 +77,7 @@ defmodule Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting do
 
     ### 3. Drill into per-target details
 
-    Use `list_xcode_selective_testing_targets` to see each target's status:
+    Use `list_xcode_test_targets` to see each target's status:
     - Filter by `hit_status=miss` to see targets that ran (were selected for testing)
     - Filter by `hit_status=local` or `hit_status=remote` to see targets that were skipped
 
@@ -88,7 +88,7 @@ defmodule Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting do
 
     ### 4. Compare with a baseline (if base provided)
 
-    If a base test run is available, use `list_xcode_selective_testing_targets` for both runs:
+    If a base test run is available, use `list_xcode_test_targets` for both runs:
     - Match targets by `name` between base and head
     - Identify targets that changed from `local`/`remote` (skipped) to `miss` (ran) — these were invalidated
     - Identify targets that changed from `miss` to `local`/`remote` — these are now cached

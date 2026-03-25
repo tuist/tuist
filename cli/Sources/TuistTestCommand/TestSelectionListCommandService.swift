@@ -6,19 +6,19 @@ import TuistEnvironment
 import TuistNooraExtension
 import TuistServer
 
-protocol TestSelectionListCommandServicing {
+protocol TestXcodeTargetListCommandServicing {
     func run(
         fullHandle: String?,
         testRunId: String,
         path: String?,
-        hitStatus: String?,
+        hitStatus: SelectiveTestingHitStatus?,
         page: Int?,
         pageSize: Int?,
         json: Bool
     ) async throws
 }
 
-enum TestSelectionListCommandServiceError: Equatable, LocalizedError {
+enum TestXcodeTargetListCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
 
     var errorDescription: String? {
@@ -29,17 +29,17 @@ enum TestSelectionListCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-struct TestSelectionListCommandService: TestSelectionListCommandServicing {
-    private let listSelectiveTestingTargetsService: ListSelectiveTestingTargetsServicing
+struct TestXcodeTargetListCommandService: TestXcodeTargetListCommandServicing {
+    private let listTestTargetsService: ListTestTargetsServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
-        listSelectiveTestingTargetsService: ListSelectiveTestingTargetsServicing = ListSelectiveTestingTargetsService(),
+        listTestTargetsService: ListTestTargetsServicing = ListTestTargetsService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
-        self.listSelectiveTestingTargetsService = listSelectiveTestingTargetsService
+        self.listTestTargetsService = listTestTargetsService
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
@@ -48,7 +48,7 @@ struct TestSelectionListCommandService: TestSelectionListCommandServicing {
         fullHandle: String?,
         testRunId: String,
         path: String?,
-        hitStatus: String?,
+        hitStatus: SelectiveTestingHitStatus?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -57,7 +57,7 @@ struct TestSelectionListCommandService: TestSelectionListCommandServicing {
 
         let config = try await configLoader.loadConfig(path: directoryPath)
         guard let resolvedFullHandle = fullHandle ?? config.fullHandle else {
-            throw TestSelectionListCommandServiceError.missingFullHandle
+            throw TestXcodeTargetListCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -65,11 +65,12 @@ struct TestSelectionListCommandService: TestSelectionListCommandServicing {
         let startPage = (page ?? 1) - 1
         let pageSize = pageSize ?? 10
 
-        let initialPage = try await listSelectiveTestingTargetsService.listSelectiveTestingTargets(
+        let hitStatusRawValue = hitStatus?.rawValue
+        let initialPage = try await listTestTargetsService.listTestTargets(
             fullHandle: resolvedFullHandle,
             serverURL: serverURL,
             testRunId: testRunId,
-            hitStatus: hitStatus,
+            hitStatus: hitStatusRawValue,
             page: startPage + 1,
             pageSize: pageSize
         )
@@ -105,11 +106,11 @@ struct TestSelectionListCommandService: TestSelectionListCommandServicing {
                 if pageIndex == startPage {
                     return initialRows
                 }
-                let targetPage = try await listSelectiveTestingTargetsService.listSelectiveTestingTargets(
+                let targetPage = try await listTestTargetsService.listTestTargets(
                     fullHandle: resolvedFullHandle,
                     serverURL: serverURL,
                     testRunId: testRunId,
-                    hitStatus: hitStatus,
+                    hitStatus: hitStatusRawValue,
                     page: pageIndex + 1,
                     pageSize: pageSize
                 )
