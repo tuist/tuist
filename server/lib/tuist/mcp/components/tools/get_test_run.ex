@@ -34,6 +34,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
              "Test run not found: #{test_run_id}"
            ) do
       metrics = Analytics.get_test_run_metrics(run.id)
+      selective_testing = Analytics.get_test_run_selective_testing_metrics(run.id)
 
       {:ok,
        %{
@@ -49,7 +50,10 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
          total_test_count: metrics.total_count,
          failed_test_count: metrics.failed_count,
          flaky_test_count: metrics.flaky_count,
-         avg_test_duration: metrics.avg_duration
+         avg_test_duration: metrics.avg_duration,
+         xcode_selective_testing_targets: selective_testing.xcode_selective_testing_targets,
+         selective_testing_local_hits: selective_testing.selective_testing_local_hits,
+         selective_testing_remote_hits: selective_testing.selective_testing_remote_hits
        }}
     end
   end

@@ -95,6 +95,9 @@ public struct GetTestRunService: GetTestRunServicing {
             modelIdentifier: String? = "MacBookPro18,3",
             ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
             scheme: String? = "App",
+            selectiveTestingLocalHits: Int = 0,
+            selectiveTestingRemoteHits: Int = 0,
+            xcodeSelectiveTestingTargets: Int = 0,
             status: Operations.getTestRun.Output.Ok.Body.jsonPayload.statusPayload = .success,
             totalTestCount: Int = 42,
             xcodeVersion: String? = "15.0"
@@ -114,8 +117,11 @@ public struct GetTestRunService: GetTestRunServicing {
                 model_identifier: modelIdentifier,
                 ran_at: ranAt,
                 scheme: scheme,
+                selective_testing_local_hits: selectiveTestingLocalHits,
+                selective_testing_remote_hits: selectiveTestingRemoteHits,
                 status: status,
                 total_test_count: totalTestCount,
+                xcode_selective_testing_targets: xcodeSelectiveTestingTargets,
                 xcode_version: xcodeVersion
             )
         }

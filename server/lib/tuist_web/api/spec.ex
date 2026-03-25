@@ -9,14 +9,12 @@ defmodule TuistWeb.API.Spec do
   alias OpenApiSpex.OpenApi
   alias OpenApiSpex.Paths
   alias OpenApiSpex.SecurityScheme
-  alias OpenApiSpex.Server
-  alias TuistWeb.Endpoint
   alias TuistWeb.Router
 
   @impl OpenApi
   def spec do
     OpenApiSpex.resolve_schema_modules(%OpenApi{
-      servers: [Server.from_endpoint(Endpoint)],
+      servers: [],
       info: %Info{
         title: "Tuist",
         version: "0.1.0",
