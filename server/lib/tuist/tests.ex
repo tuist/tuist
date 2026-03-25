@@ -40,6 +40,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
@@ -194,7 +195,7 @@ defmodule Tuist.Tests do
 
   def get_test_run_failures_count(test_run_id) do
     query =
-      from tcr in TestCaseRun,
+      from tcr in TestCaseRunByTestRun,
         where: tcr.test_run_id == ^test_run_id and tcr.status == "failure",
         select: count(tcr.id)
 
@@ -652,7 +653,21 @@ defmodule Tuist.Tests do
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
   def list_test_case_runs(attrs, opts \\ []) do
-    base_query = from(tcr in TestCaseRun)
+    base_query =
+      case extract_test_run_id_filter(attrs) do
+        nil ->
+          from(tcr in TestCaseRun)
+
+        test_run_id ->
+          mv_ids =
+            from(mv in TestCaseRunByTestRun,
+              where: mv.test_run_id == ^test_run_id,
+              select: mv.id
+            )
+
+          from(tcr in TestCaseRun, where: tcr.id in subquery(mv_ids))
+      end
+
     preloads = Keyword.get(opts, :preload, [])
 
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
@@ -664,6 +679,24 @@ defmodule Tuist.Tests do
 
     {results, meta}
   end
+
+  defp extract_test_run_id_filter(%{filters: filters}) when is_list(filters) do
+    Enum.find_value(filters, fn
+      %{field: :test_run_id, op: :==, value: value} -> value
+      _ -> nil
+    end)
+  end
+
+  defp extract_test_run_id_filter(%Flop{} = flop) do
+    flop.filters
+    |> List.wrap()
+    |> Enum.find_value(fn
+      %Flop.Filter{field: :test_run_id, op: :==, value: value} -> value
+      _ -> nil
+    end)
+  end
+
+  defp extract_test_run_id_filter(_), do: nil
 
   @doc """
   Gets a test case run by its UUID.
