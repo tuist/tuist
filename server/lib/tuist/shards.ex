@@ -238,13 +238,17 @@ defmodule Tuist.Shards do
   defp fetch_timing_data(project, "module") do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
+    matching_run_ids =
+      from(t in Test,
+        where: t.project_id == ^project.id,
+        where: t.is_ci == true,
+        where: t.git_branch == ^project.default_branch,
+        where: t.ran_at >= ^cutoff,
+        select: t.id
+      )
+
     from(mr in TestModuleRun,
-      join: t in Test,
-      on: mr.test_run_id == t.id,
-      where: t.project_id == ^project.id,
-      where: t.is_ci == true,
-      where: t.git_branch == ^project.default_branch,
-      where: t.ran_at >= ^cutoff,
+      where: mr.test_run_id in subquery(matching_run_ids),
       group_by: mr.name,
       select: %{name: mr.name, avg_duration: fragment("avg(?)", mr.duration)}
     )
@@ -255,13 +259,17 @@ defmodule Tuist.Shards do
   defp fetch_timing_data(project, "suite") do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
+    matching_run_ids =
+      from(t in Test,
+        where: t.project_id == ^project.id,
+        where: t.is_ci == true,
+        where: t.git_branch == ^project.default_branch,
+        where: t.ran_at >= ^cutoff,
+        select: t.id
+      )
+
     from(sr in TestSuiteRun,
-      join: t in Test,
-      on: sr.test_run_id == t.id,
-      where: t.project_id == ^project.id,
-      where: t.is_ci == true,
-      where: t.git_branch == ^project.default_branch,
-      where: t.ran_at >= ^cutoff,
+      where: sr.test_run_id in subquery(matching_run_ids),
       group_by: sr.name,
       select: %{name: sr.name, avg_duration: fragment("avg(?)", sr.duration)}
     )
