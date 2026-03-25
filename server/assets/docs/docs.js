@@ -25,16 +25,16 @@ topbar.config({
   barColors: { 0: "#29d" },
   shadowColor: "rgba(0, 0, 0, .3)",
 });
-window.addEventListener("phx:page-loading-start", (_info) => {
-  topbar.show(300);
+function closeMobileSidebar() {
   document.body.removeAttribute("data-sidebar-open");
   document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
-});
+}
+
+window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
 window.addEventListener("phx:page-loading-stop", (_info) => {
   topbar.hide();
   window.scrollTo(0, 0);
-  document.body.removeAttribute("data-sidebar-open");
-  document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
+  closeMobileSidebar();
 });
 
 liveSocket.connect();
