@@ -44,6 +44,8 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
       - uses: jdx/mise-action@v2
+        with:
+          install_args: tuist
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
