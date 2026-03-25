@@ -64,10 +64,11 @@ If nearly all targets show as `miss`, the entire selective testing cache was inv
 
 | Cause | How to verify |
 |---|---|
-| Tuist CLI version change | Check if the team recently upgraded Tuist |
-| Xcode version change | Compare `xcode_version` between good and bad runs |
-| CI environment change | Compare `macos_version`, `model_identifier` |
+| Xcode version change | Compare `xcode_version` between good and bad runs via `tuist test show` |
+| CI environment change | Compare `macos_version`, `model_identifier` between runs |
 | Project structure change | Check git history for Tuist manifest changes |
+
+Note: Tuist CLI version upgrades rarely cause hash invalidation — the hash version is not updated on every release.
 
 ### Check for cascade invalidation
 
@@ -92,9 +93,8 @@ Compare the selective testing metrics between them. Use the MCP `list_xcode_sele
 
 Based on the diagnosis:
 
-- **Global invalidation from CLI upgrade**: Expected one-time cost. Effectiveness should recover on the next run as hashes are re-established.
+- **Environment change**: Ensure CI uses consistent Xcode/macOS versions. This is the most common cause of full cache invalidation.
 - **Cascade from dependency change**: Consider if the change to the root target was necessary. If the root target is a widely-shared module, consider splitting it.
-- **Environment change**: Ensure CI uses consistent Xcode/macOS versions.
 - **Cold cache on new branch**: Run tests once to warm the cache. Subsequent runs will benefit from selective testing.
 
 ## Summary Format
