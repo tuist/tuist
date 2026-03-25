@@ -67,7 +67,7 @@
       & a {
         display: block;
         transition: color 0.15s;
-        padding: var(--noora-spacing-2) var(--noora-spacing-4);
+        padding: var(--noora-spacing-3) var(--noora-spacing-4);
         overflow: hidden;
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
