@@ -235,6 +235,40 @@ struct XCFrameworkMetadataProviderTests {
     }
 
     @Test
+    func loadMetadataTBDFramework() async throws {
+        // Given
+        let frameworkPath = AssertionsTesting.fixturePath(
+            path: try RelativePath(validating: "MyTBDFramework.xcframework")
+        )
+
+        // When
+        let metadata = try await subject.loadMetadata(at: frameworkPath, expectedSignature: nil, status: .required)
+
+        // Then
+        let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
+            XCFrameworkInfoPlist.Library(
+                identifier: "ios-x86_64-simulator",
+                path: try RelativePath(validating: "MyTBDFramework.framework"),
+                mergeable: false,
+                platform: .iOS,
+                architectures: [.x8664]
+            ),
+            XCFrameworkInfoPlist.Library(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "MyTBDFramework.framework"),
+                mergeable: false,
+                platform: .iOS,
+                architectures: [.arm64]
+            ),
+        ])
+
+        #expect(metadata.path == frameworkPath)
+        #expect(metadata.infoPlist == expectedInfoPlist)
+        #expect(metadata.linking == .dynamic)
+        #expect(metadata.mergeable == false)
+    }
+
+    @Test
     func loadMetadataFrameworkMissingArchitecture() async throws {
         // Given
         let frameworkPath = AssertionsTesting.fixturePath(
