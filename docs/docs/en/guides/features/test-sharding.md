@@ -7,9 +7,11 @@
 ---
 # Test Sharding {#test-sharding}
 
-As your test suite grows, running all tests on a single CI runner becomes a bottleneck. Test sharding distributes your tests across multiple CI runners that execute in parallel, dramatically reducing your overall CI time.
+Modern CI hosts offer multi-core environments that allow some degree of test parallelization. However, there are scenarios where you need to go beyond what a single host can offer — for example, when you're limited by the number of simulators you can run simultaneously, or when your test suite simply outgrows a single machine.
 
-Tuist uses historical test timing data to intelligently balance the load across shards using a bin-packing algorithm, so each runner finishes at roughly the same time.
+In those cases, you need a system that distributes tests across multiple CI runners and aggregates the results back into a unified view. That's what test sharding does.
+
+Tuist uses historical test timing data to intelligently balance the load across shards using a [bin-packing algorithm](https://en.wikipedia.org/wiki/Bin_packing_problem), so each runner finishes at roughly the same time. Results from all shards are automatically aggregated in <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink>, giving you a single unified view of your test suite across all shards.
 
 <HomeCards>
     <HomeCard
