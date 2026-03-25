@@ -69,7 +69,8 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
     fileprivate func treeShake(
         workspace: Workspace, projects: [Project], sourceTargets: Set<TargetReference>
     ) -> Workspace {
-        let projects = workspace.projects.filter { projects.map(\.path).contains($0) }
+        let projectPaths = Set(projects.map(\.path))
+        let projects = workspace.projects.filter { projectPaths.contains($0) }
         let schemes = treeShake(schemes: workspace.schemes, sourceTargets: sourceTargets)
         var workspace = workspace
         workspace.schemes = schemes
