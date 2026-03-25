@@ -32,8 +32,7 @@ struct ShardMatrixOutputServiceTests {
         }
 
         let content = try await fileSystem.readTextFile(at: githubOutputPath)
-        #expect(content.contains("matrix="))
-        #expect(content.contains("[0, 1, 2]"))
+        #expect(content == "matrix={\"shard\":[0, 1, 2]}\n")
     }
 
     @Test(.inTemporaryDirectory)
@@ -46,11 +45,19 @@ struct ShardMatrixOutputServiceTests {
 
         let outputPath = temporaryDirectory.appending(component: ".tuist-shard-child-pipeline.yml")
         let content = try await fileSystem.readTextFile(at: outputPath)
-        #expect(content.contains("shard-0:"))
-        #expect(content.contains("shard-1:"))
-        #expect(content.contains("extends: .tuist-shard"))
-        #expect(content.contains("TUIST_SHARD_INDEX: \"0\""))
-        #expect(content.contains("TUIST_SHARD_INDEX: \"1\""))
+        #expect(content == """
+            shard-0:
+              extends: .tuist-shard
+              variables:
+                TUIST_SHARD_INDEX: "0"
+
+            shard-1:
+              extends: .tuist-shard
+              variables:
+                TUIST_SHARD_INDEX: "1"
+
+
+            """)
     }
 
     @Test(.inTemporaryDirectory)
@@ -63,9 +70,12 @@ struct ShardMatrixOutputServiceTests {
 
         let outputPath = temporaryDirectory.appending(component: ".tuist-shard-continuation.json")
         let content = try await fileSystem.readTextFile(at: outputPath)
-        #expect(content.contains("shard-indices"))
-        #expect(content.contains("0,1"))
-        #expect(content.contains("shard-count"))
+        #expect(content == """
+            {
+              "shard-count" : 2,
+              "shard-indices" : "0,1"
+            }
+            """)
     }
 
     @Test(.inTemporaryDirectory)
@@ -78,10 +88,18 @@ struct ShardMatrixOutputServiceTests {
 
         let outputPath = temporaryDirectory.appending(component: ".tuist-shard-pipeline.yml")
         let content = try await fileSystem.readTextFile(at: outputPath)
-        #expect(content.contains("steps:"))
-        #expect(content.contains("Shard #0"))
-        #expect(content.contains("Shard #1"))
-        #expect(content.contains("TUIST_SHARD_INDEX: \"0\""))
+        #expect(content == """
+            steps:
+              - label: "Shard #0"
+                env:
+                  TUIST_SHARD_INDEX: "0"
+
+              - label: "Shard #1"
+                env:
+                  TUIST_SHARD_INDEX: "1"
+
+
+            """)
     }
 
     @Test(.inTemporaryDirectory)
@@ -97,8 +115,7 @@ struct ShardMatrixOutputServiceTests {
         }
 
         let content = try await fileSystem.readTextFile(at: cmEnvPath)
-        #expect(content.contains("TUIST_SHARD_MATRIX="))
-        #expect(content.contains("TUIST_SHARD_COUNT=2"))
+        #expect(content == "TUIST_SHARD_MATRIX={\"shard\":[0, 1]}\nTUIST_SHARD_COUNT=2\n")
     }
 
     @Test(.inTemporaryDirectory)
@@ -115,8 +132,7 @@ struct ShardMatrixOutputServiceTests {
 
         let outputPath = deployDir.appending(component: ".tuist-shard-matrix.json")
         let content = try await fileSystem.readTextFile(at: outputPath)
-        #expect(content.contains("\"shard\""))
-        #expect(content.contains("\"shard_count\""))
+        #expect(content == "{\"shard\":[0, 1],\"shard_count\":2}")
     }
 
     @Test(.inTemporaryDirectory)
@@ -128,16 +144,21 @@ struct ShardMatrixOutputServiceTests {
         try await subject.output(.test(shardCount: 2))
 
         let outputPath = temporaryDirectory.appending(component: ".tuist-shard-matrix.json")
-        let content = try await fileSystem.readTextFile(at: outputPath)
-        #expect(content.contains("shard_count"))
-        #expect(content.contains("test_targets"))
+        let data = try Data(contentsOf: URL(fileURLWithPath: outputPath.pathString))
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        #expect(json["shard_count"] as? Int == 2)
+        #expect(json["reference"] as? String == "test-ref")
+        let shards = json["shards"] as! [[String: Any]]
+        #expect(shards.count == 2)
+        #expect(shards[0]["index"] as? Int == 0)
+        #expect(shards[1]["index"] as? Int == 1)
     }
 }
 
 fileprivate extension Components.Schemas.ShardPlan {
     static func test(shardCount: Int = 3) -> Self {
         Components.Schemas.ShardPlan(
-            id: UUID().uuidString,
+            id: "test-id",
             reference: "test-ref",
             shard_count: shardCount,
             shards: (0 ..< shardCount).map { index in
