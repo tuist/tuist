@@ -96,6 +96,7 @@ defmodule Tuist.Docs.CLI.Renderer do
         syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
       )
       |> wrap_code_blocks()
+      |> add_heading_anchors()
 
     headings = extract_headings(arguments)
 
@@ -214,6 +215,31 @@ defmodule Tuist.Docs.CLI.Renderer do
       end)
 
     base ++ arg_headings
+  end
+
+  @heading_anchor_regex ~r/(<h[2-4]>)(<a href="#[^"]*" aria-hidden="true" class="anchor" id="[^"]*"><\/a>)(.*?)(<\/h[2-4]>)/s
+
+  @heading_anchor_template """
+  <%= open_tag %><a class="heading-anchor" id="<%= id %>" href="<%= href %>">\
+  <span data-part="heading-text"><%= plain_text %></span>\
+  <span data-part="hash">#</span>\
+  </a><%= close_tag %>\
+  """
+
+  defp add_heading_anchors(html) do
+    Regex.replace(@heading_anchor_regex, html, fn _, open_tag, anchor, text, close_tag ->
+      href = ~r/href="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
+      id = ~r/id="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
+      plain_text = Regex.replace(~r/<a[^>]*>(.*?)<\/a>/s, text, "\\1")
+
+      EEx.eval_string(@heading_anchor_template,
+        open_tag: open_tag,
+        close_tag: close_tag,
+        href: href,
+        id: id,
+        plain_text: plain_text
+      )
+    end)
   end
 
   @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
