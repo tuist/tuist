@@ -635,7 +635,9 @@
       flex-direction: column;
     }
 
-    & [data-part="feature-card"] {
+    & [data-part="feature-card"],
+    & [data-part="feature-card"]:link,
+    & [data-part="feature-card"]:visited {
       width: 100%;
     }
 
@@ -643,11 +645,15 @@
       flex-direction: column;
     }
 
-    & [data-part="video-card"] {
+    & [data-part="video-card"],
+    & [data-part="video-card"]:link,
+    & [data-part="video-card"]:visited {
       width: 100%;
     }
 
-    & [data-part="community-card"] {
+    & [data-part="community-card"],
+    & [data-part="community-card"]:link,
+    & [data-part="community-card"]:visited {
       width: 100%;
     }
 
