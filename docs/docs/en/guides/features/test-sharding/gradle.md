@@ -250,13 +250,13 @@ tuist auth login
 
 ### Codemagic {#codemagic}
 
-On Codemagic, Tuist writes `TUIST_SHARD_MATRIX` and `TUIST_SHARD_COUNT` to the `CM_ENV` file, making them available in subsequent steps:
+Codemagic does not support dynamic matrix jobs, so define a separate workflow per shard. Tuist writes `TUIST_SHARD_MATRIX` and `TUIST_SHARD_COUNT` to the `CM_ENV` file for use within each workflow:
 
 ```yaml
 # codemagic.yaml
 workflows:
-  test-shards:
-    name: Test Shards
+  build-shards:
+    name: Build test shards
     instance_type: linux_x2
     environment:
       java: 17
@@ -265,15 +265,52 @@ workflows:
         script: |
           tuist auth login
           ./gradlew tuistPrepareTestShards -PtuistShardMax=5
+
+  test-shard-0: &shard-workflow
+    name: "Shard #0"
+    instance_type: linux_x2
+    environment:
+      java: 17
+      vars:
+        TUIST_SHARD_INDEX: 0
+    scripts:
       - name: Run shard
         script: |
           tuist auth login
           ./gradlew test
-```
 
-::: tip
-Codemagic does not natively support dynamic matrix jobs. Use `TUIST_SHARD_COUNT` to configure multiple workflows or use the Codemagic API to trigger parallel builds with different `TUIST_SHARD_INDEX` values.
-:::
+  test-shard-1:
+    <<: *shard-workflow
+    name: "Shard #1"
+    environment:
+      java: 17
+      vars:
+        TUIST_SHARD_INDEX: 1
+
+  test-shard-2:
+    <<: *shard-workflow
+    name: "Shard #2"
+    environment:
+      java: 17
+      vars:
+        TUIST_SHARD_INDEX: 2
+
+  test-shard-3:
+    <<: *shard-workflow
+    name: "Shard #3"
+    environment:
+      java: 17
+      vars:
+        TUIST_SHARD_INDEX: 3
+
+  test-shard-4:
+    <<: *shard-workflow
+    name: "Shard #4"
+    environment:
+      java: 17
+      vars:
+        TUIST_SHARD_INDEX: 4
+```
 
 ### Bitrise {#bitrise}
 
