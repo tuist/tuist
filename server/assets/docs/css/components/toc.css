@@ -21,13 +21,13 @@
       width: fit-content;
 
       & > [data-state="open"] ~ [data-part="positioner"] {
-        left: unset !important;
         right: 0 !important;
+        left: unset !important;
       }
 
       & .noora-dropdown-content {
-        width: 280px;
         box-shadow: var(--noora-border-light-default);
+        width: 280px;
       }
     }
   }

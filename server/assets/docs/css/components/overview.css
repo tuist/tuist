@@ -19,8 +19,8 @@
     gap: var(--noora-spacing-6);
 
     & h1 {
-      color: var(--noora-text-heading);
       padding-top: var(--noora-spacing-8);
+      color: var(--noora-text-heading);
       font: var(--noora-font-heading-2xlarge);
     }
 
@@ -66,8 +66,8 @@
     cursor: pointer;
 
     &:focus-visible {
-      box-shadow: var(--noora-light-border-focus);
       outline: none;
+      box-shadow: var(--noora-light-border-focus);
     }
   }
 
@@ -226,11 +226,11 @@
   }
 
   & [data-part="terminal-body"] {
+    cursor: text;
     box-shadow: var(--noora-light-border-default);
     border-radius: var(--noora-radius-large);
     background: var(--noora-surface-background-tertiary);
     padding: var(--noora-spacing-6) var(--noora-spacing-5);
-    cursor: text;
     user-select: text;
 
     &::after {
@@ -573,11 +573,11 @@
   & [data-part="community-card"],
   & [data-part="community-card"]:link,
   & [data-part="community-card"]:visited {
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-4);
     transition: box-shadow 0.15s ease;
+    box-sizing: border-box;
     box-shadow: var(--noora-light-border-default);
     border-radius: var(--noora-radius-xlarge);
     background: var(--noora-surface-background-primary);

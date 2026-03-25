@@ -29,8 +29,8 @@
       gap: var(--noora-spacing-7);
       padding: var(--noora-spacing-7) var(--noora-spacing-4);
       min-height: 0;
-      overflow-y: auto;
       overflow-anchor: none;
+      overflow-y: auto;
       scrollbar-width: none;
     }
   }
@@ -101,18 +101,18 @@
 
   /* Collapsible trigger */
   & #docs-sidebar [data-part="trigger"] {
-    cursor: pointer;
     flex-shrink: 0;
-    user-select: none;
+    cursor: pointer;
     border: none;
     background: transparent;
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    user-select: none;
     text-decoration: unset;
 
     & [data-part="indicator"] {
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
       color: var(--noora-surface-label-secondary);
 
       & > div {
