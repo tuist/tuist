@@ -18337,14 +18337,6 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/scheme`.
                         public var scheme: Swift.String?
-                        /// Number of test targets skipped due to local selective testing cache hit.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/selective_testing_local_hits`.
-                        public var selective_testing_local_hits: Swift.Int
-                        /// Number of test targets skipped due to remote selective testing cache hit.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/selective_testing_remote_hits`.
-                        public var selective_testing_remote_hits: Swift.Int
                         /// Run status.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/status`.
@@ -18361,6 +18353,14 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/total_test_count`.
                         public var total_test_count: Swift.Int
+                        /// Number of test targets skipped due to local selective testing cache hit.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/xcode_selective_testing_local_hits`.
+                        public var xcode_selective_testing_local_hits: Swift.Int
+                        /// Number of test targets skipped due to remote selective testing cache hit.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/xcode_selective_testing_remote_hits`.
+                        public var xcode_selective_testing_remote_hits: Swift.Int
                         /// Total number of Xcode test targets eligible for selective testing.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/GET/responses/200/content/json/xcode_selective_testing_targets`.
@@ -18386,10 +18386,10 @@ public enum Operations {
                         ///   - model_identifier: Model identifier.
                         ///   - ran_at: ISO 8601 timestamp when the run executed.
                         ///   - scheme: Build scheme.
-                        ///   - selective_testing_local_hits: Number of test targets skipped due to local selective testing cache hit.
-                        ///   - selective_testing_remote_hits: Number of test targets skipped due to remote selective testing cache hit.
                         ///   - status: Run status.
                         ///   - total_test_count: Total number of test cases.
+                        ///   - xcode_selective_testing_local_hits: Number of test targets skipped due to local selective testing cache hit.
+                        ///   - xcode_selective_testing_remote_hits: Number of test targets skipped due to remote selective testing cache hit.
                         ///   - xcode_selective_testing_targets: Total number of Xcode test targets eligible for selective testing.
                         ///   - xcode_version: Xcode version.
                         public init(
@@ -18407,10 +18407,10 @@ public enum Operations {
                             model_identifier: Swift.String? = nil,
                             ran_at: Foundation.Date? = nil,
                             scheme: Swift.String? = nil,
-                            selective_testing_local_hits: Swift.Int,
-                            selective_testing_remote_hits: Swift.Int,
                             status: Operations.getTestRun.Output.Ok.Body.jsonPayload.statusPayload,
                             total_test_count: Swift.Int,
+                            xcode_selective_testing_local_hits: Swift.Int,
+                            xcode_selective_testing_remote_hits: Swift.Int,
                             xcode_selective_testing_targets: Swift.Int,
                             xcode_version: Swift.String? = nil
                         ) {
@@ -18428,10 +18428,10 @@ public enum Operations {
                             self.model_identifier = model_identifier
                             self.ran_at = ran_at
                             self.scheme = scheme
-                            self.selective_testing_local_hits = selective_testing_local_hits
-                            self.selective_testing_remote_hits = selective_testing_remote_hits
                             self.status = status
                             self.total_test_count = total_test_count
+                            self.xcode_selective_testing_local_hits = xcode_selective_testing_local_hits
+                            self.xcode_selective_testing_remote_hits = xcode_selective_testing_remote_hits
                             self.xcode_selective_testing_targets = xcode_selective_testing_targets
                             self.xcode_version = xcode_version
                         }
@@ -18450,10 +18450,10 @@ public enum Operations {
                             case model_identifier
                             case ran_at
                             case scheme
-                            case selective_testing_local_hits
-                            case selective_testing_remote_hits
                             case status
                             case total_test_count
+                            case xcode_selective_testing_local_hits
+                            case xcode_selective_testing_remote_hits
                             case xcode_selective_testing_targets
                             case xcode_version
                         }
@@ -48276,14 +48276,6 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/scheme`.
                             public var scheme: Swift.String?
-                            /// Number of test targets skipped due to local selective testing cache hit.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/selective_testing_local_hits`.
-                            public var selective_testing_local_hits: Swift.Int?
-                            /// Number of test targets skipped due to remote selective testing cache hit.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/selective_testing_remote_hits`.
-                            public var selective_testing_remote_hits: Swift.Int?
                             /// Number of skipped test cases.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/skipped_tests`.
@@ -48304,6 +48296,14 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/total_test_count`.
                             public var total_test_count: Swift.Int?
+                            /// Number of test targets skipped due to local selective testing cache hit.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/xcode_selective_testing_local_hits`.
+                            public var xcode_selective_testing_local_hits: Swift.Int?
+                            /// Number of test targets skipped due to remote selective testing cache hit.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/xcode_selective_testing_remote_hits`.
+                            public var xcode_selective_testing_remote_hits: Swift.Int?
                             /// Total number of Xcode test targets eligible for selective testing.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/GET/responses/200/content/json/test_runsPayload/xcode_selective_testing_targets`.
@@ -48320,11 +48320,11 @@ public enum Operations {
                             ///   - ran_at: ISO 8601 timestamp.
                             ///   - ran_tests: Number of test cases that ran.
                             ///   - scheme: Build scheme.
-                            ///   - selective_testing_local_hits: Number of test targets skipped due to local selective testing cache hit.
-                            ///   - selective_testing_remote_hits: Number of test targets skipped due to remote selective testing cache hit.
                             ///   - skipped_tests: Number of skipped test cases.
                             ///   - status: Run status.
                             ///   - total_test_count: Total number of test cases.
+                            ///   - xcode_selective_testing_local_hits: Number of test targets skipped due to local selective testing cache hit.
+                            ///   - xcode_selective_testing_remote_hits: Number of test targets skipped due to remote selective testing cache hit.
                             ///   - xcode_selective_testing_targets: Total number of Xcode test targets eligible for selective testing.
                             public init(
                                 duration: Swift.Int,
@@ -48336,11 +48336,11 @@ public enum Operations {
                                 ran_at: Foundation.Date? = nil,
                                 ran_tests: Swift.Int? = nil,
                                 scheme: Swift.String? = nil,
-                                selective_testing_local_hits: Swift.Int? = nil,
-                                selective_testing_remote_hits: Swift.Int? = nil,
                                 skipped_tests: Swift.Int? = nil,
                                 status: Operations.listTestRuns.Output.Ok.Body.jsonPayload.test_runsPayloadPayload.statusPayload,
                                 total_test_count: Swift.Int? = nil,
+                                xcode_selective_testing_local_hits: Swift.Int? = nil,
+                                xcode_selective_testing_remote_hits: Swift.Int? = nil,
                                 xcode_selective_testing_targets: Swift.Int? = nil
                             ) {
                                 self.duration = duration
@@ -48352,11 +48352,11 @@ public enum Operations {
                                 self.ran_at = ran_at
                                 self.ran_tests = ran_tests
                                 self.scheme = scheme
-                                self.selective_testing_local_hits = selective_testing_local_hits
-                                self.selective_testing_remote_hits = selective_testing_remote_hits
                                 self.skipped_tests = skipped_tests
                                 self.status = status
                                 self.total_test_count = total_test_count
+                                self.xcode_selective_testing_local_hits = xcode_selective_testing_local_hits
+                                self.xcode_selective_testing_remote_hits = xcode_selective_testing_remote_hits
                                 self.xcode_selective_testing_targets = xcode_selective_testing_targets
                             }
                             public enum CodingKeys: String, CodingKey {
@@ -48369,11 +48369,11 @@ public enum Operations {
                                 case ran_at
                                 case ran_tests
                                 case scheme
-                                case selective_testing_local_hits
-                                case selective_testing_remote_hits
                                 case skipped_tests
                                 case status
                                 case total_test_count
+                                case xcode_selective_testing_local_hits
+                                case xcode_selective_testing_remote_hits
                                 case xcode_selective_testing_targets
                             }
                         }
