@@ -75,9 +75,13 @@
         text-overflow: ellipsis;
         white-space: nowrap;
 
-        &:hover,
+        &:hover {
+          color: var(--noora-surface-label-primary);
+        }
+
         &[data-active] {
           color: var(--noora-surface-label-primary);
+          font-weight: var(--noora-font-weight-medium);
         }
 
         &[data-level="3"] {
