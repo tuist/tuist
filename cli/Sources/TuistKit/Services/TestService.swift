@@ -505,8 +505,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         shardMaxDuration: shardMaxDuration,
                         fullHandle: fullHandle,
                         serverURL: serverURL,
-                        buildRunId: buildRunId,
-                        gradleBuildId: nil
+                        buildRunId: buildRunId
                     )
                 }
             }

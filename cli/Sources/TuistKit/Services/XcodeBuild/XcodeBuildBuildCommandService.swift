@@ -117,8 +117,7 @@ struct XcodeBuildBuildCommandService {
                 shardMaxDuration: shardMaxDuration,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                buildRunId: buildRunId,
-                gradleBuildId: nil
+                buildRunId: buildRunId
             )
         }
     }
