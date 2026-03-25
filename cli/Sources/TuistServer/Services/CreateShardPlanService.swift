@@ -14,7 +14,9 @@ public protocol CreateShardPlanServicing {
         shardMax: Int?,
         shardTotal: Int?,
         shardMaxDuration: Int?,
-        shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload
+        shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload,
+        buildRunId: String?,
+        gradleBuildId: String?
     ) async throws -> Components.Schemas.ShardPlan
 }
 
@@ -55,7 +57,9 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
         shardMax: Int?,
         shardTotal: Int?,
         shardMaxDuration: Int?,
-        shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload
+        shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload,
+        buildRunId: String?,
+        gradleBuildId: String?
     ) async throws -> Components.Schemas.ShardPlan {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -67,6 +71,8 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
             ),
             body: .json(
                 .init(
+                    build_run_id: buildRunId,
+                    gradle_build_id: gradleBuildId,
                     granularity: .init(rawValue: shardGranularity.rawValue),
                     modules: modules,
                     reference: reference,

@@ -1227,6 +1227,18 @@ components:
       x-validate:
     CreateShardPlanParams:
       properties:
+        build_run_id:
+          description: The UUID of the associated Xcode build run.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        gradle_build_id:
+          description: The UUID of the associated Gradle build.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         granularity:
           description: Sharding granularity level.
           enum:
@@ -3803,6 +3815,11 @@ components:
                       type: array
                       x-struct:
                       x-validate:
+                    is_quarantined:
+                      description: Whether this test case was quarantined when it ran.
+                      type: boolean
+                      x-struct:
+                      x-validate:
                     name:
                       description: The name of the test case.
                       type: string
@@ -3988,7 +4005,7 @@ components:
       description: A shard plan with assignment details.
       properties:
         id:
-          description: The shard plan UUID.
+          description: The shard plan id.
           format: uuid
           type: string
           x-struct:
@@ -5370,7 +5387,7 @@ info:
   version: 0.1.0
   x-logo:
     altText: Tuist logo
-    url: http://localhost:8080/images/open-graph/squared.png
+    url: http://localhost:8440/images/open-graph/squared.png
 openapi: 3.0.0
 paths:
   /api/cache/multipart/complete:
@@ -17663,6 +17680,18 @@ paths:
           application/json:
             schema:
               properties:
+                build_run_id:
+                  description: The UUID of the associated Xcode build run.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                gradle_build_id:
+                  description: The UUID of the associated Gradle build.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 granularity:
                   description: Sharding granularity level.
                   enum:
@@ -18217,6 +18246,11 @@ paths:
                               type: array
                               x-struct:
                               x-validate:
+                            is_quarantined:
+                              description: Whether this test case was quarantined when it ran.
+                              type: boolean
+                              x-struct:
+                              x-validate:
                             name:
                               description: The name of the test case.
                               type: string
@@ -18271,11 +18305,6 @@ paths:
                             test_suite_name:
                               description: The name of the test suite this test case belongs to (optional).
                               type: string
-                              x-struct:
-                              x-validate:
-                            is_quarantined:
-                              description: Whether this test case was quarantined when it ran.
-                              type: boolean
                               x-struct:
                               x-validate:
                           required:
@@ -18614,6 +18643,6 @@ security:
   - authorization: []
   - cookie: []
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:8440
     variables: {}
 tags: []

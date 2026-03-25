@@ -42,7 +42,9 @@ class TuistTestShardingService(
         testSuites: List<String>,
         shardMax: Int,
         shardMin: Int?,
-        shardMaxDuration: Int?
+        shardMaxDuration: Int?,
+        buildRunId: String? = null,
+        gradleBuildId: String? = null
     ): ShardPlan {
         val body = CreateShardPlanParams1(
             reference = reference,
@@ -50,7 +52,9 @@ class TuistTestShardingService(
             shardMin = shardMin,
             shardMax = shardMax,
             shardMaxDuration = shardMaxDuration,
-            granularity = CreateShardPlanParams1.Granularity.suite
+            granularity = CreateShardPlanParams1.Granularity.suite,
+            buildRunId = buildRunId,
+            gradleBuildId = gradleBuildId
         )
 
         val response = shardsApi.createShardPlan(accountHandle, projectHandle, body).execute()
@@ -182,12 +186,17 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
 
         logger.lifecycle("Tuist: Discovered ${testSuites.size} test suite(s): ${testSuites.joinToString(", ")}")
 
+        val gradleBuildId = project.gradle.sharedServices.registrations
+            .findByName("tuistBuildInsights")?.service?.orNull
+            ?.let { (it as? TuistBuildInsightsService)?.buildId }
+
         val response = shardingService.createShardPlan(
             reference = reference,
             testSuites = testSuites,
             shardMax = shardMax,
             shardMin = shardMin,
-            shardMaxDuration = shardMaxDuration
+            shardMaxDuration = shardMaxDuration,
+            gradleBuildId = gradleBuildId
         )
 
         logger.lifecycle("Tuist: Shard plan created — reference=$reference, shards=${response.shardCount}")
