@@ -257,7 +257,10 @@ struct ShardServiceTests {
         let filtered = try subject.filterXCTestRun(
             plistData: plistData,
             modules: ["TuistGeneratorAcceptanceTests"],
-            suites: ["TuistGeneratorAcceptanceTests": ["GenerateAcceptanceTestAppWithMacBundle", "GenerateAcceptanceTestSPMPackage"]]
+            suites: ["TuistGeneratorAcceptanceTests": [
+                "GenerateAcceptanceTestAppWithMacBundle",
+                "GenerateAcceptanceTestSPMPackage",
+            ]]
         )
 
         // Then: module kept, OnlyTestIdentifiers set to assigned suites
@@ -266,7 +269,10 @@ struct ShardServiceTests {
         let targets = configurations[0]["TestTargets"] as! [[String: Any]]
         #expect(targets.count == 1)
         #expect(targets[0]["BlueprintName"] as? String == "TuistGeneratorAcceptanceTests")
-        #expect(targets[0]["OnlyTestIdentifiers"] as? [String] == ["GenerateAcceptanceTestAppWithMacBundle", "GenerateAcceptanceTestSPMPackage"])
+        #expect(targets[0]["OnlyTestIdentifiers"] as? [String] == [
+            "GenerateAcceptanceTestAppWithMacBundle",
+            "GenerateAcceptanceTestSPMPackage",
+        ])
     }
 
     @Test
