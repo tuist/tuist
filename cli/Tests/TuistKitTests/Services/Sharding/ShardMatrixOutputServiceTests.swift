@@ -19,15 +19,9 @@ struct ShardMatrixOutputServiceTests {
         subject = ShardMatrixOutputService(fileSystem: fileSystem, ciController: ciController)
     }
 
-    private func mockedCWD() async throws -> AbsolutePath {
-        let cwd = try await Environment.current.currentWorkingDirectory()
-        try await fileSystem.makeDirectory(at: cwd)
-        return cwd
-    }
-
     @Test(.withMockedEnvironment())
     func output_github_writesMatrixToGitHubOutput() async throws {
-        let cwd = try await mockedCWD()
+        let cwd = try await Environment.current.currentWorkingDirectory()
         let githubOutputPath = cwd.appending(component: "github_output")
         try await fileSystem.writeText("", at: githubOutputPath, encoding: .utf8)
 
@@ -42,7 +36,7 @@ struct ShardMatrixOutputServiceTests {
 
     @Test(.withMockedEnvironment())
     func output_gitlab_writesChildPipelineYML() async throws {
-        let cwd = try await mockedCWD()
+        let cwd = try await Environment.current.currentWorkingDirectory()
 
         given(ciController).ciInfo().willReturn(.test(provider: .gitlab))
 
@@ -66,7 +60,7 @@ struct ShardMatrixOutputServiceTests {
 
     @Test(.withMockedEnvironment())
     func output_circleci_writesContinuationJSON() async throws {
-        let cwd = try await mockedCWD()
+        let cwd = try await Environment.current.currentWorkingDirectory()
 
         given(ciController).ciInfo().willReturn(.test(provider: .circleci))
 
@@ -83,7 +77,7 @@ struct ShardMatrixOutputServiceTests {
 
     @Test(.withMockedEnvironment())
     func output_buildkite_writesPipelineYML() async throws {
-        let cwd = try await mockedCWD()
+        let cwd = try await Environment.current.currentWorkingDirectory()
 
         given(ciController).ciInfo().willReturn(.test(provider: .buildkite))
 
@@ -106,7 +100,7 @@ struct ShardMatrixOutputServiceTests {
 
     @Test(.withMockedEnvironment())
     func output_codemagic_writesToCMEnv() async throws {
-        let cwd = try await mockedCWD()
+        let cwd = try await Environment.current.currentWorkingDirectory()
         let cmEnvPath = cwd.appending(component: "CM_ENV")
         try await fileSystem.writeText("", at: cmEnvPath, encoding: .utf8)
 
@@ -121,7 +115,7 @@ struct ShardMatrixOutputServiceTests {
 
     @Test(.withMockedEnvironment())
     func output_bitrise_writesToDeployDir() async throws {
-        let cwd = try await mockedCWD()
+        let cwd = try await Environment.current.currentWorkingDirectory()
         let deployDir = cwd.appending(component: "deploy")
         try await fileSystem.makeDirectory(at: deployDir)
 
@@ -136,7 +130,7 @@ struct ShardMatrixOutputServiceTests {
 
     @Test(.withMockedEnvironment())
     func output_noCI_writesFallbackJSON() async throws {
-        let cwd = try await mockedCWD()
+        let cwd = try await Environment.current.currentWorkingDirectory()
 
         given(ciController).ciInfo().willReturn(nil)
 
