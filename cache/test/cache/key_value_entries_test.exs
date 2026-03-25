@@ -6,6 +6,7 @@ defmodule Cache.KeyValueEntriesTest do
 
   alias Cache.Config
   alias Cache.DistributedKV.Entry
+  alias Cache.DistributedKV.State
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
@@ -321,6 +322,32 @@ defmodule Cache.KeyValueEntriesTest do
     assert third_result.payload_updated_count == 0
     assert third_result.access_updated_count == 1
     assert third_result.invalidate_keys == []
+  end
+
+  test "apply_remote_batch stores a SHA-256 payload digest in the pending replay signature" do
+    updated_at = DateTime.utc_now()
+
+    row =
+      remote_row("keyvalue:acme:ios:digest",
+        json_payload: Jason.encode!(%{entries: [%{"value" => "digest"}]}),
+        last_accessed_at: updated_at,
+        source_updated_at: updated_at,
+        updated_at: updated_at
+      )
+
+    assert {:ok, _result} = KeyValueEntries.apply_remote_batch([row])
+
+    pending_batch = KeyValueRepo.get!(State, "pending_remote_batch")
+
+    %{signature: [%{json_payload_hash: json_payload_hash}], result: %{last_processed_row: last_processed_row}} =
+      pending_batch.key_value
+      |> Base.decode64!()
+      |> :erlang.binary_to_term([:safe])
+
+    assert json_payload_hash == :crypto.hash(:sha256, row.json_payload)
+    assert byte_size(json_payload_hash) == 32
+    refute json_payload_hash == row.json_payload
+    assert last_processed_row.key == row.key
   end
 
   test "apply_remote_batch invalidates a stale pending batch when the upstream page mutates" do
