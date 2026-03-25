@@ -124,7 +124,7 @@ defmodule Cache.KeyValueReplicationPoller do
 
     new_watermark =
       if last_advanceable do
-        %{updated_at_value: last_advanceable.updated_at, key_value: last_advanceable.key}
+        %{watermark_updated_at: last_advanceable.updated_at, watermark_key: last_advanceable.key}
       else
         watermark
       end
@@ -320,13 +320,13 @@ defmodule Cache.KeyValueReplicationPoller do
   defp apply_watermark(query, nil), do: query
 
   defp apply_watermark(query, watermark) do
-    updated_at_value = watermark.updated_at_value || ~U[1970-01-01 00:00:00Z]
-    key_value = watermark.key_value || ""
+    watermark_updated_at = watermark.watermark_updated_at || ~U[1970-01-01 00:00:00Z]
+    watermark_key = watermark.watermark_key || ""
 
     from(entry in query,
       where:
-        entry.updated_at > ^updated_at_value or
-          (entry.updated_at == ^updated_at_value and entry.key > ^key_value)
+        entry.updated_at > ^watermark_updated_at or
+          (entry.updated_at == ^watermark_updated_at and entry.key > ^watermark_key)
     )
   end
 

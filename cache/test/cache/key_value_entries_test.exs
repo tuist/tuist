@@ -141,8 +141,8 @@ defmodule Cache.KeyValueEntriesTest do
 
     assert :ok = KeyValueEntries.put_distributed_watermark(source_updated_at, record.key)
     watermark = KeyValueEntries.distributed_watermark()
-    assert watermark.updated_at_value == source_updated_at
-    assert watermark.key_value == record.key
+    assert watermark.watermark_updated_at == source_updated_at
+    assert watermark.watermark_key == record.key
   end
 
   test "materialize_remote_entry preserves newer local pending payloads" do
@@ -339,7 +339,7 @@ defmodule Cache.KeyValueEntriesTest do
     pending_batch = KeyValueRepo.get!(State, "pending_remote_batch")
 
     %{signature: [%{json_payload_hash: json_payload_hash}], result: %{last_processed_row: last_processed_row}} =
-      pending_batch.key_value
+      pending_batch.watermark_key
       |> Base.decode64!()
       |> :erlang.binary_to_term([:safe])
 
@@ -684,7 +684,7 @@ defmodule Cache.KeyValueEntriesTest do
     })
 
     {keys, count} =
-      KeyValueEntries.delete_project_entries_before("acme", "ios", old_time, include_pending?: true)
+      KeyValueEntries.delete_project_entries_before("acme", "ios", old_time, include_pending: true)
 
     assert count == 2
     assert Enum.sort(keys) == ["keyvalue:acme:ios:old", "keyvalue:acme:ios:pending"]

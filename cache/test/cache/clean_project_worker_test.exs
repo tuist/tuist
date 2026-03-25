@@ -43,7 +43,7 @@ defmodule Cache.CleanProjectWorkerTest do
         ^account_handle, ^project_handle, %DateTime{}, opts ->
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
-          refute Keyword.has_key?(opts, :include_pending?)
+          refute Keyword.has_key?(opts, :include_pending)
           {[], 0}
       end)
 
@@ -80,7 +80,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^cutoff, opts ->
-          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert Keyword.fetch!(opts, :include_pending) == true
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {["keyvalue:test_account:test_project:cas"], 1}
@@ -131,7 +131,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^cutoff, opts ->
-          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert Keyword.fetch!(opts, :include_pending) == true
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {[], 0}
@@ -185,7 +185,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^cutoff, opts ->
-          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert Keyword.fetch!(opts, :include_pending) == true
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {[], 0}
@@ -221,7 +221,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^safe_cutoff, opts ->
-          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert Keyword.fetch!(opts, :include_pending) == true
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {[], 0}
@@ -268,7 +268,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
-          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert Keyword.fetch!(opts, :include_pending) == true
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           send(parent, :kv_deleted)
@@ -322,7 +322,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
-          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert Keyword.fetch!(opts, :include_pending) == true
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           send(parent, :kv_deleted)
@@ -358,7 +358,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
-          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert Keyword.fetch!(opts, :include_pending) == true
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {:error, :cleanup_lease_lost}
@@ -387,7 +387,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
         ^account_handle, ^project_handle, ^cutoff, opts ->
-          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert Keyword.fetch!(opts, :include_pending) == true
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           {[], 0}
@@ -432,7 +432,7 @@ defmodule Cache.CleanProjectWorkerTest do
         ^account_handle, ^project_handle, %DateTime{}, opts ->
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
-          refute Keyword.has_key?(opts, :include_pending?)
+          refute Keyword.has_key?(opts, :include_pending)
           {[], 0}
       end)
 

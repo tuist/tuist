@@ -109,11 +109,14 @@ defmodule Cache.KeyValueEntries do
   end
 
   def distributed_watermark do
-    KeyValueRepo.get(State, @poller_watermark)
+    case KeyValueRepo.get(State, @poller_watermark) do
+      nil -> nil
+      %State{} = state -> %{watermark_updated_at: state.watermark_updated_at, watermark_key: state.watermark_key}
+    end
   end
 
-  def put_distributed_watermark(updated_at_value, key_value) do
-    put_replication_state!(@poller_watermark, updated_at_value, key_value)
+  def put_distributed_watermark(watermark_updated_at, watermark_key) do
+    put_replication_state!(@poller_watermark, watermark_updated_at, watermark_key)
 
     :ok
   end
@@ -248,8 +251,8 @@ defmodule Cache.KeyValueEntries do
       nil ->
         nil
 
-      %State{key_value: key_value} ->
-        %{signature: pending_signature, result: result} = decode_replication_state_payload!(key_value)
+      %State{watermark_key: watermark_key} ->
+        %{signature: pending_signature, result: result} = decode_replication_state_payload!(watermark_key)
 
         case pending_signature do
           ^signature ->
@@ -267,13 +270,13 @@ defmodule Cache.KeyValueEntries do
     put_replication_state!(@pending_remote_batch, result.last_processed_row.updated_at, payload)
   end
 
-  defp put_replication_state!(name, updated_at_value, key_value) do
-    attrs = %{name: name, updated_at_value: updated_at_value, key_value: key_value}
+  defp put_replication_state!(name, watermark_updated_at, watermark_key) do
+    attrs = %{name: name, watermark_updated_at: watermark_updated_at, watermark_key: watermark_key}
 
     %State{name: name}
     |> State.changeset(attrs)
     |> KeyValueRepo.insert!(
-      on_conflict: [set: [updated_at_value: updated_at_value, key_value: key_value]],
+      on_conflict: [set: [watermark_updated_at: watermark_updated_at, watermark_key: watermark_key]],
       conflict_target: :name
     )
   end
@@ -463,7 +466,7 @@ defmodule Cache.KeyValueEntries do
   end
 
   def delete_project_entries_before(account_handle, project_handle, cutoff, opts \\ []) do
-    include_pending? = Keyword.get(opts, :include_pending?, false)
+    include_pending = Keyword.get(opts, :include_pending, false)
     on_deleted_keys = Keyword.get(opts, :on_deleted_keys)
     after_delete_batch = Keyword.get(opts, :after_delete_batch)
     collect_deleted_keys? = is_nil(on_deleted_keys)
@@ -481,7 +484,7 @@ defmodule Cache.KeyValueEntries do
            prefix,
            prefix_upper_bound,
            cutoff,
-           include_pending?,
+           include_pending,
            nil,
            state
          ) do
@@ -575,7 +578,7 @@ defmodule Cache.KeyValueEntries do
         select: {entry.id, entry.last_accessed_at}
       )
 
-    query = apply_evictable_filter(query)
+    query = apply_evictable_filter(query, false)
 
     query = if after_id, do: from(entry in query, where: entry.id > ^after_id), else: query
 
@@ -591,7 +594,7 @@ defmodule Cache.KeyValueEntries do
         select: {entry.id, entry.last_accessed_at}
       )
 
-    base = apply_evictable_filter(base)
+    base = apply_evictable_filter(base, false)
 
     query =
       case cursor do
@@ -637,7 +640,7 @@ defmodule Cache.KeyValueEntries do
           KeyValueEntry
           |> where([entry], entry.id in ^ids_chunk)
           |> where([entry], is_nil(entry.last_accessed_at) or entry.last_accessed_at < ^cutoff)
-          |> apply_evictable_filter()
+          |> apply_evictable_filter(false)
           |> select([entry], {entry.id, entry.key})
           |> KeyValueRepo.all()
 
@@ -648,7 +651,7 @@ defmodule Cache.KeyValueEntries do
           KeyValueEntry
           |> where([entry], entry.id in ^verified_ids)
           |> where([entry], is_nil(entry.last_accessed_at) or entry.last_accessed_at < ^cutoff)
-          |> apply_evictable_filter()
+          |> apply_evictable_filter(false)
           |> KeyValueRepo.delete_all()
 
         {deleted_count, verified_keys}
@@ -670,29 +673,29 @@ defmodule Cache.KeyValueEntries do
     System.monotonic_time(:millisecond) >= deadline_ms
   end
 
-  defp prefix_project_entries_query(prefix, prefix_upper_bound, cutoff, include_pending?) do
+  defp prefix_project_entries_query(prefix, prefix_upper_bound, cutoff, include_pending) do
     KeyValueEntry
     |> where([entry], entry.key >= ^prefix)
     |> where([entry], entry.key < ^prefix_upper_bound)
     |> where([entry], is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff)
-    |> apply_evictable_filter(include_pending?)
+    |> apply_evictable_filter(include_pending)
   end
 
-  defp delete_project_entries_before_loop(prefix, prefix_upper_bound, cutoff, include_pending?, cursor, state) do
+  defp delete_project_entries_before_loop(prefix, prefix_upper_bound, cutoff, include_pending, cursor, state) do
     # The SELECT and DELETE share a single immediate transaction, so no concurrent
     # writer can modify matching rows between the two statements. This guarantees
     # that `candidate_keys` is exactly the set of deleted keys.
     {:ok, {candidate_keys, deleted_count}} =
       KeyValueRepo.transaction(
         fn ->
-          candidate_keys = project_candidate_keys_batch(prefix, prefix_upper_bound, cutoff, include_pending?, cursor)
+          candidate_keys = project_candidate_keys_batch(prefix, prefix_upper_bound, cutoff, include_pending, cursor)
 
           case candidate_keys do
             [] ->
               {[], 0}
 
             _ ->
-              deleted_count = delete_project_candidate_keys_batch(candidate_keys, cutoff, include_pending?)
+              deleted_count = delete_project_candidate_keys_batch(candidate_keys, cutoff, include_pending)
               {candidate_keys, deleted_count}
           end
         end,
@@ -723,7 +726,7 @@ defmodule Cache.KeyValueEntries do
             prefix,
             prefix_upper_bound,
             cutoff,
-            include_pending?,
+            include_pending,
             List.last(candidate_keys),
             next_state
           )
@@ -754,10 +757,10 @@ defmodule Cache.KeyValueEntries do
     end
   end
 
-  defp project_candidate_keys_batch(prefix, prefix_upper_bound, cutoff, include_pending?, cursor) do
+  defp project_candidate_keys_batch(prefix, prefix_upper_bound, cutoff, include_pending, cursor) do
     query =
       prefix
-      |> prefix_project_entries_query(prefix_upper_bound, cutoff, include_pending?)
+      |> prefix_project_entries_query(prefix_upper_bound, cutoff, include_pending)
       |> order_by([entry], asc: entry.key)
       |> limit(^@project_delete_batch_size)
       |> select([entry], entry.key)
@@ -767,12 +770,12 @@ defmodule Cache.KeyValueEntries do
     KeyValueRepo.all(query)
   end
 
-  defp delete_project_candidate_keys_batch(candidate_keys, cutoff, include_pending?) do
+  defp delete_project_candidate_keys_batch(candidate_keys, cutoff, include_pending) do
     {count, _} =
       KeyValueEntry
       |> where([entry], entry.key in ^candidate_keys)
       |> where([entry], is_nil(entry.source_updated_at) or entry.source_updated_at <= ^cutoff)
-      |> apply_evictable_filter(include_pending?)
+      |> apply_evictable_filter(include_pending)
       |> KeyValueRepo.delete_all()
 
     count
@@ -799,8 +802,8 @@ defmodule Cache.KeyValueEntries do
     raise ArgumentError, "value has no lexicographic successor"
   end
 
-  defp apply_evictable_filter(query, include_pending? \\ false) do
-    if Config.distributed_kv_enabled?() and not include_pending? do
+  defp apply_evictable_filter(query, include_pending) do
+    if Config.distributed_kv_enabled?() and not include_pending do
       from(entry in query, where: is_nil(entry.replication_enqueued_at))
     else
       query

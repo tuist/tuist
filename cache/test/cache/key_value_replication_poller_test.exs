@@ -45,7 +45,10 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
   test "poll_now drains multiple full pages before returning" do
     parent = self()
-    {:ok, watermark_agent} = Agent.start_link(fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
+
+    {:ok, watermark_agent} =
+      Agent.start_link(fn -> %{watermark_updated_at: ~U[1970-01-01 00:00:00Z], watermark_key: ""} end)
+
     {:ok, calls_agent} = Agent.start_link(fn -> 0 end)
     {:ok, materialized_agent} = Agent.start_link(fn -> 0 end)
     {:ok, watermark_puts_agent} = Agent.start_link(fn -> 0 end)
@@ -89,7 +92,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
     stub(KeyValueEntries, :commit_remote_batch, fn last_processed_row ->
       Agent.update(watermark_agent, fn _ ->
-        %{updated_at_value: last_processed_row.updated_at, key_value: last_processed_row.key}
+        %{watermark_updated_at: last_processed_row.updated_at, watermark_key: last_processed_row.key}
       end)
 
       Agent.update(watermark_puts_agent, &(&1 + 1))
@@ -128,7 +131,10 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
   test "poller applies alive rows in chunks and advances watermark per committed chunk" do
     parent = self()
-    {:ok, watermark_agent} = Agent.start_link(fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
+
+    {:ok, watermark_agent} =
+      Agent.start_link(fn -> %{watermark_updated_at: ~U[1970-01-01 00:00:00Z], watermark_key: ""} end)
+
     {:ok, calls_agent} = Agent.start_link(fn -> 0 end)
 
     updated_at = DateTime.add(DateTime.utc_now(), -120, :second)
@@ -158,7 +164,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
     stub(KeyValueEntries, :commit_remote_batch, fn last_processed_row ->
       assert last_processed_row.updated_at == updated_at
       assert last_processed_row.key == row.key
-      Agent.update(watermark_agent, fn _ -> %{updated_at_value: updated_at, key_value: row.key} end)
+      Agent.update(watermark_agent, fn _ -> %{watermark_updated_at: updated_at, watermark_key: row.key} end)
       send(parent, :watermark_updated)
       :ok
     end)
@@ -182,7 +188,9 @@ defmodule Cache.KeyValueReplicationPollerTest do
   test "poller uses shared database time for lag filtering" do
     parent = self()
 
-    stub(KeyValueEntries, :distributed_watermark, fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
+    stub(KeyValueEntries, :distributed_watermark, fn ->
+      %{watermark_updated_at: ~U[1970-01-01 00:00:00Z], watermark_key: ""}
+    end)
 
     stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
 
@@ -202,7 +210,9 @@ defmodule Cache.KeyValueReplicationPollerTest do
   test "throttles local store size measurement across repeated polls" do
     parent = self()
 
-    stub(KeyValueEntries, :distributed_watermark, fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
+    stub(KeyValueEntries, :distributed_watermark, fn ->
+      %{watermark_updated_at: ~U[1970-01-01 00:00:00Z], watermark_key: ""}
+    end)
 
     stub(KeyValueEntries, :estimated_size_bytes, fn ->
       send(parent, :size_measured)
@@ -222,7 +232,9 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
   test "stops the page early when local SQLite is busy and keeps the poller alive" do
     parent = self()
-    {:ok, watermark_agent} = Agent.start_link(fn -> %{updated_at_value: ~U[1970-01-01 00:00:00Z], key_value: ""} end)
+
+    {:ok, watermark_agent} =
+      Agent.start_link(fn -> %{watermark_updated_at: ~U[1970-01-01 00:00:00Z], watermark_key: ""} end)
 
     base_time = DateTime.add(DateTime.utc_now(), -240, :second)
 
@@ -266,7 +278,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
     stub(KeyValueEntries, :commit_remote_batch, fn last_processed_row ->
       Agent.update(watermark_agent, fn _ ->
-        %{updated_at_value: last_processed_row.updated_at, key_value: last_processed_row.key}
+        %{watermark_updated_at: last_processed_row.updated_at, watermark_key: last_processed_row.key}
       end)
 
       send(parent, {:watermark_updated, last_processed_row.key})
@@ -274,7 +286,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
     end)
 
     stub(KeyValueEntries, :put_distributed_watermark, fn updated_at, key ->
-      Agent.update(watermark_agent, fn _ -> %{updated_at_value: updated_at, key_value: key} end)
+      Agent.update(watermark_agent, fn _ -> %{watermark_updated_at: updated_at, watermark_key: key} end)
       send(parent, {:watermark_updated, key})
       :ok
     end)
@@ -288,7 +300,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
     assert_receive :first_chunk_applied, 10_000
     assert_receive {:watermark_updated, ^last_committed_key}, 10_000
 
-    assert %{updated_at_value: ^last_committed_updated_at, key_value: ^last_committed_key} =
+    assert %{watermark_updated_at: ^last_committed_updated_at, watermark_key: ^last_committed_key} =
              Agent.get(watermark_agent, & &1)
 
     assert Process.whereis(KeyValueReplicationPoller)
@@ -494,7 +506,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
       assert_eventually(fn -> Process.whereis(KeyValueReplicationPoller) == pid_3 end)
 
       assert_eventually(fn ->
-        match?(%{updated_at_value: ^updated_at, key_value: ^row_key}, KeyValueEntries.distributed_watermark())
+        match?(%{watermark_updated_at: ^updated_at, watermark_key: ^row_key}, KeyValueEntries.distributed_watermark())
       end)
 
       assert {:ok, nil} = Cachex.get(:cache_keyvalue_store, row_key)
@@ -575,7 +587,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
 
     assert_eventually(fn ->
       match?(
-        %{updated_at_value: ^filtered_last_updated_at, key_value: ^filtered_last_key},
+        %{watermark_updated_at: ^filtered_last_updated_at, watermark_key: ^filtered_last_key},
         KeyValueEntries.distributed_watermark()
       )
     end)
@@ -587,7 +599,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
     assert 3 == Agent.get(repo_calls_agent, & &1)
 
     assert match?(
-             %{updated_at_value: ^filtered_last_updated_at, key_value: ^filtered_last_key},
+             %{watermark_updated_at: ^filtered_last_updated_at, watermark_key: ^filtered_last_key},
              KeyValueEntries.distributed_watermark()
            )
   end

@@ -32,7 +32,7 @@ defmodule Cache.CleanProjectWorker do
   end
 
   defp perform_local_cleanup(account_handle, project_handle) do
-    :ok = invalidate_local_kv(account_handle, project_handle, DateTime.utc_now())
+    :ok = invalidate_local_kv(account_handle, project_handle, DateTime.utc_now(), fn -> :ok end)
 
     case Disk.delete_project(account_handle, project_handle) do
       :ok ->
@@ -122,7 +122,7 @@ defmodule Cache.CleanProjectWorker do
 
   defp perform_duplicate_distributed_cleanup(account_handle, project_handle, attempt) do
     with {:ok, cleanup_cutoff} <- existing_cleanup_cutoff(account_handle, project_handle),
-         :ok <- perform_local_node_cleanup(account_handle, project_handle, cleanup_cutoff) do
+         :ok <- perform_local_node_cleanup(account_handle, project_handle, cleanup_cutoff, fn -> :ok end) do
       if attempt > 1 do
         Logger.warning(
           "Distributed cleanup already in progress for #{account_handle}/#{project_handle} on retry attempt #{attempt}; completed node-local cleanup with cutoff #{DateTime.to_iso8601(cleanup_cutoff)} and returning retryable error"
@@ -154,21 +154,22 @@ defmodule Cache.CleanProjectWorker do
   end
 
   @doc false
-  def perform_local_node_cleanup(account_handle, project_handle, cutoff, on_progress \\ fn -> :ok end) do
+  def perform_local_node_cleanup(account_handle, project_handle, cutoff, on_progress) do
     with :ok <- invalidate_local_kv(account_handle, project_handle, cutoff, on_progress) do
       delete_disk_with_cutoff(account_handle, project_handle, cutoff, on_progress)
     end
   end
 
-  defp invalidate_local_kv(account_handle, project_handle, cutoff, on_progress \\ fn -> :ok end) do
-    distributed? = Config.distributed_kv_enabled?()
-    on_deleted_keys = fn keys -> invalidate_local_kv_keys(keys, distributed?) end
+  defp invalidate_local_kv(account_handle, project_handle, cutoff, on_progress) do
+    opts =
+      [after_delete_batch: fn _keys -> on_progress.() end, on_deleted_keys: &invalidate_local_kv_keys/1]
 
     opts =
-      maybe_include_pending(
-        [after_delete_batch: fn _keys -> on_progress.() end, on_deleted_keys: on_deleted_keys],
-        distributed?
-      )
+      if Config.distributed_kv_enabled?() do
+        Keyword.put(opts, :include_pending, true)
+      else
+        opts
+      end
 
     case KeyValueEntries.delete_project_entries_before(account_handle, project_handle, cutoff, opts) do
       {:error, reason} -> {:error, reason}
@@ -176,10 +177,9 @@ defmodule Cache.CleanProjectWorker do
     end
   end
 
-  defp maybe_include_pending(opts, true), do: Keyword.put(opts, :include_pending?, true)
-  defp maybe_include_pending(opts, false), do: opts
+  defp invalidate_local_kv_keys(keys) do
+    distributed? = Config.distributed_kv_enabled?()
 
-  defp invalidate_local_kv_keys(keys, distributed?) do
     Enum.each(keys, fn key ->
       if distributed?, do: :ok = KeyValueAccessTracker.clear(key)
       {:ok, _deleted?} = Cachex.del(KeyValueStore.cache_name(), key)

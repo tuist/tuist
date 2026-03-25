@@ -291,18 +291,22 @@ defmodule Cache.DistributedKV.Cleanup do
   def get_local_discovery_watermark do
     case KeyValueRepo.get(State, @discovery_watermark) do
       nil -> nil
-      %State{key_value: nil} -> nil
-      %State{key_value: value} -> String.to_integer(value)
+      %State{watermark_key: nil} -> nil
+      %State{watermark_key: value} -> String.to_integer(value)
     end
   end
 
   def put_local_discovery_watermark(event_id) do
-    attrs = %{name: @discovery_watermark, updated_at_value: DateTime.utc_now(), key_value: Integer.to_string(event_id)}
+    attrs = %{
+      name: @discovery_watermark,
+      watermark_updated_at: DateTime.utc_now(),
+      watermark_key: Integer.to_string(event_id)
+    }
 
     %State{name: @discovery_watermark}
     |> State.changeset(attrs)
     |> KeyValueRepo.insert!(
-      on_conflict: [set: [updated_at_value: attrs.updated_at_value, key_value: attrs.key_value]],
+      on_conflict: [set: [watermark_updated_at: attrs.watermark_updated_at, watermark_key: attrs.watermark_key]],
       conflict_target: :name
     )
 
@@ -314,19 +318,19 @@ defmodule Cache.DistributedKV.Cleanup do
 
     case KeyValueRepo.get(State, name) do
       nil -> 0
-      %State{key_value: nil} -> 0
-      %State{key_value: value} -> String.to_integer(value)
+      %State{watermark_key: nil} -> 0
+      %State{watermark_key: value} -> String.to_integer(value)
     end
   end
 
   def put_local_applied_generation(account_handle, project_handle, generation) do
     name = applied_generation_key(account_handle, project_handle)
-    attrs = %{name: name, updated_at_value: DateTime.utc_now(), key_value: Integer.to_string(generation)}
+    attrs = %{name: name, watermark_updated_at: DateTime.utc_now(), watermark_key: Integer.to_string(generation)}
 
     %State{name: name}
     |> State.changeset(attrs)
     |> KeyValueRepo.insert!(
-      on_conflict: [set: [updated_at_value: attrs.updated_at_value, key_value: attrs.key_value]],
+      on_conflict: [set: [watermark_updated_at: attrs.watermark_updated_at, watermark_key: attrs.watermark_key]],
       conflict_target: :name
     )
 

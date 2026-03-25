@@ -1,4 +1,4 @@
-defmodule Cache.DistributedKVGCWorker do
+defmodule Cache.DistributedKV.GCWorker do
   @moduledoc false
 
   use Oban.Worker, queue: :maintenance, max_attempts: 1

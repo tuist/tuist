@@ -70,7 +70,7 @@ config :cache, Oban,
        {"*/10 * * * *", Cache.DiskEvictionWorker},
        {"0 * * * *", Cache.OrphanCleanupWorker},
        {"*/15 * * * *", Cache.KeyValueEvictionWorker},
-       {"*/5 * * * *", Cache.DistributedKVGCWorker},
+       {"*/5 * * * *", Cache.DistributedKV.GCWorker},
        {"* * * * *", Cache.S3TransferWorker},
        {"*/10 * * * *", Cache.Registry.SyncWorker},
        {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}

@@ -28,7 +28,7 @@ defmodule Cache.ApplyProjectCleanupWorker do
 
       :ok
     else
-      case CleanProjectWorker.perform_local_node_cleanup(account_handle, project_handle, safe_cutoff) do
+      case CleanProjectWorker.perform_local_node_cleanup(account_handle, project_handle, safe_cutoff, fn -> :ok end) do
         :ok ->
           :ok = Cleanup.put_local_applied_generation(account_handle, project_handle, generation)
 

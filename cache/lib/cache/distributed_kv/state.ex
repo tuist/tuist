@@ -7,13 +7,13 @@ defmodule Cache.DistributedKV.State do
 
   @primary_key {:name, :string, autogenerate: false}
   schema "replication_state" do
-    field :updated_at_value, :utc_datetime_usec
-    field :key_value, :string
+    field :watermark_updated_at, :utc_datetime_usec
+    field :watermark_key, :string
   end
 
   def changeset(state, attrs) do
     state
-    |> cast(attrs, [:name, :updated_at_value, :key_value])
+    |> cast(attrs, [:name, :watermark_updated_at, :watermark_key])
     |> validate_required([:name])
   end
 end

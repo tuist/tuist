@@ -258,7 +258,7 @@ defmodule Cache.S3 do
     type = Keyword.get(opts, :type, :cache)
     bucket = bucket_for_type(type)
     safe_cutoff = DateTime.truncate(cutoff, :second)
-    on_progress = Keyword.get(opts, :on_progress, fn -> :ok end)
+    on_progress = Keyword.get(opts, :on_progress)
 
     {duration, result} = :timer.tc(fn -> list_and_delete_objects_before(bucket, prefix, safe_cutoff, on_progress) end)
 
@@ -302,7 +302,7 @@ defmodule Cache.S3 do
     |> Stream.map(fn obj -> {obj.key, obj.last_modified} end)
     |> Stream.chunk_every(@cleanup_progress_chunk_size)
     |> Enum.reduce_while({:ok, 0}, fn objects_chunk, {:ok, count} ->
-      with :ok <- on_progress.(),
+      with :ok <- maybe_call_progress(on_progress),
            {:ok, chunk_count} <- delete_objects_in_chunk_if_before(bucket, objects_chunk, cutoff) do
         {:cont, {:ok, count + chunk_count}}
       else
@@ -310,6 +310,9 @@ defmodule Cache.S3 do
       end
     end)
   end
+
+  defp maybe_call_progress(nil), do: :ok
+  defp maybe_call_progress(fun) when is_function(fun, 0), do: fun.()
 
   defp delete_objects_in_chunk_if_before(_bucket, [], _cutoff), do: {:ok, 0}
 
