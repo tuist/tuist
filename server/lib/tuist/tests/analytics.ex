@@ -438,6 +438,34 @@ defmodule Tuist.Tests.Analytics do
     ClickHouseRepo.one(query) || %{total_count: 0, failed_count: 0, flaky_count: 0, avg_duration: 0}
   end
 
+  def get_test_run_selective_testing_metrics(test_run_id) do
+    event_query =
+      from(e in Event,
+        where: e.test_run_id == ^test_run_id,
+        select: %{
+          local_test_hits_count: e.local_test_hits_count,
+          remote_test_hits_count: e.remote_test_hits_count,
+          test_targets_count: e.test_targets_count
+        }
+      )
+
+    case ClickHouseRepo.one(event_query) do
+      nil ->
+        %{
+          selective_testing_local_hits: 0,
+          selective_testing_remote_hits: 0,
+          selective_testing_targets: 0
+        }
+
+      event ->
+        %{
+          selective_testing_local_hits: event.local_test_hits_count || 0,
+          selective_testing_remote_hits: event.remote_test_hits_count || 0,
+          selective_testing_targets: event.test_targets_count || 0
+        }
+    end
+  end
+
   @doc """
   Fetches metrics for multiple test runs with precomputed values.
 
@@ -473,7 +501,8 @@ defmodule Tuist.Tests.Analytics do
             local_cache_hits_count: e.local_cache_hits_count,
             remote_cache_hits_count: e.remote_cache_hits_count,
             local_test_hits_count: e.local_test_hits_count,
-            remote_test_hits_count: e.remote_test_hits_count
+            remote_test_hits_count: e.remote_test_hits_count,
+            test_targets_count: e.test_targets_count
           }
         )
       )
@@ -507,7 +536,10 @@ defmodule Tuist.Tests.Analytics do
         total_tests: total_count,
         cache_hit_rate: cache_hit_rate,
         skipped_tests: skipped_tests,
-        ran_tests: ran_tests
+        ran_tests: ran_tests,
+        selective_testing_local_hits: local_test_hits,
+        selective_testing_remote_hits: remote_test_hits,
+        selective_testing_targets: Map.get(event_info, :test_targets_count) || 0
       }
     end)
   end
