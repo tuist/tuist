@@ -198,8 +198,6 @@ if config_env() == :prod do
     distributed_kv_ship_batch_size: String.to_integer(System.get_env("DISTRIBUTED_KV_SHIP_BATCH_SIZE") || "1000"),
     distributed_kv_access_throttle_ms:
       String.to_integer(System.get_env("DISTRIBUTED_KV_ACCESS_THROTTLE_MS") || "30000"),
-    distributed_kv_tombstone_retention_days:
-      String.to_integer(System.get_env("DISTRIBUTED_KV_TOMBSTONE_RETENTION_DAYS") || "7"),
     distributed_kv_cleanup_lease_ms: String.to_integer(System.get_env("DISTRIBUTED_KV_CLEANUP_LEASE_MS") || "300000"),
     distributed_kv_node_name: System.get_env("DISTRIBUTED_KV_NODE_NAME") || System.get_env("HOSTNAME")
 

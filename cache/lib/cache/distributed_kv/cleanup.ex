@@ -334,15 +334,6 @@ defmodule Cache.DistributedKV.Cleanup do
     :ok
   end
 
-  # Kept for backward compatibility with TombstonePurgeWorker during transition
-  def purge_tombstones_older_than(days) do
-    cutoff = DateTime.add(DateTime.utc_now(), -days, :day)
-
-    {count, _} =
-      Repo.delete_all(from(entry in Entry, where: not is_nil(entry.deleted_at) and entry.deleted_at < ^cutoff))
-
-    count
-  end
 
   defp compute_effective_barrier(active_cutoff, lease_expires, published_cutoff) do
     active_barrier = active_barrier_if_alive(active_cutoff, lease_expires)
