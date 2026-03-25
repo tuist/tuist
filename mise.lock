@@ -1,13 +1,13 @@
 [[tools.1password-cli]]
 version = "2.32.0"
 backend = "vfox:1password-cli"
-"platforms.linux-arm64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
-"platforms.linux-arm64-musl" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
-"platforms.linux-x64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
-"platforms.linux-x64-musl" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
+"platforms.linux-arm64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_linux_arm64_v2.32.0.zip"}
+"platforms.linux-arm64-musl" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_linux_arm64_v2.32.0.zip"}
+"platforms.linux-x64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_linux_amd64_v2.32.0.zip"}
+"platforms.linux-x64-musl" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_linux_amd64_v2.32.0.zip"}
 "platforms.macos-arm64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
-"platforms.macos-x64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
-"platforms.windows-x64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
+"platforms.macos-x64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_amd64_v2.32.0.zip"}
+"platforms.windows-x64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_windows_amd64_v2.32.0.zip"}
 
 [[tools.age]]
 version = "1.2.1"
@@ -103,11 +103,6 @@ backend = "aqua:realm/SwiftLint"
 "platforms.macos-x64" = { url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"}
 
 [[tools.tuist]]
-version = "4.166.2"
+version = "4.167.0"
 backend = "aqua:tuist/tuist"
-"platforms.linux-arm64" = { checksum = "sha256:d56cd0fdcf004ca0fbbb2dc7cd325588e947cc9d8ef9e79da90768c9e186bec7", url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist-linux-aarch64.tar.gz"}
-"platforms.linux-arm64-musl" = { checksum = "sha256:d56cd0fdcf004ca0fbbb2dc7cd325588e947cc9d8ef9e79da90768c9e186bec7", url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist-linux-aarch64.tar.gz"}
-"platforms.linux-x64" = { checksum = "sha256:3ad9a273954a3471a0eb3f65ec115ce38aa70a6e716f75acdfee5ef40a047879", url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist-linux-x86_64.tar.gz"}
-"platforms.linux-x64-musl" = { checksum = "sha256:3ad9a273954a3471a0eb3f65ec115ce38aa70a6e716f75acdfee5ef40a047879", url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist-linux-x86_64.tar.gz"}
-"platforms.macos-arm64" = { checksum = "sha256:ab476ec4e008d4be91075dbb409b39f8acf616b712f0f19a74bb962c81124ef6", url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist.zip"}
-"platforms.macos-x64" = { checksum = "sha256:ab476ec4e008d4be91075dbb409b39f8acf616b712f0f19a74bb962c81124ef6", url = "https://github.com/tuist/tuist/releases/download/4.166.2/tuist.zip"}
+"platforms.linux-x64" = { checksum = "sha256:654d4d65b6400e857751e977e69fc4e596314f1f3853b21b01479945f54e8d77", url = "https://github.com/tuist/tuist/releases/download/4.167.0/tuist-linux-x86_64.tar.gz"}
