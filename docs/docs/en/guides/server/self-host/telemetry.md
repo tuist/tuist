@@ -497,6 +497,17 @@ The configured number of connections in the pool.
 | `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
 | `database` | The backing database type, such as `postgres` or `clickhouse`. |
 
+### `tuist_repo_pool_checkout_queue_total_samples_sum` (sum) {#tuist_repo_pool_checkout_queue_total_samples_sum-sum}
+
+The total number of repo pool polls taken (increments by 1 on every poll). Use this as the denominator when computing busyness or starvation percentages: `rate(busy_samples) / rate(total_samples)` or `rate(starved_samples) / rate(total_samples)`.
+
+#### Tags {#tuist_repo_pool_checkout_queue_total_samples_sum-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
 ### `tuist_repo_pool_checkout_queue_observed_sum` (sum) {#tuist_repo_pool_checkout_queue_observed_sum-sum}
 
 The sum of queued checkout requests observed across repo pool polls. This is useful for detecting short bursts of pool contention that may not be visible in the latest queue-length sample alone.
