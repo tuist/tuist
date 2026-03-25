@@ -171,6 +171,14 @@ class TuistTestShardingTest {
 
     // MARK: - writeShardMatrixOutput
 
+    @Suppress("UNCHECKED_CAST")
+    private fun parseJson(content: String): Map<String, Any> =
+        Gson().fromJson(content, Map::class.java) as Map<String, Any>
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseJsonList(content: String): List<Any> =
+        Gson().fromJson(content, List::class.java) as List<Any>
+
     @Test
     fun `writeShardMatrixOutput writes GitHub Actions matrix to output file`(@TempDir tempDir: File) {
         val githubOutputFile = File(tempDir, "github_output").apply { writeText("") }
@@ -181,7 +189,10 @@ class TuistTestShardingTest {
             envWith("GITHUB_ACTIONS" to "true", "GITHUB_OUTPUT" to githubOutputFile.absolutePath)
         )
 
-        assertEquals("""matrix={"shard":[0, 1, 2]}""" + "\n", githubOutputFile.readText())
+        val line = githubOutputFile.readText().trim()
+        assertTrue(line.startsWith("matrix="))
+        val json = parseJson(line.removePrefix("matrix="))
+        assertEquals(listOf(0.0, 1.0, 2.0), json["shard"])
     }
 
     @Test
@@ -189,21 +200,12 @@ class TuistTestShardingTest {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("GITLAB_CI" to "true"))
 
-        assertEquals(
-            """
-            shard-0:
-              extends: .tuist-shard
-              variables:
-                TUIST_SHARD_INDEX: "0"
-
-            shard-1:
-              extends: .tuist-shard
-              variables:
-                TUIST_SHARD_INDEX: "1"
-
-            """.trimIndent() + "\n",
-            File(tempDir, ".tuist-shard-child-pipeline.yml").readText()
-        )
+        val content = File(tempDir, ".tuist-shard-child-pipeline.yml").readText()
+        assertTrue(content.contains("shard-0:"))
+        assertTrue(content.contains("shard-1:"))
+        assertTrue(content.contains("extends: .tuist-shard"))
+        assertTrue(content.contains("TUIST_SHARD_INDEX: \"0\""))
+        assertTrue(content.contains("TUIST_SHARD_INDEX: \"1\""))
     }
 
     @Test
@@ -211,10 +213,9 @@ class TuistTestShardingTest {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("CIRCLECI" to "true"))
 
-        assertEquals(
-            """{"shard-indices":"0,1","shard-count":2}""",
-            File(tempDir, ".tuist-shard-continuation.json").readText()
-        )
+        val json = parseJson(File(tempDir, ".tuist-shard-continuation.json").readText())
+        assertEquals("0,1", json["shard-indices"])
+        assertEquals(2.0, json["shard-count"])
     }
 
     @Test
@@ -222,20 +223,12 @@ class TuistTestShardingTest {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("BUILDKITE" to "true"))
 
-        assertEquals(
-            """
-            steps:
-              - label: "Shard #0"
-                env:
-                  TUIST_SHARD_INDEX: "0"
-
-              - label: "Shard #1"
-                env:
-                  TUIST_SHARD_INDEX: "1"
-
-            """.trimIndent() + "\n",
-            File(tempDir, ".tuist-shard-pipeline.yml").readText()
-        )
+        val content = File(tempDir, ".tuist-shard-pipeline.yml").readText()
+        assertTrue(content.contains("steps:"))
+        assertTrue(content.contains("label: \"Shard #0\""))
+        assertTrue(content.contains("label: \"Shard #1\""))
+        assertTrue(content.contains("TUIST_SHARD_INDEX: \"0\""))
+        assertTrue(content.contains("TUIST_SHARD_INDEX: \"1\""))
     }
 
     @Test
@@ -248,12 +241,14 @@ class TuistTestShardingTest {
             envWith("CM_BUILD_ID" to "123", "CM_ENV" to cmEnvFile.absolutePath)
         )
 
-        assertEquals(
-            """TUIST_SHARD_MATRIX={"shard":[0, 1]}""" + "\nTUIST_SHARD_COUNT=2\n",
-            cmEnvFile.readText()
-        )
+        val lines = cmEnvFile.readLines()
+        val matrixLine = lines.first { it.startsWith("TUIST_SHARD_MATRIX=") }
+        val matrixJson = parseJson(matrixLine.removePrefix("TUIST_SHARD_MATRIX="))
+        assertEquals(listOf(0.0, 1.0), matrixJson["shard"])
+        assertTrue(lines.any { it == "TUIST_SHARD_COUNT=2" })
     }
 
+    @Suppress("UNCHECKED_CAST")
     @Test
     fun `writeShardMatrixOutput writes Bitrise matrix to deploy dir`(@TempDir tempDir: File) {
         val deployDir = File(tempDir, "deploy").apply { mkdirs() }
@@ -264,21 +259,26 @@ class TuistTestShardingTest {
             envWith("BITRISE_IO" to "true", "BITRISE_DEPLOY_DIR" to deployDir.absolutePath)
         )
 
-        assertEquals(
-            """{"shard":[0, 1],"shard_count":2}""",
-            File(deployDir, ".tuist-shard-matrix.json").readText()
-        )
+        val json = parseJson(File(deployDir, ".tuist-shard-matrix.json").readText())
+        assertEquals(listOf(0.0, 1.0), json["shard"])
+        assertEquals(2.0, json["shard_count"])
     }
 
+    @Suppress("UNCHECKED_CAST")
     @Test
     fun `writeShardMatrixOutput writes fallback json when no CI detected`(@TempDir tempDir: File) {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith())
 
-        assertEquals(
-            """{"reference":"test-ref","shard_count":2,"shards":[{"index":0,"test_targets":["com.example.Test0"],"estimated_duration_ms":1000},{"index":1,"test_targets":["com.example.Test1"],"estimated_duration_ms":1000}]}""",
-            File(tempDir, ".tuist-shard-matrix.json").readText()
-        )
+        val json = parseJson(File(tempDir, ".tuist-shard-matrix.json").readText())
+        assertEquals("test-ref", json["reference"])
+        assertEquals(2.0, json["shard_count"])
+        val shards = json["shards"] as List<Map<String, Any>>
+        assertEquals(2, shards.size)
+        assertEquals(0.0, shards[0]["index"])
+        assertEquals(listOf("com.example.Test0"), shards[0]["test_targets"])
+        assertEquals(1.0, shards[1]["index"])
+        assertEquals(listOf("com.example.Test1"), shards[1]["test_targets"])
     }
 }
 

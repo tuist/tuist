@@ -21,9 +21,7 @@ struct ShardMatrixOutputServiceTests {
 
     private func mockedCWD() async throws -> AbsolutePath {
         let cwd = try await Environment.current.currentWorkingDirectory()
-        if !(try await fileSystem.exists(cwd)) {
-            try await fileSystem.makeDirectory(at: cwd)
-        }
+        try await fileSystem.makeDirectory(at: cwd)
         return cwd
     }
 
