@@ -384,15 +384,6 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
-  defp load_tab_data(selected_test_tab, run, params) do
-    case selected_test_tab do
-      "test-cases" -> {:test_cases, load_test_cases_data(run, params)}
-      "test-suites" -> {:test_suites, load_test_suites_data(run, params)}
-      "test-modules" -> {:test_modules, load_test_modules_data(run, params)}
-      _ -> {:test_cases, load_test_cases_data(run, params)}
-    end
-  end
-
   defp assign_tab_data(socket, "failures", params) do
     {failed_test_case_runs, meta} = load_failures_data(socket.assigns.run, params)
     assign_failures_data(socket, failed_test_case_runs, meta, params)
@@ -408,6 +399,15 @@ defmodule TuistWeb.TestRunLive do
     |> assign_selective_testing_defaults()
     |> assign_binary_cache_defaults()
     |> assign_param_defaults(params)
+  end
+
+  defp load_tab_data(selected_test_tab, run, params) do
+    case selected_test_tab do
+      "test-cases" -> {:test_cases, load_test_cases_data(run, params)}
+      "test-suites" -> {:test_suites, load_test_suites_data(run, params)}
+      "test-modules" -> {:test_modules, load_test_modules_data(run, params)}
+      _ -> {:test_cases, load_test_cases_data(run, params)}
+    end
   end
 
   defp assign_selective_testing_data(socket, analytics, meta, params) do
