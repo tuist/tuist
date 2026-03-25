@@ -36,6 +36,7 @@ struct BundleLoaderErrorTests {
 }
 
 struct BundleLoaderTests {
+    private let fileSystem = FileSystem()
     private let subject: BundleLoader
     init() {
         subject = BundleLoader(
