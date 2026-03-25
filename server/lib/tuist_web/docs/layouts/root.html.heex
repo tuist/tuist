@@ -16,7 +16,27 @@
     </script>
     <script nonce={get_csp_nonce()} type="module">
       import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-      mermaid.initialize({ startOnLoad: true, theme: "default", securityLevel: "loose" });
+      const styles = getComputedStyle(document.documentElement);
+      const get = (v) => styles.getPropertyValue(v).trim();
+      mermaid.initialize({
+        startOnLoad: true,
+        securityLevel: "loose",
+        theme: "base",
+        themeVariables: {
+          primaryColor: get("--noora-surface-background-secondary"),
+          primaryBorderColor: get("--noora-surface-border-primary"),
+          primaryTextColor: get("--noora-surface-label-primary"),
+          secondaryColor: get("--noora-surface-background-tertiary"),
+          tertiaryColor: get("--noora-surface-background-primary"),
+          lineColor: get("--noora-surface-label-secondary"),
+          textColor: get("--noora-surface-label-primary"),
+          fontFamily: get("--noora-font-body"),
+          fontSize: "14px",
+          nodeBorder: get("--noora-surface-border-primary"),
+          nodeTextColor: get("--noora-surface-label-primary"),
+          edgeLabelBackground: get("--noora-surface-background-primary"),
+        },
+      });
       document.addEventListener("phx:page-loading-stop", () => {
         mermaid.run({ querySelector: ".mermaid" });
       });
