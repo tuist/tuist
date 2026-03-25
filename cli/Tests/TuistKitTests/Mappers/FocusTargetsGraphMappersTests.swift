@@ -7,7 +7,7 @@ import TuistTesting
 import XcodeGraph
 @testable import TuistKit
 
-struct FocusTargetsGraphMappersTests {
+@Suite(.withMockedDependencies()) struct FocusTargetsGraphMappersTests {
     @Test(.inTemporaryDirectory) func map_when_included_targets_is_empty_no_targets_are_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()

@@ -8,7 +8,7 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistTesting
 
-struct ManifestGraphLoaderIntegrationTests {
+@Suite(.withMockedDependencies()) struct ManifestGraphLoaderIntegrationTests {
     var subject: ManifestGraphLoader!
 
     init() throws {

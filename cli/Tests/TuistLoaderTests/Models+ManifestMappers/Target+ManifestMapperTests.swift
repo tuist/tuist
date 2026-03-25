@@ -12,7 +12,7 @@ import XcodeGraph
 @testable import TuistLoader
 @testable import TuistTesting
 
-struct TargetManifestMapperErrorTests {
+@Suite(.withMockedDependencies()) struct TargetManifestMapperErrorTests {
     @Test func description_when_nonSpecificGeneratedResource() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/to/A")
@@ -29,7 +29,7 @@ struct TargetManifestMapperErrorTests {
     }
 }
 
-struct TargetManifestMapperTests {
+@Suite(.withMockedDependencies()) struct TargetManifestMapperTests {
     private let fileSystem = FileSystem()
 
     @Test(.inTemporaryDirectory) func test_from() async throws {

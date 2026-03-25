@@ -13,7 +13,7 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistTesting
 
-struct ScaffoldServiceTests {
+@Suite(.withMockedDependencies()) struct ScaffoldServiceTests {
     var subject: ScaffoldService!
     var templateLoader: MockTemplateLoading!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocating!

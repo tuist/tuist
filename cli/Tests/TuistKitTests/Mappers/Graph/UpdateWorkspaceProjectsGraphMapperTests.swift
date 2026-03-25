@@ -9,7 +9,7 @@ import XcodeGraph
 @testable import TuistKit
 @testable import TuistTesting
 
-struct UpdateWorkspaceProjectsGraphMapperTests {
+@Suite(.withMockedDependencies()) struct UpdateWorkspaceProjectsGraphMapperTests {
     var subject: UpdateWorkspaceProjectsGraphMapper!
 
     init() {

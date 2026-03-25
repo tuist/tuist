@@ -7,7 +7,7 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistTesting
 
-struct MigrationCheckEmptyBuildSettingsServiceTests {
+@Suite(.withMockedDependencies()) struct MigrationCheckEmptyBuildSettingsServiceTests {
     var subject: MigrationCheckEmptyBuildSettingsService!
     var emptyBuildSettingsChecker: MockEmptyBuildSettingsChecker!
 

@@ -11,7 +11,7 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistTesting
 
-struct AnalyticsUploadCommandServiceTests {
+@Suite(.withMockedDependencies()) struct AnalyticsUploadCommandServiceTests {
     private let fullHandle = "tuist-org/tuist"
     private let serverURL = "https://tuist.dev"
     private let uploadAnalyticsService = MockUploadAnalyticsServicing()

@@ -6,7 +6,7 @@ import TuistSupport
 @testable import TuistLoader
 @testable import TuistTesting
 
-struct ProjectDescriptionHelpersBuilderTests {
+@Suite(.withMockedDependencies()) struct ProjectDescriptionHelpersBuilderTests {
     private var projectDescriptionHelpersHasher: MockProjectDescriptionHelpersHasher
     private let resourceLocator: ResourceLocator
     private var helpersDirectoryLocator: MockHelpersDirectoryLocator

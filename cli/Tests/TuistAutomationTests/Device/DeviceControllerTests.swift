@@ -9,7 +9,7 @@ import TuistTesting
 
 @testable import TuistAutomation
 
-struct DeviceControllerTests {
+@Suite(.withMockedDependencies()) struct DeviceControllerTests {
     private let subject: DeviceController
     private let commandRunner: MockCommandRunning
     private let fileSystem = FileSystem()

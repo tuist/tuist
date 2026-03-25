@@ -11,7 +11,7 @@ import XcodeGraph
 
 @testable import TuistAutomation
 
-struct TargetRunnerErrorTests {
+@Suite(.withMockedDependencies()) struct TargetRunnerErrorTests {
     @Test
     func description() {
         #expect(TargetRunnerError.runnableNotFound(path: "/path/to/product")
@@ -21,7 +21,7 @@ struct TargetRunnerErrorTests {
     }
 }
 
-struct TargetRunnerTests {
+@Suite(.withMockedDependencies()) struct TargetRunnerTests {
     private let system = MockSystem()
     private let fileSystem = FileSystem()
     private let xcodeBuildController = MockXcodeBuildControlling()

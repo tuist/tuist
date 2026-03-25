@@ -1,9 +1,10 @@
 import Foundation
 import Testing
+import TuistTesting
 
 @testable import TuistKit
 
-struct ShardServiceTests {
+@Suite(.withMockedDependencies()) struct ShardServiceTests {
     let subject = ShardService()
 
     @Test

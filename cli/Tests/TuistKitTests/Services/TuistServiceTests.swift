@@ -10,7 +10,7 @@ import TuistTesting
 
 @testable import TuistKit
 
-struct TuistServiceTests {
+@Suite(.withMockedDependencies()) struct TuistServiceTests {
     private let system = MockSystem()
     private var subject: TuistService!
     private var pluginService: MockPluginService!

@@ -7,7 +7,7 @@ import struct TSCUtility.Version
 @testable import TuistSupport
 @testable import TuistTesting
 
-struct XcodeControllerTests {
+@Suite(.withMockedDependencies()) struct XcodeControllerTests {
     private let system = MockSystem()
     let subject: XcodeController
     init() {

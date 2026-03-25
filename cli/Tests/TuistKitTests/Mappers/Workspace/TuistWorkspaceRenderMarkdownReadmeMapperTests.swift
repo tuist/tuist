@@ -8,7 +8,7 @@ import XcodeGraph
 @testable import TuistKit
 @testable import TuistTesting
 
-struct TuistWorkspaceRenderMarkdownReadmeMapperTests {
+@Suite(.withMockedDependencies()) struct TuistWorkspaceRenderMarkdownReadmeMapperTests {
     private var subject: TuistWorkspaceRenderMarkdownReadmeMapper!
 
     init() {

@@ -12,7 +12,7 @@ import TuistTesting
 import XcodeGraph
 @testable import TuistKit
 
-struct StaticXCFrameworkModuleMapGraphMapperTests {
+@Suite(.withMockedDependencies()) struct StaticXCFrameworkModuleMapGraphMapperTests {
     private var subject: StaticXCFrameworkModuleMapGraphMapper!
     private var manifestFilesLocator: MockManifestFilesLocating!
     private let fileSystem = FileSystem()

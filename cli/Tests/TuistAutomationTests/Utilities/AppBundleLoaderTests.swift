@@ -10,7 +10,7 @@ import XcodeGraph
 
 @testable import TuistAutomation
 
-struct AppBundleLoaderTests {
+@Suite(.withMockedDependencies()) struct AppBundleLoaderTests {
     private let subject: AppBundleLoader
     private let fileSystem = FileSystem()
     private let fileHandler = FileHandler.shared

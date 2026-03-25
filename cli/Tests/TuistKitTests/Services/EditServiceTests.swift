@@ -11,7 +11,7 @@ import XcodeProj
 @testable import TuistKit
 @testable import TuistTesting
 
-struct EditServiceTests {
+@Suite(.withMockedDependencies()) struct EditServiceTests {
     var subject: EditService!
     var opener: MockOpening!
     var configLoader: MockConfigLoading!

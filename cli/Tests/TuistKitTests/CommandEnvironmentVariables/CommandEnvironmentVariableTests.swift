@@ -19,7 +19,7 @@ import TuistVersionCommand
 @testable import TuistTestCommand
 @testable import TuistTesting
 
-struct CommandEnvironmentVariableTests {
+@Suite(.withMockedDependencies()) struct CommandEnvironmentVariableTests {
     private var tuistVariables: [String: String] {
         get {
             return Environment.mocked?.variables ?? [:]

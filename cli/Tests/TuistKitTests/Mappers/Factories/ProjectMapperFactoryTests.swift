@@ -7,7 +7,7 @@ import TuistLoader
 @testable import TuistKit
 @testable import TuistTesting
 
-struct ProjectMapperFactoryTests {
+@Suite(.withMockedDependencies()) struct ProjectMapperFactoryTests {
     var subject: ProjectMapperFactory!
 
     init() {

@@ -3,9 +3,10 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
+import TuistTesting
 @testable import TuistKit
 
-struct SessionControllerTests {
+@Suite(.withMockedDependencies()) struct SessionControllerTests {
     private let fileSystem = FileSystem()
     private let subject = SessionController()
 

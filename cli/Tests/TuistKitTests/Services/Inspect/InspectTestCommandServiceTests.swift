@@ -19,7 +19,7 @@ import TuistXCResultService
 @testable import TuistInspectCommand
 @testable import TuistKit
 
-struct InspectTestCommandServiceTests {
+@Suite(.withMockedDependencies()) struct InspectTestCommandServiceTests {
     private let subject: InspectTestCommandService
     private let configLoader = MockConfigLoading()
     private let derivedDataLocator = MockDerivedDataLocating()

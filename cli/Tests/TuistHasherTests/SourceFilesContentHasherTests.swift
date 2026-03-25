@@ -11,7 +11,7 @@ import XcodeGraph
 
 @testable import TuistHasher
 
-struct SourceFilesContentHasherTests {
+@Suite(.withMockedDependencies()) struct SourceFilesContentHasherTests {
     private let subject: SourceFilesContentHasher
     private let sourceFile1Path: AbsolutePath
     private let sourceFile2Path: AbsolutePath

@@ -3,7 +3,7 @@ import TuistTesting
 
 @testable import TuistInspectCommand
 
-struct ImportSourceCodeScannerTests {
+@Suite(.withMockedDependencies()) struct ImportSourceCodeScannerTests {
     var subject: ImportSourceCodeScanner!
 
     init() {

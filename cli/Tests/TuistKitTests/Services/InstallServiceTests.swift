@@ -15,7 +15,7 @@ import TuistTesting
 
 @testable import TuistKit
 
-struct InstallServiceTests {
+@Suite(.withMockedDependencies()) struct InstallServiceTests {
     private var pluginService: MockPluginService!
     private var configLoader: MockConfigLoading!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!

@@ -13,7 +13,7 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistTesting
 
-struct CommandEventFactoryTests {
+@Suite(.withMockedDependencies()) struct CommandEventFactoryTests {
     private var subject: CommandEventFactory!
     private var machineEnvironment: MachineEnvironmentRetrieving!
     private var gitController: MockGitControlling!

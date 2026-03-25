@@ -6,7 +6,7 @@ import XcodeGraph
 @testable import TuistKit
 @testable import TuistTesting
 
-struct TreeShakePrunedTargetsGraphMapperTests {
+@Suite(.withMockedDependencies()) struct TreeShakePrunedTargetsGraphMapperTests {
     var subject: TreeShakePrunedTargetsGraphMapper!
 
     init() {

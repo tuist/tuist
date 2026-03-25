@@ -7,7 +7,7 @@ import XcodeGraph
 @testable import TuistInspectCommand
 @testable import TuistKit
 
-struct TargetImportsScannerTests {
+@Suite(.withMockedDependencies()) struct TargetImportsScannerTests {
     private let fileSystem = FileSystem()
 
     @Test func imports() async throws {

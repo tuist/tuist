@@ -8,7 +8,7 @@ import XcodeGraph
 @testable import TuistCore
 @testable import TuistTesting
 
-struct GraphTraverserTests {
+@Suite(.withMockedDependencies()) struct GraphTraverserTests {
     private let fileSystem = FileSystem()
 
     @Test func dependsOnXCTest_when_is_framework() {

@@ -11,7 +11,7 @@ import TuistRootDirectoryLocator
 @testable import TuistSupport
 @testable import TuistTesting
 
-struct ManifestFilesLocatorTests {
+@Suite(.withMockedDependencies()) struct ManifestFilesLocatorTests {
     private let subject: ManifestFilesLocator
     private let rootDirectoryLocator: MockRootDirectoryLocating
     private let fileSystem = FileSystem()

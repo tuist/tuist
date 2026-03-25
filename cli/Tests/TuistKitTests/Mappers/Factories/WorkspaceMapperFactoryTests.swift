@@ -14,7 +14,7 @@ import XcodeGraph
     import TuistCacheEE
 #endif
 
-struct WorkspaceMapperFactoryTests {
+@Suite(.withMockedDependencies()) struct WorkspaceMapperFactoryTests {
     let projectMapperFactory: ProjectMapperFactory
 
     init() {

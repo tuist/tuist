@@ -19,7 +19,7 @@ import XcodeGraph
 @testable import TuistKit
 @testable import TuistTesting
 
-struct BuildServiceErrorTests {
+@Suite(.withMockedDependencies()) struct BuildServiceErrorTests {
     @Test func description() {
         #expect(
             BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).localizedDescription
@@ -36,7 +36,7 @@ struct BuildServiceErrorTests {
     }
 }
 
-struct BuildServiceTests {
+@Suite(.withMockedDependencies()) struct BuildServiceTests {
     private var generator: MockGenerating!
     private var generatorFactory: MockGeneratorFactorying!
     private var buildGraphInspector: MockBuildGraphInspecting!

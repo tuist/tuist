@@ -17,7 +17,7 @@ import XcodeGraph
 @testable import TuistKit
 @testable import TuistTesting
 
-struct GraphMapperFactoryTests {
+@Suite(.withMockedDependencies()) struct GraphMapperFactoryTests {
     var subject: GraphMapperFactory!
 
     init() {

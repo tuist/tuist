@@ -14,7 +14,7 @@ import XcodeGraph
 @testable import TuistInspectCommand
 @testable import TuistKit
 
-struct InspectDependenciesCommandServiceTests {
+@Suite(.withMockedDependencies()) struct InspectDependenciesCommandServiceTests {
     private let configLoader: MockConfigLoading
     private let generatorFactory: MockGeneratorFactorying
     private let targetScanner: MockTargetImportsScanning

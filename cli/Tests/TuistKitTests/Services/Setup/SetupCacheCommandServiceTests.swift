@@ -18,7 +18,7 @@ import TuistTesting
 
 @testable import TuistKit
 
-struct SetupCacheCommandServiceTests {
+@Suite(.withMockedDependencies()) struct SetupCacheCommandServiceTests {
     private let subject: SetupCacheCommandService
     private let launchAgentService = MockLaunchAgentServicing()
     private let configLoader = MockConfigLoading()

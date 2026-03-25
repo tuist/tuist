@@ -16,7 +16,7 @@ import XcodeGraph
 @testable import TuistKit
 @testable import TuistTesting
 
-struct ProjectEditorErrorTests {
+@Suite(.withMockedDependencies()) struct ProjectEditorErrorTests {
     @Test func test_type() {
         #expect(ProjectEditorError.noEditableFiles(AbsolutePath.root).type == .abort)
     }
@@ -29,7 +29,7 @@ struct ProjectEditorErrorTests {
     }
 }
 
-struct ProjectEditorTests {
+@Suite(.withMockedDependencies()) struct ProjectEditorTests {
     private let fileSystem = FileSystem()
     private var generator: MockDescriptorGenerator!
     private var projectEditorMapper: MockProjectEditorMapper!

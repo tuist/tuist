@@ -21,7 +21,7 @@ import XcodeGraph
 
 @testable import TuistKit
 
-struct UploadResultBundleServiceTests {
+@Suite(.withMockedDependencies()) struct UploadResultBundleServiceTests {
     private let subject: UploadResultBundleService
     private let machineEnvironment = MockMachineEnvironmentRetrieving()
     private let createTestService = MockCreateTestServicing()

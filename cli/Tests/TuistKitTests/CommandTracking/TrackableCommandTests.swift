@@ -13,7 +13,7 @@ import TuistSupport
 @testable import TuistKit
 @testable import TuistTesting
 
-struct TrackableCommandTests {
+@Suite(.withMockedDependencies()) struct TrackableCommandTests {
     private var backgroundProcessRunner: MockBackgroundProcessRunning!
     private var gitController: MockGitControlling!
     private let fileHandler = FileHandler.shared

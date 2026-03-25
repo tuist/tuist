@@ -3,9 +3,10 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
+import TuistTesting
 @testable import TuistKit
 
-struct AnalyticsStateControllerTests {
+@Suite(.withMockedDependencies()) struct AnalyticsStateControllerTests {
     private let fileSystem = FileSystem()
 
     @Test(.inTemporaryDirectory)

@@ -22,7 +22,7 @@ import XcodeGraph
 
 @testable import TuistInspectCommand
 
-struct InspectBuildCommandServiceTests {
+@Suite(.withMockedDependencies()) struct InspectBuildCommandServiceTests {
     private let subject: InspectBuildCommandService
     private let environment: MockEnvironment
     private let configLoader = MockConfigLoading()

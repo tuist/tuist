@@ -2,10 +2,11 @@ import Foundation
 import Testing
 import TuistConfig
 import TuistCore
+import TuistTesting
 
 @testable import TuistKit
 
-struct TuistCacheProfileResolverTests {
+@Suite(.withMockedDependencies()) struct TuistCacheProfileResolverTests {
     @Test func explicit_cache_profile_overrides_target_focus() throws {
         // Given
         let config = Tuist.test(project: .testGeneratedProject())

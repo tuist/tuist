@@ -15,7 +15,7 @@ import XcodeGraph
 @testable import TuistKit
 @testable import TuistTesting
 
-struct ProjectEditorMapperTests {
+@Suite(.withMockedDependencies()) struct ProjectEditorMapperTests {
     private var subject: ProjectEditorMapper!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
 

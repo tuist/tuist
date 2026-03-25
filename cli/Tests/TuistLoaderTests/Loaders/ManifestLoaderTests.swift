@@ -9,7 +9,7 @@ import XcodeGraph
 @testable import TuistSupport
 @testable import TuistTesting
 
-struct ManifestLoaderTests {
+@Suite(.withMockedDependencies()) struct ManifestLoaderTests {
     private let subject: ManifestLoader
     private let fileSystem: FileSysteming
 
