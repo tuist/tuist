@@ -8,7 +8,7 @@
       </.tab_menu_vertical>
     </.link>
   <% else %>
-    <%= if item.items == [] do %>
+    <%= if Enum.empty?(item.items) do %>
       <.link patch={docs_path(item.slug)} data-part="nav-link">
         <.tab_menu_vertical
           label={item.label}
