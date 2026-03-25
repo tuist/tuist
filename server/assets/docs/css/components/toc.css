@@ -75,7 +75,8 @@
         text-overflow: ellipsis;
         white-space: nowrap;
 
-        &:hover {
+        &:hover,
+        &[data-active] {
           color: var(--noora-surface-label-primary);
         }
 
