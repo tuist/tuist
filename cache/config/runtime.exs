@@ -1,5 +1,16 @@
 import Config
 
+if config_env() == :dev do
+  cache_port = String.to_integer(System.get_env("TUIST_CACHE_PORT") || "8087")
+  server_url = System.get_env("TUIST_CACHE_SERVER_URL") || "http://localhost:8080"
+
+  config :cache, CacheWeb.Endpoint,
+    url: [host: "localhost", port: cache_port, scheme: "http"],
+    http: [ip: {0, 0, 0, 0}, port: cache_port]
+
+  config :cache, server_url: server_url
+end
+
 if config_env() == :prod do
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||

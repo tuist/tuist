@@ -119,7 +119,9 @@
                     testProductsPath: xctestproductsPath,
                     destination: destination
                 )
-                testSuites = targets.flatMap { $0.onlyTestIdentifiers ?? [] }
+                testSuites = targets.flatMap { target in
+                    (target.onlyTestIdentifiers ?? []).map { "\(target.blueprintName)/\($0)" }
+                }
             }
 
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)

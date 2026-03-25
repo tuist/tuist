@@ -11,6 +11,7 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
 
   @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
@@ -426,7 +427,7 @@ defmodule Tuist.Tests.Analytics do
   """
   def get_test_run_metrics(test_run_id) do
     query =
-      from t in TestCaseRun,
+      from t in TestCaseRunByTestRun,
         where: t.test_run_id == ^test_run_id,
         select: %{
           total_count: fragment("coalesce(count(?), 0)", t.id),

@@ -1,6 +1,52 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.167.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add native shard matrix output for all CI providers by [@fortmarek](https://github.com/fortmarek) in [#10009](https://github.com/tuist/tuist/pull/10009)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.166.2...4.167.0
+
+## What's Changed in 4.166.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* show suite names in shard log for suite granularity by [@fortmarek](https://github.com/fortmarek) in [#10008](https://github.com/tuist/tuist/pull/10008)
+* use structural action log timing for test run duration reporting by [@fortmarek](https://github.com/fortmarek) in [#10007](https://github.com/tuist/tuist/pull/10007)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.166.0...4.166.2
+
+## What's Changed in 4.166.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Allow configuring expected signatures for XCFrameworks exposed by Swift packages by [@pepicrft](https://github.com/pepicrft) in [#9914](https://github.com/tuist/tuist/pull/9914)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.165.0...4.166.0
+
+## What's Changed in 4.165.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* run quarantined tests instead of skipping them by [@fortmarek](https://github.com/fortmarek) in [#9978](https://github.com/tuist/tuist/pull/9978)
+### 🐛 Bug Fixes
+
+* remove containsResources special-casing for static frameworks by [@pepicrft](https://github.com/pepicrft) in [#10003](https://github.com/tuist/tuist/pull/10003)
+* sort concurrentMap results in content hashers for determinism by [@fortmarek](https://github.com/fortmarek) in [#9998](https://github.com/tuist/tuist/pull/9998)
+* infer platform destination for shard enumeration from graph by [@fortmarek](https://github.com/fortmarek) in [#9997](https://github.com/tuist/tuist/pull/9997)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.164.1...4.165.0
+
 ## What's Changed in 4.164.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

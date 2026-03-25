@@ -40,6 +40,8 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunByShardId
+  alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
@@ -194,7 +196,7 @@ defmodule Tuist.Tests do
 
   def get_test_run_failures_count(test_run_id) do
     query =
-      from tcr in TestCaseRun,
+      from tcr in TestCaseRunByTestRun,
         where: tcr.test_run_id == ^test_run_id and tcr.status == "failure",
         select: count(tcr.id)
 
@@ -652,9 +654,28 @@ defmodule Tuist.Tests do
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
   def list_test_case_runs(attrs, opts \\ []) do
-    base_query = from(tcr in TestCaseRun)
     preloads = Keyword.get(opts, :preload, [])
 
+    case extract_mv_scope_filter(attrs) do
+      {:shard_id, _shard_id} ->
+        list_test_case_runs_via_shard_mv(attrs, preloads)
+
+      {:test_run_id, test_run_id} ->
+        mv_ids =
+          from(mv in TestCaseRunByTestRun,
+            where: mv.test_run_id == ^test_run_id,
+            select: mv.id
+          )
+
+        base_query = from(tcr in TestCaseRun, where: tcr.id in subquery(mv_ids))
+        list_test_case_runs_from(base_query, attrs, preloads)
+
+      nil ->
+        list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
+    end
+  end
+
+  defp list_test_case_runs_from(base_query, attrs, preloads) do
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
 
     results =
@@ -664,6 +685,47 @@ defmodule Tuist.Tests do
 
     {results, meta}
   end
+
+  defp list_test_case_runs_via_shard_mv(attrs, preloads) do
+    base_query = from(mv in TestCaseRunByShardId)
+
+    {slim_results, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByShardId)
+
+    ids = Enum.map(slim_results, & &1.id)
+
+    full_results = ClickHouseRepo.all(from(tcr in TestCaseRun, hints: ["FINAL"], where: tcr.id in ^ids))
+
+    ordered_by_id = Map.new(full_results, &{&1.id, &1})
+    ordered = ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
+
+    results =
+      ordered
+      |> ClickHouseRepo.preload(preloads)
+      |> Repo.preload(:ran_by_account)
+
+    {results, meta}
+  end
+
+  defp extract_mv_scope_filter(%{filters: filters}) when is_list(filters) do
+    Enum.find_value(filters, fn
+      %{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
+      %{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
+      _ -> nil
+    end)
+  end
+
+  defp extract_mv_scope_filter(%Flop{} = flop) do
+    flop.filters
+    |> List.wrap()
+    |> Enum.find_value(fn
+      %Flop.Filter{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
+      %Flop.Filter{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
+      _ -> nil
+    end)
+  end
+
+  defp extract_mv_scope_filter(_), do: nil
 
   @doc """
   Gets a test case run by its UUID.
@@ -1033,6 +1095,7 @@ defmodule Tuist.Tests do
           status: status,
           is_flaky: is_flaky,
           is_new: is_new,
+          is_quarantined: Map.get(case_attrs, :is_quarantined, false),
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
@@ -1436,7 +1499,8 @@ defmodule Tuist.Tests do
           module_name: test_case.module_name,
           suite_name: test_case.suite_name,
           last_ran_at: coalesce(stats.last_ran_at, test_case.last_ran_at),
-          last_run_id: stats.last_run_id
+          last_run_id: stats.last_run_id,
+          last_status: test_case.last_status
         }
       )
 
@@ -1602,7 +1666,8 @@ defmodule Tuist.Tests do
       quarantined_by_account_id: Map.get(quarantine_info, :actor_id),
       quarantined_by_account_name: Map.get(quarantine_info, :actor_name),
       last_ran_at: row.last_ran_at,
-      last_run_id: row.last_run_id
+      last_run_id: row.last_run_id,
+      last_status: row.last_status
     }
   end
 
@@ -1966,33 +2031,68 @@ defmodule Tuist.Tests do
       from(test_case in TestCase,
         hints: ["FINAL"],
         where: test_case.is_flaky == true,
-        where: test_case.is_quarantined == false,
         where: test_case.id not in subquery(recent_flaky_subquery)
       )
 
     stale_test_cases = ClickHouseRepo.all(query)
     now = NaiveDateTime.utc_now()
 
+    project_ids = stale_test_cases |> Enum.map(& &1.project_id) |> Enum.uniq()
+
+    auto_quarantine_project_ids =
+      from(p in Project,
+        where: p.id in ^project_ids and p.auto_quarantine_flaky_tests == true,
+        select: p.id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
     test_cases_to_update =
       Enum.map(stale_test_cases, fn test_case ->
+        should_unquarantine =
+          test_case.is_quarantined and
+            MapSet.member?(auto_quarantine_project_ids, test_case.project_id)
+
+        updates = %{is_flaky: false, inserted_at: now}
+        updates = if should_unquarantine, do: Map.put(updates, :is_quarantined, false), else: updates
+
         test_case
         |> Map.from_struct()
         |> Map.delete(:__meta__)
-        |> Map.merge(%{is_flaky: false, inserted_at: now})
+        |> Map.merge(updates)
       end)
 
     TestCase.Buffer.insert_all(test_cases_to_update)
 
     if Enum.any?(stale_test_cases) do
       events =
-        Enum.map(stale_test_cases, fn test_case ->
-          %{
+        Enum.flat_map(stale_test_cases, fn test_case ->
+          should_unquarantine =
+            test_case.is_quarantined and
+              MapSet.member?(auto_quarantine_project_ids, test_case.project_id)
+
+          flaky_event = %{
             id: UUIDv7.generate(),
             test_case_id: test_case.id,
             event_type: "unmarked_flaky",
             actor_id: nil,
             inserted_at: now
           }
+
+          if should_unquarantine do
+            [
+              flaky_event,
+              %{
+                id: UUIDv7.generate(),
+                test_case_id: test_case.id,
+                event_type: "unquarantined",
+                actor_id: nil,
+                inserted_at: now
+              }
+            ]
+          else
+            [flaky_event]
+          end
         end)
 
       TestCaseEvent.Buffer.insert_all(events)

@@ -625,6 +625,27 @@ struct GenerateAcceptanceTestiOSAppWithLocalBinarySwiftPackage {
     }
 }
 
+struct GenerateAcceptanceTestAppWithSignedLocalBinarySwiftPackage {
+    @Test(.withFixture("generated_app_with_signed_local_binary_swift_package"), .inTemporaryDirectory)
+    func app_with_signed_local_binary_swift_package() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        try await run(GenerateCommand.self)
+
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let allFileReferences = xcodeproj.pbxproj.fileReferences
+        let signedBinaryReference = try #require(
+            allFileReferences.first(where: { $0.path == "SelfSignedXCFramework.xcframework" })
+        )
+
+        #expect(
+            signedBinaryReference.expectedSignature
+                == "SelfSigned:EF61C3C0339FC84805357AFEC2E0BB0E6A0D5EE64165B333F934BF9E282785BC"
+        )
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithExtensions {
     @Test(.withFixture("generated_ios_app_with_extensions"), .inTemporaryDirectory)
     func ios_app_with_extensions() async throws {

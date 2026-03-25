@@ -9,15 +9,12 @@ import TuistSupport
 /// It uses md5 checksum to uniquely hash strings and data
 /// Consider using CacheContentHasher to avoid computing the same hash twice
 public struct ContentHasher: ContentHashing {
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let filesFilter = HashingFilesFilter()
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem()
     ) {
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
     }
 
