@@ -76,6 +76,9 @@ struct XcodeBuildTestCommandService {
                 serverURL: serverURL
             )
             shardTestProductsPath = shard.testProductsPath
+            passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
+            passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
+            passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
             shardPlanId = shard.shardPlanId
         }
@@ -203,6 +206,16 @@ struct XcodeBuildTestCommandService {
         let valueIndex = arguments.index(after: optionIndex)
         guard arguments.endIndex > valueIndex else { return nil }
         return arguments[valueIndex]
+    }
+
+    private func removeOption(_ option: String, from arguments: [String]) -> [String] {
+        guard let index = arguments.firstIndex(of: option) else { return arguments }
+        var result = arguments
+        result.remove(at: index)
+        if result.indices.contains(index) {
+            result.remove(at: index)
+        }
+        return result
     }
 
     private func inspectResultBundleIfNeeded(
