@@ -14,6 +14,9 @@
     <link phx-track-static rel="stylesheet" href={~p"/docs/assets/bundle.css"} />
     <script defer phx-track-static type="module" src={~p"/docs/assets/bundle.js"}>
     </script>
+    <style nonce={get_csp_nonce()}>
+      pre.mermaid:not([data-processed="true"]) { visibility: hidden; }
+    </style>
     <script nonce={get_csp_nonce()} type="module">
       import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
       const styles = getComputedStyle(document.documentElement);
