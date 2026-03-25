@@ -102,7 +102,10 @@ defmodule TuistWeb.API.SelectiveTestingTargetsController do
     }
   )
 
-  def index(%{assigns: %{selected_project: selected_project}, params: %{test_run_id: test_run_id} = params} = conn, _params) do
+  def index(
+        %{assigns: %{selected_project: selected_project}, params: %{test_run_id: test_run_id} = params} = conn,
+        _params
+      ) do
     case Tests.get_test(test_run_id) do
       {:ok, %{project_id: project_id} = run}
       when project_id == selected_project.id ->
