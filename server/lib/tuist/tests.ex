@@ -1974,7 +1974,6 @@ defmodule Tuist.Tests do
 
     plans =
       from(sp in Tuist.Shards.ShardPlan,
-        hints: ["FINAL"],
         where: sp.id in ^shard_plan_ids
       )
       |> ClickHouseRepo.all()

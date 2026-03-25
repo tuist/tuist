@@ -6885,9 +6885,7 @@ defmodule Tuist.TestsTest do
       :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
-        IngestRepo.all(
-          from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id)
-        )
+        IngestRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id))
 
       assert run.status == "failure"
     end
