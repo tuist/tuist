@@ -205,6 +205,23 @@ defmodule Cache.DistributedKV.Cleanup do
     end
   end
 
+  def cleanup_published?(account_handle, project_handle, cleanup_cutoff) do
+    project_cleanup_cutoff = DateTime.truncate(cleanup_cutoff, :second)
+
+    Project
+    |> where([project], project.account_handle == ^account_handle)
+    |> where([project], project.project_handle == ^project_handle)
+    |> select([project], project.published_cleanup_cutoff_at)
+    |> Repo.one()
+    |> case do
+      %DateTime{} = published_cleanup_cutoff ->
+        DateTime.compare(DateTime.truncate(published_cleanup_cutoff, :second), project_cleanup_cutoff) in [:eq, :gt]
+
+      nil ->
+        false
+    end
+  end
+
   def list_published_cleanups_after_event_id(watermark_event_id, limit) do
     query =
       Project

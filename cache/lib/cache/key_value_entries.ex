@@ -148,7 +148,7 @@ defmodule Cache.KeyValueEntries do
     tombstone_keys = Enum.map(deleted_rows, & &1.key)
     signature = remote_batch_signature(rows)
 
-    case load_pending_remote_batch(signature) do
+    case load_pending_remote_batch() do
       nil ->
         apply_remote_batch_transaction(rows, alive_rows, tombstone_keys, now, signature)
 
@@ -234,22 +234,14 @@ defmodule Cache.KeyValueEntries do
     end
   end
 
-  defp load_pending_remote_batch(signature) do
+  defp load_pending_remote_batch do
     case KeyValueRepo.get(State, @pending_remote_batch) do
       nil ->
         nil
 
       %State{watermark_key: watermark_key} ->
-        %{signature: pending_signature, result: result} = decode_replication_state_payload!(watermark_key)
-
-        case pending_signature do
-          ^signature ->
-            result
-
-          _ ->
-            :ok = delete_replication_state!(@pending_remote_batch)
-            nil
-        end
+        %{result: result} = decode_replication_state_payload!(watermark_key)
+        result
     end
   end
 

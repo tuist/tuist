@@ -25,6 +25,7 @@ defmodule Cache.CleanProjectWorkerTest do
     stub(Config, :distributed_kv_enabled?, fn -> false end)
     stub(Cleanup, :expire_project_cleanup_lease, fn _account_handle, _project_handle, _cleanup_started_at -> :ok end)
     stub(Cleanup, :put_local_applied_generation, fn _account_handle, _project_handle, _generation -> :ok end)
+    stub(Cleanup, :cleanup_published?, fn _account_handle, _project_handle, _cleanup_cutoff -> false end)
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
     stub(KeyValueAccessTracker, :shared_lineage?, fn _key -> false end)
@@ -250,7 +251,7 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
     end
 
-    test "distributed cleanup still performs node-local cleanup while shared cleanup is already in progress" do
+    test "distributed cleanup keeps duplicate local cleanup retryable until publication is observed" do
       stub(Config, :key_value_mode, fn -> :distributed end)
       stub(Config, :distributed_kv_enabled?, fn -> true end)
       stub(Config, :xcode_cache_bucket, fn -> nil end)
@@ -295,7 +296,7 @@ defmodule Cache.CleanProjectWorkerTest do
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
 
       capture_log(fn ->
-        assert :ok = CleanProjectWorker.perform(job)
+        assert {:error, :cleanup_already_in_progress} = CleanProjectWorker.perform(job)
       end)
 
       assert_received :kv_deleted
@@ -344,6 +345,90 @@ defmodule Cache.CleanProjectWorkerTest do
 
       assert_received :kv_deleted
       assert_received :disk_deleted
+    end
+
+    test "distributed cleanup retries after a duplicate conflict and completes shared cleanup once the lease becomes available" do
+      stub(Config, :key_value_mode, fn -> :distributed end)
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
+      stub(Config, :xcode_cache_bucket, fn -> nil end)
+
+      account_handle = "test_account"
+      project_handle = "test_project"
+      cleanup_cutoff = ~U[2026-03-12 12:00:00Z]
+      parent = self()
+      {:ok, begin_calls} = Agent.start_link(fn -> 0 end)
+
+      stub(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle ->
+        Agent.get_and_update(begin_calls, fn count ->
+          next_count = count + 1
+
+          result =
+            case next_count do
+              1 -> {:error, :cleanup_already_in_progress}
+              2 -> {:ok, cleanup_cutoff}
+            end
+
+          {result, next_count}
+        end)
+      end)
+
+      expect(Cleanup, :latest_project_cleanup_cutoff, fn ^account_handle, ^project_handle -> cleanup_cutoff end)
+      expect(Cleanup, :cleanup_published?, fn ^account_handle, ^project_handle, ^cleanup_cutoff -> false end)
+
+      stub(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
+          assert Keyword.fetch!(opts, :include_pending) == true
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+          send(parent, :kv_deleted)
+          {[], 0}
+      end)
+
+      stub(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
+        assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+        send(parent, :disk_deleted)
+        {:ok, 0}
+      end)
+
+      stub(Cleanup, :renew_project_cleanup_lease, fn ^account_handle, ^project_handle, ^cleanup_cutoff ->
+        :ok
+      end)
+
+      expect(S3, :delete_objects_with_prefix_before, fn "test_account/test_project/", ^cleanup_cutoff, opts ->
+        assert Keyword.fetch!(opts, :type) == :cache
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
+        send(parent, :shared_s3_deleted)
+        {:ok, 0}
+      end)
+
+      expect(Cleanup, :publish_project_cleanup, fn ^account_handle, ^project_handle, ^cleanup_cutoff ->
+        send(parent, :published)
+        {:ok, %{published_cleanup_generation: 1, cleanup_event_id: 1}}
+      end)
+
+      first_job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}, attempt: 1}
+
+      capture_log(fn ->
+        assert {:error, :cleanup_already_in_progress} = CleanProjectWorker.perform(first_job)
+      end)
+
+      second_job = %Oban.Job{
+        args: %{"account_handle" => account_handle, "project_handle" => project_handle},
+        attempt: 2
+      }
+
+      capture_log(fn ->
+        assert :ok = CleanProjectWorker.perform(second_job)
+      end)
+
+      assert Agent.get(begin_calls, & &1) == 2
+      assert_received :kv_deleted
+      assert_received :disk_deleted
+      assert_received :kv_deleted
+      assert_received :disk_deleted
+      assert_received :shared_s3_deleted
+      assert_received :published
     end
 
     test "distributed cleanup propagates local KV cleanup lease-loss errors" do

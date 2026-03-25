@@ -123,18 +123,18 @@ defmodule Cache.CleanProjectWorker do
   defp perform_duplicate_distributed_cleanup(account_handle, project_handle, attempt) do
     with {:ok, cleanup_cutoff} <- existing_cleanup_cutoff(account_handle, project_handle),
          :ok <- perform_local_node_cleanup(account_handle, project_handle, cleanup_cutoff, fn -> :ok end) do
-      if attempt > 1 do
-        Logger.warning(
-          "Distributed cleanup already in progress for #{account_handle}/#{project_handle} on retry attempt #{attempt}; completed node-local cleanup with cutoff #{DateTime.to_iso8601(cleanup_cutoff)} and returning retryable error"
-        )
-
-        {:error, :cleanup_already_in_progress}
-      else
+      if Cleanup.cleanup_published?(account_handle, project_handle, cleanup_cutoff) do
         Logger.info(
-          "Distributed cleanup already in progress for #{account_handle}/#{project_handle}; completed node-local cleanup with cutoff #{DateTime.to_iso8601(cleanup_cutoff)}"
+          "Distributed cleanup publication observed for #{account_handle}/#{project_handle} after node-local cleanup with cutoff #{DateTime.to_iso8601(cleanup_cutoff)}"
         )
 
         :ok
+      else
+        Logger.warning(
+          "Distributed cleanup already in progress for #{account_handle}/#{project_handle} on attempt #{attempt}; completed node-local cleanup with cutoff #{DateTime.to_iso8601(cleanup_cutoff)} and returning retryable error until publication is observed"
+        )
+
+        {:error, :cleanup_already_in_progress}
       end
     end
   end

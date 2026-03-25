@@ -349,7 +349,7 @@ defmodule Cache.KeyValueEntriesTest do
     assert last_processed_row.key == row.key
   end
 
-  test "apply_remote_batch invalidates a stale pending batch when the upstream page mutates" do
+  test "apply_remote_batch replays pending side effects until commit even when the upstream page mutates" do
     original_time = DateTime.add(DateTime.utc_now(), -180, :second)
     first_update_time = DateTime.add(original_time, 60, :second)
     second_update_time = DateTime.add(first_update_time, 60, :second)
@@ -391,12 +391,22 @@ defmodule Cache.KeyValueEntriesTest do
     assert first_result.payload_updated_count == 1
 
     assert {:ok, replayed_result} = KeyValueEntries.apply_remote_batch([inserted_row, second_row])
-    assert replayed_result.processed_count == 2
-    assert replayed_result.inserted_count == 1
-    assert replayed_result.payload_updated_count == 1
-    assert replayed_result.last_processed_row.key == second_row.key
+    assert replayed_result == first_result
 
-    :ok = KeyValueEntries.commit_remote_batch(replayed_result.last_processed_row)
+    replayed_record = KeyValueRepo.get_by!(KeyValueEntry, key: first_row.key)
+    assert Jason.decode!(replayed_record.json_payload)["entries"] == [%{"value" => "new"}]
+    assert replayed_record.source_updated_at == first_update_time
+    assert KeyValueRepo.get_by(KeyValueEntry, key: inserted_row.key) == nil
+
+    :ok = KeyValueEntries.commit_remote_batch(first_result.last_processed_row)
+
+    assert {:ok, mutated_result} = KeyValueEntries.apply_remote_batch([inserted_row, second_row])
+    assert mutated_result.processed_count == 2
+    assert mutated_result.inserted_count == 1
+    assert mutated_result.payload_updated_count == 1
+    assert mutated_result.last_processed_row.key == second_row.key
+
+    :ok = KeyValueEntries.commit_remote_batch(mutated_result.last_processed_row)
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: second_row.key)
     inserted_record = KeyValueRepo.get_by!(KeyValueEntry, key: inserted_row.key)

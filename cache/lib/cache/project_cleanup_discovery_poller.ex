@@ -27,13 +27,27 @@ defmodule Cache.ProjectCleanupDiscoveryPoller do
 
   @impl true
   def handle_call(:poll, _from, state) do
-    new_state = poll_once(state)
-    {:reply, :ok, new_state}
+    case poll_once(state) do
+      {:ok, new_state} -> {:reply, :ok, new_state}
+      {:error, reason, new_state} -> {:reply, {:error, reason}, new_state}
+    end
   end
 
   @impl true
   def handle_info(:poll, state) do
-    new_state = poll_once(state)
+    new_state =
+      case poll_once(state) do
+        {:ok, new_state} ->
+          new_state
+
+        {:error, %{account_handle: account_handle, project_handle: project_handle, changeset: changeset}, new_state} ->
+          Logger.error(
+            "Failed to enqueue apply cleanup job for #{account_handle}/#{project_handle}: #{inspect(changeset)}"
+          )
+
+          new_state
+      end
+
     schedule_poll(Config.distributed_kv_cleanup_discovery_interval_ms())
     {:noreply, new_state}
   end
@@ -41,15 +55,27 @@ defmodule Cache.ProjectCleanupDiscoveryPoller do
   defp poll_once(state) do
     {events, next_watermark} = Cleanup.list_published_cleanups_after_event_id(state.watermark, @page_size)
 
-    Enum.each(events, fn event ->
-      :ok = enqueue_apply_job(event)
-    end)
+    case enqueue_apply_jobs(events) do
+      :ok ->
+        if events == [] do
+          {:ok, state}
+        else
+          :ok = Cleanup.put_local_discovery_watermark(next_watermark)
+          {:ok, %{state | watermark: next_watermark}}
+        end
 
-    if events != [] do
-      :ok = Cleanup.put_local_discovery_watermark(next_watermark)
+      {:error, reason} ->
+        {:error, reason, state}
     end
+  end
 
-    %{state | watermark: next_watermark}
+  defp enqueue_apply_jobs(events) do
+    Enum.reduce_while(events, :ok, fn event, :ok ->
+      case enqueue_apply_job(event) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   defp enqueue_apply_job(event) do
@@ -68,11 +94,7 @@ defmodule Cache.ProjectCleanupDiscoveryPoller do
         :ok
 
       {:error, changeset} ->
-        Logger.warning(
-          "Failed to enqueue apply cleanup job for #{event.account_handle}/#{event.project_handle}: #{inspect(changeset)}"
-        )
-
-        :ok
+        {:error, %{account_handle: event.account_handle, project_handle: event.project_handle, changeset: changeset}}
     end
   end
 
