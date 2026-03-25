@@ -73,7 +73,7 @@ defmodule Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting do
     - **Targets tested**: targets that had status `miss` (i.e. actually ran)
     - **Targets skipped**: targets with `local` or `remote` hits (skipped because unchanged)
 
-    A healthy project typically has 40-80% effectiveness on feature branches. The `develop`/`main` branch baseline run will have 0% (all tests run to establish hashes).
+    Effectiveness varies by project and workflow. Some teams enable selective testing on all branches, while others only use it on feature branches. A 0% effectiveness means all tests ran — this is expected for the very first run or after a full cache invalidation.
 
     ### 3. Drill into per-target details
 

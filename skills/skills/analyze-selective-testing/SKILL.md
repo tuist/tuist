@@ -37,7 +37,7 @@ The response includes:
 ### Defaults
 
 - If no test run is specified, use the most recent CI test run on the current branch.
-- For comparison, use the most recent CI test run on the default branch (usually `main` or `develop`).
+- For comparison, use the most recent CI test run on the project's default branch.
 
 ## Step 2: Assess Effectiveness
 
@@ -52,7 +52,7 @@ effectiveness = (local_hits + remote_hits) / targets * 100
 | 60-100% | Healthy — most unchanged tests are being skipped |
 | 30-60% | Degraded — some cache invalidation occurring |
 | 0-30% | Broken — selective testing is not working effectively |
-| 0% on default branch | Expected — baseline runs execute all tests |
+| 0% | Expected on the very first run or after a full cache invalidation |
 
 ## Step 3: Diagnose Regressions
 
