@@ -44,9 +44,9 @@ defmodule Tuist.Docs.Loader do
 
     %Page{
       slug: slug,
-      title: get_attr(attrs, "title") || title_from_markdown(markdown) || slug,
-      title_template: get_attr(attrs, "titleTemplate"),
-      description: get_attr(attrs, "description"),
+      title: attrs["title"] || title_from_markdown(markdown) || slug,
+      title_template: attrs["titleTemplate"],
+      description: attrs["description"],
       body: html,
       markdown: markdown,
       source_path: relative_path,
@@ -459,22 +459,4 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
-  defp get_attr(attrs, key) do
-    case Map.fetch(attrs, key) do
-      {:ok, value} ->
-        value
-
-      :error ->
-        atom_key = existing_atom_key(key)
-
-        if is_nil(atom_key), do: nil, else: Map.get(attrs, atom_key)
-    end
-  end
-
-  defp existing_atom_key(key) when is_binary(key) do
-    atom_key = String.to_existing_atom(key)
-    atom_key
-  rescue
-    ArgumentError -> nil
-  end
 end

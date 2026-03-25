@@ -1,9 +1,6 @@
 <main
   id="docs-page-layout"
   data-part="page"
-  phx-hook="DocsActivePage"
-  data-current-slug={@current_slug}
-  data-current-tab={@tab}
 >
   <div
     :if={@headings != []}
@@ -35,7 +32,6 @@
     <nav
       id="docs-sidebar"
       aria-label={dgettext("docs", "Documentation navigation")}
-      phx-update="ignore"
     >
       <div data-part="sidebar-scroll">
         <.link :if={@tab == :guides} patch={docs_path("/en")} data-part="nav-link">

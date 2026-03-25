@@ -5,8 +5,6 @@ import topbar from "../app/js/vendor/topbar.js";
 import Noora from "noora";
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
-import DocsActivePageHook from "./hooks/docs-active-page-hook.js";
-import DocsMobileSidebarHook from "./hooks/docs-mobile-sidebar-hook.js";
 
 import "./docs.css";
 
@@ -18,10 +16,8 @@ let liveSocket = new LiveSocket("/live", Socket, {
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
   hooks: {
     ...Noora.Hooks,
-    DocsActivePage: DocsActivePageHook,
     DocsContent: DocsContentHook,
     DocsInstallTabs: DocsInstallTabsHook,
-    DocsMobileSidebar: DocsMobileSidebarHook,
   },
 });
 
@@ -29,7 +25,11 @@ topbar.config({
   barColors: { 0: "#29d" },
   shadowColor: "rgba(0, 0, 0, .3)",
 });
-window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
+window.addEventListener("phx:page-loading-start", (_info) => {
+  topbar.show(300);
+  document.body.removeAttribute("data-sidebar-open");
+  document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
+});
 window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 
 liveSocket.connect();

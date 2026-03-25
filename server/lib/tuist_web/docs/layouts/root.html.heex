@@ -122,9 +122,15 @@
         type="button"
         data-part="mobile-menu-btn"
         id="docs-mobile-menu-trigger"
-        phx-hook="DocsMobileSidebar"
         aria-expanded="false"
         aria-controls="docs-sidebar"
+        phx-click={
+          JS.toggle_attribute({"data-sidebar-open", ""}, to: "body")
+          |> JS.toggle_attribute({"data-mobile-open", ""}, to: "#docs-sidebar")
+          |> JS.toggle_attribute({"aria-expanded", "true", "false"},
+            to: "#docs-mobile-menu-trigger"
+          )
+        }
       >
         <.icon name="menu_3" />
         <span>{dgettext("docs", "Menu")}</span>
@@ -141,7 +147,15 @@
         <.icon name="news" />
       </button>
     </div>
-    <div id="docs-mobile-sidebar-overlay" role="presentation"></div>
+    <div
+      id="docs-mobile-sidebar-overlay"
+      role="presentation"
+      phx-click={
+        JS.remove_attribute("data-sidebar-open", to: "body")
+        |> JS.remove_attribute("data-mobile-open", to: "#docs-sidebar")
+        |> JS.set_attribute({"aria-expanded", "false"}, to: "#docs-mobile-menu-trigger")
+      }
+    ></div>
     {@inner_content}
   </body>
 </html>
