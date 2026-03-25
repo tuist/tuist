@@ -31,6 +31,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
 
 concurrency:
   group: app-${{ github.head_ref }}

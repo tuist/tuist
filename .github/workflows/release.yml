@@ -20,6 +20,7 @@ env:
   PNPM_HOME: ~/.pnpm
   TUIST_ENABLE_CACHING: "true"
   MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
 
 jobs:
   check-releases:

@@ -56,3 +56,7 @@ backend = "aqua:getsops/sops"
 [[tools."ubi:aquasecurity/trivy"]]
 version = "0.63.0"
 backend = "ubi:aquasecurity/trivy"
+
+[[tools."ubi:aquasecurity/trivy"]]
+version = "0.69.3"
+backend = "ubi:aquasecurity/trivy"
