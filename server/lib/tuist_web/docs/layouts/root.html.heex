@@ -129,10 +129,13 @@
         </.neutral_button>
         <.neutral_button
           size="large"
-          data-action="toggle-sidebar"
           aria-label={dgettext("docs", "Toggle sidebar")}
           aria-expanded="false"
           aria-controls="docs-sidebar"
+          phx-click={
+            JS.toggle_attribute({"data-sidebar-open", ""}, to: "body")
+            |> JS.toggle_attribute({"data-mobile-open", ""}, to: "#docs-sidebar")
+          }
         >
           <.icon name="menu" />
         </.neutral_button>
