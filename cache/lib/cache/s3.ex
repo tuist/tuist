@@ -269,7 +269,11 @@ defmodule Cache.S3 do
 
       {:error, reason} = error ->
         :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{result: :error})
-        Logger.error("Failed cutoff-aware delete for prefix #{prefix}: #{inspect(reason)}")
+
+        if reason != :cleanup_lease_lost do
+          Logger.error("Failed cutoff-aware delete for prefix #{prefix}: #{inspect(reason)}")
+        end
+
         error
     end
   end

@@ -204,18 +204,6 @@ defmodule Cache.KeyValueEntries do
       end
   end
 
-  def delete_local_entry_if_not_pending(key) when is_binary(key) do
-    {count, _} =
-      KeyValueRepo.delete_all(
-        from(entry in KeyValueEntry,
-          where: entry.key == ^key,
-          where: is_nil(entry.replication_enqueued_at)
-        )
-      )
-
-    count
-  end
-
   defp apply_remote_batch_transaction(rows, alive_rows, tombstone_keys, now, signature) do
     case KeyValueRepo.transaction(
            fn ->
@@ -465,6 +453,17 @@ defmodule Cache.KeyValueEntries do
     count
   end
 
+  @doc """
+  Deletes project entries with `source_updated_at` at or before the given cutoff.
+
+  Returns `{deleted_keys, total_count}`. When `on_deleted_keys` is provided, deleted keys
+  are streamed to the callback per batch and the returned key list is always empty.
+
+  Options:
+    * `:include_pending` — include rows with pending replication tokens (default: `false`)
+    * `:on_deleted_keys` — callback receiving each batch of deleted keys; suppresses key accumulation
+    * `:after_delete_batch` — callback after each batch; return `{:error, reason}` to abort
+  """
   def delete_project_entries_before(account_handle, project_handle, cutoff, opts \\ []) do
     include_pending = Keyword.get(opts, :include_pending, false)
     on_deleted_keys = Keyword.get(opts, :on_deleted_keys)
@@ -786,7 +785,7 @@ defmodule Cache.KeyValueEntries do
     {prefix, next_lexicographic_string(prefix)}
   end
 
-  defp next_lexicographic_string(value) do
+  def next_lexicographic_string(value) do
     value
     |> String.to_charlist()
     |> Enum.reverse()

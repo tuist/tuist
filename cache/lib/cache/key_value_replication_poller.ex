@@ -166,6 +166,8 @@ defmodule Cache.KeyValueReplicationPoller do
     KeyValueEntries.put_distributed_watermark(last_advanceable.updated_at, last_advanceable.key)
   end
 
+  defp persist_watermark_advance(_last_processed, nil), do: :ok
+
   defp persist_watermark_advance(last_processed, last_advanceable) do
     if same_row?(last_processed, last_advanceable) do
       :ok

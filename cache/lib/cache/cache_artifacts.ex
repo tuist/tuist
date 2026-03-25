@@ -8,6 +8,7 @@ defmodule Cache.CacheArtifacts do
   alias Cache.CacheArtifact
   alias Cache.CacheArtifactsBuffer
   alias Cache.Disk
+  alias Cache.KeyValueEntries
   alias Cache.Repo
 
   @default_batch_size 500
@@ -47,7 +48,7 @@ defmodule Cache.CacheArtifacts do
 
   def delete_by_project(account_handle, project_handle) do
     prefix = "#{account_handle}/#{project_handle}/"
-    prefix_upper_bound = prefix <> "\xFF"
+    prefix_upper_bound = KeyValueEntries.next_lexicographic_string(prefix)
 
     Repo.delete_all(from(a in CacheArtifact, where: a.key >= ^prefix and a.key < ^prefix_upper_bound))
     :ok

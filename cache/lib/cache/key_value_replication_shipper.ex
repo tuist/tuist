@@ -124,17 +124,17 @@ defmodule Cache.KeyValueReplicationShipper do
   end
 
   defp pending_source_node(entry) do
-    if access_only_pending_row?(entry) do
+    if pending_access_bump_only?(entry) do
       entry.source_node
     else
       Config.distributed_kv_node_name()
     end
   end
 
-  defp access_only_pending_row?(%{replication_enqueued_at: nil}), do: false
-  defp access_only_pending_row?(%{source_updated_at: nil}), do: false
+  defp pending_access_bump_only?(%{replication_enqueued_at: nil}), do: false
+  defp pending_access_bump_only?(%{source_updated_at: nil}), do: false
 
-  defp access_only_pending_row?(entry) do
+  defp pending_access_bump_only?(entry) do
     DateTime.after?(entry.replication_enqueued_at, entry.source_updated_at)
   end
 
