@@ -693,8 +693,10 @@ defmodule Tuist.Tests do
       Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByShardId)
 
     ids = Enum.map(slim_results, & &1.id)
+    project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
 
-    full_results = ClickHouseRepo.all(from(tcr in TestCaseRun, where: tcr.id in ^ids))
+    full_results =
+      ClickHouseRepo.all(from(tcr in TestCaseRun, where: tcr.project_id in ^project_ids and tcr.id in ^ids))
 
     ordered_by_id = Map.new(full_results, &{&1.id, &1})
     ordered = ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
