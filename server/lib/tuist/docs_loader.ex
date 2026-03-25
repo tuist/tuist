@@ -266,7 +266,14 @@ defmodule Tuist.Docs.Loader do
       href = ~r/href="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
       id = ~r/id="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
       plain_text = strip_links_from_html(text)
-      EEx.eval_string(@heading_anchor_template, open_tag: open_tag, close_tag: close_tag, href: href, id: id, plain_text: plain_text)
+
+      EEx.eval_string(@heading_anchor_template,
+        open_tag: open_tag,
+        close_tag: close_tag,
+        href: href,
+        id: id,
+        plain_text: plain_text
+      )
     end)
   end
 
@@ -277,7 +284,13 @@ defmodule Tuist.Docs.Loader do
   defp wrap_code_blocks(html) do
     Regex.replace(@code_block_regex, html, fn _, language, code ->
       language = if language == "", do: "", else: language
-      EEx.eval_string(@code_block_template, language: language, code: code, copy_icon: @copy_icon, copy_check_icon: @copy_check_icon)
+
+      EEx.eval_string(@code_block_template,
+        language: language,
+        code: code,
+        copy_icon: @copy_icon,
+        copy_check_icon: @copy_check_icon
+      )
     end)
   end
 
@@ -301,7 +314,9 @@ defmodule Tuist.Docs.Loader do
 
           EEx.eval_string(
             ~s(<a href="<%= link_href %>" class="docs-home-card"><div class="docs-home-card-image"><strong><%= title %></strong></div><div class="docs-home-card-body"><p><%= details %></p></div></a>),
-            link_href: link_href, title: title, details: details
+            link_href: link_href,
+            title: title,
+            details: details
           )
         end)
 
@@ -382,8 +397,11 @@ defmodule Tuist.Docs.Loader do
         |> Enum.with_index()
         |> Enum.map_join("", fn {[_, _lang, label, _code], index} ->
           selected = if index == 0, do: ~s( data-selected="true"), else: ""
+
           EEx.eval_string(~s(<button data-part="tab" data-index="<%= index %>"<%= selected %>><%= label %></button>),
-            index: index, selected: selected, label: label
+            index: index,
+            selected: selected,
+            label: label
           )
         end)
 
@@ -392,21 +410,28 @@ defmodule Tuist.Docs.Loader do
         |> Enum.with_index()
         |> Enum.map_join("", fn {[_, lang, _label, code], index} ->
           hidden = if index == 0, do: "", else: ~s( data-hidden="true")
+
           EEx.eval_string(
             ~s(<div data-part="panel" data-index="<%= index %>"<%= hidden %>>\n\n```<%= lang %>\n<%= code %>```\n\n</div>),
-            index: index, hidden: hidden, lang: lang, code: code
+            index: index,
+            hidden: hidden,
+            lang: lang,
+            code: code
           )
         end)
 
       copy_button =
         EEx.eval_string(
           ~s(<button data-part="copy" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
-          copy_icon: @copy_icon, copy_check_icon: @copy_check_icon
+          copy_icon: @copy_icon,
+          copy_check_icon: @copy_check_icon
         )
 
       EEx.eval_string(
         ~s(<div class="code-group"><div data-part="header"><div data-part="tabs"><%= tab_buttons %></div><%= copy_button %></div><div data-part="panels"><%= tab_panels %></div></div>\n),
-        tab_buttons: tab_buttons, copy_button: copy_button, tab_panels: tab_panels
+        tab_buttons: tab_buttons,
+        copy_button: copy_button,
+        tab_panels: tab_panels
       )
     end
   end

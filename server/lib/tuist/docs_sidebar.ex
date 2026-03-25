@@ -17,7 +17,8 @@ defmodule Tuist.Docs.Sidebar do
   @strings_dir Path.expand("../../../docs/.vitepress/strings", __DIR__)
 
   extract_texts = fn extract_texts, map, prefix ->
-    Enum.flat_map(map, fn
+    map
+    |> Enum.flat_map(fn
       {"text", value} when is_binary(value) ->
         [{prefix |> Enum.reverse() |> Enum.join("."), value}]
 
@@ -88,7 +89,12 @@ defmodule Tuist.Docs.Sidebar do
   end
 
   defp localize_item(%Item{slug: "/en/" <> rest, label: label, items: items} = item, locale, label_map) do
-    %{item | slug: "/#{locale}/#{rest}", label: translate(label, label_map), items: Enum.map(items, &localize_item(&1, locale, label_map))}
+    %{
+      item
+      | slug: "/#{locale}/#{rest}",
+        label: translate(label, label_map),
+        items: Enum.map(items, &localize_item(&1, locale, label_map))
+    }
   end
 
   defp localize_item(%Item{label: label, items: items} = item, locale, label_map) do

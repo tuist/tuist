@@ -61,7 +61,13 @@ defmodule TuistWeb.DocsOverviewLive do
       |> assign(:headings, @overview_headings)
 
     ~H"""
-    <TuistWeb.Docs.Components.layout current_slug="/en" tab={:guides} headings={@headings} markdown="" locale="en">
+    <TuistWeb.Docs.Components.layout
+      current_slug="/en"
+      tab={:guides}
+      headings={@headings}
+      markdown=""
+      locale="en"
+    >
       <div id="docs-overview">
         <%!-- Hero --%>
         <section data-part="hero">

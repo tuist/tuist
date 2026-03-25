@@ -58,5 +58,4 @@ defmodule TuistWeb.Docs.Components do
     |> String.replace(~r/[^a-z0-9]+/, "-")
     |> String.trim("-")
   end
-
 end
