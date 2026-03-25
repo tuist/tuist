@@ -654,11 +654,8 @@ defmodule Tuist.Tests do
   """
   def list_test_case_runs(attrs, opts \\ []) do
     base_query =
-      case extract_test_run_id_filter(attrs) do
-        nil ->
-          from(tcr in TestCaseRun)
-
-        test_run_id ->
+      case extract_mv_scope_filter(attrs) do
+        {:test_run_id, test_run_id} ->
           mv_ids =
             from(mv in TestCaseRunByTestRun,
               where: mv.test_run_id == ^test_run_id,
@@ -666,6 +663,18 @@ defmodule Tuist.Tests do
             )
 
           from(tcr in TestCaseRun, where: tcr.id in subquery(mv_ids))
+
+        {:shard_id, shard_id} ->
+          mv_ids =
+            from(mv in TestCaseRunByTestRun,
+              where: mv.shard_id == ^shard_id,
+              select: mv.id
+            )
+
+          from(tcr in TestCaseRun, where: tcr.id in subquery(mv_ids))
+
+        nil ->
+          from(tcr in TestCaseRun)
       end
 
     preloads = Keyword.get(opts, :preload, [])
@@ -680,23 +689,25 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
-  defp extract_test_run_id_filter(%{filters: filters}) when is_list(filters) do
+  defp extract_mv_scope_filter(%{filters: filters}) when is_list(filters) do
     Enum.find_value(filters, fn
-      %{field: :test_run_id, op: :==, value: value} -> value
+      %{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
+      %{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
       _ -> nil
     end)
   end
 
-  defp extract_test_run_id_filter(%Flop{} = flop) do
+  defp extract_mv_scope_filter(%Flop{} = flop) do
     flop.filters
     |> List.wrap()
     |> Enum.find_value(fn
-      %Flop.Filter{field: :test_run_id, op: :==, value: value} -> value
+      %Flop.Filter{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
+      %Flop.Filter{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
       _ -> nil
     end)
   end
 
-  defp extract_test_run_id_filter(_), do: nil
+  defp extract_mv_scope_filter(_), do: nil
 
   @doc """
   Gets a test case run by its UUID.
