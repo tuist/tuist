@@ -532,5 +532,23 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       ui = Enum.find(result["targets"], &(&1["name"] == "UITests"))
       assert ui["hit_status"] == "remote"
     end
+
+    test "requires :test_read authorization" do
+      project = %{id: "project-id", name: "project-name"}
+      project_id = project.id
+      stub(Tests, :get_test, fn "run-1" -> {:ok, %{id: "run-1", project_id: project.id}} end)
+      stub(Projects, :get_project_by_id, fn ^project_id -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project ->
+        {:error, :forbidden}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListXcodeSelectiveTestingTargets.call(conn, %{"test_run_id" => "run-1"})
+
+      assert text =~ "You do not have access to this resource."
+    end
   end
 end
