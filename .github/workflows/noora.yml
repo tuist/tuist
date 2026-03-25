@@ -25,6 +25,7 @@ env:
   MIX_ENV: test
   PNPM_HOME: ~/.pnpm
   MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
 
 defaults:
   run:
