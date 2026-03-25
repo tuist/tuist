@@ -164,6 +164,10 @@
   & #docs-layout > #docs-content {
     padding: var(--noora-spacing-7) 0;
     min-width: 0;
+
+    & [data-part="mobile-copy"] {
+      display: none;
+    }
   }
 
   /* Responsive */
@@ -179,6 +183,12 @@
 
     & #docs-toc {
       display: none;
+    }
+
+    & [data-part="mobile-copy"] {
+      display: flex;
+      justify-content: flex-end;
+      padding: var(--noora-spacing-5) 0;
     }
 
     & #docs-sidebar[data-mobile-open] {

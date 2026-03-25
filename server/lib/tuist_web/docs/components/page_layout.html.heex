@@ -54,6 +54,37 @@
       </div>
     </nav>
     <div id="docs-content">
+      <div id="docs-mobile-copy" data-part="mobile-copy">
+        <.button_dropdown
+          id="docs-mobile-copy-dropdown"
+          label={dgettext("docs", "Copy page")}
+          size="medium"
+          phx-click="copy-page-markdown"
+        >
+          <:icon_left><.copy /></:icon_left>
+          <.dropdown_item
+            label={dgettext("docs", "Copy page")}
+            description={dgettext("docs", "Copy page as markdown for LLMs")}
+            value="copy-markdown"
+            size="large"
+            on_click="copy-page-markdown"
+          >
+            <:left_icon><.copy /></:left_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            label={dgettext("docs", "View as Markdown")}
+            description={dgettext("docs", "View this page as plain text")}
+            value="view-markdown"
+            href={docs_markdown_path(@current_slug)}
+            size="large"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <:left_icon><.icon name="markdown" /></:left_icon>
+            <:right_icon><.external_link /></:right_icon>
+          </.dropdown_item>
+        </.button_dropdown>
+      </div>
       {render_slot(@inner_block)}
     </div>
     <.toc :if={@headings != []} headings={@headings} current_slug={@current_slug} />
