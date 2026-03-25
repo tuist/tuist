@@ -72,9 +72,16 @@ Tuist downloads the `.xctestproducts` bundle and filters it to include only the 
 
 ## Continuous integration {#continuous-integration}
 
-Test sharding currently supports the following CI providers:
+Tuist automatically detects the following CI providers:
 
-- **GitHub Actions**
+- [GitHub Actions](#github-actions)
+- [GitLab CI](#gitlab-ci)
+- [CircleCI](#circleci)
+- [Buildkite](#buildkite)
+- [Codemagic](#codemagic)
+- [Bitrise](#bitrise)
+
+For other providers, refer to the `.tuist-shard-matrix.json` file to set up parallel jobs.
 
 ### GitHub Actions {#github-actions}
 
@@ -121,3 +128,293 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
+### GitLab CI {#gitlab-ci}
+
+Tuist generates a `.tuist-shard-child-pipeline.yml` that you trigger as a [child pipeline](https://docs.gitlab.com/ee/ci/pipelines/downstream_pipelines.html#parent-child-pipelines). Define a `.tuist-shard` template job that the generated shard jobs extend:
+
+```yaml
+# .gitlab-ci.yml
+stages:
+  - build
+  - test
+
+build-shards:
+  stage: build
+  tags: [macos]
+  script:
+    - tuist auth login
+    - |
+      tuist xcodebuild build-for-testing \
+        -scheme MyScheme \
+        -destination 'platform=iOS Simulator,name=iPhone 16' \
+        --shard-total 5
+  artifacts:
+    paths:
+      - .tuist-shard-child-pipeline.yml
+
+test-shards:
+  stage: test
+  needs: [build-shards]
+  trigger:
+    include:
+      - artifact: .tuist-shard-child-pipeline.yml
+        job: build-shards
+    strategy: depend
+```
+
+```yaml
+# .gitlab/shard-template.yml
+.tuist-shard:
+  tags: [macos]
+  script:
+    - tuist auth login
+    - |
+      tuist xcodebuild test \
+        -scheme MyScheme \
+        -destination 'platform=iOS Simulator,name=iPhone 16'
+```
+
+### CircleCI {#circleci}
+
+Tuist generates a `.tuist-shard-continuation.json` with parameters for the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation):
+
+```yaml
+# .circleci/config.yml
+version: 2.1
+setup: true
+
+orbs:
+  continuation: circleci/continuation@1
+
+jobs:
+  build-shards:
+    macos:
+      xcode: "16.0"
+    steps:
+      - checkout
+      - run:
+          name: Build and plan shards
+          command: |
+            tuist auth login
+            tuist xcodebuild build-for-testing \
+              -scheme MyScheme \
+              -destination 'platform=iOS Simulator,name=iPhone 16' \
+              --shard-total 5
+      - continuation/continue:
+          configuration_path: .circleci/continue-config.yml
+          parameters: .tuist-shard-continuation.json
+
+workflows:
+  setup:
+    jobs:
+      - build-shards
+```
+
+```yaml
+# .circleci/continue-config.yml
+version: 2.1
+
+parameters:
+  shard-indices:
+    type: string
+    default: ""
+  shard-count:
+    type: integer
+    default: 0
+
+jobs:
+  test-shard:
+    macos:
+      xcode: "16.0"
+    parameters:
+      shard-index:
+        type: integer
+    steps:
+      - checkout
+      - run:
+          name: Run shard
+          command: |
+            export TUIST_SHARD_INDEX=<< parameters.shard-index >>
+            tuist auth login
+            tuist xcodebuild test \
+              -scheme MyScheme \
+              -destination 'platform=iOS Simulator,name=iPhone 16'
+
+workflows:
+  test:
+    jobs:
+      - test-shard:
+          matrix:
+            parameters:
+              shard-index: [<< pipeline.parameters.shard-indices >>]
+```
+
+### Buildkite {#buildkite}
+
+Tuist generates a `.tuist-shard-pipeline.yml` with one step per shard. Upload it with `buildkite-agent pipeline upload`:
+
+```yaml
+# pipeline.yml
+steps:
+  - label: "Build test shards"
+    command: |
+      tuist auth login
+      tuist xcodebuild build-for-testing \
+        -scheme MyScheme \
+        -destination 'platform=iOS Simulator,name=iPhone 16' \
+        --shard-total 5
+      buildkite-agent pipeline upload .tuist-shard-pipeline.yml
+    agents:
+      queue: macos
+```
+
+Each generated step has `TUIST_SHARD_INDEX` set in its environment. Add the test command to each shard step using a shared script:
+
+```bash
+# .buildkite/shard-step.sh
+#!/bin/bash
+tuist auth login
+tuist xcodebuild test \
+  -scheme MyScheme \
+  -destination 'platform=iOS Simulator,name=iPhone 16'
+```
+
+### Codemagic {#codemagic}
+
+Codemagic does not support dynamic matrix jobs, so define a separate workflow per shard. Tuist writes `TUIST_SHARD_MATRIX` and `TUIST_SHARD_COUNT` to the `CM_ENV` file for use within each workflow:
+
+```yaml
+# codemagic.yaml
+workflows:
+  build-shards:
+    name: Build test shards
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+    scripts:
+      - name: Build and plan shards
+        script: |
+          tuist auth login
+          tuist xcodebuild build-for-testing \
+            -scheme MyScheme \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            --shard-total 5
+
+  test-shard-0: &shard-workflow
+    name: "Shard #0"
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+      vars:
+        TUIST_SHARD_INDEX: 0
+    scripts:
+      - name: Run shard
+        script: |
+          tuist auth login
+          tuist xcodebuild test \
+            -scheme MyScheme \
+            -destination 'platform=iOS Simulator,name=iPhone 16'
+
+  test-shard-1:
+    <<: *shard-workflow
+    name: "Shard #1"
+    environment:
+      xcode: latest
+      vars:
+        TUIST_SHARD_INDEX: 1
+
+  test-shard-2:
+    <<: *shard-workflow
+    name: "Shard #2"
+    environment:
+      xcode: latest
+      vars:
+        TUIST_SHARD_INDEX: 2
+
+  test-shard-3:
+    <<: *shard-workflow
+    name: "Shard #3"
+    environment:
+      xcode: latest
+      vars:
+        TUIST_SHARD_INDEX: 3
+
+  test-shard-4:
+    <<: *shard-workflow
+    name: "Shard #4"
+    environment:
+      xcode: latest
+      vars:
+        TUIST_SHARD_INDEX: 4
+```
+
+### Bitrise {#bitrise}
+
+On Bitrise, Tuist writes `.tuist-shard-matrix.json` to the `BITRISE_DEPLOY_DIR`, making it available as a build artifact for downstream pipeline stages. Use Bitrise Pipelines with pre-defined parallel workflows:
+
+```yaml
+# bitrise.yml
+pipelines:
+  test-pipeline:
+    stages:
+      - build-stage: {}
+      - test-stage: {}
+
+stages:
+  build-stage:
+    workflows:
+      - build-shards: {}
+  test-stage:
+    workflows:
+      - test-shard-0: {}
+      - test-shard-1: {}
+      - test-shard-2: {}
+      - test-shard-3: {}
+      - test-shard-4: {}
+
+workflows:
+  build-shards:
+    steps:
+      - script:
+          title: Build and plan shards
+          inputs:
+            - content: |
+                tuist auth login
+                tuist xcodebuild build-for-testing \
+                  -scheme MyScheme \
+                  -destination 'platform=iOS Simulator,name=iPhone 16' \
+                  --shard-total 5
+
+  test-shard-0: &shard-workflow
+    envs:
+      - TUIST_SHARD_INDEX: 0
+    steps:
+      - script:
+          title: Run shard
+          inputs:
+            - content: |
+                tuist auth login
+                tuist xcodebuild test \
+                  -scheme MyScheme \
+                  -destination 'platform=iOS Simulator,name=iPhone 16'
+  test-shard-1:
+    <<: *shard-workflow
+    envs:
+      - TUIST_SHARD_INDEX: 1
+  test-shard-2:
+    <<: *shard-workflow
+    envs:
+      - TUIST_SHARD_INDEX: 2
+  test-shard-3:
+    <<: *shard-workflow
+    envs:
+      - TUIST_SHARD_INDEX: 3
+  test-shard-4:
+    <<: *shard-workflow
+    envs:
+      - TUIST_SHARD_INDEX: 4
+```
+
+::: tip
+Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
+:::
