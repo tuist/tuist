@@ -33,31 +33,34 @@ defmodule Tuist.Docs.Sidebar do
 
   en_path = Path.join(@strings_dir, "en.json")
 
-  @translations if(File.exists?(en_path)) do
-    {:ok, en_content} = File.read(en_path)
-    {:ok, en_data} = Jason.decode(en_content)
-    en_strings = extract_texts.(extract_texts, en_data, [])
+  translations =
+    if File.exists?(en_path) do
+      {:ok, en_content} = File.read(en_path)
+      {:ok, en_data} = Jason.decode(en_content)
+      en_strings = extract_texts.(extract_texts, en_data, [])
 
-    @strings_dir
-    |> Path.join("*.json")
-    |> Path.wildcard()
-    |> Enum.reject(&(Path.basename(&1) == "en.json"))
-    |> Map.new(fn path ->
-      locale = Path.basename(path, ".json")
-      {:ok, content} = File.read(path)
-      {:ok, data} = Jason.decode(content)
-      locale_texts = extract_texts.(extract_texts, data, [])
+      @strings_dir
+      |> Path.join("*.json")
+      |> Path.wildcard()
+      |> Enum.reject(&(Path.basename(&1) == "en.json"))
+      |> Map.new(fn path ->
+        locale = Path.basename(path, ".json")
+        {:ok, content} = File.read(path)
+        {:ok, data} = Jason.decode(content)
+        locale_texts = extract_texts.(extract_texts, data, [])
 
-      label_map =
-        Map.new(en_strings, fn {text_path, en_text} ->
-          {en_text, Map.get(locale_texts, text_path, en_text)}
-        end)
+        label_map =
+          Map.new(en_strings, fn {text_path, en_text} ->
+            {en_text, Map.get(locale_texts, text_path, en_text)}
+          end)
 
-      {locale, label_map}
-    end)
-  else
-    %{}
-  end
+        {locale, label_map}
+      end)
+    else
+      %{}
+    end
+
+  @translations translations
 
   def tree do
     guides_tree() ++ resources_tree() ++ references_tree()
