@@ -189,6 +189,13 @@
       display: flex;
       justify-content: flex-end;
       padding: var(--noora-spacing-5) 0;
+
+      & .noora-button-dropdown {
+        & > [data-state="open"] ~ [data-part="positioner"] {
+          left: unset !important;
+          right: 0 !important;
+        }
+      }
     }
 
     & #docs-sidebar[data-mobile-open] {
