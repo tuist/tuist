@@ -32,7 +32,7 @@ defmodule Tuist.Docs.Loader do
   @home_card_regex ~r/<HomeCard\s+([^>]*?)\/>/s
   @home_card_attr_regex ~r/(\w+)="([^"]*)"/
   @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
-  @mermaid_block_regex ~r/<pre[^>]*><code[^>]*class="language-mermaid"[^>]*>(.*?)<\/code><\/pre>/s
+  @mermaid_block_regex ~r/```mermaid\n(.*?)```/s
 
   # Lookup maps
   @github_alert_type_to_status %{
@@ -228,6 +228,7 @@ defmodule Tuist.Docs.Loader do
     |> convert_home_cards(locale)
     |> strip_custom_heading_ids()
     |> convert_vitepress_containers()
+    |> convert_mermaid_blocks()
     |> MDEx.to_html!(
       extension: [
         header_ids: "",
@@ -240,7 +241,6 @@ defmodule Tuist.Docs.Loader do
       render: [unsafe: true],
       syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
     )
-    |> convert_mermaid_blocks()
     |> wrap_code_blocks()
     |> wrap_tables()
     |> convert_github_alerts()
@@ -296,17 +296,9 @@ defmodule Tuist.Docs.Loader do
     end)
   end
 
-  defp convert_mermaid_blocks(html) do
-    Regex.replace(@mermaid_block_regex, html, fn _, code ->
-      decoded =
-        code
-        |> String.replace("&amp;", "&")
-        |> String.replace("&lt;", "<")
-        |> String.replace("&gt;", ">")
-        |> String.replace("&quot;", "\"")
-        |> String.replace("&#39;", "'")
-
-      ~s(<pre class="mermaid">#{decoded}</pre>)
+  defp convert_mermaid_blocks(markdown) do
+    Regex.replace(@mermaid_block_regex, markdown, fn _, code ->
+      ~s(<pre class="mermaid">#{String.trim(code)}</pre>\n)
     end)
   end
 
