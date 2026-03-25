@@ -1947,6 +1947,34 @@ defmodule Tuist.Tests do
   end
 
   @doc """
+  Marks in-progress test runs older than 6 hours as failed.
+
+  Returns {:ok, count} where count is the number of expired test runs.
+  """
+  def expire_stale_in_progress_test_runs do
+    six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -6, :hour)
+
+    stale_runs =
+      ClickHouseRepo.all(
+        from(t in Test, hints: ["FINAL"], where: t.status == "in_progress", where: t.inserted_at < ^six_hours_ago)
+      )
+
+    if Enum.any?(stale_runs) do
+      updated_runs =
+        Enum.map(stale_runs, fn run ->
+          run
+          |> Map.from_struct()
+          |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+          |> Map.merge(%{status: "failure", inserted_at: NaiveDateTime.utc_now()})
+        end)
+
+      IngestRepo.insert_all(Test, updated_runs)
+    end
+
+    {:ok, length(stale_runs)}
+  end
+
+  @doc """
   Clears stale flaky flags from test cases.
 
   A test case's is_flaky flag is considered stale if there have been no flaky
