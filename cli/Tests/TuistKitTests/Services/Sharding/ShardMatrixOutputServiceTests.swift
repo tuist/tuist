@@ -144,14 +144,30 @@ struct ShardMatrixOutputServiceTests {
         try await subject.output(.test(shardCount: 2))
 
         let outputPath = temporaryDirectory.appending(component: ".tuist-shard-matrix.json")
-        let data = try Data(contentsOf: URL(fileURLWithPath: outputPath.pathString))
-        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-        #expect(json["shard_count"] as? Int == 2)
-        #expect(json["reference"] as? String == "test-ref")
-        let shards = json["shards"] as! [[String: Any]]
-        #expect(shards.count == 2)
-        #expect(shards[0]["index"] as? Int == 0)
-        #expect(shards[1]["index"] as? Int == 1)
+        let content = try await fileSystem.readTextFile(at: outputPath)
+        #expect(content == """
+            {
+              "id" : "test-id",
+              "reference" : "test-ref",
+              "shard_count" : 2,
+              "shards" : [
+                {
+                  "estimated_duration_ms" : 1000,
+                  "index" : 0,
+                  "test_targets" : [
+                    "Target0"
+                  ]
+                },
+                {
+                  "estimated_duration_ms" : 1000,
+                  "index" : 1,
+                  "test_targets" : [
+                    "Target1"
+                  ]
+                }
+              ]
+            }
+            """)
     }
 }
 
