@@ -107,6 +107,7 @@ defmodule Cache.KeyValueStore do
             KeyValueAccessTracker.mark_shared_lineage(key)
           end
 
+          KeyValueBuffer.enqueue_access(key)
           maybe_track_access(key)
           {:ok, record.json_payload}
       end

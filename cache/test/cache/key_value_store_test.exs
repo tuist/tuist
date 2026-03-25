@@ -645,6 +645,41 @@ defmodule Cache.KeyValueStoreTest do
       assert DateTime.after?(record.last_accessed_at, old_time)
     end
 
+    test "SQLite fallback read updates last_accessed_at for pre-existing entries in distributed mode", %{
+      cache_name: cache_name,
+      account_handle: account_handle,
+      project_handle: project_handle,
+      cas_id: cas_id
+    } do
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
+      stub(KeyValueAccessTracker, :shared_lineage?, fn _key -> false end)
+
+      key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
+      old_time = DateTime.add(DateTime.utc_now(), -120, :second)
+
+      KeyValueRepo.insert!(%KeyValueEntry{
+        key: key,
+        json_payload: Jason.encode!(%{entries: [%{"value" => "pre-existing"}]}),
+        last_accessed_at: old_time,
+        source_updated_at: nil
+      })
+
+      assert {:ok, json} =
+               KeyValueStore.get_key_value(
+                 cas_id,
+                 account_handle,
+                 project_handle,
+                 cache_name: cache_name
+               )
+
+      assert Jason.decode!(json)["entries"] == [%{"value" => "pre-existing"}]
+
+      :ok = KeyValueBuffer.flush()
+
+      record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+      assert DateTime.after?(record.last_accessed_at, old_time)
+    end
+
     test "Cachex hit does not update last_accessed_at", %{
       cache_name: cache_name,
       account_handle: account_handle,
