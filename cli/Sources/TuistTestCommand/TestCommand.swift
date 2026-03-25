@@ -22,10 +22,10 @@ public struct TestCommand: AsyncParsableCommand {
                 TestCaseCommand.self,
                 TestModuleCommand.self,
                 TestSuiteCommand.self,
-                TestSelectiveTestingCommand.self,
+                TestSelectionCommand.self,
             ]
         #else
-            [TestShowCommand.self, TestListCommand.self, TestCaseCommand.self, TestModuleCommand.self, TestSuiteCommand.self, TestSelectiveTestingCommand.self]
+            [TestShowCommand.self, TestListCommand.self, TestCaseCommand.self, TestModuleCommand.self, TestSuiteCommand.self, TestSelectionCommand.self]
         #endif
     }
 

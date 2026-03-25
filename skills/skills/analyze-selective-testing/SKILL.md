@@ -8,7 +8,7 @@ description: Analyzes Xcode selective testing effectiveness for a test run, show
 ## Quick Start
 
 1. Run `tuist test list --json` to find test runs.
-2. Run `tuist test selective-testing list <test-run-id> --json` to see per-target selective testing status.
+2. Run `tuist test selection list <test-run-id> --json` to see per-target selective testing status.
 3. If effectiveness dropped, compare targets between a known-good run and the regressed run.
 
 ## Step 1: Resolve Test Runs
@@ -40,7 +40,7 @@ Use this to confirm the run's branch, status, scheme, and environment (`xcode_ve
 List per-target selective testing data for a test run:
 
 ```bash
-tuist test selective-testing list <test-run-id> --json
+tuist test selection list <test-run-id> --json
 ```
 
 Each target includes:
@@ -51,9 +51,9 @@ Each target includes:
 Filter by status to focus your analysis:
 
 ```bash
-tuist test selective-testing list <test-run-id> --hit-status miss --json
-tuist test selective-testing list <test-run-id> --hit-status local --json
-tuist test selective-testing list <test-run-id> --hit-status remote --json
+tuist test selection list <test-run-id> --hit-status miss --json
+tuist test selection list <test-run-id> --hit-status local --json
+tuist test selection list <test-run-id> --hit-status remote --json
 ```
 
 ### Assess effectiveness
@@ -90,7 +90,7 @@ Note: Tuist CLI version upgrades rarely cause hash invalidation — the hash ver
 
 If only some targets show as `miss`, a dependency change likely cascaded:
 
-1. Run `tuist test selective-testing list <good-run-id> --json` and `tuist test selective-testing list <bad-run-id> --json`.
+1. Run `tuist test selection list <good-run-id> --json` and `tuist test selection list <bad-run-id> --json`.
 2. Match targets by name — identify those that changed from `local`/`remote` to `miss`.
 3. Compare hashes for changed targets — if a target's hash differs, its sources or dependencies changed.
 4. Look for a common dependency among the invalidated targets.
@@ -145,7 +145,7 @@ Recommendations:
 ## Done Checklist
 
 - Identified the test run(s) to analyze
-- Drilled into per-target selective testing status via `tuist test selective-testing list`
+- Drilled into per-target selective testing status via `tuist test selection list`
 - Diagnosed root cause if effectiveness is low
 - Compared targets with baseline if regression detected
 - Provided actionable recommendations

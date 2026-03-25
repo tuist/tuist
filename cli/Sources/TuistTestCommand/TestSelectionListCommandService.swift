@@ -6,7 +6,7 @@ import TuistEnvironment
 import TuistNooraExtension
 import TuistServer
 
-protocol TestSelectiveTestingListCommandServicing {
+protocol TestSelectionListCommandServicing {
     func run(
         fullHandle: String?,
         testRunId: String,
@@ -18,7 +18,7 @@ protocol TestSelectiveTestingListCommandServicing {
     ) async throws
 }
 
-enum TestSelectiveTestingListCommandServiceError: Equatable, LocalizedError {
+enum TestSelectionListCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
 
     var errorDescription: String? {
@@ -29,7 +29,7 @@ enum TestSelectiveTestingListCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-struct TestSelectiveTestingListCommandService: TestSelectiveTestingListCommandServicing {
+struct TestSelectionListCommandService: TestSelectionListCommandServicing {
     private let listSelectiveTestingTargetsService: ListSelectiveTestingTargetsServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
@@ -57,7 +57,7 @@ struct TestSelectiveTestingListCommandService: TestSelectiveTestingListCommandSe
 
         let config = try await configLoader.loadConfig(path: directoryPath)
         guard let resolvedFullHandle = fullHandle ?? config.fullHandle else {
-            throw TestSelectiveTestingListCommandServiceError.missingFullHandle
+            throw TestSelectionListCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)

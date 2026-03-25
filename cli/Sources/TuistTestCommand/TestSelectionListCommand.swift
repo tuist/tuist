@@ -3,7 +3,7 @@ import Foundation
 import Path
 import TuistNooraExtension
 
-public struct TestSelectiveTestingListCommand: AsyncParsableCommand, NooraReadyCommand {
+public struct TestSelectionListCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -52,7 +52,7 @@ public struct TestSelectiveTestingListCommand: AsyncParsableCommand, NooraReadyC
     public var jsonThroughNoora: Bool = true
 
     public func run() async throws {
-        try await TestSelectiveTestingListCommandService().run(
+        try await TestSelectionListCommandService().run(
             fullHandle: project,
             testRunId: testRunId,
             path: path,
