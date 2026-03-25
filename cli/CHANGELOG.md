@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* show suite names in shard log for suite granularity by [@fortmarek](https://github.com/fortmarek) in [#10008](https://github.com/tuist/tuist/pull/10008)
 * use structural action log timing for test run duration reporting by [@fortmarek](https://github.com/fortmarek) in [#10007](https://github.com/tuist/tuist/pull/10007)
 
 
