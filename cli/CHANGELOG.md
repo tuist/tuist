@@ -1,6 +1,23 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.168.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* resolving SPM Targets with automatic product type using baseProductType by [@Loupehope](https://github.com/Loupehope) in [#9809](https://github.com/tuist/tuist/pull/9809)
+### 🐛 Bug Fixes
+
+* support .tbd stub files in xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#9992](https://github.com/tuist/tuist/pull/9992)
+* add missing macOS platforms to mise.lock by [@fortmarek](https://github.com/fortmarek) in [#10030](https://github.com/tuist/tuist/pull/10030)
+### ⚡ Performance
+
+* use dictionary lookup for target resolution in PackageInfoMapper by [@inju2403](https://github.com/inju2403) in [#10021](https://github.com/tuist/tuist/pull/10021)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.167.0...4.168.0
+
 ## What's Changed in 4.167.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
