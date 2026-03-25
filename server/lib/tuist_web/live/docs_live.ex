@@ -93,11 +93,11 @@ defmodule TuistWeb.DocsLive do
       <div id="docs-overview">
         <%!-- Hero --%>
         <section data-part="hero">
-          <h1>{dgettext("docs", "Make mobile your competitive advantage")}</h1>
+          <h1>{dgettext("docs", "Your mobile platform team, as a service")}</h1>
           <p>
             {dgettext(
               "docs",
-              "Tuist helps teams scale app development and ship faster — transforming the complexity of large codebases into a smooth, productive experience that grows with your team."
+              "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping."
             )}
           </p>
         </section>
