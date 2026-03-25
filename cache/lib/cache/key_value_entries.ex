@@ -243,13 +243,6 @@ defmodule Cache.KeyValueEntries do
       {:ok, result} -> {:ok, result}
       {:error, reason} -> {:error, reason}
     end
-  rescue
-    error ->
-      if SQLiteHelpers.busy_error?(error) do
-        {:error, :busy}
-      else
-        reraise error, __STACKTRACE__
-      end
   end
 
   defp load_pending_remote_batch(signature) do
