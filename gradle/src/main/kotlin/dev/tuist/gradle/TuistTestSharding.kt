@@ -199,9 +199,12 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         writeShardMatrixOutput(indices, reference, response)
     }
 
-    private fun writeShardMatrixOutput(indices: List<Int>, reference: String, response: ShardPlan) {
-        val ciProvider = detectCIProvider()
-
+    internal fun writeShardMatrixOutput(
+        indices: List<Int>,
+        reference: String,
+        response: ShardPlan,
+        ciProvider: CIProvider? = detectCIProvider()
+    ) {
         when (ciProvider) {
             CIProvider.GITHUB -> {
                 val matrixJSON = """{"shard":$indices}"""

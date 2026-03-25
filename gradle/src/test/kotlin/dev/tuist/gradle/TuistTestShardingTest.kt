@@ -170,6 +170,169 @@ class DetectCIProviderTest {
     }
 }
 
+class WriteShardMatrixOutputTest {
+
+    private fun createTask(projectDir: File): TuistPrepareTestShardsTask {
+        val project = org.gradle.testfixtures.ProjectBuilder.builder()
+            .withProjectDir(projectDir)
+            .build()
+        return project.tasks.create("testShards", TuistPrepareTestShardsTask::class.java)
+    }
+
+    private fun shardPlan(shardCount: Int = 2) = ShardPlan(
+        reference = "test-ref",
+        shardCount = shardCount,
+        shards = (0 until shardCount).map { index ->
+            ShardPlanShardsInner(
+                index = index,
+                testTargets = listOf("com.example.Test$index"),
+                estimatedDurationMs = 1000
+            )
+        },
+        id = java.util.UUID.fromString("00000000-0000-0000-0000-000000000000")
+    )
+
+    @Test
+    fun `gitlab writes child pipeline yml`(@TempDir tempDir: File) {
+        val task = createTask(tempDir)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.GITLAB)
+
+        val content = File(tempDir, ".tuist-shard-child-pipeline.yml").readText()
+        assertEquals(
+            """
+            shard-0:
+              extends: .tuist-shard
+              variables:
+                TUIST_SHARD_INDEX: "0"
+
+            shard-1:
+              extends: .tuist-shard
+              variables:
+                TUIST_SHARD_INDEX: "1"
+
+            """.trimIndent() + "\n",
+            content
+        )
+    }
+
+    @Test
+    fun `circleci writes continuation json`(@TempDir tempDir: File) {
+        val task = createTask(tempDir)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.CIRCLECI)
+
+        val content = File(tempDir, ".tuist-shard-continuation.json").readText()
+        assertEquals("""{"shard-indices":"0,1","shard-count":2}""", content)
+    }
+
+    @Test
+    fun `buildkite writes pipeline yml`(@TempDir tempDir: File) {
+        val task = createTask(tempDir)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.BUILDKITE)
+
+        val content = File(tempDir, ".tuist-shard-pipeline.yml").readText()
+        assertEquals(
+            """
+            steps:
+              - label: "Shard #0"
+                env:
+                  TUIST_SHARD_INDEX: "0"
+
+              - label: "Shard #1"
+                env:
+                  TUIST_SHARD_INDEX: "1"
+
+            """.trimIndent() + "\n",
+            content
+        )
+    }
+
+    @Test
+    fun `fallback writes shard matrix json`(@TempDir tempDir: File) {
+        val task = createTask(tempDir)
+        task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), null)
+
+        val content = File(tempDir, ".tuist-shard-matrix.json").readText()
+        assertEquals(
+            """{"reference":"test-ref","shard_count":2,"shards":[{"index":0,"test_targets":["com.example.Test0"],"estimated_duration_ms":1000},{"index":1,"test_targets":["com.example.Test1"],"estimated_duration_ms":1000}]}""",
+            content
+        )
+    }
+
+    @Test
+    fun `github writes matrix to output file`(@TempDir tempDir: File) {
+        val githubOutputFile = File(tempDir, "github_output")
+        githubOutputFile.writeText("")
+
+        val originalEnv = System.getenv("GITHUB_OUTPUT")
+        try {
+            setEnv("GITHUB_OUTPUT", githubOutputFile.absolutePath)
+            val task = createTask(tempDir)
+            task.writeShardMatrixOutput(listOf(0, 1, 2), "test-ref", shardPlan(3), CIProvider.GITHUB)
+
+            assertEquals("""matrix={"shard":[0, 1, 2]}""" + "\n", githubOutputFile.readText())
+        } finally {
+            if (originalEnv != null) setEnv("GITHUB_OUTPUT", originalEnv)
+            else removeEnv("GITHUB_OUTPUT")
+        }
+    }
+
+    @Test
+    fun `codemagic writes to cm env file`(@TempDir tempDir: File) {
+        val cmEnvFile = File(tempDir, "cm_env")
+        cmEnvFile.writeText("")
+
+        val originalEnv = System.getenv("CM_ENV")
+        try {
+            setEnv("CM_ENV", cmEnvFile.absolutePath)
+            val task = createTask(tempDir)
+            task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.CODEMAGIC)
+
+            assertEquals(
+                """TUIST_SHARD_MATRIX={"shard":[0, 1]}""" + "\nTUIST_SHARD_COUNT=2\n",
+                cmEnvFile.readText()
+            )
+        } finally {
+            if (originalEnv != null) setEnv("CM_ENV", originalEnv)
+            else removeEnv("CM_ENV")
+        }
+    }
+
+    @Test
+    fun `bitrise writes to deploy dir`(@TempDir tempDir: File) {
+        val deployDir = File(tempDir, "deploy")
+        deployDir.mkdirs()
+
+        val originalEnv = System.getenv("BITRISE_DEPLOY_DIR")
+        try {
+            setEnv("BITRISE_DEPLOY_DIR", deployDir.absolutePath)
+            val task = createTask(tempDir)
+            task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.BITRISE)
+
+            val content = File(deployDir, ".tuist-shard-matrix.json").readText()
+            assertEquals("""{"shard":[0, 1],"shard_count":2}""", content)
+        } finally {
+            if (originalEnv != null) setEnv("BITRISE_DEPLOY_DIR", originalEnv)
+            else removeEnv("BITRISE_DEPLOY_DIR")
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun setEnv(key: String, value: String) {
+        val env = System.getenv() as java.util.Map<String, String>
+        val field = env.javaClass.getDeclaredField("m")
+        field.isAccessible = true
+        (field.get(env) as MutableMap<String, String>)[key] = value
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun removeEnv(key: String) {
+        val env = System.getenv() as java.util.Map<String, String>
+        val field = env.javaClass.getDeclaredField("m")
+        field.isAccessible = true
+        (field.get(env) as MutableMap<String, String>).remove(key)
+    }
+}
+
 class DiscoverTestSuitesTest {
 
     @Test
