@@ -48,7 +48,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       end)
 
       stub(Analytics, :test_runs_metrics, fn _project_id, _runs ->
-        [%{test_run_id: "run-1", total_tests: 50, ran_tests: 45, skipped_tests: 5, xcode_selective_testing_local_hits: 3, xcode_selective_testing_remote_hits: 2, xcode_selective_testing_targets: 10}]
+        [%{test_run_id: "run-1", total_tests: 50, ran_tests: 45, skipped_tests: 5}]
       end)
 
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
@@ -59,11 +59,6 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       result = JSON.decode!(text)
       assert length(result["test_runs"]) == 1
       assert hd(result["test_runs"])["total_test_count"] == 50
-
-      run = hd(result["test_runs"])
-      assert run["xcode_selective_testing_targets"] == 10
-      assert run["xcode_selective_testing_local_hits"] == 3
-      assert run["xcode_selective_testing_remote_hits"] == 2
     end
   end
 
@@ -341,10 +336,6 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         %{total_count: 50, failed_count: 2, flaky_count: 1, avg_duration: 300}
       end)
 
-      stub(Analytics, :get_test_run_selective_testing_metrics, fn "run-1" ->
-        %{xcode_selective_testing_local_hits: 10, xcode_selective_testing_remote_hits: 5, xcode_selective_testing_targets: 20}
-      end)
-
       conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} =
@@ -354,9 +345,6 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert result["id"] == "run-1"
       assert result["total_test_count"] == 50
       assert result["failed_test_count"] == 2
-      assert result["xcode_selective_testing_targets"] == 20
-      assert result["xcode_selective_testing_local_hits"] == 10
-      assert result["xcode_selective_testing_remote_hits"] == 5
     end
 
     test "requires :test_read authorization" do

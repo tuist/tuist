@@ -104,19 +104,7 @@ defmodule TuistWeb.API.TestsController do
                    },
                    total_test_count: %Schema{type: :integer, description: "Total number of test cases."},
                    ran_tests: %Schema{type: :integer, description: "Number of test cases that ran."},
-                   skipped_tests: %Schema{type: :integer, description: "Number of skipped test cases."},
-                   xcode_selective_testing_targets: %Schema{
-                     type: :integer,
-                     description: "Total number of Xcode test targets eligible for selective testing."
-                   },
-                   xcode_selective_testing_local_hits: %Schema{
-                     type: :integer,
-                     description: "Number of test targets skipped due to local selective testing cache hit."
-                   },
-                   xcode_selective_testing_remote_hits: %Schema{
-                     type: :integer,
-                     description: "Number of test targets skipped due to remote selective testing cache hit."
-                   }
+                   skipped_tests: %Schema{type: :integer, description: "Number of skipped test cases."}
                  },
                  required: [:id, :duration, :status, :is_ci, :is_flaky]
                }
@@ -185,10 +173,7 @@ defmodule TuistWeb.API.TestsController do
             ran_at: format_ran_at(run.ran_at),
             total_test_count: Map.get(run_metrics, :total_tests, 0),
             ran_tests: Map.get(run_metrics, :ran_tests, 0),
-            skipped_tests: Map.get(run_metrics, :skipped_tests, 0),
-            xcode_selective_testing_targets: Map.get(run_metrics, :xcode_selective_testing_targets, 0),
-            xcode_selective_testing_local_hits: Map.get(run_metrics, :xcode_selective_testing_local_hits, 0),
-            xcode_selective_testing_remote_hits: Map.get(run_metrics, :xcode_selective_testing_remote_hits, 0)
+            skipped_tests: Map.get(run_metrics, :skipped_tests, 0)
           }
         end),
       pagination_metadata: %{
@@ -552,19 +537,7 @@ defmodule TuistWeb.API.TestsController do
              total_test_count: %Schema{type: :integer, description: "Total number of test cases."},
              failed_test_count: %Schema{type: :integer, description: "Number of failed test cases."},
              flaky_test_count: %Schema{type: :integer, description: "Number of flaky test cases."},
-             avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."},
-             xcode_selective_testing_targets: %Schema{
-               type: :integer,
-               description: "Total number of Xcode test targets eligible for selective testing."
-             },
-             xcode_selective_testing_local_hits: %Schema{
-               type: :integer,
-               description: "Number of test targets skipped due to local selective testing cache hit."
-             },
-             xcode_selective_testing_remote_hits: %Schema{
-               type: :integer,
-               description: "Number of test targets skipped due to remote selective testing cache hit."
-             }
+             avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."}
            },
            required: [
              :id,
@@ -575,10 +548,7 @@ defmodule TuistWeb.API.TestsController do
              :total_test_count,
              :failed_test_count,
              :flaky_test_count,
-             :avg_test_duration,
-             :xcode_selective_testing_targets,
-             :xcode_selective_testing_local_hits,
-             :xcode_selective_testing_remote_hits
+             :avg_test_duration
            ]
          }},
       not_found: {"Test run not found", "application/json", Error},
@@ -590,7 +560,6 @@ defmodule TuistWeb.API.TestsController do
     case Tests.get_test(test_run_id) do
       {:ok, %{project_id: project_id} = run} when project_id == selected_project.id ->
         test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
-        selective_testing = Tests.Analytics.get_test_run_selective_testing_metrics(run.id)
 
         json(conn, %{
           id: run.id,
@@ -608,10 +577,7 @@ defmodule TuistWeb.API.TestsController do
           total_test_count: test_metrics.total_count,
           failed_test_count: test_metrics.failed_count,
           flaky_test_count: test_metrics.flaky_count,
-          avg_test_duration: test_metrics.avg_duration,
-          xcode_selective_testing_targets: selective_testing.xcode_selective_testing_targets,
-          xcode_selective_testing_local_hits: selective_testing.xcode_selective_testing_local_hits,
-          xcode_selective_testing_remote_hits: selective_testing.xcode_selective_testing_remote_hits
+          avg_test_duration: test_metrics.avg_duration
         })
 
       _error ->

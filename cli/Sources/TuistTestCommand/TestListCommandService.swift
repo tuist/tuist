@@ -91,10 +91,18 @@ struct TestListCommandService: TestListCommandServicing {
 
         let totalPages = initialPage.pagination_metadata.total_pages ?? 1
 
-        let initialRows = initialTestRuns.map { Self.formatTestRunRow($0) }
+        let initialRows = initialTestRuns.map { testRun in
+            [
+                testRun.id,
+                testRun.status.rawValue,
+                testRun.scheme ?? "-",
+                Formatters.formatDuration(testRun.duration),
+                testRun.ran_at.map { Formatters.formatDate($0) } ?? "-",
+            ]
+        }
 
         try await Noora.current.paginatedTable(
-            headers: ["ID", "Status", "Scheme", "Duration", "Selective Testing", "Date"],
+            headers: ["ID", "Status", "Scheme", "Duration", "Date"],
             pageSize: resolvedPageSize,
             totalPages: totalPages,
             startPage: startPage,
@@ -113,30 +121,17 @@ struct TestListCommandService: TestListCommandServicing {
                     pageSize: resolvedPageSize
                 )
 
-                return page.test_runs.map { Self.formatTestRunRow($0) }
+                return page.test_runs.map { testRun in
+                    [
+                        testRun.id,
+                        testRun.status.rawValue,
+                        testRun.scheme ?? "-",
+                        Formatters.formatDuration(testRun.duration),
+                        testRun.ran_at.map { Formatters.formatDate($0) } ?? "-",
+                    ]
+                }
             }
         )
     }
 
-    private static func formatTestRunRow(
-        _ testRun: Operations.listTestRuns.Output.Ok.Body.jsonPayload.test_runsPayloadPayload
-    ) -> [String] {
-        let selectiveTesting: String
-        if let targets = testRun.xcode_selective_testing_targets, targets > 0 {
-            let hits = (testRun.xcode_selective_testing_local_hits ?? 0) + (testRun.xcode_selective_testing_remote_hits ?? 0)
-            let pct = Int((Double(hits) / Double(targets) * 100).rounded())
-            selectiveTesting = "\(pct)%"
-        } else {
-            selectiveTesting = "-"
-        }
-
-        return [
-            testRun.id,
-            testRun.status.rawValue,
-            testRun.scheme ?? "-",
-            Formatters.formatDuration(testRun.duration),
-            selectiveTesting,
-            testRun.ran_at.map { Formatters.formatDate($0) } ?? "-",
-        ]
-    }
 }
