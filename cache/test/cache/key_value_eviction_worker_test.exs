@@ -154,7 +154,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     expect(KeyValueEntries, :delete_one_expired_batch, fn 1, opts ->
       assert opts[:batch_size] == 1000
       :counters.add(call_count, 1, 1)
-      {%{}, 5, :complete}
+      {5, :complete}
     end)
 
     {measurements, metadata} =
@@ -178,7 +178,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     end)
 
     expect(KeyValueEntries, :delete_expired, fn _retention_days, _opts ->
-      {%{}, 0, :busy}
+      {0, :busy}
     end)
 
     {measurements, metadata} =

@@ -29,9 +29,7 @@ defmodule Cache.KeyValueEntries do
   ]
 
   @doc """
-  Deletes expired entries and returns `{grouped_hashes, deleted_count, status}`.
-
-  The grouped hashes value is always empty because KV eviction no longer drives artifact cleanup.
+  Deletes expired entries and returns `{deleted_count, status}`.
   """
   def delete_expired(max_age_days \\ 30, opts \\ []) do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
@@ -44,7 +42,7 @@ defmodule Cache.KeyValueEntries do
   end
 
   @doc """
-  Deletes one batch of the oldest expired entries and returns `{grouped_hashes, deleted_count, status}`.
+  Deletes one batch of the oldest expired entries and returns `{deleted_count, status}`.
   """
   def delete_one_expired_batch(max_age_days, opts \\ []) do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
@@ -56,24 +54,24 @@ defmodule Cache.KeyValueEntries do
 
     SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout, fn ->
       if time_limit_reached?(deadline_ms) do
-        {%{}, 0, :time_limit_reached}
+        {0, :time_limit_reached}
       else
         case candidate_batch(cutoff, batch_size, nil) do
           [] ->
-            {%{}, 0, :complete}
+            {0, :complete}
 
           batch ->
             ids_to_delete = Enum.map(batch, &elem(&1, 0))
             {count, status} = delete_expired_entries(ids_to_delete, cutoff, on_deleted_keys)
             :timer.sleep(@batch_sleep_ms)
-            {%{}, count, status}
+            {count, status}
         end
       end
     end)
   rescue
     error ->
       if SQLiteHelpers.busy_error?(error) do
-        {%{}, 0, :busy}
+        {0, :busy}
       else
         reraise error, __STACKTRACE__
       end
@@ -502,7 +500,7 @@ defmodule Cache.KeyValueEntries do
 
   defp delete_expired_loop(cutoff, batch_size, deadline_ms, on_deleted_keys, cursor \\ nil, count_acc \\ 0) do
     if time_limit_reached?(deadline_ms) do
-      {%{}, count_acc, :time_limit_reached}
+      {count_acc, :time_limit_reached}
     else
       timeout = Config.key_value_maintenance_busy_timeout_ms()
 
@@ -518,10 +516,10 @@ defmodule Cache.KeyValueEntries do
 
       case result do
         :empty ->
-          {%{}, count_acc, :complete}
+          {count_acc, :complete}
 
         :busy ->
-          {%{}, count_acc, :busy}
+          {count_acc, :busy}
 
         {:ok, batch_count, new_cursor} ->
           :timer.sleep(@batch_sleep_ms)

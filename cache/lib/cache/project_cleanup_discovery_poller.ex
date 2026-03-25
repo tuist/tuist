@@ -15,13 +15,6 @@ defmodule Cache.ProjectCleanupDiscoveryPoller do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
-  def child_spec(opts) do
-    %{
-      id: __MODULE__,
-      start: {__MODULE__, :start_link, [opts]}
-    }
-  end
-
   def poll_now do
     GenServer.call(__MODULE__, :poll, :infinity)
   end
@@ -71,8 +64,15 @@ defmodule Cache.ProjectCleanupDiscoveryPoller do
     |> ApplyProjectCleanupWorker.new()
     |> Oban.insert()
     |> case do
-      {:ok, _job} -> :ok
-      {:error, _changeset} -> :ok
+      {:ok, _job} ->
+        :ok
+
+      {:error, changeset} ->
+        Logger.warning(
+          "Failed to enqueue apply cleanup job for #{event.account_handle}/#{event.project_handle}: #{inspect(changeset)}"
+        )
+
+        :ok
     end
   end
 

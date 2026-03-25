@@ -47,7 +47,7 @@ defmodule Cache.KeyValueEvictionWorker do
 
     case fetch_size_state(deadline_ms) do
       {:ok, size_state} ->
-        {trigger, _grouped_hashes, count, status} =
+        {trigger, count, status} =
           if exceeds_limit?(size_state, max_db_size_bytes) do
             Logger.warning("KV SQLite size exceeds limit, triggering size-based eviction")
             run_size_based_eviction(min_retention_days, deadline_ms, release_bytes)
@@ -85,118 +85,115 @@ defmodule Cache.KeyValueEvictionWorker do
 
   defp run_time_based_eviction(max_age_days, deadline_ms) do
     if deadline_reached?(deadline_ms) do
-      {:time, %{}, 0, :time_limit_reached}
+      {:time, 0, :time_limit_reached}
     else
-      {grouped_hashes, count, status} = delete_expired_entries(max_age_days, deadline_ms)
+      {count, status} = delete_expired_entries(max_age_days, deadline_ms)
 
-      {:time, grouped_hashes, count, status}
+      {:time, count, status}
     end
   end
 
   defp run_size_based_eviction(min_retention_days, deadline_ms, release_bytes) do
     case run_size_maintenance_pass(deadline_ms) do
       :ok ->
-        continue_size_eviction(min_retention_days, deadline_ms, release_bytes, %{}, 0)
+        continue_size_eviction(min_retention_days, deadline_ms, release_bytes, 0)
 
       {:error, :busy} ->
-        {:size, %{}, 0, :busy}
+        {:size, 0, :busy}
 
       {:error, :deadline_exhausted} ->
-        {:size, %{}, 0, :time_limit_reached}
+        {:size, 0, :time_limit_reached}
     end
   end
 
-  defp size_eviction_loop(min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc) do
+  defp size_eviction_loop(min_retention_days, deadline_ms, release_bytes, count_acc) do
     if deadline_reached?(deadline_ms) do
       Logger.warning("Key-value size eviction reached worker deadline")
-      {:size, hashes_acc, count_acc, :time_limit_reached}
+      {:size, count_acc, :time_limit_reached}
     else
-      {batch_hashes, batch_count, batch_status} =
-        delete_one_expired_batch(min_retention_days, deadline_ms)
-
-      merged_hashes = merge_grouped_hashes(hashes_acc, batch_hashes)
+      {batch_count, batch_status} = delete_one_expired_batch(min_retention_days, deadline_ms)
       total_count = count_acc + batch_count
 
       case batch_status do
         :busy ->
-          {:size, merged_hashes, total_count, :busy}
+          {:size, total_count, :busy}
 
         :time_limit_reached ->
-          {:size, merged_hashes, total_count, :time_limit_reached}
+          {:size, total_count, :time_limit_reached}
 
         :complete ->
           if batch_count == 0 do
-            finish_size_eviction_at_retention_floor(deadline_ms, release_bytes, merged_hashes, total_count)
+            finish_size_eviction_at_retention_floor(deadline_ms, release_bytes, total_count)
           else
-            after_batch_step(min_retention_days, deadline_ms, release_bytes, merged_hashes, total_count)
+            after_batch_step(min_retention_days, deadline_ms, release_bytes, total_count)
           end
       end
     end
   end
 
-  defp finish_size_eviction_at_retention_floor(deadline_ms, release_bytes, hashes_acc, count_acc) do
+  defp finish_size_eviction_at_retention_floor(deadline_ms, release_bytes, count_acc) do
     case run_size_maintenance_pass(deadline_ms) do
       :ok ->
         case fetch_size_state(deadline_ms) do
           {:ok, size_state} ->
             if below_release?(size_state, release_bytes) do
-              {:size, hashes_acc, count_acc, :complete}
+              {:size, count_acc, :complete}
             else
               Logger.warning("KV SQLite size remains over release watermark at retention floor")
-              {:size, hashes_acc, count_acc, :floor_limited}
+              {:size, count_acc, :floor_limited}
             end
 
           {:error, :busy} ->
-            {:size, hashes_acc, count_acc, :busy}
+            {:size, count_acc, :busy}
 
           {:error, :deadline_exhausted} ->
-            {:size, hashes_acc, count_acc, :time_limit_reached}
+            {:size, count_acc, :time_limit_reached}
         end
 
       {:error, :busy} ->
-        {:size, hashes_acc, count_acc, :busy}
+        {:size, count_acc, :busy}
 
       {:error, :deadline_exhausted} ->
-        {:size, hashes_acc, count_acc, :time_limit_reached}
+        {:size, count_acc, :time_limit_reached}
     end
   end
 
-  defp after_batch_step(min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc) do
+  defp after_batch_step(min_retention_days, deadline_ms, release_bytes, count_acc) do
     if deadline_reached?(deadline_ms) do
       Logger.warning("Key-value size eviction reached worker deadline after batch")
-      {:size, hashes_acc, count_acc, :time_limit_reached}
+      {:size, count_acc, :time_limit_reached}
     else
       case run_size_maintenance_pass(deadline_ms) do
         :ok ->
-          continue_size_eviction(min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc)
+          continue_size_eviction(min_retention_days, deadline_ms, release_bytes, count_acc)
 
         {:error, :busy} ->
-          {:size, hashes_acc, count_acc, :busy}
+          {:size, count_acc, :busy}
 
         {:error, :deadline_exhausted} ->
-          {:size, hashes_acc, count_acc, :time_limit_reached}
+          {:size, count_acc, :time_limit_reached}
       end
     end
   end
 
-  defp continue_size_eviction(min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc) do
+  defp continue_size_eviction(min_retention_days, deadline_ms, release_bytes, count_acc) do
     case fetch_size_state(deadline_ms) do
       {:ok, size_state} ->
-        maybe_finish_size_eviction(size_state, min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc)
+        maybe_finish_size_eviction(size_state, min_retention_days, deadline_ms, release_bytes, count_acc)
 
       {:error, :busy} ->
-        {:size, hashes_acc, count_acc, :busy}
+        {:size, count_acc, :busy}
 
       {:error, :deadline_exhausted} ->
-        {:size, hashes_acc, count_acc, :time_limit_reached}
+        {:size, count_acc, :time_limit_reached}
     end
   end
 
-  defp maybe_finish_size_eviction(size_state, min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc) do
+  defp maybe_finish_size_eviction(size_state, min_retention_days, deadline_ms, release_bytes, count_acc) do
     if below_release?(size_state, release_bytes) do
-      {:size, hashes_acc, count_acc, :complete}
+      {:size, count_acc, :complete}
     else
-      size_eviction_loop(min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc)
+      size_eviction_loop(min_retention_days, deadline_ms, release_bytes, count_acc)
     end
   end
 
@@ -293,12 +290,6 @@ defmodule Cache.KeyValueEvictionWorker do
   end
 
   defp remaining_time(deadline_ms), do: SQLiteHelpers.remaining_time(deadline_ms)
-
-  defp merge_grouped_hashes(left, right) do
-    Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
-      (left_hashes ++ right_hashes) |> Enum.uniq() |> Enum.sort()
-    end)
-  end
 
   defp delete_expired_entries(max_age_days, deadline_ms) do
     opts = maybe_add_tracker_cleanup(max_duration_ms: remaining_time(deadline_ms), batch_size: @default_batch_size)

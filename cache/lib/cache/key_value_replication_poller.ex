@@ -26,13 +26,6 @@ defmodule Cache.KeyValueReplicationPoller do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
-  def child_spec(opts) do
-    %{
-      id: __MODULE__,
-      start: {__MODULE__, :start_link, [opts]}
-    }
-  end
-
   def poll_now do
     GenServer.call(__MODULE__, :poll, :infinity)
   end
@@ -168,6 +161,10 @@ defmodule Cache.KeyValueReplicationPoller do
   end
 
   defp persist_watermark_advance(nil, nil), do: :ok
+
+  defp persist_watermark_advance(nil, last_advanceable) do
+    KeyValueEntries.put_distributed_watermark(last_advanceable.updated_at, last_advanceable.key)
+  end
 
   defp persist_watermark_advance(last_processed, last_advanceable) do
     if same_row?(last_processed, last_advanceable) do

@@ -31,9 +31,8 @@ defmodule Cache.KeyValueEntriesTest do
         last_accessed_at: old_time
       })
 
-    {grouped_hashes, count, status} = KeyValueEntries.delete_expired(30)
+    {count, status} = KeyValueEntries.delete_expired(30)
 
-    assert grouped_hashes == %{}
     assert count == 1
     assert status == :complete
     assert KeyValueRepo.get(KeyValueEntry, entry.id) == nil
@@ -62,7 +61,7 @@ defmodule Cache.KeyValueEntriesTest do
         source_updated_at: old_time
       })
 
-    {_grouped_hashes, count, status} = KeyValueEntries.delete_expired(30)
+    {count, status} = KeyValueEntries.delete_expired(30)
 
     assert count == 1
     assert status == :complete
@@ -78,7 +77,7 @@ defmodule Cache.KeyValueEntriesTest do
 
     {:ok, deleted_keys_ref} = Agent.start_link(fn -> [] end)
 
-    {_grouped_hashes, count, status} =
+    {count, status} =
       KeyValueEntries.delete_expired(30,
         on_deleted_keys: fn keys ->
           Agent.update(deleted_keys_ref, fn acc -> keys ++ acc end)
