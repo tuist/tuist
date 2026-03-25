@@ -627,11 +627,15 @@
       flex-direction: column;
     }
 
-    & [data-part="hero-card"] {
+    & [data-part="hero-card"],
+    & [data-part="hero-card"]:link,
+    & [data-part="hero-card"]:visited {
       height: auto;
     }
 
-    & [data-part="hero-card"][data-variant="dashboard"] {
+    & [data-part="hero-card"][data-variant="dashboard"],
+    & [data-part="hero-card"][data-variant="dashboard"]:link,
+    & [data-part="hero-card"][data-variant="dashboard"]:visited {
       height: 230px;
     }
 
