@@ -1948,8 +1948,6 @@ defmodule Tuist.Tests do
 
   @doc """
   Marks in-progress test runs older than 6 hours as failed.
-
-  Returns {:ok, count} where count is the number of expired test runs.
   """
   def expire_stale_in_progress_test_runs do
     six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -6, :hour)
@@ -1960,23 +1958,21 @@ defmodule Tuist.Tests do
         from(t in Test, hints: ["FINAL"], where: t.status == "in_progress", where: t.inserted_at < ^six_hours_ago)
       )
 
-    if Enum.any?(stale_runs) do
-      updated_runs =
-        Enum.map(stale_runs, fn run ->
-          run
-          |> Map.from_struct()
-          |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
-          |> Map.merge(%{status: "failure", inserted_at: now})
-        end)
+    updated_runs =
+      Enum.map(stale_runs, fn run ->
+        run
+        |> Map.from_struct()
+        |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+        |> Map.merge(%{status: "failure", inserted_at: now})
+      end)
 
-      IngestRepo.insert_all(Test, updated_runs)
+    IngestRepo.insert_all(Test, updated_runs)
 
-      stale_runs
-      |> Enum.filter(& &1.shard_plan_id)
-      |> Enum.each(&expire_missing_shard_runs(&1, now))
-    end
+    stale_runs
+    |> Enum.filter(& &1.shard_plan_id)
+    |> Enum.each(&expire_missing_shard_runs(&1, now))
 
-    {:ok, length(stale_runs)}
+    :ok
   end
 
   defp expire_missing_shard_runs(test_run, now) do

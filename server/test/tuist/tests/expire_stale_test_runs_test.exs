@@ -35,9 +35,7 @@ defmodule Tuist.Tests.ExpireStaleTestRunsTest do
         }
       ])
 
-      {:ok, count} = Tests.expire_stale_in_progress_test_runs()
-
-      assert count >= 1
+      assert :ok = Tests.expire_stale_in_progress_test_runs()
     end
 
     test "does not affect recent in_progress test runs" do
@@ -67,7 +65,7 @@ defmodule Tuist.Tests.ExpireStaleTestRunsTest do
         }
       ])
 
-      {:ok, _} = Tests.expire_stale_in_progress_test_runs()
+      :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
         IngestRepo.all(from(t in Test, hints: ["FINAL"], where: t.id == ^recent_id))
@@ -101,7 +99,7 @@ defmodule Tuist.Tests.ExpireStaleTestRunsTest do
         }
       ])
 
-      {:ok, _} = Tests.expire_stale_in_progress_test_runs()
+      :ok = Tests.expire_stale_in_progress_test_runs()
 
       [run] =
         IngestRepo.all(from(t in Test, hints: ["FINAL"], where: t.id == ^completed_id))
