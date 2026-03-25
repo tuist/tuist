@@ -542,7 +542,7 @@ jobs:
           sed -i '' "s/tuist = \".*\"/tuist = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" mise.toml
 
       - name: Update mise.lock
-        run: mise lock
+        run: mise lock tuist
 
       - name: Save cache
         id: cache-save
