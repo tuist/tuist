@@ -24,11 +24,13 @@ defmodule Cache.CleanProjectWorkerTest do
     stub(Config, :key_value_mode, fn -> :local end)
     stub(Config, :distributed_kv_enabled?, fn -> false end)
     stub(Cleanup, :expire_project_cleanup_lease, fn _account_handle, _project_handle, _cleanup_started_at -> :ok end)
+    stub(Cleanup, :put_local_applied_generation, fn _account_handle, _project_handle, _generation -> :ok end)
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
     stub(KeyValueAccessTracker, :shared_lineage?, fn _key -> false end)
     stub(KeyValueAccessTracker, :allow_access_bump?, fn _key -> false end)
     stub(CacheArtifacts, :delete_by_keys, fn _keys -> :ok end)
+    stub(CacheArtifacts, :delete_by_project, fn _account_handle, _project_handle -> :ok end)
     :ok
   end
 
@@ -46,6 +48,7 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
+      expect(CacheArtifacts, :delete_by_project, fn ^account_handle, ^project_handle -> :ok end)
 
       expect(S3, :delete_all_with_prefix, 2, fn
         "test_account/test_project/", [type: :xcode_cache] -> {:ok, 3}
@@ -102,6 +105,8 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(Cleanup, :publish_project_cleanup, fn ^account_handle, ^project_handle, ^cutoff ->
         {:ok, %{published_cleanup_generation: 1, cleanup_event_id: 1}}
       end)
+
+      expect(Cleanup, :put_local_applied_generation, fn ^account_handle, ^project_handle, 1 -> :ok end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
 

@@ -42,6 +42,17 @@ defmodule Cache.CacheArtifacts do
   end
 
   @doc """
+  Deletes metadata entries for all artifacts under a project prefix.
+  """
+
+  def delete_by_project(account_handle, project_handle) do
+    prefix = "#{account_handle}/#{project_handle}/%"
+
+    Repo.delete_all(from(a in CacheArtifact, where: like(a.key, ^prefix)))
+    :ok
+  end
+
+  @doc """
   Returns the subset of keys that exist in the cache_artifacts table.
   """
 

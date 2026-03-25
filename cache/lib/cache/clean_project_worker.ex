@@ -35,6 +35,7 @@ defmodule Cache.CleanProjectWorker do
 
     case Disk.delete_project(account_handle, project_handle) do
       :ok ->
+        :ok = CacheArtifacts.delete_by_project(account_handle, project_handle)
         Logger.info("Cleaned disk cache for project #{account_handle}/#{project_handle}")
 
       {:error, reason} ->
@@ -81,6 +82,13 @@ defmodule Cache.CleanProjectWorker do
              ),
            :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at),
            {:ok, published} <- Cleanup.publish_project_cleanup(account_handle, project_handle, active_cleanup_cutoff_at) do
+        :ok =
+          Cleanup.put_local_applied_generation(
+            account_handle,
+            project_handle,
+            published.published_cleanup_generation
+          )
+
         Logger.info(
           "Distributed cleanup published for #{account_handle}/#{project_handle} " <>
             "with cutoff #{DateTime.to_iso8601(safe_cutoff)} " <>

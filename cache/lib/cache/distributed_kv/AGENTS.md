@@ -5,7 +5,7 @@ This directory contains the shared-store pieces for distributed key-value replic
 ## Responsibilities
 - Shared Postgres schemas and repo access.
 - Replication shipping and polling helpers.
-- Distributed project cleanup coordination and tombstone management.
+- Distributed project cleanup coordination, published cleanup barriers, and shared-row GC.
 
 ## Notes
 - `local` mode remains the default and must keep working without the shared repo.

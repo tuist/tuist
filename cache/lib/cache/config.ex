@@ -185,7 +185,6 @@ defmodule Cache.Config do
     Application.fetch_env!(:cache, :distributed_kv_access_throttle_ms)
   end
 
-
   def distributed_kv_cleanup_lease_ms do
     Application.fetch_env!(:cache, :distributed_kv_cleanup_lease_ms)
   end

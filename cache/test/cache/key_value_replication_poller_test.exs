@@ -273,6 +273,12 @@ defmodule Cache.KeyValueReplicationPollerTest do
       :ok
     end)
 
+    stub(KeyValueEntries, :put_distributed_watermark, fn updated_at, key ->
+      Agent.update(watermark_agent, fn _ -> %{updated_at_value: updated_at, key_value: key} end)
+      send(parent, {:watermark_updated, key})
+      :ok
+    end)
+
     stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
 
     stub(Repo, :all, fn _query, _opts -> rows end)
@@ -497,6 +503,281 @@ defmodule Cache.KeyValueReplicationPollerTest do
       record = KeyValueRepo.get_by!(KeyValueEntry, key: row_key)
       assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "artifact"}]
     end)
+  end
+
+  test "persists watermark advancement for a full page filtered by published barriers" do
+    parent = self()
+    {:ok, repo_calls_agent} = Agent.start_link(fn -> 0 end)
+
+    base_time = DateTime.add(DateTime.utc_now(), -2_000, :second)
+
+    filtered_rows =
+      Enum.map(1..1000, fn i ->
+        updated_at = DateTime.add(base_time, i, :second)
+
+        %Entry{
+          key: "keyvalue:acme:ios:filtered-#{i}",
+          account_handle: "acme",
+          project_handle: "ios",
+          cas_id: "filtered-#{i}",
+          json_payload: Jason.encode!(%{entries: []}),
+          source_node: "node-a",
+          source_updated_at: updated_at,
+          last_accessed_at: updated_at,
+          updated_at: updated_at,
+          deleted_at: nil
+        }
+      end)
+
+    barrier =
+      filtered_rows
+      |> List.last()
+      |> Map.fetch!(:source_updated_at)
+      |> DateTime.truncate(:second)
+      |> DateTime.add(1, :second)
+
+    stub(Cleanup, :published_cleanup_barriers_for_projects, fn _scope_pairs ->
+      %{{"acme", "ios"} => barrier}
+    end)
+
+    :ok = KeyValueEntries.put_distributed_watermark(~U[1970-01-01 00:00:00Z], "")
+
+    stub(KeyValueEntries, :estimated_size_bytes, fn ->
+      send(parent, :poll_complete)
+      0
+    end)
+
+    stub(KeyValueEntries, :apply_remote_batch, fn rows ->
+      flunk("did not expect to apply filtered rows: #{inspect(Enum.map(rows, & &1.key))}")
+    end)
+
+    stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
+
+    stub(Repo, :all, fn _query, _opts ->
+      Agent.get_and_update(repo_calls_agent, fn count ->
+        next_count = count + 1
+
+        result =
+          case next_count do
+            1 -> filtered_rows
+            _ -> []
+          end
+
+        {result, next_count}
+      end)
+    end)
+
+    start_supervised!(KeyValueReplicationPoller)
+    assert_receive :poll_complete, 10_000
+
+    filtered_last_key = "keyvalue:acme:ios:filtered-1000"
+    filtered_last_updated_at = List.last(filtered_rows).updated_at
+
+    assert_eventually(fn ->
+      match?(
+        %{updated_at_value: ^filtered_last_updated_at, key_value: ^filtered_last_key},
+        KeyValueEntries.distributed_watermark()
+      )
+    end)
+
+    assert 2 == Agent.get(repo_calls_agent, & &1)
+
+    assert :ok = KeyValueReplicationPoller.poll_now()
+
+    assert 3 == Agent.get(repo_calls_agent, & &1)
+
+    assert match?(
+             %{updated_at_value: ^filtered_last_updated_at, key_value: ^filtered_last_key},
+             KeyValueEntries.distributed_watermark()
+           )
+  end
+
+  test "advances across a full filtered page and keeps draining later pages" do
+    parent = self()
+    {:ok, repo_calls_agent} = Agent.start_link(fn -> 0 end)
+
+    base_time = DateTime.add(DateTime.utc_now(), -2_000, :second)
+
+    filtered_rows =
+      Enum.map(1..1000, fn i ->
+        updated_at = DateTime.add(base_time, i, :second)
+
+        %Entry{
+          key: "keyvalue:acme:ios:filtered-#{i}",
+          account_handle: "acme",
+          project_handle: "ios",
+          cas_id: "filtered-#{i}",
+          json_payload: Jason.encode!(%{entries: []}),
+          source_node: "node-a",
+          source_updated_at: updated_at,
+          last_accessed_at: updated_at,
+          updated_at: updated_at,
+          deleted_at: nil
+        }
+      end)
+
+    barrier =
+      filtered_rows
+      |> List.last()
+      |> Map.fetch!(:source_updated_at)
+      |> DateTime.truncate(:second)
+      |> DateTime.add(1, :second)
+
+    next_updated_at = DateTime.add(barrier, 1, :second)
+
+    next_row = %Entry{
+      key: "keyvalue:acme:ios:live",
+      account_handle: "acme",
+      project_handle: "ios",
+      cas_id: "live",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+      source_node: "node-a",
+      source_updated_at: next_updated_at,
+      last_accessed_at: next_updated_at,
+      updated_at: next_updated_at,
+      deleted_at: nil
+    }
+
+    stub(Cleanup, :published_cleanup_barriers_for_projects, fn _scope_pairs ->
+      %{{"acme", "ios"} => barrier}
+    end)
+
+    :ok = KeyValueEntries.put_distributed_watermark(~U[1970-01-01 00:00:00Z], "")
+    stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
+
+    stub(KeyValueEntries, :apply_remote_batch, fn [row] ->
+      assert row.key == next_row.key
+      send(parent, :live_row_applied)
+      {:ok, batch_result([row])}
+    end)
+
+    stub(KeyValueEntries, :commit_remote_batch, fn last_processed_row ->
+      :ok = KeyValueEntries.put_distributed_watermark(last_processed_row.updated_at, last_processed_row.key)
+      send(parent, :live_row_committed)
+      :ok
+    end)
+
+    stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
+
+    stub(Repo, :all, fn _query, _opts ->
+      Agent.get_and_update(repo_calls_agent, fn count ->
+        next_count = count + 1
+
+        result =
+          case next_count do
+            1 -> filtered_rows
+            2 -> [next_row]
+            _ -> []
+          end
+
+        {result, next_count}
+      end)
+    end)
+
+    start_supervised!(KeyValueReplicationPoller)
+    assert_receive :live_row_applied, 10_000
+    assert_receive :live_row_committed, 10_000
+
+    assert 2 == Agent.get(repo_calls_agent, & &1)
+  end
+
+  test "bootstrap skips rows behind published barriers and keeps scanning later pages" do
+    parent = self()
+    {:ok, repo_calls_agent} = Agent.start_link(fn -> 0 end)
+
+    base_time = DateTime.add(DateTime.utc_now(), -2_000, :second)
+
+    filtered_rows =
+      Enum.map(1..500, fn i ->
+        updated_at = DateTime.add(base_time, i, :second)
+
+        %Entry{
+          key: "keyvalue:acme:ios:bootstrap-filtered-#{i}",
+          account_handle: "acme",
+          project_handle: "ios",
+          cas_id: "bootstrap-filtered-#{i}",
+          json_payload: Jason.encode!(%{entries: []}),
+          source_node: "node-a",
+          source_updated_at: updated_at,
+          last_accessed_at: updated_at,
+          updated_at: updated_at,
+          deleted_at: nil
+        }
+      end)
+
+    barrier =
+      filtered_rows
+      |> List.last()
+      |> Map.fetch!(:source_updated_at)
+      |> DateTime.truncate(:second)
+      |> DateTime.add(1, :second)
+
+    live_time = DateTime.add(barrier, 1, :second)
+
+    live_row = %Entry{
+      key: "keyvalue:acme:ios:bootstrap-live",
+      account_handle: "acme",
+      project_handle: "ios",
+      cas_id: "bootstrap-live",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+      source_node: "node-a",
+      source_updated_at: live_time,
+      last_accessed_at: live_time,
+      updated_at: live_time,
+      deleted_at: nil
+    }
+
+    stub(Cleanup, :published_cleanup_barriers_for_projects, fn _scope_pairs ->
+      %{{"acme", "ios"} => barrier}
+    end)
+
+    stub(KeyValueEntries, :distributed_watermark, fn -> nil end)
+    stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
+
+    stub(KeyValueEntries, :materialize_remote_entries, fn [row] ->
+      assert row.key == live_row.key
+      send(parent, :bootstrap_live_row_materialized)
+
+      {:ok,
+       %{
+         inserted_count: 1,
+         payload_updated_count: 0,
+         access_updated_count: 0,
+         invalidate_keys: [row.key]
+       }}
+    end)
+
+    stub(KeyValueEntries, :put_distributed_watermark, fn updated_at, key ->
+      send(parent, {:bootstrap_watermark_put, key, updated_at})
+      :ok
+    end)
+
+    stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
+    stub(Repo, :one, fn _query, _opts -> live_row end)
+
+    stub(Repo, :all, fn _query, _opts ->
+      Agent.get_and_update(repo_calls_agent, fn count ->
+        next_count = count + 1
+
+        result =
+          case next_count do
+            1 -> filtered_rows
+            2 -> [live_row]
+            _ -> []
+          end
+
+        {result, next_count}
+      end)
+    end)
+
+    start_supervised!(KeyValueReplicationPoller)
+
+    live_row_key = live_row.key
+    live_row_updated_at = live_row.updated_at
+
+    assert_receive :bootstrap_live_row_materialized, 10_000
+    assert_receive {:bootstrap_watermark_put, ^live_row_key, ^live_row_updated_at}, 10_000
+    assert 3 == Agent.get(repo_calls_agent, & &1)
   end
 
   defp assert_eventually(fun, attempts \\ 100)

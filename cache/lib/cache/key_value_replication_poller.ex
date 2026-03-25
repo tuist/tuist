@@ -87,9 +87,9 @@ defmodule Cache.KeyValueReplicationPoller do
     if System.monotonic_time(:millisecond) - started_at >= @max_poll_run_ms do
       totals
     else
-      {page_size, new_watermark, new_totals} = apply_one_page(watermark, totals)
+      {continue?, new_watermark, new_totals} = apply_one_page(watermark, totals)
 
-      if page_size == @page_size do
+      if continue? do
         drain_pages(new_watermark, started_at, new_totals)
       else
         new_totals
@@ -105,8 +105,8 @@ defmodule Cache.KeyValueReplicationPoller do
       |> order_by([entry], asc: entry.updated_at, asc: entry.key)
       |> limit(^@page_size)
 
-    rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
-    rows = filter_rows_against_published_barriers(rows)
+    fetched_rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
+    rows = filter_rows_against_published_barriers(fetched_rows)
 
     {processed_count, materialized_count, deleted_count} =
       rows
@@ -123,22 +123,65 @@ defmodule Cache.KeyValueReplicationPoller do
         end
       end)
 
-    last_committed = last_committed_row(rows, processed_count)
+    last_processed = last_processed_row(rows, processed_count)
+    last_advanceable = last_advanceable_row(fetched_rows, rows, processed_count)
+
+    :ok = persist_watermark_advance(last_processed, last_advanceable)
 
     new_watermark =
-      if last_committed do
-        %{updated_at_value: last_committed.updated_at, key_value: last_committed.key}
+      if last_advanceable do
+        %{updated_at_value: last_advanceable.updated_at, key_value: last_advanceable.key}
       else
         watermark
       end
 
-    {processed_count, new_watermark, {total_materialized + materialized_count, total_deleted + deleted_count}}
+    continue? = length(fetched_rows) == @page_size and processed_count == length(rows) and not is_nil(last_advanceable)
+
+    {continue?, new_watermark, {total_materialized + materialized_count, total_deleted + deleted_count}}
   end
 
-  defp last_committed_row(_rows, 0), do: nil
+  defp last_advanceable_row([], _filtered_rows, _processed_count), do: nil
 
-  defp last_committed_row(rows, processed_count) do
+  defp last_advanceable_row(fetched_rows, filtered_rows, processed_count) do
+    filtered_keys = MapSet.new(Enum.map(filtered_rows, & &1.key))
+
+    fetched_rows
+    |> Enum.reduce_while({0, nil}, fn row, {processed_filtered, last_advanceable} ->
+      if MapSet.member?(filtered_keys, row.key) do
+        if processed_filtered < processed_count do
+          {:cont, {processed_filtered + 1, row}}
+        else
+          {:halt, {processed_filtered, last_advanceable}}
+        end
+      else
+        {:cont, {processed_filtered, row}}
+      end
+    end)
+    |> elem(1)
+  end
+
+  defp last_processed_row(_rows, 0), do: nil
+
+  defp last_processed_row(rows, processed_count) do
     rows |> Enum.take(processed_count) |> List.last()
+  end
+
+  defp persist_watermark_advance(nil, nil), do: :ok
+
+  defp persist_watermark_advance(last_processed, last_advanceable) do
+    if same_row?(last_processed, last_advanceable) do
+      :ok
+    else
+      KeyValueEntries.put_distributed_watermark(last_advanceable.updated_at, last_advanceable.key)
+    end
+  end
+
+  defp same_row?(nil, nil), do: true
+  defp same_row?(nil, _row), do: false
+  defp same_row?(_row, nil), do: false
+
+  defp same_row?(left, right) do
+    left.key == right.key and DateTime.compare(left.updated_at, right.updated_at) == :eq
   end
 
   defp maybe_bootstrap do
@@ -175,10 +218,10 @@ defmodule Cache.KeyValueReplicationPoller do
       |> order_by([entry], desc: entry.last_accessed_at, desc: entry.key)
       |> limit(^@bootstrap_page_size)
 
-    rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
-    rows = filter_rows_against_published_barriers(rows)
+    fetched_rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
+    rows = filter_rows_against_published_barriers(fetched_rows)
 
-    case rows do
+    case fetched_rows do
       [] ->
         :complete
 
@@ -188,7 +231,7 @@ defmodule Cache.KeyValueReplicationPoller do
         status = materialize_bootstrap_rows(rows_to_materialize)
 
         if status == :ok do
-          last_row = List.last(rows)
+          last_row = List.last(fetched_rows)
           bootstrap_rows(size_after_page, budget, {last_row.last_accessed_at, last_row.key})
         else
           :busy

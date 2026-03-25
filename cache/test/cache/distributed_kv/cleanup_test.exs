@@ -387,6 +387,26 @@ defmodule Cache.DistributedKV.CleanupTest do
     end
   end
 
+  describe "published_cleanup_barriers_for_projects/1" do
+    test "truncates published cleanup barriers to second precision" do
+      cutoff = ~U[2026-03-12 12:00:00.900000Z]
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        published_cleanup_cutoff_at: cutoff,
+        published_cleanup_generation: 1,
+        cleanup_event_id: 1,
+        cleanup_published_at: cutoff,
+        updated_at: cutoff
+      })
+
+      assert Cleanup.published_cleanup_barriers_for_projects([{"acme", "ios"}]) == %{
+               {"acme", "ios"} => ~U[2026-03-12 12:00:00Z]
+             }
+    end
+  end
+
   describe "gc_shared_entries/1" do
     test "deletes rows older than the published cleanup cutoff" do
       now = DateTime.utc_now()
@@ -460,6 +480,36 @@ defmodule Cache.DistributedKV.CleanupTest do
 
       assert 0 == Cleanup.gc_shared_entries(1000)
       assert Repo.get(Entry, "keyvalue:acme:ios:new")
+    end
+
+    test "does not delete same-second rows newer than the published cleanup barrier" do
+      now = DateTime.utc_now()
+      cutoff = ~U[2026-03-12 12:00:00.000000Z]
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        published_cleanup_cutoff_at: cutoff,
+        published_cleanup_generation: 1,
+        cleanup_event_id: 1,
+        cleanup_published_at: now,
+        updated_at: now
+      })
+
+      Repo.insert!(%Entry{
+        key: "keyvalue:acme:ios:same-second",
+        account_handle: "acme",
+        project_handle: "ios",
+        cas_id: "same-second",
+        json_payload: "{}",
+        source_node: "node-a",
+        source_updated_at: ~U[2026-03-12 12:00:00.050000Z],
+        last_accessed_at: ~U[2026-03-12 12:00:00.050000Z],
+        updated_at: ~U[2026-03-12 12:00:00.050000Z]
+      })
+
+      assert 0 == Cleanup.gc_shared_entries(1000)
+      assert Repo.get(Entry, "keyvalue:acme:ios:same-second")
     end
   end
 

@@ -4,7 +4,6 @@ defmodule Cache.DistributedKV.Cleanup do
   import Ecto.Query
 
   alias Cache.Config
-  alias Cache.DistributedKV.Entry
   alias Cache.DistributedKV.Project
   alias Cache.DistributedKV.Repo
   alias Cache.DistributedKV.State
@@ -95,7 +94,7 @@ defmodule Cache.DistributedKV.Cleanup do
           update: [
             set: [
               published_cleanup_generation: fragment("COALESCE(?, 0) + 1", project.published_cleanup_generation),
-              published_cleanup_cutoff_at: project.active_cleanup_cutoff_at,
+              published_cleanup_cutoff_at: fragment("date_trunc('second', ?)", project.active_cleanup_cutoff_at),
               cleanup_published_at: fragment("clock_timestamp()::timestamp"),
               cleanup_event_id: fragment("nextval('cleanup_event_id_seq')"),
               active_cleanup_cutoff_at: nil,
@@ -258,7 +257,7 @@ defmodule Cache.DistributedKV.Cleanup do
           {project.account_handle, project.project_handle, project.published_cleanup_cutoff_at}
         )
         |> Repo.all(timeout: Config.distributed_kv_database_timeout_ms())
-        |> Map.new(fn {ah, ph, cutoff} -> {{ah, ph}, cutoff} end)
+        |> Map.new(fn {ah, ph, cutoff} -> {{ah, ph}, truncate_or_nil(cutoff)} end)
     end
   end
 
@@ -333,7 +332,6 @@ defmodule Cache.DistributedKV.Cleanup do
 
     :ok
   end
-
 
   defp compute_effective_barrier(active_cutoff, lease_expires, published_cutoff) do
     active_barrier = active_barrier_if_alive(active_cutoff, lease_expires)

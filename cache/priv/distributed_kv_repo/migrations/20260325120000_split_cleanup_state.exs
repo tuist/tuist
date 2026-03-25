@@ -11,8 +11,19 @@ defmodule Cache.DistributedKV.Repo.Migrations.SplitCleanupState do
     end
 
     execute(
-      "UPDATE projects SET active_cleanup_cutoff_at = last_cleanup_at",
-      "UPDATE projects SET last_cleanup_at = COALESCE(published_cleanup_cutoff_at, active_cleanup_cutoff_at)"
+      """
+      UPDATE projects
+      SET
+        active_cleanup_cutoff_at = CASE
+          WHEN cleanup_lease_expires_at IS NOT NULL AND cleanup_lease_expires_at > clock_timestamp()
+          THEN last_cleanup_at
+          ELSE NULL
+        END,
+        published_cleanup_generation = CASE WHEN last_cleanup_at IS NULL THEN NULL ELSE 1 END,
+        published_cleanup_cutoff_at = date_trunc('second', last_cleanup_at),
+        cleanup_published_at = last_cleanup_at
+      """,
+      "UPDATE projects SET last_cleanup_at = COALESCE(active_cleanup_cutoff_at, published_cleanup_cutoff_at)"
     )
 
     alter table(:projects) do
