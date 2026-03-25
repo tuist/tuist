@@ -177,6 +177,10 @@
       display: none;
     }
 
+    & #docs-toc {
+      display: none;
+    }
+
     & #docs-sidebar[data-mobile-open] {
       display: flex;
       position: fixed;
