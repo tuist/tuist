@@ -617,7 +617,7 @@
 }
 
 /* Responsive */
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   #docs-page-layout:has(#docs-overview) #docs-layout {
     grid-template-columns: 1fr;
   }
@@ -625,6 +625,10 @@
   #docs-overview {
     & [data-part="hero-cards"] {
       flex-direction: column;
+    }
+
+    & [data-part="hero-card"] {
+      height: auto;
     }
 
     & [data-part="feature-cards"] {
