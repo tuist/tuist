@@ -15,8 +15,9 @@ import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
-class TuistTestShardingServiceTest {
+class TuistTestShardingTest {
 
     private lateinit var mockWebServer: MockWebServer
 
@@ -40,6 +41,33 @@ class TuistTestShardingServiceTest {
             projectHandle = "test-project"
         )
     }
+
+    private fun createTask(projectDir: File): TuistPrepareTestShardsTask {
+        val project = org.gradle.testfixtures.ProjectBuilder.builder()
+            .withProjectDir(projectDir)
+            .build()
+        return project.tasks.create("testShards", TuistPrepareTestShardsTask::class.java)
+    }
+
+    private fun shardPlan(shardCount: Int = 2) = ShardPlan(
+        reference = "test-ref",
+        shardCount = shardCount,
+        shards = (0 until shardCount).map { index ->
+            ShardPlanShardsInner(
+                index = index,
+                testTargets = listOf("com.example.Test$index"),
+                estimatedDurationMs = 1000
+            )
+        },
+        id = java.util.UUID.fromString("00000000-0000-0000-0000-000000000000")
+    )
+
+    private fun envWith(vararg pairs: Pair<String, String>): EnvironmentProvider {
+        val map = pairs.toMap()
+        return EnvironmentProvider { name -> map[name] }
+    }
+
+    // MARK: - createShardPlan
 
     @Test
     fun `createShardPlan sends correct request and parses response`() {
@@ -90,6 +118,8 @@ class TuistTestShardingServiceTest {
         }
     }
 
+    // MARK: - getShard
+
     @Test
     fun `getShard returns shard with modules and suites`() {
         val service = createService()
@@ -118,9 +148,8 @@ class TuistTestShardingServiceTest {
             service.getShard("nonexistent", 0)
         }
     }
-}
 
-class DeriveReferenceTest {
+    // MARK: - deriveReference
 
     @Test
     fun `deriveReference returns null without CI environment`() {
@@ -139,37 +168,11 @@ class DeriveReferenceTest {
             assertNull(service.deriveReference())
         }
     }
-}
 
-class WriteShardMatrixOutputTest {
-
-    private fun createTask(projectDir: File): TuistPrepareTestShardsTask {
-        val project = org.gradle.testfixtures.ProjectBuilder.builder()
-            .withProjectDir(projectDir)
-            .build()
-        return project.tasks.create("testShards", TuistPrepareTestShardsTask::class.java)
-    }
-
-    private fun shardPlan(shardCount: Int = 2) = ShardPlan(
-        reference = "test-ref",
-        shardCount = shardCount,
-        shards = (0 until shardCount).map { index ->
-            ShardPlanShardsInner(
-                index = index,
-                testTargets = listOf("com.example.Test$index"),
-                estimatedDurationMs = 1000
-            )
-        },
-        id = java.util.UUID.fromString("00000000-0000-0000-0000-000000000000")
-    )
-
-    private fun envWith(vararg pairs: Pair<String, String>): EnvironmentProvider {
-        val map = pairs.toMap()
-        return EnvironmentProvider { name -> map[name] }
-    }
+    // MARK: - writeShardMatrixOutput
 
     @Test
-    fun `github writes matrix to output file`(@TempDir tempDir: File) {
+    fun `writeShardMatrixOutput writes GitHub Actions matrix to output file`(@TempDir tempDir: File) {
         val githubOutputFile = File(tempDir, "github_output").apply { writeText("") }
         val task = createTask(tempDir)
 
@@ -182,7 +185,7 @@ class WriteShardMatrixOutputTest {
     }
 
     @Test
-    fun `gitlab writes child pipeline yml`(@TempDir tempDir: File) {
+    fun `writeShardMatrixOutput writes GitLab CI child pipeline yml`(@TempDir tempDir: File) {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("GITLAB_CI" to "true"))
 
@@ -204,7 +207,7 @@ class WriteShardMatrixOutputTest {
     }
 
     @Test
-    fun `circleci writes continuation json`(@TempDir tempDir: File) {
+    fun `writeShardMatrixOutput writes CircleCI continuation json`(@TempDir tempDir: File) {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("CIRCLECI" to "true"))
 
@@ -215,7 +218,7 @@ class WriteShardMatrixOutputTest {
     }
 
     @Test
-    fun `buildkite writes pipeline yml`(@TempDir tempDir: File) {
+    fun `writeShardMatrixOutput writes Buildkite pipeline yml`(@TempDir tempDir: File) {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith("BUILDKITE" to "true"))
 
@@ -236,7 +239,7 @@ class WriteShardMatrixOutputTest {
     }
 
     @Test
-    fun `codemagic writes to cm env file`(@TempDir tempDir: File) {
+    fun `writeShardMatrixOutput writes Codemagic env vars to CM_ENV file`(@TempDir tempDir: File) {
         val cmEnvFile = File(tempDir, "cm_env").apply { writeText("") }
         val task = createTask(tempDir)
 
@@ -252,7 +255,7 @@ class WriteShardMatrixOutputTest {
     }
 
     @Test
-    fun `bitrise writes to deploy dir`(@TempDir tempDir: File) {
+    fun `writeShardMatrixOutput writes Bitrise matrix to deploy dir`(@TempDir tempDir: File) {
         val deployDir = File(tempDir, "deploy").apply { mkdirs() }
         val task = createTask(tempDir)
 
@@ -268,7 +271,7 @@ class WriteShardMatrixOutputTest {
     }
 
     @Test
-    fun `fallback writes shard matrix json when no CI detected`(@TempDir tempDir: File) {
+    fun `writeShardMatrixOutput writes fallback json when no CI detected`(@TempDir tempDir: File) {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), envWith())
 
