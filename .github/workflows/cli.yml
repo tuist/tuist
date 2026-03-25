@@ -348,7 +348,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
       - name: Run shard ${{ matrix.shard }}
-        run: tuist test --without-building --platform macOS TuistGeneratorAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test --without-building --platform macOS TuistGeneratorAcceptanceTests
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
 
