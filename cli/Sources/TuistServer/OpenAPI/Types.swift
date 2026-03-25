@@ -2222,7 +2222,7 @@ public enum Servers {
     public enum Server1 {
         public static func url() throws -> Foundation.URL {
             try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:8440",
+                validatingOpenAPIServerURL: "http://localhost:8080",
                 variables: []
             )
         }
@@ -2230,7 +2230,7 @@ public enum Servers {
     @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:8440",
+            validatingOpenAPIServerURL: "http://localhost:8080",
             variables: []
         )
     }
