@@ -28,7 +28,6 @@ defmodule Tuist.Tests do
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards
-  alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
@@ -158,36 +157,8 @@ defmodule Tuist.Tests do
       )
 
     case ClickHouseRepo.one(query) do
-      nil -> get_latest_test_by_shard_plan_build_run_id(build_run_id)
+      nil -> {:error, :not_found}
       test -> {:ok, test}
-    end
-  end
-
-  defp get_latest_test_by_shard_plan_build_run_id(build_run_id) do
-    shard_plan_query =
-      from(sp in ShardPlan,
-        where: sp.build_run_id == ^build_run_id,
-        select: sp.id,
-        order_by: [desc: sp.inserted_at],
-        limit: 1
-      )
-
-    case ClickHouseRepo.one(shard_plan_query) do
-      nil ->
-        {:error, :not_found}
-
-      shard_plan_id ->
-        query =
-          from(t in Test,
-            where: t.shard_plan_id == ^shard_plan_id,
-            order_by: [desc: t.ran_at, desc: t.inserted_at],
-            limit: 1
-          )
-
-        case ClickHouseRepo.one(query) do
-          nil -> {:error, :not_found}
-          test -> {:ok, test}
-        end
     end
   end
 
@@ -200,36 +171,8 @@ defmodule Tuist.Tests do
       )
 
     case ClickHouseRepo.one(query) do
-      nil -> get_latest_test_by_shard_plan_gradle_build_id(gradle_build_id)
+      nil -> {:error, :not_found}
       test -> {:ok, test}
-    end
-  end
-
-  defp get_latest_test_by_shard_plan_gradle_build_id(gradle_build_id) do
-    shard_plan_query =
-      from(sp in ShardPlan,
-        where: sp.gradle_build_id == ^gradle_build_id,
-        select: sp.id,
-        order_by: [desc: sp.inserted_at],
-        limit: 1
-      )
-
-    case ClickHouseRepo.one(shard_plan_query) do
-      nil ->
-        {:error, :not_found}
-
-      shard_plan_id ->
-        query =
-          from(t in Test,
-            where: t.shard_plan_id == ^shard_plan_id,
-            order_by: [desc: t.ran_at, desc: t.inserted_at],
-            limit: 1
-          )
-
-        case ClickHouseRepo.one(query) do
-          nil -> {:error, :not_found}
-          test -> {:ok, test}
-        end
     end
   end
 
@@ -368,7 +311,13 @@ defmodule Tuist.Tests do
       case existing do
         nil ->
           test_status = if expected_shard_count > 1, do: "in_progress", else: shard_status
-          attrs = Map.put(attrs, :status, test_status)
+
+          attrs =
+            attrs
+            |> Map.put(:status, test_status)
+            |> Map.put_new(:build_run_id, shard_plan.build_run_id)
+            |> Map.put_new(:gradle_build_id, shard_plan.gradle_build_id)
+
           create_new_test(attrs, shard_index, shard_plan)
 
         existing_test ->

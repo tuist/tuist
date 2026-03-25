@@ -41,8 +41,6 @@ defmodule TuistWeb.TestRunLive do
       raise NotFoundError, dgettext("dashboard_tests", "Test run not found.")
     end
 
-    run = resolve_build_from_shard_plan(run)
-
     slug = Projects.get_project_slug_from_id(project.id)
 
     project = Tuist.Repo.preload(project, :vcs_connection)
@@ -1332,15 +1330,4 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp target_counts_by_shard(_), do: %{}
-
-  defp resolve_build_from_shard_plan(%{shard_plan: %ShardPlan{} = shard_plan} = run) do
-    shard_plan = ClickHouseRepo.preload(shard_plan, [:build_run, :gradle_build])
-
-    run
-    |> Map.put(:build_run, run.build_run || shard_plan.build_run)
-    |> Map.put(:gradle_build, run.gradle_build || shard_plan.gradle_build)
-    |> Map.put(:gradle_build_id, run.gradle_build_id || shard_plan.gradle_build_id)
-  end
-
-  defp resolve_build_from_shard_plan(run), do: run
 end
