@@ -113,18 +113,8 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert is_integer(response["shard_count"])
     end
 
-    test "accepts build_run_id parameter", %{conn: conn, user: user, project: project} do
+    test "accepts and stores build_run_id parameter", %{conn: conn, user: user, project: project} do
       build_run_id = Ecto.UUID.generate()
-
-      stub(Tuist.Shards, :create_shard_plan, fn _project, params ->
-        assert params.build_run_id == build_run_id
-
-        %{
-          plan: %{id: Ecto.UUID.generate(), reference: params.reference},
-          shard_count: 1,
-          shard_assignments: [%{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 0}]
-        }
-      end)
 
       conn =
         conn
@@ -139,21 +129,13 @@ defmodule TuistWeb.API.ShardsControllerTest do
           }
         )
 
-      assert json_response(conn, :ok)
+      response = json_response(conn, :ok)
+      {:ok, plan} = Tuist.Shards.get_shard_plan(response["id"])
+      assert plan.build_run_id == build_run_id
     end
 
-    test "accepts gradle_build_id parameter", %{conn: conn, user: user, project: project} do
+    test "accepts and stores gradle_build_id parameter", %{conn: conn, user: user, project: project} do
       gradle_build_id = Ecto.UUID.generate()
-
-      stub(Tuist.Shards, :create_shard_plan, fn _project, params ->
-        assert params.gradle_build_id == gradle_build_id
-
-        %{
-          plan: %{id: Ecto.UUID.generate(), reference: params.reference},
-          shard_count: 1,
-          shard_assignments: [%{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 0}]
-        }
-      end)
 
       conn =
         conn
@@ -168,7 +150,9 @@ defmodule TuistWeb.API.ShardsControllerTest do
           }
         )
 
-      assert json_response(conn, :ok)
+      response = json_response(conn, :ok)
+      {:ok, plan} = Tuist.Shards.get_shard_plan(response["id"])
+      assert plan.gradle_build_id == gradle_build_id
     end
 
     test "response includes id field", %{conn: conn, user: user, project: project} do
