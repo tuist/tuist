@@ -83,7 +83,7 @@ defmodule Cache.CleanProjectWorker do
            :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at),
            {:ok, published} <- Cleanup.publish_project_cleanup(account_handle, project_handle, active_cleanup_cutoff_at) do
         :ok =
-          Cleanup.put_local_applied_generation(
+          put_local_applied_generation_after_publish(
             account_handle,
             project_handle,
             published.published_cleanup_generation
@@ -185,6 +185,18 @@ defmodule Cache.CleanProjectWorker do
     end)
 
     :ok
+  end
+
+  defp put_local_applied_generation_after_publish(account_handle, project_handle, generation) do
+    Cleanup.put_local_applied_generation(account_handle, project_handle, generation)
+  rescue
+    error ->
+      Logger.warning(
+        "Distributed cleanup was already published for #{account_handle}/#{project_handle}, " <>
+          "but persisting the local applied generation failed: #{inspect(error)}"
+      )
+
+      :ok
   end
 
   defp delete_disk_with_cutoff(account_handle, project_handle, cutoff, on_progress) do

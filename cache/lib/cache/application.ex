@@ -59,8 +59,7 @@ defmodule Cache.Application do
       # Cannot alias Cache.Finch to Finch or it'll conflict with the top-level library
       # credo:disable-for-next-line Credo.Check.Design.AliasUsage
       {Finch, name: Cache.Finch, pools: Cache.Finch.Pools.config()},
-      Cache.PromEx,
-      {Oban, Application.get_env(:cache, Oban)}
+      Cache.PromEx
     ]
 
     analytics_children =
@@ -75,7 +74,12 @@ defmodule Cache.Application do
       Cache.SocketLinker
     ]
 
-    base_children ++ [Cache.KeyValueStore] ++ distributed_children ++ analytics_children ++ endpoint_children
+    base_children ++
+      [Cache.KeyValueStore] ++
+      distributed_children ++
+      [{Oban, Application.get_env(:cache, Oban)}] ++
+      analytics_children ++
+      endpoint_children
   end
 
   defp migrate do

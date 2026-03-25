@@ -117,6 +117,57 @@ defmodule Cache.CleanProjectWorkerTest do
       assert Agent.get(renew_calls, & &1) >= 5
     end
 
+    test "distributed cleanup keeps a published cleanup successful when local applied-generation bookkeeping fails" do
+      stub(Config, :key_value_mode, fn -> :distributed end)
+      stub(Config, :distributed_kv_enabled?, fn -> true end)
+      stub(Config, :xcode_cache_bucket, fn -> nil end)
+
+      account_handle = "test_account"
+      project_handle = "test_project"
+      cutoff = ~U[2026-03-12 12:00:00Z]
+
+      expect(Cleanup, :begin_project_cleanup, fn ^account_handle, ^project_handle -> {:ok, cutoff} end)
+      stub(Cleanup, :renew_project_cleanup_lease, fn ^account_handle, ^project_handle, ^cutoff -> :ok end)
+
+      expect(KeyValueEntries, :delete_project_entries_before, fn
+        ^account_handle, ^project_handle, ^cutoff, opts ->
+          assert Keyword.fetch!(opts, :include_pending?) == true
+          assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
+          assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+          {[], 0}
+      end)
+
+      expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
+        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+        {:ok, 0}
+      end)
+
+      expect(S3, :delete_objects_with_prefix_before, fn "test_account/test_project/", ^cutoff, opts ->
+        assert Keyword.fetch!(opts, :type) == :cache
+        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        {:ok, 0}
+      end)
+
+      expect(Cleanup, :publish_project_cleanup, fn ^account_handle, ^project_handle, ^cutoff ->
+        {:ok, %{published_cleanup_generation: 1, cleanup_event_id: 1}}
+      end)
+
+      expect(Cleanup, :put_local_applied_generation, fn ^account_handle, ^project_handle, 1 ->
+        raise "local state write failed"
+      end)
+
+      job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
+
+      log =
+        capture_log(fn ->
+          assert :ok = CleanProjectWorker.perform(job)
+        end)
+
+      assert log =~ "Distributed cleanup was already published for #{account_handle}/#{project_handle}"
+      assert log =~ "persisting the local applied generation failed"
+    end
+
     test "distributed cleanup retries when it loses the cleanup lease" do
       stub(Config, :key_value_mode, fn -> :distributed end)
       stub(Config, :distributed_kv_enabled?, fn -> true end)
