@@ -40,6 +40,8 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunByShardId
+  alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
@@ -194,7 +196,7 @@ defmodule Tuist.Tests do
 
   def get_test_run_failures_count(test_run_id) do
     query =
-      from tcr in TestCaseRun,
+      from tcr in TestCaseRunByTestRun,
         where: tcr.test_run_id == ^test_run_id and tcr.status == "failure",
         select: count(tcr.id)
 
@@ -652,9 +654,28 @@ defmodule Tuist.Tests do
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
   def list_test_case_runs(attrs, opts \\ []) do
-    base_query = from(tcr in TestCaseRun)
     preloads = Keyword.get(opts, :preload, [])
 
+    case extract_mv_scope_filter(attrs) do
+      {:shard_id, _shard_id} ->
+        list_test_case_runs_via_shard_mv(attrs, preloads)
+
+      {:test_run_id, test_run_id} ->
+        mv_ids =
+          from(mv in TestCaseRunByTestRun,
+            where: mv.test_run_id == ^test_run_id,
+            select: mv.id
+          )
+
+        base_query = from(tcr in TestCaseRun, where: tcr.id in subquery(mv_ids))
+        list_test_case_runs_from(base_query, attrs, preloads)
+
+      nil ->
+        list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
+    end
+  end
+
+  defp list_test_case_runs_from(base_query, attrs, preloads) do
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
 
     results =
@@ -664,6 +685,49 @@ defmodule Tuist.Tests do
 
     {results, meta}
   end
+
+  defp list_test_case_runs_via_shard_mv(attrs, preloads) do
+    base_query = from(mv in TestCaseRunByShardId)
+
+    {slim_results, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByShardId)
+
+    ids = Enum.map(slim_results, & &1.id)
+    project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
+
+    full_results =
+      ClickHouseRepo.all(from(tcr in TestCaseRun, where: tcr.project_id in ^project_ids and tcr.id in ^ids))
+
+    ordered_by_id = Map.new(full_results, &{&1.id, &1})
+    ordered = ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
+
+    results =
+      ordered
+      |> ClickHouseRepo.preload(preloads)
+      |> Repo.preload(:ran_by_account)
+
+    {results, meta}
+  end
+
+  defp extract_mv_scope_filter(%{filters: filters}) when is_list(filters) do
+    Enum.find_value(filters, fn
+      %{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
+      %{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
+      _ -> nil
+    end)
+  end
+
+  defp extract_mv_scope_filter(%Flop{} = flop) do
+    flop.filters
+    |> List.wrap()
+    |> Enum.find_value(fn
+      %Flop.Filter{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
+      %Flop.Filter{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
+      _ -> nil
+    end)
+  end
+
+  defp extract_mv_scope_filter(_), do: nil
 
   @doc """
   Gets a test case run by its UUID.

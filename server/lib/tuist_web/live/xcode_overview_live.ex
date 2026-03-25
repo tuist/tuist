@@ -100,7 +100,8 @@ defmodule TuistWeb.XcodeOverviewLive do
       Tests.list_test_runs(%{
         last: 40,
         filters: [
-          %{field: :project_id, op: :==, value: project_id}
+          %{field: :project_id, op: :==, value: project_id},
+          %{field: :status, op: :!=, value: "in_progress"}
         ],
         order_by: [:ran_at],
         order_directions: [:asc]

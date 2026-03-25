@@ -238,6 +238,58 @@ struct ShardServiceTests {
         #expect((target["EnvironmentVariables"] as? [String: String])?["KEY"] == "VALUE")
     }
 
+    // MARK: - Suite Granularity
+
+    @Test
+    func filterXCTestRun_suiteGranularity_keepsModuleAndSetsOnlyTestIdentifiers() throws {
+        // Given: one module with multiple suites, shard assigned specific suites
+        let plistData = try makePlist([
+            "TestConfigurations": [
+                [
+                    "TestTargets": [
+                        ["BlueprintName": "TuistGeneratorAcceptanceTests", "TestHostPath": "/path"],
+                    ],
+                ],
+            ],
+        ])
+
+        // When: modules contains the module name, suites maps module to assigned classes
+        let filtered = try subject.filterXCTestRun(
+            plistData: plistData,
+            modules: ["TuistGeneratorAcceptanceTests"],
+            suites: ["TuistGeneratorAcceptanceTests": ["GenerateAcceptanceTestAppWithMacBundle", "GenerateAcceptanceTestSPMPackage"]]
+        )
+
+        // Then: module kept, OnlyTestIdentifiers set to assigned suites
+        let result = try parsePlist(filtered)
+        let configurations = result["TestConfigurations"] as! [[String: Any]]
+        let targets = configurations[0]["TestTargets"] as! [[String: Any]]
+        #expect(targets.count == 1)
+        #expect(targets[0]["BlueprintName"] as? String == "TuistGeneratorAcceptanceTests")
+        #expect(targets[0]["OnlyTestIdentifiers"] as? [String] == ["GenerateAcceptanceTestAppWithMacBundle", "GenerateAcceptanceTestSPMPackage"])
+    }
+
+    @Test
+    func filterXCTestRun_legacyFormat_suiteGranularity_keepsModuleAndSetsOnlyTestIdentifiers() throws {
+        // Given
+        let plistData = try makePlist([
+            "__xctestrun_metadata__": ["FormatVersion": 1],
+            "AppTests": ["BlueprintName": "AppTests"],
+        ])
+
+        // When
+        let filtered = try subject.filterXCTestRun(
+            plistData: plistData,
+            modules: ["AppTests"],
+            suites: ["AppTests": ["LoginTests", "SignupTests"]]
+        )
+
+        // Then
+        let result = try parsePlist(filtered)
+        let target = result["AppTests"] as! [String: Any]
+        #expect(target["OnlyTestIdentifiers"] as? [String] == ["LoginTests", "SignupTests"])
+    }
+
     // MARK: - Helpers
 
     private func makePlist(_ dict: [String: Any]) throws -> Data {

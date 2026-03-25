@@ -430,12 +430,12 @@ public struct XCResultService: XCResultServicing {
         testCases: [TestCase],
         actionLog: ActionLogSection
     ) -> ([TestCase], [String: Int], [String: Int], Int?) { // swiftlint:disable:this large_tuple
-        let timestamps = actionLog.extractTestTimestamps()
         let emittedOutputs = actionLog.collectEmittedOutputs()
         let (testDurations, suiteDurations) = swiftTestingDurations(from: emittedOutputs)
 
-        let overall = overallDuration(from: timestamps) ?? actionLog.duration.map { secondsToMilliseconds($0) }
-        let modules = moduleDurations(from: timestamps)
+        let actionLogDurations = actionLog.extractTestDurations()
+        let overall = actionLogDurations.overallDuration ?? actionLog.duration.map { secondsToMilliseconds($0) }
+        let modules = actionLogDurations.moduleDurations
         let updatedTestCases = testCasesWithDurations(testCases, testDurations: testDurations)
 
         return (updatedTestCases, suiteDurations, modules, overall)
@@ -455,24 +455,6 @@ public struct XCResultService: XCResultServicing {
             let logData = try await fileSystem.readFile(at: tempFile)
             return try JSONDecoder().decode(ActionLogSection.self, from: logData)
         }
-    }
-
-    private func overallDuration(from timestamps: ActionLogSection.TestTimestamps) -> Int? {
-        guard let testStart = timestamps.earliestTestStart,
-              let latestCompletion = timestamps.latestOverallCompletion
-        else { return nil }
-
-        return secondsToMilliseconds(latestCompletion - testStart)
-    }
-
-    private func moduleDurations(from timestamps: ActionLogSection.TestTimestamps) -> [String: Int] {
-        var durations: [String: Int] = [:]
-        for (moduleName, testStartTime) in timestamps.testTargetStartTimes {
-            if let latestCompletion = timestamps.latestCompletionPerModule[moduleName] {
-                durations[moduleName] = secondsToMilliseconds(latestCompletion - testStartTime)
-            }
-        }
-        return durations
     }
 
     private func testCasesWithDurations(_ testCases: [TestCase], testDurations: [String: Int]) -> [TestCase] {

@@ -93,7 +93,7 @@ You can also point `TUIST_LOKI_URL` directly at a Loki instance if it exposes th
 
 ## Prometheus metrics {#prometheus-metrics}
 
-You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint on port 9091. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend keeping the default of 15 seconds).
+You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint on port 9091. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend 30 seconds to balance observability with metrics ingestion costs).
 
 ## PostHog analytics {#posthog-analytics}
 
@@ -491,6 +491,17 @@ The number of database connections that are ready to be assigned to a database q
 The configured number of connections in the pool.
 
 #### Tags {#tuist_repo_pool_size-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
+### `tuist_repo_pool_checkout_queue_total_samples_sum` (sum) {#tuist_repo_pool_checkout_queue_total_samples_sum-sum}
+
+The total number of repo pool polls taken (increments by 1 on every poll). Use this as the denominator when computing busyness or starvation percentages: `rate(busy_samples) / rate(total_samples)` or `rate(starved_samples) / rate(total_samples)`.
+
+#### Tags {#tuist_repo_pool_checkout_queue_total_samples_sum-tags}
 
 | Tag | Description |
 |--- | ---- |

@@ -87,10 +87,13 @@ public struct ShardService: ShardServicing {
             shardIndex: shardIndex
         )
 
-        Logger.current.notice(
-            "Shard \(shardIndex) assigned modules: \(shard.modules.joined(separator: ", "))",
-            metadata: .section
-        )
+        let suites = shard.suites.additionalProperties
+        if suites.isEmpty {
+            Logger.current.notice("Shard \(shardIndex): \(shard.modules.joined(separator: ", "))", metadata: .section)
+        } else {
+            let names = suites.values.flatMap { $0 }.sorted()
+            Logger.current.notice("Shard \(shardIndex): \(names.joined(separator: ", "))", metadata: .section)
+        }
 
         guard let downloadURL = URL(string: shard.download_url) else {
             throw ShardServiceError.invalidDownloadURL(shard.download_url)

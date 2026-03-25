@@ -404,6 +404,9 @@
             "selective-testing": {
               "text": "Selective testing"
             },
+            "test-sharding": {
+              "text": "Test sharding"
+            },
             "insights": {
               "text": "Build insights"
             },
