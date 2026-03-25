@@ -30,7 +30,10 @@ window.addEventListener("phx:page-loading-start", (_info) => {
   document.body.removeAttribute("data-sidebar-open");
   document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
 });
-window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
+window.addEventListener("phx:page-loading-stop", (_info) => {
+  topbar.hide();
+  window.scrollTo(0, 0);
+});
 
 liveSocket.connect();
 
