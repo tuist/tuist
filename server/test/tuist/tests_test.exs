@@ -6882,7 +6882,14 @@ defmodule Tuist.TestsTest do
         }
       ])
 
-      assert :ok = Tests.expire_stale_in_progress_test_runs()
+      :ok = Tests.expire_stale_in_progress_test_runs()
+
+      [run] =
+        IngestRepo.all(
+          from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^stale_id)
+        )
+
+      assert run.status == "failure"
     end
 
     test "does not affect recent in_progress test runs" do
