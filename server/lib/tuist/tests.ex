@@ -1971,9 +1971,9 @@ defmodule Tuist.Tests do
 
       IngestRepo.insert_all(Test, updated_runs)
 
-      Enum.each(stale_runs, fn run ->
-        expire_missing_shard_runs(run, now)
-      end)
+      stale_runs
+      |> Enum.filter(& &1.shard_plan_id)
+      |> Enum.each(&expire_missing_shard_runs(&1, now))
     end
 
     {:ok, length(stale_runs)}
@@ -1981,10 +1981,7 @@ defmodule Tuist.Tests do
 
   defp expire_missing_shard_runs(test_run, now) do
     shard_plan_id = test_run.shard_plan_id
-    if is_nil(shard_plan_id), do: :ok, else: do_expire_missing_shard_runs(test_run, shard_plan_id, now)
-  end
 
-  defp do_expire_missing_shard_runs(test_run, shard_plan_id, now) do
     case Shards.get_shard_plan(shard_plan_id) do
       {:ok, plan} ->
         reported_indices =
