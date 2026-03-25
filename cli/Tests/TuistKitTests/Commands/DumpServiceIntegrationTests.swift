@@ -357,6 +357,7 @@ final class DumpServiceTests: TuistTestCase {
             // Then
             let expected = """
             {
+              "baseProductType": "staticFramework",
               "baseSettings": {
                 "base": {
 
@@ -421,6 +422,7 @@ final class DumpServiceTests: TuistTestCase {
             // Then
             let expected = """
             {
+              "baseProductType": "staticFramework",
               "baseSettings": {
                 "base": {
 
