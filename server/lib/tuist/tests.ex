@@ -694,7 +694,7 @@ defmodule Tuist.Tests do
 
     ids = Enum.map(slim_results, & &1.id)
 
-    full_results = ClickHouseRepo.all(from(tcr in TestCaseRun, hints: ["FINAL"], where: tcr.id in ^ids))
+    full_results = ClickHouseRepo.all(from(tcr in TestCaseRun, where: tcr.id in ^ids))
 
     ordered_by_id = Map.new(full_results, &{&1.id, &1})
     ordered = ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
