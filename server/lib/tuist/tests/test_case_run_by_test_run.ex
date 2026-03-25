@@ -1,8 +1,8 @@
 defmodule Tuist.Tests.TestCaseRunByTestRun do
   @moduledoc """
-  Slim read-only schema backed by the `test_case_runs_by_test_run` table
-  (populated by a materialized view). Ordered by `(test_run_id, id)`,
-  making queries that filter by `test_run_id` efficient.
+  Slim read-only schema backed by the `test_case_runs_by_test_run` materialized
+  view. Ordered by `(test_run_id, id)`, making queries that filter by
+  `test_run_id` efficient.
 
   Used for:
   - Aggregation queries (`get_test_run_metrics`, `get_test_run_failures_count`)
