@@ -47,6 +47,10 @@ window.addEventListener("phx:navigate", () => {
 
 window.liveSocket = liveSocket;
 
+window.addEventListener("phx:docs:copy-to-clipboard", ({ detail }) => {
+  navigator.clipboard.writeText(detail.text);
+});
+
 window.addEventListener("phx:js-exec", ({ detail }) => {
   document.querySelectorAll(detail.to).forEach((el) => {
     liveSocket.execJS(el, el.getAttribute(detail.attr));
