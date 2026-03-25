@@ -122,8 +122,8 @@ struct TestListCommandService: TestListCommandServicing {
         _ testRun: Operations.listTestRuns.Output.Ok.Body.jsonPayload.test_runsPayloadPayload
     ) -> [String] {
         let selectiveTesting: String
-        if let targets = testRun.selective_testing_targets, targets > 0 {
-            let hits = (testRun.selective_testing_local_hits ?? 0) + (testRun.selective_testing_remote_hits ?? 0)
+        if let targets = testRun.xcode_selective_testing_targets, targets > 0 {
+            let hits = (testRun.xcode_selective_testing_local_hits ?? 0) + (testRun.xcode_selective_testing_remote_hits ?? 0)
             let pct = Int((Double(hits) / Double(targets) * 100).rounded())
             selectiveTesting = "\(pct)%"
         } else {

@@ -51,9 +51,9 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
          failed_test_count: metrics.failed_count,
          flaky_test_count: metrics.flaky_count,
          avg_test_duration: metrics.avg_duration,
-         selective_testing_targets: selective_testing.selective_testing_targets,
-         selective_testing_local_hits: selective_testing.selective_testing_local_hits,
-         selective_testing_remote_hits: selective_testing.selective_testing_remote_hits
+         xcode_selective_testing_targets: selective_testing.xcode_selective_testing_targets,
+         xcode_selective_testing_local_hits: selective_testing.xcode_selective_testing_local_hits,
+         xcode_selective_testing_remote_hits: selective_testing.xcode_selective_testing_remote_hits
        }}
     end
   end

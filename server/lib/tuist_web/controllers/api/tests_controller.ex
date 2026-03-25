@@ -105,15 +105,15 @@ defmodule TuistWeb.API.TestsController do
                    total_test_count: %Schema{type: :integer, description: "Total number of test cases."},
                    ran_tests: %Schema{type: :integer, description: "Number of test cases that ran."},
                    skipped_tests: %Schema{type: :integer, description: "Number of skipped test cases."},
-                   selective_testing_targets: %Schema{
+                   xcode_selective_testing_targets: %Schema{
                      type: :integer,
                      description: "Total number of test targets eligible for selective testing."
                    },
-                   selective_testing_local_hits: %Schema{
+                   xcode_selective_testing_local_hits: %Schema{
                      type: :integer,
                      description: "Number of test targets skipped due to local selective testing cache hit."
                    },
-                   selective_testing_remote_hits: %Schema{
+                   xcode_selective_testing_remote_hits: %Schema{
                      type: :integer,
                      description: "Number of test targets skipped due to remote selective testing cache hit."
                    }
@@ -186,9 +186,9 @@ defmodule TuistWeb.API.TestsController do
             total_test_count: Map.get(run_metrics, :total_tests, 0),
             ran_tests: Map.get(run_metrics, :ran_tests, 0),
             skipped_tests: Map.get(run_metrics, :skipped_tests, 0),
-            selective_testing_targets: Map.get(run_metrics, :selective_testing_targets, 0),
-            selective_testing_local_hits: Map.get(run_metrics, :selective_testing_local_hits, 0),
-            selective_testing_remote_hits: Map.get(run_metrics, :selective_testing_remote_hits, 0)
+            xcode_selective_testing_targets: Map.get(run_metrics, :xcode_selective_testing_targets, 0),
+            xcode_selective_testing_local_hits: Map.get(run_metrics, :xcode_selective_testing_local_hits, 0),
+            xcode_selective_testing_remote_hits: Map.get(run_metrics, :xcode_selective_testing_remote_hits, 0)
           }
         end),
       pagination_metadata: %{
@@ -549,15 +549,15 @@ defmodule TuistWeb.API.TestsController do
              failed_test_count: %Schema{type: :integer, description: "Number of failed test cases."},
              flaky_test_count: %Schema{type: :integer, description: "Number of flaky test cases."},
              avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."},
-             selective_testing_targets: %Schema{
+             xcode_selective_testing_targets: %Schema{
                type: :integer,
                description: "Total number of test targets eligible for selective testing."
              },
-             selective_testing_local_hits: %Schema{
+             xcode_selective_testing_local_hits: %Schema{
                type: :integer,
                description: "Number of test targets skipped due to local selective testing cache hit."
              },
-             selective_testing_remote_hits: %Schema{
+             xcode_selective_testing_remote_hits: %Schema{
                type: :integer,
                description: "Number of test targets skipped due to remote selective testing cache hit."
              }
@@ -572,9 +572,9 @@ defmodule TuistWeb.API.TestsController do
              :failed_test_count,
              :flaky_test_count,
              :avg_test_duration,
-             :selective_testing_targets,
-             :selective_testing_local_hits,
-             :selective_testing_remote_hits
+             :xcode_selective_testing_targets,
+             :xcode_selective_testing_local_hits,
+             :xcode_selective_testing_remote_hits
            ]
          }},
       not_found: {"Test run not found", "application/json", Error},
@@ -605,9 +605,9 @@ defmodule TuistWeb.API.TestsController do
           failed_test_count: test_metrics.failed_count,
           flaky_test_count: test_metrics.flaky_count,
           avg_test_duration: test_metrics.avg_duration,
-          selective_testing_targets: selective_testing.selective_testing_targets,
-          selective_testing_local_hits: selective_testing.selective_testing_local_hits,
-          selective_testing_remote_hits: selective_testing.selective_testing_remote_hits
+          xcode_selective_testing_targets: selective_testing.xcode_selective_testing_targets,
+          xcode_selective_testing_local_hits: selective_testing.xcode_selective_testing_local_hits,
+          xcode_selective_testing_remote_hits: selective_testing.xcode_selective_testing_remote_hits
         })
 
       _error ->

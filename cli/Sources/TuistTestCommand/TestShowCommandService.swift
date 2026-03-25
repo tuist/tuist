@@ -103,15 +103,15 @@ struct TestShowCommandService: TestShowCommandServicing {
         info.append("  Avg Duration: \(Formatters.formatDuration(run.avg_test_duration))")
 
         // Selective Testing
-        if run.selective_testing_targets > 0 {
-            let totalHits = run.selective_testing_local_hits + run.selective_testing_remote_hits
-            let effectiveness = Int((Double(totalHits) / Double(run.selective_testing_targets) * 100).rounded())
+        if run.xcode_selective_testing_targets > 0 {
+            let totalHits = run.xcode_selective_testing_local_hits + run.xcode_selective_testing_remote_hits
+            let effectiveness = Int((Double(totalHits) / Double(run.xcode_selective_testing_targets) * 100).rounded())
             info.append("")
             info.append("Selective Testing".bold())
-            info.append("  Targets:      \(run.selective_testing_targets)")
-            info.append("  Local Hits:   \(run.selective_testing_local_hits)")
-            info.append("  Remote Hits:  \(run.selective_testing_remote_hits)")
-            info.append("  Misses:       \(run.selective_testing_targets - totalHits)")
+            info.append("  Targets:      \(run.xcode_selective_testing_targets)")
+            info.append("  Local Hits:   \(run.xcode_selective_testing_local_hits)")
+            info.append("  Remote Hits:  \(run.xcode_selective_testing_remote_hits)")
+            info.append("  Misses:       \(run.xcode_selective_testing_targets - totalHits)")
             info.append("  Effectiveness: \(effectiveness)%")
         }
 
