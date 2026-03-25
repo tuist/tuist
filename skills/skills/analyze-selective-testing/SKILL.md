@@ -66,9 +66,9 @@ effectiveness = (local_hits + remote_hits) / total_targets * 100
 | Effectiveness | Verdict |
 |---|---|
 | 60-100% | Healthy — most unchanged tests are being skipped |
-| 30-60% | Degraded — some cache invalidation occurring |
-| 0-30% | Broken — selective testing is not working effectively |
-| 0% | Expected on the very first run or after a full cache invalidation |
+| 30-60% | Moderate — some cache invalidation occurring, worth investigating |
+| 0-30% | Low — likely a core dependency changed or the cache was invalidated |
+| 0% | Cold cache — first run, environment change, or full invalidation |
 
 ## Step 3: Diagnose Regressions
 
@@ -82,7 +82,8 @@ If nearly all targets show as `miss`, the entire selective testing cache was inv
 |---|---|
 | Xcode version change | Compare `xcode_version` between good and bad runs via `tuist test show` |
 | CI environment change | Compare `macos_version`, `model_identifier` between runs |
-| Project structure change | Check git history for Tuist manifest changes |
+| Project graph or dependency change | Check git history for changes to project manifests, dependency versions, or target configurations |
+| Core dependency change | A widely-depended-on target changed, invalidating all its dependents |
 
 Note: Tuist CLI version upgrades rarely cause hash invalidation — the hash version is not updated on every release.
 
@@ -114,7 +115,7 @@ Based on the diagnosis:
 
 Produce a summary with:
 
-1. **Overall**: effectiveness percentage, verdict (healthy/degraded/broken)
+1. **Overall**: effectiveness percentage, verdict (healthy/moderate/low/cold)
 2. **Target breakdown**: targets grouped by hit status
 3. **Comparison** (if applicable): targets that changed status between runs, with hash diffs
 4. **Root cause**: what caused the regression
@@ -125,7 +126,7 @@ Example:
 ```
 Selective Testing Analysis: test run abc123 on feature-x
 
-Effectiveness: 15% (3/20 targets skipped) -- BROKEN
+Effectiveness: 15% (3/20 targets skipped) -- LOW
   Local hits:  2 targets (CoreTests, UtilTests)
   Remote hits: 1 target (NetworkTests)
   Misses:      17 targets

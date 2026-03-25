@@ -101,7 +101,7 @@ defmodule Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting do
     **Common causes:**
     - **Hash invalidation cascade**: A widely-depended-on target changed, invalidating all dependents
     - **CI environment change**: Different Xcode version, macOS version, or build settings can change hashes. Use `get_test_run` to compare `xcode_version` and `macos_version` between a known-good run and the regressed run — if they differ, that is the likely cause.
-    - **Project structure change**: Adding/removing targets, changing dependencies, or modifying build configurations
+    - **Project graph or dependency change**: Adding/removing targets, changing dependency versions, or modifying build configurations and project manifests
     - **Cold cache**: First run on a new branch or after cache expiration
 
     Note: Tuist CLI version upgrades rarely cause hash invalidation — the hash version is not updated on every release.
@@ -116,7 +116,7 @@ defmodule Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting do
     ### Summary format
 
     Produce a structured summary with:
-    1. **Overall**: effectiveness percentage, total targets, hits (local + remote), misses, verdict (healthy/degraded/broken)
+    1. **Overall**: effectiveness percentage, total targets, hits (local + remote), misses, verdict (healthy/moderate/low/cold)
     2. **Target breakdown**: group targets by hit status, sorted by name
     3. **Regression analysis** (if comparing): which targets changed status and likely cause
     4. **Recommendations**: actionable next steps to restore effectiveness
