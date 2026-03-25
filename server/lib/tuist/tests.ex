@@ -1953,6 +1953,7 @@ defmodule Tuist.Tests do
   """
   def expire_stale_in_progress_test_runs do
     six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -6, :hour)
+    now = NaiveDateTime.utc_now()
 
     stale_runs =
       ClickHouseRepo.all(
@@ -1965,13 +1966,55 @@ defmodule Tuist.Tests do
           run
           |> Map.from_struct()
           |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
-          |> Map.merge(%{status: "failure", inserted_at: NaiveDateTime.utc_now()})
+          |> Map.merge(%{status: "failure", inserted_at: now})
         end)
 
       IngestRepo.insert_all(Test, updated_runs)
+
+      Enum.each(stale_runs, fn run ->
+        expire_missing_shard_runs(run, now)
+      end)
     end
 
     {:ok, length(stale_runs)}
+  end
+
+  defp expire_missing_shard_runs(test_run, now) do
+    shard_plan_id = test_run.shard_plan_id
+    if is_nil(shard_plan_id), do: :ok, else: do_expire_missing_shard_runs(test_run, shard_plan_id, now)
+  end
+
+  defp do_expire_missing_shard_runs(test_run, shard_plan_id, now) do
+    case Shards.get_shard_plan(shard_plan_id) do
+      {:ok, plan} ->
+        reported_indices =
+          from(sr in ShardRun, where: sr.test_run_id == ^test_run.id, select: sr.shard_index)
+          |> ClickHouseRepo.all()
+          |> MapSet.new()
+
+        missing_shard_runs =
+          0..(plan.shard_count - 1)
+          |> Enum.reject(&MapSet.member?(reported_indices, &1))
+          |> Enum.map(fn index ->
+            %{
+              shard_plan_id: shard_plan_id,
+              project_id: test_run.project_id,
+              test_run_id: test_run.id,
+              shard_index: index,
+              status: "failure",
+              duration: 0,
+              ran_at: now,
+              inserted_at: now
+            }
+          end)
+
+        if Enum.any?(missing_shard_runs) do
+          IngestRepo.insert_all(ShardRun, missing_shard_runs)
+        end
+
+      _ ->
+        :ok
+    end
   end
 
   @doc """
