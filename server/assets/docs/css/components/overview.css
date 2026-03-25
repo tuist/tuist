@@ -642,13 +642,17 @@
     }
 
     & [data-part="video-cards"] {
-      flex-direction: column;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
     }
 
     & [data-part="video-card"],
     & [data-part="video-card"]:link,
     & [data-part="video-card"]:visited {
-      width: 100%;
+      flex-shrink: 0;
+      scroll-snap-align: start;
+      width: 280px;
     }
 
     & [data-part="community-card"],
