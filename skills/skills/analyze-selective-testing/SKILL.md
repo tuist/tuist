@@ -8,9 +8,8 @@ description: Analyzes Xcode selective testing effectiveness for a test run, show
 ## Quick Start
 
 1. Run `tuist test list --json` to find test runs.
-2. Run `tuist test show <id> --json` to see selective testing metrics.
-3. Drill into per-target details to understand which targets ran and which were skipped.
-4. If effectiveness dropped, compare with a known-good run to find the root cause.
+2. Use the MCP `list_xcode_selective_testing_targets` tool to drill into per-target selective testing status.
+3. If effectiveness dropped, compare targets between a known-good run and the regressed run.
 
 ## Step 1: Resolve Test Runs
 
@@ -23,28 +22,37 @@ tuist test list --json --page-size 10
 tuist test list --git-branch feature-x --json --page-size 5
 ```
 
-Get detailed metrics for a specific test run:
+Get basic info for a specific test run:
 
 ```bash
 tuist test show <test-run-id> --json
 ```
 
-The response includes:
-- `xcode_selective_testing_targets`: total test targets eligible for selective testing
-- `xcode_selective_testing_local_hits`: targets skipped (local cache hit)
-- `xcode_selective_testing_remote_hits`: targets skipped (remote cache hit)
+Use this to confirm the run's branch, status, scheme, and environment (`xcode_version`, `macos_version`).
 
 ### Defaults
 
 - If no test run is specified, use the most recent CI test run on the current branch.
 - For comparison, use the most recent CI test run on the project's default branch.
 
-## Step 2: Assess Effectiveness
+## Step 2: Drill Into Selective Testing Targets
 
-Compute selective testing effectiveness:
+Use the MCP `list_xcode_selective_testing_targets` tool (available via the Tuist MCP server) to see per-target selective testing data for a test run.
 
+Each target includes:
+- **name**: The test target name
+- **hit_status**: `miss` (ran), `local` (skipped via local cache), or `remote` (skipped via remote cache)
+- **hash**: The selective testing hash for this target
+
+Filter by status to focus your analysis:
+- `hit_status=miss` — targets that actually ran (were selected for testing)
+- `hit_status=local` or `hit_status=remote` — targets that were skipped
+
+### Assess effectiveness
+
+Count the targets by status:
 ```
-effectiveness = (local_hits + remote_hits) / targets * 100
+effectiveness = (local_hits + remote_hits) / total_targets * 100
 ```
 
 | Effectiveness | Verdict |
@@ -74,20 +82,17 @@ Note: Tuist CLI version upgrades rarely cause hash invalidation — the hash ver
 
 If only some targets show as `miss`, a dependency change likely cascaded:
 
-1. Identify the targets that went from hit to miss.
-2. Look for a common dependency among the invalidated targets.
-3. Check git history for changes to that dependency.
+1. Use `list_xcode_selective_testing_targets` for both the good and bad runs.
+2. Match targets by name — identify those that changed from `local`/`remote` to `miss`.
+3. Compare hashes for changed targets — if a target's hash differs, its sources or dependencies changed.
+4. Look for a common dependency among the invalidated targets.
 
 ### Compare two test runs
 
-To understand what changed, compare a known-good run with the regressed run:
-
-```bash
-tuist test show <good-run-id> --json
-tuist test show <bad-run-id> --json
-```
-
-Compare the selective testing metrics between them. Use the MCP `list_xcode_selective_testing_targets` tool (available via Tuist MCP server) for per-target drill-down with hash comparison.
+Use `list_xcode_selective_testing_targets` for both a known-good run and the regressed run. For each target:
+- Match by `name`
+- Compare `hit_status` (hit → miss = invalidated, miss → hit = improved)
+- Compare `hash` (different hash = target or its dependencies changed)
 
 ## Step 4: Recommendations
 
@@ -102,8 +107,8 @@ Based on the diagnosis:
 Produce a summary with:
 
 1. **Overall**: effectiveness percentage, verdict (healthy/degraded/broken)
-2. **Metrics**: total targets, local hits, remote hits, misses
-3. **Comparison** (if applicable): effectiveness delta, targets that changed status
+2. **Target breakdown**: targets grouped by hit status
+3. **Comparison** (if applicable): targets that changed status between runs, with hash diffs
 4. **Root cause**: what caused the regression
 5. **Recommendations**: actionable next steps
 
@@ -113,25 +118,26 @@ Example:
 Selective Testing Analysis: test run abc123 on feature-x
 
 Effectiveness: 15% (3/20 targets skipped) -- BROKEN
-  Local hits:  2 targets
-  Remote hits: 1 target
+  Local hits:  2 targets (CoreTests, UtilTests)
+  Remote hits: 1 target (NetworkTests)
   Misses:      17 targets
 
-Comparison with baseline (run def456 on main, 75% effectiveness):
+Comparison with baseline (run def456, 75% effectiveness):
   14 targets changed from hit to miss
+  All changed targets have different hashes
 
-Root cause: Tuist CLI was upgraded from 4.157.0 to 4.158.2 on March 17.
-The hash computation changed, invalidating all cached test hashes.
+Root cause: Xcode version changed from 15.2 to 16.0 between runs.
+This changed all target hashes, invalidating the entire cache.
 
 Recommendations:
-- This is a one-time cost. Run tests once on the default branch to re-warm the cache.
-- Subsequent feature branch runs should recover to normal effectiveness.
+- Align CI Xcode version with the version used in the baseline run.
+- If the upgrade is intentional, run tests once to re-warm the cache.
 ```
 
 ## Done Checklist
 
 - Identified the test run(s) to analyze
-- Computed selective testing effectiveness
+- Drilled into per-target selective testing status
 - Diagnosed root cause if effectiveness is low
-- Compared with baseline if regression detected
+- Compared targets with baseline if regression detected
 - Provided actionable recommendations
