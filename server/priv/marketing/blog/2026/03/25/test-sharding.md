@@ -18,9 +18,9 @@ The naive approach is to split tests statically. You decide upfront which tests 
 
 Keeping static shards balanced is a maintenance burden that scales with your test suite. Every time the distribution drifts, someone has to manually rebalance. In practice, nobody does until the pain is bad enough to complain about.
 
-<img src="/marketing/images/blog/2026/03/25/test-sharding/sharding-comparison.png" alt="Comparison of no sharding (20 min), static sharding (14 min bottleneck), and dynamic sharding (7 min balanced) across 3 shards" style="max-height: 500px;" />
-
 Dynamic sharding solves this. Instead of hardcoding the split, you let the system decide how to distribute tests based on how long each one actually takes. Every time you shard, the distribution is recalculated from real data, without you having to constantly balance the shards manually.
+
+<img src="/marketing/images/blog/2026/03/25/test-sharding/sharding-comparison.png" alt="Comparison of no sharding (20 min), static sharding (14 min bottleneck), and dynamic sharding (7 min balanced) across 3 shards" style="max-height: 600px;" />
 
 ## Leveraging test insights
 
