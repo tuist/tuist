@@ -105,13 +105,13 @@ internal enum class CIProvider {
     GITHUB, GITLAB, CIRCLECI, BUILDKITE, CODEMAGIC, BITRISE
 }
 
-internal fun detectCIProvider(): CIProvider? {
-    if (System.getenv("GITHUB_ACTIONS") != null) return CIProvider.GITHUB
-    if (System.getenv("GITLAB_CI") != null) return CIProvider.GITLAB
-    if (System.getenv("CIRCLECI") != null) return CIProvider.CIRCLECI
-    if (System.getenv("BUILDKITE") != null) return CIProvider.BUILDKITE
-    if (System.getenv("CM_BUILD_ID") != null) return CIProvider.CODEMAGIC
-    if (System.getenv("BITRISE_IO") != null) return CIProvider.BITRISE
+internal fun detectCIProvider(env: EnvironmentProvider = SystemEnvironmentProvider()): CIProvider? {
+    if (env.getenv("GITHUB_ACTIONS") != null) return CIProvider.GITHUB
+    if (env.getenv("GITLAB_CI") != null) return CIProvider.GITLAB
+    if (env.getenv("CIRCLECI") != null) return CIProvider.CIRCLECI
+    if (env.getenv("BUILDKITE") != null) return CIProvider.BUILDKITE
+    if (env.getenv("CM_BUILD_ID") != null) return CIProvider.CODEMAGIC
+    if (env.getenv("BITRISE_IO") != null) return CIProvider.BITRISE
     return null
 }
 
@@ -203,12 +203,13 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         indices: List<Int>,
         reference: String,
         response: ShardPlan,
-        ciProvider: CIProvider? = detectCIProvider()
+        ciProvider: CIProvider? = detectCIProvider(),
+        env: EnvironmentProvider = SystemEnvironmentProvider()
     ) {
         when (ciProvider) {
             CIProvider.GITHUB -> {
                 val matrixJSON = """{"shard":$indices}"""
-                java.io.File(System.getenv("GITHUB_OUTPUT")).appendText("matrix=$matrixJSON\n")
+                java.io.File(env.getenv("GITHUB_OUTPUT")!!).appendText("matrix=$matrixJSON\n")
                 logger.lifecycle("Tuist: GitHub Actions matrix output written.")
             }
             CIProvider.GITLAB -> {
@@ -250,12 +251,12 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
             }
             CIProvider.CODEMAGIC -> {
                 val matrixJSON = """{"shard":$indices}"""
-                java.io.File(System.getenv("CM_ENV")).appendText("TUIST_SHARD_MATRIX=$matrixJSON\nTUIST_SHARD_COUNT=${indices.size}\n")
+                java.io.File(env.getenv("CM_ENV")!!).appendText("TUIST_SHARD_MATRIX=$matrixJSON\nTUIST_SHARD_COUNT=${indices.size}\n")
                 logger.lifecycle("Tuist: Codemagic environment variables written to CM_ENV.")
             }
             CIProvider.BITRISE -> {
                 val matrixJSON = """{"shard":$indices,"shard_count":${indices.size}}"""
-                val deployDir = System.getenv("BITRISE_DEPLOY_DIR")
+                val deployDir = env.getenv("BITRISE_DEPLOY_DIR")!!
                 java.io.File(deployDir, ".tuist-shard-matrix.json").writeText(matrixJSON)
                 logger.lifecycle("Tuist: Bitrise shard matrix written to deploy directory.")
             }

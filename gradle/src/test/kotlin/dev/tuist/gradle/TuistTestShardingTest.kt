@@ -144,29 +144,44 @@ class DeriveReferenceTest {
 
 class DetectCIProviderTest {
 
-    @Test
-    fun `detectCIProvider returns null without CI environment`() {
-        if (System.getenv("GITHUB_ACTIONS") == null &&
-            System.getenv("GITLAB_CI") == null &&
-            System.getenv("CIRCLECI") == null &&
-            System.getenv("BUILDKITE") == null &&
-            System.getenv("CM_BUILD_ID") == null &&
-            System.getenv("BITRISE_IO") == null
-        ) {
-            assertNull(detectCIProvider())
-        }
+    private fun envWith(vararg pairs: Pair<String, String>): EnvironmentProvider {
+        val map = pairs.toMap()
+        return EnvironmentProvider { name -> map[name] }
     }
 
     @Test
-    fun `CIProvider enum has all expected values`() {
-        val providers = CIProvider.entries
-        assertEquals(6, providers.size)
-        assertTrue(providers.contains(CIProvider.GITHUB))
-        assertTrue(providers.contains(CIProvider.GITLAB))
-        assertTrue(providers.contains(CIProvider.CIRCLECI))
-        assertTrue(providers.contains(CIProvider.BUILDKITE))
-        assertTrue(providers.contains(CIProvider.CODEMAGIC))
-        assertTrue(providers.contains(CIProvider.BITRISE))
+    fun `returns null for empty environment`() {
+        assertNull(detectCIProvider(envWith()))
+    }
+
+    @Test
+    fun `detects GitHub Actions`() {
+        assertEquals(CIProvider.GITHUB, detectCIProvider(envWith("GITHUB_ACTIONS" to "true")))
+    }
+
+    @Test
+    fun `detects GitLab CI`() {
+        assertEquals(CIProvider.GITLAB, detectCIProvider(envWith("GITLAB_CI" to "true")))
+    }
+
+    @Test
+    fun `detects CircleCI`() {
+        assertEquals(CIProvider.CIRCLECI, detectCIProvider(envWith("CIRCLECI" to "true")))
+    }
+
+    @Test
+    fun `detects Buildkite`() {
+        assertEquals(CIProvider.BUILDKITE, detectCIProvider(envWith("BUILDKITE" to "true")))
+    }
+
+    @Test
+    fun `detects Codemagic`() {
+        assertEquals(CIProvider.CODEMAGIC, detectCIProvider(envWith("CM_BUILD_ID" to "123")))
+    }
+
+    @Test
+    fun `detects Bitrise`() {
+        assertEquals(CIProvider.BITRISE, detectCIProvider(envWith("BITRISE_IO" to "true")))
     }
 }
 
@@ -192,12 +207,29 @@ class WriteShardMatrixOutputTest {
         id = java.util.UUID.fromString("00000000-0000-0000-0000-000000000000")
     )
 
+    private fun envWith(vararg pairs: Pair<String, String>): EnvironmentProvider {
+        val map = pairs.toMap()
+        return EnvironmentProvider { name -> map[name] }
+    }
+
+    @Test
+    fun `github writes matrix to output file`(@TempDir tempDir: File) {
+        val githubOutputFile = File(tempDir, "github_output").apply { writeText("") }
+        val task = createTask(tempDir)
+
+        task.writeShardMatrixOutput(
+            listOf(0, 1, 2), "test-ref", shardPlan(3), CIProvider.GITHUB,
+            envWith("GITHUB_OUTPUT" to githubOutputFile.absolutePath)
+        )
+
+        assertEquals("""matrix={"shard":[0, 1, 2]}""" + "\n", githubOutputFile.readText())
+    }
+
     @Test
     fun `gitlab writes child pipeline yml`(@TempDir tempDir: File) {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.GITLAB)
 
-        val content = File(tempDir, ".tuist-shard-child-pipeline.yml").readText()
         assertEquals(
             """
             shard-0:
@@ -211,7 +243,7 @@ class WriteShardMatrixOutputTest {
                 TUIST_SHARD_INDEX: "1"
 
             """.trimIndent() + "\n",
-            content
+            File(tempDir, ".tuist-shard-child-pipeline.yml").readText()
         )
     }
 
@@ -220,8 +252,10 @@ class WriteShardMatrixOutputTest {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.CIRCLECI)
 
-        val content = File(tempDir, ".tuist-shard-continuation.json").readText()
-        assertEquals("""{"shard-indices":"0,1","shard-count":2}""", content)
+        assertEquals(
+            """{"shard-indices":"0,1","shard-count":2}""",
+            File(tempDir, ".tuist-shard-continuation.json").readText()
+        )
     }
 
     @Test
@@ -229,7 +263,6 @@ class WriteShardMatrixOutputTest {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.BUILDKITE)
 
-        val content = File(tempDir, ".tuist-shard-pipeline.yml").readText()
         assertEquals(
             """
             steps:
@@ -242,7 +275,39 @@ class WriteShardMatrixOutputTest {
                   TUIST_SHARD_INDEX: "1"
 
             """.trimIndent() + "\n",
-            content
+            File(tempDir, ".tuist-shard-pipeline.yml").readText()
+        )
+    }
+
+    @Test
+    fun `codemagic writes to cm env file`(@TempDir tempDir: File) {
+        val cmEnvFile = File(tempDir, "cm_env").apply { writeText("") }
+        val task = createTask(tempDir)
+
+        task.writeShardMatrixOutput(
+            listOf(0, 1), "test-ref", shardPlan(), CIProvider.CODEMAGIC,
+            envWith("CM_ENV" to cmEnvFile.absolutePath)
+        )
+
+        assertEquals(
+            """TUIST_SHARD_MATRIX={"shard":[0, 1]}""" + "\nTUIST_SHARD_COUNT=2\n",
+            cmEnvFile.readText()
+        )
+    }
+
+    @Test
+    fun `bitrise writes to deploy dir`(@TempDir tempDir: File) {
+        val deployDir = File(tempDir, "deploy").apply { mkdirs() }
+        val task = createTask(tempDir)
+
+        task.writeShardMatrixOutput(
+            listOf(0, 1), "test-ref", shardPlan(), CIProvider.BITRISE,
+            envWith("BITRISE_DEPLOY_DIR" to deployDir.absolutePath)
+        )
+
+        assertEquals(
+            """{"shard":[0, 1],"shard_count":2}""",
+            File(deployDir, ".tuist-shard-matrix.json").readText()
         )
     }
 
@@ -251,85 +316,10 @@ class WriteShardMatrixOutputTest {
         val task = createTask(tempDir)
         task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), null)
 
-        val content = File(tempDir, ".tuist-shard-matrix.json").readText()
         assertEquals(
             """{"reference":"test-ref","shard_count":2,"shards":[{"index":0,"test_targets":["com.example.Test0"],"estimated_duration_ms":1000},{"index":1,"test_targets":["com.example.Test1"],"estimated_duration_ms":1000}]}""",
-            content
+            File(tempDir, ".tuist-shard-matrix.json").readText()
         )
-    }
-
-    @Test
-    fun `github writes matrix to output file`(@TempDir tempDir: File) {
-        val githubOutputFile = File(tempDir, "github_output")
-        githubOutputFile.writeText("")
-
-        val originalEnv = System.getenv("GITHUB_OUTPUT")
-        try {
-            setEnv("GITHUB_OUTPUT", githubOutputFile.absolutePath)
-            val task = createTask(tempDir)
-            task.writeShardMatrixOutput(listOf(0, 1, 2), "test-ref", shardPlan(3), CIProvider.GITHUB)
-
-            assertEquals("""matrix={"shard":[0, 1, 2]}""" + "\n", githubOutputFile.readText())
-        } finally {
-            if (originalEnv != null) setEnv("GITHUB_OUTPUT", originalEnv)
-            else removeEnv("GITHUB_OUTPUT")
-        }
-    }
-
-    @Test
-    fun `codemagic writes to cm env file`(@TempDir tempDir: File) {
-        val cmEnvFile = File(tempDir, "cm_env")
-        cmEnvFile.writeText("")
-
-        val originalEnv = System.getenv("CM_ENV")
-        try {
-            setEnv("CM_ENV", cmEnvFile.absolutePath)
-            val task = createTask(tempDir)
-            task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.CODEMAGIC)
-
-            assertEquals(
-                """TUIST_SHARD_MATRIX={"shard":[0, 1]}""" + "\nTUIST_SHARD_COUNT=2\n",
-                cmEnvFile.readText()
-            )
-        } finally {
-            if (originalEnv != null) setEnv("CM_ENV", originalEnv)
-            else removeEnv("CM_ENV")
-        }
-    }
-
-    @Test
-    fun `bitrise writes to deploy dir`(@TempDir tempDir: File) {
-        val deployDir = File(tempDir, "deploy")
-        deployDir.mkdirs()
-
-        val originalEnv = System.getenv("BITRISE_DEPLOY_DIR")
-        try {
-            setEnv("BITRISE_DEPLOY_DIR", deployDir.absolutePath)
-            val task = createTask(tempDir)
-            task.writeShardMatrixOutput(listOf(0, 1), "test-ref", shardPlan(), CIProvider.BITRISE)
-
-            val content = File(deployDir, ".tuist-shard-matrix.json").readText()
-            assertEquals("""{"shard":[0, 1],"shard_count":2}""", content)
-        } finally {
-            if (originalEnv != null) setEnv("BITRISE_DEPLOY_DIR", originalEnv)
-            else removeEnv("BITRISE_DEPLOY_DIR")
-        }
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun setEnv(key: String, value: String) {
-        val env = System.getenv() as java.util.Map<String, String>
-        val field = env.javaClass.getDeclaredField("m")
-        field.isAccessible = true
-        (field.get(env) as MutableMap<String, String>)[key] = value
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun removeEnv(key: String) {
-        val env = System.getenv() as java.util.Map<String, String>
-        val field = env.javaClass.getDeclaredField("m")
-        field.isAccessible = true
-        (field.get(env) as MutableMap<String, String>).remove(key)
     }
 }
 
