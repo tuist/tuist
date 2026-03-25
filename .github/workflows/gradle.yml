@@ -25,6 +25,10 @@ permissions:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
+  MISE_AQUA_COSIGN: 0
+  MISE_AQUA_SLSA: 0
+  MISE_AQUA_MINISIGN: 0
 
 defaults:
   run:
@@ -43,9 +47,10 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v3.2.0
         with:
           install_args: tuist
+          cache: "false"
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
