@@ -2218,23 +2218,7 @@ extension APIProtocol {
 }
 
 /// Server URLs defined in the OpenAPI document.
-public enum Servers {
-    public enum Server1 {
-        public static func url() throws -> Foundation.URL {
-            try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:8908",
-                variables: []
-            )
-        }
-    }
-    @available(*, deprecated, renamed: "Servers.Server1.url")
-    public static func server1() throws -> Foundation.URL {
-        try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:8908",
-            variables: []
-        )
-    }
-}
+public enum Servers {}
 
 /// Types generated from the components section of the OpenAPI document.
 public enum Components {

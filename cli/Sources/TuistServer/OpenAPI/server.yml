@@ -18641,7 +18641,5 @@ paths:
 security:
   - authorization: []
   - cookie: []
-servers:
-  - url: http://localhost:8908
-    variables: {}
+servers: []
 tags: []
