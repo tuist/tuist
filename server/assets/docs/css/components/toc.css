@@ -16,9 +16,15 @@
     display: flex;
     flex-shrink: 0;
     align-items: center;
+    justify-content: flex-end;
 
     & #docs-copy-dropdown {
       width: fit-content;
+
+      & > [data-state="open"] ~ [data-part="positioner"] {
+        left: unset !important;
+        right: 0 !important;
+      }
 
       & .noora-dropdown-content {
         width: 280px;
