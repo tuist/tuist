@@ -4,15 +4,93 @@ defmodule Tuist.Docs.Loader do
   alias Tuist.Docs.Page
   alias Tuist.Docs.Paths
 
+  # Paths
   @docs_root Path.expand("../../../docs/docs", __DIR__)
   @locales ~w(en ar es ja ko pl pt ru yue_Hant zh_Hans)
   @examples_root Path.expand("../../../examples/xcode", __DIR__)
+
+  # Icons
+  @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
+  @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
+  @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
+  @alert_circle_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>)
+  @circle_check_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 12l2 2l4 -4" /></svg>)
+  @alert_triangle_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>)
+
+  # Regexes
   @frontmatter_regex ~r/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/s
   @localized_link_regex ~r/<LocalizedLink\s+(?:href|to)="([^"]+)"\s*>(.*?)<\/LocalizedLink>/s
   @script_setup_regex ~r/<script\s+setup>.*?<\/script>\s*/s
   @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)\s+\{#([\w-]+)\}\s*$/m
   @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
   @vitepress_container_regex ~r/^:::\s*(\w[\w-]*)([ \t]+[^\n]+)?\s*\n(.*?)^:::\s*$/ms
+  @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
+  @github_alert_regex ~r/<div class="markdown-alert markdown-alert-(\w+)">\s*<p class="markdown-alert-title">([^<]*)<\/p>\s*(.*?)\s*<\/div>/s
+  @heading_anchor_regex ~r/(<h[2-4]>)(<a href="#[^"]*" aria-hidden="true" class="anchor" id="[^"]*"><\/a>)(.*?)(<\/h[2-4]>)/s
+  @home_cards_regex ~r/<HomeCards>\s*(.*?)\s*<\/HomeCards>/s
+  @home_card_icon_regex ~r/\s+icon="[^"]*"/
+  @home_card_regex ~r/<HomeCard\s+([^>]*?)\/>/s
+  @home_card_attr_regex ~r/(\w+)="([^"]*)"/
+  @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
+
+  # Lookup maps
+  @github_alert_type_to_status %{
+    "note" => "information",
+    "tip" => "success",
+    "important" => "information",
+    "warning" => "warning",
+    "caution" => "error"
+  }
+
+  @admonition_type_to_status %{
+    "info" => "information",
+    "tip" => "success",
+    "warning" => "warning",
+    "danger" => "error"
+  }
+
+  # EEx templates
+  @github_alert_template """
+  <div class="noora-alert tuist-admonition" data-type="secondary" data-status="<%= status %>" data-size="large">\
+  <div data-part="icon"><%= icon %></div>\
+  <div data-part="column">\
+  <span data-part="title"><%= title %></span>\
+  <div data-part="description"><%= content %></div>\
+  </div>\
+  </div>\
+  """
+
+  @heading_anchor_template """
+  <%= open_tag %><a class="heading-anchor" id="<%= id %>" href="<%= href %>">\
+  <span data-part="heading-text"><%= plain_text %></span>\
+  <span data-part="hash">#</span>\
+  </a><%= close_tag %>\
+  """
+
+  @code_block_template """
+  <div class="code-window">\
+  <div data-part="bar">\
+  <div data-part="language"><%= language %></div>\
+  <div data-part="copy"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></div>\
+  </div>\
+  <div data-part="code"><code><%= code %></code>\
+  </div>\
+  </div>\
+  """
+
+  @admonition_template """
+  <div class="noora-alert tuist-admonition" data-type="secondary" data-status="<%= status %>" data-size="large">\
+  <div data-part="icon"><%= icon %></div>\
+  <div data-part="column">\
+  <span data-part="title"><%= title_text %></span>\
+  <div data-part="description">
+
+  <%= content %>
+
+  </div>\
+  </div>\
+  </div>
+  """
 
   def load_pages! do
     source_paths =
@@ -140,11 +218,6 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
-  @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
-  @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
-  @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
-  @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
-
   defp render_markdown(markdown, locale \\ "en") do
     custom_ids = extract_custom_heading_ids(markdown)
 
@@ -174,28 +247,11 @@ defmodule Tuist.Docs.Loader do
     |> add_heading_anchors()
   end
 
-  @github_alert_type_to_status %{
-    "note" => "information",
-    "tip" => "success",
-    "important" => "information",
-    "warning" => "warning",
-    "caution" => "error"
-  }
-
-  @github_alert_regex ~r/<div class="markdown-alert markdown-alert-(\w+)">\s*<p class="markdown-alert-title">([^<]*)<\/p>\s*(.*?)\s*<\/div>/s
-
   defp convert_github_alerts(html) do
     Regex.replace(@github_alert_regex, html, fn _, type, title, content ->
       status = Map.get(@github_alert_type_to_status, type, "information")
       icon = admonition_icon(status)
-
-      ~s(<div class="noora-alert tuist-admonition" data-type="secondary" data-status="#{status}" data-size="large">) <>
-        ~s(<div data-part="icon">#{icon}</div>) <>
-        ~s(<div data-part="column">) <>
-        ~s(<span data-part="title">#{title}</span>) <>
-        ~s(<div data-part="description">#{content}</div>) <>
-        ~s(</div>) <>
-        ~s(</div>)
+      EEx.eval_string(@github_alert_template, status: status, icon: icon, title: title, content: content)
     end)
   end
 
@@ -205,18 +261,12 @@ defmodule Tuist.Docs.Loader do
     |> String.replace(~s(src="/logo.png"), ~s(src="/docs/images/logo.webp"))
   end
 
-  @heading_anchor_regex ~r/(<h[2-4]>)(<a href="#[^"]*" aria-hidden="true" class="anchor" id="[^"]*"><\/a>)(.*?)(<\/h[2-4]>)/s
-
   defp add_heading_anchors(html) do
     Regex.replace(@heading_anchor_regex, html, fn _, open_tag, anchor, text, close_tag ->
       href = ~r/href="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
       id = ~r/id="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
       plain_text = strip_links_from_html(text)
-
-      ~s(#{open_tag}<a class="heading-anchor" id="#{id}" href="#{href}">) <>
-        ~s(<span data-part="heading-text">#{plain_text}</span>) <>
-        ~s(<span data-part="hash">#</span>) <>
-        ~s(</a>#{close_tag})
+      EEx.eval_string(@heading_anchor_template, open_tag: open_tag, close_tag: close_tag, href: href, id: id, plain_text: plain_text)
     end)
   end
 
@@ -227,26 +277,12 @@ defmodule Tuist.Docs.Loader do
   defp wrap_code_blocks(html) do
     Regex.replace(@code_block_regex, html, fn _, language, code ->
       language = if language == "", do: "", else: language
-
-      ~s(<div class="code-window">) <>
-        ~s(<div data-part="bar">) <>
-        ~s(<div data-part="language">#{language}</div>) <>
-        ~s(<div data-part="copy"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>) <>
-        ~s(</div>) <>
-        ~s(<div data-part="code"><code>#{code}</code>) <>
-        ~s(</div>) <>
-        ~s(</div>)
+      EEx.eval_string(@code_block_template, language: language, code: code, copy_icon: @copy_icon, copy_check_icon: @copy_check_icon)
     end)
   end
 
-  @home_cards_regex ~r/<HomeCards>\s*(.*?)\s*<\/HomeCards>/s
-  @home_card_icon_regex ~r/\s+icon="[^"]*"/
-  @home_card_regex ~r/<HomeCard\s+([^>]*?)\/>/s
-  @home_card_attr_regex ~r/(\w+)="([^"]*)"/
-
   defp convert_home_cards(markdown, locale) do
     Regex.replace(@home_cards_regex, markdown, fn _, content ->
-      # Strip icon attributes first (they contain HTML with > that breaks parsing)
       content = Regex.replace(@home_card_icon_regex, content, "")
 
       cards =
@@ -263,13 +299,13 @@ defmodule Tuist.Docs.Loader do
           link = Map.get(attrs, "link", "")
           link_href = if link == "", do: "#", else: Paths.public_path(locale, link)
 
-          ~s(<a href="#{link_href}" class="docs-home-card">) <>
-            ~s(<div class="docs-home-card-image"><strong>#{title}</strong></div>) <>
-            ~s(<div class="docs-home-card-body"><p>#{details}</p></div>) <>
-            ~s(</a>)
+          EEx.eval_string(
+            ~s(<a href="<%= link_href %>" class="docs-home-card"><div class="docs-home-card-image"><strong><%= title %></strong></div><div class="docs-home-card-body"><p><%= details %></p></div></a>),
+            link_href: link_href, title: title, details: details
+          )
         end)
 
-      ~s(<div class="docs-home-cards">#{cards}</div>\n)
+      EEx.eval_string(~s(<div class="docs-home-cards"><%= cards %></div>\n), cards: cards)
     end)
   end
 
@@ -281,7 +317,7 @@ defmodule Tuist.Docs.Loader do
 
   defp localize_link_components(markdown, locale) do
     Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
-      ~s(<a href="#{localize_href(href, locale)}">#{text}</a>)
+      EEx.eval_string(~s(<a href="<%= href %>"><%= text %></a>), href: localize_href(href, locale), text: text)
     end)
   end
 
@@ -325,19 +361,6 @@ defmodule Tuist.Docs.Loader do
     end)
   end
 
-  @alert_circle_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>)
-  @circle_check_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 12l2 2l4 -4" /></svg>)
-  @alert_triangle_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>)
-
-  @admonition_type_to_status %{
-    "info" => "information",
-    "tip" => "success",
-    "warning" => "warning",
-    "danger" => "error"
-  }
-
-  @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
-
   defp convert_vitepress_containers(markdown) do
     Regex.replace(@vitepress_container_regex, markdown, fn _, type, title, content ->
       if type == "code-group" do
@@ -359,7 +382,9 @@ defmodule Tuist.Docs.Loader do
         |> Enum.with_index()
         |> Enum.map_join("", fn {[_, _lang, label, _code], index} ->
           selected = if index == 0, do: ~s( data-selected="true"), else: ""
-          ~s(<button data-part="tab" data-index="#{index}"#{selected}>#{label}</button>)
+          EEx.eval_string(~s(<button data-part="tab" data-index="<%= index %>"<%= selected %>><%= label %></button>),
+            index: index, selected: selected, label: label
+          )
         end)
 
       tab_panels =
@@ -367,22 +392,22 @@ defmodule Tuist.Docs.Loader do
         |> Enum.with_index()
         |> Enum.map_join("", fn {[_, lang, _label, code], index} ->
           hidden = if index == 0, do: "", else: ~s( data-hidden="true")
-
-          ~s(<div data-part="panel" data-index="#{index}"#{hidden}>) <>
-            ~s(\n\n```#{lang}\n#{code}```\n\n) <>
-            ~s(</div>)
+          EEx.eval_string(
+            ~s(<div data-part="panel" data-index="<%= index %>"<%= hidden %>>\n\n```<%= lang %>\n<%= code %>```\n\n</div>),
+            index: index, hidden: hidden, lang: lang, code: code
+          )
         end)
 
       copy_button =
-        ~s(<button data-part="copy" aria-label="Copy code">) <>
-          ~s(<span data-part="copy-icon">#{@copy_icon}</span>) <>
-          ~s(<span data-part="copy-check-icon">#{@copy_check_icon}</span>) <>
-          ~s(</button>)
+        EEx.eval_string(
+          ~s(<button data-part="copy" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
+          copy_icon: @copy_icon, copy_check_icon: @copy_check_icon
+        )
 
-      ~s(<div class="code-group">) <>
-        ~s(<div data-part="header"><div data-part="tabs">#{tab_buttons}</div>#{copy_button}</div>) <>
-        ~s(<div data-part="panels">#{tab_panels}</div>) <>
-        ~s(</div>\n)
+      EEx.eval_string(
+        ~s(<div class="code-group"><div data-part="header"><div data-part="tabs"><%= tab_buttons %></div><%= copy_button %></div><div data-part="panels"><%= tab_panels %></div></div>\n),
+        tab_buttons: tab_buttons, copy_button: copy_button, tab_panels: tab_panels
+      )
     end
   end
 
@@ -397,13 +422,7 @@ defmodule Tuist.Docs.Loader do
       |> String.replace(~r/<!--\s*-->/, "")
       |> String.trim()
 
-    ~s(<div class="noora-alert tuist-admonition" data-type="secondary" data-status="#{status}" data-size="large">) <>
-      ~s(<div data-part="icon">#{icon}</div>) <>
-      ~s(<div data-part="column">) <>
-      ~s(<span data-part="title">#{title_text}</span>) <>
-      ~s(<div data-part="description">\n\n#{cleaned_content}\n\n</div>) <>
-      ~s(</div>) <>
-      ~s(</div>\n)
+    EEx.eval_string(@admonition_template, status: status, icon: icon, title_text: title_text, content: cleaned_content)
   end
 
   defp admonition_icon("warning"), do: @alert_triangle_icon
@@ -466,5 +485,4 @@ defmodule Tuist.Docs.Loader do
       _ -> nil
     end
   end
-
 end
