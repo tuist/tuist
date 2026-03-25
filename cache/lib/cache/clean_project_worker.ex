@@ -63,14 +63,14 @@ defmodule Cache.CleanProjectWorker do
   defp perform_primary_distributed_cleanup(account_handle, project_handle, active_cleanup_cutoff_at) do
     safe_cutoff = DateTime.truncate(active_cleanup_cutoff_at, :second)
 
-    on_progress = fn ->
+    check_lease = fn ->
       Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at)
     end
 
     result =
-      with :ok <- perform_local_node_cleanup(account_handle, project_handle, safe_cutoff, on_progress),
+      with :ok <- perform_local_node_cleanup(account_handle, project_handle, safe_cutoff, check_lease),
            :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at),
-           :ok <- maybe_delete_xcode_s3_artifacts(account_handle, project_handle, safe_cutoff, on_progress),
+           :ok <- maybe_delete_xcode_s3_artifacts(account_handle, project_handle, safe_cutoff, check_lease),
            :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at),
            :ok <-
              delete_s3_artifacts_with_cutoff(
@@ -79,7 +79,7 @@ defmodule Cache.CleanProjectWorker do
                :cache,
                "cache",
                safe_cutoff,
-               on_progress
+               check_lease
              ),
            :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at),
            {:ok, published} <- Cleanup.publish_project_cleanup(account_handle, project_handle, active_cleanup_cutoff_at) do
@@ -154,15 +154,15 @@ defmodule Cache.CleanProjectWorker do
   end
 
   @doc false
-  def perform_local_node_cleanup(account_handle, project_handle, cutoff, on_progress) do
-    with :ok <- invalidate_local_kv(account_handle, project_handle, cutoff, on_progress) do
-      delete_disk_with_cutoff(account_handle, project_handle, cutoff, on_progress)
+  def perform_local_node_cleanup(account_handle, project_handle, cutoff, check_lease) do
+    with :ok <- invalidate_local_kv(account_handle, project_handle, cutoff, check_lease) do
+      delete_disk_with_cutoff(account_handle, project_handle, cutoff, check_lease)
     end
   end
 
-  defp invalidate_local_kv(account_handle, project_handle, cutoff, on_progress) do
+  defp invalidate_local_kv(account_handle, project_handle, cutoff, check_lease) do
     opts =
-      [after_delete_batch: fn _keys -> on_progress.() end, on_deleted_keys: &invalidate_local_kv_keys/1]
+      [after_delete_batch: fn _keys -> check_lease.() end, on_deleted_keys: &invalidate_local_kv_keys/1]
 
     opts =
       if Config.distributed_kv_enabled?() do
@@ -200,11 +200,11 @@ defmodule Cache.CleanProjectWorker do
       :ok
   end
 
-  defp delete_disk_with_cutoff(account_handle, project_handle, cutoff, on_progress) do
+  defp delete_disk_with_cutoff(account_handle, project_handle, cutoff, check_lease) do
     on_deleted_keys = fn keys -> CacheArtifacts.delete_by_keys(keys) end
 
     case Disk.delete_project_files_before(account_handle, project_handle, cutoff,
-           on_progress: on_progress,
+           check_lease: check_lease,
            on_deleted_keys: on_deleted_keys
          ) do
       {:ok, count} ->
@@ -228,18 +228,18 @@ defmodule Cache.CleanProjectWorker do
     end
   end
 
-  defp maybe_delete_xcode_s3_artifacts(account_handle, project_handle, cutoff, on_progress) do
+  defp maybe_delete_xcode_s3_artifacts(account_handle, project_handle, cutoff, check_lease) do
     if Config.xcode_cache_bucket() do
-      delete_s3_artifacts_with_cutoff(account_handle, project_handle, :xcode_cache, "xcode cache", cutoff, on_progress)
+      delete_s3_artifacts_with_cutoff(account_handle, project_handle, :xcode_cache, "xcode cache", cutoff, check_lease)
     else
       :ok
     end
   end
 
-  defp delete_s3_artifacts_with_cutoff(account_handle, project_handle, type, label, cutoff, on_progress) do
+  defp delete_s3_artifacts_with_cutoff(account_handle, project_handle, type, label, cutoff, check_lease) do
     prefix = "#{account_handle}/#{project_handle}/"
 
-    case S3.delete_objects_with_prefix_before(prefix, cutoff, type: type, on_progress: on_progress) do
+    case S3.delete_objects_with_prefix_before(prefix, cutoff, type: type, check_lease: check_lease) do
       {:ok, count} ->
         Logger.info("Cleaned #{count} S3 #{label} objects with prefix #{prefix} using cutoff-aware deletion")
         :ok

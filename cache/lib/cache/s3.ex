@@ -258,9 +258,9 @@ defmodule Cache.S3 do
     type = Keyword.get(opts, :type, :cache)
     bucket = bucket_for_type(type)
     safe_cutoff = DateTime.truncate(cutoff, :second)
-    on_progress = Keyword.get(opts, :on_progress)
+    check_lease = Keyword.get(opts, :check_lease)
 
-    {duration, result} = :timer.tc(fn -> list_and_delete_objects_before(bucket, prefix, safe_cutoff, on_progress) end)
+    {duration, result} = :timer.tc(fn -> list_and_delete_objects_before(bucket, prefix, safe_cutoff, check_lease) end)
 
     case result do
       {:ok, count} ->
@@ -297,16 +297,16 @@ defmodule Cache.S3 do
     end)
   end
 
-  defp list_and_delete_objects_before(nil, _prefix, _cutoff, _on_progress), do: {:ok, 0}
+  defp list_and_delete_objects_before(nil, _prefix, _cutoff, _check_lease), do: {:ok, 0}
 
-  defp list_and_delete_objects_before(bucket, prefix, cutoff, on_progress) do
+  defp list_and_delete_objects_before(bucket, prefix, cutoff, check_lease) do
     bucket
     |> ExAws.S3.list_objects(prefix: prefix)
     |> ExAws.stream!()
     |> Stream.map(fn obj -> {obj.key, obj.last_modified} end)
     |> Stream.chunk_every(@cleanup_progress_chunk_size)
     |> Enum.reduce_while({:ok, 0}, fn objects_chunk, {:ok, count} ->
-      with :ok <- maybe_call_progress(on_progress),
+      with :ok <- maybe_check_lease(check_lease),
            {:ok, chunk_count} <- delete_objects_in_chunk_if_before(bucket, objects_chunk, cutoff) do
         {:cont, {:ok, count + chunk_count}}
       else
@@ -315,8 +315,8 @@ defmodule Cache.S3 do
     end)
   end
 
-  defp maybe_call_progress(nil), do: :ok
-  defp maybe_call_progress(fun) when is_function(fun, 0), do: fun.()
+  defp maybe_check_lease(nil), do: :ok
+  defp maybe_check_lease(fun) when is_function(fun, 0), do: fun.()
 
   defp delete_objects_in_chunk_if_before(_bucket, [], _cutoff), do: {:ok, 0}
 

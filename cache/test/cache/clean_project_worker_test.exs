@@ -87,14 +87,14 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         {:ok, 4}
       end)
 
       expect(S3, :delete_objects_with_prefix_before, 2, fn
         "test_account/test_project/", ^cutoff, opts ->
-          assert :ok = Keyword.fetch!(opts, :on_progress).()
+          assert :ok = Keyword.fetch!(opts, :check_lease).()
 
           case Keyword.fetch!(opts, :type) do
             :xcode_cache -> {:ok, 3}
@@ -138,14 +138,14 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         {:ok, 0}
       end)
 
       expect(S3, :delete_objects_with_prefix_before, fn "test_account/test_project/", ^cutoff, opts ->
         assert Keyword.fetch!(opts, :type) == :cache
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         {:ok, 0}
       end)
 
@@ -192,7 +192,7 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         {:error, :cleanup_lease_lost}
       end)
 
@@ -228,14 +228,14 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^safe_cutoff, opts ->
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         {:ok, 0}
       end)
 
       expect(S3, :delete_objects_with_prefix_before, fn "test_account/test_project/", ^safe_cutoff, opts ->
         assert Keyword.fetch!(opts, :type) == :cache
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         {:ok, 0}
       end)
 
@@ -276,7 +276,7 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         send(parent, :disk_deleted)
         {:ok, 0}
@@ -330,7 +330,7 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         send(parent, :disk_deleted)
         {:ok, 0}
@@ -398,13 +398,13 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         {:ok, 0}
       end)
 
       expect(S3, :delete_objects_with_prefix_before, fn "test_account/test_project/", ^cutoff, opts ->
         assert Keyword.fetch!(opts, :type) == :cache
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         {:error, :timeout}
       end)
 
@@ -479,14 +479,14 @@ defmodule Cache.CleanProjectWorkerTest do
       stub(Cleanup, :renew_project_cleanup_lease, fn ^account_handle, ^project_handle, ^cleanup_started_at -> :ok end)
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^safe_cutoff, opts ->
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         {:ok, 0}
       end)
 
       expect(S3, :delete_objects_with_prefix_before, fn "test_account/test_project/", ^safe_cutoff, opts ->
         assert Keyword.fetch!(opts, :type) == :cache
-        assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
         {:ok, 0}
       end)
 

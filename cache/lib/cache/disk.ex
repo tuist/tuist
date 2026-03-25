@@ -107,13 +107,13 @@ defmodule Cache.Disk do
   """
   def delete_project_files_before(account_handle, project_handle, cutoff, opts \\ []) do
     path = project_path(account_handle, project_handle)
-    on_progress = Keyword.get(opts, :on_progress)
+    check_lease = Keyword.get(opts, :check_lease)
     on_deleted_keys = Keyword.get(opts, :on_deleted_keys)
 
     if File.exists?(path) do
       path
       |> stream_regular_files()
-      |> delete_files_before(DateTime.truncate(cutoff, :second), on_progress, on_deleted_keys)
+      |> delete_files_before(DateTime.truncate(cutoff, :second), check_lease, on_deleted_keys)
     else
       {:ok, 0}
     end
@@ -263,11 +263,11 @@ defmodule Cache.Disk do
     end
   end
 
-  defp delete_files_before(files_stream, safe_cutoff, on_progress, on_deleted_keys) do
+  defp delete_files_before(files_stream, safe_cutoff, check_lease, on_deleted_keys) do
     files_stream
     |> Stream.chunk_every(@cleanup_progress_chunk_size)
     |> Enum.reduce_while({:ok, 0}, fn files_chunk, {:ok, deleted_acc} ->
-      with :ok <- maybe_call_progress(on_progress),
+      with :ok <- maybe_check_lease(check_lease),
            {:ok, chunk_deleted_count, chunk_deleted_keys} <- delete_files_chunk_before(files_chunk, safe_cutoff),
            :ok <- maybe_call_on_deleted_keys(on_deleted_keys, chunk_deleted_keys) do
         {:cont, {:ok, deleted_acc + chunk_deleted_count}}
@@ -278,8 +278,8 @@ defmodule Cache.Disk do
     end)
   end
 
-  defp maybe_call_progress(nil), do: :ok
-  defp maybe_call_progress(fun) when is_function(fun, 0), do: fun.()
+  defp maybe_check_lease(nil), do: :ok
+  defp maybe_check_lease(fun) when is_function(fun, 0), do: fun.()
 
   defp maybe_call_on_deleted_keys(_fun, []), do: :ok
   defp maybe_call_on_deleted_keys(nil, _keys), do: :ok
