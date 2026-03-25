@@ -1,9 +1,10 @@
 defmodule Tuist.IngestRepo.Migrations.AddShardIdToTestCaseRunsByTestRunMv do
   @moduledoc """
-  Recreates the `test_case_runs_by_test_run` materialized view to include
-  `shard_id`. Sharded test runs filter by `shard_id` instead of `test_run_id`,
-  and without this column the MV cannot serve those queries — causing 607 M+
-  row full scans on the main table.
+  Creates a dedicated `test_case_runs_by_shard_id` MV ordered by
+  `(shard_id, id)` for efficient shard_id lookups.
+
+  Sharded test runs filter by `shard_id` instead of `test_run_id`, and without
+  a dedicated MV those queries cause 607 M+ row full scans on the main table.
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
@@ -13,29 +14,20 @@ defmodule Tuist.IngestRepo.Migrations.AddShardIdToTestCaseRunsByTestRunMv do
   @disable_migration_lock true
 
   def up do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run")
-
     IngestRepo.query!("""
-    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_test_run
+    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_shard_id
     ENGINE = MergeTree
-    ORDER BY (test_run_id, id)
-    AS SELECT id, test_run_id, status, is_flaky, duration, inserted_at, shard_id
+    ORDER BY (shard_id, id)
+    AS SELECT id, assumeNotNull(shard_id) AS shard_id
     FROM test_case_runs
+    WHERE shard_id IS NOT NULL
     """)
 
     backfill_by_partition()
   end
 
   def down do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run")
-
-    IngestRepo.query!("""
-    CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_test_run
-    ENGINE = MergeTree
-    ORDER BY (test_run_id, id)
-    AS SELECT id, test_run_id, status, is_flaky, duration, inserted_at
-    FROM test_case_runs
-    """)
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_shard_id")
   end
 
   defp backfill_by_partition do
@@ -51,14 +43,14 @@ defmodule Tuist.IngestRepo.Migrations.AddShardIdToTestCaseRunsByTestRunMv do
       )
 
     for [partition] <- partitions do
-      Logger.info("Backfilling partition #{partition} into test_case_runs_by_test_run")
+      Logger.info("Backfilling partition #{partition} into test_case_runs_by_shard_id")
 
       IngestRepo.query!(
         """
-        INSERT INTO test_case_runs_by_test_run (id, test_run_id, status, is_flaky, duration, inserted_at, shard_id)
-        SELECT id, test_run_id, status, is_flaky, duration, inserted_at, shard_id
+        INSERT INTO test_case_runs_by_shard_id (id, shard_id)
+        SELECT id, assumeNotNull(shard_id)
         FROM test_case_runs
-        WHERE toYYYYMM(inserted_at) = {partition:UInt32}
+        WHERE toYYYYMM(inserted_at) = {partition:UInt32} AND shard_id IS NOT NULL
         """,
         %{partition: String.to_integer(partition)},
         timeout: 1_200_000

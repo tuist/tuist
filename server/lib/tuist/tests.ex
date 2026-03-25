@@ -40,6 +40,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunByShardId
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunRepetition
@@ -666,7 +667,7 @@ defmodule Tuist.Tests do
 
         {:shard_id, shard_id} ->
           mv_ids =
-            from(mv in TestCaseRunByTestRun,
+            from(mv in TestCaseRunByShardId,
               where: mv.shard_id == ^shard_id,
               select: mv.id
             )
