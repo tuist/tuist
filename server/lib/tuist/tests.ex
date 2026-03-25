@@ -1968,46 +1968,58 @@ defmodule Tuist.Tests do
 
     IngestRepo.insert_all(Test, updated_runs)
 
-    stale_runs
-    |> Enum.filter(& &1.shard_plan_id)
-    |> Enum.each(&expire_missing_shard_runs(&1, now))
+    sharded_runs = Enum.filter(stale_runs, & &1.shard_plan_id)
+
+    if Enum.any?(sharded_runs) do
+      shard_plan_ids = sharded_runs |> Enum.map(& &1.shard_plan_id) |> Enum.uniq()
+      test_run_ids = Enum.map(sharded_runs, & &1.id)
+
+      plans =
+        from(sp in Tuist.Shards.ShardPlan,
+          hints: ["FINAL"],
+          where: sp.id in ^shard_plan_ids
+        )
+        |> ClickHouseRepo.all()
+        |> Map.new(&{&1.id, &1})
+
+      reported =
+        from(sr in ShardRun,
+          where: sr.test_run_id in ^test_run_ids,
+          select: {sr.test_run_id, sr.shard_index}
+        )
+        |> ClickHouseRepo.all()
+        |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+      missing_shard_runs =
+        Enum.flat_map(sharded_runs, fn run ->
+          case Map.get(plans, run.shard_plan_id) do
+            nil ->
+              []
+
+            plan ->
+              reported_indices = reported |> Map.get(run.id, []) |> MapSet.new()
+
+              0..(plan.shard_count - 1)
+              |> Enum.reject(&MapSet.member?(reported_indices, &1))
+              |> Enum.map(fn index ->
+                %{
+                  shard_plan_id: run.shard_plan_id,
+                  project_id: run.project_id,
+                  test_run_id: run.id,
+                  shard_index: index,
+                  status: "failure",
+                  duration: 0,
+                  ran_at: now,
+                  inserted_at: now
+                }
+              end)
+          end
+        end)
+
+      IngestRepo.insert_all(ShardRun, missing_shard_runs)
+    end
 
     :ok
-  end
-
-  defp expire_missing_shard_runs(test_run, now) do
-    shard_plan_id = test_run.shard_plan_id
-
-    case Shards.get_shard_plan(shard_plan_id) do
-      {:ok, plan} ->
-        reported_indices =
-          from(sr in ShardRun, where: sr.test_run_id == ^test_run.id, select: sr.shard_index)
-          |> ClickHouseRepo.all()
-          |> MapSet.new()
-
-        missing_shard_runs =
-          0..(plan.shard_count - 1)
-          |> Enum.reject(&MapSet.member?(reported_indices, &1))
-          |> Enum.map(fn index ->
-            %{
-              shard_plan_id: shard_plan_id,
-              project_id: test_run.project_id,
-              test_run_id: test_run.id,
-              shard_index: index,
-              status: "failure",
-              duration: 0,
-              ran_at: now,
-              inserted_at: now
-            }
-          end)
-
-        if Enum.any?(missing_shard_runs) do
-          IngestRepo.insert_all(ShardRun, missing_shard_runs)
-        end
-
-      _ ->
-        :ok
-    end
   end
 
   @doc """
