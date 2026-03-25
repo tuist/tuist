@@ -69,6 +69,7 @@ defmodule TuistWeb.DocsLive do
          socket
          |> assign(:view, :show)
          |> assign(:page, page)
+         |> assign(:requested_slug, path)
          |> assign(:head_title, head_title)
          |> assign(:head_description, page.description)}
     end
@@ -439,8 +440,8 @@ defmodule TuistWeb.DocsLive do
   def render(%{view: :show} = assigns) do
     ~H"""
     <TuistWeb.Docs.Components.layout
-      current_slug={@page.slug}
-      tab={Tuist.Docs.Sidebar.tab_for_slug(@page.slug)}
+      current_slug={@requested_slug}
+      tab={Tuist.Docs.Sidebar.tab_for_slug(@requested_slug)}
       headings={@page.headings}
       markdown={@page.markdown}
       locale={@locale}
