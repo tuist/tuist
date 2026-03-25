@@ -20,11 +20,6 @@
     & #docs-copy-dropdown {
       width: fit-content;
 
-      & > [data-state="open"] ~ [data-part="positioner"] {
-        right: 0 !important;
-        left: unset !important;
-      }
-
       & .noora-dropdown-content {
         box-shadow: var(--noora-border-light-default);
         width: 280px;

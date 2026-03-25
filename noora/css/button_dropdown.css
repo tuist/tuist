@@ -106,6 +106,11 @@
     transform: none !important;
   }
 
+  &[data-align="end"] > [data-state="open"] ~ [data-part="positioner"] {
+    left: unset !important;
+    right: 0 !important;
+  }
+
   /* Size: medium */
   &[data-size="medium"] {
     & [data-part="main-button"] {
