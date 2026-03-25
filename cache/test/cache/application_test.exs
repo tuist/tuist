@@ -6,28 +6,34 @@ defmodule Cache.ApplicationTest do
 
   setup :set_mimic_from_context
 
-  test "starts the key value store before distributed replication workers" do
+  test "starts the key value store before distributed KV supervisor" do
     stub(Config, :analytics_enabled?, fn -> false end)
     stub(Config, :distributed_kv_enabled?, fn -> true end)
 
     children = Cache.Application.children()
 
     key_value_store_index = Enum.find_index(children, &(&1 == Cache.KeyValueStore))
-    shipper_index = Enum.find_index(children, &(&1 == Cache.KeyValueReplicationShipper))
-    poller_index = Enum.find_index(children, &(&1 == Cache.KeyValueReplicationPoller))
 
-    assert key_value_store_index < shipper_index
-    assert key_value_store_index < poller_index
+    distributed_supervisor_index =
+      Enum.find_index(children, fn
+        %{id: Cache.DistributedKV.Supervisor} -> true
+        _ -> false
+      end)
+
+    assert key_value_store_index < distributed_supervisor_index
   end
 
-  test "starts Oban after distributed cleanup dependencies" do
+  test "starts distributed KV supervisor before Oban" do
     stub(Config, :analytics_enabled?, fn -> false end)
     stub(Config, :distributed_kv_enabled?, fn -> true end)
 
     children = Cache.Application.children()
 
-    distributed_repo_index = Enum.find_index(children, &(&1 == Cache.DistributedKV.Repo))
-    tracker_index = Enum.find_index(children, &(&1 == Cache.KeyValueAccessTracker))
+    distributed_supervisor_index =
+      Enum.find_index(children, fn
+        %{id: Cache.DistributedKV.Supervisor} -> true
+        _ -> false
+      end)
 
     oban_index =
       Enum.find_index(children, fn
@@ -35,7 +41,6 @@ defmodule Cache.ApplicationTest do
         _ -> false
       end)
 
-    assert distributed_repo_index < oban_index
-    assert tracker_index < oban_index
+    assert distributed_supervisor_index < oban_index
   end
 end

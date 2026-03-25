@@ -108,7 +108,6 @@ defmodule Cache.KeyValueStore do
           end
 
           KeyValueBuffer.enqueue_access(key)
-          maybe_track_access(key)
           {:ok, record.json_payload}
       end
     end)
