@@ -13,8 +13,6 @@ defmodule Tuist.Environment do
           {branch, 0} -> String.trim(branch)
           _ -> nil
         end
-      else
-        nil
       end
   end
 
