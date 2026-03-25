@@ -16,7 +16,6 @@ import TuistRootDirectoryLocator
 import TuistXCActivityLog
 import TuistXCResultService
 import XcodeGraph
-
 import protocol XcodeGraphMapper.XcodeGraphMapping
 
 @testable import TuistKit
