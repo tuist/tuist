@@ -30,11 +30,35 @@ function closeMobileSidebar() {
   document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
 }
 
-window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
+let sidebarScrollTop = 0;
+window.addEventListener("phx:page-loading-start", (_info) => {
+  topbar.show(300);
+  const sidebar = document.querySelector("#docs-sidebar [data-part='sidebar-scroll']");
+  if (sidebar) sidebarScrollTop = sidebar.scrollTop;
+});
+function updateNavTabs() {
+  const path = window.location.pathname;
+  const tabs = document.querySelectorAll("#docs-nav-tabs .noora-button-group-item");
+  tabs.forEach((tab) => {
+    const tabName = tab.getAttribute("data-tab");
+    let selected = false;
+    if (tabName === "cli") selected = path.includes("/docs/cli");
+    else if (tabName === "references") selected = path.includes("/docs/references");
+    else if (tabName === "resources") selected = path.includes("/docs/contributors");
+    else if (tabName === "guides")
+      selected = !path.includes("/docs/cli") && !path.includes("/docs/references") && !path.includes("/docs/contributors");
+    if (selected) tab.setAttribute("data-selected", "");
+    else tab.removeAttribute("data-selected");
+  });
+}
+
 window.addEventListener("phx:page-loading-stop", (_info) => {
   topbar.hide();
   window.scrollTo(0, 0);
   closeMobileSidebar();
+  updateNavTabs();
+  const sidebar = document.querySelector("#docs-sidebar [data-part='sidebar-scroll']");
+  if (sidebar) sidebar.scrollTop = sidebarScrollTop;
 });
 
 liveSocket.connect();

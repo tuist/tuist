@@ -162,6 +162,7 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
+        Tuist.Docs.CLI,
         TuistWeb.Telemetry,
         TuistWeb.Endpoint
       ]

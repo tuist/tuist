@@ -17,7 +17,9 @@ defmodule TuistWeb.Docs.Components do
     "Server" => "server",
     "Contributors" => "users",
     "Examples" => "folder",
-    "References" => "file_text"
+    "References" => "file_text",
+    "CLI" => "devices_code",
+    "Commands" => "list_tree"
   }
 
   attr :current_slug, :string, required: true

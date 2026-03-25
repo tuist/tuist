@@ -177,7 +177,6 @@ defmodule Tuist.Docs.Loader do
     relative_path = Path.relative_to(source_path, @docs_root)
 
     String.contains?(relative_path, "[") or
-      String.starts_with?(relative_path, "en/cli/") or
       String.starts_with?(relative_path, "en/references/project-description/")
   end
 
