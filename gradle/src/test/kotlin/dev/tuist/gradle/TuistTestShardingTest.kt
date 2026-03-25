@@ -156,6 +156,18 @@ class DetectCIProviderTest {
             assertNull(detectCIProvider())
         }
     }
+
+    @Test
+    fun `CIProvider enum has all expected values`() {
+        val providers = CIProvider.entries
+        assertEquals(6, providers.size)
+        assertTrue(providers.contains(CIProvider.GITHUB))
+        assertTrue(providers.contains(CIProvider.GITLAB))
+        assertTrue(providers.contains(CIProvider.CIRCLECI))
+        assertTrue(providers.contains(CIProvider.BUILDKITE))
+        assertTrue(providers.contains(CIProvider.CODEMAGIC))
+        assertTrue(providers.contains(CIProvider.BITRISE))
+    }
 }
 
 class DiscoverTestSuitesTest {

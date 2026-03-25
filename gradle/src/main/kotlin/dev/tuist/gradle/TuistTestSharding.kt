@@ -101,13 +101,17 @@ private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
         .create(ShardsApi::class.java)
 }
 
-internal fun detectCIProvider(): String? {
-    if (System.getenv("GITHUB_ACTIONS") != null) return "github"
-    if (System.getenv("GITLAB_CI") != null) return "gitlab"
-    if (System.getenv("CIRCLECI") != null) return "circleci"
-    if (System.getenv("BUILDKITE") != null) return "buildkite"
-    if (System.getenv("CM_BUILD_ID") != null) return "codemagic"
-    if (System.getenv("BITRISE_IO") != null) return "bitrise"
+internal enum class CIProvider {
+    GITHUB, GITLAB, CIRCLECI, BUILDKITE, CODEMAGIC, BITRISE
+}
+
+internal fun detectCIProvider(): CIProvider? {
+    if (System.getenv("GITHUB_ACTIONS") != null) return CIProvider.GITHUB
+    if (System.getenv("GITLAB_CI") != null) return CIProvider.GITLAB
+    if (System.getenv("CIRCLECI") != null) return CIProvider.CIRCLECI
+    if (System.getenv("BUILDKITE") != null) return CIProvider.BUILDKITE
+    if (System.getenv("CM_BUILD_ID") != null) return CIProvider.CODEMAGIC
+    if (System.getenv("BITRISE_IO") != null) return CIProvider.BITRISE
     return null
 }
 
@@ -199,12 +203,12 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         val ciProvider = detectCIProvider()
 
         when (ciProvider) {
-            "github" -> {
+            CIProvider.GITHUB -> {
                 val matrixJSON = """{"shard":$indices}"""
                 java.io.File(System.getenv("GITHUB_OUTPUT")).appendText("matrix=$matrixJSON\n")
                 logger.lifecycle("Tuist: GitHub Actions matrix output written.")
             }
-            "gitlab" -> {
+            CIProvider.GITLAB -> {
                 val yaml = buildString {
                     for (index in indices) {
                         appendLine("shard-$index:")
@@ -218,7 +222,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                 outputFile.writeText(yaml)
                 logger.lifecycle("Tuist: GitLab CI child pipeline written to ${outputFile.path}")
             }
-            "circleci" -> {
+            CIProvider.CIRCLECI -> {
                 val parameters = mapOf(
                     "shard-indices" to indices.joinToString(","),
                     "shard-count" to indices.size
@@ -227,7 +231,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                 outputFile.writeText(Gson().toJson(parameters))
                 logger.lifecycle("Tuist: CircleCI continuation parameters written to ${outputFile.path}")
             }
-            "buildkite" -> {
+            CIProvider.BUILDKITE -> {
                 val yaml = buildString {
                     appendLine("steps:")
                     for (index in indices) {
@@ -241,18 +245,18 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                 outputFile.writeText(yaml)
                 logger.lifecycle("Tuist: Buildkite pipeline written to ${outputFile.path}")
             }
-            "codemagic" -> {
+            CIProvider.CODEMAGIC -> {
                 val matrixJSON = """{"shard":$indices}"""
                 java.io.File(System.getenv("CM_ENV")).appendText("TUIST_SHARD_MATRIX=$matrixJSON\nTUIST_SHARD_COUNT=${indices.size}\n")
                 logger.lifecycle("Tuist: Codemagic environment variables written to CM_ENV.")
             }
-            "bitrise" -> {
+            CIProvider.BITRISE -> {
                 val matrixJSON = """{"shard":$indices,"shard_count":${indices.size}}"""
                 val deployDir = System.getenv("BITRISE_DEPLOY_DIR")
                 java.io.File(deployDir, ".tuist-shard-matrix.json").writeText(matrixJSON)
                 logger.lifecycle("Tuist: Bitrise shard matrix written to deploy directory.")
             }
-            else -> {
+            null -> {
                 val matrix = mapOf(
                     "reference" to reference,
                     "shard_count" to response.shardCount,
