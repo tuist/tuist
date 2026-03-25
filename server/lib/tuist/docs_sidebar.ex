@@ -14,6 +14,45 @@ defmodule Tuist.Docs.Sidebar do
     defstruct [:label, weight: :semibold, items: []]
   end
 
+  @strings_dir Path.expand("../../../docs/.vitepress/strings", __DIR__)
+
+  extract_texts = fn extract_texts, map, prefix ->
+    Enum.flat_map(map, fn
+      {"text", value} when is_binary(value) ->
+        [{prefix |> Enum.reverse() |> Enum.join("."), value}]
+
+      {key, value} when is_map(value) ->
+        extract_texts.(extract_texts, value, [key | prefix])
+
+      _ ->
+        []
+    end)
+    |> Map.new()
+  end
+
+  en_path = Path.join(@strings_dir, "en.json")
+  {:ok, en_content} = File.read(en_path)
+  {:ok, en_data} = Jason.decode(en_content)
+  en_strings = extract_texts.(extract_texts, en_data, [])
+
+  @translations @strings_dir
+                |> Path.join("*.json")
+                |> Path.wildcard()
+                |> Enum.reject(&(Path.basename(&1) == "en.json"))
+                |> Map.new(fn path ->
+                  locale = Path.basename(path, ".json")
+                  {:ok, content} = File.read(path)
+                  {:ok, data} = Jason.decode(content)
+                  locale_texts = extract_texts.(extract_texts, data, [])
+
+                  label_map =
+                    Map.new(en_strings, fn {text_path, en_text} ->
+                      {en_text, Map.get(locale_texts, text_path, en_text)}
+                    end)
+
+                  {locale, label_map}
+                end)
+
   def tree do
     guides_tree() ++ resources_tree() ++ references_tree()
   end
@@ -36,23 +75,28 @@ defmodule Tuist.Docs.Sidebar do
   defp localize_tree(tree, "en"), do: tree
 
   defp localize_tree(tree, locale) do
+    label_map = Map.get(@translations, locale, %{})
+
     Enum.map(tree, fn
-      %Group{items: items} = group ->
-        %{group | items: Enum.map(items, &localize_item(&1, locale))}
+      %Group{label: label, items: items} = group ->
+        %{group | label: translate(label, label_map), items: Enum.map(items, &localize_item(&1, locale, label_map))}
     end)
   end
 
-  defp localize_item(%Item{slug: nil, items: items} = item, locale) do
-    %{item | items: Enum.map(items, &localize_item(&1, locale))}
+  defp localize_item(%Item{slug: nil, label: label, items: items} = item, locale, label_map) do
+    %{item | label: translate(label, label_map), items: Enum.map(items, &localize_item(&1, locale, label_map))}
   end
 
-  defp localize_item(%Item{slug: "/en/" <> rest, items: items} = item, locale) do
-    %{item | slug: "/#{locale}/#{rest}", items: Enum.map(items, &localize_item(&1, locale))}
+  defp localize_item(%Item{slug: "/en/" <> rest, label: label, items: items} = item, locale, label_map) do
+    %{item | slug: "/#{locale}/#{rest}", label: translate(label, label_map), items: Enum.map(items, &localize_item(&1, locale, label_map))}
   end
 
-  defp localize_item(%Item{items: items} = item, locale) do
-    %{item | items: Enum.map(items, &localize_item(&1, locale))}
+  defp localize_item(%Item{label: label, items: items} = item, locale, label_map) do
+    %{item | label: translate(label, label_map), items: Enum.map(items, &localize_item(&1, locale, label_map))}
   end
+
+  defp translate(nil, _label_map), do: nil
+  defp translate(label, label_map), do: Map.get(label_map, label, label)
 
   def item_active?(%Item{slug: slug}, current_slug) when is_binary(slug), do: slug == current_slug
 
