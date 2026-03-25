@@ -20,7 +20,7 @@ defmodule TuistWeb.API.Spec do
         version: "0.1.0",
         extensions: %{
           "x-logo" => %{
-            "url" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png"),
+            "url" => "https://tuist.dev/images/open-graph/squared.png",
             "altText" => "Tuist logo"
           }
         }

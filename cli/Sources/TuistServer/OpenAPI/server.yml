@@ -5387,7 +5387,7 @@ info:
   version: 0.1.0
   x-logo:
     altText: Tuist logo
-    url: http://localhost:8296/images/open-graph/squared.png
+    url: https://tuist.dev/images/open-graph/squared.png
 openapi: 3.0.0
 paths:
   /api/cache/multipart/complete:
