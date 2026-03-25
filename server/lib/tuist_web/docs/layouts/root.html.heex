@@ -24,6 +24,18 @@
     <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="docs" {assigns} />
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+    <meta property="og:locale" content={@locale} />
+    <link
+      :for={lang <- TuistWeb.Marketing.Localization.languages()}
+      rel="alternate"
+      hreflang={lang.code}
+      href={Tuist.Environment.app_url(path: localized_docs_href(@current_path, lang.code))}
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={Tuist.Environment.app_url(path: localized_docs_href(@current_path, "en"))}
+    />
   </head>
   <body data-scrollable="true">
     <a href="#docs-content" class="docs-skip-link">
