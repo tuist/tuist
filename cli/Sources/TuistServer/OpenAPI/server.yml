@@ -8155,6 +8155,16 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  selective_testing_local_hits:
+                    description: Number of test targets skipped due to local selective testing cache hit.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  selective_testing_remote_hits:
+                    description: Number of test targets skipped due to remote selective testing cache hit.
+                    type: integer
+                    x-struct:
+                    x-validate:
                   status:
                     description: Run status.
                     enum:
@@ -8166,16 +8176,6 @@ paths:
                     x-validate:
                   total_test_count:
                     description: Total number of test cases.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  xcode_selective_testing_local_hits:
-                    description: Number of test targets skipped due to local selective testing cache hit.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  xcode_selective_testing_remote_hits:
-                    description: Number of test targets skipped due to remote selective testing cache hit.
                     type: integer
                     x-struct:
                     x-validate:
@@ -8201,8 +8201,8 @@ paths:
                   - flaky_test_count
                   - avg_test_duration
                   - xcode_selective_testing_targets
-                  - xcode_selective_testing_local_hits
-                  - xcode_selective_testing_remote_hits
+                  - selective_testing_local_hits
+                  - selective_testing_remote_hits
                 type: object
                 x-struct:
                 x-validate:
@@ -17984,6 +17984,16 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        selective_testing_local_hits:
+                          description: Number of test targets skipped due to local selective testing cache hit.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        selective_testing_remote_hits:
+                          description: Number of test targets skipped due to remote selective testing cache hit.
+                          type: integer
+                          x-struct:
+                          x-validate:
                         skipped_tests:
                           description: Number of skipped test cases.
                           type: integer
@@ -18000,16 +18010,6 @@ paths:
                           x-validate:
                         total_test_count:
                           description: Total number of test cases.
-                          type: integer
-                          x-struct:
-                          x-validate:
-                        xcode_selective_testing_local_hits:
-                          description: Number of test targets skipped due to local selective testing cache hit.
-                          type: integer
-                          x-struct:
-                          x-validate:
-                        xcode_selective_testing_remote_hits:
-                          description: Number of test targets skipped due to remote selective testing cache hit.
                           type: integer
                           x-struct:
                           x-validate:

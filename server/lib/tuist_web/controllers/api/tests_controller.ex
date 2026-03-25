@@ -109,11 +109,11 @@ defmodule TuistWeb.API.TestsController do
                      type: :integer,
                      description: "Total number of test targets eligible for selective testing."
                    },
-                   xcode_selective_testing_local_hits: %Schema{
+                   selective_testing_local_hits: %Schema{
                      type: :integer,
                      description: "Number of test targets skipped due to local selective testing cache hit."
                    },
-                   xcode_selective_testing_remote_hits: %Schema{
+                   selective_testing_remote_hits: %Schema{
                      type: :integer,
                      description: "Number of test targets skipped due to remote selective testing cache hit."
                    }
@@ -187,8 +187,8 @@ defmodule TuistWeb.API.TestsController do
             ran_tests: Map.get(run_metrics, :ran_tests, 0),
             skipped_tests: Map.get(run_metrics, :skipped_tests, 0),
             xcode_selective_testing_targets: Map.get(run_metrics, :xcode_selective_testing_targets, 0),
-            xcode_selective_testing_local_hits: Map.get(run_metrics, :xcode_selective_testing_local_hits, 0),
-            xcode_selective_testing_remote_hits: Map.get(run_metrics, :xcode_selective_testing_remote_hits, 0)
+            selective_testing_local_hits: Map.get(run_metrics, :selective_testing_local_hits, 0),
+            selective_testing_remote_hits: Map.get(run_metrics, :selective_testing_remote_hits, 0)
           }
         end),
       pagination_metadata: %{
@@ -553,11 +553,11 @@ defmodule TuistWeb.API.TestsController do
                type: :integer,
                description: "Total number of test targets eligible for selective testing."
              },
-             xcode_selective_testing_local_hits: %Schema{
+             selective_testing_local_hits: %Schema{
                type: :integer,
                description: "Number of test targets skipped due to local selective testing cache hit."
              },
-             xcode_selective_testing_remote_hits: %Schema{
+             selective_testing_remote_hits: %Schema{
                type: :integer,
                description: "Number of test targets skipped due to remote selective testing cache hit."
              }
@@ -573,8 +573,8 @@ defmodule TuistWeb.API.TestsController do
              :flaky_test_count,
              :avg_test_duration,
              :xcode_selective_testing_targets,
-             :xcode_selective_testing_local_hits,
-             :xcode_selective_testing_remote_hits
+             :selective_testing_local_hits,
+             :selective_testing_remote_hits
            ]
          }},
       not_found: {"Test run not found", "application/json", Error},
@@ -606,8 +606,8 @@ defmodule TuistWeb.API.TestsController do
           flaky_test_count: test_metrics.flaky_count,
           avg_test_duration: test_metrics.avg_duration,
           xcode_selective_testing_targets: selective_testing.xcode_selective_testing_targets,
-          xcode_selective_testing_local_hits: selective_testing.xcode_selective_testing_local_hits,
-          xcode_selective_testing_remote_hits: selective_testing.xcode_selective_testing_remote_hits
+          selective_testing_local_hits: selective_testing.selective_testing_local_hits,
+          selective_testing_remote_hits: selective_testing.selective_testing_remote_hits
         })
 
       _error ->

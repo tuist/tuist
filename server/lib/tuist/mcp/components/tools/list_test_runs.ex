@@ -89,8 +89,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
              ran_tests: Map.get(metrics, :ran_tests, 0),
              skipped_tests: Map.get(metrics, :skipped_tests, 0),
              xcode_selective_testing_targets: Map.get(metrics, :xcode_selective_testing_targets, 0),
-             xcode_selective_testing_local_hits: Map.get(metrics, :xcode_selective_testing_local_hits, 0),
-             xcode_selective_testing_remote_hits: Map.get(metrics, :xcode_selective_testing_remote_hits, 0)
+             selective_testing_local_hits: Map.get(metrics, :selective_testing_local_hits, 0),
+             selective_testing_remote_hits: Map.get(metrics, :selective_testing_remote_hits, 0)
            }
          end),
        pagination_metadata: MCPTool.pagination_metadata(meta)

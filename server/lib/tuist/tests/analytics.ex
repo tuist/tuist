@@ -452,15 +452,15 @@ defmodule Tuist.Tests.Analytics do
     case ClickHouseRepo.one(event_query) do
       nil ->
         %{
-          xcode_selective_testing_local_hits: 0,
-          xcode_selective_testing_remote_hits: 0,
+          selective_testing_local_hits: 0,
+          selective_testing_remote_hits: 0,
           xcode_selective_testing_targets: 0
         }
 
       event ->
         %{
-          xcode_selective_testing_local_hits: event.local_test_hits_count || 0,
-          xcode_selective_testing_remote_hits: event.remote_test_hits_count || 0,
+          selective_testing_local_hits: event.local_test_hits_count || 0,
+          selective_testing_remote_hits: event.remote_test_hits_count || 0,
           xcode_selective_testing_targets: event.test_targets_count || 0
         }
     end
@@ -537,8 +537,8 @@ defmodule Tuist.Tests.Analytics do
         cache_hit_rate: cache_hit_rate,
         skipped_tests: skipped_tests,
         ran_tests: ran_tests,
-        xcode_selective_testing_local_hits: local_test_hits,
-        xcode_selective_testing_remote_hits: remote_test_hits,
+        selective_testing_local_hits: local_test_hits,
+        selective_testing_remote_hits: remote_test_hits,
         xcode_selective_testing_targets: Map.get(event_info, :test_targets_count) || 0
       }
     end)

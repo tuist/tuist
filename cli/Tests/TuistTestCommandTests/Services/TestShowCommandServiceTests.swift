@@ -155,8 +155,8 @@ struct TestShowCommandServiceTests {
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
         let testRun = ServerTestRun.test(
             scheme: "App",
-            xcodeSelectiveTestingLocalHits: 10,
-            xcodeSelectiveTestingRemoteHits: 5,
+            selectiveTestingLocalHits: 10,
+            selectiveTestingRemoteHits: 5,
             xcodeSelectiveTestingTargets: 20,
             totalTestCount: 100
         )
