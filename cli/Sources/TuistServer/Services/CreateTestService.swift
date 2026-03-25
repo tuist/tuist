@@ -149,7 +149,8 @@ import TuistHTTP
                             name: testCase.name,
                             repetitions: repetitions,
                             status: testCaseStatusToServerStatus(testCase.status),
-                            test_suite_name: testCase.testSuite
+                            test_suite_name: testCase.testSuite,
+                            is_quarantined: testCase.isQuarantined
                         )
                 }
 

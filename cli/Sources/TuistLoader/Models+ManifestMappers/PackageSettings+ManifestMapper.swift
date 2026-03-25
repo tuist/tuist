@@ -15,6 +15,7 @@ extension TuistCore.PackageSettings {
         let productTypes = manifest.productTypes.mapValues { XcodeGraph.Product.from(manifest: $0) }
         let productDestinations = try manifest.productDestinations.mapValues { try XcodeGraph.Destination.from(destinations: $0) }
         let baseSettings = try XcodeGraph.Settings.from(manifest: manifest.baseSettings, generatorPaths: generatorPaths)
+        let expectedSignatures = manifest.expectedSignatures.mapValues { XcodeGraph.XCFrameworkSignature.from($0) }
         let targetSettings = try manifest.targetSettings.mapValues { try XcodeGraph.Settings.from(
             manifest: $0,
             generatorPaths: generatorPaths
@@ -27,6 +28,7 @@ extension TuistCore.PackageSettings {
             productTypes: productTypes,
             productDestinations: productDestinations,
             baseSettings: baseSettings,
+            expectedSignatures: expectedSignatures,
             targetSettings: targetSettings,
             projectOptions: projectOptions
         )
