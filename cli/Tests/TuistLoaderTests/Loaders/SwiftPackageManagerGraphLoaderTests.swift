@@ -100,7 +100,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageInfos: .any,
                         packageToFolder: .any,
                         packageToTargetsToArtifactPaths: .any,
-                        packageModuleAliases: .any
+                        packageModuleAliases: .any,
+                        packageSettings: .any
                     )
                     .willReturn([:])
 
@@ -198,7 +199,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageInfos: .any,
                         packageToFolder: .any,
                         packageToTargetsToArtifactPaths: .any,
-                        packageModuleAliases: .any
+                        packageModuleAliases: .any,
+                        packageSettings: .any
                     )
                     .willReturn([:])
 
@@ -310,7 +312,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageInfos: .any,
                 packageToFolder: .any,
                 packageToTargetsToArtifactPaths: .any,
-                packageModuleAliases: .any
+                packageModuleAliases: .any,
+                packageSettings: .any
             )
             .willReturn([:])
 
@@ -401,7 +404,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageInfos: .any,
                 packageToFolder: .any,
                 packageToTargetsToArtifactPaths: .any,
-                packageModuleAliases: .any
+                packageModuleAliases: .any,
+                packageSettings: .any
             )
             .willReturn([:])
 
@@ -460,7 +464,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageInfos: .any,
                         packageToFolder: .any,
                         packageToTargetsToArtifactPaths: .any,
-                        packageModuleAliases: .any
+                        packageModuleAliases: .any,
+                        packageSettings: .any
                     )
                     .willReturn([:])
 

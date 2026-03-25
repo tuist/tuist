@@ -10,6 +10,7 @@ public struct TestCase {
     public let repetitions: [TestCaseRepetition]
     public var crashReport: CrashReport?
     public var attachments: [TestAttachment]
+    public var isQuarantined: Bool
 
     public init(
         name: String,
@@ -20,7 +21,8 @@ public struct TestCase {
         failures: [TestCaseFailure],
         repetitions: [TestCaseRepetition] = [],
         crashReport: CrashReport? = nil,
-        attachments: [TestAttachment] = []
+        attachments: [TestAttachment] = [],
+        isQuarantined: Bool = false
     ) {
         self.name = name
         self.testSuite = testSuite
@@ -31,5 +33,6 @@ public struct TestCase {
         self.repetitions = repetitions
         self.crashReport = crashReport
         self.attachments = attachments
+        self.isQuarantined = isQuarantined
     }
 }

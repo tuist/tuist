@@ -41,7 +41,7 @@
         private let fileSystem: FileSysteming
         private let xcResultService: XCResultServicing
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
-        private let inspectResultBundleService: InspectResultBundleServicing
+        private let uploadResultBundleService: UploadResultBundleServicing
         private let configLoader: ConfigLoading
         private let backgroundProcessRunner: BackgroundProcessRunning
 
@@ -50,7 +50,7 @@
             fileSystem: FileSysteming = FileSystem(),
             xcResultService: XCResultServicing = XCResultService(),
             xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
-            inspectResultBundleService: InspectResultBundleServicing = InspectResultBundleService(),
+            uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
             configLoader: ConfigLoading = ConfigLoader(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner()
         ) {
@@ -58,7 +58,7 @@
             self.fileSystem = fileSystem
             self.xcResultService = xcResultService
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
-            self.inspectResultBundleService = inspectResultBundleService
+            self.uploadResultBundleService = uploadResultBundleService
             self.configLoader = configLoader
             self.backgroundProcessRunner = backgroundProcessRunner
         }
@@ -93,8 +93,16 @@
 
             let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: path)
             let config = try await configLoader.loadConfig(path: projectPath)
-            let test = try await inspectResultBundleService.inspectResultBundle(
-                resultBundlePath: resolvedResultBundlePath,
+
+            guard let testSummary = try await xcResultService.parse(
+                path: resolvedResultBundlePath,
+                rootDirectory: path
+            ) else {
+                throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(resolvedResultBundlePath)
+            }
+
+            let test = try await uploadResultBundleService.uploadResultBundle(
+                testSummary: testSummary,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 shardPlanId: nil,

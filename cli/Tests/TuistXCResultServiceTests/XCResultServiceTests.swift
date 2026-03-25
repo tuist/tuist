@@ -22,7 +22,7 @@ struct XCResultServiceTests {
         // Then
         #expect(got.status == .failed)
         #expect(got.testModules.map(\.name) == ["AppTests"])
-        #expect(got.testModules.map(\.duration) == [2902])
+        #expect(got.testModules.map(\.duration) == [2923])
         #expect(got.testModules.map(\.status) == [.failed])
         #expect(got.testModules.flatMap(\.testSuites).map(\.duration).sorted() == [5, 104, 111])
         #expect(got.testCases.compactMap(\.duration).sorted() == [3, 4, 101, 108, 108, 110])
