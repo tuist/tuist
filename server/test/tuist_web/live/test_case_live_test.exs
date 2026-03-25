@@ -69,6 +69,8 @@ defmodule TuistWeb.TestCaseLiveTest do
       [test_case_run | _] = test_run.test_case_runs
 
       Tuist.Tests.update_test_case(test_case_run.test_case_id, %{is_quarantined: true})
+      Tuist.Tests.TestCase.Buffer.flush()
+      Ecto.Adapters.SQL.query!(Tuist.IngestRepo, "OPTIMIZE TABLE test_cases FINAL", [])
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
