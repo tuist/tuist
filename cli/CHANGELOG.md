@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.166.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use structural action log timing for test run duration reporting by [@fortmarek](https://github.com/fortmarek) in [#10007](https://github.com/tuist/tuist/pull/10007)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.166.0...4.166.1
+
 ## What's Changed in 4.166.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
