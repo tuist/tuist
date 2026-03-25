@@ -16,7 +16,6 @@
     display: flex;
     flex-shrink: 0;
     align-items: center;
-    justify-content: flex-end;
 
     & #docs-copy-dropdown {
       width: fit-content;
