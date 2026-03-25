@@ -233,9 +233,7 @@ public class FileHandler: FileHandling {
     }
 
     public func write(_ content: String, path: Path.AbsolutePath, atomically: Bool) throws {
-        do {
-            try content.write(to: path.url, atomically: atomically, encoding: .utf8)
-        } catch {}
+        try content.write(to: path.url, atomically: atomically, encoding: .utf8)
     }
 
     public func locateDirectory(_ path: String, traversingFrom from: Path.AbsolutePath) throws -> Path.AbsolutePath? {
