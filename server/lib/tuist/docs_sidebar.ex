@@ -19,16 +19,40 @@ defmodule Tuist.Docs.Sidebar do
   end
 
   def tab_for_slug(slug) do
+    path = Regex.replace(~r{^/[^/]+/}, slug, "/")
+
     cond do
-      String.starts_with?(slug, "/en/references") -> :references
-      String.starts_with?(slug, "/en/contributors") -> :resources
+      String.starts_with?(path, "/references") -> :references
+      String.starts_with?(path, "/contributors") -> :resources
       true -> :guides
     end
   end
 
-  def tree_for_tab(:guides), do: guides_tree()
-  def tree_for_tab(:references), do: references_tree()
-  def tree_for_tab(:resources), do: resources_tree()
+  def tree_for_tab(tab, locale \\ "en")
+  def tree_for_tab(:guides, locale), do: localize_tree(guides_tree(), locale)
+  def tree_for_tab(:references, locale), do: localize_tree(references_tree(), locale)
+  def tree_for_tab(:resources, locale), do: localize_tree(resources_tree(), locale)
+
+  defp localize_tree(tree, "en"), do: tree
+
+  defp localize_tree(tree, locale) do
+    Enum.map(tree, fn
+      %Group{items: items} = group ->
+        %{group | items: Enum.map(items, &localize_item(&1, locale))}
+    end)
+  end
+
+  defp localize_item(%Item{slug: nil, items: items} = item, locale) do
+    %{item | items: Enum.map(items, &localize_item(&1, locale))}
+  end
+
+  defp localize_item(%Item{slug: "/en/" <> rest, items: items} = item, locale) do
+    %{item | slug: "/#{locale}/#{rest}", items: Enum.map(items, &localize_item(&1, locale))}
+  end
+
+  defp localize_item(%Item{items: items} = item, locale) do
+    %{item | items: Enum.map(items, &localize_item(&1, locale))}
+  end
 
   def item_active?(%Item{slug: slug}, current_slug) when is_binary(slug), do: slug == current_slug
 

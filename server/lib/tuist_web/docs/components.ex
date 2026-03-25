@@ -24,10 +24,11 @@ defmodule TuistWeb.Docs.Components do
   attr :tab, :atom, required: true
   attr :headings, :list, required: true
   attr :markdown, :string, required: true
+  attr :locale, :string, required: true
   slot :inner_block, required: true
 
   def layout(assigns) do
-    assigns = assign(assigns, :tree, Sidebar.tree_for_tab(assigns.tab))
+    assigns = assign(assigns, :tree, Sidebar.tree_for_tab(assigns.tab, assigns.locale))
     page_layout(assigns)
   end
 
@@ -57,4 +58,5 @@ defmodule TuistWeb.Docs.Components do
     |> String.replace(~r/[^a-z0-9]+/, "-")
     |> String.trim("-")
   end
+
 end

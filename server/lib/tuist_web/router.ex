@@ -335,14 +335,13 @@ defmodule TuistWeb.Router do
     get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: %{type: :docs}
 
-    live_session :docs_en, on_mount: Localization do
-      live "/en/docs", DocsLive, :overview, metadata: %{type: :docs}, private: %{locale: "en"}
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      private = %{locale: locale}
 
-      live "/en/docs/*path",
-           DocsLive,
-           :show,
-           metadata: %{type: :docs},
-           private: %{locale: "en"}
+      live_session String.to_atom("docs_#{locale}"), on_mount: Localization do
+        live "/#{locale}/docs", DocsLive, :overview, metadata: %{type: :docs}, private: private
+        live "/#{locale}/docs/*path", DocsLive, :show, metadata: %{type: :docs}, private: private
+      end
     end
   end
 

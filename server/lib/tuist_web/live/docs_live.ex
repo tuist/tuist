@@ -19,8 +19,12 @@ defmodule TuistWeb.DocsLive do
   ]
 
   def mount(_params, _session, socket) do
+    locale = Gettext.get_locale()
+
     socket =
-      attach_hook(socket, :assign_current_path, :handle_params, fn _params, url, socket ->
+      socket
+      |> assign(:locale, locale)
+      |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
         current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
         {:cont, assign(socket, current_path: current_path)}
@@ -48,7 +52,7 @@ defmodule TuistWeb.DocsLive do
   end
 
   defp handle_show(params, socket) do
-    path = build_path(params)
+    path = build_path(params, socket.assigns.locale)
 
     case Docs.get_page(path) do
       nil ->
@@ -73,12 +77,12 @@ defmodule TuistWeb.DocsLive do
   def render(%{view: :overview} = assigns) do
     assigns =
       assigns
-      |> assign(:install_path, docs_path("/en/guides/install-tuist"))
+      |> assign(:install_path, docs_path("/#{assigns.locale}/guides/install-tuist"))
       |> assign(:copy_check_icon, @copy_check_icon)
       |> assign(:headings, @overview_headings)
 
     ~H"""
-    <TuistWeb.Docs.Components.layout current_slug="/en" tab={:guides} headings={@headings} markdown="">
+    <TuistWeb.Docs.Components.layout current_slug={"/#{@locale}"} tab={:guides} headings={@headings} markdown="" locale={@locale}>
       <div id="docs-overview">
         <%!-- Hero --%>
         <section data-part="hero">
@@ -439,6 +443,7 @@ defmodule TuistWeb.DocsLive do
       tab={Tuist.Docs.Sidebar.tab_for_slug(@page.slug)}
       headings={@page.headings}
       markdown={@page.markdown}
+      locale={@locale}
     >
       <article id={"docs-body-#{@page.slug}"} class="tuist-docs" data-prose phx-hook="DocsContent">
         {raw(@page.body)}
@@ -473,8 +478,8 @@ defmodule TuistWeb.DocsLive do
     end
   end
 
-  defp build_path(%{"path" => path_parts}), do: Paths.slug("en", path_parts)
-  defp build_path(_params), do: Paths.slug("en")
+  defp build_path(%{"path" => path_parts}, locale), do: Paths.slug(locale, path_parts)
+  defp build_path(_params, locale), do: Paths.slug(locale)
 
   defp docs_path(slug), do: Paths.public_path_from_slug(slug)
 end

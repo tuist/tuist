@@ -5,7 +5,7 @@ defmodule Tuist.Docs.Loader do
   alias Tuist.Docs.Paths
 
   @docs_root Path.expand("../../../docs/docs", __DIR__)
-  @english_docs_root Path.join(@docs_root, "en")
+  @locales ~w(en ar es ja ko pl pt ru yue_Hant zh_Hans)
   @examples_root Path.expand("../../../examples/xcode", __DIR__)
   @frontmatter_regex ~r/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/s
   @localized_link_regex ~r/<LocalizedLink\s+(?:href|to)="([^"]+)"\s*>(.*?)<\/LocalizedLink>/s
@@ -16,9 +16,13 @@ defmodule Tuist.Docs.Loader do
 
   def load_pages! do
     source_paths =
-      @english_docs_root
-      |> Path.join("**/*.md")
-      |> Path.wildcard()
+      @locales
+      |> Enum.flat_map(fn locale ->
+        @docs_root
+        |> Path.join(locale)
+        |> Path.join("**/*.md")
+        |> Path.wildcard()
+      end)
       |> Enum.sort()
       |> Enum.reject(&excluded_source?/1)
 
@@ -36,11 +40,12 @@ defmodule Tuist.Docs.Loader do
   defp build_page!(source_path) do
     relative_path = Path.relative_to(source_path, @docs_root)
     slug = source_to_slug(relative_path)
+    locale = relative_path |> String.split("/") |> List.first()
     contents = File.read!(source_path)
 
     {attrs, markdown} = parse_frontmatter(contents)
     headings = extract_headings(markdown)
-    html = render_markdown(markdown)
+    html = render_markdown(markdown, locale)
 
     %Page{
       slug: slug,
@@ -140,13 +145,13 @@ defmodule Tuist.Docs.Loader do
   @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
   @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
 
-  defp render_markdown(markdown) do
+  defp render_markdown(markdown, locale \\ "en") do
     custom_ids = extract_custom_heading_ids(markdown)
 
     markdown
     |> String.replace(@script_setup_regex, "")
-    |> localize_link_components()
-    |> convert_home_cards()
+    |> localize_link_components(locale)
+    |> convert_home_cards(locale)
     |> strip_custom_heading_ids()
     |> convert_vitepress_containers()
     |> MDEx.to_html!(
@@ -239,7 +244,7 @@ defmodule Tuist.Docs.Loader do
   @home_card_regex ~r/<HomeCard\s+([^>]*?)\/>/s
   @home_card_attr_regex ~r/(\w+)="([^"]*)"/
 
-  defp convert_home_cards(markdown) do
+  defp convert_home_cards(markdown, locale) do
     Regex.replace(@home_cards_regex, markdown, fn _, content ->
       # Strip icon attributes first (they contain HTML with > that breaks parsing)
       content = Regex.replace(@home_card_icon_regex, content, "")
@@ -256,7 +261,7 @@ defmodule Tuist.Docs.Loader do
           title = Map.get(attrs, "title", "")
           details = Map.get(attrs, "details", "")
           link = Map.get(attrs, "link", "")
-          link_href = if link == "", do: "#", else: Paths.public_path("en", link)
+          link_href = if link == "", do: "#", else: Paths.public_path(locale, link)
 
           ~s(<a href="#{link_href}" class="docs-home-card">) <>
             ~s(<div class="docs-home-card-image"><strong>#{title}</strong></div>) <>
@@ -274,9 +279,9 @@ defmodule Tuist.Docs.Loader do
     |> String.replace("</table>", "</table></div>")
   end
 
-  defp localize_link_components(markdown) do
+  defp localize_link_components(markdown, locale) do
     Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
-      ~s(<a href="#{localize_href(href)}">#{text}</a>)
+      ~s(<a href="#{localize_href(href, locale)}">#{text}</a>)
     end)
   end
 
@@ -448,9 +453,12 @@ defmodule Tuist.Docs.Loader do
     |> String.trim()
   end
 
-  defp localize_href("/en/" <> _ = href), do: Paths.public_path_from_slug(href)
-  defp localize_href("/" <> _ = href), do: Paths.public_path("en", href)
-  defp localize_href(href), do: href
+  defp localize_href("/" <> _ = href, locale) do
+    slug = "/#{locale}" <> href
+    Paths.public_path_from_slug(slug)
+  end
+
+  defp localize_href(href, _locale), do: href
 
   defp title_from_markdown(markdown) do
     case Regex.run(~r/^\s*#\s+(.+?)(?:\s+\{#.*\})?\s*$/m, markdown, capture: :all_but_first) do

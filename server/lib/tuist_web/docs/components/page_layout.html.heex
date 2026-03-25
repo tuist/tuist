@@ -34,8 +34,8 @@
       aria-label={dgettext("docs", "Documentation navigation")}
     >
       <div data-part="sidebar-scroll">
-        <.link :if={@tab == :guides} patch={docs_path("/en")} data-part="nav-link">
-          <.tab_menu_vertical label="Overview" data-selected={@current_slug == "/en"}>
+        <.link :if={@tab == :guides} patch={docs_path("/#{@locale}")} data-part="nav-link">
+          <.tab_menu_vertical label="Overview" data-selected={@current_slug == "/#{@locale}"}>
             <:icon_left>
               <.icon name="smart_home" />
             </:icon_left>
