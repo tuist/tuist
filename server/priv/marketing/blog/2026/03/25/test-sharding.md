@@ -6,9 +6,10 @@ excerpt: "When parallelizing tests on a single machine isn't enough, sharding ac
 author: fortmarek
 og_image_path: /marketing/images/blog/2026/03/25/test-sharding/og.jpg
 highlighted: true
+cta_title: "Balanced shards. Faster CI feedback."
 ---
 
-As your project grows, your test suite execution time does, too. You've already enabled parallel testing, maxed out your CI runner's cores, and there's nothing left to squeeze out of a single machine. The simulator count is the bottleneck, or maybe the CPU just can't keep up.
+As your project grows, your test suite execution time does, too. You've already enabled parallel testing, maxed out your CI runner's cores, and there's nothing left to squeeze out of a single machine. Maybe the CPU just can't keep up, or you're limited by the number of simulators you can run in the environment.
 
 This is when most teams reach for the obvious solution: run tests on multiple machines in parallel, also known as sharding. But _how_ you shard matters and this is where Tuist's new sharding becomes really useful.
 
@@ -35,7 +36,7 @@ For tests without historical data (new tests, for example), we estimate their du
 Test sharding follows a two-phase workflow:
 
 1. **Build phase:** A single CI runner builds the tests and uploads the test artifacts (`.xctestproducts` for Xcode and compiled test classes for Gradle) to the Tuist server. The server then creates a shard plan using historical timing data and returns a matrix that your CI uses to spawn parallel runners.
-2. **Test phase:** Each runner receives a shard index, downloads the pre-built test artifacts, and executes only the tests assigned to its shard. Results are uploaded to Tuist and merged into a single unified view in our dashboard.
+2. **Test phase:** Each runner receives a shard index, downloads the pre-built test artifacts, and executes only the tests assigned to its shard. Results are uploaded to Tuist and merged into a single unified view in our dashboard. Here's [an example of a sharded test run](https://tuist.dev/tuist/tuist/tests/test-runs/019d24a2-6b22-7bf5-8462-f86016e89c4a) from the [tuist/tuist public dashboard](https://tuist.dev/tuist/tuist).
 
 This split also opens the door to CI cost savings. The build phase is CPU-intensive and benefits from a beefy machine, but the shard runners only execute pre-built tests. For workloads like UI tests where the CPU isn't the bottleneck, you can use cheaper, less powerful runners for the test phase without affecting execution speed.
 
@@ -80,7 +81,7 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-Test sharding also works with [Tuist generated projects](https://docs.tuist.dev/en/guides/features/test-sharding/generated-projects) via `tuist test` (including seamless [selective testing](https://docs.tuist.dev/en/guides/features/selective-testing) support) and [Gradle projects](https://docs.tuist.dev/en/guides/features/test-sharding/gradle) using the Tuist Gradle plugin. See the [test sharding documentation](https://docs.tuist.dev/en/guides/features/test-sharding) for full setup details.
+Test sharding also works with [Tuist generated projects](https://docs.tuist.dev/en/guides/features/test-sharding/generated-projects) via `tuist test` and [Gradle projects](https://docs.tuist.dev/en/guides/features/test-sharding/gradle) using the Tuist Gradle plugin. For generated projects, sharding integrates seamlessly with [selective testing](https://docs.tuist.dev/en/guides/features/selective-testing) as shard runners don't need to generate the project, install dependencies, or compile anything since the selective testing graph is persisted during the build phase. See the [test sharding documentation](https://docs.tuist.dev/en/guides/features/test-sharding) for full setup details.
 
 ## Stop waiting
 
