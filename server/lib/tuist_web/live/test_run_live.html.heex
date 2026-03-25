@@ -444,6 +444,13 @@
                   <div data-part="title-and-subtitle">
                     <h3 data-part="title">
                       {test_case_run.name}
+                      <.badge
+                        :if={test_case_run.is_quarantined}
+                        label={dgettext("dashboard_tests", "Quarantined")}
+                        color="information"
+                        style="light-fill"
+                        size="large"
+                      />
                     </h3>
                     <span
                       :if={test_case_run.module_name && test_case_run.suite_name != ""}
@@ -672,6 +679,13 @@
                     >
                       {group.name}
                     </.link>
+                    <.badge
+                      :if={Enum.any?(group.runs, & &1.is_quarantined)}
+                      label={dgettext("dashboard_tests", "Quarantined")}
+                      color="information"
+                      style="light-fill"
+                      size="large"
+                    />
                   </h3>
                   <span
                     :if={group.module_name not in [nil, ""] and group.suite_name not in [nil, ""]}
@@ -920,6 +934,13 @@
                     :if={test_case.is_new}
                     label={dgettext("dashboard_tests", "New")}
                     color="primary"
+                    style="light-fill"
+                    size="large"
+                  />
+                  <.badge
+                    :if={test_case.is_quarantined}
+                    label={dgettext("dashboard_tests", "Quarantined")}
+                    color="information"
                     style="light-fill"
                     size="large"
                   />
@@ -1637,6 +1658,13 @@
                 <div data-part="title-and-subtitle">
                   <h3 data-part="title">
                     {test_case_run.name}
+                    <.badge
+                      :if={test_case_run.is_quarantined}
+                      label={dgettext("dashboard_tests", "Quarantined")}
+                      color="information"
+                      style="light-fill"
+                      size="large"
+                    />
                   </h3>
                   <span
                     :if={test_case_run.module_name && test_case_run.suite_name != ""}
@@ -1866,6 +1894,13 @@
                 >
                   {group.name}
                 </.link>
+                <.badge
+                  :if={Enum.any?(group.runs, & &1.is_quarantined)}
+                  label={dgettext("dashboard_tests", "Quarantined")}
+                  color="information"
+                  style="light-fill"
+                  size="large"
+                />
               </h3>
               <span
                 :if={group.module_name not in [nil, ""] and group.suite_name not in [nil, ""]}

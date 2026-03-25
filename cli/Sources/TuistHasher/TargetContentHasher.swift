@@ -241,7 +241,7 @@ public struct TargetContentHasher: TargetContentHashing {
                     }
 
                     return try contentHasher.hash(stringsToHash)
-                }
+                }.sorted()
             }
 
         let buildableFoldersHash: String? = buildableFolderHashes.isEmpty

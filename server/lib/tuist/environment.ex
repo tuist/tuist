@@ -676,11 +676,11 @@ defmodule Tuist.Environment do
   end
 
   defp app_base_url(secrets) do
-    get([:app, :url], secrets) || default_app_url()
-  end
-
-  defp default_app_url do
-    if dev?(), do: System.get_env("TUIST_SERVER_URL") || "http://localhost:8080", else: "http://localhost:8080"
+    if dev?() do
+      System.get_env("TUIST_SERVER_URL") || get([:app, :url], secrets) || "http://localhost:8080"
+    else
+      get([:app, :url], secrets) || "http://localhost:8080"
+    end
   end
 
   defp get_route_info(path) do

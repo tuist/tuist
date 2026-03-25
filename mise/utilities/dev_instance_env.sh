@@ -7,7 +7,7 @@ else
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
-PROJECT_ROOT="${MISE_PROJECT_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 INSTANCE_FILE="${PROJECT_ROOT}/.tuist-dev-instance"
 
 validate_suffix() {

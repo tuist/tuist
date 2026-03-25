@@ -85,7 +85,7 @@ For other providers, Tuist writes a `.tuist-shard-matrix.json` file that you can
 
 ### GitHub Actions {#github-actions}
 
-On GitHub Actions, the shard reference and matrix output are derived automatically. Use a matrix strategy to run shards in parallel:
+Use a matrix strategy to run shards in parallel:
 
 ```yaml
 name: Tests
@@ -383,4 +383,3 @@ workflows:
 ::: tip
 Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
 :::
-

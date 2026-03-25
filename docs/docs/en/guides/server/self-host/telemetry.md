@@ -462,7 +462,7 @@ The total number of users.
 
 A set of metrics related to the database connection.
 
-The repo pool metrics are sampled internally every 100ms and then exposed to Prometheus on `/metrics`. The `last_value` metrics below show the most recent pool state at scrape time. The pressure metrics further down are counters and sums derived from those 100ms samples, which makes short saturation windows easier to spot even when they recover before the next scrape.
+The repo pool metrics are sampled internally every 100ms and then exposed to Prometheus on `/metrics`. The `last_value` metrics below show the most recent pool state at scrape time. The pressure metrics further down are sums derived from those 100ms samples, which makes short saturation windows easier to spot even when they recover before the next scrape.
 
 ### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}
 
@@ -508,7 +508,7 @@ The sum of queued checkout requests observed across repo pool polls. This is use
 | `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
 | `database` | The backing database type, such as `postgres` or `clickhouse`. |
 
-### `tuist_repo_pool_checkout_queue_busy_samples_total` (counter) {#tuist_repo_pool_checkout_queue_busy_samples_total-counter}
+### `tuist_repo_pool_checkout_queue_busy_samples_sum` (sum) {#tuist_repo_pool_checkout_queue_busy_samples_sum-sum}
 
 The number of repo pool polls where at least one database checkout request was waiting in the queue.
 
@@ -519,7 +519,7 @@ The number of repo pool polls where at least one database checkout request was w
 | `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
 | `database` | The backing database type, such as `postgres` or `clickhouse`. |
 
-### `tuist_repo_pool_checkout_queue_starved_samples_total` (counter) {#tuist_repo_pool_checkout_queue_starved_samples_total-counter}
+### `tuist_repo_pool_checkout_queue_starved_samples_sum` (sum) {#tuist_repo_pool_checkout_queue_starved_samples_sum-sum}
 
 The number of repo pool polls where checkout requests were queued and no ready connections were available. A sustained increase here usually means the pool is saturated.
 

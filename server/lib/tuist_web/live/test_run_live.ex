@@ -47,16 +47,19 @@ defmodule TuistWeb.TestRunLive do
 
     run = Map.put(run, :project, project)
 
-    command_event =
-      if is_nil(run.shard_plan_id) do
-        case CommandEvents.get_command_event_by_test_run_id(run.id) do
-          {:ok, event} -> event
-          {:error, :not_found} -> nil
-        end
-      end
-
-    test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
-    failures_count = Tests.get_test_run_failures_count(run.id)
+    [command_event, test_metrics, failures_count] =
+      Tuist.Tasks.parallel_tasks([
+        fn ->
+          if is_nil(run.shard_plan_id) do
+            case CommandEvents.get_command_event_by_test_run_id(run.id) do
+              {:ok, event} -> event
+              {:error, :not_found} -> nil
+            end
+          end
+        end,
+        fn -> Tests.Analytics.get_test_run_metrics(run.id) end,
+        fn -> Tests.get_test_run_failures_count(run.id) end
+      ])
 
     socket =
       socket
@@ -354,12 +357,14 @@ defmodule TuistWeb.TestRunLive do
 
   defp assign_tab_data(socket, "overview", params) do
     selected_test_tab = params["test-tab"] || "test-cases"
+    run = socket.assigns.run
 
-    # Load failures data for the overview preview card
-    {failed_test_case_runs, failures_meta} = load_failures_data(socket.assigns.run, params)
-
-    # Load flaky runs data
-    flaky_runs_grouped = Tests.get_flaky_runs_for_test_run(socket.assigns.run.id)
+    [{failed_test_case_runs, failures_meta}, flaky_runs_grouped, {tab_type, {tab_data, tab_meta}}] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> load_failures_data(run, params) end,
+        fn -> Tests.get_flaky_runs_for_test_run(run.id) end,
+        fn -> load_tab_data(selected_test_tab, run, params) end
+      ])
 
     socket =
       socket
@@ -372,22 +377,10 @@ defmodule TuistWeb.TestRunLive do
       |> assign_param_defaults(params)
       |> assign_text_attachment_urls(failed_test_case_runs)
 
-    case selected_test_tab do
-      "test-cases" ->
-        {test_cases, meta} = load_test_cases_data(socket.assigns.run, params)
-        assign_test_cases_data(socket, test_cases, meta, params)
-
-      "test-suites" ->
-        {test_suites, meta} = load_test_suites_data(socket.assigns.run, params)
-        assign_test_suites_data(socket, test_suites, meta, params)
-
-      "test-modules" ->
-        {test_modules, meta} = load_test_modules_data(socket.assigns.run, params)
-        assign_test_modules_data(socket, test_modules, meta, params)
-
-      _ ->
-        {test_cases, meta} = load_test_cases_data(socket.assigns.run, params)
-        assign_test_cases_data(socket, test_cases, meta, params)
+    case tab_type do
+      :test_cases -> assign_test_cases_data(socket, tab_data, tab_meta, params)
+      :test_suites -> assign_test_suites_data(socket, tab_data, tab_meta, params)
+      :test_modules -> assign_test_modules_data(socket, tab_data, tab_meta, params)
     end
   end
 
@@ -406,6 +399,15 @@ defmodule TuistWeb.TestRunLive do
     |> assign_selective_testing_defaults()
     |> assign_binary_cache_defaults()
     |> assign_param_defaults(params)
+  end
+
+  defp load_tab_data(selected_test_tab, run, params) do
+    case selected_test_tab do
+      "test-cases" -> {:test_cases, load_test_cases_data(run, params)}
+      "test-suites" -> {:test_suites, load_test_suites_data(run, params)}
+      "test-modules" -> {:test_modules, load_test_modules_data(run, params)}
+      _ -> {:test_cases, load_test_cases_data(run, params)}
+    end
   end
 
   defp assign_selective_testing_data(socket, analytics, meta, params) do

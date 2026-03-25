@@ -56,7 +56,7 @@ defmodule TuistCommon.Repo.PromExPlugin do
                   "The sum of queued DB checkout requests observed across repo pool polls.",
                 measurement: :checkout_queue_observed
               ),
-              counter(
+              sum(
                 @metrics_prefix ++ [:checkout_queue, :busy_samples],
                 event_name: @pool_metrics_event_name,
                 tags: [:repo, :database],
@@ -64,7 +64,7 @@ defmodule TuistCommon.Repo.PromExPlugin do
                   "The number of repo pool polls where at least one DB checkout was queued.",
                 measurement: :checkout_queue_busy_count
               ),
-              counter(
+              sum(
                 @metrics_prefix ++ [:checkout_queue, :starved_samples],
                 event_name: @pool_metrics_event_name,
                 tags: [:repo, :database],

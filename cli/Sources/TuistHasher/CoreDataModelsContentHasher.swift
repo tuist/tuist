@@ -28,7 +28,7 @@ public struct CoreDataModelsContentHasher: CoreDataModelsContentHashing {
             let currentVersionHash = try contentHasher.hash([cdModel.currentVersion])
             let cdModelHash = try contentHasher.hash([contentHash, currentVersionHash])
             let versionsHash = try await contentHasher
-                .hash(try cdModel.versions.sorted().concurrentMap { try await contentHasher.hash(path: $0) })
+                .hash(try cdModel.versions.sorted().concurrentMap { try await contentHasher.hash(path: $0) }.sorted())
             stringsToHash.append(cdModelHash)
             stringsToHash.append(versionsHash)
         }

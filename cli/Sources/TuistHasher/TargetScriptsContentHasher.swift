@@ -55,11 +55,15 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
                 } catch FileHandlerError.fileNotFound {
                     return $0.relative(to: sourceRootPath).pathString
                 }
-            })
+            }.sorted())
             stringsToHash.append(
                 contentsOf: resolvePathStrings(script.outputPaths + script.outputFileListPaths, sourceRootPath: sourceRootPath)
                     .map { $0.relative(to: sourceRootPath).pathString }
             )
+
+            if let embeddedScript = script.embeddedScript {
+                stringsToHash.append(embeddedScript)
+            }
 
             stringsToHash.append(contentsOf: [
                 script.name,

@@ -221,7 +221,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             packageInfos: packageInfoDictionary,
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
-            packageModuleAliases: mutablePackageModuleAliases
+            packageModuleAliases: mutablePackageModuleAliases,
+            packageSettings: packageSettings
         )
 
         let packageInfoDictionaryById = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) })

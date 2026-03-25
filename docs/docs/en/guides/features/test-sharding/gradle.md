@@ -51,13 +51,11 @@ The shard reference is automatically derived from CI environment variables (`GIT
 
 ## Test phase {#test-phase}
 
-Each shard runner executes its assigned tests using the `tuistRunShard` task:
+Each shard runner executes its assigned tests using the standard `test` task. When `TUIST_SHARD_INDEX` is set, the plugin automatically fetches the shard assignment from the server and filters the test execution to include only the assigned test suites.
 
 ```sh
-./gradlew tuistRunShard
+TUIST_SHARD_INDEX=0 ./gradlew test
 ```
-
-The `TUIST_SHARD_INDEX` environment variable specifies the zero-based shard index. The plugin fetches the shard assignment from the server and filters the test execution to include only the assigned test suites.
 
 ## Continuous integration {#continuous-integration}
 
@@ -74,7 +72,7 @@ For other providers, Tuist writes a `.tuist-shard-matrix.json` file that you can
 
 ### GitHub Actions {#github-actions}
 
-On GitHub Actions, the shard reference and matrix output are derived automatically. Use a matrix strategy to run shards in parallel:
+Use a matrix strategy to run shards in parallel:
 
 ```yaml
 name: Tests
@@ -115,7 +113,7 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
       - run: tuist auth login
-      - run: ./gradlew tuistRunShard
+      - run: ./gradlew test
 ```
 
 ### GitLab CI {#gitlab-ci}
@@ -154,7 +152,7 @@ The child pipeline needs a `.tuist-shard` job template:
 .tuist-shard:
   script:
     - tuist auth login
-    - ./gradlew tuistRunShard
+    - ./gradlew test
 ```
 
 ### CircleCI {#circleci}
@@ -216,7 +214,7 @@ jobs:
           command: |
             export TUIST_SHARD_INDEX=<< parameters.shard-index >>
             tuist auth login
-            ./gradlew tuistRunShard
+            ./gradlew test
 
 workflows:
   test:
@@ -247,7 +245,7 @@ Each generated step has `TUIST_SHARD_INDEX` set in its environment. Add the test
 # .buildkite/shard-step.sh
 #!/bin/bash
 tuist auth login
-./gradlew tuistRunShard
+./gradlew test
 ```
 
 ### Codemagic {#codemagic}
@@ -270,7 +268,7 @@ workflows:
       - name: Run shard
         script: |
           tuist auth login
-          ./gradlew tuistRunShard
+          ./gradlew test
 ```
 
 ::: tip
@@ -320,7 +318,7 @@ workflows:
           inputs:
             - content: |
                 tuist auth login
-                ./gradlew tuistRunShard
+                ./gradlew test
   test-shard-1:
     <<: *shard-workflow
     envs:
@@ -342,4 +340,3 @@ workflows:
 ::: tip
 Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
 :::
-

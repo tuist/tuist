@@ -6,7 +6,9 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.gradle.api.tasks.testing.TestResult
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class TuistTestQuarantineTest {
@@ -72,17 +74,20 @@ class TuistTestQuarantineTest {
 
         assertEquals(2, exclusions.size)
         assertEquals(
-            listOf("com.example.LoginTest.testLogin", "com.example.LogoutTest.testLogout"),
+            listOf(
+                TestIdentifier("com.example.LoginTest", "testLogin"),
+                TestIdentifier("com.example.LogoutTest", "testLogout")
+            ),
             exclusions[":app"]
         )
         assertEquals(
-            listOf("com.example.ParserTest.testParse"),
+            listOf(TestIdentifier("com.example.ParserTest", "testParse")),
             exclusions[":lib"]
         )
     }
 
     @Test
-    fun `getQuarantinedTests uses wildcard for null suite`() {
+    fun `getQuarantinedTests uses null suite for null suite`() {
         val service = createService()
 
         val responseBody = Gson().toJson(
@@ -100,11 +105,11 @@ class TuistTestQuarantineTest {
 
         val exclusions = service.getQuarantinedTests()
 
-        assertEquals(listOf("*.testDynamic"), exclusions[":app"])
+        assertEquals(listOf(TestIdentifier(null, "testDynamic")), exclusions[":app"])
     }
 
     @Test
-    fun `getQuarantinedTests uses wildcard for blank suite name`() {
+    fun `getQuarantinedTests uses null suite for blank suite name`() {
         val service = createService()
 
         val responseBody = Gson().toJson(
@@ -122,7 +127,7 @@ class TuistTestQuarantineTest {
 
         val exclusions = service.getQuarantinedTests()
 
-        assertEquals(listOf("*.testBlank"), exclusions[":app"])
+        assertEquals(listOf(TestIdentifier(null, "testBlank")), exclusions[":app"])
     }
 
     @Test
@@ -145,7 +150,7 @@ class TuistTestQuarantineTest {
         val exclusions = service.getQuarantinedTests()
 
         assertEquals(1, exclusions.size)
-        assertEquals(listOf("com.example.FlakyTest.testFlaky"), exclusions[":app"])
+        assertEquals(listOf(TestIdentifier("com.example.FlakyTest", "testFlaky")), exclusions[":app"])
 
         val request = mockWebServer.takeRequest()
         assertEquals("GET", request.method)
@@ -222,5 +227,53 @@ class TuistTestQuarantineTest {
         val exclusions = service.getQuarantinedTests()
 
         assertTrue(exclusions.isEmpty())
+    }
+
+    @Test
+    fun `TestIdentifier matches by suite and name`() {
+        val id = TestIdentifier("com.example.FooTest", "testLogin")
+        assertTrue(id.matches("com.example.FooTest", "testLogin"))
+        assertFalse(id.matches("com.example.BarTest", "testLogin"))
+        assertFalse(id.matches("com.example.FooTest", "testLogout"))
+    }
+
+    @Test
+    fun `TestIdentifier with null suite matches any class`() {
+        val id = TestIdentifier(null, "testLogin")
+        assertTrue(id.matches("com.example.FooTest", "testLogin"))
+        assertTrue(id.matches("com.example.BarTest", "testLogin"))
+        assertFalse(id.matches("com.example.FooTest", "testLogout"))
+    }
+
+    @Test
+    fun `hasNonQuarantinedFailures returns false when no tests`() {
+        val collector = TestReportCollector()
+        assertFalse(collector.hasNonQuarantinedFailures(":app"))
+    }
+
+    @Test
+    fun `hasNonQuarantinedFailures returns false when only quarantined tests fail`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(":app", "testFail", "com.example.FooTest", TestResult.ResultType.FAILURE, 0, 100, null, isQuarantined = true)
+        collector.collectTestResult(":app", "testPass", "com.example.FooTest", TestResult.ResultType.SUCCESS, 0, 100, null)
+
+        assertFalse(collector.hasNonQuarantinedFailures(":app"))
+    }
+
+    @Test
+    fun `hasNonQuarantinedFailures returns true when non-quarantined test fails`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(":app", "testFail", "com.example.FooTest", TestResult.ResultType.FAILURE, 0, 100, null, isQuarantined = false)
+
+        assertTrue(collector.hasNonQuarantinedFailures(":app"))
+    }
+
+    @Test
+    fun `hasNonQuarantinedFailures returns true for mixed failures`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(":app", "testQuarantined", "com.example.FooTest", TestResult.ResultType.FAILURE, 0, 100, null, isQuarantined = true)
+        collector.collectTestResult(":app", "testReal", "com.example.FooTest", TestResult.ResultType.FAILURE, 0, 100, null, isQuarantined = false)
+
+        assertTrue(collector.hasNonQuarantinedFailures(":app"))
     }
 }
