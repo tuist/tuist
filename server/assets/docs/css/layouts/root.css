@@ -185,7 +185,7 @@
       display: none;
     }
 
-    & [data-part="mobile-copy"] {
+    & #docs-layout > #docs-content [data-part="mobile-copy"] {
       display: flex;
       justify-content: flex-end;
       padding: var(--noora-spacing-5) 0;

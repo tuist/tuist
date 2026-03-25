@@ -19,25 +19,23 @@
     </style>
     <script nonce={get_csp_nonce()} type="module">
       import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-      const styles = getComputedStyle(document.documentElement);
-      const get = (v) => styles.getPropertyValue(v).trim();
       mermaid.initialize({
         startOnLoad: true,
         securityLevel: "loose",
         theme: "base",
         themeVariables: {
-          primaryColor: get("--noora-surface-background-secondary"),
-          primaryBorderColor: get("--noora-surface-border-primary"),
-          primaryTextColor: get("--noora-surface-label-primary"),
-          secondaryColor: get("--noora-surface-background-tertiary"),
-          tertiaryColor: get("--noora-surface-background-primary"),
-          lineColor: get("--noora-surface-label-secondary"),
-          textColor: get("--noora-surface-label-primary"),
-          fontFamily: get("--noora-font-body"),
+          primaryColor: "#f1f2f4",
+          primaryBorderColor: "#c7ccd1",
+          primaryTextColor: "#171a1c",
+          secondaryColor: "#f9fafa",
+          tertiaryColor: "#fdfdfd",
+          lineColor: "#848f9a",
+          textColor: "#171a1c",
+          fontFamily: "Inter, sans-serif",
           fontSize: "14px",
-          nodeBorder: get("--noora-surface-border-primary"),
-          nodeTextColor: get("--noora-surface-label-primary"),
-          edgeLabelBackground: get("--noora-surface-background-primary"),
+          nodeBorder: "#c7ccd1",
+          nodeTextColor: "#171a1c",
+          edgeLabelBackground: "#fdfdfd",
         },
       });
       document.addEventListener("phx:page-loading-stop", () => {
