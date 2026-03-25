@@ -143,7 +143,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
       replication_enqueued_at: token
     }
 
-    stub(Cleanup, :latest_project_cleanup_cutoffs, fn _scopes -> %{} end)
+    stub(Cleanup, :effective_project_barriers, fn _scopes -> %{} end)
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
 
     stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
@@ -186,7 +186,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
       replication_enqueued_at: replication_enqueued_at
     }
 
-    stub(Cleanup, :latest_project_cleanup_cutoffs, fn _scopes -> %{} end)
+    stub(Cleanup, :effective_project_barriers, fn _scopes -> %{} end)
     stub(KeyValueAccessTracker, :clear, fn _key -> :ok end)
     stub(KeyValueEntries, :list_pending_replication, fn -> [pending_entry] end)
 
@@ -226,7 +226,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
       }
     ]
 
-    expect(Cleanup, :latest_project_cleanup_cutoffs, fn scopes ->
+    expect(Cleanup, :effective_project_barriers, fn scopes ->
       assert Enum.map(scopes, &{&1.account_handle, &1.project_handle}) == [{"acme", "ios"}, {"acme", "ios"}]
       send(parent, :cutoffs_loaded)
       %{}
@@ -269,7 +269,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
       replication_enqueued_at: token
     }
 
-    expect(Cleanup, :latest_project_cleanup_cutoffs, 2, fn _scopes ->
+    expect(Cleanup, :effective_project_barriers, 2, fn _scopes ->
       send(parent, :cutoffs_loaded)
       %{}
     end)
@@ -300,7 +300,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
       replication_enqueued_at: entry_updated_at
     }
 
-    expect(Cleanup, :latest_project_cleanup_cutoffs, fn _scopes ->
+    expect(Cleanup, :effective_project_barriers, fn _scopes ->
       %{{"acme", "ios"} => cleanup_started_at}
     end)
 

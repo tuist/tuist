@@ -5,6 +5,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
   import ExUnit.CaptureLog
 
   alias Cache.Config
+  alias Cache.DistributedKV.Cleanup
   alias Cache.DistributedKV.Entry
   alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
@@ -38,6 +39,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
     stub(Config, :distributed_kv_enabled?, fn -> true end)
     stub(Config, :distributed_kv_node_name, fn -> "test-node" end)
     stub(Config, :distributed_kv_sync_interval_ms, fn -> 60_000 end)
+    stub(Cleanup, :published_cleanup_barriers_for_projects, fn _scope_pairs -> %{} end)
     :ok
   end
 

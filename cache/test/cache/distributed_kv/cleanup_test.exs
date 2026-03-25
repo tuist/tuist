@@ -9,6 +9,8 @@ defmodule Cache.DistributedKV.CleanupTest do
   alias Cache.DistributedKV.Entry
   alias Cache.DistributedKV.Project
   alias Cache.DistributedKV.Repo
+  alias Cache.DistributedKV.State
+  alias Cache.KeyValueRepo
   alias Ecto.Adapters.SQL
   alias Ecto.Adapters.SQL.Sandbox
 
@@ -29,216 +31,458 @@ defmodule Cache.DistributedKV.CleanupTest do
 
   setup do
     :ok = Sandbox.checkout(Repo)
+    :ok = Sandbox.checkout(KeyValueRepo)
     Sandbox.mode(Repo, {:shared, self()})
+    Sandbox.mode(KeyValueRepo, {:shared, self()})
     Repo.delete_all(Entry)
     Repo.delete_all(Project)
+    KeyValueRepo.delete_all(State)
     stub(Config, :distributed_kv_cleanup_lease_ms, fn -> 60_000 end)
     :ok
   end
 
-  test "concurrent cleanup requests reject overlapping workers" do
-    parent = self()
+  describe "begin_project_cleanup/2" do
+    test "concurrent cleanup requests reject overlapping workers" do
+      parent = self()
 
-    task_fun = fn ->
-      Sandbox.allow(Repo, parent, self())
-      send(parent, {:ready, self()})
+      task_fun = fn ->
+        Sandbox.allow(Repo, parent, self())
+        send(parent, {:ready, self()})
 
-      receive do
-        :go -> Cleanup.begin_project_cleanup("acme", "ios")
+        receive do
+          :go -> Cleanup.begin_project_cleanup("acme", "ios")
+        end
       end
+
+      task_1 = Task.async(task_fun)
+      task_2 = Task.async(task_fun)
+
+      ready_pids =
+        for _ <- 1..2 do
+          assert_receive {:ready, pid}
+          pid
+        end
+
+      Enum.each(ready_pids, &send(&1, :go))
+
+      results = [Task.await(task_1), Task.await(task_2)]
+
+      assert Enum.count(results, &match?({:ok, %DateTime{}}, &1)) == 1
+      assert Enum.count(results, &(&1 == {:error, :cleanup_already_in_progress})) == 1
+
+      assert 1 == Repo.aggregate(Project, :count)
     end
 
-    task_1 = Task.async(task_fun)
-    task_2 = Task.async(task_fun)
+    test "uses shared database time for lease acquisition" do
+      cleanup_cutoff = ~U[2026-03-12 12:00:00.123456Z]
 
-    ready_pids =
-      for _ <- 1..2 do
-        assert_receive {:ready, pid}
-        pid
-      end
+      expect(Repo, :insert_all, fn Project, %Ecto.Query{} = insert_query, opts ->
+        {insert_sql, _params} = SQL.to_sql(:all, Repo, insert_query)
+        {conflict_sql, _params} = SQL.to_sql(:update_all, Repo, opts[:on_conflict])
 
-    Enum.each(ready_pids, &send(&1, :go))
+        assert insert_sql =~ "clock_timestamp()"
+        assert conflict_sql =~ "clock_timestamp()"
+        assert opts[:conflict_target] == [:account_handle, :project_handle]
+        assert opts[:returning] == [:active_cleanup_cutoff_at]
 
-    results = [Task.await(task_1), Task.await(task_2)]
+        {1, [%{active_cleanup_cutoff_at: cleanup_cutoff}]}
+      end)
 
-    assert Enum.count(results, &match?({:ok, %DateTime{}}, &1)) == 1
-    assert Enum.count(results, &(&1 == {:error, :cleanup_already_in_progress})) == 1
+      assert {:ok, ^cleanup_cutoff} = Cleanup.begin_project_cleanup("acme", "ios")
+    end
 
-    assert 1 == Repo.aggregate(Project, :count)
+    test "expired cleanup leases get a fresh cutoff" do
+      stale_cutoff = DateTime.add(DateTime.utc_now(), -120, :second)
+      stale_lease = DateTime.add(DateTime.utc_now(), -60, :second)
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: stale_cutoff,
+        cleanup_lease_expires_at: stale_lease,
+        updated_at: stale_cutoff
+      })
+
+      assert {:ok, fresh_cutoff} = Cleanup.begin_project_cleanup("acme", "ios")
+      assert DateTime.after?(fresh_cutoff, stale_cutoff)
+
+      assert %Project{active_cleanup_cutoff_at: persisted_cutoff, cleanup_lease_expires_at: persisted_lease} =
+               Repo.get_by!(Project, account_handle: "acme", project_handle: "ios")
+
+      assert persisted_cutoff == fresh_cutoff
+      assert DateTime.after?(persisted_lease, fresh_cutoff)
+    end
+
+    test "can acquire cleanup when active state was cleared by failed cleanup" do
+      cutoff = DateTime.add(DateTime.utc_now(), -60, :second)
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: nil,
+        cleanup_lease_expires_at: nil,
+        updated_at: cutoff
+      })
+
+      assert {:ok, fresh_cutoff} = Cleanup.begin_project_cleanup("acme", "ios")
+      assert DateTime.after?(fresh_cutoff, cutoff)
+    end
   end
 
-  test "begin_project_cleanup uses shared database time for lease acquisition" do
-    cleanup_started_at = ~U[2026-03-12 12:00:00.123456Z]
+  describe "renew_project_cleanup_lease/3" do
+    test "extends the active lease for the same cleanup" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -5, :second)
+      initial_lease = DateTime.add(now, 10, :second)
 
-    expect(Repo, :insert_all, fn Project, %Ecto.Query{} = insert_query, opts ->
-      {insert_sql, _params} = SQL.to_sql(:all, Repo, insert_query)
-      {conflict_sql, _params} = SQL.to_sql(:update_all, Repo, opts[:on_conflict])
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: cutoff,
+        cleanup_lease_expires_at: initial_lease,
+        updated_at: cutoff
+      })
 
-      assert insert_sql =~ "clock_timestamp()"
-      assert conflict_sql =~ "clock_timestamp()"
-      assert opts[:conflict_target] == [:account_handle, :project_handle]
-      assert opts[:returning] == [:last_cleanup_at]
+      assert :ok = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
 
-      {1, [%{last_cleanup_at: cleanup_started_at}]}
-    end)
+      renewed = Repo.get_by!(Project, account_handle: "acme", project_handle: "ios")
+      assert DateTime.after?(renewed.cleanup_lease_expires_at, initial_lease)
+      assert DateTime.after?(renewed.updated_at, cutoff)
+    end
 
-    assert {:ok, ^cleanup_started_at} = Cleanup.begin_project_cleanup("acme", "ios")
+    test "reports when the lease is no longer active" do
+      cutoff = DateTime.utc_now()
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: cutoff,
+        cleanup_lease_expires_at: DateTime.add(cutoff, -1, :second),
+        updated_at: cutoff
+      })
+
+      assert {:error, :cleanup_lease_lost} = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
+    end
+
+    test "uses shared database time for lease checks" do
+      cutoff = ~U[2026-03-12 12:00:00.123456Z]
+
+      expect(Repo, :update_all, fn %Ecto.Query{} = query, updates ->
+        update_query = from(project in query, update: ^updates)
+        {sql, _params} = SQL.to_sql(:update_all, Repo, update_query)
+
+        assert sql =~ "clock_timestamp()"
+        {1, nil}
+      end)
+
+      assert :ok = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
+    end
   end
 
-  test "expired cleanup leases get a fresh cutoff" do
-    stale_cutoff = DateTime.add(DateTime.utc_now(), -120, :second)
-    stale_lease = DateTime.add(DateTime.utc_now(), -60, :second)
+  describe "publish_project_cleanup/3" do
+    test "publishes cleanup and clears active state" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -5, :second)
 
-    Repo.insert!(%Project{
-      account_handle: "acme",
-      project_handle: "ios",
-      last_cleanup_at: stale_cutoff,
-      cleanup_lease_expires_at: stale_lease,
-      updated_at: stale_cutoff
-    })
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: cutoff,
+        cleanup_lease_expires_at: DateTime.add(now, 60, :second),
+        updated_at: cutoff
+      })
 
-    assert {:ok, fresh_cutoff} = Cleanup.begin_project_cleanup("acme", "ios")
-    assert DateTime.after?(fresh_cutoff, stale_cutoff)
+      assert {:ok, published} = Cleanup.publish_project_cleanup("acme", "ios", cutoff)
+      assert published.published_cleanup_generation == 1
+      assert DateTime.truncate(published.published_cleanup_cutoff_at, :second) == DateTime.truncate(cutoff, :second)
+      assert published.cleanup_event_id > 0
 
-    assert %Project{last_cleanup_at: persisted_cutoff, cleanup_lease_expires_at: persisted_lease} =
-             Repo.get_by!(Project, account_handle: "acme", project_handle: "ios")
+      project = Repo.get_by!(Project, account_handle: "acme", project_handle: "ios")
+      assert is_nil(project.active_cleanup_cutoff_at)
+      assert is_nil(project.cleanup_lease_expires_at)
+      assert project.published_cleanup_generation == 1
+      assert project.cleanup_event_id == published.cleanup_event_id
+    end
 
-    assert persisted_cutoff == fresh_cutoff
-    assert DateTime.after?(persisted_lease, fresh_cutoff)
+    test "increments generation on repeated cleanups" do
+      now = DateTime.utc_now()
+      cutoff1 = DateTime.add(now, -10, :second)
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: cutoff1,
+        cleanup_lease_expires_at: DateTime.add(now, 60, :second),
+        updated_at: cutoff1
+      })
+
+      assert {:ok, published1} = Cleanup.publish_project_cleanup("acme", "ios", cutoff1)
+      assert published1.published_cleanup_generation == 1
+
+      cutoff2 = DateTime.add(now, -5, :second)
+
+      Repo.update_all(
+        from(p in Project,
+          where: p.account_handle == "acme" and p.project_handle == "ios"
+        ),
+        set: [
+          active_cleanup_cutoff_at: cutoff2,
+          cleanup_lease_expires_at: DateTime.add(now, 120, :second)
+        ]
+      )
+
+      assert {:ok, published2} = Cleanup.publish_project_cleanup("acme", "ios", cutoff2)
+      assert published2.published_cleanup_generation == 2
+      assert published2.cleanup_event_id > published1.cleanup_event_id
+    end
+
+    test "fails when the active cleanup is not current" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -5, :second)
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: cutoff,
+        cleanup_lease_expires_at: DateTime.add(now, 60, :second),
+        updated_at: cutoff
+      })
+
+      wrong_cutoff = DateTime.add(cutoff, -10, :second)
+      assert {:error, :cleanup_not_active} = Cleanup.publish_project_cleanup("acme", "ios", wrong_cutoff)
+    end
   end
 
-  test "renew_project_cleanup_lease extends the active lease for the same cleanup" do
-    now = DateTime.utc_now()
-    cutoff = DateTime.add(now, -5, :second)
-    initial_lease = DateTime.add(now, 10, :second)
+  describe "expire_project_cleanup_lease/3" do
+    test "clears active state without leaving a published barrier behind" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -5, :second)
 
-    Repo.insert!(%Project{
-      account_handle: "acme",
-      project_handle: "ios",
-      last_cleanup_at: cutoff,
-      cleanup_lease_expires_at: initial_lease,
-      updated_at: cutoff
-    })
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: cutoff,
+        cleanup_lease_expires_at: DateTime.add(now, 60, :second),
+        updated_at: cutoff
+      })
 
-    assert :ok = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
+      assert :ok = Cleanup.expire_project_cleanup_lease("acme", "ios", cutoff)
 
-    renewed = Repo.get_by!(Project, account_handle: "acme", project_handle: "ios")
-    assert DateTime.after?(renewed.cleanup_lease_expires_at, initial_lease)
-    assert DateTime.after?(renewed.updated_at, cutoff)
+      expired = Repo.get_by!(Project, account_handle: "acme", project_handle: "ios")
+      assert is_nil(expired.active_cleanup_cutoff_at)
+      assert is_nil(expired.cleanup_lease_expires_at)
+      assert is_nil(expired.published_cleanup_cutoff_at)
+      assert is_nil(expired.published_cleanup_generation)
+    end
+
+    test "allows re-acquiring the lease after expiry" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -5, :second)
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: cutoff,
+        cleanup_lease_expires_at: DateTime.add(now, 60, :second),
+        updated_at: cutoff
+      })
+
+      assert :ok = Cleanup.expire_project_cleanup_lease("acme", "ios", cutoff)
+      assert {:ok, fresh_cutoff} = Cleanup.begin_project_cleanup("acme", "ios")
+      assert DateTime.after?(fresh_cutoff, cutoff)
+    end
   end
 
-  test "renew_project_cleanup_lease reports when the lease is no longer active" do
-    cutoff = DateTime.utc_now()
+  describe "effective_project_barriers/1" do
+    test "returns active barrier when lease is alive" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -5, :second)
 
-    Repo.insert!(%Project{
-      account_handle: "acme",
-      project_handle: "ios",
-      last_cleanup_at: cutoff,
-      cleanup_lease_expires_at: DateTime.add(cutoff, -1, :second),
-      updated_at: cutoff
-    })
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: cutoff,
+        cleanup_lease_expires_at: DateTime.add(now, 60, :second),
+        updated_at: cutoff
+      })
 
-    assert {:error, :cleanup_lease_lost} = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
+      barriers =
+        Cleanup.effective_project_barriers([
+          %{account_handle: "acme", project_handle: "ios"}
+        ])
+
+      assert Map.has_key?(barriers, {"acme", "ios"})
+      assert barriers[{"acme", "ios"}] == DateTime.truncate(cutoff, :second)
+    end
+
+    test "returns published barrier when no active cleanup exists" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -60, :second)
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: nil,
+        cleanup_lease_expires_at: nil,
+        published_cleanup_cutoff_at: cutoff,
+        published_cleanup_generation: 1,
+        cleanup_event_id: 1,
+        cleanup_published_at: now,
+        updated_at: now
+      })
+
+      barriers =
+        Cleanup.effective_project_barriers([
+          %{account_handle: "acme", project_handle: "ios"}
+        ])
+
+      assert barriers[{"acme", "ios"}] == DateTime.truncate(cutoff, :second)
+    end
+
+    test "returns no barrier when active lease has expired and no published cleanup" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -120, :second)
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: cutoff,
+        cleanup_lease_expires_at: DateTime.add(now, -60, :second),
+        updated_at: cutoff
+      })
+
+      barriers =
+        Cleanup.effective_project_barriers([
+          %{account_handle: "acme", project_handle: "ios"}
+        ])
+
+      assert barriers == %{}
+    end
   end
 
-  test "renew_project_cleanup_lease uses shared database time for lease checks" do
-    cutoff = ~U[2026-03-12 12:00:00.123456Z]
+  describe "list_published_cleanups_after_event_id/2" do
+    test "returns events after the given watermark" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -60, :second)
 
-    expect(Repo, :update_all, fn %Ecto.Query{} = query, updates ->
-      update_query = from(project in query, update: ^updates)
-      {sql, _params} = SQL.to_sql(:update_all, Repo, update_query)
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        active_cleanup_cutoff_at: cutoff,
+        cleanup_lease_expires_at: DateTime.add(now, 60, :second),
+        updated_at: cutoff
+      })
 
-      assert sql =~ "clock_timestamp()"
-      {1, nil}
-    end)
+      {:ok, published} = Cleanup.publish_project_cleanup("acme", "ios", cutoff)
 
-    assert :ok = Cleanup.renew_project_cleanup_lease("acme", "ios", cutoff)
+      {events, next_watermark} = Cleanup.list_published_cleanups_after_event_id(nil, 100)
+
+      assert length(events) == 1
+      assert hd(events).account_handle == "acme"
+      assert hd(events).published_cleanup_generation == 1
+      assert next_watermark == published.cleanup_event_id
+
+      {events2, _} = Cleanup.list_published_cleanups_after_event_id(next_watermark, 100)
+      assert events2 == []
+    end
   end
 
-  test "latest_project_cleanup_cutoffs matches only the requested project pairs" do
-    ios_cutoff = ~U[2026-03-12 12:00:00.000000Z]
-    android_cutoff = ~U[2026-03-12 13:00:00.000000Z]
-    beta_cutoff = ~U[2026-03-12 14:00:00.000000Z]
+  describe "gc_shared_entries/1" do
+    test "deletes rows older than the published cleanup cutoff" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -30, :second)
 
-    Repo.insert!(%Project{
-      account_handle: "acme",
-      project_handle: "ios",
-      last_cleanup_at: ios_cutoff,
-      cleanup_lease_expires_at: DateTime.add(ios_cutoff, 60, :second),
-      updated_at: ios_cutoff
-    })
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        published_cleanup_cutoff_at: cutoff,
+        published_cleanup_generation: 1,
+        cleanup_event_id: 1,
+        cleanup_published_at: now,
+        updated_at: now
+      })
 
-    Repo.insert!(%Project{
-      account_handle: "acme",
-      project_handle: "android",
-      last_cleanup_at: android_cutoff,
-      cleanup_lease_expires_at: DateTime.add(android_cutoff, 60, :second),
-      updated_at: android_cutoff
-    })
+      Repo.insert!(%Entry{
+        key: "keyvalue:acme:ios:old",
+        account_handle: "acme",
+        project_handle: "ios",
+        cas_id: "old",
+        json_payload: "{}",
+        source_node: "node-a",
+        source_updated_at: DateTime.add(cutoff, -10, :second),
+        last_accessed_at: DateTime.add(cutoff, -10, :second),
+        updated_at: DateTime.add(cutoff, -10, :second)
+      })
 
-    Repo.insert!(%Project{
-      account_handle: "beta",
-      project_handle: "ios",
-      last_cleanup_at: beta_cutoff,
-      cleanup_lease_expires_at: DateTime.add(beta_cutoff, 60, :second),
-      updated_at: beta_cutoff
-    })
+      Repo.insert!(%Entry{
+        key: "keyvalue:acme:ios:new",
+        account_handle: "acme",
+        project_handle: "ios",
+        cas_id: "new",
+        json_payload: "{}",
+        source_node: "node-a",
+        source_updated_at: DateTime.add(cutoff, 10, :second),
+        last_accessed_at: DateTime.add(cutoff, 10, :second),
+        updated_at: DateTime.add(cutoff, 10, :second)
+      })
 
-    cutoffs =
-      Cleanup.latest_project_cleanup_cutoffs([
-        %{account_handle: "acme", project_handle: "ios"},
-        %{account_handle: "beta", project_handle: "ios"},
-        %{account_handle: "acme", project_handle: "ios"}
-      ])
+      assert 1 == Cleanup.gc_shared_entries(1000)
 
-    assert cutoffs == %{
-             {"acme", "ios"} => DateTime.truncate(ios_cutoff, :second),
-             {"beta", "ios"} => DateTime.truncate(beta_cutoff, :second)
-           }
+      assert is_nil(Repo.get(Entry, "keyvalue:acme:ios:old"))
+      assert Repo.get(Entry, "keyvalue:acme:ios:new")
+    end
+
+    test "does not delete rows newer than cutoff" do
+      now = DateTime.utc_now()
+      cutoff = DateTime.add(now, -30, :second)
+
+      Repo.insert!(%Project{
+        account_handle: "acme",
+        project_handle: "ios",
+        published_cleanup_cutoff_at: cutoff,
+        published_cleanup_generation: 1,
+        cleanup_event_id: 1,
+        cleanup_published_at: now,
+        updated_at: now
+      })
+
+      Repo.insert!(%Entry{
+        key: "keyvalue:acme:ios:new",
+        account_handle: "acme",
+        project_handle: "ios",
+        cas_id: "new",
+        json_payload: "{}",
+        source_node: "node-a",
+        source_updated_at: DateTime.add(cutoff, 10, :second),
+        last_accessed_at: DateTime.add(cutoff, 10, :second),
+        updated_at: DateTime.add(cutoff, 10, :second)
+      })
+
+      assert 0 == Cleanup.gc_shared_entries(1000)
+      assert Repo.get(Entry, "keyvalue:acme:ios:new")
+    end
   end
 
-  test "expire_project_cleanup_lease releases the active lease for retries" do
-    now = DateTime.utc_now()
-    cutoff = DateTime.add(now, -5, :second)
+  describe "local state management" do
+    test "discovery watermark round-trips through local state" do
+      assert is_nil(Cleanup.get_local_discovery_watermark())
 
-    Repo.insert!(%Project{
-      account_handle: "acme",
-      project_handle: "ios",
-      last_cleanup_at: cutoff,
-      cleanup_lease_expires_at: DateTime.add(now, 60, :second),
-      updated_at: cutoff
-    })
+      :ok = Cleanup.put_local_discovery_watermark(42)
+      assert 42 == Cleanup.get_local_discovery_watermark()
 
-    assert :ok = Cleanup.expire_project_cleanup_lease("acme", "ios", cutoff)
+      :ok = Cleanup.put_local_discovery_watermark(99)
+      assert 99 == Cleanup.get_local_discovery_watermark()
+    end
 
-    expired = Repo.get_by!(Project, account_handle: "acme", project_handle: "ios")
-    assert DateTime.compare(expired.cleanup_lease_expires_at, DateTime.utc_now()) in [:lt, :eq]
+    test "applied generation round-trips through local state" do
+      assert 0 == Cleanup.local_applied_generation("acme", "ios")
 
-    assert {:ok, fresh_cutoff} = Cleanup.begin_project_cleanup("acme", "ios")
-    assert DateTime.after?(fresh_cutoff, cutoff)
-  end
+      :ok = Cleanup.put_local_applied_generation("acme", "ios", 3)
+      assert 3 == Cleanup.local_applied_generation("acme", "ios")
 
-  test "tombstone_project_entries keeps microsecond precision in updated_at" do
-    cutoff = ~U[2026-03-12 12:00:00.123456Z]
-
-    Repo.insert!(%Entry{
-      key: "keyvalue:acme:ios:artifact",
-      account_handle: "acme",
-      project_handle: "ios",
-      cas_id: "artifact",
-      json_payload: Jason.encode!(%{entries: []}),
-      source_node: "node-a",
-      source_updated_at: cutoff,
-      last_accessed_at: cutoff,
-      updated_at: cutoff
-    })
-
-    assert 1 == Cleanup.tombstone_project_entries("acme", "ios", cutoff)
-
-    assert %Entry{deleted_at: ^cutoff, updated_at: updated_at} = Repo.get!(Entry, "keyvalue:acme:ios:artifact")
-    assert Entry.__schema__(:type, :updated_at) == :utc_datetime_usec
-    assert {:ok, _} = Ecto.Type.dump(Entry.__schema__(:type, :updated_at), updated_at)
-    assert elem(updated_at.microsecond, 1) == 6
+      :ok = Cleanup.put_local_applied_generation("acme", "ios", 5)
+      assert 5 == Cleanup.local_applied_generation("acme", "ios")
+    end
   end
 
   defp ensure_distributed_repo_storage! do

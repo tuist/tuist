@@ -4,6 +4,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
   import ExUnit.CaptureLog
 
+  alias Cache.CacheArtifacts
   alias Cache.CleanProjectWorker
   alias Cache.Config
   alias Cache.Disk
@@ -27,6 +28,7 @@ defmodule Cache.CleanProjectWorkerTest do
     stub(KeyValueAccessTracker, :mark_shared_lineage, fn _key -> :ok end)
     stub(KeyValueAccessTracker, :shared_lineage?, fn _key -> false end)
     stub(KeyValueAccessTracker, :allow_access_bump?, fn _key -> false end)
+    stub(CacheArtifacts, :delete_by_keys, fn _keys -> :ok end)
     :ok
   end
 
@@ -57,7 +59,7 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
     end
 
-    test "distributed cleanup uses cutoff-aware helpers and tombstones" do
+    test "distributed cleanup uses cutoff-aware helpers and publishes cleanup" do
       stub(Config, :key_value_mode, fn -> :distributed end)
       stub(Config, :distributed_kv_enabled?, fn -> true end)
 
@@ -83,6 +85,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
         assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         {:ok, 4}
       end)
 
@@ -96,7 +99,9 @@ defmodule Cache.CleanProjectWorkerTest do
           end
       end)
 
-      expect(Cleanup, :tombstone_project_entries, fn ^account_handle, ^project_handle, ^cutoff -> 5 end)
+      expect(Cleanup, :publish_project_cleanup, fn ^account_handle, ^project_handle, ^cutoff ->
+        {:ok, %{published_cleanup_generation: 1, cleanup_event_id: 1}}
+      end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
 
@@ -168,6 +173,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^safe_cutoff, opts ->
         assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         {:ok, 0}
       end)
 
@@ -177,7 +183,9 @@ defmodule Cache.CleanProjectWorkerTest do
         {:ok, 0}
       end)
 
-      expect(Cleanup, :tombstone_project_entries, fn ^account_handle, ^project_handle, ^safe_cutoff -> 0 end)
+      expect(Cleanup, :publish_project_cleanup, fn ^account_handle, ^project_handle, ^cleanup_started_at ->
+        {:ok, %{published_cleanup_generation: 1, cleanup_event_id: 1}}
+      end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
 
@@ -213,6 +221,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
         assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         send(parent, :disk_deleted)
         {:ok, 0}
       end)
@@ -222,9 +231,9 @@ defmodule Cache.CleanProjectWorkerTest do
         {:ok, 0}
       end)
 
-      stub(Cleanup, :tombstone_project_entries, fn _account_handle, _project_handle, _cleanup_cutoff ->
-        send(parent, :tombstoned)
-        0
+      stub(Cleanup, :publish_project_cleanup, fn _account_handle, _project_handle, _cutoff ->
+        send(parent, :published)
+        {:ok, %{published_cleanup_generation: 1, cleanup_event_id: 1}}
       end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
@@ -236,7 +245,7 @@ defmodule Cache.CleanProjectWorkerTest do
       assert_received :kv_deleted
       assert_received :disk_deleted
       refute_received :shared_s3_deleted
-      refute_received :tombstoned
+      refute_received :published
     end
 
     test "distributed cleanup keeps active lease conflicts retryable on retry attempts after local cleanup" do
@@ -266,6 +275,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cleanup_cutoff, opts ->
         assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         send(parent, :disk_deleted)
         {:ok, 0}
       end)
@@ -305,7 +315,7 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
     end
 
-    test "distributed cleanup fails and skips tombstoning when S3 deletion fails" do
+    test "distributed cleanup fails and skips publication when S3 deletion fails" do
       stub(Config, :key_value_mode, fn -> :distributed end)
       stub(Config, :distributed_kv_enabled?, fn -> true end)
 
@@ -342,9 +352,9 @@ defmodule Cache.CleanProjectWorkerTest do
         {:error, :timeout}
       end)
 
-      stub(Cleanup, :tombstone_project_entries, fn ^account_handle, ^project_handle, ^cutoff ->
-        send(parent, :tombstoned)
-        5
+      stub(Cleanup, :publish_project_cleanup, fn ^account_handle, ^project_handle, ^cutoff ->
+        send(parent, :published)
+        {:ok, %{published_cleanup_generation: 1, cleanup_event_id: 1}}
       end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
@@ -353,7 +363,7 @@ defmodule Cache.CleanProjectWorkerTest do
         assert {:error, :timeout} = CleanProjectWorker.perform(job)
       end)
 
-      refute_received :tombstoned
+      refute_received :published
     end
 
     test "skips xcode_cache deletion when no dedicated bucket is configured" do
@@ -414,6 +424,7 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^safe_cutoff, opts ->
         assert :ok = Keyword.fetch!(opts, :on_progress).()
+        assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
         {:ok, 0}
       end)
 
@@ -423,7 +434,9 @@ defmodule Cache.CleanProjectWorkerTest do
         {:ok, 0}
       end)
 
-      expect(Cleanup, :tombstone_project_entries, fn ^account_handle, ^project_handle, ^safe_cutoff -> 0 end)
+      expect(Cleanup, :publish_project_cleanup, fn ^account_handle, ^project_handle, ^cleanup_started_at ->
+        {:ok, %{published_cleanup_generation: 1, cleanup_event_id: 1}}
+      end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
 

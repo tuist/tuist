@@ -94,13 +94,13 @@ defmodule Cache.KeyValueReplicationShipper do
       _ = KeyValueEntries.clear_replication_tokens(Enum.reverse(skipped_entries))
     end
 
-    cleanup_cutoffs =
+    cleanup_barriers =
       prepared_rows
       |> Enum.map(& &1.scope)
-      |> Cleanup.latest_project_cleanup_cutoffs()
+      |> Cleanup.effective_project_barriers()
 
     {stale_rows, active_rows} =
-      Enum.split_with(prepared_rows, &stale_against_cleanup?(&1, cleanup_cutoffs))
+      Enum.split_with(prepared_rows, &stale_against_cleanup?(&1, cleanup_barriers))
 
     Enum.each(stale_rows, &discard_stale_row/1)
     ship_batch(active_rows)
@@ -239,13 +239,13 @@ defmodule Cache.KeyValueReplicationShipper do
     :ok
   end
 
-  defp stale_against_cleanup?(row, cleanup_cutoffs) do
-    case Map.get(cleanup_cutoffs, {row.scope.account_handle, row.scope.project_handle}) do
+  defp stale_against_cleanup?(row, cleanup_barriers) do
+    case Map.get(cleanup_barriers, {row.scope.account_handle, row.scope.project_handle}) do
       nil ->
         false
 
-      cleanup_started_at ->
-        DateTime.compare(row.entry.source_updated_at, cleanup_started_at) in [:lt, :eq]
+      barrier ->
+        DateTime.compare(row.entry.source_updated_at, barrier) in [:lt, :eq]
     end
   end
 

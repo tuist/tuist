@@ -5,6 +5,7 @@ defmodule Cache.CleanProjectWorker do
 
   use Oban.Worker, queue: :clean, max_attempts: 3
 
+  alias Cache.CacheArtifacts
   alias Cache.Config
   alias Cache.Disk
   alias Cache.DistributedKV.Cleanup
@@ -49,23 +50,26 @@ defmodule Cache.CleanProjectWorker do
 
   defp perform_distributed_cleanup(account_handle, project_handle, attempt) do
     case Cleanup.begin_project_cleanup(account_handle, project_handle) do
-      {:ok, cleanup_started_at} ->
-        perform_primary_distributed_cleanup(account_handle, project_handle, cleanup_started_at)
+      {:ok, active_cleanup_cutoff_at} ->
+        perform_primary_distributed_cleanup(account_handle, project_handle, active_cleanup_cutoff_at)
 
       {:error, :cleanup_already_in_progress} ->
         perform_duplicate_distributed_cleanup(account_handle, project_handle, attempt)
     end
   end
 
-  defp perform_primary_distributed_cleanup(account_handle, project_handle, cleanup_started_at) do
-    safe_cutoff = DateTime.truncate(cleanup_started_at, :second)
-    on_progress = fn -> Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) end
+  defp perform_primary_distributed_cleanup(account_handle, project_handle, active_cleanup_cutoff_at) do
+    safe_cutoff = DateTime.truncate(active_cleanup_cutoff_at, :second)
+
+    on_progress = fn ->
+      Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at)
+    end
 
     result =
       with :ok <- perform_local_node_cleanup(account_handle, project_handle, safe_cutoff, on_progress),
-           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
+           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at),
            :ok <- maybe_delete_xcode_s3_artifacts(account_handle, project_handle, safe_cutoff, on_progress),
-           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at),
+           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at),
            :ok <-
              delete_s3_artifacts_with_cutoff(
                account_handle,
@@ -75,11 +79,12 @@ defmodule Cache.CleanProjectWorker do
                safe_cutoff,
                on_progress
              ),
-           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, cleanup_started_at) do
-        tombstoned = Cleanup.tombstone_project_entries(account_handle, project_handle, safe_cutoff)
-
+           :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at),
+           {:ok, published} <- Cleanup.publish_project_cleanup(account_handle, project_handle, active_cleanup_cutoff_at) do
         Logger.info(
-          "Distributed cleanup finished for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)} (tombstoned=#{tombstoned})"
+          "Distributed cleanup published for #{account_handle}/#{project_handle} " <>
+            "with cutoff #{DateTime.to_iso8601(safe_cutoff)} " <>
+            "(generation=#{published.published_cleanup_generation}, event_id=#{published.cleanup_event_id})"
         )
 
         :ok
@@ -101,7 +106,7 @@ defmodule Cache.CleanProjectWorker do
           "Distributed cleanup failed for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)}: #{inspect(reason)}"
         )
 
-        :ok = Cleanup.expire_project_cleanup_lease(account_handle, project_handle, cleanup_started_at)
+        :ok = Cleanup.expire_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at)
         error
     end
   end
@@ -139,7 +144,8 @@ defmodule Cache.CleanProjectWorker do
     end
   end
 
-  defp perform_local_node_cleanup(account_handle, project_handle, cutoff, on_progress \\ fn -> :ok end) do
+  @doc false
+  def perform_local_node_cleanup(account_handle, project_handle, cutoff, on_progress \\ fn -> :ok end) do
     with :ok <- invalidate_local_kv(account_handle, project_handle, cutoff, on_progress) do
       delete_disk_with_cutoff(account_handle, project_handle, cutoff, on_progress)
     end
@@ -174,7 +180,12 @@ defmodule Cache.CleanProjectWorker do
   end
 
   defp delete_disk_with_cutoff(account_handle, project_handle, cutoff, on_progress) do
-    case Disk.delete_project_files_before(account_handle, project_handle, cutoff, on_progress: on_progress) do
+    on_deleted_keys = fn keys -> CacheArtifacts.delete_by_keys(keys) end
+
+    case Disk.delete_project_files_before(account_handle, project_handle, cutoff,
+           on_progress: on_progress,
+           on_deleted_keys: on_deleted_keys
+         ) do
       {:ok, count} ->
         Logger.info("Cleaned #{count} disk artifacts for project #{account_handle}/#{project_handle} with cutoff")
         :ok

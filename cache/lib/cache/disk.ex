@@ -108,11 +108,12 @@ defmodule Cache.Disk do
   def delete_project_files_before(account_handle, project_handle, cutoff, opts \\ []) do
     path = project_path(account_handle, project_handle)
     on_progress = Keyword.get(opts, :on_progress)
+    on_deleted_keys = Keyword.get(opts, :on_deleted_keys)
 
     if File.exists?(path) do
       path
       |> stream_regular_files()
-      |> delete_files_before(DateTime.truncate(cutoff, :second), on_progress)
+      |> delete_files_before(DateTime.truncate(cutoff, :second), on_progress, on_deleted_keys)
     else
       {:ok, 0}
     end
@@ -262,12 +263,13 @@ defmodule Cache.Disk do
     end
   end
 
-  defp delete_files_before(files_stream, safe_cutoff, on_progress) do
+  defp delete_files_before(files_stream, safe_cutoff, on_progress, on_deleted_keys) do
     files_stream
     |> Stream.chunk_every(@cleanup_progress_chunk_size)
     |> Enum.reduce_while({:ok, 0}, fn files_chunk, {:ok, deleted_acc} ->
       with :ok <- maybe_call_progress(on_progress),
-           {:ok, chunk_deleted_count} <- delete_files_chunk_before(files_chunk, safe_cutoff) do
+           {:ok, chunk_deleted_count, chunk_deleted_keys} <- delete_files_chunk_before(files_chunk, safe_cutoff),
+           :ok <- maybe_call_on_deleted_keys(on_deleted_keys, chunk_deleted_keys) do
         {:cont, {:ok, deleted_acc + chunk_deleted_count}}
       else
         {:error, reason} ->
@@ -279,17 +281,29 @@ defmodule Cache.Disk do
   defp maybe_call_progress(nil), do: :ok
   defp maybe_call_progress(fun) when is_function(fun, 0), do: fun.()
 
+  defp maybe_call_on_deleted_keys(_fun, []), do: :ok
+  defp maybe_call_on_deleted_keys(nil, _keys), do: :ok
+  defp maybe_call_on_deleted_keys(fun, keys) when is_function(fun, 1), do: fun.(keys)
+
   defp delete_files_chunk_before(files, safe_cutoff) do
-    Enum.reduce_while(files, {:ok, 0}, fn
-      {:error, reason}, {:ok, _deleted_acc} ->
+    Enum.reduce_while(files, {:ok, 0, []}, fn
+      {:error, reason}, {:ok, _deleted_acc, _keys_acc} ->
         {:halt, {:error, reason}}
 
-      file_path, {:ok, deleted_acc} when is_binary(file_path) ->
+      file_path, {:ok, deleted_acc, keys_acc} when is_binary(file_path) ->
         case delete_file_if_before(file_path, safe_cutoff) do
-          :deleted -> {:cont, {:ok, deleted_acc + 1}}
-          :skipped -> {:cont, {:ok, deleted_acc}}
-          {:error, :enoent} -> {:cont, {:ok, deleted_acc}}
-          {:error, reason} -> {:halt, {:error, reason}}
+          :deleted ->
+            key = path_to_key(file_path)
+            {:cont, {:ok, deleted_acc + 1, [key | keys_acc]}}
+
+          :skipped ->
+            {:cont, {:ok, deleted_acc, keys_acc}}
+
+          {:error, :enoent} ->
+            {:cont, {:ok, deleted_acc, keys_acc}}
+
+          {:error, reason} ->
+            {:halt, {:error, reason}}
         end
     end)
   end
@@ -355,5 +369,9 @@ defmodule Cache.Disk do
 
   defp project_path(account_handle, project_handle) do
     Path.join(storage_dir(), "#{account_handle}/#{project_handle}")
+  end
+
+  defp path_to_key(file_path) do
+    Path.relative_to(file_path, storage_dir())
   end
 end

@@ -32,5 +32,6 @@ Mimic.copy(Cache.Repo)
 Mimic.copy(Cache.KeyValueRepo)
 Mimic.copy(Cache.DistributedKV.Cleanup)
 Mimic.copy(Cache.DistributedKV.Repo)
+Mimic.copy(Cache.CleanProjectWorker)
 
 ExUnit.start(max_cases: min(System.schedulers_online(), 4))

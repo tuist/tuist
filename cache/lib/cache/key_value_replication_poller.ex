@@ -6,6 +6,7 @@ defmodule Cache.KeyValueReplicationPoller do
   import Ecto.Query
 
   alias Cache.Config
+  alias Cache.DistributedKV.Cleanup
   alias Cache.DistributedKV.Entry
   alias Cache.DistributedKV.Repo
   alias Cache.KeyValueAccessTracker
@@ -105,6 +106,7 @@ defmodule Cache.KeyValueReplicationPoller do
       |> limit(^@page_size)
 
     rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
+    rows = filter_rows_against_published_barriers(rows)
 
     {processed_count, materialized_count, deleted_count} =
       rows
@@ -174,6 +176,7 @@ defmodule Cache.KeyValueReplicationPoller do
       |> limit(^@bootstrap_page_size)
 
     rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
+    rows = filter_rows_against_published_barriers(rows)
 
     case rows do
       [] ->
@@ -321,6 +324,31 @@ defmodule Cache.KeyValueReplicationPoller do
       %{size_bytes: size_bytes},
       %{node: Config.distributed_kv_node_name(), region: System.get_env("DEPLOY_REGION") || "unknown"}
     )
+  end
+
+  defp filter_rows_against_published_barriers([]), do: []
+
+  defp filter_rows_against_published_barriers(rows) do
+    scope_pairs =
+      rows
+      |> Enum.map(fn row -> {row.account_handle, row.project_handle} end)
+      |> Enum.uniq()
+
+    barriers = Cleanup.published_cleanup_barriers_for_projects(scope_pairs)
+
+    if barriers == %{} do
+      rows
+    else
+      Enum.reject(rows, fn row ->
+        case Map.get(barriers, {row.account_handle, row.project_handle}) do
+          nil ->
+            false
+
+          published_cutoff ->
+            DateTime.compare(row.source_updated_at, published_cutoff) in [:lt, :eq]
+        end
+      end)
+    end
   end
 
   defp schedule_poll(interval_ms) do

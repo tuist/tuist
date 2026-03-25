@@ -193,6 +193,10 @@ defmodule Cache.Config do
     Application.fetch_env!(:cache, :distributed_kv_cleanup_lease_ms)
   end
 
+  def distributed_kv_cleanup_discovery_interval_ms do
+    Application.fetch_env!(:cache, :distributed_kv_cleanup_discovery_interval_ms)
+  end
+
   def distributed_kv_node_name do
     Application.get_env(:cache, :distributed_kv_node_name) ||
       System.get_env("DISTRIBUTED_KV_NODE_NAME") ||

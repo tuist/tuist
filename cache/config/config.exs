@@ -71,6 +71,7 @@ config :cache, Oban,
        {"0 * * * *", Cache.OrphanCleanupWorker},
        {"*/15 * * * *", Cache.KeyValueEvictionWorker},
        {"0 2 * * *", Cache.TombstonePurgeWorker},
+       {"*/5 * * * *", Cache.DistributedKVGCWorker},
        {"* * * * *", Cache.S3TransferWorker},
        {"*/10 * * * *", Cache.Registry.SyncWorker},
        {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}
@@ -105,6 +106,7 @@ config :cache,
   distributed_kv_access_throttle_ms: 30_000,
   distributed_kv_tombstone_retention_days: 7,
   distributed_kv_cleanup_lease_ms: 300_000,
+  distributed_kv_cleanup_discovery_interval_ms: 30_000,
   registry_sync_limit: 1_000
 
 config :ex_aws, http_client: TuistCommon.AWS.Client
