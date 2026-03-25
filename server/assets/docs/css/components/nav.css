@@ -43,6 +43,13 @@
     align-items: center;
     gap: var(--noora-spacing-6);
 
+    & #docs-language-selector > [data-part="trigger"] {
+      box-shadow: var(--noora-light-border-default);
+      border-radius: var(--noora-radius-medium);
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
     & > [data-part="socials"] {
       display: flex;
       flex-direction: row;

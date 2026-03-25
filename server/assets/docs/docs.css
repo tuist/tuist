@@ -79,13 +79,3 @@ p {
   }
 }
 
-/* Global focus-visible indicator */
-:focus-visible {
-  outline: 2px solid var(--noora-surface-label-primary);
-  outline-offset: 2px;
-}
-
-/* Remove default outline for mouse users */
-:focus:not(:focus-visible) {
-  outline: none;
-}

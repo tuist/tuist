@@ -17,6 +17,9 @@ defmodule TuistWeb.Docs.Layouts do
   end
 
   defp localized_docs_href(current_path, target_locale) do
-    Regex.replace(~r{^/[^/]+/docs}, current_path, "/#{target_locale}/docs")
+    case current_path |> Path.split() |> Enum.reject(&(&1 == "/")) do
+      [_locale, "docs" | rest] -> Path.join(["/#{target_locale}", "docs" | rest])
+      _ -> "/#{target_locale}/docs"
+    end
   end
 end

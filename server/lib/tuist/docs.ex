@@ -19,9 +19,25 @@ defmodule Tuist.Docs do
   def slugs, do: @slugs
 
   def get_page(path) when is_binary(path) do
-    path
-    |> normalize_path()
-    |> then(&Map.get(@pages_by_slug, &1))
+    normalized = normalize_path(path)
+
+    case Map.get(@pages_by_slug, normalized) do
+      nil -> fallback_to_english(normalized)
+      page -> page
+    end
+  end
+
+  defp fallback_to_english(path) do
+    segments = path |> Path.split() |> Enum.reject(&(&1 == "/"))
+
+    case segments do
+      [locale | rest] when locale != "en" ->
+        en_slug = Path.join(["/en" | rest])
+        Map.get(@pages_by_slug, en_slug)
+
+      _ ->
+        nil
+    end
   end
 
   def normalize_path(path) when is_binary(path) do
