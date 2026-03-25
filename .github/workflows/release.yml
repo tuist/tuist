@@ -1406,7 +1406,7 @@ jobs:
 
       - name: Update mise.lock
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
-        run: mise lock tuist --platform linux-x64,linux-arm64,linux-x64-musl,linux-arm64-musl,macos-arm64,macos-x64
+        run: mise lock tuist --platform linux-x64,macos-arm64,macos-x64
 
       - name: Create App GitHub Release
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
