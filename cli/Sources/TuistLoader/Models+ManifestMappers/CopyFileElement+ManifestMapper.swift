@@ -17,10 +17,10 @@ extension XcodeGraph.CopyFileElement {
         manifest: ProjectDescription.CopyFileElement,
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming,
-        includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
+        includeFiles: @escaping (AbsolutePath) async throws -> Bool = { _ in true }
     ) async throws -> [XcodeGraph.CopyFileElement] {
         func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
-            if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
+            if try await fileSystem.exists(path, isDirectory: false) { return [path] }
 
             let files: [AbsolutePath]
 
@@ -30,14 +30,14 @@ extension XcodeGraph.CopyFileElement {
                     include: [String(path.pathString.dropFirst())]
                 )
                 .collect()
-                .filter(includeFiles)
                 .sorted()
+                .concurrentFilter { try await includeFiles($0) }
             } catch GlobError.nonExistentDirectory {
                 files = []
             }
 
             if files.isEmpty {
-                if FileHandler.shared.isFolder(path) {
+                if try await fileSystem.exists(path, isDirectory: true) {
                     Logger.current
                         .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
                 } else {
@@ -56,7 +56,7 @@ extension XcodeGraph.CopyFileElement {
                 return []
             }
 
-            guard FileHandler.shared.isFolder(path) else {
+            guard try await fileSystem.exists(path, isDirectory: true) else {
                 // FIXME: This should be done in a linter.
                 Logger.current
                     .warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")

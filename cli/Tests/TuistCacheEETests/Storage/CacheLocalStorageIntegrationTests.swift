@@ -25,7 +25,6 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem
         )
     }

@@ -198,7 +198,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             )
 
             // When
-            let (mappedProject, sideEffects) = try subject.map(project: project)
+            let (mappedProject, sideEffects) = try await subject.map(project: project)
 
             // Then
             let derivedPath = projectPath
@@ -491,7 +491,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             )
 
             // When
-            let (mappedProject, sideEffects) = try subject.map(project: project)
+            let (mappedProject, sideEffects) = try await subject.map(project: project)
 
             // Then
             let derivedPath = projectPath
@@ -618,7 +618,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         }
     }
 
-    func testMap_whenDisableSynthesizedResourceAccessors() throws {
+    func testMap_whenDisableSynthesizedResourceAccessors() async throws {
         // Given
         let templateStrings = ThreadSafe<[String]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, templateString, _, _, paths in
@@ -747,14 +747,14 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (mappedProject, sideEffects) = try subject.map(project: project)
+        let (mappedProject, sideEffects) = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(project, mappedProject)
         XCTAssertEqual(sideEffects, [])
     }
 
-    func testMap_bundleName_whenBundleAccessorsAreEnabled() throws {
+    func testMap_bundleName_whenBundleAccessorsAreEnabled() async throws {
         // Given
         let bundleNames = ThreadSafe<[String?]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
@@ -785,7 +785,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.map(project: project)
+        _ = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(bundleNames.value, [
@@ -793,7 +793,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         ])
     }
 
-    func testMap_bundleName_whenBundleAccessorsAreDisabled() throws {
+    func testMap_bundleName_whenBundleAccessorsAreDisabled() async throws {
         // Given
         let bundleNames = ThreadSafe<[String?]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
@@ -824,7 +824,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.map(project: project)
+        _ = try await subject.map(project: project)
 
         // Then
         XCTAssertEqual(bundleNames.value, [
@@ -832,7 +832,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         ])
     }
 
-    func testMap_whenResourceContainsBinaryPlist() throws {
+    func testMap_whenResourceContainsBinaryPlist() async throws {
         // Given
         let plistNames = ThreadSafe<[String]>([])
         synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, paths in
@@ -877,7 +877,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.map(project: project)
+        _ = try await subject.map(project: project)
 
         // Then
         XCTAssertFalse(plistNames.value.contains("Binary.plist"))

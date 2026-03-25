@@ -11,16 +11,13 @@ import XcodeGraph
 /// xcframeworks.
 /// See this PR for more context: https://github.com/tuist/tuist/pull/6757
 public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let manifestFilesLocator: ManifestFilesLocating
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
         self.manifestFilesLocator = manifestFilesLocator
     }
@@ -168,7 +165,6 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         derivedDirectory: AbsolutePath
     ) async throws -> [SideEffectDescriptor] {
         let fileSystem = fileSystem
-        let fileHandler = fileHandler
         return try await staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
             .concurrentFlatMap { xcframework -> [SideEffectDescriptor] in
                 guard let moduleMap = xcframework.moduleMaps.first
@@ -182,7 +178,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     .file(
                         FileDescriptor(
                             path: headersDirectory.appending(components: "module.modulemap"),
-                            contents: try fileHandler.readFile(moduleMap)
+                            contents: try await fileSystem.readFile(at: moduleMap)
                         )
                     ),
                 ]
@@ -192,7 +188,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                         .file(
                             FileDescriptor(
                                 path: headersDirectory.appending(components: "\(name).h"),
-                                contents: String(data: try fileHandler.readFile(umbrellaHeader), encoding: .utf8)?
+                                contents: String(data: try await fileSystem.readFile(at: umbrellaHeader), encoding: .utf8)?
                                     .replacingOccurrences(of: "<\(name)/", with: "<")
                                     .data(using: .utf8)
                             )

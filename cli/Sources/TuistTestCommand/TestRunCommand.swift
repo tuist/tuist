@@ -5,6 +5,7 @@
     import TuistBuildCommand
     import TuistCore
     import TuistEnvKey
+    import TuistEnvironment
     import TuistExtension
     import TuistKit
     import TuistLogging
@@ -335,12 +336,7 @@
                     )
             }
 
-            let absolutePath =
-                if let path {
-                    try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-                } else {
-                    FileHandler.shared.currentPath
-                }
+            let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
             let action: XcodeBuildTestAction =
                 if buildOnly {
@@ -368,12 +364,12 @@
                 rosetta: rosetta,
                 skipUITests: skipUITests,
                 skipUnitTests: skipUnitTests,
-                resultBundlePath: resultBundlePath.map {
-                    try AbsolutePath(
-                        validating: $0,
-                        relativeTo: FileHandler.shared.currentPath
-                    )
-                },
+                resultBundlePath: try await {
+                    if let resultBundlePath {
+                        return try await Environment.current.pathRelativeToWorkingDirectory(resultBundlePath)
+                    }
+                    return nil
+                }(),
                 derivedDataPath: derivedDataPath,
                 retryCount: retryCount,
                 testTargets: testTargets,

@@ -40,7 +40,6 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
         subject = RecursiveManifestLoader(
             manifestLoader: manifestLoader,
-            fileHandler: fileHandler,
             packageInfoMapper: packageInfoMapper,
             rootDirectoryLocator: rootDirectoryLocator
         )

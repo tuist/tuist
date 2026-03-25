@@ -39,11 +39,11 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
     private func process(file: FileDescriptor) async throws {
         switch file.state {
         case .present:
-            try FileHandler.shared.createFolder(file.path.parentDirectory)
+            try await fileSystem.makeDirectory(at: file.path.parentDirectory)
             if let contents = file.contents {
                 try contents.write(to: file.path.url)
             } else {
-                try FileHandler.shared.touch(file.path)
+                try await fileSystem.touch(file.path)
             }
         case .absent:
             try await fileSystem.remove(file.path)

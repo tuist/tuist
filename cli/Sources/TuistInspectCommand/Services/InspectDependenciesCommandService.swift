@@ -3,6 +3,7 @@
     import Path
     import TuistConfigLoader
     import TuistCore
+    import TuistEnvironment
     import TuistKit
     import TuistLoader
     import TuistLogging
@@ -28,7 +29,7 @@
             path: String?,
             inspectionTypes: Set<DependencyInspectionType>
         ) async throws {
-            let path = try self.path(path)
+            let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
             let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
             let graph = try await generator.load(
@@ -83,12 +84,5 @@
             )
         }
 
-        private func path(_ path: String?) throws -> AbsolutePath {
-            if let path {
-                return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-            } else {
-                return FileHandler.shared.currentPath
-            }
-        }
     }
 #endif

@@ -113,8 +113,7 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
         let subject = ProjectDescriptionHelpersBuilder(
             projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
             cacheDirectory: cachePath,
-            helpersDirectoryLocator: helpersDirectoryLocator,
-            fileHandler: fileHandler // from parent -> parent test case object
+            helpersDirectoryLocator: helpersDirectoryLocator
         )
         self.subject = subject
         return subject

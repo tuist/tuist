@@ -73,7 +73,6 @@ struct CacheRemoteStorageTests {
             getCacheActionItemService: getCacheActionItemService,
             uploadCacheActionItemService: uploadCacheActionItemService,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem,
             multipartUploadStartCacheService: multipartUploadStartCacheService,
             multipartUploadGenerateURLCacheService: multipartUploadGenerateURLCacheService,

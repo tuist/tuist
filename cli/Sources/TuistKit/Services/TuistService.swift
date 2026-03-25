@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistConfigLoader
@@ -16,13 +17,16 @@ enum TuistServiceError: Error {
 public final class TuistService: NSObject {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
+    private let fileSystem: FileSysteming
 
     public init(
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
+        self.fileSystem = fileSystem
     }
 
     public func run(
@@ -33,14 +37,15 @@ public final class TuistService: NSObject {
 
         let commandName = "tuist-\(arguments[0])"
 
+        let currentPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         let path: AbsolutePath
         if let pathOptionIndex = arguments.firstIndex(of: "--path") ?? arguments.firstIndex(of: "--p") {
             path = try AbsolutePath(
                 validating: arguments[pathOptionIndex + 1],
-                relativeTo: FileHandler.shared.currentPath
+                relativeTo: currentPath
             )
         } else {
-            path = FileHandler.shared.currentPath
+            path = currentPath
         }
 
         let config = try await configLoader.loadConfig(path: path)
@@ -58,9 +63,11 @@ public final class TuistService: NSObject {
             pluginPaths.append(absolutePath)
         }
 
-        let pluginExecutables = try pluginPaths
-            .flatMap(FileHandler.shared.contentsOfDirectory)
-            .filter { $0.basename.hasPrefix("tuist-") }
+        var pluginExecutables: [AbsolutePath] = []
+        for pluginPath in pluginPaths {
+            let contents = try await fileSystem.contentsOfDirectory(pluginPath)
+            pluginExecutables.append(contentsOf: contents.filter { $0.basename.hasPrefix("tuist-") })
+        }
 
         if let pluginCommand = pluginExecutables.first(where: { $0.basename == commandName }) {
             arguments[0] = pluginCommand.pathString

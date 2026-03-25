@@ -1,3 +1,4 @@
+import FileSystem
 import Path
 import TuistCore
 import TuistSupport
@@ -7,20 +8,20 @@ import XCTest
 @testable import TuistTesting
 
 final class WorkspaceStructureGeneratorTests: XCTestCase {
-    fileprivate var fileHandler: InMemoryFileHandler!
+    fileprivate var fileSystem: InMemoryFileSystem!
     var subject: WorkspaceStructureGenerator!
 
     override func setUp() {
-        fileHandler = InMemoryFileHandler()
+        fileSystem = InMemoryFileSystem()
         subject = WorkspaceStructureGenerator()
     }
 
     override func tearDown() {
-        fileHandler = nil
+        fileSystem = nil
         subject = nil
     }
 
-    func test_generateStructure_projects() throws {
+    func test_generateStructure_projects() async throws {
         // Given
         let xcodeProjPaths = try createFolders([
             "/path/to/workspace/Modules/A/Project.xcodeproj",
@@ -30,11 +31,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
 
         // When
-        let structure = subject.generateStructure(
+        let structure = try await subject.generateStructure(
             path: "/path/to/workspace",
             workspace: Workspace.test(),
             xcodeProjPaths: xcodeProjPaths,
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
 
         // Then
@@ -50,7 +51,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
-    func test_generateStructure_projectsAndFiles() throws {
+    func test_generateStructure_projectsAndFiles() async throws {
         // Given
         let xcodeProjPaths = try createFolders([
             "/path/to/workspace/Modules/A/Project.xcodeproj",
@@ -69,11 +70,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // When
-        let structure = subject.generateStructure(
+        let structure = try await subject.generateStructure(
             path: "/path/to/workspace",
             workspace: workspace,
             xcodeProjPaths: xcodeProjPaths,
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
 
         // Then
@@ -95,7 +96,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
-    func test_generateStructure_folderReferences() throws {
+    func test_generateStructure_folderReferences() async throws {
         // Given
         try createFolders([
             "/path/to/workspace/Documentation/Guides",
@@ -114,11 +115,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test(additionalFiles: additionalFiles)
 
         // When
-        let structure = subject.generateStructure(
+        let structure = try await subject.generateStructure(
             path: "/path/to/workspace",
             workspace: workspace,
             xcodeProjPaths: [],
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
 
         // Then
@@ -131,7 +132,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
-    func test_generateStructure_collapseDirectories() throws {
+    func test_generateStructure_collapseDirectories() async throws {
         // Given
         try createFiles([
             "/path/to/workspace/Documentation/README.md",
@@ -150,11 +151,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test(additionalFiles: paths.map { .file(path: try! AbsolutePath(validating: $0)) })
 
         // When
-        let structure = subject.generateStructure(
+        let structure = try await subject.generateStructure(
             path: "/path/to/workspace",
             workspace: workspace,
             xcodeProjPaths: [],
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
 
         // Then
@@ -168,7 +169,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
-    func test_generateStructure_excludesFolders() throws {
+    func test_generateStructure_excludesFolders() async throws {
         // Given
         try createFolders([
             "/path/to/workspace",
@@ -182,18 +183,18 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test(additionalFiles: paths.map { .file(path: try! AbsolutePath(validating: $0)) })
 
         // When
-        let structure = subject.generateStructure(
+        let structure = try await subject.generateStructure(
             path: "/path/to/workspace",
             workspace: workspace,
             xcodeProjPaths: [],
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
 
         // Then
         XCTAssertEqual(structure.contents, [])
     }
 
-    func test_generateStructure_includesContainerTypes() throws {
+    func test_generateStructure_includesContainerTypes() async throws {
         // Given
 
         try createFolders([
@@ -208,11 +209,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test(additionalFiles: paths.map { .file(path: try! AbsolutePath(validating: $0)) })
 
         // When
-        let structure = subject.generateStructure(
+        let structure = try await subject.generateStructure(
             path: "/path/to/workspace",
             workspace: workspace,
             xcodeProjPaths: [],
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
 
         // Then
@@ -222,7 +223,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
-    func test_generateStructure_projectsAndFilesOverlap() throws {
+    func test_generateStructure_projectsAndFilesOverlap() async throws {
         // Given
         let xcodeProjPaths = try createFolders([
             "/path/to/workspace/Modules/A/Project.xcodeproj",
@@ -236,11 +237,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // When
-        let structure = subject.generateStructure(
+        let structure = try await subject.generateStructure(
             path: "/path/to/workspace",
             workspace: workspace,
             xcodeProjPaths: xcodeProjPaths,
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
 
         // Then
@@ -252,7 +253,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
-    func test_generateStructure_projectsAndNestedFiles() throws {
+    func test_generateStructure_projectsAndNestedFiles() async throws {
         // Given
         let xcodeProjPaths = try createFolders([
             "/path/to/workspace/Modules/A/Project.xcodeproj",
@@ -265,11 +266,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test(additionalFiles: files.map { .file(path: $0) })
 
         // When
-        let structure = subject.generateStructure(
+        let structure = try await subject.generateStructure(
             path: "/path/to/workspace",
             workspace: workspace,
             xcodeProjPaths: xcodeProjPaths,
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
 
         // Then
@@ -283,7 +284,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
-    func test_generateStructure_addsDependenciesToADependenciesGroup() throws {
+    func test_generateStructure_addsDependenciesToADependenciesGroup() async throws {
         // Given
         let xcodeProjPaths = try createFolders([
             "/path/to/workspace/Tuist/.build/tuist-derived/AEXML/AEXML.xcodeproj",
@@ -293,11 +294,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         let workspace = Workspace.test()
 
         // When
-        let structure = subject.generateStructure(
+        let structure = try await subject.generateStructure(
             path: "/path/to/workspace",
             workspace: workspace,
             xcodeProjPaths: xcodeProjPaths,
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         )
 
         // Then
@@ -317,7 +318,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
     func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
         let paths = folders.map { try! AbsolutePath(validating: $0) }
         for path in paths {
-            try fileHandler.createFolder(path)
+            fileSystem.createFolder(path)
         }
         return paths
     }
@@ -326,16 +327,12 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
     func createFiles(_ files: [String]) throws -> [AbsolutePath] {
         let paths = files.map { try! AbsolutePath(validating: $0) }
         for path in paths {
-            try fileHandler.touch(path)
+            fileSystem.createFile(path)
         }
         return paths
     }
 
-    fileprivate class InMemoryFileHandler: FileHandling {
-        func temporaryDirectory() throws -> AbsolutePath {
-            currentPath
-        }
-
+    fileprivate class InMemoryFileSystem: FileSysteming {
         private enum Node {
             case file
             case folder
@@ -343,128 +340,101 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
 
         private var cache: [AbsolutePath: Node] = [:]
 
-        var currentPath: AbsolutePath = "/"
-        var homeDirectory: AbsolutePath = "/"
-
-        func replace(_: AbsolutePath, with _: AbsolutePath) throws {}
-
-        func exists(_ path: AbsolutePath) -> Bool {
-            cache[path] != nil
-        }
-
-        func move(from _: AbsolutePath, to _: AbsolutePath) throws {}
-
-        func copy(from _: AbsolutePath, to _: AbsolutePath) throws {}
-
-        func readTextFile(_: AbsolutePath) throws -> String {
-            ""
-        }
-
-        func readFile(_: AbsolutePath) throws -> Data {
-            Data()
-        }
-
-        func readPlistFile<T>(_: AbsolutePath) throws -> T where T: Decodable {
-            try JSONDecoder().decode(T.self, from: Data())
-        }
-
-        func determineTemporaryDirectory() throws -> AbsolutePath {
-            currentPath
-        }
-
-        func inTemporaryDirectory(_: (AbsolutePath) throws -> Void) throws {}
-        func inTemporaryDirectory(removeOnCompletion _: Bool, _: (AbsolutePath) throws -> Void) throws {}
-        func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result {
-            try closure(currentPath)
-        }
-
-        func inTemporaryDirectory<Result>(
-            removeOnCompletion _: Bool,
-            _ closure: (AbsolutePath) throws -> Result
-        ) throws -> Result {
-            try closure(currentPath)
-        }
-
-        func inTemporaryDirectory(_: @escaping (AbsolutePath) async throws -> Void) async throws {}
-
-        func files(
-            in _: AbsolutePath,
-            filter _: ((URL) -> Bool)?,
-            nameFilter _: Set<String>?,
-            extensionFilter _: Set<String>?
-        ) -> Set<AbsolutePath> {
-            []
-        }
-
-        func glob(_: AbsolutePath, glob _: String) -> [AbsolutePath] {
-            []
-        }
-
-        func fileAttributes(at _: AbsolutePath) throws -> [FileAttributeKey: Any] {
-            [:]
-        }
-
-        func write(_: String, path _: AbsolutePath, atomically _: Bool) throws {
-            // Do nothing
-        }
-
-        func createFolder(_ path: AbsolutePath) throws {
-            var pathSoFar = try AbsolutePath(validating: "/")
+        func createFolder(_ path: AbsolutePath) {
+            var pathSoFar: AbsolutePath = "/"
             for component in path.components.dropFirst() {
                 pathSoFar = pathSoFar.appending(component: component)
                 cache[pathSoFar] = .folder
             }
         }
 
-        func linkFile(atPath _: AbsolutePath, toPath: AbsolutePath) throws {
-            try touch(toPath)
-        }
-
-        func delete(_ path: AbsolutePath) throws {
-            cache.removeValue(forKey: path)
-        }
-
-        func isFolder(_ path: AbsolutePath) -> Bool {
-            cache[path] == .folder
-        }
-
-        func locateDirectoryTraversingParents(from _: AbsolutePath, path _: String) -> AbsolutePath? {
-            nil
-        }
-
-        func touch(_ path: AbsolutePath) throws {
+        func createFile(_ path: AbsolutePath) {
             let parent = path.parentDirectory
-            try createFolder(parent)
+            createFolder(parent)
             cache[path] = .file
         }
 
-        func locateDirectory(_: String, traversingFrom _: AbsolutePath) -> AbsolutePath? {
-            nil
+        func exists(_ path: AbsolutePath) async throws -> Bool {
+            cache[path] != nil
         }
 
-        func contentsOfDirectory(_: AbsolutePath) throws -> [AbsolutePath] {
-            []
+        func exists(_ path: AbsolutePath, isDirectory: Bool) async throws -> Bool {
+            guard let node = cache[path] else { return false }
+            if isDirectory {
+                return node == .folder
+            }
+            return node == .file
         }
 
-        func filesAndDirectoriesContained(in _: AbsolutePath) -> [AbsolutePath]? {
-            nil
+        func touch(_ path: AbsolutePath) async throws {
+            createFile(path)
         }
 
-        func ls(_: AbsolutePath) throws -> [AbsolutePath] {
-            []
+        func remove(_ path: AbsolutePath) async throws {
+            cache.removeValue(forKey: path)
         }
 
-        func urlSafeBase64MD5(path _: AbsolutePath) throws -> String {
-            "urlSafeBase64MD5"
+        func makeTemporaryDirectory(prefix _: String) async throws -> AbsolutePath {
+            try AbsolutePath(validating: "/tmp/\(UUID().uuidString)")
         }
 
-        func fileSize(path _: AbsolutePath) throws -> UInt64 {
-            0
+        func runInTemporaryDirectory<T>(
+            prefix _: String,
+            _ closure: @Sendable (AbsolutePath) async throws -> T
+        ) async throws -> T {
+            try await closure(AbsolutePath(validating: "/tmp"))
         }
 
-        func zipItem(at _: AbsolutePath, to _: AbsolutePath) throws {}
+        func move(from _: AbsolutePath, to _: AbsolutePath) async throws {}
+        func move(from _: AbsolutePath, to _: AbsolutePath, options _: [MoveOptions]) async throws {}
+        func makeDirectory(at _: AbsolutePath) async throws {}
+        func makeDirectory(at _: AbsolutePath, options _: [MakeDirectoryOptions]) async throws {}
+        func readFile(at _: AbsolutePath) async throws -> Data { Data() }
+        func readTextFile(at _: AbsolutePath) async throws -> String { "" }
+        func readTextFile(at _: AbsolutePath, encoding _: String.Encoding) async throws -> String { "" }
+        func writeText(_ _: String, at _: AbsolutePath) async throws {}
+        func writeText(_ _: String, at _: AbsolutePath, encoding _: String.Encoding) async throws {}
+        func writeText(_ _: String, at _: AbsolutePath, encoding _: String.Encoding, options _: Set<WriteTextOptions>) async throws {}
+        func readPlistFile<T: Decodable>(at _: AbsolutePath) async throws -> T {
+            throw NSError(domain: "Not implemented", code: 0)
+        }
+        func readPlistFile<T: Decodable>(at _: AbsolutePath, decoder _: PropertyListDecoder) async throws -> T {
+            throw NSError(domain: "Not implemented", code: 0)
+        }
+        func writeAsPlist(_ _: some Encodable, at _: AbsolutePath) async throws {}
+        func writeAsPlist(_ _: some Encodable, at _: AbsolutePath, encoder _: PropertyListEncoder) async throws {}
+        func writeAsPlist(_ _: some Encodable, at _: AbsolutePath, encoder _: PropertyListEncoder, options _: Set<WritePlistOptions>) async throws {}
+        func readJSONFile<T: Decodable>(at _: AbsolutePath) async throws -> T {
+            throw NSError(domain: "Not implemented", code: 0)
+        }
+        func readJSONFile<T: Decodable>(at _: AbsolutePath, decoder _: JSONDecoder) async throws -> T {
+            throw NSError(domain: "Not implemented", code: 0)
+        }
+        func writeAsJSON(_ _: some Encodable, at _: AbsolutePath) async throws {}
+        func writeAsJSON(_ _: some Encodable, at _: AbsolutePath, encoder _: JSONEncoder) async throws {}
+        func writeAsJSON(_ _: some Encodable, at _: AbsolutePath, encoder _: JSONEncoder, options _: Set<WriteJSONOptions>) async throws {}
+        func fileSizeInBytes(at _: AbsolutePath) async throws -> Int64? { nil }
+        func replace(_ _: AbsolutePath, with _: AbsolutePath) async throws {}
+        func copy(_ _: AbsolutePath, to _: AbsolutePath) async throws {}
+        func locateTraversingUp(from _: AbsolutePath, relativePath _: RelativePath) async throws -> AbsolutePath? { nil }
+        func createSymbolicLink(from _: AbsolutePath, to _: AbsolutePath) async throws {}
+        func createSymbolicLink(from _: AbsolutePath, to _: RelativePath) async throws {}
+        func resolveSymbolicLink(_ path: AbsolutePath) async throws -> AbsolutePath { path }
+        func zipFileOrDirectoryContent(at _: AbsolutePath, to _: AbsolutePath) async throws {}
+        func unzip(_ _: AbsolutePath, to _: AbsolutePath) async throws {}
+        func contentsOfDirectory(_ _: AbsolutePath) async throws -> [AbsolutePath] { [] }
+        func glob(directory _: AbsolutePath, include _: [String]) throws -> AnyThrowingAsyncSequenceable<AbsolutePath> {
+            throw NSError(domain: "Not implemented", code: 0)
+        }
+        func currentWorkingDirectory() async throws -> AbsolutePath {
+            try AbsolutePath(validating: "/")
+        }
+        func fileMetadata(at _: AbsolutePath) async throws -> FileMetadata? { nil }
+        func setFileTimes(of _: AbsolutePath, lastAccessDate _: Date?, lastModificationDate _: Date?) async throws {}
 
-        func unzipItem(at _: AbsolutePath, to _: AbsolutePath) throws {}
+        private func isFolder(_ path: AbsolutePath) -> Bool {
+            cache[path] == .folder
+        }
     }
 }
 

@@ -153,12 +153,12 @@
         }
 
         @discardableResult
-        public func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
+        public func createFolders(_ folders: [String]) async throws -> [AbsolutePath] {
             let temporaryPath = try temporaryPath()
-            let fileHandler = FileHandler.shared
+            let fileSystem = FileSystem()
             let paths = try folders.map { temporaryPath.appending(try RelativePath(validating: $0)) }
             for path in paths {
-                try fileHandler.createFolder(path)
+                try await fileSystem.makeDirectory(at: path)
             }
             return paths
         }

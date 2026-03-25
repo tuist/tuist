@@ -108,7 +108,9 @@ public struct XcodeProjWriter: XcodeProjWriting {
         if wipeSharedSchemesBeforeWriting, try await fileSystem.exists(sharedSchemesPath) {
             try await fileSystem.remove(sharedSchemesPath)
         }
-        try schemeDescriptors.forEach { try write(scheme: $0, xccontainerPath: xccontainerPath) }
+        for schemeDescriptor in schemeDescriptors {
+            try await write(scheme: schemeDescriptor, xccontainerPath: xccontainerPath)
+        }
     }
 
     private func schemesOrderHint(schemes: [SchemeDescriptor]) -> [String: Int] {
@@ -173,7 +175,7 @@ public struct XcodeProjWriter: XcodeProjWriting {
         if try await fileSystem.exists(xcschememanagementPath) {
             try await fileSystem.remove(xcschememanagementPath)
         }
-        try FileHandler.shared.createFolder(xcschememanagementPath.parentDirectory)
+        try await fileSystem.makeDirectory(at: xcschememanagementPath.parentDirectory)
         try XCSchemeManagement(schemeUserState: userStateSchemes, suppressBuildableAutocreation: nil)
             .write(path: xcschememanagementPath.path)
     }
@@ -181,10 +183,10 @@ public struct XcodeProjWriter: XcodeProjWriting {
     private func write(
         scheme: SchemeDescriptor,
         xccontainerPath: AbsolutePath
-    ) throws {
+    ) async throws {
         let schemeDirectory = try schemeDirectory(path: xccontainerPath, shared: scheme.shared)
         let schemePath = schemeDirectory.appending(component: "\(scheme.xcScheme.name).xcscheme")
-        try FileHandler.shared.createFolder(schemeDirectory)
+        try await fileSystem.makeDirectory(at: schemeDirectory)
         try scheme.xcScheme.write(path: schemePath.path, override: true)
     }
 

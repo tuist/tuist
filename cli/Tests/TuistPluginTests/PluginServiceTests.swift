@@ -42,7 +42,6 @@ final class PluginServiceTests: TuistUnitTestCase {
         subject = PluginService(
             manifestLoader: manifestLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
-            fileHandler: fileHandler,
             gitController: gitController,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             fileArchivingFactory: fileArchivingFactory,

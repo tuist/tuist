@@ -324,10 +324,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
         )
 
+        let currentPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         let derivedDataPath = try derivedDataPath.map {
             try AbsolutePath(
                 validating: $0,
-                relativeTo: FileHandler.shared.currentPath
+                relativeTo: currentPath
             )
         }
 
@@ -555,10 +556,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
+        let shardCurrentPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         let derivedDataPath = try derivedDataPath.map {
             try AbsolutePath(
                 validating: $0,
-                relativeTo: FileHandler.shared.currentPath
+                relativeTo: shardCurrentPath
             )
         }
 

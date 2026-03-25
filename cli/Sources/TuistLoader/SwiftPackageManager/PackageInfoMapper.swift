@@ -512,7 +512,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             let packagePath = try await target.basePath(packageFolder: path)
             let moduleMapPath = packagePath.appending(component: ModuleMap.filename)
 
-            guard try await fileSystem.exists(moduleMapPath), !FileHandler.shared.isFolder(moduleMapPath) else {
+            guard try await fileSystem.exists(moduleMapPath, isDirectory: false) else {
                 throw PackageInfoMapperError.modulemapMissing(
                     moduleMapPath: moduleMapPath.pathString,
                     package: packageInfo.name,
@@ -1028,7 +1028,7 @@ extension ProjectDescription.ResourceFileElements {
             switch $0.rule {
             case .copy:
                 // Single files or opaque directories are handled like a .process rule
-                if !FileHandler.shared.isFolder(resourceAbsolutePath) || resourceAbsolutePath.isOpaqueDirectory {
+                if try await !fileSystem.exists(resourceAbsolutePath, isDirectory: true) || resourceAbsolutePath.isOpaqueDirectory {
                     return try await handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
                 } else {
                     return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)
@@ -1106,14 +1106,11 @@ extension ProjectDescription.ResourceFileElements {
 
     private static func defaultResourcePaths(
         from path: AbsolutePath,
-        filter: @escaping (Foundation.URL) -> Bool
-    ) -> [AbsolutePath] {
-        Array(FileHandler.shared.files(
-            in: path,
-            filter: filter,
-            nameFilter: nil,
-            extensionFilter: defaultSpmResourceFileExtensions
-        ))
+        fileSystem: FileSysteming
+    ) async throws -> [AbsolutePath] {
+        let extensions = defaultSpmResourceFileExtensions.joined(separator: ",")
+        return try await fileSystem.glob(directory: path, include: ["**/*.{\(extensions)}"])
+            .collect()
     }
 }
 

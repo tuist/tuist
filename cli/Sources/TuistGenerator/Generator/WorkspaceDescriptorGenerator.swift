@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -48,13 +49,15 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
     private let workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating
+    private let fileSystem: FileSysteming
     private let config: Config
 
     // MARK: - Init
 
     init(
         defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-        config: Config = .default
+        config: Config = .default,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
@@ -67,7 +70,8 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             workspaceStructureGenerator: WorkspaceStructureGenerator(),
             schemeDescriptorsGenerator: SchemeDescriptorsGenerator(),
             workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerator(),
-            config: config
+            config: config,
+            fileSystem: fileSystem
         )
     }
 
@@ -76,12 +80,14 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         workspaceStructureGenerator: WorkspaceStructureGenerating,
         schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
         workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating,
-        config: Config = .default
+        config: Config = .default,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.projectDescriptorGenerator = projectDescriptorGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
         self.workspaceSettingsGenerator = workspaceSettingsGenerator
+        self.fileSystem = fileSystem
         self.config = config
     }
 
@@ -126,11 +132,11 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
         // Workspace structure
         Logger.current.debug("Generating workspace structure")
-        let structure = workspaceStructureGenerator.generateStructure(
+        let structure = try await workspaceStructureGenerator.generateStructure(
             path: graphTraverser.workspace.xcWorkspacePath.parentDirectory,
             workspace: graphTraverser.workspace,
             xcodeProjPaths: generatedProjects.keys.map { $0 },
-            fileHandler: FileHandler.shared
+            fileSystem: fileSystem
         )
 
         Logger.current.debug("Creating workspace data and children elements")

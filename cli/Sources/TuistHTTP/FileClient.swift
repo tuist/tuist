@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 
@@ -95,7 +96,8 @@ import Path
         }
 
         public func upload(file: AbsolutePath, hash _: String, to url: URL) async throws -> Bool {
-            let fileSize = try FileHandler.shared.fileSize(path: file)
+            let metadata = try await FileSystem().fileMetadata(at: file)
+            let fileSize = UInt64(metadata?.size ?? 0)
             let fileData = try Data(contentsOf: file.url)
             let request = uploadRequest(url: url, fileSize: fileSize, data: fileData)
             do {

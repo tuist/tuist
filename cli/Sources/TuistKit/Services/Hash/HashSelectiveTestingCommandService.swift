@@ -7,6 +7,7 @@ import TuistCore
 import TuistHasher
 import TuistLoader
 import TuistLogging
+import TuistEnvironment
 import TuistSupport
 import XcodeGraph
 
@@ -33,16 +34,8 @@ struct HashSelectiveTestingCommandService {
         self.selectiveTestingGraphHasher = selectiveTestingGraphHasher
     }
 
-    private func absolutePath(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
-        }
-    }
-
     func run(path: String?) async throws {
-        let absolutePath = try absolutePath(path)
+        let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: absolutePath)
         let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])

@@ -42,7 +42,6 @@ final class CleanServiceTests: TuistUnitTestCase {
         serverAuthenticationController = .init()
 
         subject = CleanService(
-            fileHandler: FileHandler.shared,
             rootDirectoryLocator: rootDirectoryLocator,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             manifestFilesLocator: manifestFilesLocator,
