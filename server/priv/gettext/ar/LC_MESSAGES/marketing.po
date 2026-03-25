@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-24 14:48+0000\n"
-"PO-Revision-Date: 2026-03-20 15:29+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/marketing/ar/>\n"
-"Language: ar\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5;\n"
-"X-Generator: Weblate 5.16.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2026-03-25 21:03+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Arabic <https://translate.tuist.dev/projects/tuist/marketing/ar/>\nLanguage: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -112,7 +100,7 @@ msgstr "بناء مستقبل تطوير التطبيقات القابلة لل�
 
 #, fuzzy
 msgid "Builds"
-msgstr "البناء"
+msgstr "التركيبات"
 
 #, fuzzy
 msgid "Bumble solved key issues without changing the core dev experience"
@@ -1152,7 +1140,7 @@ msgstr "ضمان الجودة"
 
 #, fuzzy
 msgid "Selective Testing"
-msgstr "اختبار انتقائي"
+msgstr "الاختبار الانتقائي"
 
 #, fuzzy
 msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
@@ -1168,7 +1156,7 @@ msgstr "رؤى الاختبار التي تعرض مقاييس تشغيل الا
 
 #, fuzzy
 msgid "Tests"
-msgstr "الاختبارات"
+msgstr "اختبارات"
 
 #, fuzzy
 msgid "Download only what you need — faster, lighter builds locally and on CI."
@@ -1700,7 +1688,7 @@ msgstr "لوحة معلومات معدل الوصول إلى ذاكرة التخ
 
 #, fuzzy
 msgid "Flaky Tests"
-msgstr "اختبارات Flaky"
+msgstr "اختبارات غير موثوقة"
 
 #, fuzzy
 msgid "Flaky tests dashboard showing test history and automation creation modal"
