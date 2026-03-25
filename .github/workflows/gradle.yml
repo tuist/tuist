@@ -51,6 +51,7 @@ jobs:
         with:
           install_args: tuist
           cache: "false"
+          working_directory: .
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
