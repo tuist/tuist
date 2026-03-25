@@ -88,7 +88,7 @@
     prometheus.scrape "process_exporter" {
       targets = prometheus.exporter.process.default.targets
 
-      scrape_interval = "15s"
+      scrape_interval = "30s"
 
       forward_to = [prometheus.relabel.process_exporter.receiver]
     }
@@ -112,7 +112,7 @@
         },
       ]
 
-      scrape_interval = "15s"
+      scrape_interval = "30s"
 
       forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
@@ -120,7 +120,7 @@
     prometheus.scrape "unix_exporter" {
       targets = prometheus.exporter.unix.default.targets
 
-      scrape_interval = "15s"
+      scrape_interval = "30s"
 
       forward_to = [prometheus.relabel.unix_exporter.receiver]
     }
@@ -137,7 +137,7 @@
     prometheus.scrape "alloy" {
       targets = prometheus.exporter.self.alloy.targets
 
-      scrape_interval = "15s"
+      scrape_interval = "30s"
 
       forward_to = [prometheus.relabel.alloy.receiver]
     }
