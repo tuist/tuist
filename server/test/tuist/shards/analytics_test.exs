@@ -191,7 +191,7 @@ defmodule Tuist.Shards.AnalyticsTest do
   end
 
   describe "shard_balance_analytics/2" do
-    test "returns balance analytics with test runs linked to shard plans" do
+    test "returns balance analytics from shard runs linked to shard plans" do
       stub(DateTime, :utc_now, fn -> ~U[2024-06-15 12:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
 
@@ -226,7 +226,7 @@ defmodule Tuist.Shards.AnalyticsTest do
           ]
         )
 
-      RunsFixtures.optimize_test_runs()
+      RunsFixtures.optimize_shard_runs()
 
       result =
         Analytics.shard_balance_analytics(project.id,
@@ -244,6 +244,7 @@ defmodule Tuist.Shards.AnalyticsTest do
       assert is_number(result.p99)
       assert is_number(result.trend)
       assert is_number(result.total_average)
+      assert result.total_average > 0
     end
 
     test "returns zeros when no data exists" do

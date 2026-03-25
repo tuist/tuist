@@ -204,6 +204,39 @@ final class ManifestLoaderTests: TuistTestCase {
         )
     }
 
+    func test_loadPackageBaseProductType() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let content = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            baseProductType: .framework
+        )
+
+        #endif
+        """
+
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.package.fileName(temporaryPath)
+        )
+        try await fileSystem.makeDirectory(at: temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try await fileSystem.writeText(content, at: manifestPath)
+
+        // When
+        let got = try await subject.loadPackageSettings(at: temporaryPath, disableSandbox: true)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init(baseProductType: .framework)
+        )
+    }
+
     func test_loadPackageSettings_without_package_settings() async throws {
         // Given
         let temporaryPath = try temporaryPath()

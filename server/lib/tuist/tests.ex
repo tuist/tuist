@@ -693,8 +693,10 @@ defmodule Tuist.Tests do
       Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByShardId)
 
     ids = Enum.map(slim_results, & &1.id)
+    project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
 
-    full_results = ClickHouseRepo.all(from(tcr in TestCaseRun, hints: ["FINAL"], where: tcr.id in ^ids))
+    full_results =
+      ClickHouseRepo.all(from(tcr in TestCaseRun, where: tcr.project_id in ^project_ids and tcr.id in ^ids))
 
     ordered_by_id = Map.new(full_results, &{&1.id, &1})
     ordered = ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
@@ -2006,6 +2008,78 @@ defmodule Tuist.Tests do
       )
 
     ClickHouseRepo.all(query)
+  end
+
+  @doc """
+  Marks in-progress test runs older than 6 hours as failed.
+  """
+  def expire_stale_in_progress_test_runs do
+    six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -6, :hour)
+    now = NaiveDateTime.utc_now()
+
+    stale_runs =
+      ClickHouseRepo.all(
+        from(t in Test, hints: ["FINAL"], where: t.status == "in_progress", where: t.inserted_at < ^six_hours_ago)
+      )
+
+    updated_runs =
+      Enum.map(stale_runs, fn run ->
+        run
+        |> Map.from_struct()
+        |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+        |> Map.merge(%{status: "failure", inserted_at: now})
+      end)
+
+    IngestRepo.insert_all(Test, updated_runs)
+
+    sharded_runs = Enum.filter(stale_runs, & &1.shard_plan_id)
+    shard_plan_ids = sharded_runs |> Enum.map(& &1.shard_plan_id) |> Enum.uniq()
+    test_run_ids = Enum.map(sharded_runs, & &1.id)
+
+    plans =
+      from(sp in Tuist.Shards.ShardPlan,
+        where: sp.id in ^shard_plan_ids
+      )
+      |> ClickHouseRepo.all()
+      |> Map.new(&{&1.id, &1})
+
+    reported =
+      from(sr in ShardRun,
+        where: sr.test_run_id in ^test_run_ids,
+        select: {sr.test_run_id, sr.shard_index}
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    missing_shard_runs =
+      Enum.flat_map(sharded_runs, fn run ->
+        case Map.get(plans, run.shard_plan_id) do
+          nil ->
+            []
+
+          plan ->
+            reported_indices = reported |> Map.get(run.id, []) |> MapSet.new()
+
+            0..(plan.shard_count - 1)
+            |> Enum.reject(&MapSet.member?(reported_indices, &1))
+            |> Enum.map(fn index ->
+              %{
+                shard_plan_id: run.shard_plan_id,
+                project_id: run.project_id,
+                test_run_id: run.id,
+                shard_index: index,
+                status: "failure",
+                duration: 0,
+                ran_at: now,
+                inserted_at: now
+              }
+            end)
+        end
+      end)
+
+    IngestRepo.insert_all(ShardRun, missing_shard_runs)
+
+    :ok
   end
 
   @doc """

@@ -302,6 +302,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             uniquingKeysWith: { userDefined, _ in userDefined }
         )
 
+        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
         var mutableTargetToProducts: [String: Set<PackageInfo.Product>] = [:]
         for product in packageInfo.products {
             var targetsToProcess = Set(product.targets)
@@ -312,12 +313,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     continue
                 }
                 mutableTargetToProducts[target, default: []].insert(product)
-                let dependencies = packageInfo.targets.first(where: { $0.name == target })!.dependencies
-                for dependency in dependencies {
+                guard let targetInfo = targetsByName[target] else { continue }
+                for dependency in targetInfo.dependencies {
                     switch dependency {
                     case let .target(name, _):
                         targetsToProcess.insert(name)
-                    case let .byName(name, _) where packageInfo.targets.contains(where: { $0.name == name }):
+                    case let .byName(name, _) where targetsByName[name] != nil:
                         targetsToProcess.insert(name)
                     case .byName, .product:
                         continue
@@ -338,6 +339,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     path: path,
                     packageFolder: path,
                     productTypes: productTypes,
+                    baseProductType: packageSettings.baseProductType,
                     productDestinations: packageSettings.productDestinations,
                     baseSettings: packageSettings.baseSettings,
                     targetSettings: packageSettings.targetSettings,
@@ -464,6 +466,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
+        baseProductType: XcodeGraph.Product,
         productDestinations: [String: XcodeGraph.Destinations],
         baseSettings: XcodeGraph.Settings,
         targetSettings: [String: XcodeGraph.Settings],
@@ -495,7 +498,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             name: target.name,
             type: target.type,
             products: products,
-            productTypes: productTypes
+            productTypes: productTypes,
+            baseProductType: baseProductType
         )
         else {
             Logger.current.debug("Target \(target.name) ignored by product type")
@@ -881,7 +885,8 @@ extension ProjectDescription.Product {
         name: String,
         type: PackageInfo.Target.TargetType,
         products: Set<PackageInfo.Product>,
-        productTypes: [String: XcodeGraph.Product]
+        productTypes: [String: XcodeGraph.Product],
+        baseProductType: XcodeGraph.Product
     ) -> Self? {
         // Swift Macros are command line tools that run in the host (macOS) at compilation time.
         switch type {
@@ -928,8 +933,8 @@ extension ProjectDescription.Product {
         }
 
         if hasAutomaticProduct {
-            // contains automatic product, default to static framework
-            return .staticFramework
+            // contains automatic product, default to base product type (usually static framework)
+            return ProjectDescription.Product.from(product: baseProductType)
         } else if product != nil {
             // return found product if there is no automatic products
             return product

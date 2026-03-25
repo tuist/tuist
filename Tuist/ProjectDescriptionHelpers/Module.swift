@@ -527,6 +527,7 @@ public enum Module: String, CaseIterable {
             case .environmentTesting:
                 [
                     .target(name: Module.environment.targetName),
+                    .external(name: "FileSystem"),
                     .external(name: "Path"),
                 ]
             case .nooraTesting:

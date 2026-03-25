@@ -540,9 +540,6 @@ jobs:
         run: |
           sed -i '' "s/tuist = \".*\"/tuist = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" mise.toml
 
-      - name: Update mise.lock
-        run: mise lock tuist
-
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -559,7 +556,6 @@ jobs:
             cli/CHANGELOG.md
             cli/Sources/TuistConstants/Constants.swift
             mise.toml
-            mise.lock
             build/ProjectDescription.xcframework.zip
             build/tuist.zip
             build/tuist.spec.json
@@ -1407,6 +1403,10 @@ jobs:
             build/SHASUMS512.txt
             build/ProjectDescription.xcframework.zip
             build/tuist.spec.json
+
+      - name: Update mise.lock
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
+        run: mise lock tuist --platform linux-x64,macos-arm64,macos-x64
 
       - name: Create App GitHub Release
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
