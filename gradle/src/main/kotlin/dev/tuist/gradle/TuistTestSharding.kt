@@ -68,7 +68,7 @@ class TuistTestShardingService(
         return response.body() ?: throw org.gradle.api.GradleException("Get shard returned empty response.")
     }
 
-    internal fun deriveReference(): String? {
+    fun deriveReference(): String? {
         System.getenv("GITHUB_RUN_ID")?.let { runId ->
             val attempt = System.getenv("GITHUB_RUN_ATTEMPT") ?: "1"
             return "github-$runId-$attempt"
@@ -101,11 +101,11 @@ private fun createShardsApi(baseUrl: String, token: String): ShardsApi {
         .create(ShardsApi::class.java)
 }
 
-internal enum class CIProvider {
+enum class CIProvider {
     GITHUB, GITLAB, CIRCLECI, BUILDKITE, CODEMAGIC, BITRISE
 }
 
-internal fun detectCIProvider(env: EnvironmentProvider = SystemEnvironmentProvider()): CIProvider? {
+fun detectCIProvider(env: EnvironmentProvider = SystemEnvironmentProvider()): CIProvider? {
     if (env.getenv("GITHUB_ACTIONS") != null) return CIProvider.GITHUB
     if (env.getenv("GITLAB_CI") != null) return CIProvider.GITLAB
     if (env.getenv("CIRCLECI") != null) return CIProvider.CIRCLECI
@@ -115,14 +115,14 @@ internal fun detectCIProvider(env: EnvironmentProvider = SystemEnvironmentProvid
     return null
 }
 
-internal fun discoverTestSuites(project: Project): List<String> {
+fun discoverTestSuites(project: Project): List<String> {
     val classDirs = project.allprojects.flatMap { subproject ->
         subproject.tasks.withType(Test::class.java).flatMap { it.testClassesDirs.files }
     }
     return discoverTestSuitesFromDirs(classDirs)
 }
 
-internal fun discoverTestSuitesFromDirs(classDirs: List<java.io.File>): List<String> {
+fun discoverTestSuitesFromDirs(classDirs: List<java.io.File>): List<String> {
     val testSuites = mutableSetOf<String>()
     for (dir in classDirs) {
         if (!dir.exists()) continue
@@ -199,7 +199,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
         writeShardMatrixOutput(indices, reference, response)
     }
 
-    internal fun writeShardMatrixOutput(
+    fun writeShardMatrixOutput(
         indices: List<Int>,
         reference: String,
         response: ShardPlan,
@@ -295,7 +295,7 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     }
 }
 
-internal abstract class TuistTestShardingPlugin : Plugin<Project> {
+abstract class TuistTestShardingPlugin : Plugin<Project> {
 
     private val logger = Logging.getLogger(TuistTestShardingPlugin::class.java)
 
