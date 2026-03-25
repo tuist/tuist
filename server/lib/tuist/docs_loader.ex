@@ -228,7 +228,8 @@ defmodule Tuist.Docs.Loader do
       |> strip_custom_heading_ids()
       |> convert_vitepress_containers()
 
-    MDEx.new(markdown: processed_markdown)
+    [markdown: processed_markdown]
+    |> MDEx.new()
     |> MDExMermaid.attach(mermaid_init: "")
     |> MDEx.to_html!(
       extension: [

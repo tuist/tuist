@@ -59,12 +59,8 @@ function setupTocScrollSpy() {
   const tocLinks = toc.querySelectorAll('[data-part="list"] a');
   if (!tocLinks.length) return;
 
-  const headingIds = Array.from(tocLinks).map((a) =>
-    a.getAttribute("href")?.replace("#", ""),
-  );
-  const headings = headingIds
-    .map((id) => document.getElementById(id))
-    .filter(Boolean);
+  const headingIds = Array.from(tocLinks).map((a) => a.getAttribute("href")?.replace("#", ""));
+  const headings = headingIds.map((id) => document.getElementById(id)).filter(Boolean);
 
   if (!headings.length) return;
 
@@ -73,9 +69,7 @@ function setupTocScrollSpy() {
       for (const entry of entries) {
         if (entry.isIntersecting) {
           tocLinks.forEach((link) => link.removeAttribute("data-active"));
-          const active = toc.querySelector(
-            `[data-part="list"] a[href="#${entry.target.id}"]`,
-          );
+          const active = toc.querySelector(`[data-part="list"] a[href="#${entry.target.id}"]`);
           active?.setAttribute("data-active", "");
           break;
         }

@@ -648,19 +648,19 @@
     }
 
     & [data-part="video-cards"] {
+      margin: 0 calc(-1 * var(--noora-spacing-4));
+      padding: 0 var(--noora-spacing-4);
       overflow-x: auto;
       scroll-snap-type: x mandatory;
       scrollbar-width: none;
-      margin: 0 calc(-1 * var(--noora-spacing-4));
-      padding: 0 var(--noora-spacing-4);
     }
 
     & [data-part="video-card"],
     & [data-part="video-card"]:link,
     & [data-part="video-card"]:visited {
       flex-shrink: 0;
-      scroll-snap-align: start;
       width: 280px;
+      scroll-snap-align: start;
     }
 
     & [data-part="community-card"],
