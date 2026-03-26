@@ -5,7 +5,8 @@ defmodule Tuist.Docs.CLI.Renderer do
 
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
-  alias Tuist.Docs.Sidebar.{Group, Item}
+  alias Tuist.Docs.Sidebar.Group
+  alias Tuist.Docs.Sidebar.Item
 
   @env_var_regex ~r/\(env:\s*([^)]+)\)/
   @deprecated_regex ~r/\[(?:D|d)eprecated\]/
@@ -206,7 +207,7 @@ defmodule Tuist.Docs.CLI.Renderer do
     @heading_extract_from_html_regex
     |> Regex.scan(html)
     |> Enum.map(fn [_, level, id, text] ->
-      plain_text = Regex.replace(~r/<[^>]+>/, text, "") |> String.trim()
+      plain_text = ~r/<[^>]+>/ |> Regex.replace(text, "") |> String.trim()
       %{level: String.to_integer(level), text: plain_text, id: id}
     end)
   end

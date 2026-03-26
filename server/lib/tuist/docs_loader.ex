@@ -58,7 +58,6 @@ defmodule Tuist.Docs.Loader do
   </div>\
   """
 
-
   @admonition_template """
   <div class="noora-alert tuist-admonition" data-type="secondary" data-status="<%= status %>" data-size="large">\
   <div data-part="icon"><%= icon %></div>\
@@ -244,7 +243,6 @@ defmodule Tuist.Docs.Loader do
     |> String.replace(~s(src="/images/), ~s(src="/docs/images/))
     |> String.replace(~s(src="/logo.png"), ~s(src="/docs/images/logo.webp"))
   end
-
 
   defp convert_home_cards(markdown, locale) do
     Regex.replace(@home_cards_regex, markdown, fn _, content ->

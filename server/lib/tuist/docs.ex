@@ -18,7 +18,7 @@ defmodule Tuist.Docs do
   @slugs @pages_by_slug |> Map.keys() |> Enum.sort()
 
   def pages, do: @pages ++ cli_pages()
-  def slugs, do: (@slugs ++ Enum.map(cli_pages(), & &1.slug)) |> Enum.sort()
+  def slugs, do: Enum.sort(@slugs ++ Enum.map(cli_pages(), & &1.slug))
 
   def get_page(path) when is_binary(path) do
     normalized = normalize_path(path)

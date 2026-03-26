@@ -3,7 +3,8 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
   alias Tuist.Docs.CLI.Renderer
   alias Tuist.Docs.Page
-  alias Tuist.Docs.Sidebar.{Group, Item}
+  alias Tuist.Docs.Sidebar.Group
+  alias Tuist.Docs.Sidebar.Item
 
   @spec_fixture %{
     "command" => %{

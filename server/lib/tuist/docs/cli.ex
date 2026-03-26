@@ -10,7 +10,7 @@ defmodule Tuist.Docs.CLI do
 
   @repo "tuist/tuist"
   @cache_key :cli_spec_data
-  @ttl :timer.hours(1)
+  @ttl to_timeout(hour: 1)
   @headers [{"accept", "application/json"}, {"user-agent", "tuist-server"}]
 
   def get_pages do
@@ -46,6 +46,7 @@ defmodule Tuist.Docs.CLI do
     case fetch_spec() do
       {:ok, spec} ->
         pages = Renderer.build_pages(spec)
+
         data = %{
           pages: pages,
           pages_by_slug: Map.new(pages, &{&1.slug, &1}),
@@ -62,9 +63,8 @@ defmodule Tuist.Docs.CLI do
   end
 
   defp fetch_spec do
-    with {:ok, tag} <- fetch_latest_cli_tag(),
-         {:ok, spec} <- fetch_spec_json(tag) do
-      {:ok, spec}
+    with {:ok, tag} <- fetch_latest_cli_tag() do
+      fetch_spec_json(tag)
     end
   end
 
