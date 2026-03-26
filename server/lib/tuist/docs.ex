@@ -36,19 +36,11 @@ defmodule Tuist.Docs do
   end
 
   defp cli_pages do
-    try do
-      CLI.get_pages()
-    catch
-      :exit, _ -> []
-    end
+    if GenServer.whereis(CLI), do: CLI.get_pages(), else: []
   end
 
   defp cli_page(slug) do
-    try do
-      CLI.get_page(slug)
-    catch
-      :exit, _ -> nil
-    end
+    if GenServer.whereis(CLI), do: CLI.get_page(slug), else: nil
   end
 
   defp fallback_to_english(path) do
