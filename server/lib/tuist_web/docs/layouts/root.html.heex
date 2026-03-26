@@ -209,6 +209,94 @@
       }
     >
     </div>
+    <div
+      id="docs-search"
+      data-typesense-host={Tuist.Environment.typesense_host()}
+      data-typesense-api-key={Tuist.Environment.typesense_search_api_key()}
+    >
+      <div data-part="backdrop"></div>
+      <div data-part="modal">
+        <div data-part="search-wrapper">
+          <div data-part="input-container">
+            <span data-part="search-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </span>
+            <input
+              data-part="search-input"
+              type="text"
+              placeholder={dgettext("docs", "Search...")}
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+        </div>
+        <div data-part="body">
+          <p data-part="empty-state">{dgettext("docs", "No search history")}</p>
+          <div data-part="results"></div>
+        </div>
+        <div data-part="footer">
+          <div data-part="footer-hints">
+            <span data-part="footer-hint">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="9 10 4 15 9 20" /><path d="M20 4v7a4 4 0 0 1-4 4H4" />
+              </svg>
+              {dgettext("docs", "Select")}
+            </span>
+            <span data-part="footer-hint">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
+              </svg>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" />
+              </svg>
+              {dgettext("docs", "Navigate")}
+            </span>
+            <span data-part="footer-hint">
+              <span data-part="esc-key">esc</span>
+              {dgettext("docs", "Close")}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
     {@inner_content}
   </body>
 </html>

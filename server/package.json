@@ -5,6 +5,7 @@
     "@scalar/api-reference": "^1.48.7",
     "echarts": "^5.6.0",
     "prettier-plugin-css-order": "^2.1.2",
+    "typesense": "^3.0.3",
     "vanilla-cookieconsent": "3.1.0"
   },
   "pnpm": {
