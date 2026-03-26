@@ -12,18 +12,18 @@
 および
 [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
 
-## 目的{#what-it-is-for}
+## 用途{#what-it-is-for}
 
 CLIはTuistの中核です。プロジェクト生成、自動化ワークフロー（テスト、実行、グラフ化、検査）を処理し、認証、キャッシュ、インサイト、プレビュー、レジストリ、選択的テストなどの機能向けにTuistサーバーへのインターフェースを提供します。
 
-## 貢献方法{#how-to-contribute}
+## 投稿方法{#how-to-contribute}
 
 ### 要件{#requirements}
 
-- macOS 14.0以降
+- macOS 14.0 以降
 - Xcode 26+
 
-### ローカルに設定する{#set-up-locally}
+### ローカル環境の設定{#set-up-locally}
 
 - リポジトリをクローン:`git clone git@github.com:tuist/tuist.git`
 - Miseは[公式インストールスクリプト](https://mise.jdx.dev/getting-started.html)（Homebrewではない）を使用してインストールし、`mise
