@@ -88,6 +88,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             .appending(component: pluginBFingerprint)
         let pluginCDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
             .appending(component: pluginCFingerprint)
+        try await fileSystem.makeDirectory(at: pluginBDirectory)
         try await fileSystem.touch(
             pluginBDirectory.appending(components: PluginServiceConstants.release)
         )
@@ -222,11 +223,12 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         let pluginDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
             .appending(component: pluginFingerprint)
-        try await fileSystem.touch(
-            pluginDirectory
-                .appending(components: PluginServiceConstants.repository, Constants.SwiftPackageManager.packageSwiftName)
-        )
+        let repoPath = pluginDirectory
+            .appending(components: PluginServiceConstants.repository, Constants.SwiftPackageManager.packageSwiftName)
+        try await fileSystem.makeDirectory(at: repoPath.parentDirectory)
+        try await fileSystem.touch(repoPath)
         let commandPath = pluginDirectory.appending(components: PluginServiceConstants.release, "tuist-command")
+        try await fileSystem.makeDirectory(at: commandPath.parentDirectory)
         try await fileSystem.touch(commandPath)
 
         // When / Then

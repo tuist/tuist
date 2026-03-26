@@ -142,7 +142,11 @@ final class ContentHasherTests: TuistUnitTestCase {
 
     private func writeFiles(to folder: AbsolutePath, files: [String: String]) async throws {
         for file in files {
-            try await fileSystem.writeText(file.value, at: folder.appending(component: file.key))
+            let filePath = folder.appending(component: file.key)
+            if try await fileSystem.exists(filePath) {
+                try await fileSystem.remove(filePath)
+            }
+            try await fileSystem.writeText(file.value, at: filePath)
         }
     }
 }

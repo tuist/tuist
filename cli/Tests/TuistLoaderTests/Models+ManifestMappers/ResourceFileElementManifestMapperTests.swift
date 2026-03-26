@@ -305,6 +305,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")
         let includedResource = resourcesFolder.appending(component: "included.xib")
         try await fileSystem.makeDirectory(at: resourcesFolder)
+        try await fileSystem.makeDirectory(at: excludedResourcesFolder)
         try await fileSystem.writeText("", at: includedResource)
         try await fileSystem.writeText(
             "", at: excludedResourcesFolder.appending(component: "excluded.xib")
@@ -341,6 +342,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")
         let includedResource = resourcesFolder.appending(component: "included.xib")
         try await fileSystem.makeDirectory(at: resourcesFolder)
+        try await fileSystem.makeDirectory(at: excludedResourcesFolder)
         try await fileSystem.writeText("", at: includedResource)
         try await fileSystem.writeText(
             "", at: excludedResourcesFolder.appending(component: "excluded.xib")

@@ -48,6 +48,7 @@ final class TuistServiceTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project")
         let pluginReleasePath = path.appending(component: "Plugins")
+        try await fileSystem.makeDirectory(at: pluginReleasePath)
         try await fileSystem.touch(pluginReleasePath.appending(component: "tuist-command-a"))
         try await fileSystem.touch(pluginReleasePath.appending(component: "tuist-command-b"))
         system.succeedCommand([

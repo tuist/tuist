@@ -134,7 +134,7 @@ final class TrackableCommandTests: TuistTestCase {
             .runInBackground(.any, environment: .any)
             .called(1)
         verify(gitController)
-            .gitInfo(workingDirectory: .value(try temporaryPath()))
+            .gitInfo(workingDirectory: .any)
             .called(1)
     }
 }

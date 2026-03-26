@@ -190,6 +190,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
             .appending(try RelativePath(validating: "\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
         let resolvedText = try await FileSystem().readTextFile(at: workspacePackageResolvedPath)
         XCTAssertEqual(resolvedText, "package")
+        try await FileSystem().remove(rootPackageResolvedPath)
         try await FileSystem().writeText("changedPackage", at: rootPackageResolvedPath)
         let changedText = try await FileSystem().readTextFile(at: workspacePackageResolvedPath)
         XCTAssertEqual(changedText, "changedPackage")

@@ -78,7 +78,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         // Package.resolved
-        try await fileSystem.touch(expectedPackageResolvedPath)
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
         try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When
@@ -158,7 +158,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         // Package.resolved
-        try await fileSystem.touch(expectedPackageResolvedPath)
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
         try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When
@@ -209,7 +209,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         // Package.resolved
-        try await fileSystem.touch(expectedPackageResolvedPath)
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
         try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When
@@ -251,10 +251,10 @@ final class InstallServiceTests: TuistUnitTestCase {
             .willReturn()
 
         // Dependencies.swift in root
+        try await fileSystem.makeDirectory(at: expectedFoundPackageLocation.parentDirectory)
         try await fileSystem.touch(expectedFoundPackageLocation)
 
         // Package.resolved
-        try await fileSystem.touch(expectedPackageResolvedPath)
         try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When - This will cause the `loadDependenciesStub` closure to be called and assert if needed

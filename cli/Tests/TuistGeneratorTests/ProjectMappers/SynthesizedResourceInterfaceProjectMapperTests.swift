@@ -68,11 +68,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
             try await fileSystem.makeDirectory(at: aAssets)
             try await fileSystem.touch(aAsset)
-            try await fileSystem.touch(frenchStrings)
-            try await fileSystem.touch(frenchStringsDict)
-            try await fileSystem.touch(englishStrings)
-            try await fileSystem.touch(englishStringsDict)
-            try await fileSystem.touch(coreDataModelVersionFile)
+            try await fileSystem.makeDirectory(at: targetAPath.appending(component: "fr.lproj"))
+            try await fileSystem.makeDirectory(at: targetAPath.appending(component: "en.lproj"))
             try await fileSystem.writeText("a", at: frenchStrings)
             try await fileSystem.writeText("a", at: frenchStringsDict)
             try await fileSystem.writeText("a", at: englishStrings)
@@ -361,11 +358,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
             try await fileSystem.makeDirectory(at: aAssets)
             try await fileSystem.touch(aAsset)
-            try await fileSystem.touch(frenchStrings)
-            try await fileSystem.touch(frenchStringsDict)
-            try await fileSystem.touch(englishStrings)
-            try await fileSystem.touch(englishStringsDict)
-            try await fileSystem.touch(coreDataModelVersionFile)
+            try await fileSystem.makeDirectory(at: targetAPath.appending(component: "fr.lproj"))
+            try await fileSystem.makeDirectory(at: targetAPath.appending(component: "en.lproj"))
             try await fileSystem.writeText("a", at: frenchStrings)
             try await fileSystem.writeText("a", at: frenchStringsDict)
             try await fileSystem.writeText("a", at: englishStrings)
@@ -649,10 +643,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
         try await fileSystem.makeDirectory(at: aAssets)
         try await fileSystem.touch(aAsset)
-        try await fileSystem.touch(frenchStrings)
-        try await fileSystem.touch(frenchStringsDict)
-        try await fileSystem.touch(englishStrings)
-        try await fileSystem.touch(englishStringsDict)
+        try await fileSystem.makeDirectory(at: targetAPath.appending(component: "fr.lproj"))
+        try await fileSystem.makeDirectory(at: targetAPath.appending(component: "en.lproj"))
         try await fileSystem.writeText("a", at: frenchStrings)
         try await fileSystem.writeText("a", at: frenchStringsDict)
         try await fileSystem.writeText("a", at: englishStrings)
@@ -887,7 +879,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     // MARK: - Helpers
 
     private func stub(file: AbsolutePath) async throws {
-        try await fileSystem.touch(file)
+        try await fileSystem.makeDirectory(at: file.parentDirectory)
         try await fileSystem.writeText("a", at: file)
     }
 

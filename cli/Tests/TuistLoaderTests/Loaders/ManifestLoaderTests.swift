@@ -393,6 +393,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_validate_projectExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        try await fileSystem.makeDirectory(at: path)
         try await fileSystem.touch(
             path.appending(component: "Project.swift")
         )
@@ -404,6 +405,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_validate_workspaceExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        try await fileSystem.makeDirectory(at: path)
         try await fileSystem.touch(
             path.appending(component: "Workspace.swift")
         )
@@ -415,6 +417,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_validate_packageExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        try await fileSystem.makeDirectory(at: path)
         try await fileSystem.touch(
             path.appending(component: "Package.swift")
         )
@@ -452,6 +455,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_hasRootManifest_workspaceExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        try await fileSystem.makeDirectory(at: path)
         try await fileSystem.touch(
             path.appending(component: "Workspace.swift")
         )
@@ -466,6 +470,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_hasRootManifest_packageExists() async throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
+        try await fileSystem.makeDirectory(at: path)
         try await fileSystem.touch(
             path.appending(component: "Package.swift")
         )

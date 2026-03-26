@@ -37,7 +37,11 @@ extension XcodeGraph.ResourceFileElement {
                 files = try await fileSystem
                     .throwingGlob(directory: .root, include: [String(path.pathString.dropFirst())])
                     .collect()
-                    .filter { !excluded.contains($0) }
+                    .filter { path in
+                        !excluded.contains(where: { excludedPath in
+                            path.isDescendantOfOrEqual(to: excludedPath) || excludedPath.isDescendant(of: path)
+                        })
+                    }
                     .concurrentFilter { try await includeFiles($0) }
             } catch GlobError.nonExistentDirectory {
                 files = []

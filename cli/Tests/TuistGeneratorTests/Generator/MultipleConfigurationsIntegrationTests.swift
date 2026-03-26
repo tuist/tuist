@@ -398,6 +398,7 @@ final class MultipleConfigurationsIntegrationTests {
     private func createFile(path relativePath: String, content: String) async throws -> Path.AbsolutePath {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let absolutePath = temporaryPath.appending(try RelativePath(validating: relativePath))
+        try await FileSystem().makeDirectory(at: absolutePath.parentDirectory)
         try await FileSystem().touch(absolutePath)
         try content.data(using: .utf8)!.write(to: URL(fileURLWithPath: absolutePath.pathString))
         return absolutePath

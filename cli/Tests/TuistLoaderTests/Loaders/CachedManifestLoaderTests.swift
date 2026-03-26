@@ -376,8 +376,13 @@ class CachedManifestLoaderTests {
         at path: AbsolutePath
     ) async throws {
         let manifestPath = path.appending(component: Manifest.workspace.fileName(path))
-        try await fileSystem.touch(manifestPath)
+        if try await !fileSystem.exists(manifestPath.parentDirectory) {
+            try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        }
         let manifestData = try JSONEncoder().encode(workspace)
+        if try await fileSystem.exists(manifestPath) {
+            try await fileSystem.remove(manifestPath)
+        }
         try await fileSystem.writeText(String(data: manifestData, encoding: .utf8)!, at: manifestPath)
         workspaceManifests[path] = workspace
     }
@@ -403,8 +408,13 @@ class CachedManifestLoaderTests {
         at path: AbsolutePath
     ) async throws {
         let manifestPath = path.appending(component: Manifest.config.fileName(path))
-        try await fileSystem.touch(manifestPath)
+        if try await !fileSystem.exists(manifestPath.parentDirectory) {
+            try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        }
         let manifestData = try JSONEncoder().encode(manifest)
+        if try await fileSystem.exists(manifestPath) {
+            try await fileSystem.remove(manifestPath)
+        }
         try await fileSystem.writeText(String(data: manifestData, encoding: .utf8)!, at: manifestPath)
         configManifests[path] = manifest
     }
@@ -421,8 +431,13 @@ class CachedManifestLoaderTests {
         let plugin = ProjectDescription.Plugin(name: "TestPlugin")
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "TestPlugin")
         let manifestPath = path.appending(component: Manifest.plugin.fileName(path))
-        try await fileSystem.touch(manifestPath)
+        if try await !fileSystem.exists(path) {
+            try await fileSystem.makeDirectory(at: path)
+        }
         let manifestData = try JSONEncoder().encode(plugin)
+        if try await fileSystem.exists(manifestPath) {
+            try await fileSystem.remove(manifestPath)
+        }
         try await fileSystem.writeText(String(data: manifestData, encoding: .utf8)!, at: manifestPath)
         pluginManifests[path] = plugin
 
@@ -437,6 +452,7 @@ class CachedManifestLoaderTests {
     private func corruptFiles(at path: AbsolutePath) async throws {
         let contents = try await fileSystem.contentsOfDirectory(path)
         for filePath in contents {
+            try await fileSystem.remove(filePath)
             try await fileSystem.writeText("corruptedData", at: filePath)
         }
     }

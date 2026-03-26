@@ -89,7 +89,6 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
                 try await fileSystem.makeDirectory(at: umbrellaHeaderPath.parentDirectory)
             }
             try await fileSystem.touch(umbrellaHeaderPath)
-            try await fileSystem.touch(moduleMapPath)
         case let .directory(moduleMapPath: moduleMapPath, umbrellaDirectory: umbrellaDirectory):
             try await fileSystem.touch(moduleMapPath)
             try await fileSystem.makeDirectory(at: umbrellaDirectory)
