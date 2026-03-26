@@ -12,21 +12,21 @@ Kaynak:
 ve
 [github.com/tuist/tuist/tree/main/CLI](https://github.com/tuist/tuist/tree/main/cli)
 
-## Ne için kullanılır? {#what-it-is-for}
+## Ne için kullanılır {#what-it-is-for}
 
 CLI, Tuist'in kalbidir. Proje oluşturma, otomasyon iş akışları (test,
 çalıştırma, grafik ve inceleme) işlemlerini gerçekleştirir ve kimlik doğrulama,
 önbellek, içgörüler, önizlemeler, Kayıt ve seçmeli testler gibi özellikler için
 Tuist sunucusuna arayüz sağlar.
 
-## Nasıl katkıda bulunabilirsiniz? {#how-to-contribute}
+## Nasıl katkıda bulunabilirsiniz {#how-to-contribute}
 
 ### Gereksinimler {#requirements}
 
 - macOS 14.0+
 - Xcode 26+
 
-### Yerel olarak ayarlayın {#set-up-locally}
+### Yerel olarak kurun {#set-up-locally}
 
 - Depoyu klonlayın: `git clone git@github.com:tuist/tuist.git`
 - Mise'yi [resmi kurulum komut
