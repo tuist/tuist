@@ -8,7 +8,7 @@ struct CASNodeStoreTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func storeNode_and_checksum() async throws {
         let mockEnvironment = try #require(Environment.mocked)
-        let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open()
         let subject = CASNodeStore(database: database)
 
         try await subject.storeNode("test-node", checksum: "abc123")
@@ -19,7 +19,7 @@ struct CASNodeStoreTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func checksum_when_not_stored() async throws {
         let mockEnvironment = try #require(Environment.mocked)
-        let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open()
         let subject = CASNodeStore(database: database)
 
         let result = try await subject.checksum(for: "non-existing")
@@ -29,7 +29,7 @@ struct CASNodeStoreTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func storeNode_sanitizes_special_characters() async throws {
         let mockEnvironment = try #require(Environment.mocked)
-        let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open()
         let subject = CASNodeStore(database: database)
 
         try await subject.storeNode("node/with:special/chars", checksum: "sanitized123")
@@ -40,7 +40,7 @@ struct CASNodeStoreTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func storeNode_overwrites_existing() async throws {
         let mockEnvironment = try #require(Environment.mocked)
-        let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open()
         let subject = CASNodeStore(database: database)
 
         try await subject.storeNode("node1", checksum: "original")
@@ -52,7 +52,7 @@ struct CASNodeStoreTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func multiple_nodes() async throws {
         let mockEnvironment = try #require(Environment.mocked)
-        let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open()
         let subject = CASNodeStore(database: database)
 
         let nodes = [("node1", "checksum1"), ("node2", "checksum2"), ("node/3", "checksum3")]

@@ -23,9 +23,8 @@ public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Send
     // swiftlint:disable:next force_try
     @TaskLocal public static var current: CASAnalyticsDatabasing = try! open()
 
-    public static func open(stateDirectory: AbsolutePath? = nil) throws -> CASAnalyticsDatabase {
-        let stateDir = stateDirectory ?? Environment.current.stateDirectory
-        let dbPath = stateDir.appending(component: "cas_analytics.db")
+    public static func open() throws -> CASAnalyticsDatabase {
+        let dbPath = Environment.current.stateDirectory.appending(component: "cas_analytics.db")
         let db = try Connection(dbPath.pathString)
         db.busyTimeout = 5
         try db.execute("PRAGMA journal_mode = WAL")
