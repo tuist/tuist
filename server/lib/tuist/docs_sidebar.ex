@@ -379,7 +379,8 @@ defmodule Tuist.Docs.Sidebar do
       %Group{
         label: nil,
         items: [
-          %Item{label: "Changelog", url: "https://github.com/tuist/tuist/releases"},
+          %Item{label: "Changelog", url: "/changelog"},
+          %Item{label: "Releases", url: "https://github.com/tuist/tuist/releases"},
           %Item{label: "API documentation", url: "https://tuist.dev/api/docs"},
           %Item{label: "Status", url: "https://status.tuist.io"},
           %Item{

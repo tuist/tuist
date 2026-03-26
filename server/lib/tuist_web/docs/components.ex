@@ -18,7 +18,7 @@ defmodule TuistWeb.Docs.Components do
     "Contributors" => "users",
     "Examples" => "folder",
     "References" => "file_text",
-    "CLI" => "devices_code",
+    "CLI" => "devices_browser",
     "Commands" => "list_tree"
   }
 

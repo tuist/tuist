@@ -88,7 +88,13 @@ defmodule Tuist.Docs.CLI.Renderer do
 
   defp build_command_page(command, full_command, slug) do
     arguments = process_arguments(command["arguments"] || [])
-    markdown = render_markdown(full_command, command["abstract"], arguments)
+
+    subcommands =
+      command
+      |> Map.get("subcommands", [])
+      |> Enum.filter(&(&1["shouldDisplay"] != false))
+
+    markdown = render_markdown(full_command, command["abstract"], arguments, subcommands)
 
     html =
       [markdown: markdown]
@@ -99,6 +105,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       )
       |> HTML.wrap_code_blocks()
       |> HTML.add_heading_anchors()
+      |> wrap_tables()
 
     headings = extract_headings_from_html(html)
 
@@ -146,8 +153,24 @@ defmodule Tuist.Docs.CLI.Renderer do
     Enum.any?(names, fn n -> n["name"] == "help" end)
   end
 
-  defp render_markdown(full_command, abstract, arguments) do
+  defp render_markdown(full_command, abstract, arguments, subcommands) do
     header = "# #{full_command}\n\n#{abstract || ""}\n"
+
+    subcommands_section =
+      if subcommands == [] do
+        ""
+      else
+        rows =
+          subcommands
+          |> Enum.sort_by(& &1["commandName"])
+          |> Enum.map_join("\n", fn sub ->
+            name = sub["commandName"]
+            desc = sub["abstract"] || ""
+            "| `#{full_command} #{name}` | #{desc} |"
+          end)
+
+        "\n## Subcommands\n\n| Command | Description |\n| --- | --- |\n#{rows}\n"
+      end
 
     args_section =
       if arguments == [] do
@@ -165,7 +188,7 @@ defmodule Tuist.Docs.CLI.Renderer do
         "\n## Arguments\n\n#{args}"
       end
 
-    header <> args_section
+    header <> subcommands_section <> args_section
   end
 
   defp render_badges(arg) do
@@ -199,6 +222,12 @@ defmodule Tuist.Docs.CLI.Renderer do
   end
 
   defp render_usage(_full_command, _arg), do: ""
+
+  defp wrap_tables(html) do
+    html
+    |> String.replace("<table>", ~s(<div class="noora-table"><table>))
+    |> String.replace("</table>", "</table></div>")
+  end
 
   @heading_extract_from_html_regex ~r/<h([2-4])>.*?class="heading-anchor"\s+id="([^"]+)"[^>]*>.*?data-part="heading-text"[^>]*>(.*?)<\/span>/s
 
