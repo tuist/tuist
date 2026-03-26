@@ -98,7 +98,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       |> wrap_code_blocks()
       |> add_heading_anchors()
 
-    headings = extract_headings(arguments)
+    headings = extract_headings_from_html(html)
 
     %Page{
       slug: slug,
@@ -199,25 +199,15 @@ defmodule Tuist.Docs.CLI.Renderer do
 
   defp render_usage(_full_command, _arg), do: ""
 
-  defp extract_headings(arguments) do
-    base = if arguments != [], do: [%{level: 2, text: "Arguments", id: "arguments"}], else: []
+  @heading_extract_from_html_regex ~r/<h([2-4])>.*?class="heading-anchor"\s+id="([^"]+)"[^>]*>.*?data-part="heading-text"[^>]*>(.*?)<\/span>/s
 
-    arg_headings =
-      Enum.map(arguments, fn arg ->
-        badges = render_badges(arg)
-        full_text = "#{arg.value_name}#{badges}"
-
-        id =
-          full_text
-          |> String.downcase()
-          |> String.replace(~r/[^\w\s-]/u, "")
-          |> String.replace(~r/\s+/, "-")
-          |> String.trim("-")
-
-        %{level: 3, text: arg.value_name, id: id}
-      end)
-
-    base ++ arg_headings
+  defp extract_headings_from_html(html) do
+    @heading_extract_from_html_regex
+    |> Regex.scan(html)
+    |> Enum.map(fn [_, level, id, text] ->
+      plain_text = Regex.replace(~r/<[^>]+>/, text, "") |> String.trim()
+      %{level: String.to_integer(level), text: plain_text, id: id}
+    end)
   end
 
   @heading_anchor_regex ~r/(<h[2-4]>)(<a href="#[^"]*" aria-hidden="true" class="anchor" id="[^"]*"><\/a>)(.*?)(<\/h[2-4]>)/s
