@@ -47,7 +47,6 @@ extension Array where Element: Sendable {
             returning: [B].self
         ) { group in
             var results: [(Int, B)] = []
-            results.reserveCapacity(count)
             for (index, element) in enumerated() {
                 if index >= maxConcurrentTasks {
                     if let result = try await group.next() {
@@ -114,7 +113,6 @@ extension Array where Element: Sendable {
             returning: [B].self
         ) { group in
             var results: [(Int, B?)] = []
-            results.reserveCapacity(count)
             for (index, element) in enumerated() {
                 if index >= maxConcurrentTasks {
                     if let result = try await group.next() {
