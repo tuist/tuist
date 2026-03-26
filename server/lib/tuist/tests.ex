@@ -685,7 +685,10 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
+  @test_run_mv_fields MapSet.new([:test_run_id, :name, :status, :is_flaky, :is_new, :duration, :project_id])
+
   defp list_test_case_runs_via_test_run_mv(attrs, preloads) do
+    attrs = strip_unsupported_filters(attrs, @test_run_mv_fields)
     base_query = from(mv in TestCaseRunByTestRun)
 
     {slim_results, meta} =
@@ -750,6 +753,16 @@ defmodule Tuist.Tests do
   end
 
   defp extract_mv_scope_filter(_), do: nil
+
+  defp strip_unsupported_filters(%{filters: filters} = attrs, supported_fields) when is_list(filters) do
+    %{attrs | filters: Enum.filter(filters, fn %{field: f} -> MapSet.member?(supported_fields, f) end)}
+  end
+
+  defp strip_unsupported_filters(%Flop{filters: filters} = flop, supported_fields) do
+    %{flop | filters: Enum.filter(List.wrap(filters), fn %{field: f} -> MapSet.member?(supported_fields, f) end)}
+  end
+
+  defp strip_unsupported_filters(attrs, _supported_fields), do: attrs
 
   @doc """
   Gets a test case run by its UUID.
