@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import SwiftGenKit
@@ -31,33 +32,38 @@ enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {
 public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swiftlint:disable:this type_name
     private let synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
     private let contentHasher: ContentHashing
+    private let fileSystem: FileSysteming
 
     public init(
-        contentHasher: ContentHashing
+        contentHasher: ContentHashing,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.init(
             synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerator(),
-            contentHasher: contentHasher
+            contentHasher: contentHasher,
+            fileSystem: fileSystem
         )
     }
 
     init(
         synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating,
-        contentHasher: ContentHashing
+        contentHasher: ContentHashing,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.synthesizedResourceInterfacesGenerator = synthesizedResourceInterfacesGenerator
         self.contentHasher = contentHasher
+        self.fileSystem = fileSystem
     }
 
-    public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+    public func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
         guard !project.options.disableSynthesizedResourceAccessors else {
             return (project, [])
         }
         Logger.current.debug("Transforming project \(project.name): Synthesizing resource accessors")
 
         let targetsArray = Array(project.targets.values)
-        let mappings = try targetsArray.map(context: .concurrent) { target in
-            try mapTarget(target, project: project)
+        let mappings = try await targetsArray.concurrentMap { target in
+            try await mapTarget(target, project: project)
         }
 
         let targets: [Target] = mappings.map(\.0)
@@ -75,23 +81,23 @@ public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swi
     }
 
     /// Map and generate resource interfaces for a given `Target` and `Project`
-    private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
+    private func mapTarget(_ target: Target, project: Project) async throws -> (Target, [SideEffectDescriptor]) {
         let resourcesForSynthesizersPaths = resourcePaths(target, project: project)
         guard !resourcesForSynthesizersPaths.isEmpty, target.supportsSources else { return (target, []) }
 
-        let synthesizersWithTemplates = try project.resourceSynthesizers
-            .map { resourceSynthesizer throws -> (ResourceSynthesizer, String) in
-                switch resourceSynthesizer.template {
-                case let .file(path):
-                    let templateString = try FileHandler.shared.readTextFile(path)
-                    return (resourceSynthesizer, templateString)
-                case .defaultTemplate:
-                    return (resourceSynthesizer, try templateString(for: resourceSynthesizer.parser))
-                }
+        var synthesizersWithTemplates: [(ResourceSynthesizer, String)] = []
+        for resourceSynthesizer in project.resourceSynthesizers {
+            switch resourceSynthesizer.template {
+            case let .file(path):
+                let templateString = try await fileSystem.readTextFile(at: path)
+                synthesizersWithTemplates.append((resourceSynthesizer, templateString))
+            case .defaultTemplate:
+                synthesizersWithTemplates.append((resourceSynthesizer, try templateString(for: resourceSynthesizer.parser)))
             }
+        }
 
-        let results = try synthesizersWithTemplates.map(context: .concurrent) { resourceSynthesizer, templateString in
-            try renderResourceInterface(
+        let results = try await synthesizersWithTemplates.concurrentMap { resourceSynthesizer, templateString in
+            try await renderResourceInterface(
                 resourceSynthesizer,
                 templateString: templateString,
                 target: target,
@@ -112,7 +118,7 @@ public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swi
         templateString: String,
         target: Target,
         project: Project
-    ) throws -> (
+    ) async throws -> (
         sources: [SourceFile],
         sideEffects: [SideEffectDescriptor]
     ) {
@@ -120,7 +126,7 @@ public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swi
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
 
-        let renderedInterfaces = try renderedInterfaces(
+        let renderedInterfaces = try await renderedInterfaces(
             for: resourceSynthesizer,
             templateString: templateString,
             target: target,
@@ -208,11 +214,13 @@ public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swi
         return paths.filter { seen.insert($0.basename).inserted }
     }
 
-    private func isResourceEmpty(_ path: AbsolutePath) throws -> Bool {
-        if FileHandler.shared.isFolder(path) {
-            if try !FileHandler.shared.contentsOfDirectory(path).isEmpty { return true }
+    private func isResourceEmpty(_ path: AbsolutePath) async throws -> Bool {
+        if try await fileSystem.exists(path, isDirectory: true) {
+            let contents = try await fileSystem.glob(directory: path, include: ["*"]).collect()
+            if !contents.isEmpty { return true }
         } else {
-            if try !FileHandler.shared.readFile(path).isEmpty { return true }
+            let data = try await fileSystem.readFile(at: path)
+            if !data.isEmpty { return true }
         }
         Logger.current.log(
             level: .warning,
@@ -258,14 +266,19 @@ public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swi
         templateString: String,
         target: Target,
         project: Project
-    ) throws -> [(String, String)] {
-        let paths = try paths(
+    ) async throws -> [(String, String)] {
+        let allPaths = try paths(
             for: resourceSynthesizer,
             target: target,
             project: project,
             developmentRegion: project.developmentRegion
         )
-        .filter(isResourceEmpty)
+        var paths: [AbsolutePath] = []
+        for path in allPaths {
+            if try await isResourceEmpty(path) {
+                paths.append(path)
+            }
+        }
 
         let templateName: String
         switch resourceSynthesizer.template {

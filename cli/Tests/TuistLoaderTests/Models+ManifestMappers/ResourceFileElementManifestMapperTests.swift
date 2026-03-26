@@ -31,7 +31,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
                 manifest: manifest,
                 generatorPaths: generatorPaths,
                 fileSystem: fileSystem,
-                includeFiles: { !FileHandler.shared.isFolder($0) }
+                includeFiles: { try await !self.fileSystem.exists($0, isDirectory: true) }
             )
 
             // Then
@@ -268,10 +268,10 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         )
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         let includedResource = resourcesFolder.appending(component: "included.xib")
-        try fileHandler.createFolder(resourcesFolder)
-        try fileHandler.write("", path: includedResource, atomically: true)
-        try fileHandler.write(
-            "", path: resourcesFolder.appending(component: "excluded.xib"), atomically: true
+        try await fileSystem.makeDirectory(at: resourcesFolder)
+        try await fileSystem.writeText("", at: includedResource)
+        try await fileSystem.writeText(
+            "", at: resourcesFolder.appending(component: "excluded.xib")
         )
         let manifest = ProjectDescription.ResourceFileElement.glob(
             pattern: "Resources/**", excluding: ["Resources/excluded.xib"]
@@ -304,10 +304,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")
         let includedResource = resourcesFolder.appending(component: "included.xib")
-        try fileHandler.createFolder(resourcesFolder)
-        try fileHandler.write("", path: includedResource, atomically: true)
-        try fileHandler.write(
-            "", path: excludedResourcesFolder.appending(component: "excluded.xib"), atomically: true
+        try await fileSystem.makeDirectory(at: resourcesFolder)
+        try await fileSystem.makeDirectory(at: excludedResourcesFolder)
+        try await fileSystem.writeText("", at: includedResource)
+        try await fileSystem.writeText(
+            "", at: excludedResourcesFolder.appending(component: "excluded.xib")
         )
         let manifest = ProjectDescription.ResourceFileElement.glob(
             pattern: "Resources/**", excluding: ["Resources/Excluded"]
@@ -340,10 +341,11 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")
         let includedResource = resourcesFolder.appending(component: "included.xib")
-        try fileHandler.createFolder(resourcesFolder)
-        try fileHandler.write("", path: includedResource, atomically: true)
-        try fileHandler.write(
-            "", path: excludedResourcesFolder.appending(component: "excluded.xib"), atomically: true
+        try await fileSystem.makeDirectory(at: resourcesFolder)
+        try await fileSystem.makeDirectory(at: excludedResourcesFolder)
+        try await fileSystem.writeText("", at: includedResource)
+        try await fileSystem.writeText(
+            "", at: excludedResourcesFolder.appending(component: "excluded.xib")
         )
         let manifest = ProjectDescription.ResourceFileElement.glob(
             pattern: "Resources/**", excluding: ["Resources/Excluded/**"]
@@ -374,9 +376,9 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
             rootDirectory: rootDirectory
         )
         let resourcesFolder = temporaryPath.appending(component: "Resources")
-        try fileHandler.createFolder(resourcesFolder)
-        try fileHandler.write(
-            "", path: resourcesFolder.appending(component: "excluded.xib"), atomically: true
+        try await fileSystem.makeDirectory(at: resourcesFolder)
+        try await fileSystem.writeText(
+            "", at: resourcesFolder.appending(component: "excluded.xib")
         )
         let manifest = ProjectDescription.ResourceFileElement.glob(
             pattern: "Resources/excluded.xib",

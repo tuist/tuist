@@ -39,7 +39,6 @@ public class TrackableCommand {
     private let clock: Clock
     private let commandArguments: [String]
     private let commandEventFactory: CommandEventFactory
-    private let fileHandler: FileHandling
     private let backgroundProcessRunner: BackgroundProcessRunning
     private let uploadAnalyticsService: UploadAnalyticsServicing
     private let fileSystem: FileSysteming
@@ -50,7 +49,6 @@ public class TrackableCommand {
         commandArguments: [String],
         clock: Clock = WallClock(),
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
-        fileHandler: FileHandling = FileHandler.shared,
         backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
         fileSystem: FileSysteming = FileSystem(),
@@ -60,7 +58,6 @@ public class TrackableCommand {
         self.commandArguments = commandArguments
         self.clock = clock
         self.commandEventFactory = commandEventFactory
-        self.fileHandler = fileHandler
         self.backgroundProcessRunner = backgroundProcessRunner
         self.uploadAnalyticsService = uploadAnalyticsService
         self.fileSystem = fileSystem
@@ -75,12 +72,12 @@ public class TrackableCommand {
         let timer = clock.startTimer()
         let ranAt = clock.now
         let pathIndex = commandArguments.firstIndex(of: "--path")
-        let path: AbsolutePath
-        if let pathIndex, commandArguments.endIndex > pathIndex + 1 {
-            path = try AbsolutePath(validating: commandArguments[pathIndex + 1], relativeTo: fileHandler.currentPath)
+        let pathArgument: String? = if let pathIndex, commandArguments.endIndex > pathIndex + 1 {
+            commandArguments[pathIndex + 1]
         } else {
-            path = fileHandler.currentPath
+            nil
         }
+        let path = try await Environment.current.pathRelativeToWorkingDirectory(pathArgument)
         let runMetadataStorage = RunMetadataStorage()
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             do {

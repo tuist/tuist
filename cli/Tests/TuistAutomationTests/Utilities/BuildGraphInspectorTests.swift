@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import TSCBasic
 import TuistConstants
@@ -645,8 +646,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        try FileHandler.shared.createFolder(workspacePath)
-        try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
+        try await FileSystem().makeDirectory(at: workspacePath)
+        try await FileSystem().touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
 
         // When
         let got = try await subject.workspacePath(directory: path)
@@ -659,7 +660,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        try FileHandler.shared.createFolder(workspacePath)
+        try await FileSystem().makeDirectory(at: workspacePath)
 
         // When
         let got = try await subject.workspacePath(directory: path)
@@ -672,10 +673,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let nonTuistWorkspacePath = path.appending(components: "SPM.xcworkspace")
-        try FileHandler.shared.createFolder(nonTuistWorkspacePath)
+        try await FileSystem().makeDirectory(at: nonTuistWorkspacePath)
         let workspacePath = path.appending(component: "TuistServer.xcworkspace")
-        try FileHandler.shared.createFolder(workspacePath)
-        try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
+        try await FileSystem().makeDirectory(at: workspacePath)
+        try await FileSystem().touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
 
         // When
         let got = try await subject.workspacePath(directory: path)

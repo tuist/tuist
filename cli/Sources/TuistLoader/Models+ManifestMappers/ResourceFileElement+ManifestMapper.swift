@@ -17,12 +17,13 @@ extension XcodeGraph.ResourceFileElement {
         manifest: ProjectDescription.ResourceFileElement,
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming,
-        includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
+        includeFiles: @escaping (AbsolutePath) async throws -> Bool = { _ in true }
     ) async throws -> [XcodeGraph.ResourceFileElement] {
         func globFiles(_ path: AbsolutePath, excluding: [String]) async throws -> [AbsolutePath] {
             var excluded: Set<AbsolutePath> = []
             for path in excluding {
                 let absolute = try AbsolutePath(validating: path)
+                excluded.insert(absolute.upToLastNonGlob)
                 let globs = try await fileSystem.glob(
                     directory: .root,
                     include: [String(absolute.pathString.dropFirst())]
@@ -37,14 +38,16 @@ extension XcodeGraph.ResourceFileElement {
                 files = try await fileSystem
                     .throwingGlob(directory: .root, include: [String(path.pathString.dropFirst())])
                     .collect()
-                    .filter(includeFiles)
-                    .filter { !excluded.contains($0) }
+                    .filter { path in
+                        !excluded.contains(where: { path.isDescendantOfOrEqual(to: $0) })
+                    }
+                    .concurrentFilter { try await includeFiles($0) }
             } catch GlobError.nonExistentDirectory {
                 files = []
             }
 
             if files.isEmpty {
-                if FileHandler.shared.isFolder(path) {
+                if try await fileSystem.exists(path, isDirectory: true) {
                     Logger.current
                         .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
                 } else if !path.isGlobPath {
@@ -65,7 +68,7 @@ extension XcodeGraph.ResourceFileElement {
                 return []
             }
 
-            guard FileHandler.shared.isFolder(path) else {
+            guard try await fileSystem.exists(path, isDirectory: true) else {
                 // FIXME: This should be done in a linter.
                 Logger.current
                     .warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")

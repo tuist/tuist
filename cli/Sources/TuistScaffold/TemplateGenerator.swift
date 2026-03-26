@@ -5,7 +5,6 @@ import Path
 import PathKit
 import StencilSwiftKit
 import TuistCore
-import TuistSupport
 
 /// Interface for generating content defined in template manifest
 @Mockable
@@ -124,7 +123,7 @@ public struct TemplateGenerator: TemplateGenerating {
                 )
             case let .file(path):
                 let injectedLoaderEnvironment = stencilSwiftEnvironment(templatePaths: [Path(path.dirname)])
-                let fileContents = try FileHandler.shared.readTextFile(path)
+                let fileContents = try await fileSystem.readTextFile(at: path)
                 // Render only files with .stencil extension
                 if path.extension == "stencil" {
                     renderedContents = try injectedLoaderEnvironment.renderTemplate(

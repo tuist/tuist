@@ -591,10 +591,10 @@ final class TestServiceTests: TuistUnitTestCase {
             .willProduce { path, _ in
                 (path, .test(), MapperEnvironment())
             }
-        try fileHandler.touch(
+        try await fileSystem.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
         )
-        try fileHandler.touch(
+        try await fileSystem.touch(
             testsCacheTemporaryDirectory.path.appending(component: "B")
         )
         given(configLoader)
@@ -744,10 +744,10 @@ final class TestServiceTests: TuistUnitTestCase {
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
-        try fileHandler.touch(
+        try await fileSystem.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
         )
-        try fileHandler.touch(
+        try await fileSystem.touch(
             testsCacheTemporaryDirectory.path.appending(component: "B")
         )
 
@@ -784,10 +784,10 @@ final class TestServiceTests: TuistUnitTestCase {
             given(configLoader)
                 .loadConfig(path: .any)
                 .willReturn(.test(project: .testGeneratedProject()))
-            try fileHandler.touch(
+            try await fileSystem.touch(
                 testsCacheTemporaryDirectory.path.appending(component: "A")
             )
-            try fileHandler.touch(
+            try await fileSystem.touch(
                 testsCacheTemporaryDirectory.path.appending(component: "B")
             )
 
@@ -1758,7 +1758,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 self.testedSchemes.append(scheme)
                 throw NSError.test()
             }
-        try fileHandler.touch(
+        try await fileSystem.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
         )
         given(configLoader)
@@ -1778,9 +1778,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 "ProjectScheme",
             ]
         )
-        //        XCTAssertFalse(
-        //            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .selectiveTests).appending(component: "A"))
-        //        )
     }
 
     func test_run_tests_when_no_project_schemes_present() async throws {
@@ -1953,7 +1950,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .cacheDirectory(for: .value(.runs))
             .willReturn(runsCacheDirectory)
 
-        try fileHandler.createFolder(runsCacheDirectory)
+        try await fileSystem.makeDirectory(at: runsCacheDirectory)
 
         // When
         try await testRun(
@@ -3118,7 +3115,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
-        try FileHandler.shared.createFolder(testProductsPath)
+        try await fileSystem.makeDirectory(at: testProductsPath)
 
         let selectiveTestingGraph = SelectiveTestingGraph(
             testTargetHashes: ["MyTests": "abc123"]
@@ -3172,7 +3169,7 @@ final class TestServiceTests: TuistUnitTestCase {
         givenGenerator()
         let path = try temporaryPath()
         let testProductsPath = path.appending(component: "MyApp.xctestproducts")
-        try FileHandler.shared.createFolder(testProductsPath)
+        try await fileSystem.makeDirectory(at: testProductsPath)
 
         given(generator)
             .generateWithGraph(path: .any, options: .any)

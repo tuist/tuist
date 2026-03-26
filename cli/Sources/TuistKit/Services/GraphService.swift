@@ -102,12 +102,12 @@ struct GraphService {
         switch format {
         case .dot, .png, .svg:
             let graphVizGraph = graphVizMapper.map(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
-            try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, open: open)
+            try await export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, open: open)
         case .json:
             try await export(graph: graph, at: filePath)
         case .legacyJSON:
             let outputGraph = ProjectAutomation.Graph.from(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
-            try outputGraph.export(to: filePath)
+            try await outputGraph.export(to: filePath)
         }
 
         AlertController.current.success(.alert("Graph exported to \(filePath.pathString)"))
@@ -119,10 +119,10 @@ struct GraphService {
         withFormat format: GraphFormat,
         layoutAlgorithm: LayoutAlgorithm,
         open: Bool = true
-    ) throws {
+    ) async throws {
         switch format {
         case .dot:
-            try exportDOTRepresentation(from: graph, at: filePath)
+            try await exportDOTRepresentation(from: graph, at: filePath)
         case .png:
             try exportImageRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, format: .png, open: open)
         case .svg:
@@ -149,9 +149,9 @@ struct GraphService {
         try await fileSystem.writeText(jsonString, at: path)
     }
 
-    private func exportDOTRepresentation(from graphVizGraph: GraphViz.Graph, at filePath: AbsolutePath) throws {
+    private func exportDOTRepresentation(from graphVizGraph: GraphViz.Graph, at filePath: AbsolutePath) async throws {
         let dotFile = DOTEncoder().encode(graphVizGraph)
-        try FileHandler.shared.write(dotFile, path: filePath, atomically: true)
+        try await fileSystem.writeText(dotFile, at: filePath)
     }
 
     private func exportImageRepresentation(

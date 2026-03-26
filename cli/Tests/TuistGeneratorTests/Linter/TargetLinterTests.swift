@@ -474,7 +474,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let dataModelPath = path.appending(component: "Model.xcdatamodeld")
-        try FileHandler.shared.createFolder(dataModelPath)
+        try await fileSystem.makeDirectory(at: dataModelPath)
 
         let target = Target.test(coreDataModels: [
             CoreDataModel(path: dataModelPath, versions: [], currentVersion: "1.0.0"),

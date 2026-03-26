@@ -16,7 +16,7 @@ final class PluginTestServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_with_arguments() throws {
+    func test_run_with_arguments() async throws {
         // Given
         let path = try temporaryPath()
 
@@ -30,17 +30,15 @@ final class PluginTestServiceTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(
-            try subject.run(
-                path: path.pathString,
-                configuration: .release,
-                buildTests: true,
-                testProducts: ["MyProduct1", "MyProduct2"]
-            )
+        try await subject.run(
+            path: path.pathString,
+            configuration: .release,
+            buildTests: true,
+            testProducts: ["MyProduct1", "MyProduct2"]
         )
     }
 
-    func test_run_with_no_arguments() throws {
+    func test_run_with_no_arguments() async throws {
         // Given
         system.succeedCommand([
             "swift", "test",
@@ -48,13 +46,11 @@ final class PluginTestServiceTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(
-            try subject.run(
-                path: nil,
-                configuration: .debug,
-                buildTests: false,
-                testProducts: []
-            )
+        try await subject.run(
+            path: nil,
+            configuration: .debug,
+            buildTests: false,
+            testProducts: []
         )
     }
 }

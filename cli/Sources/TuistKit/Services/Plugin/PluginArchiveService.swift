@@ -4,6 +4,7 @@ import Path
 import ProjectDescription
 import TuistAlert
 import TuistDependencies
+import TuistEnvironment
 import TuistLoader
 import TuistLogging
 import TuistSupport
@@ -13,14 +14,14 @@ struct PluginArchiveService {
     private let packageInfoLoader: PackageInfoLoading
     private let manifestLoader: ManifestLoading
     private let fileArchiverFactory: FileArchivingFactorying
-    private let fileSystem: FileSystem
+    private let fileSystem: FileSysteming
 
     init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoLoader: PackageInfoLoading = PackageInfoLoader(),
         manifestLoader: ManifestLoading = ManifestLoader.current,
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
-        fileSystem: FileSystem = FileSystem()
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoLoader = packageInfoLoader
@@ -30,7 +31,7 @@ struct PluginArchiveService {
     }
 
     func run(path: String?) async throws {
-        let path = try self.path(path)
+        let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let packageInfo = try await packageInfoLoader.loadPackageInfo(at: path, disableSandbox: true)
         let taskProducts = packageInfo.products
@@ -53,23 +54,13 @@ struct PluginArchiveService {
 
         let plugin = try await manifestLoader.loadPlugin(at: path)
 
-        try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
+        try await fileSystem.runInTemporaryDirectory(prefix: "PluginArchive") { temporaryDirectory in
             try await archiveProducts(
                 taskProducts: taskProducts,
                 path: path,
                 plugin: plugin,
                 in: temporaryDirectory
             )
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func path(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
         }
     }
 

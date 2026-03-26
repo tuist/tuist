@@ -113,7 +113,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         given(fileArchiver)
             .delete()
             .willReturn()
-        try fileHandler.createFolder(zipPath)
+        try await fileSystem.makeDirectory(at: zipPath)
 
         // When
         try await subject.run(path: path.pathString)
@@ -140,10 +140,10 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
 
         _ = verify(fileArchiver).zip(name: .value("TestPlugin.tuist-plugin.zip"))
 
-        XCTAssertTrue(
-            fileHandler.isFolder(
-                path.appending(component: "TestPlugin.tuist-plugin.zip")
-            )
+        let isFolder = try await fileSystem.exists(
+            path.appending(component: "TestPlugin.tuist-plugin.zip"),
+            isDirectory: true
         )
+        XCTAssertTrue(isFolder)
     }
 }

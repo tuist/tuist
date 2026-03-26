@@ -1,8 +1,8 @@
+import FileSystem
 import Foundation
 import Path
 import TuistConstants
 import TuistCore
-import TuistSupport
 import XcodeGraph
 
 struct WorkspaceStructure {
@@ -23,8 +23,8 @@ protocol WorkspaceStructureGenerating {
         path: AbsolutePath,
         workspace: Workspace,
         xcodeProjPaths: [AbsolutePath],
-        fileHandler: FileHandling
-    ) -> WorkspaceStructure
+        fileSystem: FileSysteming
+    ) async throws -> WorkspaceStructure
 }
 
 struct WorkspaceStructureGenerator: WorkspaceStructureGenerating {
@@ -32,13 +32,13 @@ struct WorkspaceStructureGenerator: WorkspaceStructureGenerating {
         path: AbsolutePath,
         workspace: Workspace,
         xcodeProjPaths: [AbsolutePath],
-        fileHandler: FileHandling
-    ) -> WorkspaceStructure {
-        let graph = DirectoryStructure(
+        fileSystem: FileSysteming
+    ) async throws -> WorkspaceStructure {
+        let graph = try await DirectoryStructure(
             path: path,
             projects: xcodeProjPaths,
             files: workspace.additionalFiles,
-            fileHandler: fileHandler
+            fileSystem: fileSystem
         ).buildGraph()
         return WorkspaceStructure(
             name: workspace.name,
@@ -70,7 +70,7 @@ private class DirectoryStructure {
     let path: AbsolutePath
     let projects: [AbsolutePath]
     let files: [FileElement]
-    let fileHandler: FileHandling
+    let fileSystem: FileSysteming
 
     private let containers: [String] = [
         ".playground",
@@ -81,22 +81,27 @@ private class DirectoryStructure {
         path: AbsolutePath,
         projects: [AbsolutePath],
         files: [FileElement],
-        fileHandler: FileHandling = FileHandler.shared
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.path = path
         self.projects = projects
         self.files = files
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
     }
 
-    func buildGraph() -> Graph {
-        buildGraph(path: path)
+    func buildGraph() async throws -> Graph {
+        try await buildGraph(path: path)
     }
 
-    private func buildGraph(path: AbsolutePath) -> Graph {
+    private func buildGraph(path: AbsolutePath) async throws -> Graph {
         let root = Graph()
 
-        let filesIncludingContainers = files.filter(isFileOrFolderReference)
+        var filesIncludingContainers: [FileElement] = []
+        for file in files {
+            if try await isFileOrFolderReference(element: file) {
+                filesIncludingContainers.append(file)
+            }
+        }
         let fileNodes = filesIncludingContainers.map(fileNode)
         let projectNodes = projects.map(projectNode)
         let nodesWitPaths = (projectNodes + fileNodes).filter { $0.path != nil }.sorted(by: { $0.path! < $1.path! })
@@ -154,12 +159,12 @@ private class DirectoryStructure {
         .project(path)
     }
 
-    private func isFileOrFolderReference(element: FileElement) -> Bool {
+    private func isFileOrFolderReference(element: FileElement) async throws -> Bool {
         switch element {
         case .folderReference:
             return true
         case let .file(path):
-            if fileHandler.isFolder(path) {
+            if try await fileSystem.exists(path, isDirectory: true) {
                 return path.suffix.map(containers.contains) ?? false
             }
             return true

@@ -489,7 +489,7 @@ struct DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependenci
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         let packageResolvedPath = fixtureDirectory.appending(components: ["Tuist", "Package.resolved"])
         let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
-        try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
+        try await fileSystem.writeText(packageResolvedContents + " ", at: packageResolvedPath)
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
         #expect(ui().contains("We detected outdated dependencies"))
         resetUI()

@@ -23,7 +23,7 @@ extension XcodeGraph.CopyFilesAction {
                     manifest: manifest,
                     generatorPaths: generatorPaths,
                     fileSystem: fileSystem,
-                    includeFiles: { XcodeGraph.Target.isResource(path: $0) }
+                    includeFiles: { try await XcodeGraph.Target.isResource(path: $0, fileSystem: fileSystem) }
                 )
                 return files.cleanPackages()
             } catch GlobError.nonExistentDirectory {

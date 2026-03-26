@@ -1,4 +1,5 @@
 import Path
+import TuistEnvironment
 import TuistSupport
 
 struct PluginRunService {
@@ -9,7 +10,7 @@ struct PluginRunService {
         skipBuild: Bool,
         task: String,
         arguments: [String]
-    ) throws {
+    ) async throws {
         var runCommand = [
             "swift", "run",
             "--configuration", configuration.rawValue,
@@ -17,7 +18,7 @@ struct PluginRunService {
         if let path {
             runCommand += [
                 "--package-path",
-                try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath).pathString,
+                try await Environment.current.pathRelativeToWorkingDirectory(path).pathString,
             ]
         }
         if buildTests {
