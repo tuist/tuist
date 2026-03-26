@@ -494,6 +494,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         ?? inferPlatformDestination(schemes: schemes, graphTraverser: graphTraverser)
 
                     let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+                    let buildRunId = await RunMetadataStorage.current.buildRunId
                     _ = try await shardPlanService.plan(
                         xctestproductsPath: testProductsPath,
                         destination: shardDestination,
@@ -504,7 +505,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         shardTotal: shardTotal,
                         shardMaxDuration: shardMaxDuration,
                         fullHandle: fullHandle,
-                        serverURL: serverURL
+                        serverURL: serverURL,
+                        buildRunId: buildRunId
                     )
                 }
             }

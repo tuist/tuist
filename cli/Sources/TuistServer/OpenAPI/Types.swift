@@ -3932,6 +3932,14 @@ public enum Components {
         public typealias PreviewIndexPage = Swift.Int
         /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams`.
         public struct CreateShardPlanParams: Codable, Hashable, Sendable {
+            /// The UUID of the associated Xcode build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/build_run_id`.
+            public var build_run_id: Swift.String?
+            /// The UUID of the associated Gradle build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/gradle_build_id`.
+            public var gradle_build_id: Swift.String?
             /// Sharding granularity level.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/granularity`.
@@ -3974,6 +3982,8 @@ public enum Components {
             /// Creates a new `CreateShardPlanParams`.
             ///
             /// - Parameters:
+            ///   - build_run_id: The UUID of the associated Xcode build run.
+            ///   - gradle_build_id: The UUID of the associated Gradle build.
             ///   - granularity: Sharding granularity level.
             ///   - modules: Test module names (for module-level granularity).
             ///   - reference: A unique shard plan reference, typically derived from CI environment.
@@ -3983,6 +3993,8 @@ public enum Components {
             ///   - shard_total: Exact number of shards.
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
+                build_run_id: Swift.String? = nil,
+                gradle_build_id: Swift.String? = nil,
                 granularity: Components.Schemas.CreateShardPlanParams.granularityPayload? = nil,
                 modules: [Swift.String]? = nil,
                 reference: Swift.String,
@@ -3992,6 +4004,8 @@ public enum Components {
                 shard_total: Swift.Int? = nil,
                 test_suites: [Swift.String]? = nil
             ) {
+                self.build_run_id = build_run_id
+                self.gradle_build_id = gradle_build_id
                 self.granularity = granularity
                 self.modules = modules
                 self.reference = reference
@@ -4002,6 +4016,8 @@ public enum Components {
                 self.test_suites = test_suites
             }
             public enum CodingKeys: String, CodingKey {
+                case build_run_id
+                case gradle_build_id
                 case granularity
                 case modules
                 case reference
@@ -7573,6 +7589,10 @@ public enum Components {
                     ///
                     /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/failures`.
                     public var failures: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload?
+                    /// Whether this test case was quarantined when it ran.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/is_quarantined`.
+                    public var is_quarantined: Swift.Bool?
                     /// The name of the test case.
                     ///
                     /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/name`.
@@ -7656,6 +7676,7 @@ public enum Components {
                     /// - Parameters:
                     ///   - duration: The duration of the test case in milliseconds.
                     ///   - failures: The failures that occurred in this test case.
+                    ///   - is_quarantined: Whether this test case was quarantined when it ran.
                     ///   - name: The name of the test case.
                     ///   - repetitions: The repetition attempts for this test case (when run with retry-on-failure).
                     ///   - status: The status of the test case.
@@ -7663,6 +7684,7 @@ public enum Components {
                     public init(
                         duration: Swift.Int,
                         failures: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
+                        is_quarantined: Swift.Bool? = nil,
                         name: Swift.String,
                         repetitions: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload? = nil,
                         status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
@@ -7670,6 +7692,7 @@ public enum Components {
                     ) {
                         self.duration = duration
                         self.failures = failures
+                        self.is_quarantined = is_quarantined
                         self.name = name
                         self.repetitions = repetitions
                         self.status = status
@@ -7678,6 +7701,7 @@ public enum Components {
                     public enum CodingKeys: String, CodingKey {
                         case duration
                         case failures
+                        case is_quarantined
                         case name
                         case repetitions
                         case status
@@ -7969,7 +7993,7 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/ShardPlan`.
         public struct ShardPlan: Codable, Hashable, Sendable {
-            /// The shard plan UUID.
+            /// The shard plan id.
             ///
             /// - Remark: Generated from `#/components/schemas/ShardPlan/id`.
             public var id: Swift.String
@@ -8027,7 +8051,7 @@ public enum Components {
             /// Creates a new `ShardPlan`.
             ///
             /// - Parameters:
-            ///   - id: The shard plan UUID.
+            ///   - id: The shard plan id.
             ///   - reference: A unique shard plan reference, typically derived from CI environment.
             ///   - shard_count: The number of shards.
             ///   - shards: The shard assignments.
@@ -47355,6 +47379,14 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The UUID of the associated Xcode build run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/build_run_id`.
+                    public var build_run_id: Swift.String?
+                    /// The UUID of the associated Gradle build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/gradle_build_id`.
+                    public var gradle_build_id: Swift.String?
                     /// Sharding granularity level.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/granularity`.
@@ -47397,6 +47429,8 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - build_run_id: The UUID of the associated Xcode build run.
+                    ///   - gradle_build_id: The UUID of the associated Gradle build.
                     ///   - granularity: Sharding granularity level.
                     ///   - modules: Test module names (for module-level granularity).
                     ///   - reference: A unique shard plan reference, typically derived from CI environment.
@@ -47406,6 +47440,8 @@ public enum Operations {
                     ///   - shard_total: Exact number of shards.
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
+                        build_run_id: Swift.String? = nil,
+                        gradle_build_id: Swift.String? = nil,
                         granularity: Operations.createShardPlan.Input.Body.jsonPayload.granularityPayload? = nil,
                         modules: [Swift.String]? = nil,
                         reference: Swift.String,
@@ -47415,6 +47451,8 @@ public enum Operations {
                         shard_total: Swift.Int? = nil,
                         test_suites: [Swift.String]? = nil
                     ) {
+                        self.build_run_id = build_run_id
+                        self.gradle_build_id = gradle_build_id
                         self.granularity = granularity
                         self.modules = modules
                         self.reference = reference
@@ -47425,6 +47463,8 @@ public enum Operations {
                         self.test_suites = test_suites
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case build_run_id
+                        case gradle_build_id
                         case granularity
                         case modules
                         case reference
@@ -48693,6 +48733,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/failures`.
                             public var failures: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload?
+                            /// Whether this test case was quarantined when it ran.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/is_quarantined`.
+                            public var is_quarantined: Swift.Bool?
                             /// The name of the test case.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/name`.
@@ -48771,45 +48815,41 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/test_suite_name`.
                             public var test_suite_name: Swift.String?
-                            /// Whether this test case was quarantined when it ran.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/is_quarantined`.
-                            public var is_quarantined: Swift.Bool?
                             /// Creates a new `test_casesPayloadPayload`.
                             ///
                             /// - Parameters:
                             ///   - duration: The duration of the test case in milliseconds.
                             ///   - failures: The failures that occurred in this test case.
+                            ///   - is_quarantined: Whether this test case was quarantined when it ran.
                             ///   - name: The name of the test case.
                             ///   - repetitions: The repetition attempts for this test case (when run with retry-on-failure).
                             ///   - status: The status of the test case.
                             ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
-                            ///   - is_quarantined: Whether this test case was quarantined when it ran.
                             public init(
                                 duration: Swift.Int,
                                 failures: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
+                                is_quarantined: Swift.Bool? = nil,
                                 name: Swift.String,
                                 repetitions: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload? = nil,
                                 status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
-                                test_suite_name: Swift.String? = nil,
-                                is_quarantined: Swift.Bool? = nil
+                                test_suite_name: Swift.String? = nil
                             ) {
                                 self.duration = duration
                                 self.failures = failures
+                                self.is_quarantined = is_quarantined
                                 self.name = name
                                 self.repetitions = repetitions
                                 self.status = status
                                 self.test_suite_name = test_suite_name
-                                self.is_quarantined = is_quarantined
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case duration
                                 case failures
+                                case is_quarantined
                                 case name
                                 case repetitions
                                 case status
                                 case test_suite_name
-                                case is_quarantined
                             }
                         }
                         /// The test cases within this module.

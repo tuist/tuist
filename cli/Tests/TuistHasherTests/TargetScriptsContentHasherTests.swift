@@ -352,6 +352,38 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         XCTAssertNotEqual(hash1, hash2)
     }
 
+    func test_hash_isDependentOnScriptOrder() async throws {
+        // Given: two distinct scripts
+        let scriptA = TargetScript(
+            name: "ScriptA",
+            order: .pre,
+            script: .embedded("echo A"),
+            inputPaths: [],
+            inputFileListPaths: [],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: nil
+        )
+        let scriptB = TargetScript(
+            name: "ScriptB",
+            order: .pre,
+            script: .embedded("echo B"),
+            inputPaths: [],
+            inputFileListPaths: [],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: nil
+        )
+
+        // When: hash with scripts in different order
+        let hashAB = try await subject.hash(targetScripts: [scriptA, scriptB], sourceRootPath: "/")
+        let hashBA = try await subject.hash(targetScripts: [scriptB, scriptA], sourceRootPath: "/")
+
+        // Then: different order produces different hash — so if the upstream mapper
+        // returns scripts in non-deterministic order, the hash will be non-deterministic
+        XCTAssertNotEqual(hashAB, hashBA)
+    }
+
     func test_hash_targetAction_withRelativePathsAndSRCROOTReplacement() async throws {
         // Given
         let sourceRootPath = try AbsolutePath(validating: "/project/root")

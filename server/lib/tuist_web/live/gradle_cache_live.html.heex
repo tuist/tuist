@@ -491,6 +491,15 @@
     icon="dashboard"
     data-part="recent-builds"
   >
+    <:actions>
+      <.button
+        variant="secondary"
+        label={dgettext("dashboard_gradle", "View more")}
+        size="medium"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
+        disabled={Enum.empty?(@builds)}
+      />
+    </:actions>
     <.card_section :if={not Enum.empty?(@builds)} data-part="recent-builds-section">
       <div data-part="builds-section">
         <div data-part="builds-chart">

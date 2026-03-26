@@ -67,6 +67,16 @@ defmodule TuistWeb.API.ShardsController do
              type: :string,
              enum: ["module", "suite"],
              description: "Sharding granularity level."
+           },
+           build_run_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The UUID of the associated Xcode build run."
+           },
+           gradle_build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The UUID of the associated Gradle build."
            }
          },
          required: [:reference]
@@ -89,7 +99,9 @@ defmodule TuistWeb.API.ShardsController do
       shard_max: Map.get(body_params, :shard_max),
       shard_total: Map.get(body_params, :shard_total),
       shard_max_duration: Map.get(body_params, :shard_max_duration),
-      granularity: Map.get(body_params, :granularity, "module")
+      granularity: Map.get(body_params, :granularity, "module"),
+      build_run_id: Map.get(body_params, :build_run_id),
+      gradle_build_id: Map.get(body_params, :gradle_build_id)
     }
 
     result = Shards.create_shard_plan(selected_project, params)

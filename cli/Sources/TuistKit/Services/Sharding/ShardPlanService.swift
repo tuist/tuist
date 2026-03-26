@@ -23,7 +23,8 @@
             shardTotal: Int?,
             shardMaxDuration: Int?,
             fullHandle: String,
-            serverURL: URL
+            serverURL: URL,
+            buildRunId: String?
         ) async throws -> Components.Schemas.ShardPlan
     }
 
@@ -93,7 +94,8 @@
             shardTotal: Int?,
             shardMaxDuration: Int?,
             fullHandle: String,
-            serverURL: URL
+            serverURL: URL,
+            buildRunId: String?
         ) async throws -> Components.Schemas.ShardPlan {
             guard let reference = reference ?? ciController.ciInfo()?.shardReference else {
                 throw ShardPlanServiceError.cannotDeriveSessionId
@@ -136,7 +138,8 @@
                 shardMax: shardMax,
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
-                shardGranularity: shardGranularity
+                shardGranularity: shardGranularity,
+                buildRunId: buildRunId
             )
 
             Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
