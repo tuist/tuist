@@ -61,7 +61,7 @@ defmodule Cache.Registry.MetadataTest do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
-      json_body = Jason.encode!(@sample_metadata)
+      json_body = JSON.encode!(@sample_metadata)
 
       expect(ExAws.S3, :get_object, fn "test-registry-bucket", ^s3_key ->
         %S3{bucket: "test-registry-bucket", path: s3_key}
@@ -152,7 +152,7 @@ defmodule Cache.Registry.MetadataTest do
       Cachex.put(cache_name, {scope, name}, %{"old" => "data"})
 
       expect(ExAws.S3, :put_object, fn "test-registry-bucket", ^s3_key, body, opts ->
-        assert Jason.decode!(body) == @sample_metadata
+        assert JSON.decode!(body) == @sample_metadata
         assert Keyword.get(opts, :content_type) == "application/json"
         %S3{bucket: "test-registry-bucket", path: s3_key}
       end)

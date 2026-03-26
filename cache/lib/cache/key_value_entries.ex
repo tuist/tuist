@@ -336,7 +336,7 @@ defmodule Cache.KeyValueEntries do
 
   defp entry_hash_rows(entry) do
     with {account_handle, project_handle} <- parse_scope(entry.key),
-         {:ok, %{"entries" => entries}} when is_list(entries) <- Jason.decode(entry.json_payload) do
+         {:ok, %{"entries" => entries}} when is_list(entries) <- JSON.decode(entry.json_payload) do
       entries
       |> Enum.map(&Map.get(&1, "value"))
       |> Enum.reject(&is_nil/1)

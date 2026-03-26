@@ -425,7 +425,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
-          Jason.encode!(%{parts: [1]})
+          JSON.encode!(%{parts: [1]})
         )
 
       assert conn.status == 204
@@ -454,7 +454,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=nonexistent",
-          Jason.encode!(%{parts: [1]})
+          JSON.encode!(%{parts: [1]})
         )
 
       assert conn.status == 404
@@ -479,7 +479,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
-          Jason.encode!(%{parts: [1, 2]})
+          JSON.encode!(%{parts: [1, 2]})
         )
 
       assert conn.status == 400
@@ -528,7 +528,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
-          Jason.encode!(%{parts: [1, 2, 3]})
+          JSON.encode!(%{parts: [1, 2, 3]})
         )
 
       assert conn.status == 204

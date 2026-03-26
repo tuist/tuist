@@ -103,7 +103,7 @@ defmodule Cache.Xcode.EventsPipelineTest do
         assert options[:method] == :post
 
         body = options[:body]
-        decoded_body = Jason.decode!(body)
+        decoded_body = JSON.decode!(body)
         assert length(decoded_body["events"]) == 2
 
         # Verify first event includes handles

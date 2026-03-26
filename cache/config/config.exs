@@ -111,7 +111,7 @@ config :mime, :types, %{
 
 config :opentelemetry, traces_exporter: :none
 
-config :phoenix, :json_library, Jason
+config :phoenix, :json_library, JSON
 
 config :sentry,
   client: TuistCommon.SentryHTTPClient,

@@ -69,7 +69,7 @@ defmodule Cache.Gradle.EventsPipelineTest do
         assert options[:url] == "http://localhost:4000/webhooks/gradle-cache"
         assert options[:method] == :post
 
-        decoded_body = Jason.decode!(options[:body])
+        decoded_body = JSON.decode!(options[:body])
 
         assert decoded_body["events"] == [
                  %{
