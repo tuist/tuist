@@ -13,36 +13,38 @@ defmodule Tuist.Docs.CLI do
   @ttl to_timeout(hour: 1)
   @headers [{"accept", "application/json"}, {"user-agent", "tuist-server"}]
 
-  def get_pages do
-    case load() do
+  def get_pages(opts \\ []) do
+    case load(opts) do
       %{pages: pages} -> pages
       nil -> []
     end
   end
 
-  def get_page(slug) do
-    case load() do
+  def get_page(slug, opts \\ []) do
+    case load(opts) do
       %{pages_by_slug: pages_by_slug} -> Map.get(pages_by_slug, slug)
       nil -> nil
     end
   end
 
-  def sidebar_items do
-    case load() do
+  def sidebar_items(opts \\ []) do
+    case load(opts) do
       %{sidebar_items: items} -> items
       nil -> []
     end
   end
 
-  defp load do
-    case Cachex.get(:tuist, @cache_key) do
-      {:ok, nil} -> fetch_and_cache()
+  defp load(opts) do
+    cache = Keyword.get(opts, :cache, :tuist)
+
+    case Cachex.get(cache, @cache_key) do
+      {:ok, nil} -> fetch_and_cache(cache)
       {:ok, data} -> data
       _ -> nil
     end
   end
 
-  defp fetch_and_cache do
+  defp fetch_and_cache(cache) do
     case fetch_spec() do
       {:ok, spec} ->
         pages = Renderer.build_pages(spec)
@@ -53,7 +55,7 @@ defmodule Tuist.Docs.CLI do
           sidebar_items: Renderer.build_sidebar(spec)
         }
 
-        Cachex.put(:tuist, @cache_key, data, ttl: @ttl)
+        Cachex.put(cache, @cache_key, data, ttl: @ttl)
         data
 
       {:error, reason} ->

@@ -1,5 +1,5 @@
 defmodule Tuist.Docs.CLITest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Tuist.Docs.CLI
@@ -48,12 +48,13 @@ defmodule Tuist.Docs.CLITest do
   }
 
   setup do
-    Cachex.clear(:tuist)
-    :ok
+    cache = String.to_atom(UUIDv7.generate())
+    {:ok, _} = Cachex.start_link(name: cache)
+    {:ok, cache: cache}
   end
 
-  describe "get_pages/0" do
-    test "returns pages when spec is fetched successfully" do
+  describe "get_pages/1" do
+    test "returns pages when spec is fetched successfully", %{cache: cache} do
       stub(Req, :get, fn url, _opts ->
         cond do
           String.contains?(url, "api.github.com") ->
@@ -64,7 +65,7 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      pages = CLI.get_pages()
+      pages = CLI.get_pages(cache: cache)
 
       assert length(pages) == 3
       slugs = Enum.map(pages, & &1.slug)
@@ -73,23 +74,23 @@ defmodule Tuist.Docs.CLITest do
       assert "/en/cli/build/start" in slugs
     end
 
-    test "returns empty list when GitHub API fails" do
+    test "returns empty list when GitHub API fails", %{cache: cache} do
       stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 500}}
       end)
 
-      assert CLI.get_pages() == []
+      assert CLI.get_pages(cache: cache) == []
     end
 
-    test "returns empty list when no CLI release is found" do
+    test "returns empty list when no CLI release is found", %{cache: cache} do
       stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: [%{"tag_name" => "server@1.0.0"}]}}
       end)
 
-      assert CLI.get_pages() == []
+      assert CLI.get_pages(cache: cache) == []
     end
 
-    test "caches the result after first fetch" do
+    test "caches the result after first fetch", %{cache: cache} do
       call_count = :counters.new(1, [:atomics])
 
       stub(Req, :get, fn url, _opts ->
@@ -104,15 +105,15 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      CLI.get_pages()
-      CLI.get_pages()
+      CLI.get_pages(cache: cache)
+      CLI.get_pages(cache: cache)
 
       assert :counters.get(call_count, 1) == 2
     end
   end
 
-  describe "get_page/1" do
-    test "returns a specific page by slug" do
+  describe "get_page/2" do
+    test "returns a specific page by slug", %{cache: cache} do
       stub(Req, :get, fn url, _opts ->
         cond do
           String.contains?(url, "api.github.com") ->
@@ -123,14 +124,14 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      page = CLI.get_page("/en/cli/generate")
+      page = CLI.get_page("/en/cli/generate", cache: cache)
 
       assert page.slug == "/en/cli/generate"
       assert page.title == "tuist generate"
       assert page.body =~ "Generates an Xcode workspace"
     end
 
-    test "returns nil for unknown slug" do
+    test "returns nil for unknown slug", %{cache: cache} do
       stub(Req, :get, fn url, _opts ->
         cond do
           String.contains?(url, "api.github.com") ->
@@ -141,12 +142,12 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      assert is_nil(CLI.get_page("/en/cli/nonexistent"))
+      assert is_nil(CLI.get_page("/en/cli/nonexistent", cache: cache))
     end
   end
 
-  describe "sidebar_items/0" do
-    test "returns sidebar groups with static pages and commands" do
+  describe "sidebar_items/1" do
+    test "returns sidebar groups with static pages and commands", %{cache: cache} do
       stub(Req, :get, fn url, _opts ->
         cond do
           String.contains?(url, "api.github.com") ->
@@ -157,7 +158,7 @@ defmodule Tuist.Docs.CLITest do
         end
       end)
 
-      [cli_group, commands_group] = CLI.sidebar_items()
+      [cli_group, commands_group] = CLI.sidebar_items(cache: cache)
 
       assert cli_group.label == "CLI"
       assert length(cli_group.items) == 3
@@ -168,10 +169,10 @@ defmodule Tuist.Docs.CLITest do
       assert "generate" in command_labels
     end
 
-    test "returns empty list when fetch fails" do
+    test "returns empty list when fetch fails", %{cache: cache} do
       stub(Req, :get, fn _url, _opts -> {:error, :timeout} end)
 
-      assert CLI.sidebar_items() == []
+      assert CLI.sidebar_items(cache: cache) == []
     end
   end
 end
