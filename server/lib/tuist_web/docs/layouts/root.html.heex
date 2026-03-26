@@ -209,14 +209,12 @@
       }
     >
     </div>
-    <docs-search
-      id="docs-search"
+    <TuistWeb.Docs.Components.search_modal
       host={Tuist.Environment.typesense_host()}
-      api-key={Tuist.Environment.typesense_search_api_key()}
+      api_key={Tuist.Environment.typesense_search_api_key()}
       locale={@locale}
-      search-placeholder={dgettext("docs", "Search...")}
-    >
-    </docs-search>
+      placeholder={dgettext("docs", "Search...")}
+    />
     {@inner_content}
   </body>
 </html>
