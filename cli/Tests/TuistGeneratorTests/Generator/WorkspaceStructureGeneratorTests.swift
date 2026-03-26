@@ -394,25 +394,44 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         func readTextFile(at _: AbsolutePath, encoding _: String.Encoding) async throws -> String { "" }
         func writeText(_ _: String, at _: AbsolutePath) async throws {}
         func writeText(_ _: String, at _: AbsolutePath, encoding _: String.Encoding) async throws {}
-        func writeText(_ _: String, at _: AbsolutePath, encoding _: String.Encoding, options _: Set<WriteTextOptions>) async throws {}
+        func writeText(
+            _ _: String,
+            at _: AbsolutePath,
+            encoding _: String.Encoding,
+            options _: Set<WriteTextOptions>
+        ) async throws {}
         func readPlistFile<T: Decodable>(at _: AbsolutePath) async throws -> T {
             throw NSError(domain: "Not implemented", code: 0)
         }
+
         func readPlistFile<T: Decodable>(at _: AbsolutePath, decoder _: PropertyListDecoder) async throws -> T {
             throw NSError(domain: "Not implemented", code: 0)
         }
+
         func writeAsPlist(_ _: some Encodable, at _: AbsolutePath) async throws {}
         func writeAsPlist(_ _: some Encodable, at _: AbsolutePath, encoder _: PropertyListEncoder) async throws {}
-        func writeAsPlist(_ _: some Encodable, at _: AbsolutePath, encoder _: PropertyListEncoder, options _: Set<WritePlistOptions>) async throws {}
+        func writeAsPlist(
+            _ _: some Encodable,
+            at _: AbsolutePath,
+            encoder _: PropertyListEncoder,
+            options _: Set<WritePlistOptions>
+        ) async throws {}
         func readJSONFile<T: Decodable>(at _: AbsolutePath) async throws -> T {
             throw NSError(domain: "Not implemented", code: 0)
         }
+
         func readJSONFile<T: Decodable>(at _: AbsolutePath, decoder _: JSONDecoder) async throws -> T {
             throw NSError(domain: "Not implemented", code: 0)
         }
+
         func writeAsJSON(_ _: some Encodable, at _: AbsolutePath) async throws {}
         func writeAsJSON(_ _: some Encodable, at _: AbsolutePath, encoder _: JSONEncoder) async throws {}
-        func writeAsJSON(_ _: some Encodable, at _: AbsolutePath, encoder _: JSONEncoder, options _: Set<WriteJSONOptions>) async throws {}
+        func writeAsJSON(
+            _ _: some Encodable,
+            at _: AbsolutePath,
+            encoder _: JSONEncoder,
+            options _: Set<WriteJSONOptions>
+        ) async throws {}
         func fileSizeInBytes(at _: AbsolutePath) async throws -> Int64? { nil }
         func replace(_ _: AbsolutePath, with _: AbsolutePath) async throws {}
         func copy(_ _: AbsolutePath, to _: AbsolutePath) async throws {}
@@ -426,9 +445,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         func glob(directory _: AbsolutePath, include _: [String]) throws -> AnyThrowingAsyncSequenceable<AbsolutePath> {
             throw NSError(domain: "Not implemented", code: 0)
         }
+
         func currentWorkingDirectory() async throws -> AbsolutePath {
             try AbsolutePath(validating: "/")
         }
+
         func fileMetadata(at _: AbsolutePath) async throws -> FileMetadata? { nil }
         func setFileTimes(of _: AbsolutePath, lastAccessDate _: Date?, lastModificationDate _: Date?) async throws {}
 

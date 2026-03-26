@@ -277,7 +277,8 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let contents2 = try await fileSystem.contentsOfDirectory(buildOutputPath).sorted()
         XCTAssertEqual(contents2, [buildOutputPath.appending(component: configuration)])
 
-        let configContents = try await fileSystem.contentsOfDirectory(buildOutputPath.appending(component: configuration)).sorted()
+        let configContents = try await fileSystem.contentsOfDirectory(buildOutputPath.appending(component: configuration))
+            .sorted()
         XCTAssertEqual(
             configContents,
             [

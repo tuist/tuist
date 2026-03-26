@@ -7,11 +7,11 @@ import TuistCache
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistExtension
 import TuistLoader
 import TuistPlugin
 import TuistServer
-import TuistEnvironment
 import TuistSupport
 import TuistXCActivityLog
 import XcodeGraph
@@ -207,8 +207,8 @@ import XcodeGraph
                 let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
                 let activityLogsDirectory = temporaryDirectory.appending(component: "activity-logs")
 
-                try await fileSystem.makeDirectory(at:derivedDataPath)
-                try await fileSystem.makeDirectory(at:activityLogsDirectory)
+                try await fileSystem.makeDirectory(at: derivedDataPath)
+                try await fileSystem.makeDirectory(at: activityLogsDirectory)
 
                 let xcodebuildTarget = XcodeBuildTarget(with: projectPath)
 
@@ -558,12 +558,12 @@ import XcodeGraph
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
             let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "\(platform.caseValue)"])
 
-            try await fileSystem.makeDirectory(at:platformArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
 
             // Simulator
             if platform.hasSimulators {
                 let simulatorArtifactsDirectory = platformArtifactsDirectory.appending(component: "simulator")
-                try await fileSystem.makeDirectory(at:simulatorArtifactsDirectory)
+                try await fileSystem.makeDirectory(at: simulatorArtifactsDirectory)
 
                 Logger.current.info("Building scheme \(scheme.name) for the simulator", metadata: .section)
                 try await xcodeBuildController.build(
@@ -618,7 +618,7 @@ import XcodeGraph
             Logger.current.info("Building scheme \(scheme.name) for device", metadata: .section)
 
             let deviceArtifactsDirectory = platformArtifactsDirectory.appending(component: "device")
-            try await fileSystem.makeDirectory(at:deviceArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: deviceArtifactsDirectory)
 
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
@@ -687,12 +687,12 @@ import XcodeGraph
             isReleaseConfiguration: Bool
         ) async throws {
             let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "iOS"])
-            try await fileSystem.makeDirectory(at:platformArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: platformArtifactsDirectory)
 
             Logger.current.info("Building scheme \(scheme.name) for Mac Catalyst", metadata: .section)
 
             let macCatalystArtifactsDirectory = platformArtifactsDirectory.appending(component: "mac-catalyst")
-            try await fileSystem.makeDirectory(at:macCatalystArtifactsDirectory)
+            try await fileSystem.makeDirectory(at: macCatalystArtifactsDirectory)
 
             try await xcodeBuildController.build(
                 xcodebuildTarget,

@@ -2,8 +2,8 @@
     import ArgumentParser
     import Foundation
     import Path
-    import TuistEnvKey
     import TuistEnvironment
+    import TuistEnvKey
     import TuistExtension
     import TuistKit
     import TuistLogging

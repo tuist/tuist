@@ -66,7 +66,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 "CoreDataModel.xcdatamodel"
             )
 
-            try await fileSystem.makeDirectory(at:aAssets)
+            try await fileSystem.makeDirectory(at: aAssets)
             try await fileSystem.touch(aAsset)
             try await fileSystem.touch(frenchStrings)
             try await fileSystem.touch(frenchStringsDict)
@@ -89,7 +89,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             try await fileSystem.writeText("strings template", at: stringsTemplatePath)
             let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
             try await fileSystem.writeText("core data template", at: coreDataTemplatePath)
-            try await fileSystem.makeDirectory(at:coreDataModelFolder)
+            try await fileSystem.makeDirectory(at: coreDataModelFolder)
             try await fileSystem.writeText("a", at: coreDataModelVersionFile)
 
             let targetA = Target.test(
@@ -359,7 +359,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 "CoreDataModel.xcdatamodel"
             )
 
-            try await fileSystem.makeDirectory(at:aAssets)
+            try await fileSystem.makeDirectory(at: aAssets)
             try await fileSystem.touch(aAsset)
             try await fileSystem.touch(frenchStrings)
             try await fileSystem.touch(frenchStringsDict)
@@ -382,7 +382,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             try await fileSystem.writeText("strings template", at: stringsTemplatePath)
             let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
             try await fileSystem.writeText("core data template", at: coreDataTemplatePath)
-            try await fileSystem.makeDirectory(at:coreDataModelFolder)
+            try await fileSystem.makeDirectory(at: coreDataModelFolder)
             try await fileSystem.writeText("a", at: coreDataModelVersionFile)
 
             let targetA = Target.test(
@@ -647,7 +647,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             "CoreDataModel.xcdatamodel"
         )
 
-        try await fileSystem.makeDirectory(at:aAssets)
+        try await fileSystem.makeDirectory(at: aAssets)
         try await fileSystem.touch(aAsset)
         try await fileSystem.touch(frenchStrings)
         try await fileSystem.touch(frenchStringsDict)
@@ -669,7 +669,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         try await fileSystem.writeText("strings template", at: stringsTemplatePath)
         let coreDataTemplatePath = projectPath.appending(component: "CoreData.stencil")
         try await fileSystem.writeText("core data template", at: coreDataTemplatePath)
-        try await fileSystem.makeDirectory(at:coreDataModelFolder)
+        try await fileSystem.makeDirectory(at: coreDataModelFolder)
         try await fileSystem.writeText("a", at: coreDataModelVersionFile)
 
         let targetA = Target.test(
@@ -843,7 +843,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let targetPath = projectPath.appending(component: "TargetA")
         let binaryPlist = targetPath.appending(component: "Binary.plist")
         let xmlPlist = targetPath.appending(component: "XML.plist")
-        try await fileSystem.makeDirectory(at:targetPath)
+        try await fileSystem.makeDirectory(at: targetPath)
         // Create binary plist
         let binaryData = try PropertyListSerialization.data(
             fromPropertyList: ["key": "value"],

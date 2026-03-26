@@ -293,7 +293,7 @@ final class PluginServiceTests: TuistUnitTestCase {
                 ProjectDescription.Plugin(name: pluginName)
             )
 
-        try await fileSystem.makeDirectory(at:cachedPluginPath.appending(component: Constants.helpersDirectoryName))
+        try await fileSystem.makeDirectory(at: cachedPluginPath.appending(component: Constants.helpersDirectoryName))
 
         let generatedProjectOptions = mockConfigGeneratedProjectOptions(plugins: [
             TuistConfig.PluginLocation.git(

@@ -322,7 +322,11 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let copiedText = try await fileSystem.readTextFile(at: destinationPath.appending(components: "destination", "folder", "file1.txt"))
+        let copiedText = try await fileSystem.readTextFile(at: destinationPath.appending(
+            components: "destination",
+            "folder",
+            "file1.txt"
+        ))
         XCTAssertEqual(copiedText, expectedContentFile)
     }
 }

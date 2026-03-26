@@ -9,10 +9,10 @@ import TuistAutomation
 import TuistConfigLoader
 import TuistCore
 import TuistLoader
+import TuistRootDirectoryLocator
 import TuistSupport
 import TuistTesting
 import TuistUniqueIDGenerator
-import TuistRootDirectoryLocator
 import TuistXCActivityLog
 import TuistXCResultService
 import XcodeGraph

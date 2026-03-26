@@ -11,10 +11,6 @@
     open class TuistTestCase: XCTestCase {
         fileprivate var temporaryDirectory: TemporaryDirectory!
 
-        override open func setUp() {
-            super.setUp()
-        }
-
         override open func tearDown() {
             temporaryDirectory = nil
             super.tearDown()

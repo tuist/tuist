@@ -93,7 +93,8 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
             allModules.append(contentsOf: modules)
 
             try initSubject() // next iteration would be using a different subject, no runtime cache
-            try await prepareProjectDescriptionHelpersCacheDirectory(for: path) // Creating the expected cache folder, next time this
+            try await prepareProjectDescriptionHelpersCacheDirectory(for: path) // Creating the expected cache folder, next time
+            // this
             // path is checked, no build action should be released
         }
 

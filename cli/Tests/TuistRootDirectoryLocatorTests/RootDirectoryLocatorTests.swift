@@ -201,7 +201,10 @@ final class RootDirectoryLocatorTests: TuistTestCase {
     func test_locate_when_a_tuist_directory_and_swiftpm_manifest_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try await createFolders(["this/is/a/very/nested/directory/\(Constants.SwiftPackageManager.packageSwiftName)", "this/is/Tuist/"])
+        try await createFolders([
+            "this/is/a/very/nested/directory/\(Constants.SwiftPackageManager.packageSwiftName)",
+            "this/is/Tuist/",
+        ])
 
         // When
         let got = try await subject

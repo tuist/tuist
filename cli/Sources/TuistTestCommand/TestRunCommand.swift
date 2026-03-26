@@ -4,8 +4,8 @@
     import Path
     import TuistBuildCommand
     import TuistCore
-    import TuistEnvKey
     import TuistEnvironment
+    import TuistEnvKey
     import TuistExtension
     import TuistKit
     import TuistLogging

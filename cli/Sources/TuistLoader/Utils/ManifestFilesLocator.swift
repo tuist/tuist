@@ -113,9 +113,9 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
                 .collect()
                 .filter { fileNamesCandidates.contains($0.basename) }
         )
-            .concurrentFilter { [weak self] in
-                await self?.hasValidManifestContent($0) ?? false
-            }
+        .concurrentFilter { [weak self] in
+            await self?.hasValidManifestContent($0) ?? false
+        }
 
         cacheTuistManifestsFilePaths[path] = tuistManifestsFilePaths
 

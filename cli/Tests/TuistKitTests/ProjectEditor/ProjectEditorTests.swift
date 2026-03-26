@@ -84,7 +84,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
         try await fileSystem.makeDirectory(at: helpersDirectory)
         let helpers = ["A.swift", "B.swift", "Documentation.docc"].map { helpersDirectory.appending(component: $0) }
-        for helper in helpers { try await fileSystem.touch(helper) }
+        for helper in helpers {
+            try await fileSystem.touch(helper)
+        }
         let manifests = [
             ManifestFilesLocator.ProjectManifest(
                 manifest: .project,

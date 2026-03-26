@@ -1028,7 +1028,9 @@ extension ProjectDescription.ResourceFileElements {
             switch $0.rule {
             case .copy:
                 // Single files or opaque directories are handled like a .process rule
-                if try await !fileSystem.exists(resourceAbsolutePath, isDirectory: true) || resourceAbsolutePath.isOpaqueDirectory {
+                if try await !fileSystem.exists(resourceAbsolutePath, isDirectory: true) || resourceAbsolutePath
+                    .isOpaqueDirectory
+                {
                     return try await handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
                 } else {
                     return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)

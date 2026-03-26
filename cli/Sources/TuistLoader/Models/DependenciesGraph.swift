@@ -75,7 +75,8 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
             destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
             fileSystem: FileSysteming = FileSystem()
         ) async throws -> Self {
-            try await fileSystem.makeDirectory(at: try AbsolutePath(validating: "\(packageFolder.pathString)/customPath/resources"))
+            try await fileSystem
+                .makeDirectory(at: try AbsolutePath(validating: "\(packageFolder.pathString)/customPath/resources"))
 
             let externalDependencies: [String: [TargetDependency]] = [
                 "Tuist": [

@@ -4,10 +4,10 @@ import TuistAlert
 import TuistCache
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistHasher
 import TuistLoader
 import TuistLogging
-import TuistEnvironment
 import TuistSupport
 import XcodeGraph
 
