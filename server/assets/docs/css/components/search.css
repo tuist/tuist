@@ -168,6 +168,14 @@ body[data-search-open] {
     white-space: nowrap;
   }
 
+  & [data-part="result-url"] {
+    overflow: hidden;
+    color: var(--noora-surface-label-tertiary);
+    font: var(--noora-font-body-xsmall);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   & [data-part="highlight"] {
     background: none;
     color: var(--noora-purple-500);

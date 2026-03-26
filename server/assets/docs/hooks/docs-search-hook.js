@@ -1,5 +1,9 @@
 import Typesense from "typesense";
 
+// --- Configuration ---
+
+const DEFAULT_PER_PAGE = 5;
+
 const COLLECTIONS = [
   {
     name: "tuist",
@@ -19,6 +23,7 @@ const COLLECTIONS = [
     queryBy: "title,hierarchy.lvl0,hierarchy.lvl1,hierarchy.lvl2,content",
     queryByWeights: "127,100,80,60,5",
     groupBy: null,
+    perPage: 1,
   },
   {
     name: "github-issues",
@@ -41,9 +46,9 @@ const COLLECTIONS = [
   },
 ];
 
-// --- Text helpers ---
+// --- Text utilities ---
 
-const MARKDOWN_PATTERNS = [
+const MARKDOWN_STRIP_RULES = [
   [/^#{1,6}\s+/gm, ""],
   [/\*\*(.+?)\*\*/g, "$1"],
   [/__(.+?)__/g, "$1"],
@@ -54,11 +59,17 @@ const MARKDOWN_PATTERNS = [
   [/!\[([^\]]*)\]\([^)]+\)/g, "$1"],
   [/\[([^\]]+)\]\([^)]+\)/g, "$1"],
   [/https?:\/\/\S+/g, ""],
+  [/[*_~`]+/g, ""],
+  [/\s·\s*(issues|pull|pull requests?)\b/gi, ""],
   [/\s+/g, " "],
 ];
 
 function stripMarkdown(text) {
-  return MARKDOWN_PATTERNS.reduce((str, [re, rep]) => str.replace(re, rep), text).trim();
+  return MARKDOWN_STRIP_RULES.reduce((s, [re, rep]) => s.replace(re, rep), text).trim();
+}
+
+function truncate(text, max = 80) {
+  return text.length > max ? text.slice(0, max) + "..." : text;
 }
 
 function escapeHtml(str) {
@@ -70,12 +81,8 @@ function escapeHtml(str) {
 function highlightQuery(text, query) {
   if (!text || !query) return escapeHtml(text || "");
   const escaped = escapeHtml(text);
-  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
-  return escaped.replace(re, '<mark data-part="highlight">$1</mark>');
-}
-
-function truncate(text, max = 80) {
-  return text.length > max ? text.slice(0, max) + "..." : text;
+  const pattern = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return escaped.replace(new RegExp(`(${pattern})`, "gi"), '<mark data-part="highlight">$1</mark>');
 }
 
 // --- Hit data extraction ---
@@ -90,19 +97,31 @@ function titleFor(hit) {
   return truncate(doc.content || doc.url || "");
 }
 
+function urlFor(hit) {
+  return hit.document.url_without_anchor || hit.document.url || "#";
+}
+
 function contentHighlightFor(hit) {
   const hl = hit.highlights || hit.highlight || [];
   return Array.isArray(hl) ? hl.find((h) => h.field === "content") : hl.content;
 }
 
 function contentSnippetFor(hit) {
+  const fullContent = (hit.document.content || "").trim();
   const highlight = contentHighlightFor(hit);
+
   if (highlight) {
     const raw = highlight.snippet || highlight.value || "";
-    if (raw) return stripMarkdown(raw.replace(/<\/?mark>/g, ""));
+    if (raw) {
+      const clean = stripMarkdown(raw.replace(/<\/?mark>/g, ""));
+      const fullClean = stripMarkdown(fullContent);
+      const prefix = fullClean.startsWith(clean) ? "" : "...";
+      const suffix = fullClean.endsWith(clean) ? "" : "...";
+      return `${prefix}${clean}${suffix}`;
+    }
   }
-  const content = (hit.document.content || "").trim();
-  return content ? truncate(stripMarkdown(content)) : "";
+
+  return fullContent ? truncate(stripMarkdown(fullContent)) : "";
 }
 
 function subtitleFor(hit) {
@@ -118,11 +137,17 @@ function subtitleFor(hit) {
   for (let i = 6; i >= 1; i--) {
     if (h[`lvl${i}`] && h[`lvl${i}`] !== page && h[`lvl${i}`] !== title) return h[`lvl${i}`];
   }
+
   return snippet;
 }
 
-function urlFor(hit) {
-  return hit.document.url_without_anchor || hit.document.url || "#";
+function displayUrl(url, external) {
+  if (external) return decodeURIComponent(url);
+  try {
+    return decodeURIComponent(new URL(url, window.location.origin).pathname);
+  } catch {
+    return url;
+  }
 }
 
 // --- Singleton lifecycle ---
@@ -141,8 +166,8 @@ export function initDocsSearch() {
 class DocsSearch {
   constructor(el) {
     this.el = el;
-    this.results = [];
-    this.selectedIndex = -1;
+    this._results = [];
+    this._selectedIndex = -1;
     this._debounceTimer = null;
     this._listeners = [];
 
@@ -169,8 +194,6 @@ class DocsSearch {
     this._listeners = [];
   }
 
-  // --- Public ---
-
   open() {
     this._modal.setAttribute("data-state", "open");
     this._backdrop.setAttribute("data-state", "open");
@@ -178,7 +201,7 @@ class DocsSearch {
     requestAnimationFrame(() => this._input?.focus());
   }
 
-  // --- Private: client ---
+  // --- Private: Typesense client ---
 
   _createClient() {
     const host = this.el.dataset.host || "https://search.tuist.dev";
@@ -207,7 +230,7 @@ class DocsSearch {
   }
 
   _bindSearchBarTriggers() {
-    const openSearch = (e) => {
+    const trigger = (e) => {
       e.preventDefault();
       this.open();
     };
@@ -222,10 +245,10 @@ class DocsSearch {
     }
 
     const wrapper = document.querySelector('.noora-text-input:has(#text-input-types-search) [data-part="wrapper"]');
-    if (wrapper) this._on(wrapper, "click", openSearch);
+    if (wrapper) this._on(wrapper, "click", trigger);
 
     const mobileBtn = document.querySelector('#docs-nav [data-part="mobile-actions"] button:first-child');
-    if (mobileBtn) this._on(mobileBtn, "click", openSearch);
+    if (mobileBtn) this._on(mobileBtn, "click", trigger);
   }
 
   _bindModalEvents() {
@@ -268,14 +291,14 @@ class DocsSearch {
           query_by: col.queryBy,
           query_by_weights: col.queryByWeights,
           highlight_full_fields: col.queryBy,
+          per_page: col.perPage || DEFAULT_PER_PAGE,
           ...(col.groupBy ? { group_by: col.groupBy, group_limit: 1 } : {}),
-          per_page: 5,
           ...(col.name === "tuist" ? { filter_by: `tags:=${locale}` } : {}),
         })),
       });
 
       const grouped = [];
-      this.results = [];
+      this._results = [];
 
       response.results.forEach((result, idx) => {
         const col = COLLECTIONS[idx];
@@ -285,13 +308,11 @@ class DocsSearch {
 
         if (hits.length > 0) {
           grouped.push({ ...col, hits });
-          for (const hit of hits) {
-            this.results.push({ hit, collection: col });
-          }
+          for (const hit of hits) this._results.push({ hit, collection: col });
         }
       });
 
-      this.selectedIndex = this.results.length > 0 ? 0 : -1;
+      this._selectedIndex = this._results.length > 0 ? 0 : -1;
       this._renderResults(grouped, query);
     } catch (err) {
       console.error("Search error:", err);
@@ -325,8 +346,7 @@ class DocsSearch {
 
       const container = groupEl.querySelector('[data-part="result-group"]');
       for (const hit of group.hits) {
-        container.appendChild(this._buildResultEl(hit, group, query, flatIndex));
-        flatIndex++;
+        container.appendChild(this._buildResultEl(hit, group, query, flatIndex++));
       }
 
       this._resultsEl.appendChild(groupEl);
@@ -334,17 +354,19 @@ class DocsSearch {
   }
 
   _buildResultEl(hit, group, query, index) {
-    const resultEl = this._resultTpl.content.cloneNode(true);
-    const link = resultEl.querySelector('[data-part="result-item"]');
-    const titleEl = resultEl.querySelector('[data-part="result-title"]');
-    const subtitleEl = resultEl.querySelector('[data-part="result-subtitle"]');
+    const frag = this._resultTpl.content.cloneNode(true);
+    const link = frag.querySelector('[data-part="result-item"]');
+    const titleEl = frag.querySelector('[data-part="result-title"]');
+    const subtitleEl = frag.querySelector('[data-part="result-subtitle"]');
+    const urlEl = frag.querySelector('[data-part="result-url"]');
 
     const title = titleFor(hit);
     const subtitle = subtitleFor(hit);
+    const url = urlFor(hit);
 
-    link.href = urlFor(hit);
+    link.href = url;
     link.dataset.index = index;
-    if (index === this.selectedIndex) link.setAttribute("data-selected", "");
+    if (index === this._selectedIndex) link.setAttribute("data-selected", "");
     if (group.external) {
       link.target = "_blank";
       link.rel = "noopener noreferrer";
@@ -358,12 +380,14 @@ class DocsSearch {
       subtitleEl.remove();
     }
 
+    urlEl.textContent = displayUrl(url, group.external);
+
     link.addEventListener("mouseenter", () => {
-      this.selectedIndex = parseInt(link.dataset.index, 10);
+      this._selectedIndex = parseInt(link.dataset.index, 10);
       this._updateSelection();
     });
 
-    return resultEl;
+    return frag;
   }
 
   // --- Private: navigation ---
@@ -377,21 +401,21 @@ class DocsSearch {
   }
 
   _reset() {
-    this.results = [];
-    this.selectedIndex = -1;
+    this._results = [];
+    this._selectedIndex = -1;
     this._renderResults([]);
   }
 
-  _moveSelection(direction) {
-    if (this.results.length === 0) return;
-    this.selectedIndex = (this.selectedIndex + direction + this.results.length) % this.results.length;
+  _moveSelection(dir) {
+    if (this._results.length === 0) return;
+    this._selectedIndex = (this._selectedIndex + dir + this._results.length) % this._results.length;
     this._updateSelection();
   }
 
   _updateSelection() {
     const items = this._resultsEl.querySelectorAll('[data-part="result-item"]');
     for (const [idx, item] of items.entries()) {
-      if (idx === this.selectedIndex) {
+      if (idx === this._selectedIndex) {
         item.setAttribute("data-selected", "");
         item.scrollIntoView({ block: "nearest" });
       } else {
@@ -401,8 +425,8 @@ class DocsSearch {
   }
 
   _selectCurrent() {
-    if (this.selectedIndex < 0 || this.selectedIndex >= this.results.length) return;
-    const { hit, collection } = this.results[this.selectedIndex];
+    if (this._selectedIndex < 0 || this._selectedIndex >= this._results.length) return;
+    const { hit, collection } = this._results[this._selectedIndex];
     const url = urlFor(hit);
     this._close();
     if (collection.external) {
