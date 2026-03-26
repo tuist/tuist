@@ -42,7 +42,6 @@ defmodule Cache.MixProject do
       {:ex_aws_s3, "~> 2.0"},
       {:ex_aws_sts, "~> 2.2"},
       {:guardian, "~> 2.3"},
-      {:jason, "~> 1.4"},
       {:jose, "~> 1.11"},
       {:mimic, "~> 1.7", only: :test},
       {:oban, "~> 2.17"},

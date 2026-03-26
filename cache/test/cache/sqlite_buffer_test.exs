@@ -43,8 +43,8 @@ defmodule Cache.SQLiteBufferTest do
 
   test "flush persists key values and keeps latest payload" do
     key = "keyvalue:account:project:cas"
-    payload_one = Jason.encode!(%{entries: [%{"value" => "one"}]})
-    payload_two = Jason.encode!(%{entries: [%{"value" => "two"}]})
+    payload_one = JSON.encode!(%{entries: [%{"value" => "one"}]})
+    payload_two = JSON.encode!(%{entries: [%{"value" => "two"}]})
 
     :ok = KeyValueBuffer.enqueue(key, payload_one)
     :ok = KeyValueBuffer.enqueue(key, payload_two)
@@ -65,8 +65,8 @@ defmodule Cache.SQLiteBufferTest do
 
   test "flush refreshes hash references on overwrite" do
     key = "keyvalue:account:project:cas-overwrite"
-    payload_one = Jason.encode!(%{entries: [%{"value" => "one"}, %{"value" => "shared"}]})
-    payload_two = Jason.encode!(%{entries: [%{"value" => "two"}, %{"value" => "shared"}]})
+    payload_one = JSON.encode!(%{entries: [%{"value" => "one"}, %{"value" => "shared"}]})
+    payload_two = JSON.encode!(%{entries: [%{"value" => "two"}, %{"value" => "shared"}]})
 
     :ok = KeyValueBuffer.enqueue(key, payload_one)
     :ok = KeyValueBuffer.flush()
@@ -90,7 +90,7 @@ defmodule Cache.SQLiteBufferTest do
 
   test "write then access for same key keeps pending write" do
     key = "keyvalue:write-then-access:account:project"
-    payload = Jason.encode!(%{entries: [%{"value" => "write"}]})
+    payload = JSON.encode!(%{entries: [%{"value" => "write"}]})
 
     :ok = KeyValueBuffer.enqueue(key, payload)
     :ok = KeyValueBuffer.enqueue_access(key)
@@ -106,7 +106,7 @@ defmodule Cache.SQLiteBufferTest do
 
   test "access-only entry updates last_accessed_at without changing payload" do
     key = "keyvalue:access-only:account:project"
-    payload = Jason.encode!(%{entries: [%{"value" => "original"}]})
+    payload = JSON.encode!(%{entries: [%{"value" => "original"}]})
 
     initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
     timestamp = DateTime.truncate(DateTime.utc_now(), :second)
@@ -136,7 +136,7 @@ defmodule Cache.SQLiteBufferTest do
       for i <- 1..1000 do
         %{
           key: "#{base_key}:#{i}",
-          json_payload: Jason.encode!(%{entries: [%{"value" => "hash-#{i}"}]}),
+          json_payload: JSON.encode!(%{entries: [%{"value" => "hash-#{i}"}]}),
           last_accessed_at: initial_time,
           inserted_at: timestamp,
           updated_at: timestamp
@@ -167,7 +167,7 @@ defmodule Cache.SQLiteBufferTest do
     key = "keyvalue:access-dedup:account:project"
     write_key = "keyvalue:access-dedup:write"
 
-    :ok = KeyValueBuffer.enqueue(write_key, Jason.encode!(%{value: "write"}))
+    :ok = KeyValueBuffer.enqueue(write_key, JSON.encode!(%{value: "write"}))
     :ok = KeyValueBuffer.enqueue_access(key)
     :ok = KeyValueBuffer.enqueue_access(key)
     :ok = KeyValueBuffer.enqueue_access(key)
@@ -213,7 +213,7 @@ defmodule Cache.SQLiteBufferTest do
 
   test "flushes queued entries on shutdown" do
     key = "keyvalue:shutdown:account:project"
-    payload = Jason.encode!(%{entries: [%{"value" => "shutdown"}]})
+    payload = JSON.encode!(%{entries: [%{"value" => "shutdown"}]})
 
     suffix = :erlang.unique_integer([:positive])
     shutdown_buf = :"sqlite_buffer_shutdown_test_#{suffix}"
@@ -230,7 +230,7 @@ defmodule Cache.SQLiteBufferTest do
 
   test "unexpected info messages are logged and ignored" do
     key = "keyvalue:unexpected-message:account:project"
-    payload = Jason.encode!(%{entries: [%{"value" => "unexpected"}]})
+    payload = JSON.encode!(%{entries: [%{"value" => "unexpected"}]})
 
     suffix = :erlang.unique_integer([:positive])
     buffer = :"sqlite_buffer_unexpected_message_test_#{suffix}"
@@ -259,7 +259,7 @@ defmodule Cache.SQLiteBufferTest do
     tasks =
       for i <- 1..100 do
         Task.async(fn ->
-          payload = Jason.encode!(%{value: i})
+          payload = JSON.encode!(%{value: i})
           KeyValueBuffer.enqueue(key, payload)
         end)
       end
@@ -271,7 +271,7 @@ defmodule Cache.SQLiteBufferTest do
     :ok = KeyValueBuffer.flush()
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
-    decoded = Jason.decode!(record.json_payload)
+    decoded = JSON.decode!(record.json_payload)
     assert decoded["value"] in 1..100
   end
 
@@ -311,13 +311,13 @@ defmodule Cache.SQLiteBufferTest do
     base_key = "keyvalue:during_flush:account:project"
 
     for i <- 1..50 do
-      KeyValueBuffer.enqueue("#{base_key}:#{i}", Jason.encode!(%{batch: "first", index: i}))
+      KeyValueBuffer.enqueue("#{base_key}:#{i}", JSON.encode!(%{batch: "first", index: i}))
     end
 
     flush_task = Task.async(fn -> KeyValueBuffer.flush() end)
 
     for i <- 51..100 do
-      KeyValueBuffer.enqueue("#{base_key}:#{i}", Jason.encode!(%{batch: "second", index: i}))
+      KeyValueBuffer.enqueue("#{base_key}:#{i}", JSON.encode!(%{batch: "second", index: i}))
     end
 
     Task.await(flush_task)
