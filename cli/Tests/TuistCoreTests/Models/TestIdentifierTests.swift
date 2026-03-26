@@ -1,63 +1,77 @@
 import Foundation
-import XCTest
+import Testing
 @testable import TuistCore
 
-final class TestIdentifierTests: XCTestCase {
-    func test_should_failToInitialize_when_targetEmpty_usingIndividualComponents() throws {
-        try XCTAssertThrowsError(TestIdentifier(target: ""))
+struct TestIdentifierTests {
+    @Test func failToInitialize_when_targetEmpty_usingIndividualComponents() throws {
+        #expect(throws: (any Error).self) {
+            try TestIdentifier(target: "")
+        }
     }
 
-    func test_should_failToInitialize_when_classEmpty_usingIndividualComponents() throws {
-        try XCTAssertThrowsError(TestIdentifier(target: "target", class: ""))
+    @Test func failToInitialize_when_classEmpty_usingIndividualComponents() throws {
+        #expect(throws: (any Error).self) {
+            try TestIdentifier(target: "target", class: "")
+        }
     }
 
-    func test_should_failToInitialize_when_methodEmpty_usingIndividualComponents() throws {
-        try XCTAssertThrowsError(TestIdentifier(target: "target", class: "class", method: ""))
+    @Test func failToInitialize_when_methodEmpty_usingIndividualComponents() throws {
+        #expect(throws: (any Error).self) {
+            try TestIdentifier(target: "target", class: "class", method: "")
+        }
     }
 
-    func test_should_initialize_when_targetSpecified_usingIndividualComponents() throws {
+    @Test func initialize_when_targetSpecified_usingIndividualComponents() throws {
         let testIdentifier = try TestIdentifier(target: "target")
-        XCTAssertEqual(testIdentifier.description, "target")
+        #expect(testIdentifier.description == "target")
     }
 
-    func test_should_initialize_when_targetClassSpecified_usingIndividualComponents() throws {
+    @Test func initialize_when_targetClassSpecified_usingIndividualComponents() throws {
         let testIdentifier = try TestIdentifier(target: "target", class: "class")
-        XCTAssertEqual(testIdentifier.description, "target/class")
+        #expect(testIdentifier.description == "target/class")
     }
 
-    func test_should_initialize_when_targetClassMethodSpecified_usingIndividualComponents() throws {
+    @Test func initialize_when_targetClassMethodSpecified_usingIndividualComponents() throws {
         let testIdentifier = try TestIdentifier(target: "target", class: "class", method: "method")
-        XCTAssertEqual(testIdentifier.description, "target/class/method")
+        #expect(testIdentifier.description == "target/class/method")
     }
 
-    func test_should_failToInitialize_when_targetEmpty_usingString() throws {
-        try XCTAssertThrowsError(TestIdentifier(string: ""))
+    @Test func failToInitialize_when_targetEmpty_usingString() throws {
+        #expect(throws: (any Error).self) {
+            try TestIdentifier(string: "")
+        }
     }
 
-    func test_should_failToInitialize_when_classEmpty_usingString() throws {
-        try XCTAssertThrowsError(TestIdentifier(string: "target/"))
+    @Test func failToInitialize_when_classEmpty_usingString() throws {
+        #expect(throws: (any Error).self) {
+            try TestIdentifier(string: "target/")
+        }
     }
 
-    func test_should_failToInitialize_when_methodEmpty_usingString() throws {
-        try XCTAssertThrowsError(TestIdentifier(string: "target/class/"))
+    @Test func failToInitialize_when_methodEmpty_usingString() throws {
+        #expect(throws: (any Error).self) {
+            try TestIdentifier(string: "target/class/")
+        }
     }
 
-    func test_should_failToInitialize_when_targetMethodSpecifiedButNotClass_usingString() {
-        try XCTAssertThrowsError(TestIdentifier(string: "target//method"))
+    @Test func failToInitialize_when_targetMethodSpecifiedButNotClass_usingString() {
+        #expect(throws: (any Error).self) {
+            try TestIdentifier(string: "target//method")
+        }
     }
 
-    func test_should_initialize_when_targetSpecified_usingString() throws {
+    @Test func initialize_when_targetSpecified_usingString() throws {
         let testIdentifier = try TestIdentifier(string: "target")
-        XCTAssertEqual(testIdentifier.description, "target")
+        #expect(testIdentifier.description == "target")
     }
 
-    func test_should_initialize_when_targetClassSpecified_usingString() throws {
+    @Test func initialize_when_targetClassSpecified_usingString() throws {
         let testIdentifier = try TestIdentifier(string: "target/class")
-        XCTAssertEqual(testIdentifier.description, "target/class")
+        #expect(testIdentifier.description == "target/class")
     }
 
-    func test_should_initialize_when_targetClassMethodSpecified_usingString() throws {
+    @Test func initialize_when_targetClassMethodSpecified_usingString() throws {
         let testIdentifier = try TestIdentifier(target: "target/class/method")
-        XCTAssertEqual(testIdentifier.description, "target/class/method")
+        #expect(testIdentifier.description == "target/class/method")
     }
 }
