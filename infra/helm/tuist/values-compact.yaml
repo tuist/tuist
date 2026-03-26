@@ -1,0 +1,20 @@
+profile: compact
+
+postgresql:
+  mode: embedded
+
+clickhouse:
+  mode: embedded
+
+objectStorage:
+  mode: embedded
+
+observability:
+  enabled: false
+
+server:
+  appUrl: http://tuist-server
+
+cache:
+  publicHost: tuist-cache
+  serverUrl: http://tuist-server

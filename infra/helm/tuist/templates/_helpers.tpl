@@ -1,0 +1,127 @@
+{{- define "tuist.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "tuist.fullname" -}}
+{{- if .Values.fullnameOverride -}}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name (include "tuist.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.labels" -}}
+app.kubernetes.io/name: {{ include "tuist.name" . }}
+helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- range $key, $value := .Values.global.commonLabels }}
+{{ $key }}: {{ $value | quote }}
+{{- end }}
+{{- end -}}
+
+{{- define "tuist.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "tuist.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{- define "tuist.componentLabels" -}}
+{{ include "tuist.selectorLabels" .root }}
+app.kubernetes.io/component: {{ .component }}
+{{- end -}}
+
+{{- define "tuist.componentName" -}}
+{{ include "tuist.fullname" .root }}-{{ .component }}
+{{- end -}}
+
+{{- define "tuist.objectStorageEndpoint" -}}
+{{- if eq .Values.objectStorage.mode "embedded" -}}
+http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000
+{{- else -}}
+{{- .Values.objectStorage.external.endpoint -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.objectStorageAccessKey" -}}
+{{- if eq .Values.objectStorage.mode "embedded" -}}
+{{- .Values.objectStorage.embedded.rootUser -}}
+{{- else -}}
+{{- .Values.objectStorage.external.accessKey -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.objectStorageSecretKey" -}}
+{{- if eq .Values.objectStorage.mode "embedded" -}}
+{{- .Values.objectStorage.embedded.rootPassword -}}
+{{- else -}}
+{{- .Values.objectStorage.external.secretKey -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.objectStorageRegion" -}}
+{{- if eq .Values.objectStorage.mode "embedded" -}}
+{{- .Values.objectStorage.embedded.region -}}
+{{- else -}}
+{{- .Values.objectStorage.external.region -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.objectStorageBucketDefault" -}}
+{{- if eq .Values.objectStorage.mode "embedded" -}}
+{{- .Values.objectStorage.embedded.buckets.default -}}
+{{- else -}}
+{{- .Values.objectStorage.external.buckets.default -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.objectStorageBucketCache" -}}
+{{- if eq .Values.objectStorage.mode "embedded" -}}
+{{- .Values.objectStorage.embedded.buckets.cache -}}
+{{- else -}}
+{{- .Values.objectStorage.external.buckets.cache -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.objectStorageBucketXcodeCache" -}}
+{{- if eq .Values.objectStorage.mode "embedded" -}}
+{{- .Values.objectStorage.embedded.buckets.xcodeCache -}}
+{{- else -}}
+{{- .Values.objectStorage.external.buckets.xcodeCache -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.objectStorageBucketRegistry" -}}
+{{- if eq .Values.objectStorage.mode "embedded" -}}
+{{- .Values.objectStorage.embedded.buckets.registry -}}
+{{- else -}}
+{{- .Values.objectStorage.external.buckets.registry -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.databaseUrl" -}}
+{{- if eq .Values.postgresql.mode "embedded" -}}
+ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.postgresql.embedded.database }}
+{{- else -}}
+ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external.password }}@{{ .Values.postgresql.external.host }}:{{ .Values.postgresql.external.port }}/{{ .Values.postgresql.external.database }}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.clickhouseUrl" -}}
+{{- if eq .Values.clickhouse.mode "embedded" -}}
+http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}:8123/{{ .Values.clickhouse.embedded.database }}
+{{- else -}}
+{{- .Values.clickhouse.external.url -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.processorUrl" -}}
+{{- printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "processor")) (.Values.processor.service.port) -}}
+{{- end -}}
+
+{{- define "tuist.observabilityOtlpEndpoint" -}}
+{{- if and .Values.observability.enabled (eq .Values.observability.mode "embedded") -}}
+http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collector") }}:4317
+{{- else -}}
+{{- .Values.observability.external.otlpEndpoint -}}
+{{- end -}}
+{{- end -}}

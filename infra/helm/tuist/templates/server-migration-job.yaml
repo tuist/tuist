@@ -1,0 +1,73 @@
+{{- if and .Values.server.enabled .Values.server.migrationJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server-migration
+spec:
+  backoffLimit: {{ .Values.server.migrationJob.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "server-migration") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command:
+            - /app/bin/tuist
+            - eval
+            - Tuist.Release.migrate
+          env:
+            - name: DATABASE_URL
+              value: {{ include "tuist.databaseUrl" . | quote }}
+            - name: TUIST_CLICKHOUSE_URL
+              value: {{ include "tuist.clickhouseUrl" . | quote }}
+            - name: TUIST_SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: server-secret-key-base
+            - name: TUIST_APP_URL
+              value: {{ .Values.server.appUrl | quote }}
+            {{- if .Values.server.license.key }}
+            - name: TUIST_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: server-license-key
+            {{- end }}
+            {{- if .Values.server.license.certificateBase64 }}
+            - name: TUIST_LICENSE_CERTIFICATE_BASE64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: server-license-certificate-base64
+            {{- end }}
+            - name: TUIST_S3_BUCKET_NAME
+              value: {{ .Values.server.s3.bucketName | quote }}
+            - name: TUIST_S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: TUIST_S3_REGION
+              value: {{ .Values.server.s3.region | quote }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-secret-key
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+          resources:
+            {{- toYaml .Values.server.migrationJob.resources | nindent 12 }}
+{{- end }}
