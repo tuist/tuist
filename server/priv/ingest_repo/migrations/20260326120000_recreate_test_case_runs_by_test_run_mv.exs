@@ -20,6 +20,8 @@ defmodule Tuist.IngestRepo.Migrations.RecreateTestCaseRunsByTestRunMv do
   @disable_migration_lock true
 
   @columns ~w(id test_run_id status is_flaky is_new duration inserted_at ran_at name project_id)
+  @max_retries 10
+  @initial_backoff_ms 5_000
 
   def up do
     IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run")
@@ -61,17 +63,37 @@ defmodule Tuist.IngestRepo.Migrations.RecreateTestCaseRunsByTestRunMv do
 
     for [partition] <- partitions do
       Logger.info("Backfilling partition #{partition} into test_case_runs_by_test_run")
+      backfill_partition_with_retry(partition)
+    end
+  end
 
-      IngestRepo.query!(
-        """
-        INSERT INTO test_case_runs_by_test_run (#{Enum.join(@columns, ", ")})
-        SELECT #{Enum.join(@columns, ", ")}
-        FROM test_case_runs
-        WHERE toYYYYMM(inserted_at) = {partition:UInt32}
-        """,
-        %{partition: String.to_integer(partition)},
-        timeout: 1_200_000
-      )
+  defp backfill_partition_with_retry(partition, attempt \\ 1) do
+    case IngestRepo.query(
+           """
+           INSERT INTO test_case_runs_by_test_run (#{Enum.join(@columns, ", ")})
+           SELECT #{Enum.join(@columns, ", ")}
+           FROM test_case_runs
+           WHERE toYYYYMM(inserted_at) = {partition:UInt32}
+           """,
+           %{partition: String.to_integer(partition)},
+           timeout: 1_200_000
+         ) do
+      {:ok, _} ->
+        :ok
+
+      {:error, %Ch.Error{code: 242} = error} when attempt <= @max_retries ->
+        backoff = @initial_backoff_ms * attempt
+
+        Logger.warning(
+          "Partition #{partition} hit TABLE_IS_READ_ONLY (attempt #{attempt}/#{@max_retries}), " <>
+            "retrying in #{backoff}ms: #{Exception.message(error)}"
+        )
+
+        Process.sleep(backoff)
+        backfill_partition_with_retry(partition, attempt + 1)
+
+      {:error, error} ->
+        raise "Backfill failed for partition #{partition} after #{attempt} attempts: #{inspect(error)}"
     end
   end
 end
