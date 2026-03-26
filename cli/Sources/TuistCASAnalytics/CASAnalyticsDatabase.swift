@@ -20,17 +20,9 @@ public protocol CASAnalyticsDatabasing: Sendable {
 }
 
 public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Sendable {
-    private static let _lock = NSLock()
-    private static var _shared: CASAnalyticsDatabase?
-
-    public static var shared: CASAnalyticsDatabase {
-        _lock.lock()
-        defer { _lock.unlock() }
-        if let existing = _shared { return existing }
-        let instance = try! open()
-        _shared = instance
-        return instance
-    }
+    @TaskLocal public static var current: CASAnalyticsDatabasing = _default
+    // swiftlint:disable:next force_try
+    private static let _default: CASAnalyticsDatabase = try! open()
 
     public static func open(stateDirectory: AbsolutePath? = nil) throws -> CASAnalyticsDatabase {
         let stateDir = stateDirectory ?? Environment.current.stateDirectory

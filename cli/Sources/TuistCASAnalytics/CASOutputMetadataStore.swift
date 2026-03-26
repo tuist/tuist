@@ -10,7 +10,7 @@ public protocol CASOutputMetadataStoring: Sendable {
 public struct CASOutputMetadataStore: CASOutputMetadataStoring {
     private let database: CASAnalyticsDatabasing
 
-    public init(database: CASAnalyticsDatabasing = CASAnalyticsDatabase.shared) {
+    public init(database: CASAnalyticsDatabasing = CASAnalyticsDatabase.current) {
         self.database = database
     }
 

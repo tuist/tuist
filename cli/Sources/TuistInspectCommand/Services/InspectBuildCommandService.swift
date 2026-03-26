@@ -69,7 +69,7 @@
             gitController: GitControlling = GitController(),
             ciController: CIControlling = CIController(),
             xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
-            casAnalyticsDatabase: CASAnalyticsDatabasing = CASAnalyticsDatabase.shared
+            casAnalyticsDatabase: CASAnalyticsDatabasing = CASAnalyticsDatabase.current
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
