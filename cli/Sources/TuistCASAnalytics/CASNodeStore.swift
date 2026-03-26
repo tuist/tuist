@@ -20,12 +20,12 @@ public struct CASNodeStore: CASNodeStoring {
 
     public func storeNode(_ nodeID: String, checksum: String) async throws {
         let sanitizedNodeID = sanitizeNodeID(nodeID)
-        try database.store(category: "nodes", key: sanitizedNodeID, value: checksum)
+        try database.storeNode(key: sanitizedNodeID, value: checksum)
     }
 
     public func checksum(for nodeID: String) async throws -> String? {
         let sanitizedNodeID = sanitizeNodeID(nodeID)
-        return try database.get(category: "nodes", key: sanitizedNodeID)
+        return try database.node(for: sanitizedNodeID)
     }
 
     private func sanitizeNodeID(_ nodeID: String) -> String {

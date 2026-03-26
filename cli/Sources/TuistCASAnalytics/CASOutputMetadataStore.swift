@@ -22,12 +22,12 @@ public struct CASOutputMetadataStore: CASOutputMetadataStoring {
         let sanitizedCasID = sanitizeCasID(casID)
         let jsonData = try JSONEncoder().encode(metadata)
         let jsonString = String(data: jsonData, encoding: .utf8)!
-        try database.store(category: "cas", key: sanitizedCasID, value: jsonString)
+        try database.storeCASOutput(key: sanitizedCasID, value: jsonString)
     }
 
     public func metadata(for casID: String) async throws -> CASOutputMetadata? {
         let sanitizedCasID = sanitizeCasID(casID)
-        guard let jsonString = try database.get(category: "cas", key: sanitizedCasID) else {
+        guard let jsonString = try database.casOutput(for: sanitizedCasID) else {
             return nil
         }
         return try JSONDecoder().decode(CASOutputMetadata.self, from: jsonString.data(using: .utf8)!)

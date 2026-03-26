@@ -29,16 +29,14 @@ public struct KeyValueMetadataStore: KeyValueMetadataStoring {
         operationType: KeyValueOperationType
     ) async throws {
         let sanitizedKey = sanitizeCacheKey(cacheKey)
-        let category = "keyvalue_\(operationType.rawValue)"
         let jsonData = try JSONEncoder().encode(metadata)
         let jsonString = String(data: jsonData, encoding: .utf8)!
-        try database.store(category: category, key: sanitizedKey, value: jsonString)
+        try database.storeKeyValueMetadata(key: sanitizedKey, operationType: operationType.rawValue, value: jsonString)
     }
 
     public func metadata(for cacheKey: String, operationType: KeyValueOperationType) async throws -> KeyValueMetadata? {
         let sanitizedKey = sanitizeCacheKey(cacheKey)
-        let category = "keyvalue_\(operationType.rawValue)"
-        guard let jsonString = try database.get(category: category, key: sanitizedKey) else {
+        guard let jsonString = try database.keyValueMetadata(for: sanitizedKey, operationType: operationType.rawValue) else {
             return nil
         }
         return try JSONDecoder().decode(KeyValueMetadata.self, from: jsonString.data(using: .utf8)!)

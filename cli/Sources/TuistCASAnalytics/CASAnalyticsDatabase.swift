@@ -20,8 +20,15 @@ enum CASAnalyticsDatabaseError: LocalizedError {
 
 @Mockable
 public protocol CASAnalyticsDatabasing: Sendable {
-    func store(category: String, key: String, value: String) throws
-    func get(category: String, key: String) throws -> String?
+    func storeCASOutput(key: String, value: String) throws
+    func casOutput(for key: String) throws -> String?
+
+    func storeNode(key: String, value: String) throws
+    func node(for key: String) throws -> String?
+
+    func storeKeyValueMetadata(key: String, operationType: String, value: String) throws
+    func keyValueMetadata(for key: String, operationType: String) throws -> String?
+
     func removeOldEntries(olderThan: Date) throws
     func databasePath() -> AbsolutePath
 }
@@ -34,9 +41,6 @@ public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Send
         _lock.lock()
         defer { _lock.unlock() }
         if let existing = _shared { return existing }
-        // The database can only fail to open if the state directory is
-        // fundamentally broken (permissions, disk full). Crash early
-        // rather than silently degrading.
         let instance = try! CASAnalyticsDatabase()
         _shared = instance
         return instance
@@ -81,51 +85,37 @@ public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Send
         sqlite3_close(db)
     }
 
-    public func store(category: String, key: String, value: String) throws {
-        lock.lock()
-        defer { lock.unlock() }
+    // MARK: - CAS Outputs
 
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-
-        let sql = "INSERT OR REPLACE INTO entries (category, key, value, created_at) VALUES (?, ?, ?, julianday('now'))"
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            throw CASAnalyticsDatabaseError.failedToExecute(String(cString: sqlite3_errmsg(db)))
-        }
-
-        sqlite3_bind_text(stmt, 1, (category as NSString).utf8String, -1, nil)
-        sqlite3_bind_text(stmt, 2, (key as NSString).utf8String, -1, nil)
-        sqlite3_bind_text(stmt, 3, (value as NSString).utf8String, -1, nil)
-
-        guard sqlite3_step(stmt) == SQLITE_DONE else {
-            throw CASAnalyticsDatabaseError.failedToExecute(String(cString: sqlite3_errmsg(db)))
-        }
+    public func storeCASOutput(key: String, value: String) throws {
+        try store(category: "cas", key: key, value: value)
     }
 
-    public func get(category: String, key: String) throws -> String? {
-        lock.lock()
-        defer { lock.unlock() }
-
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-
-        let sql = "SELECT value FROM entries WHERE category = ? AND key = ?"
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            throw CASAnalyticsDatabaseError.failedToExecute(String(cString: sqlite3_errmsg(db)))
-        }
-
-        sqlite3_bind_text(stmt, 1, (category as NSString).utf8String, -1, nil)
-        sqlite3_bind_text(stmt, 2, (key as NSString).utf8String, -1, nil)
-
-        guard sqlite3_step(stmt) == SQLITE_ROW else {
-            return nil
-        }
-
-        guard let cString = sqlite3_column_text(stmt, 0) else {
-            return nil
-        }
-        return String(cString: cString)
+    public func casOutput(for key: String) throws -> String? {
+        try get(category: "cas", key: key)
     }
+
+    // MARK: - Nodes
+
+    public func storeNode(key: String, value: String) throws {
+        try store(category: "nodes", key: key, value: value)
+    }
+
+    public func node(for key: String) throws -> String? {
+        try get(category: "nodes", key: key)
+    }
+
+    // MARK: - KeyValue Metadata
+
+    public func storeKeyValueMetadata(key: String, operationType: String, value: String) throws {
+        try store(category: "keyvalue_\(operationType)", key: key, value: value)
+    }
+
+    public func keyValueMetadata(for key: String, operationType: String) throws -> String? {
+        try get(category: "keyvalue_\(operationType)", key: key)
+    }
+
+    // MARK: - Maintenance
 
     public func removeOldEntries(olderThan date: Date) throws {
         lock.lock()
@@ -150,6 +140,54 @@ public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Send
 
     public func databasePath() -> AbsolutePath {
         path
+    }
+
+    // MARK: - Private
+
+    private func store(category: String, key: String, value: String) throws {
+        lock.lock()
+        defer { lock.unlock() }
+
+        var stmt: OpaquePointer?
+        defer { sqlite3_finalize(stmt) }
+
+        let sql = "INSERT OR REPLACE INTO entries (category, key, value, created_at) VALUES (?, ?, ?, julianday('now'))"
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw CASAnalyticsDatabaseError.failedToExecute(String(cString: sqlite3_errmsg(db)))
+        }
+
+        sqlite3_bind_text(stmt, 1, (category as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(stmt, 2, (key as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(stmt, 3, (value as NSString).utf8String, -1, nil)
+
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw CASAnalyticsDatabaseError.failedToExecute(String(cString: sqlite3_errmsg(db)))
+        }
+    }
+
+    private func get(category: String, key: String) throws -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        var stmt: OpaquePointer?
+        defer { sqlite3_finalize(stmt) }
+
+        let sql = "SELECT value FROM entries WHERE category = ? AND key = ?"
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw CASAnalyticsDatabaseError.failedToExecute(String(cString: sqlite3_errmsg(db)))
+        }
+
+        sqlite3_bind_text(stmt, 1, (category as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(stmt, 2, (key as NSString).utf8String, -1, nil)
+
+        guard sqlite3_step(stmt) == SQLITE_ROW else {
+            return nil
+        }
+
+        guard let cString = sqlite3_column_text(stmt, 0) else {
+            return nil
+        }
+        return String(cString: cString)
     }
 
     private func execute(_ sql: String) throws {

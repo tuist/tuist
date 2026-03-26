@@ -965,9 +965,13 @@ struct InspectBuildCommandServiceTests {
         try await fileSystem.makeDirectory(at: mockedEnvironment.stateDirectory)
         let database = try CASAnalyticsDatabase(stateDirectory: mockedEnvironment.stateDirectory)
         let entryCount = 200_000
+        let value = String(repeating: "x", count: 64)
         for i in 0 ..< entryCount {
-            let category = ["cas", "nodes", "keyvalue_read"][i % 3]
-            try database.store(category: category, key: "key_\(i)", value: String(repeating: "x", count: 64))
+            switch i % 3 {
+            case 0: try database.storeCASOutput(key: "key_\(i)", value: value)
+            case 1: try database.storeNode(key: "key_\(i)", value: value)
+            default: try database.storeKeyValueMetadata(key: "key_\(i)", operationType: "read", value: value)
+            }
         }
 
         let subjectWithDB = InspectBuildCommandService(
