@@ -23,6 +23,7 @@ extension XcodeGraph.ResourceFileElement {
             var excluded: Set<AbsolutePath> = []
             for path in excluding {
                 let absolute = try AbsolutePath(validating: path)
+                excluded.insert(absolute.upToLastNonGlob)
                 let globs = try await fileSystem.glob(
                     directory: .root,
                     include: [String(absolute.pathString.dropFirst())]
@@ -38,9 +39,7 @@ extension XcodeGraph.ResourceFileElement {
                     .throwingGlob(directory: .root, include: [String(path.pathString.dropFirst())])
                     .collect()
                     .filter { path in
-                        !excluded.contains(where: { excludedPath in
-                            path.isDescendantOfOrEqual(to: excludedPath) || excludedPath.isDescendant(of: path)
-                        })
+                        !excluded.contains(where: { path.isDescendantOfOrEqual(to: $0) })
                     }
                     .concurrentFilter { try await includeFiles($0) }
             } catch GlobError.nonExistentDirectory {
