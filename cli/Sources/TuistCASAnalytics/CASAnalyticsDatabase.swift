@@ -20,9 +20,8 @@ public protocol CASAnalyticsDatabasing: Sendable {
 }
 
 public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Sendable {
-    @TaskLocal public static var current: CASAnalyticsDatabasing = _default
     // swiftlint:disable:next force_try
-    private static let _default: CASAnalyticsDatabase = try! open()
+    @TaskLocal public static var current: CASAnalyticsDatabasing = try! open()
 
     public static func open(stateDirectory: AbsolutePath? = nil) throws -> CASAnalyticsDatabase {
         let stateDir = stateDirectory ?? Environment.current.stateDirectory
