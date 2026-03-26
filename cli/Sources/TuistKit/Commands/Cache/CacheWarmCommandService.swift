@@ -93,8 +93,8 @@ import XcodeGraph
             path directory: String?,
             configuration: String?,
             targetsToBinaryCache: Set<String>,
-            externalOnly: Bool,
-            generateOnly: Bool
+            generateOnly: Bool,
+            cacheProfile: String?
         ) async throws {
             let path = if let directory {
                 try AbsolutePath(validating: directory, relativeTo: fileHandler.currentPath)
@@ -123,6 +123,15 @@ import XcodeGraph
             // Lint
             try cacheWarmGraphLinter.lint(graph: graph)
 
+            // Resolve the cache profile using the same logic as `tuist generate`.
+            // When --cache-profile is omitted the config default (or onlyExternal fallback) applies.
+            let resolvedCacheProfileType = cacheProfile.map { CacheProfileType(stringLiteral: $0) }
+            let profile = try config.resolveCacheProfile(
+                ignoreBinaryCache: false,
+                includedTargets: [],
+                cacheProfile: resolvedCacheProfileType
+            )
+
             // Hash
             Logger.current.info("Hashing cacheable targets")
 
@@ -131,7 +140,7 @@ import XcodeGraph
                 configuration: configuration,
                 config: config,
                 includedTargets: targetsToBinaryCache,
-                externalOnly: externalOnly,
+                cacheProfile: profile,
                 cacheStorage: cacheStorage
             )
 
@@ -823,15 +832,27 @@ import XcodeGraph
             configuration: String,
             config: Tuist,
             includedTargets: Set<String>,
-            externalOnly: Bool,
+            cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
         ) async throws -> [(GraphTarget, String)] {
             let graphTraverser = GraphTraverser(graph: graph)
-            let includedTargets = includedTargets
-                .isEmpty ? Set(graphTraverser.allInternalTargets().map(\.target.name)) : includedTargets
 
-            // When `externalOnly` is true, there is no need to compute `includedTargets` hashes
-            let excludedTargets = externalOnly ? includedTargets : []
+            // Apply the same profile-based filtering used by `tuist generate`.
+            // Targets where shouldReplace returns false are excluded from cache warming.
+            let decider = CacheProfileTargetReplacementDecider(profile: cacheProfile, exceptions: [])
+            var excludedTargets = Set<String>()
+            for graphTarget in graphTraverser.allTargets() {
+                guard let project = graph.projects[graphTarget.path] else { continue }
+                if !decider.shouldReplace(project: project, target: graphTarget.target) {
+                    excludedTargets.insert(graphTarget.target.name)
+                }
+            }
+
+            // When explicit targets are specified, exclude any targets not in that set.
+            if !includedTargets.isEmpty {
+                let allTargetNames = Set(graphTraverser.allTargets().map(\.target.name))
+                excludedTargets.formUnion(allTargetNames.subtracting(includedTargets))
+            }
             let hashesByCacheableTarget = try await cacheGraphContentHasher.contentHashes(
                 for: graph,
                 configuration: configuration,

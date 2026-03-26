@@ -43,17 +43,18 @@
         var targets: [String] = []
 
         @Flag(
-            help: "If passed, the command doesn't cache the targets passed in the `--targets` argument, but only their dependencies",
-            envKey: .cacheExternalOnly
-        )
-        var externalOnly: Bool = false
-
-        @Flag(
             name: .long,
             help: "When passed, it generates the project and skips warming the cache. This is useful for debugging purposes.",
             envKey: .cacheGenerateOnly
         )
         var generateOnly: Bool = false
+
+        @Option(
+            name: .long,
+            help: "Cache profile to use for warming. Accepts built-in profiles (\(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", "))) or a custom profile name defined in your Tuist configuration. Applies the same profile-based target filtering as `tuist generate`, including base behavior, targetQueries, and exceptTargetQueries.",
+            envKey: .cacheProfile
+        )
+        var cacheProfile: String?
 
         @Flag(
             name: .long,
@@ -76,8 +77,8 @@
                 path: path,
                 configuration: configuration,
                 targetsToBinaryCache: Set(targets),
-                externalOnly: externalOnly,
-                generateOnly: generateOnly
+                generateOnly: generateOnly,
+                cacheProfile: cacheProfile
             )
         }
     }
