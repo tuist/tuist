@@ -666,15 +666,8 @@ defmodule Tuist.Tests do
       {:shard_id, _shard_id} ->
         list_test_case_runs_via_shard_mv(attrs, preloads)
 
-      {:test_run_id, test_run_id} ->
-        mv_ids =
-          from(mv in TestCaseRunByTestRun,
-            where: mv.test_run_id == ^test_run_id,
-            select: mv.id
-          )
-
-        base_query = from(tcr in TestCaseRun, where: tcr.id in subquery(mv_ids))
-        list_test_case_runs_from(base_query, attrs, preloads)
+      {:test_run_id, _test_run_id} ->
+        list_test_case_runs_via_test_run_mv(attrs, preloads)
 
       nil ->
         list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
@@ -686,6 +679,29 @@ defmodule Tuist.Tests do
 
     results =
       results
+      |> ClickHouseRepo.preload(preloads)
+      |> Repo.preload(:ran_by_account)
+
+    {results, meta}
+  end
+
+  defp list_test_case_runs_via_test_run_mv(attrs, preloads) do
+    base_query = from(mv in TestCaseRunByTestRun)
+
+    {slim_results, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByTestRun)
+
+    ids = Enum.map(slim_results, & &1.id)
+    project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
+
+    full_results =
+      ClickHouseRepo.all(from(tcr in TestCaseRun, where: tcr.project_id in ^project_ids and tcr.id in ^ids))
+
+    ordered_by_id = Map.new(full_results, &{&1.id, &1})
+    ordered = ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
+
+    results =
+      ordered
       |> ClickHouseRepo.preload(preloads)
       |> Repo.preload(:ran_by_account)
 
