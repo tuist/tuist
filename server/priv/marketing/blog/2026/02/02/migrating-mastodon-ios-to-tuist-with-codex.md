@@ -8,7 +8,7 @@ og_image_path: /marketing/images/blog/2026/02/02/migrating-mastodon-ios-to-tuist
 highlighted: true
 ---
 
-People have asked us many times why we haven't built an automated migration path to [Tuist generated projects](https://tuist.dev/en/docs/guides/features/projects). The honest answer is that real-world Xcode projects are messy. They are full of implicit configuration, one-off build settings, and decisions that made sense at the time but are hard to detect from the outside. For years, that kept migrations manual and made teams hesitant to adopt generated projects, even when they wanted the [module cache](https://tuist.dev/en/docs/guides/develop/build/cache) and the productivity gains that come with it.
+People have asked us many times why we haven't built an automated migration path to [Tuist generated projects](https://tuist.dev/en/docs/guides/features/projects). The honest answer is that real-world Xcode projects are messy. They are full of implicit configuration, one-off build settings, and decisions that made sense at the time but are hard to detect from the outside. For years, that kept migrations manual and made teams hesitant to adopt generated projects, even when they wanted the [module cache](https://tuist.dev/en/docs/guides/features/cache) and the productivity gains that come with it.
 
 We've been thinking about this differently since coding agents became capable enough to hold context across long feedback loops. What if the agent could do the mechanical work of migration while we focus on defining the constraints and validating the output? If that works, Tuist handles the complexity of Xcode projects, agents handle the tool adoption, and developers get faster workflows without the friction of a manual migration.
 

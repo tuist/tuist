@@ -37,7 +37,7 @@ To see Tuist Previews in action, you can watch the following video:
 
 Did the above pique your interest? Here's a few of steps to start using Tuist Previews in _your_ open source project.
 
-1. **Install the Tuist CLI** – if you haven't already, [install](https://tuist.dev/en/docs/guides/quick-start/install-tuist) the Tuist CLI.
+1. **Install the Tuist CLI** – if you haven't already, [install](https://tuist.dev/en/docs/guides/install-tuist) the Tuist CLI.
 2. `tuist auth` – authenticate and create an account if needed. We recommend using GitHub for authentication which is required for some features.
 3. `tuist organization create {organization-name}` – it's recommended to create a Tuist organization unless you're working on a personal project. Run  to create one.
 4. `tuist project create {organization-name}/{project-name}` – create a new project in your organization. The full project handle follows the same convention as GitHub.

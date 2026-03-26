@@ -96,7 +96,7 @@ What if you didn't compile and test everything every time? What if you could dif
 
 Then you talk to an engineering leader at another company who faced the same wall. "We integrated Tuist," he says. "[Binary caching](https://tuist.dev/en/docs/guides/features/cache) and [selective testing](https://tuist.dev/en/docs/guides/features/selective-testing). Changed everything." The idea is simple: only rebuild what changed, only test what's affected, and share the cached results across your entire team and CI.
 
-Your team spends one week integrating Tuist. You set up [binary caching](https://tuist.dev/en/docs/guides/develop/build/cache) so when Li changes the authentication module, the other modules use cached builds from the last time they were compiled. You implement [selective testing](https://tuist.dev/en/docs/guides/features/selective-testing) so the CI only runs the tests affected by the change, not the entire suite. The first PR after the optimization merges in minutes instead of an hour.
+Your team spends one week integrating Tuist. You set up [binary caching](https://tuist.dev/en/docs/guides/features/cache) so when Li changes the authentication module, the other modules use cached builds from the last time they were compiled. You implement [selective testing](https://tuist.dev/en/docs/guides/features/selective-testing) so the CI only runs the tests affected by the change, not the entire suite. The first PR after the optimization merges in minutes instead of an hour.
 
 Your CI time drops dramatically. The queue disappears because jobs finish faster. Review time drops because fast feedback means reviewers can stay in context. Merge conflicts drop because the faster cycle time means less overlapping work. The merge throughput more than doubles.
 

@@ -16,7 +16,7 @@ While the toolchain provides data—like the [build graph](https://developer.app
 
 At Tuist, we don’t want to just help teams optimize workflows through better tooling; we also want to empower them with actionable data to make smarter decisions—whether to boost productivity or improve developer happiness.
 
-That’s why we’re thrilled to introduce [**Tuist Build Insights**](https://tuist.dev/en/docs/guides/develop/insights): Xcode build analytics for collecting and analyzing build data across any environment—including local development.
+That’s why we’re thrilled to introduce [**Tuist Build Insights**](https://tuist.dev/en/docs/guides/features/build-insights): Xcode build analytics for collecting and analyzing build data across any environment—including local development.
 
 👉 If you’d like to see it in action, check out the video below:
 
@@ -24,13 +24,13 @@ That’s why we’re thrilled to introduce [**Tuist Build Insights**](https://tu
 
 ## Integration
 
-To get started with build insights, you will need a [Tuist account and a project](https://tuist.dev/en/docs/guides/server/accounts-and-projects). The best way to get started is to use our [CLI](https://tuist.dev/en/docs/guides/quick-start/install-tuist) and run the `tuist init` command.
+To get started with build insights, you will need a [Tuist account and a project](https://tuist.dev/en/docs/guides/server/accounts-and-projects). The best way to get started is to use our [CLI](https://tuist.dev/en/docs/guides/install-tuist) and run the `tuist init` command.
 
-Once you authenticate, you will need to add a `tuist inspect build` command in your Xcode scheme build post-action – unless you use [generated projects](https://tuist.dev/en/docs/guides/develop/projects), in which case we generate the post-action for you:
+Once you authenticate, you will need to add a `tuist inspect build` command in your Xcode scheme build post-action – unless you use [generated projects](https://tuist.dev/en/docs/guides/features/projects), in which case we generate the post-action for you:
 
 ![Screenshot of how to set up an Xcode post action for build insights](/marketing/images/blog/2025/06/05/build-insights/inspect-build-scheme-post-action.png)
 
-For more details how to set up build insights, head over to our [docs](https://tuist.dev/en/docs/guides/develop/insights).
+For more details how to set up build insights, head over to our [docs](https://tuist.dev/en/docs/guides/features/build-insights).
 
 ## Inspecting individual builds
 
@@ -81,6 +81,6 @@ How are we going to improve build insights further?
 We will:
 - Include a link to builds from your CI workflow in the [GitHub Tuist report](https://github.com/marketplace/tuist)
 - Add deeper analytics to help you surface areas of improvement, such as adding suggestions for which module to split to optimize the parallelization of your build
-- Couple the build data with [binary cache optimizations](https://tuist.dev/en/docs/guides/develop/cache)
+- Couple the build data with [binary cache optimizations](https://tuist.dev/en/docs/guides/features/cache)
 
 Sounds exciting? Take this feature for a spin and let us know your feedback or ideas for how to improve build insights further 💜

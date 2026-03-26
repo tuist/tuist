@@ -21,14 +21,13 @@ Tuist is a virtual platform team for Swift app devs who ship. Through an integra
 
 The following solutions are part of Tuist:
 
-- [🗂️ **Generated projects**](https://tuist.dev/en/docs/guides/develop/projects): A solution for more accessible and easier-to-manage Xcode projects.
-- [🚝 **Cache**](https://tuist.dev/en/docs/guides/develop/cache): Speed up builds across environments with a content-addressable store.
-- [✅ **Selective testing**](https://tuist.dev/en/docs/guides/develop/selective-testing): Run tests faster by selecting them based on the file changes.
-- [📦 **Registry**](https://tuist.dev/en/docs/guides/develop/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
-- [📈 **Build insights**](https://tuist.dev/en/docs/guides/develop/insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
-- [📱 **Bundle insights**](https://tuist.dev/en/docs/guides/develop/bundle-size): Analyze your built apps and get suggestions to improve them.
+- [🗂️ **Generated projects**](https://tuist.dev/en/docs/guides/features/projects): A solution for more accessible and easier-to-manage Xcode projects.
+- [🚝 **Cache**](https://tuist.dev/en/docs/guides/features/cache): Speed up builds across environments with a content-addressable store.
+- [✅ **Selective testing**](https://tuist.dev/en/docs/guides/features/selective-testing): Run tests faster by selecting them based on the file changes.
+- [📦 **Registry**](https://tuist.dev/en/docs/guides/features/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
+- [📈 **Build insights**](https://tuist.dev/en/docs/guides/features/build-insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
+- [📱 **Bundle insights**](https://tuist.dev/en/docs/guides/features/bundle-size): Analyze your built apps and get suggestions to improve them.
 - [📱 **Previews**](https://tuist.dev/en/docs/guides/features/previews): Sharing apps (previews) as easy as sharing a link.
-- [✅ **QA**](https://tuist.dev/en/docs/guides/features/qa): QA your app using LLM-based agents.
 
 Openness and community are cornerstones in shaping Tuist, as we believe they are the key to building the best solution. We recommend checking out the following resources:
 
@@ -41,7 +40,7 @@ Openness and community are cornerstones in shaping Tuist, as we believe they are
 
 ## Get started
 
-You can run the following command to get started with [Mise] (check out [this page](https://tuist.dev/en/docs/guides/quick-start/get-started) for other methods):
+You can run the following command to get started with [Mise] (check out [this page](https://tuist.dev/en/docs/guides/install-tuist) for other methods):
 
 ```bash
 mise x tuist@latest -- tuist init

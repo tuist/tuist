@@ -16,7 +16,7 @@ As teams started to integrate the registry, one point of friction has become cle
 
 ## Setting up the Tuist registry
 
-Thanks to the registry being open now, the only thing you need to do is to run the following command in your project (install the CLI first by following [these instructions](https://tuist.dev/en/docs/guides/quick-start/install-tuist)):
+Thanks to the registry being open now, the only thing you need to do is to run the following command in your project (install the CLI first by following [these instructions](https://tuist.dev/en/docs/guides/install-tuist)):
 
 ```sh
 tuist registry setup

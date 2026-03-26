@@ -63,7 +63,7 @@ For example, our [fix-flaky-tests skill](https://tuist.dev/en/docs/guides/featur
 
 ## Getting started
 
-First, [install the Tuist CLI](https://tuist.dev/en/docs/guides/quick-start/install-tuist). Then run `tuist init` in your Gradle project root and follow the interactive setup. The command handles authentication, project creation, and generates the configuration for you. Then apply the plugin in your `settings.gradle.kts`:
+First, [install the Tuist CLI](https://tuist.dev/en/docs/guides/install-tuist). Then run `tuist init` in your Gradle project root and follow the interactive setup. The command handles authentication, project creation, and generates the configuration for you. Then apply the plugin in your `settings.gradle.kts`:
 
 ```kotlin
 plugins {

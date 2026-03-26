@@ -499,7 +499,7 @@ Before diving into what protocol-level access would unlock, it's worth recognizi
 
 Tools like [xclogparser](https://github.com/MobileNativeFoundation/xclogparser) have been parsing these files for years, extracting timing data, warnings, and errors into queryable formats. This post-hoc approach works well for many use cases: you can analyze build performance, track warning trends over time, and identify slow compilation units.
 
-At [Tuist](https://tuist.dev/), we've built exactly this. Our [Build Insights](https://tuist.dev/en/docs/guides/features/insights) feature parses `.xcactivitylog` and `.xcresultbundle` files to provide teams with dashboards showing build times, cache effectiveness, and historical trends. The data spans across developers, CI pipelines, and time, giving teams visibility into patterns they'd never notice from individual builds. And we're extending this to tests too: [Test Insights](https://tuist.dev/tuist/tuist/tests/) (already available in our public dashboard) will bring the same cross-time, cross-space analysis to your test suite. Adopting it is as simple as adding a post-action to your Xcode schemes.
+At [Tuist](https://tuist.dev/), we've built exactly this. Our [Build Insights](https://tuist.dev/en/docs/guides/features/build-insights) feature parses `.xcactivitylog` and `.xcresultbundle` files to provide teams with dashboards showing build times, cache effectiveness, and historical trends. The data spans across developers, CI pipelines, and time, giving teams visibility into patterns they'd never notice from individual builds. And we're extending this to tests too: [Test Insights](https://tuist.dev/tuist/tuist/tests/) (already available in our public dashboard) will bring the same cross-time, cross-space analysis to your test suite. Adopting it is as simple as adding a post-action to your Xcode schemes.
 
 This matters because much of what we've described in the "Vision" section, like team-wide build intelligence and build archaeology, is achievable with post-build artifacts. You don't need Apple to bless a new extension point to start getting value from structured build data.
 
@@ -529,7 +529,7 @@ The pieces are already there in swift-build. What's missing is Apple blessing th
 
 The Wikipedia iOS analysis shows what's possible with a single build. But the real potential emerges when you think about builds over time.
 
-Much of what follows is achievable today by parsing `.xcactivitylog` and `.xcresultbundle` files after builds complete. That's exactly what we're building at Tuist with [Build Insights](https://tuist.dev/en/docs/guides/features/insights). Protocol-level access would add real-time capabilities and richer causality data, but you don't need to wait for Apple to start getting value from structured build observability.
+Much of what follows is achievable today by parsing `.xcactivitylog` and `.xcresultbundle` files after builds complete. That's exactly what we're building at Tuist with [Build Insights](https://tuist.dev/en/docs/guides/features/build-insights). Protocol-level access would add real-time capabilities and richer causality data, but you don't need to wait for Apple to start getting value from structured build observability.
 
 ### Team-Wide Build Intelligence
 
@@ -592,7 +592,7 @@ There are two parallel paths forward, and we're actively working on both.
 
 ### What you can use today
 
-At Tuist, we're building [Build Insights](https://tuist.dev/en/docs/guides/features/insights) and [Test Insights](https://tuist.dev/tuist/tuist/tests/) using post-build artifacts. This works today, requires no experimental tooling, and gives teams visibility into build performance across developers, CI pipelines, and time. Adopting it is as simple as adding a post-action to your Xcode schemes that uploads your `.xcactivitylog` and `.xcresultbundle` files.
+At Tuist, we're building [Build Insights](https://tuist.dev/en/docs/guides/features/build-insights) and [Test Insights](https://tuist.dev/tuist/tuist/tests/) using post-build artifacts. This works today, requires no experimental tooling, and gives teams visibility into build performance across developers, CI pipelines, and time. Adopting it is as simple as adding a post-action to your Xcode schemes that uploads your `.xcactivitylog` and `.xcresultbundle` files.
 
 This is the pragmatic path: you don't need Apple to bless anything, you don't need to swap out your build service, and you can start getting value immediately. Team-wide build intelligence, historical trends, warning tracking, and build archaeology are all achievable with post-build parsing.
 

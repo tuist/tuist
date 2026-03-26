@@ -22,7 +22,7 @@ Originally, our motivation with Tuist was to enable caching for local developmen
 
 ## The approach
 
-After speeding up compilation, we turned our attention to tests, which we could further optimize by running them selectively. At the time we started exploring this, Tuist had not yet shipped [selective testing](https://tuist.dev/en/docs/guides/develop/test/smart-runner), so we built a plugin leveraging `git diff` and `tuist graph` to identify only the modules affected by code changes. This allowed us to run a more focused set of unit and UI tests.
+After speeding up compilation, we turned our attention to tests, which we could further optimize by running them selectively. At the time we started exploring this, Tuist had not yet shipped [selective testing](https://tuist.dev/en/docs/guides/features/selective-testing), so we built a plugin leveraging `git diff` and `tuist graph` to identify only the modules affected by code changes. This allowed us to run a more focused set of unit and UI tests.
 
 Integrating selective testing with binary caching can be a game-changer. Here's how the two work together:
 

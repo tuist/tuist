@@ -47,7 +47,7 @@ brew install --formula tuist@x.y.z
 You can verify that your installation's binaries have been built by us by running the following command, which checks if the certificate's team is `U6LC622NKF`:
 
 ```bash
-curl -fsSL "https://tuist.dev/en/docs/verify.sh" | bash
+curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 ```
 <!-- -->
 :::

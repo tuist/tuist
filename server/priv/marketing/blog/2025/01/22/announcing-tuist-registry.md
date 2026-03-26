@@ -45,7 +45,7 @@ Additionally, we're in the process of obtaining the [SOC 2](https://secureframe.
 
 The Tuist Registry implements the Swift Package Registry standard and is thus compatible with any SwiftPM setup that you might have – regardless whether you use Tuist Generated Projects or not.
 
-To start using the registry, first [install Tuist](https://tuist.dev/en/docs/guides/quick-start/install-tuist#install-tuist). Then you need to have a [Tuist Project](https://tuist.dev/en/docs/guides/server/accounts-and-projects). You can create one by running:
+To start using the registry, first [install Tuist](https://tuist.dev/en/docs/guides/install-tuist#install-tuist). Then you need to have a [Tuist Project](https://tuist.dev/en/docs/guides/server/accounts-and-projects). You can create one by running:
 
 ```bash
 tuist auth login
@@ -78,7 +78,7 @@ tuist registry login
 
 ![Adding package with the Tuist Registry](/marketing/images/blog/2025/01/22/announcing-tuist-registry/registry-add-package.png)
 
-To learn more about the Tuist Registry, head over to our [documentation](https://tuist.dev/en/docs/guides/develop/registry).
+To learn more about the Tuist Registry, head over to our [documentation](https://tuist.dev/en/docs/guides/features/registry).
 
 ## Building a low-latency registry for open source packages
 

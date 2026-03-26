@@ -183,7 +183,7 @@ public struct InitCommandService { // swiftlint:disable:this type_body_length
                 nextSteps.append(contentsOf: [
                     "Your project dashboard is available at \(.link(title: fullHandle, href: "https://tuist.dev/\(fullHandle)"))",
                     "Accelerate your builds with the \(.link(title: "Gradle remote cache", href: "https://tuist.dev/en/docs/guides/features/cache/gradle-cache"))",
-                    "Get insights into your \(.link(title: "builds", href: "https://tuist.dev/en/docs/guides/features/insights/gradle-cache")) and \(.link(title: "tests", href: "https://tuist.dev/en/docs/guides/features/test-insights/gradle"))",
+                    "Get insights into your \(.link(title: "builds", href: "https://tuist.dev/en/docs/guides/features/build-insights/gradle")) and \(.link(title: "tests", href: "https://tuist.dev/en/docs/guides/features/test-insights/gradle"))",
                 ])
             }
         }

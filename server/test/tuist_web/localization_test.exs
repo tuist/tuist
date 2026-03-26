@@ -250,7 +250,7 @@ defmodule TuistWeb.Marketing.LocalizationTest do
   #     Gettext.put_locale(TuistWeb.Gettext, "en")
 
   #     # When
-  #     result = Localization.localized_href("https://tuist.dev/en/docs/guides/features", "ko")
+  #     result = Localization.localized_href("https://tuist.dev/en/docs", "ko")
 
   #     # Then
   #     assert result == "https://tuist.dev/ko/docs/guides/features"
