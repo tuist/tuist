@@ -506,6 +506,15 @@ ${projectDescriptionRedirects}
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
+/en/* https://tuist.dev/en/docs/:splat 301
+/ko/* https://tuist.dev/ko/docs/:splat 301
+/ja/* https://tuist.dev/ja/docs/:splat 301
+/ru/* https://tuist.dev/ru/docs/:splat 301
+/es/* https://tuist.dev/es/docs/:splat 301
+/pt/* https://tuist.dev/pt/docs/:splat 301
+/ar/* https://tuist.dev/ar/docs/:splat 301
+/pl/* https://tuist.dev/pl/docs/:splat 301
+/* https://tuist.dev/en/docs/:splat 301
     `;
       await fs.writeFile(redirectsPath, redirects);
     },

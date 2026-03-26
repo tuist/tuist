@@ -29,7 +29,7 @@ Since 2017, we've been working to address these challenges, first by creating [X
 In 2025, project generation continues to play a vital role by:
 
 - Making modular codebase management at scale accessible to all developers
-- Optimizing build times through features like [cache](https://docs.tuist.dev/en/guides/develop/cache) without requiring the complexity of systems like Bazel
+- Optimizing build times through features like [cache](https://tuist.dev/en/docs/guides/features/cache) without requiring the complexity of systems like Bazel
 
 For teams dealing with extended CI turnaround times—sometimes exceeding an hour—these optimizations transform the development workflow and dramatically improve productivity.
 

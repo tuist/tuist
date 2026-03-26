@@ -4,7 +4,7 @@ By submitting a pull request, you represent that you have the right to license y
 
 ---
 
-For more information about how to contribute, please refer to the [Contributors -> Code](https://docs.tuist.dev/en/contributors/code) section of the documentation.
+For more information about how to contribute, please refer to the [Contributors -> Code](https://tuist.dev/en/docs/contributors/code) section of the documentation.
 
 ---
 

@@ -21,18 +21,17 @@ Tuist is a virtual platform team for Swift app devs who ship. Through an integra
 
 The following solutions are part of Tuist:
 
-- [🗂️ **Generated projects**](https://docs.tuist.dev/en/guides/develop/projects): A solution for more accessible and easier-to-manage Xcode projects.
-- [🚝 **Cache**](https://docs.tuist.dev/en/guides/develop/cache): Speed up builds across environments with a content-addressable store.
-- [✅ **Selective testing**](https://docs.tuist.dev/en/guides/develop/selective-testing): Run tests faster by selecting them based on the file changes.
-- [📦 **Registry**](https://docs.tuist.dev/en/guides/develop/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
-- [📈 **Build insights**](https://docs.tuist.dev/en/guides/develop/insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
-- [📱 **Bundle insights**](https://docs.tuist.dev/en/guides/develop/bundle-size): Analyze your built apps and get suggestions to improve them.
-- [📱 **Previews**](https://docs.tuist.dev/en/guides/features/previews): Sharing apps (previews) as easy as sharing a link.
-- [✅ **QA**](https://docs.tuist.dev/en/guides/features/qa): QA your app using LLM-based agents.
+- [🗂️ **Generated projects**](https://tuist.dev/en/docs/guides/features/projects): A solution for more accessible and easier-to-manage Xcode projects.
+- [🚝 **Cache**](https://tuist.dev/en/docs/guides/features/cache): Speed up builds across environments with a content-addressable store.
+- [✅ **Selective testing**](https://tuist.dev/en/docs/guides/features/selective-testing): Run tests faster by selecting them based on the file changes.
+- [📦 **Registry**](https://tuist.dev/en/docs/guides/features/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
+- [📈 **Build insights**](https://tuist.dev/en/docs/guides/features/build-insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
+- [📱 **Bundle insights**](https://tuist.dev/en/docs/guides/features/bundle-size): Analyze your built apps and get suggestions to improve them.
+- [📱 **Previews**](https://tuist.dev/en/docs/guides/features/previews): Sharing apps (previews) as easy as sharing a link.
 
 Openness and community are cornerstones in shaping Tuist, as we believe they are the key to building the best solution. We recommend checking out the following resources:
 
-- [📑 **Documentation**](https://docs.tuist.dev)
+- [📑 **Documentation**](https://tuist.dev/en/docs)
 - [📚 **Handbook**](https://handbook.tuist.dev)
 - [💬 **Community forum**](https://community.tuist.dev)
 
@@ -41,20 +40,20 @@ Openness and community are cornerstones in shaping Tuist, as we believe they are
 
 ## Get started
 
-You can run the following command to get started with [Mise] (check out [this page](https://docs.tuist.dev/en/guides/quick-start/get-started) for other methods):
+You can run the following command to get started with [Mise] (check out [this page](https://tuist.dev/en/docs/guides/install-tuist) for other methods):
 
 ```bash
 mise x tuist@latest -- tuist init
 ```
 
 > [!IMPORTANT]
-> The `init` workflow is designed to integrate with an existing Xcode project or create [a generated project](https://docs.tuist.dev/en/guides/features/projects). If you are migrating an existing Xcode project to a generated project, we recommend [checking out these docs](https://docs.tuist.dev/en/guides/features/projects/adoption/migrate/xcode-project).
+> The `init` workflow is designed to integrate with an existing Xcode project or create [a generated project](https://tuist.dev/en/docs/guides/features/projects). If you are migrating an existing Xcode project to a generated project, we recommend [checking out these docs](https://tuist.dev/en/docs/guides/features/projects/adoption/migrate/xcode-project).
 
 ## Documentation
 
 Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point?
 
-You can check out [the project documentation](https://docs.tuist.dev).
+You can check out [the project documentation](https://tuist.dev/en/docs).
 
 ### Sample projects
 
@@ -265,7 +264,7 @@ Some companies support our community and open source efforts with contributions 
 
 ## Want to contribute?
 
-You can use our [contribution docs](https://docs.tuist.dev/en/contributors/code) to get started. You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
+You can use our [contribution docs](https://tuist.dev/en/docs/contributors/code) to get started. You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ## Core Alumni
 

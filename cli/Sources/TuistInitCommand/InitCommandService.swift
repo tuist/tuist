@@ -182,8 +182,8 @@ public struct InitCommandService { // swiftlint:disable:this type_body_length
             if let fullHandle {
                 nextSteps.append(contentsOf: [
                     "Your project dashboard is available at \(.link(title: fullHandle, href: "https://tuist.dev/\(fullHandle)"))",
-                    "Accelerate your builds with the \(.link(title: "Gradle remote cache", href: "https://docs.tuist.dev/en/guides/features/cache/gradle-cache"))",
-                    "Get insights into your \(.link(title: "builds", href: "https://docs.tuist.dev/en/guides/features/insights/gradle-cache")) and \(.link(title: "tests", href: "https://docs.tuist.dev/en/guides/features/test-insights/gradle"))",
+                    "Accelerate your builds with the \(.link(title: "Gradle remote cache", href: "https://tuist.dev/en/docs/guides/features/cache/gradle-cache"))",
+                    "Get insights into your \(.link(title: "builds", href: "https://tuist.dev/en/docs/guides/features/build-insights/gradle")) and \(.link(title: "tests", href: "https://tuist.dev/en/docs/guides/features/test-insights/gradle"))",
                 ])
             }
         }
@@ -372,16 +372,16 @@ public struct InitCommandService { // swiftlint:disable:this type_body_length
                 named: projectHandle, answers: answers, buildSystem: .xcode
             ) {
                 nextSteps.append(contentsOf: [
-                    "Accelerate your builds with the \(.link(title: "cache", href: "https://docs.tuist.dev/en/guides/features/cache"))",
-                    "Accelerate your test runs with \(.link(title: "selective testing", href: "https://docs.tuist.dev/en/guides/features/selective-testing"))",
-                    "Accelerate your Swift package resolution with \(.link(title: "the registry", href: "https://docs.tuist.dev/en/guides/features/registry"))",
-                    "Share your app easily with \(.link(title: "previews", href: "https://docs.tuist.dev/en/guides/features/previews"))",
+                    "Accelerate your builds with the \(.link(title: "cache", href: "https://tuist.dev/en/docs/guides/features/cache"))",
+                    "Accelerate your test runs with \(.link(title: "selective testing", href: "https://tuist.dev/en/docs/guides/features/selective-testing"))",
+                    "Accelerate your Swift package resolution with \(.link(title: "the registry", href: "https://tuist.dev/en/docs/guides/features/registry"))",
+                    "Share your app easily with \(.link(title: "previews", href: "https://tuist.dev/en/docs/guides/features/previews"))",
                 ])
 
                 return fullHandle
             } else {
                 nextSteps.append(contentsOf: [
-                    "Learn more about how our \(.link(title: "platform capabilities", href: "https://docs.tuist.dev/en/"))",
+                    "Learn more about how our \(.link(title: "platform capabilities", href: "https://tuist.dev/en/docs/"))",
                 ])
             }
 
