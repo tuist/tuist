@@ -386,6 +386,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .willReturn(downloadedArchive)
 
         let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+        try await FileSystem().makeDirectory(at: unarchivedPath)
 
         given(fileUnarchiver)
             .unzip()
@@ -472,6 +473,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .willReturn(downloadedArchive)
 
         let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+        try await FileSystem().makeDirectory(at: unarchivedPath)
 
         given(fileUnarchiver)
             .unzip()
@@ -548,6 +550,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .willReturn(downloadedArchive)
 
         let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+        try await FileSystem().makeDirectory(at: unarchivedPath)
 
         given(fileUnarchiver)
             .unzip()
@@ -667,6 +670,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .willReturn(downloadedArchive)
 
         let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+        try await FileSystem().makeDirectory(at: unarchivedPath)
 
         given(fileUnarchiver)
             .unzip()
@@ -809,6 +813,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .willReturn(downloadedArchive)
 
         let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+        try await FileSystem().makeDirectory(at: unarchivedPath)
 
         given(fileUnarchiver)
             .unzip()
