@@ -22,7 +22,7 @@ defmodule Tuist.IngestRepo.Migrations.RecreateTestCaseRunsByTestRunMv do
   @columns ~w(id test_run_id status is_flaky is_new duration inserted_at ran_at name project_id)
 
   def up do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run SYNC")
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run")
 
     IngestRepo.query!("""
     CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_test_run
@@ -32,14 +32,11 @@ defmodule Tuist.IngestRepo.Migrations.RecreateTestCaseRunsByTestRunMv do
     FROM test_case_runs
     """)
 
-    {:ok, %{rows: [[db]]}} = IngestRepo.query("SELECT currentDatabase()")
-    IngestRepo.query!("SYSTEM SYNC DATABASE REPLICA #{db}")
-
     backfill_by_partition()
   end
 
   def down do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run SYNC")
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run")
 
     IngestRepo.query!("""
     CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_test_run
@@ -51,28 +48,28 @@ defmodule Tuist.IngestRepo.Migrations.RecreateTestCaseRunsByTestRunMv do
   end
 
   defp backfill_by_partition do
-    {:ok, %{rows: partitions}} =
+    {:ok, %{rows: days}} =
       IngestRepo.query(
         """
-        SELECT DISTINCT partition
-        FROM system.parts
-        WHERE database = currentDatabase() AND table = {table:String} AND active
-        ORDER BY partition
+        SELECT DISTINCT toDate(inserted_at) AS day
+        FROM test_case_runs
+        ORDER BY day
         """,
-        %{table: "test_case_runs"}
+        [],
+        timeout: 1_200_000
       )
 
-    for [partition] <- partitions do
-      Logger.info("Backfilling partition #{partition} into test_case_runs_by_test_run")
+    for [day] <- days do
+      Logger.info("Backfilling #{day} into test_case_runs_by_test_run")
 
       IngestRepo.query!(
         """
         INSERT INTO test_case_runs_by_test_run (#{Enum.join(@columns, ", ")})
         SELECT #{Enum.join(@columns, ", ")}
         FROM test_case_runs
-        WHERE toYYYYMM(inserted_at) = {partition:UInt32}
+        WHERE toDate(inserted_at) = {day:Date}
         """,
-        %{partition: String.to_integer(partition)},
+        %{day: day},
         timeout: 1_200_000
       )
     end
