@@ -29,11 +29,11 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Sendable 
         self.db = try Connection(dbPath.pathString)
         self.path = dbPath
         db.busyTimeout = 5
-        try db.execute("PRAGMA journal_mode = WAL")
         try db.execute("PRAGMA synchronous = NORMAL")
     }
 
     public func migrate() throws {
+        try db.execute("PRAGMA journal_mode = WAL")
         try db.run(CASOutputsSchema.table.create(ifNotExists: true) { t in
             t.column(CASOutputsSchema.key, primaryKey: true)
             t.column(CASOutputsSchema.size)
