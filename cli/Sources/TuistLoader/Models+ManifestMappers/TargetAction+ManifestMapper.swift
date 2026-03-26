@@ -1,4 +1,3 @@
-import FileSystem
 import Foundation
 import Path
 import ProjectDescription
@@ -6,69 +5,43 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-extension XcodeGraph.TargetScript {
-    /// Maps a ProjectDescription.TargetAction instance into a XcodeGraph.TargetAction model.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of target action.
-    ///   - generatorPaths: Generator paths.
+// swiftlint:disable:next large_tuple
+extension TuistCore.TargetScript {
     static func from(
         manifest: ProjectDescription.TargetScript,
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming
-    ) async throws -> XcodeGraph
-        .TargetScript
-    {
+    ) async throws -> TuistCore.TargetScript {
         let name = manifest.name
-        let order = XcodeGraph.TargetScript.Order.from(manifest: manifest.order)
-        let inputPaths = try await fileListGlobStrings(
+        let order = TuistCore.TargetScript.Order.from(manifest: manifest.order)
+        let tool = manifest.tool
+        let path = try manifest.path.map { try generatorPaths.resolve(path: $0) }
+        let arguments = manifest.arguments
+        let inputPaths = try await absolutePaths(
             for: manifest.inputPaths,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
-        let inputFileListPaths = try await pathStrings(
-            for: manifest.inputFileListPaths,
-            generatorPaths: generatorPaths,
-            fileSystem: fileSystem
-        )
-        let outputPaths = try await pathStrings(
+        .map(\.pathString)
+        let inputFileListPaths = try manifest.inputFileListPaths.map { try generatorPaths.resolve(path: $0) }
+        let outputPaths = try await absoluteOutputPaths(
             for: manifest.outputPaths,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
-        let outputFileListPaths = try await pathStrings(
-            for: manifest.outputFileListPaths,
-            generatorPaths: generatorPaths,
-            fileSystem: fileSystem
-        )
+        .map(\.pathString)
+        let outputFileListPaths = try manifest.outputFileListPaths.map { try generatorPaths.resolve(path: $0) }
         let basedOnDependencyAnalysis = manifest.basedOnDependencyAnalysis
         let runForInstallBuildsOnly = manifest.runForInstallBuildsOnly
         let shellPath = manifest.shellPath
-
-        let dependencyFile: AbsolutePath?
-
-        if let manifestDependencyFile = manifest.dependencyFile {
-            dependencyFile = try generatorPaths.resolve(path: manifestDependencyFile)
-        } else {
-            dependencyFile = nil
-        }
-
-        let script: XcodeGraph.TargetScript.Script
-        switch manifest.script {
-        case let .embedded(text):
-            script = .embedded(text)
-
-        case let .scriptPath(path, arguments):
-            let scriptPath = try generatorPaths.resolve(path: path)
-            script = .scriptPath(path: scriptPath, args: arguments)
-
-        case let .tool(tool, arguments):
-            script = .tool(path: tool, args: arguments)
-        }
+        let dependencyFile = try manifest.dependencyFile.map { try generatorPaths.resolve(path: $0) }
 
         return TargetScript(
             name: name,
             order: order,
-            script: script,
+            tool: tool,
+            path: path,
+            arguments: arguments,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
@@ -80,93 +53,53 @@ extension XcodeGraph.TargetScript {
         )
     }
 
-    private static func fileListGlobStrings(
-        for globs: [FileListGlob],
+    // MARK: - Private
+
+    /// Resolves absolute paths for **input** paths — these use glob expansion so only existing
+    /// files are included (standard behaviour for inputs).
+    private static func absolutePaths(
+        for paths: [ProjectDescription.Path],
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming
-    ) async throws -> [String] {
-        try await globs.concurrentMap { (glob: FileListGlob) -> [String] in
-            let path = glob.glob
-
-            // If it's a glob pattern with excludes, use the unfold method
-            if !glob.excluding.isEmpty || fileSystem.isGlobPattern(path) {
-                let unfolded = try await glob.unfold(
-                    generatorPaths: generatorPaths,
-                    fileSystem: fileSystem
-                )
-
-                // For relativeToManifest paths, convert back to relative paths
-                if path.type == .relativeToManifest {
-                    return unfolded.map { $0.relative(to: generatorPaths.manifestDirectory).pathString }
-                } else {
-                    return unfolded.map(\.pathString)
-                }
+    ) async throws -> [AbsolutePath] {
+        try await paths.concurrentMap { (path: ProjectDescription.Path) -> [AbsolutePath] in
+            // Avoid globbing paths that contain build-variable references like $(SRCROOT).
+            if path.pathString.contains("$") {
+                return [try generatorPaths.resolve(path: path)]
             }
-
-            return try await resolvePathStrings(
-                path: path,
-                generatorPaths: generatorPaths,
-                fileSystem: fileSystem
-            )
+            let absolutePath = try generatorPaths.resolve(path: path)
+            let base = try AbsolutePath(validating: absolutePath.dirname)
+            let result = try await fileSystem.glob(directory: base, include: [absolutePath.basename]).collect()
+            return result
         }.reduce([], +)
     }
 
-    private static func pathStrings(
-        for paths: [Path],
+    /// Resolves absolute paths for **output** paths.
+    ///
+    /// Unlike input paths, output files frequently do not yet exist on disk at project-generation
+    /// time — they are created by the build phase script itself.  Globbing would silently drop
+    /// every such path, which is the root cause of issue #5925.
+    ///
+    /// This function therefore **skips the glob step** and resolves each output path directly,
+    /// regardless of whether the file currently exists on disk.  Paths that contain build-variable
+    /// references (e.g. `$(DERIVED_FILE_DIR)/Foo.swift`) are also passed through as-is, matching
+    /// the behaviour that was already in place for those paths.
+    private static func absoluteOutputPaths(
+        for paths: [ProjectDescription.Path],
         generatorPaths: GeneratorPaths,
-        fileSystem: FileSysteming
-    ) async throws -> [String] {
-        try await paths.concurrentMap { (path: Path) -> [String] in
-            try await resolvePathStrings(
-                path: path,
-                generatorPaths: generatorPaths,
-                fileSystem: fileSystem
-            )
-        }.reduce([], +)
-    }
-
-    private static func resolvePathStrings(
-        path: Path,
-        generatorPaths: GeneratorPaths,
-        fileSystem: FileSysteming
-    ) async throws -> [String] {
-        // For relativeToManifest paths that are not glob patterns, keep them as strings
-        if path.type == .relativeToManifest, !fileSystem.isGlobPattern(path) {
-            return [path.pathString]
-        }
-
-        // avoid globbing paths that contain variables
-        if path.pathString.contains("$") {
-            return [path.pathString]
-        }
-
-        // Avoid globbing paths that are not glob patterns.
-        // More than that - globbing requires the path to be existing at the moment of the globbing
-        // which is not always the case.
-        // For example, output paths of a script that are not created yet.
-        if !fileSystem.isGlobPattern(path) {
-            return [try generatorPaths.resolve(path: path).pathString]
-        }
-
-        let absolutePath = try generatorPaths.resolve(path: path)
-        let base = try AbsolutePath(validating: absolutePath.dirname)
-        let globResults = try await fileSystem.glob(directory: base, include: [absolutePath.basename]).collect()
-
-        // For relativeToManifest paths, convert back to relative paths
-        if path.type == .relativeToManifest {
-            return globResults.map { $0.relative(to: generatorPaths.manifestDirectory).pathString }
-        } else {
-            return globResults.map(\.pathString)
+        fileSystem _: FileSysteming
+    ) async throws -> [AbsolutePath] {
+        try paths.map { path in
+            // Resolve the path regardless of whether the file exists.
+            // Build-variable paths (containing "$") are resolved identically — the resolver
+            // already handles them without touching the filesystem.
+            try generatorPaths.resolve(path: path)
         }
     }
 }
 
-extension XcodeGraph.TargetScript.Order {
-    /// Maps a ProjectDescription.TargetAction.Order instance into a XcodeGraph.TargetAction.Order model.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of target action order.
-    ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetScript.Order) -> XcodeGraph.TargetScript.Order {
+extension TuistCore.TargetScript.Order {
+    static func from(manifest: ProjectDescription.TargetScript.Order) -> TuistCore.TargetScript.Order {
         switch manifest {
         case .pre:
             return .pre
