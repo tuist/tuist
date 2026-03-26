@@ -11,7 +11,7 @@
 和
 [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
 
-## 用途说明{#what-it-is-for}
+## 用途{#what-it-is-for}
 
 命令行界面（CLI）是Tuist的核心。它负责项目生成、自动化工作流（测试、运行、图表和检查），并为认证、缓存、洞察、预览、注册表和选择性测试等功能提供与Tuist服务器的接口。
 
@@ -22,7 +22,7 @@
 - macOS 14.0+
 - Xcode 26+
 
-### 本地设置{#set-up-locally}
+### 本地化设置{#set-up-locally}
 
 - 克隆仓库：`git clone git@github.com:tuist/tuist.git`
 - 使用[官方安装脚本](https://mise.jdx.dev/getting-started.html)（非Homebrew）安装Mise，并运行：`mise
