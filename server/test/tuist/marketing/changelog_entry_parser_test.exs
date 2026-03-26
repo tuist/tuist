@@ -45,4 +45,27 @@ defmodule Tuist.Marketing.Changelog.EntryParserTest do
     assert body =~ "<hr"
     assert body =~ "<p>Second paragraph.</p>"
   end
+
+  test "renders code blocks with the shared code window markup" do
+    contents = """
+    ---
+    title: Share the app track
+    category: Product
+    ---
+
+    ```bash
+    tuist share App --track beta
+    ```
+    """
+
+    {_frontmatter, body} =
+      EntryParser.parse("priv/marketing/changelog/2026.03.19-failed-tests-pr-comment.md", contents)
+
+    assert body =~ ~s(<div class="code-window">)
+    assert body =~ ~s(<div data-part="bar">)
+    assert body =~ ~s(<div data-part="copy"><span data-part="copy-icon">)
+    assert body =~ ~s(<span data-part="copy-check-icon">)
+    assert body =~ ~s(<div data-part="language">bash</div>)
+    assert body =~ "tuist share App --track beta"
+  end
 end
