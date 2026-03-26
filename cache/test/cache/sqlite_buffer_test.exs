@@ -3,6 +3,7 @@ defmodule Cache.SQLiteBufferTest do
   use Mimic
 
   import Ecto.Query
+  import ExUnit.CaptureLog
 
   alias Cache.CacheArtifact
   alias Cache.CacheArtifactsBuffer
@@ -225,6 +226,31 @@ defmodule Cache.SQLiteBufferTest do
 
     record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
+  end
+
+  test "unexpected info messages are logged and ignored" do
+    key = "keyvalue:unexpected-message:account:project"
+    payload = Jason.encode!(%{entries: [%{"value" => "unexpected"}]})
+
+    suffix = :erlang.unique_integer([:positive])
+    buffer = :"sqlite_buffer_unexpected_message_test_#{suffix}"
+    {:ok, pid} = SQLiteBuffer.start_link(name: buffer, buffer_module: KeyValueBuffer)
+
+    Sandbox.allow(KeyValueRepo, self(), pid)
+
+    log =
+      capture_log(fn ->
+        send(pid, {[:alias | make_ref()], :dropped})
+        true = :ets.insert(buffer, {key, {:write, %{key: key, json_payload: payload}}})
+        :ok = SQLiteBuffer.flush(buffer)
+      end)
+
+    assert log =~ "key_values buffer received unexpected message"
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+    assert record.json_payload == payload
+
+    :ok = GenServer.stop(pid)
   end
 
   test "concurrent writes to the same key preserve last value" do
