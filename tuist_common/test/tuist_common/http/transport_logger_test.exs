@@ -119,7 +119,11 @@ defmodule TuistCommon.HTTP.TransportLoggerTest do
   } do
     log =
       capture_log(
-        [level: :debug, format: "$metadata$message", metadata: [:method, :route, :request_path, :reason]],
+        [
+          level: :debug,
+          format: "$metadata$message",
+          metadata: [:method, :route, :request_path, :reason]
+        ],
         fn ->
           :telemetry.execute(
             [:bandit, :request, :stop],

@@ -11,6 +11,8 @@ defmodule CacheWeb.XcodeController do
 
   require Logger
 
+  @max_upload_bytes 25 * 1024 * 1024
+
   plug OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true
 
@@ -139,14 +141,14 @@ defmodule CacheWeb.XcodeController do
   defp handle_existing_artifact(conn) do
     :telemetry.execute([:cache, :xcode, :upload, :exists], %{count: 1}, %{})
 
-    {_, conn_after} = BodyReader.drain(conn)
+    {_, conn_after} = BodyReader.drain(conn, max_bytes: @max_upload_bytes)
     send_resp(conn_after, :no_content, "")
   end
 
   defp save_new_artifact(conn, account_handle, project_handle, id) do
     case Xcode.Disk.ensure_artifact_directory(account_handle, project_handle, id) do
       {:ok, target_dir} ->
-        case BodyReader.read(conn, tmp_dir: target_dir) do
+        case BodyReader.read(conn, max_bytes: @max_upload_bytes, tmp_dir: target_dir) do
           {:ok, data, conn_after} ->
             size = get_data_size(data)
             :telemetry.execute([:cache, :xcode, :upload, :attempt], %{size: size}, %{})
