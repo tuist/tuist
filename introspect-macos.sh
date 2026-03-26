@@ -253,6 +253,262 @@ meta=$(
   } | to_obj
 )
 
+# ── Image & Snapshot Architecture ─────────────────────────────────────
+image_arch=$(
+  {
+    # APFS snapshot details — how do they layer the base image?
+    kv "apfs_snapshots_root" "diskutil apfs listSnapshots disk5s1 2>/dev/null"
+    kv "apfs_snapshots_data" "diskutil apfs listSnapshots disk5s5 2>/dev/null"
+    kv "apfs_snapshot_list_all" "tmutil listlocalsnapshots / 2>/dev/null"
+    # Sealed system volume — is it a stock macOS or customized?
+    kv "sealed_volume_status" "diskutil apfs verifySealedVolume disk5s1 2>/dev/null || echo 'verification skipped or failed'"
+    # Image ref ID from env — content-addressed image identifier
+    kv "base_image_ref_id" "echo \$NSC_BASE_IMAGE_REF_ID"
+    # What's pre-installed in the base image vs mounted at runtime
+    kv "homebrew_installed_packages" "brew list --formula 2>/dev/null"
+    kv "homebrew_installed_casks" "brew list --cask 2>/dev/null"
+    kv "homebrew_tap_list" "brew tap 2>/dev/null"
+    kv "installed_xcode_versions" "ls -la /Applications/ 2>/dev/null | grep -i xcode"
+    kv "xcode_selected_path" "xcode-select -p 2>/dev/null"
+    kv "developer_dir_contents" "ls -la /Applications/Xcode*.app/Contents/Developer/ 2>/dev/null | head -20"
+    kv "simulators_installed" "xcrun simctl list devices available 2>/dev/null | head -30"
+    # System modifications — what did they change from stock macOS?
+    kv "launch_daemons_custom" "ls /Library/LaunchDaemons/ 2>/dev/null"
+    kv "launch_agents_custom" "ls /Library/LaunchAgents/ 2>/dev/null"
+    kv "user_launch_agents" "ls ~/Library/LaunchAgents/ 2>/dev/null"
+    kv "login_items" "sfltool dumpbtm 2>/dev/null | head -50"
+    kv "etc_paths" "cat /etc/paths 2>/dev/null"
+    kv "etc_paths_d" "ls /etc/paths.d/ 2>/dev/null && cat /etc/paths.d/* 2>/dev/null"
+    kv "sudoers_hints" "sudo -l 2>/dev/null || echo 'sudo not available'"
+    kv "tcc_permissions" "sqlite3 '/Library/Application Support/com.apple.TCC/TCC.db' 'SELECT service, client, allowed FROM access;' 2>/dev/null"
+    kv "user_tcc_permissions" "sqlite3 ~/Library/Application\\ Support/com.apple.TCC/TCC.db 'SELECT service, client, allowed FROM access;' 2>/dev/null"
+    # Provisioning & MDM — is the VM enrolled?
+    kv "profiles_status" "profiles status -type enrollment 2>/dev/null"
+    kv "configuration_profiles" "profiles list 2>/dev/null | head -30"
+    kv "managed_preferences" "ls /Library/Managed\\ Preferences/ 2>/dev/null"
+  } | to_obj
+)
+
+# ── Cache Architecture ────────────────────────────────────────────────
+cache_arch=$(
+  {
+    # The dedicated cache volume
+    kv "cache_volume_info" "diskutil info /Volumes/cache 2>/dev/null"
+    kv "cache_volume_usage" "du -sh /Volumes/cache/ 2>/dev/null"
+    kv "cache_volume_top_dirs" "du -sh /Volumes/cache/*/ 2>/dev/null | sort -rh | head -20"
+    kv "cache_volume_ls" "ls -la /Volumes/cache/ 2>/dev/null"
+    # Is the cache volume on a separate physical disk or partition?
+    kv "cache_disk_info" "diskutil info disk2 2>/dev/null"
+    kv "cache_container_info" "diskutil info disk4 2>/dev/null"
+    # Git mirror — how does the git cache work?
+    kv "git_mirror_path" "echo \$NSC_GIT_MIRROR"
+    kv "git_mirror_ls" "ls -la /Volumes/gitmirror/ 2>/dev/null"
+    kv "git_mirror_size" "du -sh /Volumes/gitmirror/ 2>/dev/null"
+    kv "git_mirror_contents" "find /Volumes/gitmirror/ -maxdepth 3 -type d 2>/dev/null | head -40"
+    kv "git_mirror_remotes" "for d in /Volumes/gitmirror/*/; do echo \"=== \$d ===\"; git -C \"\$d\" remote -v 2>/dev/null; git -C \"\$d\" config --list 2>/dev/null | grep -E 'remote|url|mirror'; done"
+    # Runner tools cache
+    kv "runner_tools_cache_path" "echo \$RUNNER_TOOL_CACHE"
+    kv "runner_tools_cache_ls" "ls -la \$RUNNER_TOOL_CACHE/ 2>/dev/null"
+    kv "runner_tools_cache_size" "du -sh \$RUNNER_TOOL_CACHE/ 2>/dev/null"
+    # Homebrew cache
+    kv "homebrew_cache_path" "brew --cache 2>/dev/null"
+    kv "homebrew_cache_size" "du -sh \$(brew --cache) 2>/dev/null"
+    # Data volume breakdown — where does the 242GB go?
+    kv "data_volume_top_dirs" "du -sh /System/Volumes/Data/*/ 2>/dev/null | sort -rh | head -20"
+    kv "users_dir_sizes" "du -sh /Users/*/ 2>/dev/null | sort -rh"
+    kv "runner_home_sizes" "du -sh /Users/runner/*/ 2>/dev/null | sort -rh | head -20"
+    kv "applications_sizes" "du -sh /Applications/*/ 2>/dev/null | sort -rh | head -10"
+    # pip/npm/gem caches
+    kv "pip_cache_size" "du -sh ~/Library/Caches/pip 2>/dev/null"
+    kv "npm_cache_size" "du -sh ~/.npm 2>/dev/null"
+    kv "cargo_cache_size" "du -sh ~/.cargo 2>/dev/null"
+  } | to_obj
+)
+
+# ── Guest Agent & Host Communication ─────────────────────────────────
+guest_agent=$(
+  {
+    # vmguest binary analysis
+    kv "vmguest_binary_info" "file /opt/namespace/vmguest 2>/dev/null"
+    kv "vmguest_binary_size" "ls -lh /opt/namespace/vmguest 2>/dev/null"
+    kv "vmguest_strings_hints" "strings /opt/namespace/vmguest 2>/dev/null | grep -i -E 'grpc|http|virtio|vsock|api|endpoint|proto|config|version|namespace' | sort -u | head -50"
+    kv "vmguest_process_info" "ps aux | grep vmguest | grep -v grep"
+    kv "vmguest_open_files" "lsof -p \$(pgrep vmguest) 2>/dev/null | head -40"
+    kv "vmguest_open_connections" "lsof -i -p \$(pgrep vmguest) 2>/dev/null"
+    # dnsd analysis
+    kv "dnsd_binary_info" "file /opt/namespace/dnsd 2>/dev/null"
+    kv "dnsd_config" "cat /etc/namespace/dnsd.conf 2>/dev/null"
+    kv "dnsd_strings_hints" "strings /opt/namespace/dnsd 2>/dev/null | grep -i -E 'upstream|forward|resolve|dns|config' | sort -u | head -30"
+    kv "dnsd_open_connections" "lsof -i -p \$(pgrep dnsd) 2>/dev/null"
+    # vector (log shipping) analysis
+    kv "vector_config" "cat /etc/vector/vector.json 2>/dev/null"
+    kv "vector_version" "/opt/namespace/vector --version 2>/dev/null"
+    kv "vector_open_connections" "lsof -i -p \$(pgrep vector) 2>/dev/null"
+    # Guestdata volume — bootstrap metadata
+    kv "guestdata_contents" "ls -laR /Volumes/guestdata/ 2>/dev/null"
+    kv "guestdata_json" "cat /Volumes/guestdata/guestdata.json 2>/dev/null"
+    kv "guestdata_all_files" "find /Volumes/guestdata/ -type f 2>/dev/null -exec sh -c 'echo \"=== {} ===\"; cat \"{}\"' \\;"
+    # Secrets & certificates
+    kv "nsc_secrets_ls" "ls -laR /var/run/secrets/ 2>/dev/null"
+    kv "nsc_public_cert" "openssl x509 -in /var/run/secrets/guest/public.pem -text -noout 2>/dev/null"
+    kv "nsc_host_cert" "openssl x509 -in /var/run/secrets/guest/host.public.pem -text -noout 2>/dev/null"
+    kv "nsc_metadata_dir_contents" "ls -laR /var/run/nsc/ 2>/dev/null"
+    kv "nsc_token_file" "cat /var/run/nsc/token.json 2>/dev/null | head -5"
+    # Virtio ports & vsock — host-guest communication channels
+    kv "virtio_devices" "ioreg -l | grep -i virtio | head -20"
+    kv "vsock_info" "ioreg -l | grep -i vsock | head -10"
+  } | to_obj
+)
+
+# ── Runner Lifecycle & GitHub Actions Integration ─────────────────────
+runner_lifecycle=$(
+  {
+    # Entry script — how the runner bootstraps
+    kv "entry_script" "cat /opt/github-runner/entry.sh 2>/dev/null"
+    # Custom step launcher — Namespace wraps each step
+    kv "nsc_runner_worker" "cat /opt/github-runner/nsc.Runner.Worker 2>/dev/null"
+    kv "runner_dir_contents" "ls -la /opt/github-runner/ 2>/dev/null"
+    kv "runner_dir_bin" "ls -la /opt/github-runner/bin/ 2>/dev/null"
+    kv "runner_config" "cat /opt/github-runner/.runner 2>/dev/null"
+    kv "runner_credentials" "cat /opt/github-runner/.credentials 2>/dev/null"
+    kv "runner_env" "cat /opt/github-runner/.env 2>/dev/null"
+    kv "runner_path" "cat /opt/github-runner/.path 2>/dev/null"
+    # Step launcher log
+    kv "step_launcher_log" "cat /Users/runner/nsc/steplauncher.log 2>/dev/null | tail -50"
+    # Runner exit status mechanism
+    kv "runner_exit_status_file" "cat /tmp/runner-exit-code 2>/dev/null"
+    # What's in the powertoys dir?
+    kv "powertoys_contents" "ls -laR /opt/powertoys/ 2>/dev/null"
+    kv "powertoys_scripts" "for f in /opt/powertoys/*; do [ -f \"\$f\" ] && echo \"=== \$f ===\"; head -20 \"\$f\" 2>/dev/null; done"
+    # NSC CLI tool
+    kv "nsc_version" "/opt/nsc/bin/nsc version 2>/dev/null"
+    kv "nsc_bin_contents" "ls -la /opt/nsc/bin/ 2>/dev/null"
+    kv "nsc_help" "/opt/nsc/bin/nsc --help 2>/dev/null | head -40"
+    kv "nsc_strings_hints" "strings /opt/nsc/bin/nsc 2>/dev/null | grep -i -E 'docker|build|cache|image|snapshot|volume|instance|cluster' | sort -u | head -50"
+  } | to_obj
+)
+
+# ── Networking Deep Dive ──────────────────────────────────────────────
+network_deep=$(
+  {
+    # Gateway — what's the host-side NAT?
+    kv "gateway_mac" "arp -n 10.0.0.1 2>/dev/null"
+    kv "arp_table" "arp -a 2>/dev/null"
+    # Can we reach the host? What ports are open on the gateway?
+    kv "gateway_port_scan" "for p in 22 80 443 8080 9090 5000 6443 2375 2376; do (echo >/dev/tcp/10.0.0.1/\$p) 2>/dev/null && echo \"10.0.0.1:\$p open\"; done"
+    # NSC API endpoint reachability
+    kv "nsc_api_check" "curl -s --connect-timeout 2 -o /dev/null -w '%{http_code}' https://api.zrh2.nscluster.cloud/health 2>/dev/null || echo 'unreachable'"
+    kv "nsc_storage_check" "curl -s --connect-timeout 2 -o /dev/null -w '%{http_code}' https://zrh.storage.namespaceapis.com/ 2>/dev/null || echo 'unreachable'"
+    # Private API (artifact service)
+    kv "private_api_check" "curl -s --connect-timeout 2 -o /dev/null -w '%{http_code}' https://private-api.ord.namespaceapis.com/ 2>/dev/null || echo 'unreachable'"
+    # Network bandwidth test — how fast is the VM's network?
+    kv "download_speed_test" "curl -s --connect-timeout 5 -o /dev/null -w 'speed_download=%{speed_download} bytes/s, time=%{time_total}s, size=%{size_download}' https://speed.cloudflare.com/__down?bytes=10000000 2>/dev/null"
+    # DNS performance
+    kv "dns_local_lookup" "time (dig +short github.com @10.0.0.1 2>/dev/null) 2>&1"
+    kv "dns_system_lookup" "time (dig +short github.com 2>/dev/null) 2>&1"
+    # mDNS / bonjour — can we see other VMs on the same network?
+    kv "bonjour_browse" "dns-sd -B _ssh._tcp 2>/dev/null & sleep 2 && kill %1 2>/dev/null; wait 2>/dev/null"
+    kv "bonjour_browse_services" "dns-sd -B _services._dns-sd._udp 2>/dev/null & sleep 2 && kill %1 2>/dev/null; wait 2>/dev/null"
+    # Can we see other hosts on the /28 subnet?
+    kv "subnet_arp_scan" "for i in \$(seq 1 14); do ping -c 1 -W 1 10.0.0.\$i 2>/dev/null | grep -E 'bytes from|100% packet loss'; done"
+    # Outbound connectivity — what can we reach?
+    kv "outbound_https" "curl -s --connect-timeout 3 -o /dev/null -w '%{http_code}' https://api.github.com/ 2>/dev/null"
+    kv "outbound_ssh" "(echo >/dev/tcp/github.com/22) 2>/dev/null && echo 'open' || echo 'closed'"
+    kv "outbound_docker_registry" "curl -s --connect-timeout 3 -o /dev/null -w '%{http_code}' https://registry-1.docker.io/v2/ 2>/dev/null || echo 'unreachable'"
+  } | to_obj
+)
+
+# ── Virtualization Framework Deep Dive ────────────────────────────────
+vz_deep=$(
+  {
+    # VZ kernel extensions and drivers
+    kv "all_virtual_kexts" "kextstat 2>/dev/null | grep -i -E 'virtual|paravirt|apple.virt|vmapple'"
+    kv "ioreg_virtio_full" "ioreg -l | grep -i -E 'virtio|VirtIO' | head -30"
+    kv "ioreg_virtual_devices" "ioreg -l -p IOService | grep -B2 -A5 -i 'virtual' | head -60"
+    # Virtio block devices — how is the disk attached?
+    kv "ioreg_block_storage" "ioreg -l -p IOService | grep -B2 -A10 -i 'blockstorage' | head -40"
+    kv "disk_device_tree" "ioreg -l | grep -A5 'IOBlockStorageDriver' | head -30"
+    # GPU virtualization
+    kv "gpu_ioreg" "ioreg -l | grep -B2 -A10 -i 'ParavirtGPU' | head -30"
+    kv "metal_device" "system_profiler SPDisplaysDataType 2>/dev/null"
+    # Rosetta availability in VM
+    kv "rosetta_installed" "file /Library/Apple/usr/libexec/oah/oahd 2>/dev/null"
+    kv "rosetta_status" "sysctl -n sysctl.proc_translated 2>/dev/null"
+    kvb "rosetta_available" "arch -x86_64 /usr/bin/true 2>/dev/null"
+    # Virtualization entitlements
+    kv "vz_identity_service_entitlements" "codesign -d --entitlements - /System/Library/PrivateFrameworks/AppleVirtualPlatform.framework/Versions/A/XPCServices/AppleVirtualPlatformIdentityService.xpc 2>/dev/null"
+    # Hypervisor framework availability (nested virt)
+    kv "hypervisor_framework" "sysctl -a 2>/dev/null | grep -E 'hv_support|hv_vmm|hypervisor'"
+    # Device tree
+    kv "device_tree_compatible" "ioreg -p IODeviceTree -l | grep compatible | head -20"
+    kv "device_tree_model" "ioreg -p IODeviceTree -l | grep model | head -10"
+    # QEMU guest agent (if present alongside VZ)
+    kv "qemu_guest_agent" "ps aux | grep -i qemu | grep -v grep"
+    kv "qemu_guest_agent_binary" "file /usr/libexec/AppleQEMUGuestAgent 2>/dev/null"
+    kv "qemu_guest_strings" "strings /usr/libexec/AppleQEMUGuestAgent 2>/dev/null | grep -i -E 'qga|chardev|vsock|serial|virtio' | sort -u | head -20"
+  } | to_obj
+)
+
+# ── Software Inventory & Pre-warming ──────────────────────────────────
+software_inventory=$(
+  {
+    kv "ruby_version" "ruby --version 2>/dev/null"
+    kv "python_version" "python3 --version 2>/dev/null"
+    kv "node_version" "node --version 2>/dev/null"
+    kv "go_version" "go version 2>/dev/null"
+    kv "java_version" "java -version 2>&1 | head -3"
+    kv "dotnet_version" "dotnet --version 2>/dev/null"
+    kv "rust_version" "rustc --version 2>/dev/null"
+    kv "cargo_version" "cargo --version 2>/dev/null"
+    kv "cmake_version" "cmake --version 2>/dev/null | head -1"
+    kv "cocoapods_version" "pod --version 2>/dev/null"
+    kv "fastlane_version" "fastlane --version 2>/dev/null | head -3"
+    kv "gh_version" "gh --version 2>/dev/null | head -1"
+    kv "git_version" "git --version 2>/dev/null"
+    kv "git_lfs_version" "git-lfs --version 2>/dev/null"
+    kv "mise_version" "mise --version 2>/dev/null"
+    kv "tuist_version" "tuist version 2>/dev/null"
+    # SDKs and platforms
+    kv "available_sdks" "xcodebuild -showsdks 2>/dev/null"
+    kv "available_platforms" "xcrun simctl list runtimes 2>/dev/null"
+    # What developer tools are pre-installed
+    kv "usr_local_bin" "ls /usr/local/bin/ 2>/dev/null | head -40"
+    kv "opt_homebrew_bin_count" "ls /opt/homebrew/bin/ 2>/dev/null | wc -l"
+    kv "pipx_packages" "ls /opt/pipx_bin/ 2>/dev/null"
+    # Pre-built Swift packages / DerivedData
+    kv "derived_data" "ls ~/Library/Developer/Xcode/DerivedData/ 2>/dev/null | head -10"
+    kv "swift_pm_cache" "du -sh ~/Library/org.swift.swiftpm/ 2>/dev/null"
+    kv "swift_build_cache" "du -sh ~/Library/Caches/org.swift.swiftpm/ 2>/dev/null"
+  } | to_obj
+)
+
+# ── Host Inference ────────────────────────────────────────────────────
+host_inference=$(
+  {
+    # From NSC_INSTANCE_SHAPE=6x14 and the chip info, infer the host
+    kv "instance_shape" "echo \$NSC_INSTANCE_SHAPE"
+    kv "instance_id" "echo \$NSC_INSTANCE_ID"
+    kv "cluster_endpoint" "echo \$NSC_ENDPOINT"
+    kv "storage_endpoint" "echo \$NSC_STORAGE_ENDPOINT"
+    kv "instance_url" "echo \$NSC_INSTANCE_URL"
+    # Total host resources can be inferred from VM allocation
+    # M2 Pro has 10 or 12 cores and 16/32GB — 6 cores + 14GB = ~half a 12-core/32GB M2 Pro
+    kv "chip_reported" "sysctl -n machdep.cpu.brand_string"
+    kv "performance_levels" "sysctl -a 2>/dev/null | grep hw.perflevel"
+    kv "cache_sizes" "sysctl -a 2>/dev/null | grep -E 'hw.l[123]|cachesize|cacheline'"
+    # Can we fingerprint the host machine?
+    kv "platform_serial_analysis" "echo 'Serial: ZW27NLG12C — Apple serials encode factory, year, week, and config'"
+    # What datacenter / region?
+    kv "api_endpoint_region" "echo 'api.zrh2.nscluster.cloud suggests Zurich datacenter (ZRH), cluster 2'"
+    kv "storage_region" "echo 'zrh.storage.namespaceapis.com confirms Zurich region'"
+    # Network latency to various endpoints
+    kv "latency_nsc_api" "ping -c 3 api.zrh2.nscluster.cloud 2>/dev/null | tail -1"
+    kv "latency_github" "ping -c 3 github.com 2>/dev/null | tail -1"
+    kv "latency_cloudflare" "ping -c 3 1.1.1.1 2>/dev/null | tail -1"
+    kv "traceroute_gateway" "traceroute -m 5 -w 2 8.8.8.8 2>/dev/null"
+  } | to_obj
+)
+
 # ── Co-tenancy & Resource Contention Detection ────────────────────────
 
 # CPU scheduling jitter test: measure variance in a tight loop
@@ -411,7 +667,7 @@ contention=$(
 
 # ── Assemble final JSON ───────────────────────────────────────────────
 jq -n \
-  --arg version "2.0.0" \
+  --arg version "3.0.0" \
   --arg collected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg hostname "$(hostname 2>/dev/null || echo '')" \
   --argjson system "$system" \
@@ -428,6 +684,14 @@ jq -n \
   --argjson runtimes "$runtimes" \
   --argjson hardware "$hw" \
   --argjson metadata "$meta" \
+  --argjson image_architecture "$image_arch" \
+  --argjson cache_architecture "$cache_arch" \
+  --argjson guest_agent "$guest_agent" \
+  --argjson runner_lifecycle "$runner_lifecycle" \
+  --argjson network_deep_dive "$network_deep" \
+  --argjson vz_deep_dive "$vz_deep" \
+  --argjson software_inventory "$software_inventory" \
+  --argjson host_inference "$host_inference" \
   --argjson contention "$contention" \
   '{
     version: $version,
@@ -447,5 +711,13 @@ jq -n \
     runtimes: $runtimes,
     hardware: $hardware,
     metadata: $metadata,
+    image_architecture: $image_architecture,
+    cache_architecture: $cache_architecture,
+    guest_agent: $guest_agent,
+    runner_lifecycle: $runner_lifecycle,
+    network_deep_dive: $network_deep_dive,
+    vz_deep_dive: $vz_deep_dive,
+    software_inventory: $software_inventory,
+    host_inference: $host_inference,
     contention: $contention
   }'
