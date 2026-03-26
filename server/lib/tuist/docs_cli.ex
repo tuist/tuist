@@ -11,6 +11,7 @@ defmodule Tuist.Docs.CLI do
   @repo "tuist/tuist"
   @cache_key :cli_spec_data
   @ttl :timer.hours(1)
+  @headers [{"accept", "application/json"}, {"user-agent", "tuist-server"}]
 
   def get_pages do
     case load() do
@@ -70,7 +71,7 @@ defmodule Tuist.Docs.CLI do
   defp fetch_latest_cli_tag do
     url = "https://api.github.com/repos/#{@repo}/releases?per_page=20"
 
-    case Req.get(url, headers: github_headers()) do
+    case Req.get(url, headers: @headers) do
       {:ok, %{status: 200, body: releases}} ->
         cli_release =
           Enum.find(releases, fn release ->
@@ -94,7 +95,7 @@ defmodule Tuist.Docs.CLI do
   defp fetch_spec_json(tag) do
     url = "https://github.com/#{@repo}/releases/download/#{tag}/tuist.spec.json"
 
-    case Req.get(url, headers: github_headers()) do
+    case Req.get(url, headers: @headers) do
       {:ok, %{status: 200, body: body}} when is_map(body) ->
         {:ok, body}
 
@@ -106,18 +107,6 @@ defmodule Tuist.Docs.CLI do
 
       {:error, reason} ->
         {:error, reason}
-    end
-  end
-
-  defp github_headers do
-    token = System.get_env("GITHUB_TOKEN")
-
-    base = [{"accept", "application/json"}, {"user-agent", "tuist-server"}]
-
-    if token do
-      [{"authorization", "Bearer #{token}"} | base]
-    else
-      base
     end
   end
 end
