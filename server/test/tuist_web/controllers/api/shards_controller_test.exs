@@ -113,6 +113,48 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert is_integer(response["shard_count"])
     end
 
+    test "accepts and stores build_run_id parameter", %{conn: conn, user: user, project: project} do
+      build_run_id = Ecto.UUID.generate()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "build-id-ref",
+            modules: ["AppTests"],
+            build_run_id: build_run_id
+          }
+        )
+
+      response = json_response(conn, :ok)
+      {:ok, plan} = Tuist.Shards.get_shard_plan(response["id"])
+      assert plan.build_run_id == build_run_id
+    end
+
+    test "accepts and stores gradle_build_id parameter", %{conn: conn, user: user, project: project} do
+      gradle_build_id = Ecto.UUID.generate()
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "gradle-id-ref",
+            modules: ["AppTests"],
+            gradle_build_id: gradle_build_id
+          }
+        )
+
+      response = json_response(conn, :ok)
+      {:ok, plan} = Tuist.Shards.get_shard_plan(response["id"])
+      assert plan.gradle_build_id == gradle_build_id
+    end
+
     test "response includes id field", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 

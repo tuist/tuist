@@ -60,6 +60,8 @@ defmodule Tuist.Shards do
       project_id: project.id,
       shard_count: shard_count,
       granularity: granularity,
+      build_run_id: Map.get(params, :build_run_id),
+      gradle_build_id: Map.get(params, :gradle_build_id),
       inserted_at: now
     }
 

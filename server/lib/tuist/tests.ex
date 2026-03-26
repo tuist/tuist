@@ -311,7 +311,13 @@ defmodule Tuist.Tests do
       case existing do
         nil ->
           test_status = if expected_shard_count > 1, do: "in_progress", else: shard_status
-          attrs = Map.put(attrs, :status, test_status)
+
+          attrs =
+            attrs
+            |> Map.put(:status, test_status)
+            |> Map.put_new(:build_run_id, shard_plan.build_run_id)
+            |> Map.put_new(:gradle_build_id, shard_plan.gradle_build_id)
+
           create_new_test(attrs, shard_index, shard_plan)
 
         existing_test ->

@@ -105,6 +105,7 @@ struct XcodeBuildBuildCommandService {
             }
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
             let destination = passedValue(for: "-destination", arguments: passthroughXcodebuildArguments)
+            let buildRunId = await RunMetadataStorage.current.buildRunId
             _ = try await shardPlanService.plan(
                 xctestproductsPath: testProductsPath,
                 destination: destination,
@@ -115,7 +116,8 @@ struct XcodeBuildBuildCommandService {
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: serverURL,
+                buildRunId: buildRunId
             )
         }
     }
