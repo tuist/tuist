@@ -43,18 +43,20 @@ extension Array where Element: Sendable {
         _ transform: @escaping (Element) async throws -> B
     ) async throws -> [B] {
         try await withThrowingTaskGroup(
-            of: B.self,
+            of: (Int, B).self,
             returning: [B].self
         ) { group in
-            var results: [B] = []
+            var results: [(Int, B)] = []
+            results.reserveCapacity(count)
             for (index, element) in enumerated() {
-                if index > maxConcurrentTasks {
+                if index >= maxConcurrentTasks {
                     if let result = try await group.next() {
                         results.append(result)
                     }
                 }
+                let idx = index
                 group.addTask {
-                    return try await transform(element)
+                    return (idx, try await transform(element))
                 }
             }
 
@@ -62,7 +64,7 @@ extension Array where Element: Sendable {
                 results.append(result)
             }
 
-            return results
+            return results.sorted(by: { $0.0 < $1.0 }).map(\.1)
         }
     }
 
@@ -108,30 +110,28 @@ extension Array where Element: Sendable {
         _ transform: @escaping (Element) async throws -> B?
     ) async throws -> [B] {
         try await withThrowingTaskGroup(
-            of: B?.self,
+            of: (Int, B?).self,
             returning: [B].self
         ) { group in
-            var results: [B] = []
+            var results: [(Int, B?)] = []
+            results.reserveCapacity(count)
             for (index, element) in enumerated() {
-                if index > maxConcurrentTasks {
+                if index >= maxConcurrentTasks {
                     if let result = try await group.next() {
-                        if let value = result {
-                            results.append(value)
-                        }
+                        results.append(result)
                     }
                 }
+                let idx = index
                 group.addTask {
-                    return try await transform(element)
+                    return (idx, try await transform(element))
                 }
             }
 
             for try await result in group {
-                if let value = result {
-                    results.append(value)
-                }
+                results.append(result)
             }
 
-            return results
+            return results.sorted(by: { $0.0 < $1.0 }).compactMap(\.1)
         }
     }
 

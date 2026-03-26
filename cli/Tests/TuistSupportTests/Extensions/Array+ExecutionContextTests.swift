@@ -64,6 +64,38 @@ final class ArrayExecutionContextTests: XCTestCase {
         XCTAssertThrowsSpecific(try numbers.forEach(context: .concurrent, perform), TestError.someError)
     }
 
+    func test_concurrentMap_withMaxConcurrentTasks_preservesInputOrder() async throws {
+        // Given: elements with variable async work to force out-of-order completion
+        let elements = Array(0 ..< 50)
+
+        // When: run multiple times to catch non-determinism
+        for _ in 0 ..< 10 {
+            let results = try await elements.concurrentMap(maxConcurrentTasks: 5) { element -> Int in
+                // Reverse the delay so later elements finish first
+                let delay = UInt64((50 - element) * 1_000_000) // nanoseconds
+                try await Task.sleep(nanoseconds: delay)
+                return element
+            }
+
+            // Then: results must match input order
+            XCTAssertEqual(results, elements)
+        }
+    }
+
+    func test_concurrentCompactMap_withMaxConcurrentTasks_preservesInputOrder() async throws {
+        let elements = Array(0 ..< 50)
+
+        for _ in 0 ..< 10 {
+            let results = try await elements.concurrentCompactMap(maxConcurrentTasks: 5) { element -> Int? in
+                let delay = UInt64((50 - element) * 1_000_000)
+                try await Task.sleep(nanoseconds: delay)
+                return element
+            }
+
+            XCTAssertEqual(results, elements)
+        }
+    }
+
     // MARK: - Helpers
 
     private enum TestError: Error {
