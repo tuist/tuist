@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
+import TuistCASAnalytics
 @testable import TuistKit
 
 struct AnalyticsStateControllerTests {
@@ -42,7 +43,7 @@ struct AnalyticsStateControllerTests {
         // When
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
-            database: nil,
+            database: try CASAnalyticsDatabase(stateDirectory: temporaryDirectory),
             stateDirectory: temporaryDirectory
         )
 
@@ -76,7 +77,7 @@ struct AnalyticsStateControllerTests {
         // When
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
-            database: nil,
+            database: try CASAnalyticsDatabase(stateDirectory: temporaryDirectory),
             stateDirectory: temporaryDirectory
         )
 
@@ -97,7 +98,7 @@ struct AnalyticsStateControllerTests {
         // When
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
-            database: nil,
+            database: try CASAnalyticsDatabase(stateDirectory: temporaryDirectory),
             stateDirectory: temporaryDirectory
         )
 
@@ -112,7 +113,7 @@ struct AnalyticsStateControllerTests {
         // When/Then -- should not throw
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
-            database: nil,
+            database: try CASAnalyticsDatabase(stateDirectory: temporaryDirectory),
             stateDirectory: temporaryDirectory
         )
     }

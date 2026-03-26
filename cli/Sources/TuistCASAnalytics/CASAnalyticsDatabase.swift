@@ -27,18 +27,19 @@ public protocol CASAnalyticsDatabasing: Sendable {
 }
 
 public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Sendable {
-    private static let _shared = NSLock()
-    private static var _sharedInstance: CASAnalyticsDatabase?
+    private static let _lock = NSLock()
+    private static var _shared: CASAnalyticsDatabase?
 
     public static var shared: CASAnalyticsDatabase {
-        get throws {
-            _shared.lock()
-            defer { _shared.unlock() }
-            if let existing = _sharedInstance { return existing }
-            let instance = try CASAnalyticsDatabase()
-            _sharedInstance = instance
-            return instance
-        }
+        _lock.lock()
+        defer { _lock.unlock() }
+        if let existing = _shared { return existing }
+        // The database can only fail to open if the state directory is
+        // fundamentally broken (permissions, disk full). Crash early
+        // rather than silently degrading.
+        let instance = try! CASAnalyticsDatabase()
+        _shared = instance
+        return instance
     }
 
     private let db: OpaquePointer

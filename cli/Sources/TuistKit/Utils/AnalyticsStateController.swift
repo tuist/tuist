@@ -7,11 +7,11 @@ import TuistCASAnalytics
 /// and the legacy file-based directories and `logs/` directory.
 public struct AnalyticsStateController {
     private let fileSystem: FileSystem
-    private let database: CASAnalyticsDatabasing?
+    private let database: CASAnalyticsDatabasing
 
-    public init(fileSystem: FileSystem = FileSystem(), database: CASAnalyticsDatabasing? = nil) {
+    public init(fileSystem: FileSystem = FileSystem(), database: CASAnalyticsDatabasing = CASAnalyticsDatabase.shared) {
         self.fileSystem = fileSystem
-        self.database = database ?? (try? CASAnalyticsDatabase.shared)
+        self.database = database
     }
 
     /// Schedules best-effort cleanup of old analytics state entries and legacy files.
@@ -24,13 +24,13 @@ public struct AnalyticsStateController {
     /// Removes analytics state entries older than `maxAge` and cleans up legacy directories.
     static func clean(
         fileSystem: FileSystem,
-        database: CASAnalyticsDatabasing?,
+        database: CASAnalyticsDatabasing,
         stateDirectory: AbsolutePath,
         maxAge: TimeInterval = 60 * 60
     ) async throws {
         let cutoffDate = Date().addingTimeInterval(-maxAge)
 
-        try? database?.removeOldEntries(olderThan: cutoffDate)
+        try? database.removeOldEntries(olderThan: cutoffDate)
 
         for directory in ["cas", "nodes"] {
             let directoryPath = stateDirectory.appending(component: directory)

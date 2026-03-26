@@ -52,7 +52,7 @@
         private let gitController: GitControlling
         private let ciController: CIControlling
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
-        private let casAnalyticsDatabase: CASAnalyticsDatabasing?
+        private let casAnalyticsDatabase: CASAnalyticsDatabasing
 
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -69,7 +69,7 @@
             gitController: GitControlling = GitController(),
             ciController: CIControlling = CIController(),
             xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
-            casAnalyticsDatabase: CASAnalyticsDatabasing? = try? CASAnalyticsDatabase.shared
+            casAnalyticsDatabase: CASAnalyticsDatabasing = CASAnalyticsDatabase.shared
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
@@ -259,9 +259,8 @@
                 to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
             )
 
-            if let dbPath = casAnalyticsDatabase?.databasePath(),
-               try await fileSystem.exists(dbPath)
-            {
+            let dbPath = casAnalyticsDatabase.databasePath()
+            if try await fileSystem.exists(dbPath) {
                 try await fileSystem.copy(
                     dbPath,
                     to: buildDirectory.appending(component: "cas_analytics.db")

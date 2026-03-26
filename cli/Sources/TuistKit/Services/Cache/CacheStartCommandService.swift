@@ -59,13 +59,13 @@ struct CacheStartCommandService {
                     transportSecurity: .plaintext
                 ),
                 services: [
-                    try KeyValueService(
+                    KeyValueService(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         cacheURLStore: cacheURLStore,
                         upload: upload
                     ),
-                    try CASService(
+                    CASService(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         cacheURLStore: cacheURLStore,

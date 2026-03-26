@@ -14,7 +14,7 @@ public protocol CASNodeStoring: Sendable {
 public struct CASNodeStore: CASNodeStoring {
     private let database: CASAnalyticsDatabasing
 
-    public init(database: CASAnalyticsDatabasing) {
+    public init(database: CASAnalyticsDatabasing = CASAnalyticsDatabase.shared) {
         self.database = database
     }
 

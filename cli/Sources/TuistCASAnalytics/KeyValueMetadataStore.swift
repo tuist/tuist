@@ -19,7 +19,7 @@ public protocol KeyValueMetadataStoring: Sendable {
 public struct KeyValueMetadataStore: KeyValueMetadataStoring {
     private let database: CASAnalyticsDatabasing
 
-    public init(database: CASAnalyticsDatabasing) {
+    public init(database: CASAnalyticsDatabasing = CASAnalyticsDatabase.shared) {
         self.database = database
     }
 

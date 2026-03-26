@@ -30,7 +30,7 @@
             serverURL: URL,
             cacheURLStore: CacheURLStoring,
             upload: Bool = true
-        ) throws {
+        ) {
             self.fullHandle = fullHandle
             self.serverURL = serverURL
             self.cacheURLStore = cacheURLStore
@@ -39,7 +39,7 @@
             loadCacheCASService = LoadCacheCASService()
             fileSystem = FileSystem()
             dataCompressingService = DataCompressingService()
-            metadataStore = CASOutputMetadataStore(database: try CASAnalyticsDatabase.shared)
+            metadataStore = CASOutputMetadataStore()
             serverAuthenticationController = ServerAuthenticationController()
         }
 
