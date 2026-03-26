@@ -63,6 +63,7 @@ url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
 
 [tools.bats."platforms.linux-x64"]
+checksum = "blake3:68f3c29e21d03ad96d7bd5a133a5716e47a2d53a2f08886484cfea6c3fb86dc9"
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
 
 [tools.bats."platforms.linux-x64-musl"]
@@ -124,6 +125,10 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6
 version = "8.12.1"
 backend = "aqua:gradle/gradle"
 
+[tools.gradle."platforms.linux-x64"]
+checksum = "blake3:7761b714daf36ba736871d060669a60eb6a728aad96ae817d3972d82f64730e9"
+url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+
 [tools.gradle."platforms.macos-arm64"]
 checksum = "blake3:7761b714daf36ba736871d060669a60eb6a728aad96ae817d3972d82f64730e9"
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
@@ -131,6 +136,10 @@ url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/
 [[tools.java]]
 version = "21.0.2"
 backend = "core:java"
+
+[tools.java."platforms.linux-x64"]
+checksum = "sha256:a2def047a73941e01a73739f92755f86b895811afb1f91243db214cff5bdac3f"
+url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-x64_bin.tar.gz"
 
 [tools.java."platforms.macos-arm64"]
 checksum = "sha256:b3d588e16ec1e0ef9805d8a696591bd518a5cea62567da8f53b5ce32d11d22e4"
@@ -261,29 +270,29 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.168.0"
+version = "4.169.0"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:55aab09782c008cb0db15ba2350f3ff0018421810080ca854e4328a884d49b4c"
-url = "https://github.com/tuist/tuist/releases/download/4.168.0/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:a77d4351d99d67dbc712ac406d320d283b3b3446c77fd1c3239cd53b4e301650"
+url = "https://github.com/tuist/tuist/releases/download/4.169.0/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:55aab09782c008cb0db15ba2350f3ff0018421810080ca854e4328a884d49b4c"
-url = "https://github.com/tuist/tuist/releases/download/4.168.0/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:a77d4351d99d67dbc712ac406d320d283b3b3446c77fd1c3239cd53b4e301650"
+url = "https://github.com/tuist/tuist/releases/download/4.169.0/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:babc7eef4467e8242a0010c567d18a0e14859d687e494bb0d9fd1702c04116d3"
-url = "https://github.com/tuist/tuist/releases/download/4.168.0/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:36ec664f9aead8bd7041c254b90eb91c486907455dd28fffd89fd66dc6b86739"
+url = "https://github.com/tuist/tuist/releases/download/4.169.0/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:babc7eef4467e8242a0010c567d18a0e14859d687e494bb0d9fd1702c04116d3"
-url = "https://github.com/tuist/tuist/releases/download/4.168.0/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:36ec664f9aead8bd7041c254b90eb91c486907455dd28fffd89fd66dc6b86739"
+url = "https://github.com/tuist/tuist/releases/download/4.169.0/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:4b2b7149d92c60bc3dca8c7b576b5bc774bfcbcee5b37bec90e1ed5ee6fac901"
-url = "https://github.com/tuist/tuist/releases/download/4.168.0/tuist.zip"
+checksum = "sha256:356dc2ca8426b9fc3ff84df01b92a3d3e56d48c575e59e7b45a4cac75541548d"
+url = "https://github.com/tuist/tuist/releases/download/4.169.0/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:4b2b7149d92c60bc3dca8c7b576b5bc774bfcbcee5b37bec90e1ed5ee6fac901"
-url = "https://github.com/tuist/tuist/releases/download/4.168.0/tuist.zip"
+checksum = "sha256:356dc2ca8426b9fc3ff84df01b92a3d3e56d48c575e59e7b45a4cac75541548d"
+url = "https://github.com/tuist/tuist/releases/download/4.169.0/tuist.zip"

@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* link build runs to shard plans by [@fortmarek](https://github.com/fortmarek) in [#10032](https://github.com/tuist/tuist/pull/10032)
 * resolving SPM Targets with automatic product type using baseProductType by [@Loupehope](https://github.com/Loupehope) in [#9809](https://github.com/tuist/tuist/pull/9809)
 ### 🐛 Bug Fixes
 
