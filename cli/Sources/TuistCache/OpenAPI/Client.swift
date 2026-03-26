@@ -71,6 +71,13 @@ public struct Client: APIProtocol {
                     name: "project_handle",
                     value: input.query.project_handle
                 )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "is_ci",
+                    value: input.query.is_ci
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept
@@ -234,6 +241,13 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "project_handle",
                     value: input.query.project_handle
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "is_ci",
+                    value: input.query.is_ci
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,

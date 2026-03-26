@@ -111,6 +111,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Whether the request originates from a CI environment
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
       responses:
         '200':
           content:
@@ -169,6 +177,14 @@ paths:
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Whether the request originates from a CI environment
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
             x-struct:
             x-validate:
       requestBody:

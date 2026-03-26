@@ -376,17 +376,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/query/project_handle`.
                 public var project_handle: Swift.String
+                /// Whether the request originates from a CI environment
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - account_handle: The handle of the account
                 ///   - project_handle: The handle of the project
+                ///   - is_ci: Whether the request originates from a CI environment
                 public init(
                     account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    is_ci: Swift.Bool? = nil
                 ) {
                     self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.is_ci = is_ci
                 }
             }
             public var query: Operations.downloadCASArtifact.Input.Query
@@ -743,17 +750,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/query/project_handle`.
                 public var project_handle: Swift.String
+                /// Whether the request originates from a CI environment
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/query/is_ci`.
+                public var is_ci: Swift.Bool?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - account_handle: The handle of the account
                 ///   - project_handle: The handle of the project
+                ///   - is_ci: Whether the request originates from a CI environment
                 public init(
                     account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    is_ci: Swift.Bool? = nil
                 ) {
                     self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.is_ci = is_ci
                 }
             }
             public var query: Operations.saveCASArtifact.Input.Query

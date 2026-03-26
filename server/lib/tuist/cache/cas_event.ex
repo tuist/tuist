@@ -12,6 +12,7 @@ defmodule Tuist.Cache.CASEvent do
     field :size, Ch, type: "Int64"
     field :cas_id, Ch, type: "String"
     field :project_id, Ch, type: "Int64"
+    field :is_ci, Ch, type: "Bool"
     field :cache_endpoint, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime"
   end

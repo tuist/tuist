@@ -63,7 +63,8 @@ defmodule Cache.Xcode.EventsPipeline do
           project_handle: event.project_handle,
           action: event.action,
           size: event.size,
-          cas_id: event.cas_id
+          cas_id: event.cas_id,
+          is_ci: Map.get(event, :is_ci, false)
         }
       end)
 

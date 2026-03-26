@@ -43,6 +43,7 @@ defmodule TuistWeb.Webhooks.CacheController do
                 action: action,
                 size: size,
                 cas_id: cas_id,
+                is_ci: Map.get(event, "is_ci", false),
                 project_id: project_id,
                 cache_endpoint: cache_endpoint
               }

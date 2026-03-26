@@ -37,6 +37,12 @@ defmodule CacheWeb.XcodeController do
         type: :string,
         required: true,
         description: "The handle of the project"
+      ],
+      is_ci: [
+        in: :query,
+        type: :boolean,
+        required: false,
+        description: "Whether the request originates from a CI environment"
       ]
     ],
     responses: %{
@@ -48,7 +54,8 @@ defmodule CacheWeb.XcodeController do
     }
   )
 
-  def download(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
+  def download(conn, %{id: id, account_handle: account_handle, project_handle: project_handle} = params) do
+    is_ci = Map.get(params, :is_ci, false)
     :telemetry.execute([:cache, :xcode, :download, :request], %{}, %{})
     key = Xcode.Disk.key(account_handle, project_handle, id)
     :ok = CacheArtifacts.track_artifact_access(key)
@@ -60,7 +67,8 @@ defmodule CacheWeb.XcodeController do
         :telemetry.execute([:cache, :xcode, :download, :disk_hit], %{size: size}, %{
           cas_id: id,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          is_ci: is_ci
         })
 
         conn
@@ -114,6 +122,12 @@ defmodule CacheWeb.XcodeController do
         type: :string,
         required: true,
         description: "The handle of the project"
+      ],
+      is_ci: [
+        in: :query,
+        type: :boolean,
+        required: false,
+        description: "Whether the request originates from a CI environment"
       ]
     ],
     request_body: {"The Xcode cache artifact data", "application/octet-stream", nil, required: true},
@@ -128,11 +142,13 @@ defmodule CacheWeb.XcodeController do
     }
   )
 
-  def save(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
+  def save(conn, %{id: id, account_handle: account_handle, project_handle: project_handle} = params) do
+    is_ci = Map.get(params, :is_ci, false)
+
     if Xcode.Disk.exists?(account_handle, project_handle, id) do
       handle_existing_artifact(conn)
     else
-      save_new_artifact(conn, account_handle, project_handle, id)
+      save_new_artifact(conn, account_handle, project_handle, id, is_ci)
     end
   end
 
@@ -143,14 +159,14 @@ defmodule CacheWeb.XcodeController do
     send_resp(conn_after, :no_content, "")
   end
 
-  defp save_new_artifact(conn, account_handle, project_handle, id) do
+  defp save_new_artifact(conn, account_handle, project_handle, id, is_ci) do
     case Xcode.Disk.ensure_artifact_directory(account_handle, project_handle, id) do
       {:ok, target_dir} ->
         case BodyReader.read(conn, tmp_dir: target_dir) do
           {:ok, data, conn_after} ->
             size = get_data_size(data)
             :telemetry.execute([:cache, :xcode, :upload, :attempt], %{size: size}, %{})
-            persist_artifact(conn_after, account_handle, project_handle, id, data, size)
+            persist_artifact(conn_after, account_handle, project_handle, id, data, size, is_ci)
 
           {:error, :too_large, conn_after} ->
             :telemetry.execute([:cache, :xcode, :upload, :error], %{count: 1}, %{reason: :too_large})
@@ -176,13 +192,14 @@ defmodule CacheWeb.XcodeController do
     end
   end
 
-  defp persist_artifact(conn, account_handle, project_handle, id, data, size) do
+  defp persist_artifact(conn, account_handle, project_handle, id, data, size, is_ci) do
     case Xcode.Disk.put(account_handle, project_handle, id, data) do
       :ok ->
         :telemetry.execute([:cache, :xcode, :upload, :success], %{size: size}, %{
           cas_id: id,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          is_ci: is_ci
         })
 
         key = Xcode.Disk.key(account_handle, project_handle, id)

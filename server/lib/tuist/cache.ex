@@ -24,6 +24,7 @@ defmodule Tuist.Cache do
           action: event.action,
           size: event.size,
           cas_id: event.cas_id,
+          is_ci: Map.get(event, :is_ci, false),
           project_id: event.project_id,
           cache_endpoint: event.cache_endpoint,
           inserted_at: now

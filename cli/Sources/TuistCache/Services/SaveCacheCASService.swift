@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import OpenAPIURLSession
+import TuistEnvironment
 import TuistHTTP
 import TuistServer
 
@@ -77,7 +78,8 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
                 path: .init(id: casId),
                 query: .init(
                     account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle
+                    project_handle: handles.projectHandle,
+                    is_ci: Environment.current.isCI
                 ),
                 body: .binary(HTTPBody(data))
             )

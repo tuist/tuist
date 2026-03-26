@@ -52,7 +52,8 @@ defmodule Cache.Telemetry do
       size: measurements.size,
       cas_id: metadata.cas_id,
       account_handle: metadata.account_handle,
-      project_handle: metadata.project_handle
+      project_handle: metadata.project_handle,
+      is_ci: Map.get(metadata, :is_ci, false)
     }
 
     Cache.Xcode.EventsPipeline.async_push(event)

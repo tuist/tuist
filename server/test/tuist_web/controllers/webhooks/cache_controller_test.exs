@@ -41,21 +41,24 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
             "project_handle" => project.name,
             "action" => "upload",
             "size" => 1024,
-            "cas_id" => "abc123"
+            "cas_id" => "abc123",
+            "is_ci" => true
           },
           %{
             "account_handle" => project.account.name,
             "project_handle" => project.name,
             "action" => "download",
             "size" => 2048,
-            "cas_id" => "def456"
+            "cas_id" => "def456",
+            "is_ci" => false
           },
           %{
             "account_handle" => project.account.name,
             "project_handle" => project.name,
             "action" => "upload",
             "size" => 512,
-            "cas_id" => "ghi789"
+            "cas_id" => "ghi789",
+            "is_ci" => true
           }
         ]
       }
@@ -86,18 +89,21 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
       assert event1.cas_id == "ghi789"
       assert event1.project_id == project.id
       assert event1.cache_endpoint == "test-cache-node.tuist.dev"
+      assert event1.is_ci == true
 
       assert event2.action == "upload"
       assert event2.size == 1024
       assert event2.cas_id == "abc123"
       assert event2.project_id == project.id
       assert event2.cache_endpoint == "test-cache-node.tuist.dev"
+      assert event2.is_ci == true
 
       assert event3.action == "download"
       assert event3.size == 2048
       assert event3.cas_id == "def456"
       assert event3.project_id == project.id
       assert event3.cache_endpoint == "test-cache-node.tuist.dev"
+      assert event3.is_ci == false
     end
 
     test "rejects requests with invalid signature", %{conn: conn, project: project} do

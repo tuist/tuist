@@ -79,14 +79,16 @@ defmodule Cache.Xcode.EventsPipelineTest do
           size: 1024,
           cas_id: "abc123",
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          is_ci: true
         },
         %{
           action: "download",
           size: 2048,
           cas_id: "def456",
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          is_ci: false
         }
       ]
 
@@ -112,6 +114,7 @@ defmodule Cache.Xcode.EventsPipelineTest do
         assert Enum.at(decoded_body["events"], 0)["action"] == "upload"
         assert Enum.at(decoded_body["events"], 0)["size"] == 1024
         assert Enum.at(decoded_body["events"], 0)["cas_id"] == "abc123"
+        assert Enum.at(decoded_body["events"], 0)["is_ci"] == true
 
         # Verify second event includes handles
         assert Enum.at(decoded_body["events"], 1)["account_handle"] == account_handle
@@ -119,6 +122,7 @@ defmodule Cache.Xcode.EventsPipelineTest do
         assert Enum.at(decoded_body["events"], 1)["action"] == "download"
         assert Enum.at(decoded_body["events"], 1)["size"] == 2048
         assert Enum.at(decoded_body["events"], 1)["cas_id"] == "def456"
+        assert Enum.at(decoded_body["events"], 1)["is_ci"] == false
 
         headers = options[:headers]
         assert {"content-type", "application/json"} in headers
