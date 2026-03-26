@@ -31,7 +31,6 @@ defmodule Processor.MixProject do
       {:ex_aws, "~> 2.0"},
       {:ex_aws_s3, "~> 2.0"},
       {:ex_aws_sts, "~> 2.2"},
-      {:jason, "~> 1.4"},
       {:loki_logger_handler, "~> 0.2"},
       {:mimic, "~> 2.0", only: :test},
       {:opentelemetry, "~> 1.5"},

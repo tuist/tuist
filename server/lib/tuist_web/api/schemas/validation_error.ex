@@ -7,6 +7,8 @@ defmodule TuistWeb.API.Schemas.ValidationError do
 
   require OpenApiSpex
 
+  @derive {JSON.Encoder, only: [:message, :fields]}
+
   OpenApiSpex.schema(%{
     type: :object,
     properties: %{

@@ -93,7 +93,7 @@ defmodule Tuist.OIDC do
   defp peek_kid(token) do
     with [header_b64 | _] <- String.split(token, "."),
          {:ok, header_json} <- Base.url_decode64(header_b64, padding: false),
-         {:ok, header} <- Jason.decode(header_json) do
+         {:ok, header} <- JSON.decode(header_json) do
       {:ok, header["kid"]}
     else
       _ -> {:error, :invalid_token}

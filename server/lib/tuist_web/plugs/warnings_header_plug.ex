@@ -37,11 +37,11 @@ defmodule TuistWeb.WarningsHeaderPlug do
         conn
         |> put_resp_header(
           "x-tuist-cloud-warnings",
-          Base.encode64(Jason.encode!(warnings))
+          Base.encode64(JSON.encode!(warnings))
         )
         |> put_resp_header(
           "x-tuist-warnings",
-          Base.encode64(Jason.encode!(warnings))
+          Base.encode64(JSON.encode!(warnings))
         )
 
       true ->

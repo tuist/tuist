@@ -158,7 +158,7 @@ defmodule Tuist.Slack do
         {"Content-Type", "application/json"}
       ]
 
-      body = Jason.encode!(%{channel: channel, blocks: blocks, unfurl_links: false, unfurl_media: false})
+      body = JSON.encode!(%{channel: channel, blocks: blocks, unfurl_links: false, unfurl_media: false})
 
       response =
         @api_url
@@ -179,7 +179,7 @@ defmodule Tuist.Slack do
   end
 
   defp handle_response({:ok, %Req.Response{status: status, body: body}}) do
-    {:error, "Unexpected status code: #{status}. Body: #{Jason.encode!(body)}"}
+    {:error, "Unexpected status code: #{status}. Body: #{JSON.encode!(body)}"}
   end
 
   defp handle_response({:error, reason}) do

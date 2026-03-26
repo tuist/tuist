@@ -7,6 +7,8 @@ defmodule TuistWeb.API.Schemas.Error do
 
   require OpenApiSpex
 
+  @derive {JSON.Encoder, only: [:message]}
+
   OpenApiSpex.schema(%{
     type: :object,
     properties: %{

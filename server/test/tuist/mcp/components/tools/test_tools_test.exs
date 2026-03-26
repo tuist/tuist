@@ -467,7 +467,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert %{"content" => [%{"text" => json}]} =
                ListTestCaseRunAttachments.call(conn, %{"test_case_run_id" => "run-1"})
 
-      data = Jason.decode!(json)
+      data = JSON.decode!(json)
       assert data["test_case_run_id"] == "run-1"
       assert length(data["attachments"]) == 2
 

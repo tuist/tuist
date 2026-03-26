@@ -16,7 +16,7 @@ defmodule TuistWeb.Webhooks.RegistryControllerTest do
   end
 
   defp sign_request(body) do
-    json_body = Jason.encode!(body)
+    json_body = JSON.encode!(body)
 
     signature =
       :hmac
@@ -117,7 +117,7 @@ defmodule TuistWeb.Webhooks.RegistryControllerTest do
         ]
       }
 
-      json_body = Jason.encode!(params)
+      json_body = JSON.encode!(params)
 
       conn =
         conn

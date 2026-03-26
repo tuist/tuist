@@ -174,7 +174,7 @@ defmodule TuistWeb.MCPControllerTest do
   defp post_mcp(conn, body) do
     conn
     |> put_req_header("content-type", "application/json")
-    |> post("/mcp", Jason.encode!(body))
+    |> post("/mcp", JSON.encode!(body))
   end
 
   defp authenticated_mcp_conn(conn, token) do

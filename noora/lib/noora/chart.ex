@@ -281,7 +281,7 @@ defmodule Noora.Chart do
     <div id={@id} class="noora-chart" phx-hook="NooraChart" {@rest}>
       {# The actual chart is managed by ECharts, so we are ignoring any updates by LiveView. The chart should be updated by changing the component attributes. #}
       <div id={"#{@id}-chart"} data-part="chart" phx-update="ignore"></div>
-      <div data-part="data" hidden>{Jason.encode!(@option)}</div>
+      <div data-part="data" hidden>{JSON.encode!(@option)}</div>
     </div>
     """
   end

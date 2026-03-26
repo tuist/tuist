@@ -17,7 +17,7 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-config :phoenix, :json_library, Jason
+config :phoenix, :json_library, JSON
 
 config :tuist_common, finch_name: Processor.Finch
 

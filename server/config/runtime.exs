@@ -403,7 +403,7 @@ if Tuist.Environment.analytics_enabled?(secrets) do
     api_key: Tuist.Environment.posthog_api_key(secrets)
 
   config :posthog,
-    json_library: Jason,
+    json_library: JSON,
     enabled_capture: true,
     http_client: Tuist.PostHog.HTTPClient,
     http_client_opts: [

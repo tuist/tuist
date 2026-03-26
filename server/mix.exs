@@ -5,7 +5,7 @@ defmodule Tuist.MixProject do
     [
       app: :tuist,
       version: "0.1.0",
-      elixir: "~> 1.16",
+      elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       test_paths: ["test"],
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
@@ -53,7 +53,6 @@ defmodule Tuist.MixProject do
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0", override: true},
-      {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
       # Using fork with client disconnect detection during body read timeouts
       # PR: https://github.com/mtrudel/bandit/pull/564

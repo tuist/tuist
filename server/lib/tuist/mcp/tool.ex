@@ -107,7 +107,7 @@ defmodule Tuist.MCP.Tool do
   # --- Response helpers ---
 
   def json_response(data) do
-    EMCP.Tool.response([%{"type" => "text", "text" => Jason.encode!(data)}])
+    EMCP.Tool.response([%{"type" => "text", "text" => JSON.encode!(data)}])
   end
 
   @max_page_size 100

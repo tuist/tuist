@@ -60,7 +60,7 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
       # Then
       warning = got |> Plug.Conn.get_resp_header("x-tuist-cloud-warnings") |> List.first()
 
-      assert Jason.decode!(Base.decode64!(warning)) == [
+      assert JSON.decode!(Base.decode64!(warning)) == [
                "Your Tuist version 4.11.0 is deprecated. Please upgrade to version 4.118.1 for server-side features to continue working.",
                "warning"
              ]
@@ -83,7 +83,7 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
       # Then
       warning = got |> Plug.Conn.get_resp_header("x-tuist-cloud-warnings") |> List.first()
 
-      assert Jason.decode!(Base.decode64!(warning)) == [
+      assert JSON.decode!(Base.decode64!(warning)) == [
                "Your Tuist version 4.118.0 is deprecated. Please upgrade to version 4.118.1 for server-side features to continue working."
              ]
     end

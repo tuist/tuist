@@ -15,7 +15,7 @@ defmodule TuistWeb.Marketing.Components.AgentPrompt do
 
     assigns =
       assigns
-      |> assign(:response_steps_json, Jason.encode!(normalize_response_steps(assigns.response)))
+      |> assign(:response_steps_json, JSON.encode!(normalize_response_steps(assigns.response)))
       |> assign(:shell_prompt, shell_prompt)
 
     ~H"""

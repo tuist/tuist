@@ -39,7 +39,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
     |> conn(path, payload)
     |> put_req_header("content-type", "application/json")
     |> put_req_header(header_name, signature)
-    |> Map.update!(:body_params, fn _ -> Jason.decode!(payload) end)
+    |> Map.update!(:body_params, fn _ -> JSON.decode!(payload) end)
     |> assign(:raw_body, [payload])
   end
 
@@ -118,7 +118,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
         |> conn("/webhook", tampered_payload)
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-hub-signature-256", signature)
-        |> Map.update!(:body_params, fn _ -> Jason.decode!(tampered_payload) end)
+        |> Map.update!(:body_params, fn _ -> JSON.decode!(tampered_payload) end)
         |> assign(:raw_body, [tampered_payload])
 
       # When
@@ -278,7 +278,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
         :post
         |> conn("/webhooks/cache", payload)
         |> put_req_header("content-type", "application/json")
-        |> Map.update!(:body_params, fn _ -> Jason.decode!(payload) end)
+        |> Map.update!(:body_params, fn _ -> JSON.decode!(payload) end)
         |> assign(:raw_body, [payload])
 
       # When
@@ -312,7 +312,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
         |> conn("/webhooks/cache", tampered_payload)
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-cache-signature", signature)
-        |> Map.update!(:body_params, fn _ -> Jason.decode!(tampered_payload) end)
+        |> Map.update!(:body_params, fn _ -> JSON.decode!(tampered_payload) end)
         |> assign(:raw_body, [tampered_payload])
 
       # When

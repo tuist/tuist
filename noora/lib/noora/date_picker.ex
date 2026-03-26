@@ -120,7 +120,7 @@ defmodule Noora.DatePicker do
             period: encode_preset_period(Map.get(preset, :period))
           }
         end)
-        |> Jason.encode!()
+        |> JSON.encode!()
       end)
       |> assign_new(:trigger_label, fn ->
         selected_preset = assigns[:selected_preset]

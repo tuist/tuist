@@ -68,7 +68,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
 
     case structured_data do
       nil -> []
-      data -> Enum.map(data, &Jason.encode!/1)
+      data -> Enum.map(data, &JSON.encode!/1)
     end
   end
 

@@ -233,7 +233,7 @@ defmodule TuistWeb.API.RunsControllerTest do
           get(conn, "/api/projects/#{user.account.name}/#{non_existent_project_name}/runs")
         end
 
-      assert Jason.decode!(response_json_string) == %{
+      assert JSON.decode!(response_json_string) == %{
                "message" => "The project #{project_slug} was not found."
              }
     end
@@ -931,7 +931,7 @@ defmodule TuistWeb.API.RunsControllerTest do
           )
         end
 
-      assert Jason.decode!(response_json_string) == %{
+      assert JSON.decode!(response_json_string) == %{
                "message" => "The project #{project_slug} was not found."
              }
     end

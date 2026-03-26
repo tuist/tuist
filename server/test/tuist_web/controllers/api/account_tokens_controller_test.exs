@@ -114,7 +114,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
           })
         end
 
-      assert Jason.decode!(response_json_string) == %{
+      assert JSON.decode!(response_json_string) == %{
                "message" => "The account tuist was not found."
              }
     end

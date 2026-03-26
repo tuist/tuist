@@ -482,7 +482,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
     |> Enum.filter(&(&1.binary_cache_hash != nil))
     |> Enum.sort_by(& &1.name)
     |> Enum.map(&target_to_json_map/1)
-    |> Jason.encode!(pretty: true)
+    |> JSON.encode!()
   end
 
   defp target_to_json_map(target) do

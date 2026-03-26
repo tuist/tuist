@@ -126,8 +126,8 @@ config :money,
 
 config :peep, :bucket_calculator, Tuist.PromEx.Buckets
 
-# Use Jason for JSON parsing in Phoenix
-config :phoenix, :json_library, Jason
+# Use Elixir's built-in JSON support in Phoenix
+config :phoenix, :json_library, JSON
 
 # Using the default ETS storage leads to [lock contention](https://github.com/akoutmos/prom_ex/issues/248#issuecomment-2709045234)
 # and causes the CPU clogging with cascading effects (e.g. connections dropping).

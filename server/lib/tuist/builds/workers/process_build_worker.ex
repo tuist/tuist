@@ -80,7 +80,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         xcode_cache_upload_enabled: xcode_cache_upload_enabled
       }
 
-      json_body = Jason.encode!(payload)
+      json_body = JSON.encode!(payload)
 
       signature =
         :hmac

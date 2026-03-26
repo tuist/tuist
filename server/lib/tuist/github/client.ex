@@ -245,7 +245,7 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp handle_github_response({:ok, %Req.Response{status: status, body: body}}, _action, _attrs) do
-    {:error, "Unexpected status code: #{status}. Body: #{Jason.encode!(body)}"}
+    {:error, "Unexpected status code: #{status}. Body: #{JSON.encode!(body)}"}
   end
 
   defp handle_github_response({:error, reason}, _action, _attrs) do

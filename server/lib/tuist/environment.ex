@@ -362,7 +362,10 @@ defmodule Tuist.Environment do
         prices
 
       is_binary(prices_base64_json) ->
-        prices_base64_json |> Base.decode64!() |> Jason.decode!(keys: :atoms)
+        prices_base64_json
+        |> Base.decode64!()
+        |> JSON.decode!()
+        |> atomize_json_keys()
 
       true ->
         nil
@@ -375,6 +378,21 @@ defmodule Tuist.Environment do
       _ -> get([:minio, :console_port], secrets, default_value: 9098)
     end
   end
+
+  defp atomize_json_keys(value) when is_list(value) do
+    Enum.map(value, &atomize_json_keys/1)
+  end
+
+  defp atomize_json_keys(value) when is_map(value) do
+    Map.new(value, fn {key, nested_value} ->
+      {atomize_json_key(key), atomize_json_keys(nested_value)}
+    end)
+  end
+
+  defp atomize_json_keys(value), do: value
+
+  defp atomize_json_key(key) when is_binary(key), do: String.to_atom(key)
+  defp atomize_json_key(key), do: key
 
   def mautic_username(secrets \\ secrets()) do
     get([:mautic, :username], secrets)

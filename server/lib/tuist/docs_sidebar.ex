@@ -36,7 +36,7 @@ defmodule Tuist.Docs.Sidebar do
   translations =
     if File.exists?(en_path) do
       {:ok, en_content} = File.read(en_path)
-      {:ok, en_data} = Jason.decode(en_content)
+      {:ok, en_data} = JSON.decode(en_content)
       en_strings = extract_texts.(extract_texts, en_data, [])
 
       @strings_dir
@@ -46,7 +46,7 @@ defmodule Tuist.Docs.Sidebar do
       |> Map.new(fn path ->
         locale = Path.basename(path, ".json")
         {:ok, content} = File.read(path)
-        {:ok, data} = Jason.decode(content)
+        {:ok, data} = JSON.decode(content)
         locale_texts = extract_texts.(extract_texts, data, [])
 
         label_map =

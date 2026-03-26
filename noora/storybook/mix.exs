@@ -5,7 +5,7 @@ defmodule NooraStorybook.MixProject do
     [
       app: :noora_storybook,
       version: "0.1.0",
-      elixir: "~> 1.14",
+      elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -32,7 +32,6 @@ defmodule NooraStorybook.MixProject do
       {:phoenix_live_view, "~> 1.1.0"},
       {:floki, ">= 0.30.0", only: :test},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
-      {:jason, "~> 1.2"},
       {:phoenix_storybook, "== 0.9.3"},
       {:bandit, "~> 1.5"},
       {:tailwind, "~> 0.4", runtime: false},
@@ -52,5 +51,4 @@ defmodule NooraStorybook.MixProject do
       ]
     ]
   end
-
 end

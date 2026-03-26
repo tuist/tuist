@@ -74,7 +74,7 @@ defmodule Tuist.License do
       |> String.trim()
 
     with {:ok, decoded} <- Base.decode64(cert_content),
-         {:ok, payload} <- Jason.decode(decoded) do
+         {:ok, payload} <- JSON.decode(decoded) do
       case payload do
         %{"enc" => enc_data, "sig" => sig_data, "alg" => alg} ->
           verify_and_build_license(verify_key, enc_data, sig_data, alg)
@@ -89,8 +89,8 @@ defmodule Tuist.License do
       :error ->
         {:error, "Failed to decode base64 certificate"}
 
-      {:error, %Jason.DecodeError{} = error} ->
-        {:error, "Invalid certificate JSON: #{Exception.message(error)}"}
+      {:error, reason} ->
+        {:error, "Invalid certificate JSON: #{inspect(reason)}"}
     end
   end
 

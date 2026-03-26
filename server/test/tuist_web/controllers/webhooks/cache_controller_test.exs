@@ -21,7 +21,7 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
   end
 
   defp sign_request(body) do
-    json_body = Jason.encode!(body)
+    json_body = JSON.encode!(body)
 
     signature =
       :hmac
@@ -114,7 +114,7 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
         ]
       }
 
-      json_body = Jason.encode!(events_params)
+      json_body = JSON.encode!(events_params)
       invalid_signature = "invalid_signature"
 
       # When

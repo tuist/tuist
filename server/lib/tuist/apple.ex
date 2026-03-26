@@ -2,7 +2,7 @@ defmodule Tuist.Apple do
   @moduledoc false
   @devices "priv/apple.json"
            |> File.read!()
-           |> Jason.decode!()
+           |> JSON.decode!()
   def devices do
     @devices
   end

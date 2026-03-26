@@ -92,7 +92,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     } do
       expect(Req, :post, fn url, opts ->
         assert url == "http://localhost:4002/webhooks/process-build"
-        body = Jason.decode!(opts[:body])
+        body = JSON.decode!(opts[:body])
         assert body["build_id"] == build.id
         assert body["storage_key"] == @storage_key
         assert body["xcode_cache_upload_enabled"] == true
