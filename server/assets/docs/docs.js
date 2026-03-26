@@ -5,6 +5,7 @@ import topbar from "../app/js/vendor/topbar.js";
 import Noora from "noora";
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
+import DocsNavTabsHook from "./hooks/docs-nav-tabs-hook.js";
 
 import "./docs.css";
 
@@ -18,6 +19,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     ...Noora.Hooks,
     DocsContent: DocsContentHook,
     DocsInstallTabs: DocsInstallTabsHook,
+    DocsNavTabs: DocsNavTabsHook,
   },
 });
 
@@ -43,29 +45,9 @@ window.addEventListener("phx:page-loading-stop", () => {
   document.body.removeAttribute("data-sidebar-open");
   document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
 
-  syncNavTabs();
-
   const el = document.querySelector(SIDEBAR_SCROLL_SELECTOR);
   if (el) el.scrollTop = savedSidebarScroll;
 });
-
-function syncNavTabs() {
-  const path = window.location.pathname;
-  const TAB_PATTERNS = {
-    cli: "/docs/cli",
-    references: "/docs/references",
-    resources: "/docs/contributors",
-  };
-
-  for (const tab of document.querySelectorAll("#docs-nav-tabs .noora-button-group-item")) {
-    const name = tab.getAttribute("data-tab");
-    const pattern = TAB_PATTERNS[name];
-    const active = pattern ? path.includes(pattern) : !Object.values(TAB_PATTERNS).some((p) => path.includes(p));
-
-    if (active) tab.setAttribute("data-selected", "");
-    else tab.removeAttribute("data-selected");
-  }
-}
 
 liveSocket.connect();
 
