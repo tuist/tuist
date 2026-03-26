@@ -45,7 +45,7 @@ defmodule Tuist.Docs do
     case segments do
       [locale | rest] when locale != "en" ->
         en_slug = Path.join(["/en" | rest])
-        Map.get(@pages_by_slug, en_slug)
+        Map.get(@pages_by_slug, en_slug) || cli_page(en_slug)
 
       _ ->
         nil

@@ -81,7 +81,7 @@ defmodule Tuist.Docs.Sidebar do
   def tree_for_tab(:guides, locale), do: localize_tree(guides_tree(), locale)
   def tree_for_tab(:references, locale), do: localize_tree(references_tree(), locale)
   def tree_for_tab(:resources, locale), do: localize_tree(resources_tree(), locale)
-  def tree_for_tab(:cli, _locale), do: cli_tree()
+  def tree_for_tab(:cli, locale), do: localize_tree(cli_tree(), locale)
 
   defp localize_tree(tree, "en"), do: tree
 

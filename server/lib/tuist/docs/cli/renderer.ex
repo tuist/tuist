@@ -3,6 +3,7 @@ defmodule Tuist.Docs.CLI.Renderer do
   Renders CLI spec JSON into documentation pages and sidebar items.
   """
 
+  alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
   alias Tuist.Docs.Sidebar.{Group, Item}
 
@@ -95,8 +96,8 @@ defmodule Tuist.Docs.CLI.Renderer do
         extension: [header_ids: "", table: true],
         syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
       )
-      |> wrap_code_blocks()
-      |> add_heading_anchors()
+      |> HTML.wrap_code_blocks()
+      |> HTML.add_heading_anchors()
 
     headings = extract_headings_from_html(html)
 
@@ -207,61 +208,6 @@ defmodule Tuist.Docs.CLI.Renderer do
     |> Enum.map(fn [_, level, id, text] ->
       plain_text = Regex.replace(~r/<[^>]+>/, text, "") |> String.trim()
       %{level: String.to_integer(level), text: plain_text, id: id}
-    end)
-  end
-
-  @heading_anchor_regex ~r/(<h[2-4]>)(<a href="#[^"]*" aria-hidden="true" class="anchor" id="[^"]*"><\/a>)(.*?)(<\/h[2-4]>)/s
-
-  @heading_anchor_template """
-  <%= open_tag %><a class="heading-anchor" id="<%= id %>" href="<%= href %>">\
-  <span data-part="heading-text"><%= plain_text %></span>\
-  <span data-part="hash">#</span>\
-  </a><%= close_tag %>\
-  """
-
-  defp add_heading_anchors(html) do
-    Regex.replace(@heading_anchor_regex, html, fn _, open_tag, anchor, text, close_tag ->
-      href = ~r/href="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
-      id = ~r/id="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
-      plain_text = Regex.replace(~r/<a[^>]*>(.*?)<\/a>/s, text, "\\1")
-
-      EEx.eval_string(@heading_anchor_template,
-        open_tag: open_tag,
-        close_tag: close_tag,
-        href: href,
-        id: id,
-        plain_text: plain_text
-      )
-    end)
-  end
-
-  @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
-  @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
-  @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
-
-  @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
-
-  @code_block_template """
-  <div class="code-window">\
-  <div data-part="bar">\
-  <div data-part="language"><%= language %></div>\
-  <div data-part="copy"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></div>\
-  </div>\
-  <div data-part="code"><code><%= code %></code>\
-  </div>\
-  </div>\
-  """
-
-  defp wrap_code_blocks(html) do
-    Regex.replace(@code_block_regex, html, fn _, language, code ->
-      language = if language == "", do: "", else: language
-
-      EEx.eval_string(@code_block_template,
-        language: language,
-        code: code,
-        copy_icon: @copy_icon,
-        copy_check_icon: @copy_check_icon
-      )
     end)
   end
 end

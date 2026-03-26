@@ -1,6 +1,7 @@
 defmodule Tuist.Docs.Loader do
   @moduledoc false
 
+  alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
   alias Tuist.Docs.Paths
 
@@ -24,9 +25,7 @@ defmodule Tuist.Docs.Loader do
   @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)\s+\{#([\w-]+)\}\s*$/m
   @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
   @vitepress_container_regex ~r/^:::\s*(\w[\w-]*)([ \t]+[^\n]+)?\s*\n(.*?)^:::\s*$/ms
-  @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
   @github_alert_regex ~r/<div class="markdown-alert markdown-alert-(\w+)">\s*<p class="markdown-alert-title">([^<]*)<\/p>\s*(.*?)\s*<\/div>/s
-  @heading_anchor_regex ~r/(<h[2-4]>)(<a href="#[^"]*" aria-hidden="true" class="anchor" id="[^"]*"><\/a>)(.*?)(<\/h[2-4]>)/s
   @home_cards_regex ~r/<HomeCards>\s*(.*?)\s*<\/HomeCards>/s
   @home_card_icon_regex ~r/\s+icon="[^"]*"/
   @home_card_regex ~r/<HomeCard\s+([^>]*?)\/>/s
@@ -59,23 +58,6 @@ defmodule Tuist.Docs.Loader do
   </div>\
   """
 
-  @heading_anchor_template """
-  <%= open_tag %><a class="heading-anchor" id="<%= id %>" href="<%= href %>">\
-  <span data-part="heading-text"><%= plain_text %></span>\
-  <span data-part="hash">#</span>\
-  </a><%= close_tag %>\
-  """
-
-  @code_block_template """
-  <div class="code-window">\
-  <div data-part="bar">\
-  <div data-part="language"><%= language %></div>\
-  <div data-part="copy"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></div>\
-  </div>\
-  <div data-part="code"><code><%= code %></code>\
-  </div>\
-  </div>\
-  """
 
   @admonition_template """
   <div class="noora-alert tuist-admonition" data-type="secondary" data-status="<%= status %>" data-size="large">\
@@ -241,12 +223,12 @@ defmodule Tuist.Docs.Loader do
       ],
       syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
     )
-    |> wrap_code_blocks()
+    |> HTML.wrap_code_blocks()
     |> wrap_tables()
     |> convert_github_alerts()
     |> rewrite_image_paths()
     |> replace_heading_ids(custom_ids)
-    |> add_heading_anchors()
+    |> HTML.add_heading_anchors()
   end
 
   defp convert_github_alerts(html) do
@@ -263,38 +245,6 @@ defmodule Tuist.Docs.Loader do
     |> String.replace(~s(src="/logo.png"), ~s(src="/docs/images/logo.webp"))
   end
 
-  defp add_heading_anchors(html) do
-    Regex.replace(@heading_anchor_regex, html, fn _, open_tag, anchor, text, close_tag ->
-      href = ~r/href="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
-      id = ~r/id="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
-      plain_text = strip_links_from_html(text)
-
-      EEx.eval_string(@heading_anchor_template,
-        open_tag: open_tag,
-        close_tag: close_tag,
-        href: href,
-        id: id,
-        plain_text: plain_text
-      )
-    end)
-  end
-
-  defp strip_links_from_html(html) do
-    Regex.replace(~r/<a[^>]*>(.*?)<\/a>/s, html, "\\1")
-  end
-
-  defp wrap_code_blocks(html) do
-    Regex.replace(@code_block_regex, html, fn _, language, code ->
-      language = if language == "", do: "", else: language
-
-      EEx.eval_string(@code_block_template,
-        language: language,
-        code: code,
-        copy_icon: @copy_icon,
-        copy_check_icon: @copy_check_icon
-      )
-    end)
-  end
 
   defp convert_home_cards(markdown, locale) do
     Regex.replace(@home_cards_regex, markdown, fn _, content ->
