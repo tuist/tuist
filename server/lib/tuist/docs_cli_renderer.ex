@@ -204,8 +204,11 @@ defmodule Tuist.Docs.CLI.Renderer do
 
     arg_headings =
       Enum.map(arguments, fn arg ->
+        badges = render_badges(arg)
+        full_text = "#{arg.value_name}#{badges}"
+
         id =
-          arg.value_name
+          full_text
           |> String.downcase()
           |> String.replace(~r/[^\w\s-]/u, "")
           |> String.replace(~r/\s+/, "-")
