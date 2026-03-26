@@ -32,9 +32,7 @@
         var jsonThroughNoora: Bool = false
 
         func run() async throws {
-            let database = try CASAnalyticsDatabase()
-            try database.migrate()
-            try await InspectBuildCommandService(casAnalyticsDatabase: database)
+            try await InspectBuildCommandService(casAnalyticsDatabase: CASAnalyticsDatabase())
                 .run(
                     path: path,
                     derivedDataPath: derivedDataPath
