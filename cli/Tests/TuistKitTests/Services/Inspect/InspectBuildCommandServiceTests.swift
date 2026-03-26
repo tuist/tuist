@@ -964,6 +964,7 @@ struct InspectBuildCommandServiceTests {
 
         try await fileSystem.makeDirectory(at: mockedEnvironment.stateDirectory)
         let database = try CASAnalyticsDatabase.open()
+        try database.migrate()
         let entryCount = 200_000
         for i in 0 ..< entryCount {
             switch i % 3 {

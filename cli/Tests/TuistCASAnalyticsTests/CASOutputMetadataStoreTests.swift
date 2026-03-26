@@ -9,6 +9,7 @@ struct CASOutputMetadataStoreTests {
     func storeMetadata_and_retrieve() async throws {
         let mockEnvironment = try #require(Environment.mocked)
         let database = try CASAnalyticsDatabase.open()
+        try database.migrate()
         let subject = CASOutputMetadataStore(database: database)
 
         let metadata = CASOutputMetadata(size: 1024, duration: 5.333, compressedSize: 512)
@@ -24,6 +25,7 @@ struct CASOutputMetadataStoreTests {
     func metadata_returns_nil_when_not_stored() async throws {
         let mockEnvironment = try #require(Environment.mocked)
         let database = try CASAnalyticsDatabase.open()
+        try database.migrate()
         let subject = CASOutputMetadataStore(database: database)
 
         let result = try await subject.metadata(for: "nonexistent")
@@ -34,6 +36,7 @@ struct CASOutputMetadataStoreTests {
     func storeMetadata_overwrites_existing() async throws {
         let mockEnvironment = try #require(Environment.mocked)
         let database = try CASAnalyticsDatabase.open()
+        try database.migrate()
         let subject = CASOutputMetadataStore(database: database)
 
         try await subject.storeMetadata(CASOutputMetadata(size: 100, duration: 1.0, compressedSize: 50), for: "key")
@@ -47,6 +50,7 @@ struct CASOutputMetadataStoreTests {
     func storeMetadata_sanitizes_cas_id() async throws {
         let mockEnvironment = try #require(Environment.mocked)
         let database = try CASAnalyticsDatabase.open()
+        try database.migrate()
         let subject = CASOutputMetadataStore(database: database)
 
         try await subject.storeMetadata(CASOutputMetadata(size: 1, duration: 1.0, compressedSize: 1), for: "test/cas:id~special")

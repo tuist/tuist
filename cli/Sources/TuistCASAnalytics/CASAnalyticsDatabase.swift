@@ -15,13 +15,18 @@ public protocol CASAnalyticsDatabasing: Sendable {
     func storeKeyValueMetadata(key: String, operationType: String, duration: TimeInterval) throws
     func keyValueMetadata(for key: String, operationType: String) throws -> KeyValueMetadata?
 
+    func migrate() throws
     func removeOldEntries(olderThan: Date) throws
     func databasePath() -> AbsolutePath
 }
 
 public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Sendable {
     // swiftlint:disable:next force_try
-    @TaskLocal public static var current: CASAnalyticsDatabasing = try! open()
+    @TaskLocal public static var current: CASAnalyticsDatabasing = {
+        let db = try! open()
+        try! db.migrate()
+        return db
+    }()
 
     public static func open() throws -> CASAnalyticsDatabase {
         let dbPath = Environment.current.stateDirectory.appending(component: "cas_analytics.db")
@@ -29,7 +34,10 @@ public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Send
         db.busyTimeout = 5
         try db.execute("PRAGMA journal_mode = WAL")
         try db.execute("PRAGMA synchronous = NORMAL")
+        return CASAnalyticsDatabase(db: db, path: dbPath)
+    }
 
+    public func migrate() throws {
         try db.run(CASOutputsSchema.table.create(ifNotExists: true) { t in
             t.column(CASOutputsSchema.key, primaryKey: true)
             t.column(CASOutputsSchema.size)
@@ -51,8 +59,6 @@ public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Send
             t.column(KeyValueMetadataSchema.createdAt, defaultValue: Date())
             t.primaryKey(KeyValueMetadataSchema.key, KeyValueMetadataSchema.operationType)
         })
-
-        return CASAnalyticsDatabase(db: db, path: dbPath)
     }
 
     private let db: Connection
