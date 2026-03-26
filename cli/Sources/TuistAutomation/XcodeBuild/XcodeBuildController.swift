@@ -21,25 +21,21 @@ public struct XcodeBuildController: XcodeBuildControlling {
 
     private let formatter: Formatting
     private let simulatorController: SimulatorController
-    private let system: Systeming
     private let commandRunner: CommandRunning
 
     public init() {
         self.init(
             formatter: Formatter(),
-            commandRunner: CommandRunner(),
-            system: System.shared
+            commandRunner: CommandRunner()
         )
     }
 
     init(
         formatter: Formatting,
-        commandRunner: CommandRunning,
-        system: Systeming
+        commandRunner: CommandRunning
     ) {
         self.formatter = formatter
         self.simulatorController = SimulatorController()
-        self.system = system
         self.commandRunner = commandRunner
     }
 
@@ -319,39 +315,20 @@ public struct XcodeBuildController: XcodeBuildControlling {
 
     public func run(arguments: [String]) async throws {
         let logger = Logger.current
-        
-        func format(_ bytes: [UInt8]) -> String {
-            let string = String(decoding: bytes, as: Unicode.UTF8.self)
-            if Environment.current.isVerbose == true {
-                return string
-            } else {
-                return self.format(string)
-            }
-        }
-        
-        func log(_ bytes: [UInt8], isError: Bool = false) {
-            let lines = format(bytes).split(separator: "\n")
-            for line in lines where !line.isEmpty {
-                if isError {
-                    logger.error("\(line)")
-                } else {
-                    logger.info("\(line)")
-                }
-            }
-        }
-        
         let command = ["/usr/bin/xcrun", "xcodebuild"] + arguments
-        
+
         logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
-        
-        try system.run(command,
-                       verbose: false,
-                       environment: Environment.current.variables,
-                       redirection: .stream(stdout: { bytes in
-            log(bytes)
-        }, stderr: { bytes in
-            log(bytes, isError: true)
-        }))
+
+        if Environment.current.isVerbose == true {
+            try await commandRunner.run(arguments: command).pipedStream().awaitCompletion()
+        } else {
+            let output = try await commandRunner.run(arguments: command).concatenatedString()
+            let formatted = format(output)
+            let lines = formatted.split(separator: "\n")
+            for line in lines where !line.isEmpty {
+                logger.info("\(line)")
+            }
+        }
     }
     
     public func version() async throws -> Version? {
@@ -375,16 +352,16 @@ public struct XcodeBuildController: XcodeBuildControlling {
         // share any schemes, so automatically bail out if it looks
         // like that's happening.
         return try await Task.retrying(maxRetryCount: 5) {
-            let systemTask = Task {
-                return try await self.system.runAndCollectOutput(command).standardOutput
+            let buildSettingsTask = Task {
+                return try await self.commandRunner.run(arguments: command).concatenatedString()
             }
-            
+
             let timeoutTask = Task {
                 try await Task.sleep(nanoseconds: 20_000_000)
-                systemTask.cancel()
+                buildSettingsTask.cancel()
             }
-            
-            let result = try await systemTask.value
+
+            let result = try await buildSettingsTask.value
             timeoutTask.cancel()
             return result
         }.value

@@ -14,24 +14,24 @@ public protocol SwiftPackageManagerControlling {
     ///   - path: Directory where the `Package.swift` is defined.
     ///   - arguments: Additional arguments for `swift package resolve`.
     ///   - printOutput: When true it prints the Swift Package Manager's output.
-    func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws
+    func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws
 
     /// Updates package dependencies.
     /// - Parameters:
     ///   - path: Directory where the `Package.swift` is defined.
     ///   - arguments: Additional arguments for `swift package update`.
     ///   - printOutput: When true it prints the Swift Package Manager's output.
-    func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws
+    func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws
 
     /// Gets the tools version of the package at the given path
     /// - Parameter path: Directory where the `Package.swift` is defined.
     /// - Returns: Version of tools.
-    func getToolsVersion(at path: AbsolutePath) throws -> Version
+    func getToolsVersion(at path: AbsolutePath) async throws -> Version
 
     /// Sets tools version of package to the given value.
     /// - Parameter path: Directory where the `Package.swift` is defined.
-    /// - Parameter version: Version of tools. When `nil` then the environment’s version will be set.
-    func setToolsVersion(at path: AbsolutePath, to version: Version) throws
+    /// - Parameter version: Version of tools. When `nil` then the environment's version will be set.
+    func setToolsVersion(at path: AbsolutePath, to version: Version) async throws
 
     /// Builds a release binary containing release binaries compatible with arm64 and x86.
     /// - Parameters:
@@ -64,64 +64,66 @@ public protocol SwiftPackageManagerControlling {
 }
 
 public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
-    private let system: Systeming
     private let fileSystem: FileSysteming
     private let commandRunner: () -> CommandRunning
 
     public init() {
         self.init(
-            system: System.shared,
             fileSystem: FileSystem(),
             commandRunner: { CommandRunner(logger: Logger.current) }
         )
     }
 
     init(
-        system: Systeming,
         fileSystem: FileSysteming,
         commandRunner: @escaping () -> CommandRunning
     ) {
-        self.system = system
         self.fileSystem = fileSystem
         self.commandRunner = commandRunner
     }
 
-    public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws {
+    public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
         let command = buildSwiftPackageCommand(
             packagePath: path,
             extraArguments: arguments + ["resolve"]
         )
 
-        printOutput ?
-            try system.runAndPrint(command) :
-            try system.run(command)
+        if printOutput {
+            try await commandRunner().run(arguments: command).pipedStream().awaitCompletion()
+        } else {
+            try await commandRunner().run(arguments: command).awaitCompletion()
+        }
     }
 
-    public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws {
+    public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
         let command = buildSwiftPackageCommand(
             packagePath: path,
             extraArguments: arguments + ["update"]
         )
 
-        printOutput ?
-            try system.runAndPrint(command) :
-            try system.run(command)
+        if printOutput {
+            try await commandRunner().run(arguments: command).pipedStream().awaitCompletion()
+        } else {
+            try await commandRunner().run(arguments: command).awaitCompletion()
+        }
     }
 
-    public func setToolsVersion(at path: AbsolutePath, to version: Version) throws {
+    public func setToolsVersion(at path: AbsolutePath, to version: Version) async throws {
         let extraArguments = ["tools-version", "--set", "\(version.major).\(version.minor)"]
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
-        try system.run(command)
+        try await commandRunner().run(arguments: command).awaitCompletion()
     }
 
-    public func getToolsVersion(at path: AbsolutePath) throws -> Version {
+    public func getToolsVersion(at path: AbsolutePath) async throws -> Version {
         let extraArguments = ["tools-version"]
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
-        let rawVersion = try system.capture(command).trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawVersion = try await commandRunner().run(arguments: command)
+            .concatenatedString()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return try Version(versionString: rawVersion)
     }
 
@@ -143,26 +145,22 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
 
         let arm64Target = "arm64-apple-macosx"
         let x64Target = "x86_64-apple-macosx"
-        try system.run(
-            buildCommand + [
-                arm64Target,
-            ]
-        )
-        try system.run(
-            buildCommand + [
-                x64Target,
-            ]
-        )
+        try await commandRunner().run(
+            arguments: buildCommand + [arm64Target]
+        ).awaitCompletion()
+        try await commandRunner().run(
+            arguments: buildCommand + [x64Target]
+        ).awaitCompletion()
 
         if try await !fileSystem.exists(outputPath) {
             try await fileSystem.makeDirectory(at: outputPath)
         }
 
-        try system.run([
+        try await commandRunner().run(arguments: [
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
             buildPath.appending(components: arm64Target, "release", product).pathString,
             buildPath.appending(components: x64Target, "release", product).pathString,
-        ])
+        ]).awaitCompletion()
     }
 
     public func packageRegistryLogin(

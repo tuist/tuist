@@ -47,7 +47,7 @@ protocol BuildPhaseGenerating {
         pbxTarget: PBXTarget,
         pbxproj: PBXProj,
         sourceRootPath: AbsolutePath
-    ) throws
+    ) async throws
 }
 
 // swiftlint:disable:next type_body_length
@@ -208,7 +208,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         pbxTarget: PBXTarget,
         pbxproj: PBXProj,
         sourceRootPath: AbsolutePath
-    ) throws {
+    ) async throws {
         for script in scripts {
             let buildPhase = try PBXShellScriptBuildPhase(
                 files: [],
@@ -224,7 +224,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
                 inputFileListPaths: script.inputFileListPaths,
                 outputFileListPaths: script.outputFileListPaths,
                 shellPath: script.shellPath,
-                shellScript: script.shellScript(sourceRootPath: sourceRootPath),
+                shellScript: await script.shellScript(sourceRootPath: sourceRootPath),
                 runOnlyForDeploymentPostprocessing: script.runForInstallBuildsOnly,
                 showEnvVarsInLog: script.showEnvVarsInLog,
                 dependencyFile: script.dependencyFile?.relative(to: sourceRootPath).pathString

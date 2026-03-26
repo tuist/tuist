@@ -365,7 +365,7 @@ struct ShareCommandService {
 
         let metadata = try await apkMetadataService.parseMetadata(at: apkPath)
 
-        let gitInfo = resolveGitInfo(at: path)
+        let gitInfo = await resolveGitInfo(at: path)
 
         let preview = try await Noora.current.progressBarStep(
             message: "Uploading \(metadata.displayName)",
@@ -387,8 +387,8 @@ struct ShareCommandService {
         outputResult(preview, displayName: metadata.displayName, json: json)
     }
 
-    private func resolveGitInfo(at path: AbsolutePath) -> GitInfo {
-        (try? gitController.gitInfo(workingDirectory: path)) ?? GitInfo(
+    private func resolveGitInfo(at path: AbsolutePath) async -> GitInfo {
+        (try? await gitController.gitInfo(workingDirectory: path)) ?? GitInfo(
             ref: nil,
             branch: nil,
             sha: nil,
@@ -553,7 +553,7 @@ struct ShareCommandService {
             serverURL: URL,
             track: String?
         ) async throws -> Components.Schemas.Preview {
-            let gitInfo = resolveGitInfo(at: path)
+            let gitInfo = await resolveGitInfo(at: path)
 
             return try await Noora.current.progressBarStep(
                 message: "Uploading \(displayName)",

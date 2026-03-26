@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import TuistCore
@@ -25,7 +26,7 @@ struct TargetScriptLinter: TargetScriptLinting {
     func lint(_ script: TargetScript) async throws -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintEmbeddedScriptNotEmpty(script))
-        issues.append(contentsOf: lintToolExistence(script))
+        issues.append(contentsOf: await lintToolExistence(script))
         try await issues.append(contentsOf: lintPathExistence(script))
         return issues
     }
@@ -44,11 +45,13 @@ struct TargetScriptLinter: TargetScriptLinting {
     ///
     /// - Parameter action: Action to be linted.
     /// - Returns: Found linting issues.
-    private func lintToolExistence(_ script: TargetScript) -> [LintingIssue] {
+    private func lintToolExistence(_ script: TargetScript) async -> [LintingIssue] {
         guard let tool = script.tool
         else { return [] }
         do {
-            _ = try System.shared.which(tool)
+            _ = try await CommandRunner()
+                .run(arguments: ["/usr/bin/env", "which", tool])
+                .concatenatedString()
             return []
         } catch {
             return [LintingIssue(

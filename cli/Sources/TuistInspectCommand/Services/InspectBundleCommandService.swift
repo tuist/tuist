@@ -76,7 +76,7 @@ public struct InspectBundleCommandService {
             throw InspectBundleCommandServiceError.missingFullHandle
         }
 
-        let gitInfo = try gitController.gitInfo(workingDirectory: path)
+        let gitInfo = try await gitController.gitInfo(workingDirectory: path)
         let gitRef = gitInfo.ref
         let gitBranch = gitInfo.branch
         let gitCommitSHA = gitInfo.sha

@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import TuistCore
@@ -25,7 +26,7 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
             Logger.current.debug("Side effect: \(sideEffect)")
             switch sideEffect {
             case let .command(commandDescriptor):
-                try perform(command: commandDescriptor)
+                try await perform(command: commandDescriptor)
             case let .file(fileDescriptor):
                 try await process(file: fileDescriptor)
             case let .directory(directoryDescriptor):
@@ -63,8 +64,8 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         }
     }
 
-    private func perform(command: CommandDescriptor) throws {
-        try System.shared.run(command.command)
+    private func perform(command: CommandDescriptor) async throws {
+        try await CommandRunner().run(arguments: command.command).awaitCompletion()
     }
 }
 

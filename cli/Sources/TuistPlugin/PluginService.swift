@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Path
@@ -258,8 +259,8 @@ public struct PluginService: PluginServicing {
 
         Logger.current.notice("Cloning plugin from \(url) @ \(gitId)", metadata: .subsection)
         Logger.current.notice("\(pluginRepositoryDirectory.pathString)", metadata: .subsection)
-        try gitController.clone(url: url, to: pluginRepositoryDirectory)
-        try gitController.checkout(id: gitId, in: pluginRepositoryDirectory)
+        try await gitController.clone(url: url, to: pluginRepositoryDirectory)
+        try await gitController.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
 
     private func fetchGitPluginRelease(
@@ -317,7 +318,9 @@ public struct PluginService: PluginServicing {
                 try await fileSystem.contentsOfDirectory(pluginReleaseDirectory)
                     .filter { $0.basename.hasPrefix("tuist-") }
                     .forEach {
-                        try System.shared.chmod(.executable, path: $0, options: [.onlyFiles])
+                        try await CommandRunner().run(
+                            arguments: ["/bin/chmod", "+x", $0.pathString]
+                        ).awaitCompletion()
                     }
             } catch {
                 thrownError = error

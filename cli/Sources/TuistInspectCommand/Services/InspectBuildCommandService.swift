@@ -202,7 +202,7 @@
                     filePath: archivePath
                 )
 
-                let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
+                let gitInfo = try await gitController.gitInfo(workingDirectory: projectPath)
                 let ciInfo = ciController.ciInfo()
                 let customMetadata = readCustomMetadata()
                 return try await createBuildService.createBuild(

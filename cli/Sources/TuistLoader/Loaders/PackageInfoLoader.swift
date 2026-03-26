@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -16,58 +17,64 @@ public protocol PackageInfoLoading {
 }
 
 public struct PackageInfoLoader: PackageInfoLoading {
-    private let system: Systeming
+    private let commandRunner: CommandRunning
     private let fileSystem: FileSysteming
 
     public init(
-        system: Systeming = System.shared,
+        commandRunner: CommandRunning = CommandRunner(),
         fileSystem: FileSysteming = FileSystem()
     ) {
-        self.system = system
+        self.commandRunner = commandRunner
         self.fileSystem = fileSystem
     }
 
-    public func resolve(at path: AbsolutePath, printOutput: Bool) throws {
+    public func resolve(at path: AbsolutePath, printOutput: Bool) async throws {
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["resolve"])
 
-        printOutput ?
-            try system.runAndPrint(command) :
-            try system.run(command)
+        if printOutput {
+            try await commandRunner.run(arguments: command).pipedStream().awaitCompletion()
+        } else {
+            try await commandRunner.run(arguments: command).awaitCompletion()
+        }
     }
 
-    public func update(at path: AbsolutePath, printOutput: Bool) throws {
+    public func update(at path: AbsolutePath, printOutput: Bool) async throws {
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["update"])
 
-        printOutput ?
-            try system.runAndPrint(command) :
-            try system.run(command)
+        if printOutput {
+            try await commandRunner.run(arguments: command).pipedStream().awaitCompletion()
+        } else {
+            try await commandRunner.run(arguments: command).awaitCompletion()
+        }
     }
 
-    public func setToolsVersion(at path: AbsolutePath, to version: TSCUtility.Version) throws {
+    public func setToolsVersion(at path: AbsolutePath, to version: TSCUtility.Version) async throws {
         let extraArguments = ["tools-version", "--set", "\(version.major).\(version.minor)"]
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
-        try system.run(command)
+        try await commandRunner.run(arguments: command).awaitCompletion()
     }
 
-    public func getToolsVersion(at path: AbsolutePath) throws -> TSCUtility.Version {
+    public func getToolsVersion(at path: AbsolutePath) async throws -> TSCUtility.Version {
         let extraArguments = ["tools-version"]
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
-        let rawVersion = try system.capture(command).trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawVersion = try await commandRunner.run(arguments: command)
+            .concatenatedString()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return try Version(versionString: rawVersion)
     }
 
-    public func loadPackageInfo(at path: AbsolutePath, disableSandbox: Bool) throws -> PackageInfo {
+    public func loadPackageInfo(at path: AbsolutePath, disableSandbox: Bool) async throws -> PackageInfo {
         var extraArguments = ["dump-package"]
         if disableSandbox {
             extraArguments.insert("--disable-sandbox", at: 0)
         }
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
-        let json = try system.capture(command)
+        let json = try await commandRunner.run(arguments: command).concatenatedString()
 
         let data = Data(json.utf8)
         let decoder = JSONDecoder()
@@ -93,26 +100,22 @@ public struct PackageInfoLoader: PackageInfoLoading {
 
         let arm64Target = "arm64-apple-macosx"
         let x64Target = "x86_64-apple-macosx"
-        try system.run(
-            buildCommand + [
-                arm64Target,
-            ]
-        )
-        try system.run(
-            buildCommand + [
-                x64Target,
-            ]
-        )
+        try await commandRunner.run(
+            arguments: buildCommand + [arm64Target]
+        ).awaitCompletion()
+        try await commandRunner.run(
+            arguments: buildCommand + [x64Target]
+        ).awaitCompletion()
 
         if try await !fileSystem.exists(outputPath) {
             try await fileSystem.makeDirectory(at: outputPath)
         }
 
-        try system.run([
+        try await commandRunner.run(arguments: [
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
             buildPath.appending(components: arm64Target, "release", product).pathString,
             buildPath.appending(components: x64Target, "release", product).pathString,
-        ])
+        ]).awaitCompletion()
     }
 
     // MARK: - Helpers

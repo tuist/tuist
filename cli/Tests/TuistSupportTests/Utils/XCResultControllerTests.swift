@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -11,7 +12,7 @@ import TuistTesting
 
 struct XCResultControllerTests {
     private var subject: XCResultToolController!
-    private let system = MockSystem()
+    private let commandRunner = MockCommandRunning()
 
     init() throws {
         let mockXcodeController = try #require(XcodeController.mocked)
@@ -19,22 +20,21 @@ struct XCResultControllerTests {
             .selectedVersion()
             .willReturn(Version(16, 0, 0))
 
-        subject = XCResultToolController(system: system)
+        subject = XCResultToolController(commandRunner: commandRunner)
     }
 
     @Test(.withMockedXcodeController, .inTemporaryDirectory) func test_resultBundleObject() async throws {
         // Given
         let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
-        system.succeedCommand(
-            [
-                "/usr/bin/xcrun", "xcresulttool", "get",
-                "--path", resultBundlePath.pathString,
-                "--format", "json",
-                "--legacy",
-            ],
-            output: "{some: 'json'}"
-        )
+        // TODO: Update mock stubs for CommandRunner
+        // system.succeedCommand(["/usr/bin/xcrun", "xcresulttool", "get", "--path", resultBundlePath.pathString, "--format", "json", "--legacy"], output: "{some: 'json'}")
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("{some: 'json'}")
+                continuation.finish()
+            })
 
         // When
         let got = try await subject.resultBundleObject(resultBundlePath)
@@ -53,14 +53,14 @@ struct XCResultControllerTests {
             .willReturn(Version(15, 3, 0))
         let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
-        system.succeedCommand(
-            [
-                "/usr/bin/xcrun", "xcresulttool", "get",
-                "--path", resultBundlePath.pathString,
-                "--format", "json",
-            ],
-            output: "{some: 'json'}"
-        )
+        // TODO: Update mock stubs for CommandRunner
+        // system.succeedCommand(["/usr/bin/xcrun", "xcresulttool", "get", "--path", resultBundlePath.pathString, "--format", "json"], output: "{some: 'json'}")
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("{some: 'json'}")
+                continuation.finish()
+            })
 
         // When
         let got = try await subject.resultBundleObject(resultBundlePath)
@@ -73,16 +73,14 @@ struct XCResultControllerTests {
         // Given
         let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
-        system.succeedCommand(
-            [
-                "/usr/bin/xcrun", "xcresulttool", "get",
-                "--path", resultBundlePath.pathString,
-                "--id", "some-id",
-                "--format", "json",
-                "--legacy",
-            ],
-            output: "{some: 'json'}"
-        )
+        // TODO: Update mock stubs for CommandRunner
+        // system.succeedCommand(["/usr/bin/xcrun", "xcresulttool", "get", "--path", resultBundlePath.pathString, "--id", "some-id", "--format", "json", "--legacy"], output: "{some: 'json'}")
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("{some: 'json'}")
+                continuation.finish()
+            })
 
         // When
         let got = try await subject.resultBundleObject(
@@ -104,15 +102,14 @@ struct XCResultControllerTests {
             .willReturn(Version(15, 3, 0))
         let resultBundlePath = try #require(FileSystem.temporaryTestDirectory)
 
-        system.succeedCommand(
-            [
-                "/usr/bin/xcrun", "xcresulttool", "get",
-                "--path", resultBundlePath.pathString,
-                "--id", "some-id",
-                "--format", "json",
-            ],
-            output: "{some: 'json'}"
-        )
+        // TODO: Update mock stubs for CommandRunner
+        // system.succeedCommand(["/usr/bin/xcrun", "xcresulttool", "get", "--path", resultBundlePath.pathString, "--id", "some-id", "--format", "json"], output: "{some: 'json'}")
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("{some: 'json'}")
+                continuation.finish()
+            })
 
         // When
         let got = try await subject.resultBundleObject(

@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Path
@@ -180,7 +181,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                 )
 
                 let timer = clock.startTimer()
-                try System.shared.runAndPrint(command, verbose: false, environment: Environment.current.manifestLoadingVariables)
+                try await CommandRunner().run(arguments: command).pipedStream().awaitCompletion()
                 let duration = timer.stop()
                 let time = String(format: "%.3f", duration)
                 Logger.current.debug("Built \(name) in (\(time)s)")

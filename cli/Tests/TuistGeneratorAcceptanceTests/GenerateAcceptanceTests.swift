@@ -56,16 +56,18 @@ struct GeneratorAcceptanceTests {
         // When
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-        try System.shared.run([
-            "/usr/bin/xcodebuild",
-            "-scheme",
-            "App",
-            "-workspace",
-            workspacePath.pathString,
-            "-destination",
-            "generic/platform=iOS Simulator",
-            "build",
-        ])
+        try await CommandRunner().run(
+            arguments: [
+                "/usr/bin/xcodebuild",
+                "-scheme",
+                "App",
+                "-workspace",
+                workspacePath.pathString,
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "build",
+            ]
+        ).awaitCompletion()
     }
 
     @Test(
@@ -1060,7 +1062,9 @@ struct GenerateAcceptanceTestmacOSAppWithExtensions {
         if try await !fileSystem.exists(
             AbsolutePath(validating: "/Library/Developer/SDKs/WorkflowExtensionSDK.sdk")
         ) {
-            try System.shared.run(["sudo", "installer", "-package", sdkPkgPath.pathString, "-target", "/"])
+            try await CommandRunner().run(
+                arguments: ["sudo", "installer", "-package", sdkPkgPath.pathString, "-target", "/"]
+            ).awaitCompletion()
         }
 
         try await run(GenerateCommand.self)
@@ -1830,8 +1834,8 @@ private func XCTAssertSchemeContainsBuildSettings(
 ) async throws {
     let fixturePath = try fixtureDirectory(sourceLocation: sourceLocation)
     let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixturePath, sourceLocation: sourceLocation)
-    let buildSettings = try await System.shared.runAndCollectOutput(
-        [
+    let buildSettings = try await CommandRunner().run(
+        arguments: [
             "/usr/bin/xcodebuild",
             "-scheme",
             scheme,
@@ -1841,10 +1845,10 @@ private func XCTAssertSchemeContainsBuildSettings(
             configuration,
             "-showBuildSettings",
         ]
-    )
+    ).concatenatedString()
 
     #expect(
-        buildSettings.standardOutput.contains("\(buildSettingKey) = \"\(buildSettingValue)\""),
+        buildSettings.contains("\(buildSettingKey) = \"\(buildSettingValue)\""),
         "Couldn't find \(buildSettingKey) = \(buildSettingValue) for scheme \(scheme) and configuration \(configuration)",
         sourceLocation: sourceLocation
     )
@@ -1873,14 +1877,14 @@ private func XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
         return
     }
 
-    let fileInfo = try await System.shared.runAndCollectOutput(
-        [
+    let fileInfo = try await CommandRunner().run(
+        arguments: [
             "file",
             appClipPath.appending(component: appClip).pathString,
         ]
-    )
+    ).concatenatedString()
     #expect(
-        fileInfo.standardOutput.contains(architecture),
+        fileInfo.contains(architecture),
         sourceLocation: sourceLocation
     )
 }
@@ -1982,17 +1986,17 @@ private func XCTAssertProductWithDestinationContainsInfoPlistKey(
         resource: "Info.plist",
         sourceLocation: sourceLocation
     )
-    let output = try await System.shared.runAndCollectOutput(
-        [
+    let output = try await CommandRunner().run(
+        arguments: [
             "/usr/libexec/PlistBuddy",
             "-c",
             "print :\(key)",
             infoPlistPath.pathString,
         ]
-    )
+    ).concatenatedString()
 
     #expect(
-        output.standardOutput.isEmpty == false,
+        output.isEmpty == false,
         "Key \(key) not found in the \(product) Info.plist",
         sourceLocation: sourceLocation
     )

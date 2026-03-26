@@ -598,8 +598,8 @@ struct RunCommandService {
                 errorMessage: nil,
                 showSpinner: true
             ) { updateProgress in
-                let device = try simulatorController.booted(device: simulatorDevice)
-                try simulatorController.installApp(at: appBundle.path, device: device)
+                let device = try await simulatorController.booted(device: simulatorDevice)
+                try await simulatorController.installApp(at: appBundle.path, device: device)
                 updateProgress("Launching \(appBundle.infoPlist.name) on \(simulatorDevice.name)")
                 try await simulatorController.launchApp(
                     bundleId: appBundle.infoPlist.bundleId,

@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Path
@@ -103,7 +104,7 @@ public struct TargetRunner: TargetRunning {
 
         switch (platform, target.target.product) {
         case (.macOS, .commandLineTool):
-            try runExecutable(runnablePath, arguments: arguments)
+            try await runExecutable(runnablePath, arguments: arguments)
         case let (platform, .app):
             try await runApp(
                 target: target,
@@ -133,10 +134,12 @@ public struct TargetRunner: TargetRunning {
         }
     }
 
-    private func runExecutable(_ executablePath: AbsolutePath, arguments: [String]) throws {
+    private func runExecutable(_ executablePath: AbsolutePath, arguments: [String]) async throws {
         Logger.current.notice("Running executable \(executablePath.basename)", metadata: .section)
         Logger.current.debug("Forwarding arguments: \(arguments.joined(separator: ", "))")
-        try System.shared.runAndPrint([executablePath.pathString] + arguments)
+        try await CommandRunner().run(arguments: [executablePath.pathString] + arguments)
+            .pipedStream()
+            .awaitCompletion()
     }
 
     private func runApp(
@@ -168,7 +171,7 @@ public struct TargetRunner: TargetRunning {
             Logger.current
                 .debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
             Logger.current.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
-            try simulatorController.installApp(at: appPath, device: simulator.device)
+            try await simulatorController.installApp(at: appPath, device: simulator.device)
             try await simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
         }
     }

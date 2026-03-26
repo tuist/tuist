@@ -21,14 +21,12 @@ final class MockFormatter: Formatting {
 struct XcodeBuildControllerTests {
     var subject: XcodeBuildController!
     var formatter = MockFormatter()
-    var system = MockSystem()
     var commandRunner = MockCommandRunning()
 
     init() {
         subject = XcodeBuildController(
             formatter: formatter,
-            commandRunner: commandRunner,
-            system: system
+            commandRunner: commandRunner
         )
     }
 
@@ -46,7 +44,13 @@ struct XcodeBuildControllerTests {
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
 
         // When
         try await subject.build(
@@ -74,7 +78,13 @@ struct XcodeBuildControllerTests {
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
 
         // When
         try await subject.build(
@@ -103,7 +113,13 @@ struct XcodeBuildControllerTests {
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=this_is_a_udid"])
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
 
         // When
         try await subject.build(
@@ -132,7 +148,13 @@ struct XcodeBuildControllerTests {
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=this_is_a_udid,arch=x86_64"])
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
 
         // When
         try await subject.build(
@@ -168,7 +190,13 @@ struct XcodeBuildControllerTests {
         ]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=device-id"])
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
 
         // When
         try await subject.test(
@@ -210,7 +238,13 @@ struct XcodeBuildControllerTests {
         ]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=device-id,arch=x86_64"])
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
 
         // When
         try await subject.test(
@@ -254,7 +288,13 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
 
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
         environment.stubbedArchitecture = .x8664
 
         // When
@@ -298,7 +338,13 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=device-id"])
 
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
 
         // When
         try await subject.test(
@@ -344,7 +390,13 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
         command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
 
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
         mockEnvironment.stubbedArchitecture = .x8664
 
         // When
@@ -389,7 +441,13 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
         command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
 
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
         mockEnvironment.stubbedArchitecture = .x8664
 
         // When
@@ -429,7 +487,13 @@ struct XcodeBuildControllerTests {
 
         command.append(contentsOf: target.xcodebuildArguments)
 
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
 
         // When
         try await subject.test(
@@ -468,7 +532,13 @@ struct XcodeBuildControllerTests {
 
         command.append(contentsOf: target.xcodebuildArguments)
 
-        system.succeedCommand(command, output: "output")
+        // TODO: Update mock stubs for CommandRunner
+        given(commandRunner)
+            .run(arguments: .any, environment: .any, workingDirectory: .any)
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield("output")
+                continuation.finish()
+            })
 
         // When
         try await subject.test(

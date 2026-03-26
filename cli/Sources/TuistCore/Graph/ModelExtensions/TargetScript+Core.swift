@@ -1,15 +1,10 @@
+import Command
 import Path
 import TuistSupport
 import XcodeGraph
 
 extension TargetScript {
-    /// Returns the shell script that should be used in the target build phase.
-    ///
-    /// - Parameters:
-    ///   - sourceRootPath: Path to the directory where the Xcode project is generated.
-    /// - Returns: Shell script that should be used in the target build phase.
-    /// - Throws: An error if the tool absolute path cannot be obtained.
-    public func shellScript(sourceRootPath: AbsolutePath) throws -> String {
+    public func shellScript(sourceRootPath: AbsolutePath) async throws -> String {
         switch script {
         case let .embedded(text):
             return text.spm_chomp().spm_chuzzle() ?? ""
@@ -18,7 +13,12 @@ extension TargetScript {
             return "\"$SRCROOT\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
 
         case let .tool(tool, args):
-            return try "\(System.shared.which(tool).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))"
+            let toolPath = try await CommandRunner()
+                .run(arguments: ["/usr/bin/env", "which", tool])
+                .concatenatedString()
+                .spm_chomp()
+                .spm_chuzzle()!
+            return "\(toolPath) \(args.joined(separator: " "))"
         }
     }
 }

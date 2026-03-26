@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Path
@@ -178,13 +179,13 @@ private func expectProductContainsFrameworkWithArchitecture(
         return
     }
 
-    let fileInfo = try await System.shared.runAndCollectOutput(
-        [
+    let fileInfo = try await CommandRunner().run(
+        arguments: [
             "file",
             frameworkPath.appending(component: framework).pathString,
         ]
-    )
-    #expect(fileInfo.standardOutput.contains(architecture), sourceLocation: sourceLocation)
+    ).concatenatedString()
+    #expect(fileInfo.contains(architecture), sourceLocation: sourceLocation)
 }
 
 private func expectProductDoesNotContainHeaders(

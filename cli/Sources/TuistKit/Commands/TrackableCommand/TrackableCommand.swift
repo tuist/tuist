@@ -146,7 +146,7 @@ public class TrackableCommand {
             testRunId: runMetadataStorage.testRunId,
             cacheEndpoint: runMetadataStorage.cacheEndpoint
         )
-        let commandEvent = try commandEventFactory.make(
+        let commandEvent = try await commandEventFactory.make(
             from: info,
             path: path
         )

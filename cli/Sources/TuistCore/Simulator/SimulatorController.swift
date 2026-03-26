@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import Mockable
 import Path
@@ -57,7 +58,7 @@ public protocol SimulatorControlling {
     /// - Parameters:
     ///   - path: The path to the app to install in the simulator.
     ///   - device: The simulator device to install the app on.
-    func installApp(at path: AbsolutePath, device: SimulatorDevice) throws
+    func installApp(at path: AbsolutePath, device: SimulatorDevice) async throws
 
     /// Opens the simulator application & launches app on the given simulator.
     /// - Parameters:
@@ -88,12 +89,12 @@ public protocol SimulatorControlling {
 
     /// Boots a simulator, if necessary
     /// - Returns: A simulator with the updated `state`
-    func booted(device: SimulatorDevice) throws -> SimulatorDevice
+    func booted(device: SimulatorDevice) async throws -> SimulatorDevice
 
     /// Boots a simulator, if necessary
     /// - Parameters:
     ///     - forced: If `true`, booting of the simulator is forced
-    func booted(device: SimulatorDevice, forced: Bool) throws -> SimulatorDevice
+    func booted(device: SimulatorDevice, forced: Bool) async throws -> SimulatorDevice
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -125,21 +126,22 @@ public enum SimulatorControllerError: Equatable, FatalError {
 public struct SimulatorController: SimulatorControlling {
     private let jsonDecoder = JSONDecoder()
     private let userInputReader: UserInputReading
-
-    private let system: Systeming
+    private let commandRunner: CommandRunning
 
     public init(
         userInputReader: UserInputReading = UserInputReader(),
-        system: Systeming = System.shared
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.userInputReader = userInputReader
-        self.system = system
+        self.commandRunner = commandRunner
     }
 
     /// Returns the list of simulator devices that are available in the system.
     public func devices() async throws -> [SimulatorDevice] {
-        let output = try await system.runAndCollectOutput(["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
-        let data = output.standardOutput.data(using: .utf8)!
+        let output = try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "list", "devices", "--json"]
+        ).concatenatedString()
+        let data = output.data(using: .utf8)!
         let json = try JSONSerialization.jsonObject(with: data, options: [])
         guard let dictionary = json as? [String: Any],
               let devicesJSON = dictionary["devices"] as? [String: [[String: Any]]]
@@ -160,8 +162,10 @@ public struct SimulatorController: SimulatorControlling {
 
     /// Returns the list of simulator runtimes that are available in the system.
     func runtimes() async throws -> [SimulatorRuntime] {
-        let output = try await system.runAndCollectOutput(["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
-        let data = output.standardOutput.data(using: .utf8)!
+        let output = try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"]
+        ).concatenatedString()
+        let data = output.data(using: .utf8)!
         let json = try JSONSerialization.jsonObject(with: data, options: [])
         guard let dictionary = json as? [String: Any],
               let runtimesJSON = dictionary["runtimes"] as? [Any]
@@ -307,32 +311,36 @@ public struct SimulatorController: SimulatorControlling {
         )
     }
 
-    public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {
+    public func installApp(at path: AbsolutePath, device: SimulatorDevice) async throws {
         Logger.current.debug("Installing app at \(path) on simulator device with id \(device.udid)")
-        let device = try device.booted(using: system)
-        try system.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
+        let device = try await device.booted(using: commandRunner)
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString]
+        ).awaitCompletion()
     }
 
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) async throws {
         Logger.current
             .debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
-        let device = try device.booted(using: system)
+        let device = try await device.booted(using: commandRunner)
         let simulator = try await XcodeController.current.selected().path.appending(
             components: "Contents",
             "Developer",
             "Applications",
             "Simulator.app"
         )
-        try system.run(["/usr/bin/open", "-a", simulator.pathString])
-        try system.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
+        try await commandRunner.run(arguments: ["/usr/bin/open", "-a", simulator.pathString]).awaitCompletion()
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments
+        ).awaitCompletion()
     }
 
-    public func booted(device: SimulatorDevice) throws -> SimulatorDevice {
-        try device.booted(using: system)
+    public func booted(device: SimulatorDevice) async throws -> SimulatorDevice {
+        try await device.booted(using: commandRunner)
     }
 
-    public func booted(device: SimulatorDevice, forced: Bool) throws -> SimulatorDevice {
-        try device.booted(using: system, forced: forced)
+    public func booted(device: SimulatorDevice, forced: Bool) async throws -> SimulatorDevice {
+        try await device.booted(using: commandRunner, forced: forced)
     }
 
     /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
@@ -381,10 +389,10 @@ public struct SimulatorController: SimulatorControlling {
 extension SimulatorDevice {
     /// Attempts to boot the simulator.
     /// - returns: The `SimulatorDevice` with updated `isShutdown` field.
-    fileprivate func booted(using system: Systeming, forced: Bool = false) throws -> Self {
+    fileprivate func booted(using commandRunner: CommandRunning, forced: Bool = false) async throws -> Self {
         guard isShutdown || forced else { return self }
         do {
-            try system.run(["/usr/bin/xcrun", "simctl", "boot", udid])
+            try await commandRunner.run(arguments: ["/usr/bin/xcrun", "simctl", "boot", udid]).awaitCompletion()
         } catch {
             if forced, let error = error as? FatalError,
                error.description.contains("Unable to boot device in current state: Booted")

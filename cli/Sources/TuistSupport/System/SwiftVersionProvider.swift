@@ -1,53 +1,45 @@
+import Command
 import Foundation
 import Mockable
 
 @Mockable
 public protocol SwiftVersionProviding {
-    /// Returns the Swift version.
-    ///
-    /// - Returns: Swift version.
-    /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
-    func swiftVersion() throws -> String
-
-    /// Returns the Swift version, including the build number.
-    ///
-    /// - Returns: Swift version including the build number.
-    /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
-    func swiftlangVersion() throws -> String
+    func swiftVersion() async throws -> String
+    func swiftlangVersion() async throws -> String
 }
 
 public struct SwiftVersionProvider: SwiftVersionProviding {
-    @TaskLocal public static var current: SwiftVersionProviding = SwiftVersionProvider(System())
+    @TaskLocal public static var current: SwiftVersionProviding = SwiftVersionProvider()
 
-    // Regex expression used to get the Swift version (for example, 5.9) from the output of the 'swift --version' command.
     // swiftlint:disable force_try
     private static let swiftVersionRegex = try! NSRegularExpression(
         pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: []
     )
 
-    // Regex expression used to get the Swiftlang version (for example, 5.7.0.127.4) from the output of the 'swift --version'
-    // command.
-    // swiftlint:disable force_try
     private static let swiftlangVersionRegex = try! NSRegularExpression(
         pattern: "swiftlang-(.+)\\sclang", options: []
     )
 
     // swiftlint:enable force_try
 
-    public func swiftVersion() throws -> String {
-        try cachedSwiftVersion.value
+    private let commandRunner: CommandRunning
+
+    public init(commandRunner: CommandRunning = CommandRunner()) {
+        self.commandRunner = commandRunner
     }
 
-    public func swiftlangVersion() throws -> String {
-        try cachedSwiftlangVersion.value
+    public func swiftVersion() async throws -> String {
+        try await cachedSwiftVersion.value()
     }
 
-    let cachedSwiftVersion: ThrowableCaching<String>
-    let cachedSwiftlangVersion: ThrowableCaching<String>
+    public func swiftlangVersion() async throws -> String {
+        try await cachedSwiftlangVersion.value()
+    }
 
-    init(_ system: Systeming) {
-        cachedSwiftVersion = ThrowableCaching<String> {
-            let output = try system.capture(["/usr/bin/xcrun", "swift", "--version"])
+    private var cachedSwiftVersion: AsyncThrowableCaching<String> {
+        AsyncThrowableCaching<String> { [commandRunner] in
+            let output = try await commandRunner.run(arguments: ["/usr/bin/xcrun", "swift", "--version"])
+                .concatenatedString()
             let range = NSRange(location: 0, length: output.count)
             guard let match = SwiftVersionProvider.swiftVersionRegex.firstMatch(
                 in: output, options: [], range: range
@@ -57,9 +49,12 @@ public struct SwiftVersionProvider: SwiftVersionProviding {
             }
             return NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
         }
+    }
 
-        cachedSwiftlangVersion = ThrowableCaching<String> {
-            let output = try system.capture(["/usr/bin/xcrun", "swift", "--version"])
+    private var cachedSwiftlangVersion: AsyncThrowableCaching<String> {
+        AsyncThrowableCaching<String> { [commandRunner] in
+            let output = try await commandRunner.run(arguments: ["/usr/bin/xcrun", "swift", "--version"])
+                .concatenatedString()
             let range = NSRange(location: 0, length: output.count)
             guard let match = SwiftVersionProvider.swiftlangVersionRegex.firstMatch(
                 in: output, options: [], range: range
@@ -69,5 +64,12 @@ public struct SwiftVersionProvider: SwiftVersionProviding {
             }
             return NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
         }
+    }
+}
+
+private struct AsyncThrowableCaching<T: Sendable>: Sendable {
+    let closure: @Sendable () async throws -> T
+    func value() async throws -> T {
+        try await closure()
     }
 }

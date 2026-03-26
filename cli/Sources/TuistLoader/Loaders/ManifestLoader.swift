@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -334,11 +335,9 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            let string = try System.shared.capture(
-                arguments,
-                verbose: false,
-                environment: Environment.current.manifestLoadingVariables
-            )
+            let string = try await CommandRunner()
+                .run(arguments: arguments)
+                .concatenatedString()
 
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
                   let endTokenRange = string.range(of: ManifestLoader.endManifestToken)
@@ -446,7 +445,7 @@ public class ManifestLoader: ManifestLoading {
                     }
                     return try await XcodeController.current.selected().path
                 }()
-                let packageVersion = try swiftPackageManagerController.getToolsVersion(
+                let packageVersion = try await swiftPackageManagerController.getToolsVersion(
                     at: path.parentDirectory
                 )
                 let manifestPath =

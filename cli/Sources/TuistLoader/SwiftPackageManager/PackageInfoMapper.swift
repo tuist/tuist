@@ -561,7 +561,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        let version = try Version(versionString: try SwiftVersionProvider.current.swiftVersion(), usesLenientParsing: true)
+        let version = try Version(versionString: try await SwiftVersionProvider.current.swiftVersion(), usesLenientParsing: true)
         let minDeploymentTargets = ProjectDescription.DeploymentTargets.oldestVersions(for: version)
 
         let deploymentTargets = try ProjectDescription.DeploymentTargets.from(
