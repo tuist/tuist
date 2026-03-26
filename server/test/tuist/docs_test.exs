@@ -20,8 +20,13 @@ defmodule Tuist.DocsTest do
       assert selective_testing_page.slug == "/en/guides/features/selective-testing"
     end
 
-    test "excludes CLI and manifest reference generated docs for now" do
-      assert is_nil(Docs.get_page("/en/cli/build"))
+    test "loads static CLI documentation pages" do
+      page = Docs.get_page("/en/cli/debugging")
+      assert page.slug == "/en/cli/debugging"
+      assert page.title == "Debugging"
+    end
+
+    test "excludes manifest reference generated docs" do
       assert is_nil(Docs.get_page("/en/references/project-description/structs/project"))
     end
 
