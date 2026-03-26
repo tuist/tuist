@@ -5,7 +5,7 @@ import topbar from "../app/js/vendor/topbar.js";
 import Noora from "noora";
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
-import { initDocsSearch } from "./hooks/docs-search-hook.js";
+import "./components/docs-search.js";
 
 import "./docs.css";
 
@@ -47,12 +47,6 @@ window.addEventListener("phx:navigate", () => {
 });
 
 window.liveSocket = liveSocket;
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initDocsSearch);
-} else {
-  initDocsSearch();
-}
 
 window.addEventListener("phx:docs:copy-to-clipboard", ({ detail }) => {
   navigator.clipboard.writeText(detail.text);
