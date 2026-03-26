@@ -6,116 +6,13 @@
     import Path
     import XCTest
 
-    @testable import TuistSupport
-
-    /// This mock file handler is used to override the current path to a temporary directory.
-    /// The temporary directory is lazily created if either the test case or subject consume the API.
-    public final class MockFileHandler: FileHandler {
-        let temporaryDirectory: () throws -> (AbsolutePath)
-
-        init(temporaryDirectory: @escaping () throws -> (AbsolutePath)) {
-            self.temporaryDirectory = temporaryDirectory
-            super.init()
-        }
-
-        public var homeDirectoryStub: AbsolutePath?
-        public var cacheDirectoryStub: AbsolutePath?
-
-        // swiftlint:disable:next force_try
-        override public var homeDirectory: AbsolutePath { homeDirectoryStub ?? (try! temporaryDirectory()) }
-
-        // swiftlint:disable:next force_try
-        override public var currentPath: AbsolutePath { try! temporaryDirectory() }
-
-        public var stubContentsOfDirectory: ((AbsolutePath) throws -> [AbsolutePath])?
-        override public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
-            guard let stubContentsOfDirectory else {
-                return try super.contentsOfDirectory(path)
-            }
-            return try stubContentsOfDirectory(path)
-        }
-
-        public var stubFilesAndDirectoriesContained: ((AbsolutePath) -> [AbsolutePath]?)?
-        override public func filesAndDirectoriesContained(in path: AbsolutePath) throws -> [AbsolutePath]? {
-            guard let stubFilesAndDirectoriesContained else {
-                return try super.filesAndDirectoriesContained(in: path)
-            }
-            return stubFilesAndDirectoriesContained(path)
-        }
-
-        public var stubReadFile: ((AbsolutePath) throws -> Data)?
-        override public func readFile(_ path: AbsolutePath) throws -> Data {
-            guard let stubReadFile else {
-                return try super.readFile(path)
-            }
-            return try stubReadFile(path)
-        }
-
-        public var stubWrite: ((String, AbsolutePath, Bool) throws -> Void)?
-        override public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
-            guard let stubWrite else {
-                return try super.write(content, path: path, atomically: atomically)
-            }
-            return try stubWrite(content, path, atomically)
-        }
-
-        public var stubIsFolder: ((AbsolutePath) -> Bool)?
-        override public func isFolder(_ path: AbsolutePath) -> Bool {
-            guard let stubIsFolder else {
-                return super.isFolder(path)
-            }
-            return stubIsFolder(path)
-        }
-
-        override public func inTemporaryDirectory<Result>(
-            removeOnCompletion _: Bool,
-            _ closure: (AbsolutePath) throws -> Result
-        ) throws -> Result {
-            try closure(temporaryDirectory())
-        }
-
-        override public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
-            try closure(temporaryDirectory())
-        }
-
-        override public func inTemporaryDirectory(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Void) throws {
-            try closure(temporaryDirectory())
-        }
-
-        override public func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result {
-            try closure(temporaryDirectory())
-        }
-
-        public var stubFiles: ((AbsolutePath, ((URL) -> Bool)?, Set<String>?, Set<String>?) -> Set<AbsolutePath>)?
-        override public func files(
-            in path: AbsolutePath,
-            filter: ((URL) -> Bool)?,
-            nameFilter: Set<String>?,
-            extensionFilter: Set<String>?
-        ) -> Set<AbsolutePath> {
-            guard let stubFiles else {
-                return super.files(
-                    in: path,
-                    filter: filter,
-                    nameFilter: nameFilter,
-                    extensionFilter: extensionFilter
-                )
-            }
-            return stubFiles(path, filter, nameFilter, extensionFilter)
-        }
-    }
+    import TuistSupport
 
     open class TuistTestCase: XCTestCase {
         fileprivate var temporaryDirectory: TemporaryDirectory!
 
-        public var fileHandler: MockFileHandler!
-
         override open func setUp() {
             super.setUp()
-
-            // FileHandler
-            fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
-            FileHandler._shared.mutate { $0 = fileHandler }
         }
 
         override open func tearDown() {

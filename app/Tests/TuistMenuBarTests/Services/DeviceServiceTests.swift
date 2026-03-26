@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Mockable
 import TuistAndroid
@@ -391,7 +392,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .willReturn(unarchivedPath)
 
         let appPath = unarchivedPath.appending(component: "App.app")
-        try fileHandler.touch(appPath)
+        try await FileSystem().touch(appPath)
 
         given(appBundleLoader)
             .load(.any)
@@ -477,7 +478,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .willReturn(unarchivedPath)
 
         let appPath = unarchivedPath.appending(component: "iphoneos-App.app")
-        try fileHandler.touch(appPath)
+        try await FileSystem().touch(appPath)
 
         given(appBundleLoader)
             .load(.value(appPath))
@@ -671,7 +672,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .unzip()
             .willReturn(unarchivedPath)
 
-        try fileHandler.touch(unarchivedPath.appending(component: "App.app"))
+        try await FileSystem().touch(unarchivedPath.appending(component: "App.app"))
 
         given(appBundleLoader)
             .load(.any)
@@ -814,7 +815,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .willReturn(unarchivedPath)
 
         let apkPath = unarchivedPath.appending(component: "app.apk")
-        try fileHandler.touch(apkPath)
+        try await FileSystem().touch(apkPath)
 
         given(adbController)
             .installApp(at: .any, device: .any)

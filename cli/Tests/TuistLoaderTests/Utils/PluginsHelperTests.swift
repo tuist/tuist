@@ -47,7 +47,7 @@ final class PluginsHelperTests: TuistUnitTestCase {
         // Given
         let pluginPath = try temporaryPath()
         let templatePath = pluginPath.appending(component: "Strings.stencil")
-        try fileHandler.touch(templatePath)
+        try await fileSystem.touch(templatePath)
 
         // When
         let got = try await subject.templatePath(

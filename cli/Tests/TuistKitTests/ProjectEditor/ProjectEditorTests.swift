@@ -82,9 +82,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
         let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
-        try FileHandler.shared.createFolder(helpersDirectory)
+        try await fileSystem.makeDirectory(at: helpersDirectory)
         let helpers = ["A.swift", "B.swift", "Documentation.docc"].map { helpersDirectory.appending(component: $0) }
-        try helpers.forEach { try FileHandler.shared.touch($0) }
+        for helper in helpers { try await fileSystem.touch(helper) }
         let manifests = [
             ManifestFilesLocator.ProjectManifest(
                 manifest: .project,
@@ -94,14 +94,13 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = try AbsolutePath(validating: Environment.current.arguments.first!)
         let configPath = directory.appending(components: Constants.tuistManifestFileName)
         let packageManifestPath = directory.appending(components: "Tuist", "Package.swift")
-        try FileHandler.shared.createFolder(directory.appending(component: "a folder"))
-        try FileHandler.shared.write(
+        try await fileSystem.makeDirectory(at: directory.appending(component: "a folder"))
+        try await fileSystem.writeText(
             """
             a folder
             B.swift
             """,
-            path: directory.appending(component: ".tuistignore"),
-            atomically: true
+            at: directory.appending(component: ".tuistignore")
         )
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
@@ -151,7 +150,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
         let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
-        try FileHandler.shared.createFolder(helpersDirectory)
+        try await fileSystem.makeDirectory(at: helpersDirectory)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         given(manifestFilesLocator)
@@ -297,10 +296,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Local plugin
         let pluginDirectory = directory.appending(component: "LocalPlugin")
         let pluginHelpersDirectory = pluginDirectory.appending(component: "ProjectDescriptionHelpers")
-        try FileHandler.shared.createFolder(pluginDirectory)
-        try FileHandler.shared.createFolder(pluginHelpersDirectory)
+        try await fileSystem.makeDirectory(at: pluginDirectory)
+        try await fileSystem.makeDirectory(at: pluginHelpersDirectory)
         let pluginManifestPath = pluginDirectory.appending(component: "Plugin.swift")
-        try FileHandler.shared.touch(pluginManifestPath)
+        try await fileSystem.touch(pluginManifestPath)
 
         let tuistPath = try AbsolutePath(validating: Environment.current.arguments.first!)
 

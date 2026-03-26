@@ -367,7 +367,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
         given(contentHasher)
             .hash(path: .value(sourceRootPath.appending(try RelativePath(validating: "relative/not-existing.txt"))))
-            .willThrow(FileHandlerError.fileNotFound(try AbsolutePath(validating: "/")))
+            .willThrow(ContentHashingError.fileHashingFailed(try AbsolutePath(validating: "/")))
 
         let targetScript = TargetScript(
             name: "TestScript",

@@ -89,7 +89,7 @@ struct CacheRemoteStorageTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath = temporaryDirectory.appending(component: "target.macro")
-        try FileHandler.shared.touch(macroPath)
+        try await fileSystem.touch(macroPath)
         let zipPath = try await FileArchiver(paths: [macroPath]).zip(name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
@@ -122,7 +122,7 @@ struct CacheRemoteStorageTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let frameworkPath = temporaryDirectory.appending(component: "target.framework")
-        try FileHandler.shared.createFolder(frameworkPath)
+        try await fileSystem.makeDirectory(at: frameworkPath)
         let zipPath = try await FileArchiver(paths: [frameworkPath]).zip(name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
@@ -292,7 +292,7 @@ struct CacheRemoteStorageTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let bundlePath = temporaryDirectory.appending(component: "target.bundle")
-        try FileHandler.shared.createFolder(bundlePath)
+        try await fileSystem.makeDirectory(at: bundlePath)
         let zipPath = try await FileArchiver(paths: [bundlePath]).zip(name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
@@ -325,7 +325,7 @@ struct CacheRemoteStorageTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcframeworkPath = temporaryDirectory.appending(component: "target.xcframework")
-        try FileHandler.shared.createFolder(xcframeworkPath)
+        try await fileSystem.makeDirectory(at: xcframeworkPath)
         let zipPath = try await FileArchiver(paths: [xcframeworkPath]).zip(name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
@@ -645,7 +645,7 @@ struct CacheRemoteStorageTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath = temporaryDirectory.appending(component: "macro.macro")
-        try FileHandler.shared.touch(macroPath)
+        try await fileSystem.touch(macroPath)
         given(multipartUploadStartCacheService).uploadCache(
             serverURL: .value(Constants.URLs.production),
             projectId: .value(fullHandle),
@@ -823,8 +823,8 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath1 = temporaryDirectory.appending(component: "macro1.macro")
         let macroPath2 = temporaryDirectory.appending(component: "macro2.macro")
-        try FileHandler.shared.touch(macroPath1)
-        try FileHandler.shared.touch(macroPath2)
+        try await fileSystem.touch(macroPath1)
+        try await fileSystem.touch(macroPath2)
 
         let items = [
             CacheStorableItem(name: "target1", hash: "hash1"): [macroPath1],
@@ -882,8 +882,8 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath1 = temporaryDirectory.appending(component: "macro1.macro")
         let macroPath2 = temporaryDirectory.appending(component: "macro2.macro")
-        try FileHandler.shared.touch(macroPath1)
-        try FileHandler.shared.touch(macroPath2)
+        try await fileSystem.touch(macroPath1)
+        try await fileSystem.touch(macroPath2)
 
         let items = [
             CacheStorableItem(name: "target1", hash: "hash1"): [macroPath1],

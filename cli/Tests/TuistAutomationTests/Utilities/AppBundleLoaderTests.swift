@@ -147,7 +147,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         // Given
         let appBundlePath = try temporaryPath()
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
-        try fileHandler.write("""
+        try await fileSystem.writeText("""
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -173,7 +173,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
             <string>18.2</string>
         </dict>
         </plist>
-        """, path: infoPlistPath, atomically: true)
+        """, at: infoPlistPath)
 
         // When
         let appBundle = try await subject.load(appBundlePath)
@@ -206,7 +206,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         // Given
         let appBundlePath = try temporaryPath()
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
-        try fileHandler.write("""
+        try await fileSystem.writeText("""
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -239,7 +239,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
             <string>18.2</string>
         </dict>
         </plist>
-        """, path: infoPlistPath, atomically: true)
+        """, at: infoPlistPath)
 
         // When
         let appBundle = try await subject.load(appBundlePath)
@@ -274,7 +274,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         let contentsPath = appBundlePath.appending(component: "Contents")
         try await fileSystem.makeDirectory(at: contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
-        try fileHandler.write("""
+        try await fileSystem.writeText("""
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -297,7 +297,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
             <string>14.0</string>
         </dict>
         </plist>
-        """, path: infoPlistPath, atomically: true)
+        """, at: infoPlistPath)
 
         // When
         let appBundle = try await subject.load(appBundlePath)
@@ -336,7 +336,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
         // Given
         let appBundlePath = try temporaryPath()
         let infoPlistPath = appBundlePath.appending(component: "Info.plist")
-        try fileHandler.write("{}", path: infoPlistPath, atomically: true)
+        try await fileSystem.writeText("{}", at: infoPlistPath)
 
         // When / Then
         await XCTAssertThrowsSpecific(

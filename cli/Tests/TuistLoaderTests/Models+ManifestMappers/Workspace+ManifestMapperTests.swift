@@ -39,7 +39,7 @@ final class WorkspaceManifestMapperTests: TuistUnitTestCase {
             .willReturn(workspacePath)
 
         try await fileSystem.touch(workspacePath.appending(component: "Project.swift"))
-        try fileHandler.createFolder(workspacePath.appending(components: ".build", "checkouts"))
+        try await fileSystem.makeDirectory(at: workspacePath.appending(components: ".build", "checkouts"))
 
         // When
         let got = try await XcodeGraph.Workspace.from(

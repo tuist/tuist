@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -113,7 +114,8 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
 
         // Then
         for expectedFile in expectedFiles {
-            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
+            let text = try await fileSystem.readTextFile(at: expectedFile.0)
+            XCTAssertEqual(text, expectedFile.1)
         }
     }
 
@@ -179,8 +181,8 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
             ),
         ]
         let template = Template.test(items: items)
-        try FileHandler.shared.write(aContent, path: sourcePath.appending(component: "testFile"), atomically: true)
-        try FileHandler.shared.write(bContent, path: sourcePath.appending(component: "bTestFile"), atomically: true)
+        try await fileSystem.writeText(aContent, at: sourcePath.appending(component: "testFile"))
+        try await fileSystem.writeText(bContent, at: sourcePath.appending(component: "bTestFile"))
         let expectedFiles: [(AbsolutePath, String)] = [
             (destinationPath.appending(components: "a", "file"), aContent),
             (destinationPath.appending(components: "b", name, "file"), bContent),
@@ -195,7 +197,8 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
 
         // Then
         for expectedFile in expectedFiles {
-            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
+            let text = try await fileSystem.readTextFile(at: expectedFile.0)
+            XCTAssertEqual(text, expectedFile.1)
         }
     }
 
@@ -204,10 +207,9 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         let sourcePath = try temporaryPath()
         let destinationPath = try temporaryPath()
         let expectedContents = "attribute name content"
-        try FileHandler.shared.write(
+        try await fileSystem.writeText(
             "{{ name }} content",
-            path: sourcePath.appending(component: "a.stencil"),
-            atomically: true
+            at: sourcePath.appending(component: "a.stencil")
         )
         let template = Template.test(items: [Template.Item(
             path: try RelativePath(validating: "a"),
@@ -222,10 +224,8 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(destinationPath.appending(component: "a")),
-            expectedContents
-        )
+        let renderedText = try await fileSystem.readTextFile(at: destinationPath.appending(component: "a"))
+        XCTAssertEqual(renderedText, expectedContents)
     }
 
     func test_only_stencil_files_rendered() async throws {
@@ -234,15 +234,13 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         let destinationPath = try temporaryPath()
         let expectedRenderedContents = "attribute name content"
         let expectedUnrenderedContents = "{{ name }} content"
-        try FileHandler.shared.write(
+        try await fileSystem.writeText(
             "{{ name }} content",
-            path: sourcePath.appending(component: "a.stencil"),
-            atomically: true
+            at: sourcePath.appending(component: "a.stencil")
         )
-        try FileHandler.shared.write(
+        try await fileSystem.writeText(
             "{{ name }} content",
-            path: sourcePath.appending(component: "a.swift"),
-            atomically: true
+            at: sourcePath.appending(component: "a.swift")
         )
         let template = Template.test(items: [
             Template.Item(
@@ -263,24 +261,19 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(destinationPath.appending(component: "rendered")),
-            expectedRenderedContents
-        )
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(destinationPath.appending(component: "unrendered")),
-            expectedUnrenderedContents
-        )
+        let renderedContent = try await fileSystem.readTextFile(at: destinationPath.appending(component: "rendered"))
+        XCTAssertEqual(renderedContent, expectedRenderedContents)
+        let unrenderedContent = try await fileSystem.readTextFile(at: destinationPath.appending(component: "unrendered"))
+        XCTAssertEqual(unrenderedContent, expectedUnrenderedContents)
     }
 
     func test_empty_stencil_files_are_skipped() async throws {
         // Given
         let sourcePath = try temporaryPath()
         let destinationPath = try temporaryPath()
-        try FileHandler.shared.write(
+        try await fileSystem.writeText(
             "   \n   ",
-            path: sourcePath.appending(component: "b.stencil"),
-            atomically: true
+            at: sourcePath.appending(component: "b.stencil")
         )
         let template = Template.test(items: [
             Template.Item(
@@ -304,15 +297,14 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
     func test_copy_directory() async throws {
         // Given
         let sourcePath = try temporaryPath().appending(components: "folder")
-        try FileHandler.shared.createFolder(sourcePath)
+        try await fileSystem.makeDirectory(at: sourcePath)
 
         let destinationPath = try temporaryPath()
         let expectedContentFile = "File's content"
 
-        try FileHandler.shared.write(
+        try await fileSystem.writeText(
             expectedContentFile,
-            path: sourcePath.appending(component: "file1.txt"),
-            atomically: true
+            at: sourcePath.appending(component: "file1.txt")
         )
 
         let template = Template.test(items: [
@@ -330,9 +322,7 @@ final class TemplateGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(destinationPath.appending(components: "destination", "folder", "file1.txt")),
-            expectedContentFile
-        )
+        let copiedText = try await fileSystem.readTextFile(at: destinationPath.appending(components: "destination", "folder", "file1.txt"))
+        XCTAssertEqual(copiedText, expectedContentFile)
     }
 }

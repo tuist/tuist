@@ -1395,7 +1395,7 @@ struct ConfigGeneratorTests {
     private func generateProjectConfig(config _: BuildConfiguration) async throws {
         let dir = try #require(FileSystem.temporaryTestDirectory)
         let xcconfigsDir = dir.appending(component: "xcconfigs")
-        try FileHandler.shared.createFolder(xcconfigsDir)
+        try await FileSystem().makeDirectory(at: xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
 
@@ -1429,7 +1429,7 @@ struct ConfigGeneratorTests {
     private func generateTargetConfig() async throws {
         let dir = try #require(FileSystem.temporaryTestDirectory)
         let xcconfigsDir = dir.appending(component: "xcconfigs")
-        try FileHandler.shared.createFolder(xcconfigsDir)
+        try await FileSystem().makeDirectory(at: xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
         let configurations: [BuildConfiguration: Configuration?] = [

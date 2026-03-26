@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistNooraTesting
@@ -53,7 +54,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             SWIFT_VERSION=5.0
             TARGETED_DEVICE_FAMILY=1,2
             """
-            let content = try FileHandler.shared.readTextFile(xcconfigPath)
+            let content = try await FileSystem().readTextFile(at: xcconfigPath)
             XCTAssertTrue(content.contains(expected))
 
             let output = ui()
@@ -144,7 +145,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             SWIFT_OPTIMIZATION_LEVEL[config=Release]=-O
             VALIDATE_PRODUCT[config=Release]=YES
             """
-            let content = try FileHandler.shared.readTextFile(xcconfigPath)
+            let content = try await FileSystem().readTextFile(at: xcconfigPath)
             XCTAssertTrue(content.contains(expected))
 
             let output = ui()

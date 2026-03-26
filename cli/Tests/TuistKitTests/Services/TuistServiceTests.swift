@@ -48,8 +48,8 @@ final class TuistServiceTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project")
         let pluginReleasePath = path.appending(component: "Plugins")
-        try fileHandler.touch(pluginReleasePath.appending(component: "tuist-command-a"))
-        try fileHandler.touch(pluginReleasePath.appending(component: "tuist-command-b"))
+        try await fileSystem.touch(pluginReleasePath.appending(component: "tuist-command-a"))
+        try await fileSystem.touch(pluginReleasePath.appending(component: "tuist-command-b"))
         system.succeedCommand([
             pluginReleasePath.appending(component: "tuist-command-b").pathString,
             "--path",

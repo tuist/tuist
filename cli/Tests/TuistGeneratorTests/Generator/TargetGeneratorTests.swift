@@ -170,7 +170,7 @@ struct TargetGeneratorTests {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = temporaryPath.appending(component: "Sources")
         let excludedFolderPath = sourcesPath.appending(component: "ExcludedFolder")
-        try FileHandler.shared.createFolder(excludedFolderPath)
+        try await FileSystem().makeDirectory(at: excludedFolderPath)
 
         let target = Target.test(
             name: "MyFramework",

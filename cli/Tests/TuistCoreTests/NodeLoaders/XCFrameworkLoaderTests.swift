@@ -1,3 +1,4 @@
+import FileSystem
 import Mockable
 import TuistSupport
 import XcodeGraph
@@ -60,7 +61,7 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         let linking: BinaryLinking = .dynamic
 
         let infoPlist = XCFrameworkInfoPlist.test()
-        try FileHandler.shared.touch(xcframeworkPath)
+        try await FileSystem().touch(xcframeworkPath)
 
         given(xcframeworkMetadataProvider)
             .loadMetadata(at: .any, expectedSignature: .any, status: .any)

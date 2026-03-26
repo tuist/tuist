@@ -345,11 +345,11 @@ struct GenerateAcceptanceTestIosAppWithCustomDevelopmentRegion {
             )
         }
 
+        let stringsContent = try await FileSystem().readTextFile(
+            at: fixturePath.appending(components: "Derived", "Sources", "TuistStrings+App.swift")
+        )
         #expect(
-            try FileHandler.shared.readTextFile(
-                fixturePath.appending(components: "Derived", "Sources", "TuistStrings+App.swift")
-            )
-            .contains(
+            stringsContent.contains(
                 """
                 public static let evening = AppStrings.tr("Greetings", "evening")
                 """
@@ -375,21 +375,18 @@ struct GenerateAcceptanceTestiOSAppWithCustomResourceParserOptions {
             )
         }
 
+        let customStringsContent = try await FileSystem().readTextFile(
+            at: fixturePath.appending(components: "Derived", "Sources", "TuistStrings+App.swift")
+        )
         #expect(
-            try FileHandler.shared.readTextFile(
-                fixturePath.appending(components: "Derived", "Sources", "TuistStrings+App.swift")
-            )
-            .contains(
+            customStringsContent.contains(
                 """
                 public static let evening = AppStrings.tr("Greetings", "Good/evening")
                 """
             )
         )
         #expect(
-            try FileHandler.shared.readTextFile(
-                fixturePath.appending(components: "Derived", "Sources", "TuistStrings+App.swift")
-            )
-            .contains(
+            customStringsContent.contains(
                 """
                 public static let morning = AppStrings.tr("Greetings", "Good/morning")
                 """

@@ -46,8 +46,8 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let hash = "abcde"
         let hashDirectory = cacheDirectory.appending(component: hash)
         let xcframeworkPath = hashDirectory.appending(component: "framework.xcframework")
-        try FileHandler.shared.createFolder(hashDirectory)
-        try FileHandler.shared.createFolder(xcframeworkPath)
+        try await fileSystem.makeDirectory(at: hashDirectory)
+        try await fileSystem.makeDirectory(at: xcframeworkPath)
         let item = CacheStorableItem(name: "ignored", hash: hash)
 
         // When
@@ -102,7 +102,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
             .willReturn(cacheDirectory)
         let hash = "abcde"
         let hashDirectory = cacheDirectory.appending(components: hash)
-        try FileHandler.shared.createFolder(hashDirectory)
+        try await fileSystem.makeDirectory(at: hashDirectory)
         try artifactSigner.sign(hashDirectory)
         let cacheStorableItem = CacheStorableItem(name: "name", hash: hash)
         let cacheItem: CacheItem = .test(name: "name", hash: hash)

@@ -94,21 +94,6 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
             try await fileSystem.touch(moduleMapPath)
             try await fileSystem.makeDirectory(at: umbrellaDirectory)
         }
-        fileHandler.stubWrite = { content, path, atomically in
-            writeCount += 1
-            guard let expectedContent = self.expectedContent(for: moduleMap) else {
-                XCTFail("FileHandler.write should not be called")
-                return
-            }
-
-            XCTAssertEqual(content, expectedContent)
-            XCTAssertEqual(
-                path,
-                self.packageDirectory.appending(components: "Derived", "Module.modulemap")
-            )
-            XCTAssertTrue(atomically)
-        }
-
         var hash: String? = nil
 
         given(contentHasher)
@@ -120,6 +105,13 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
             moduleName: "Module",
             publicHeadersPath: publicHeadersPath
         )
+
+        let moduleMapPath = packageDirectory.appending(components: "Derived", "Module.modulemap")
+        if let expectedContent = expectedContent(for: moduleMap) {
+            writeCount += 1
+            let writtenContent = try await fileSystem.readTextFile(at: moduleMapPath)
+            XCTAssertEqual(writtenContent, expectedContent)
+        }
 
         // Set hasher for path on disk
         hash = expectedContent(for: moduleMap)

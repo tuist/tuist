@@ -52,7 +52,7 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             stringsToHash.append(contentsOf: try await pathsToHash.concurrentMap {
                 do {
                     return try await contentHasher.hash(path: $0)
-                } catch FileHandlerError.fileNotFound {
+                } catch is ContentHashingError {
                     return $0.relative(to: sourceRootPath).pathString
                 }
             }.sorted())

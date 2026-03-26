@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import struct TSCUtility.Version
 import XCTest
@@ -33,7 +34,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
-        try FileHandler.shared.createFolder(contentsPath)
+        try await FileSystem().makeDirectory(at: contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
         let developerPath = contentsPath.appending(component: "Developer")
         let infoPlist = Xcode.InfoPlist(version: "11.3")
@@ -56,7 +57,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
-        try FileHandler.shared.createFolder(contentsPath)
+        try await FileSystem().makeDirectory(at: contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
         let developerPath = contentsPath.appending(component: "Developer")
         let infoPlist = Xcode.InfoPlist(version: "3.2.1")
@@ -76,7 +77,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
-        try FileHandler.shared.createFolder(contentsPath)
+        try await FileSystem().makeDirectory(at: contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
         let developerPath = contentsPath.appending(component: "Developer")
         let infoPlist = Xcode.InfoPlist(version: "11.3")

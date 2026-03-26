@@ -177,7 +177,7 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
             projects: [project.path]
         )
         let rootPackageResolvedPath = temporaryPath.appending(component: ".package.resolved")
-        try FileHandler.shared.write("package", path: rootPackageResolvedPath, atomically: false)
+        try await FileSystem().writeText("package", at: rootPackageResolvedPath)
 
         let workspacePath = temporaryPath.appending(component: workspace.name + ".xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
@@ -188,15 +188,11 @@ final class SwiftPackageManagerInteractorTests: TuistTestCase {
         // Then
         let workspacePackageResolvedPath = temporaryPath
             .appending(try RelativePath(validating: "\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(workspacePackageResolvedPath),
-            "package"
-        )
-        try FileHandler.shared.write("changedPackage", path: rootPackageResolvedPath, atomically: false)
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(workspacePackageResolvedPath),
-            "changedPackage"
-        )
+        let resolvedText = try await FileSystem().readTextFile(at: workspacePackageResolvedPath)
+        XCTAssertEqual(resolvedText, "package")
+        try await FileSystem().writeText("changedPackage", at: rootPackageResolvedPath)
+        let changedText = try await FileSystem().readTextFile(at: workspacePackageResolvedPath)
+        XCTAssertEqual(changedText, "changedPackage")
     }
 
     func test_generate_doesNotAddPackageDependencyManager() async throws {

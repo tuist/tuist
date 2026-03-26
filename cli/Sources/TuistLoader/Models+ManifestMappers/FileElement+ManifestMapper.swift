@@ -17,7 +17,7 @@ extension XcodeGraph.FileElement {
         manifest: ProjectDescription.FileElement,
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming,
-        includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
+        includeFiles: @escaping (AbsolutePath) async throws -> Bool = { _ in true }
     ) async throws -> [XcodeGraph.FileElement] {
         func globFiles(_ path: AbsolutePath, excluding: [String]) async throws -> [AbsolutePath] {
             if try await fileSystem.exists(path, isDirectory: false) { return [path] }
@@ -41,8 +41,8 @@ extension XcodeGraph.FileElement {
                     include: [String(path.pathString.dropFirst())]
                 )
                 .collect()
-                .filter(includeFiles)
                 .filter { !excluded.contains($0) }
+                .concurrentFilter { try await includeFiles($0) }
             } catch GlobError.nonExistentDirectory {
                 files = []
             }

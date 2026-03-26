@@ -18,7 +18,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
             manifestDirectory: temporaryPath,
             rootDirectory: rootDirectory
         )
-        try FileHandler.shared.touch(temporaryPath.appending(component: "model.xcdatamodeld"))
+        try await fileSystem.touch(temporaryPath.appending(component: "model.xcdatamodeld"))
         let manifest = ProjectDescription.CoreDataModel.coreDataModel(
             "model.xcdatamodeld",
             currentVersion: "1"

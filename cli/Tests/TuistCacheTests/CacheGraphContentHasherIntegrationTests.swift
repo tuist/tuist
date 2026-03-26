@@ -508,8 +508,7 @@ struct ContentHashingIntegrationTests {
         content: String
     ) throws -> SourceFile {
         let filePath = temporaryDirectoryPath.appending(component: name)
-        try FileHandler.shared.touch(filePath)
-        try FileHandler.shared.write(content, path: filePath, atomically: true)
+        try Data(content.utf8).write(to: filePath.url)
         return SourceFile(path: filePath, compilerFlags: nil)
     }
 
@@ -519,8 +518,7 @@ struct ContentHashingIntegrationTests {
         content: String
     ) throws -> ResourceFileElement {
         let filePath = temporaryDirectoryPath.appending(component: name)
-        try FileHandler.shared.touch(filePath)
-        try FileHandler.shared.write(content, path: filePath, atomically: true)
+        try Data(content.utf8).write(to: filePath.url)
         return ResourceFileElement.file(path: filePath)
     }
 
@@ -530,8 +528,7 @@ struct ContentHashingIntegrationTests {
         content: String
     ) throws -> ResourceFileElement {
         let filePath = temporaryDirectoryPath.appending(component: name)
-        try FileHandler.shared.touch(filePath)
-        try FileHandler.shared.write(content, path: filePath, atomically: true)
+        try Data(content.utf8).write(to: filePath.url)
         return ResourceFileElement.folderReference(path: filePath)
     }
 

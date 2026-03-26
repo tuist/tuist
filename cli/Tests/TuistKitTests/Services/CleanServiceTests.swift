@@ -199,7 +199,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         let swiftPackageManagerBuildPath = projectPath.appending(
             components: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
-        try fileHandler.createFolder(swiftPackageManagerBuildPath)
+        try await fileSystem.makeDirectory(at: swiftPackageManagerBuildPath)
         let swiftPackageManagerBuildFile = swiftPackageManagerBuildPath.appending(component: "file")
         try await fileSystem.touch(swiftPackageManagerBuildFile)
 

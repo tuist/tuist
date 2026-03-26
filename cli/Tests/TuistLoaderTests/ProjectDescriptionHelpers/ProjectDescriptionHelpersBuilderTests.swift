@@ -93,7 +93,7 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
             allModules.append(contentsOf: modules)
 
             try initSubject() // next iteration would be using a different subject, no runtime cache
-            try prepareProjectDescriptionHelpersCacheDirectory(for: path) // Creating the expected cache folder, next time this
+            try await prepareProjectDescriptionHelpersCacheDirectory(for: path) // Creating the expected cache folder, next time this
             // path is checked, no build action should be released
         }
 
@@ -102,10 +102,10 @@ final class ProjectDescriptionHelpersBuilderTests: TuistUnitTestCase {
         XCTAssertEqual(allModules.uniqued().count, 3)
     }
 
-    private func prepareProjectDescriptionHelpersCacheDirectory(for path: AbsolutePath) throws {
+    private func prepareProjectDescriptionHelpersCacheDirectory(for path: AbsolutePath) async throws {
         let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: path)
         let moduleCacheDirectory = cachePath.appending(component: hash)
-        try fileHandler.createFolder(moduleCacheDirectory)
+        try await fileSystem.makeDirectory(at: moduleCacheDirectory)
     }
 
     @discardableResult

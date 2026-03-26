@@ -46,7 +46,8 @@ final class TrackableCommandTests: TuistTestCase {
         shouldFail: Bool = false,
         analyticsRequired: Bool = false,
         commandArguments: [String] = ["cache", "warm"]
-    ) {
+    ) throws {
+        let temporaryPath = try temporaryPath()
         subject = TrackableCommand(
             command: TestCommand(
                 flag: flag,
@@ -59,7 +60,7 @@ final class TrackableCommandTests: TuistTestCase {
                 gitController: gitController
             ),
             backgroundProcessRunner: backgroundProcessRunner,
-            sessionDirectory: fileHandler.currentPath
+            sessionDirectory: temporaryPath
         )
     }
 
@@ -67,7 +68,7 @@ final class TrackableCommandTests: TuistTestCase {
 
     func test_whenCommandFails_uploadsEventWithExpectedInfo() async throws {
         // Given
-        makeSubject(flag: false, shouldFail: true)
+        try makeSubject(flag: false, shouldFail: true)
         // When
         await XCTAssertThrowsSpecific(
             try await subject.run(
@@ -91,7 +92,7 @@ final class TrackableCommandTests: TuistTestCase {
 
     func test_whenPathIsInArguments() async throws {
         // Given
-        makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
+        try makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
         try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
@@ -107,7 +108,7 @@ final class TrackableCommandTests: TuistTestCase {
 
     func test_whenPathIsInArguments_and_no_fullHandle_is_set() async throws {
         // Given
-        makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
+        try makeSubject(commandArguments: ["cache", "warm", "--path", "/my-path"])
 
         // When
         try await subject.run(fullHandle: nil, serverURL: .test(), shouldTrackAnalytics: true)
@@ -123,7 +124,7 @@ final class TrackableCommandTests: TuistTestCase {
 
     func test_whenPathIsNotInArguments() async throws {
         // Given
-        makeSubject(commandArguments: ["cache", "warm"])
+        try makeSubject(commandArguments: ["cache", "warm"])
 
         // When
         try await subject.run(fullHandle: "tuist/tuist", serverURL: .test(), shouldTrackAnalytics: true)
@@ -133,7 +134,7 @@ final class TrackableCommandTests: TuistTestCase {
             .runInBackground(.any, environment: .any)
             .called(1)
         verify(gitController)
-            .gitInfo(workingDirectory: .value(fileHandler.currentPath))
+            .gitInfo(workingDirectory: .value(try temporaryPath()))
             .called(1)
     }
 }
