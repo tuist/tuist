@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import Path
-import SQLite
+@preconcurrency import SQLite
 import TuistEnvironment
 
 @Mockable
@@ -20,7 +20,7 @@ public protocol CASAnalyticsDatabasing: Sendable {
     func databasePath() -> AbsolutePath
 }
 
-public struct CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Sendable {
+public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
     private let db: Connection
     private let path: AbsolutePath
 
