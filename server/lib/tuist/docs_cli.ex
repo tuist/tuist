@@ -4,83 +4,60 @@ defmodule Tuist.Docs.CLI do
   then generates documentation pages for each CLI command.
   """
 
-  use GenServer
-
   alias Tuist.Docs.CLI.Renderer
 
   require Logger
 
-  @name __MODULE__
   @repo "tuist/tuist"
-  @refresh_interval :timer.hours(1)
-
-  # Client API
-
-  def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: @name)
-  end
+  @cache_key :cli_spec_data
+  @ttl :timer.hours(1)
 
   def get_pages do
-    GenServer.call(@name, :get_pages, 15_000)
-  end
-
-  def get_page(slug) do
-    GenServer.call(@name, {:get_page, slug}, 15_000)
-  end
-
-  def sidebar_items do
-    GenServer.call(@name, :sidebar_items, 15_000)
-  end
-
-  # Server callbacks
-
-  @impl true
-  def init(_opts) do
-    state = %{pages: [], pages_by_slug: %{}, sidebar_items: [], spec: nil}
-    {:ok, state, {:continue, :fetch}}
-  end
-
-  @impl true
-  def handle_continue(:fetch, state) do
-    {:noreply, do_fetch(state)}
-  end
-
-  @impl true
-  def handle_call(:get_pages, _from, state) do
-    {:reply, state.pages, state}
-  end
-
-  def handle_call({:get_page, slug}, _from, state) do
-    {:reply, Map.get(state.pages_by_slug, slug), state}
-  end
-
-  def handle_call(:sidebar_items, _from, state) do
-    {:reply, state.sidebar_items, state}
-  end
-
-  @impl true
-  def handle_info(:refresh, state) do
-    {:noreply, do_fetch(state)}
-  end
-
-  defp do_fetch(state) do
-    schedule_refresh()
-
-    case fetch_spec() do
-      {:ok, spec} ->
-        pages = Renderer.build_pages(spec)
-        pages_by_slug = Map.new(pages, &{&1.slug, &1})
-        sidebar_items = Renderer.build_sidebar(spec)
-        %{state | pages: pages, pages_by_slug: pages_by_slug, sidebar_items: sidebar_items, spec: spec}
-
-      {:error, reason} ->
-        Logger.warning("Failed to fetch CLI spec: #{inspect(reason)}")
-        state
+    case load() do
+      %{pages: pages} -> pages
+      nil -> []
     end
   end
 
-  defp schedule_refresh do
-    Process.send_after(self(), :refresh, @refresh_interval)
+  def get_page(slug) do
+    case load() do
+      %{pages_by_slug: pages_by_slug} -> Map.get(pages_by_slug, slug)
+      nil -> nil
+    end
+  end
+
+  def sidebar_items do
+    case load() do
+      %{sidebar_items: items} -> items
+      nil -> []
+    end
+  end
+
+  defp load do
+    case Cachex.get(:tuist, @cache_key) do
+      {:ok, nil} -> fetch_and_cache()
+      {:ok, data} -> data
+      _ -> nil
+    end
+  end
+
+  defp fetch_and_cache do
+    case fetch_spec() do
+      {:ok, spec} ->
+        pages = Renderer.build_pages(spec)
+        data = %{
+          pages: pages,
+          pages_by_slug: Map.new(pages, &{&1.slug, &1}),
+          sidebar_items: Renderer.build_sidebar(spec)
+        }
+
+        Cachex.put(:tuist, @cache_key, data, ttl: @ttl)
+        data
+
+      {:error, reason} ->
+        Logger.warning("Failed to fetch CLI spec: #{inspect(reason)}")
+        nil
+    end
   end
 
   defp fetch_spec do

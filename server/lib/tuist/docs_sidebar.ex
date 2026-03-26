@@ -455,9 +455,10 @@ defmodule Tuist.Docs.Sidebar do
   end
 
   def cli_tree do
-    if GenServer.whereis(Tuist.Docs.CLI),
-      do: Tuist.Docs.CLI.sidebar_items(),
-      else: default_cli_tree()
+    case Tuist.Docs.CLI.sidebar_items() do
+      [] -> default_cli_tree()
+      items -> items
+    end
   end
 
   defp default_cli_tree do

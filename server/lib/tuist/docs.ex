@@ -35,13 +35,9 @@ defmodule Tuist.Docs do
     end
   end
 
-  defp cli_pages do
-    if GenServer.whereis(CLI), do: CLI.get_pages(), else: []
-  end
+  defp cli_pages, do: CLI.get_pages()
 
-  defp cli_page(slug) do
-    if GenServer.whereis(CLI), do: CLI.get_page(slug), else: nil
-  end
+  defp cli_page(slug), do: CLI.get_page(slug)
 
   defp fallback_to_english(path) do
     segments = path |> Path.split() |> Enum.reject(&(&1 == "/"))
