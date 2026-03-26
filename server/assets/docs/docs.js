@@ -27,26 +27,16 @@ topbar.config({
   barColors: { 0: "#29d" },
   shadowColor: "rgba(0, 0, 0, .3)",
 });
-
-const SIDEBAR_SCROLL_SELECTOR = "#docs-sidebar [data-part='sidebar-scroll']";
-
-let savedSidebarScroll = 0;
-
-window.addEventListener("phx:page-loading-start", () => {
-  topbar.show(300);
-  const el = document.querySelector(SIDEBAR_SCROLL_SELECTOR);
-  if (el) savedSidebarScroll = el.scrollTop;
-});
-
-window.addEventListener("phx:page-loading-stop", () => {
-  topbar.hide();
-  window.scrollTo(0, 0);
-
+function closeMobileSidebar() {
   document.body.removeAttribute("data-sidebar-open");
   document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
+}
 
-  const el = document.querySelector(SIDEBAR_SCROLL_SELECTOR);
-  if (el) el.scrollTop = savedSidebarScroll;
+window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
+window.addEventListener("phx:page-loading-stop", (_info) => {
+  topbar.hide();
+  window.scrollTo(0, 0);
+  closeMobileSidebar();
 });
 
 liveSocket.connect();
