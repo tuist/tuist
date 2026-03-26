@@ -24,7 +24,7 @@ The plugin automatically sends build analytics to Tuist, giving you visibility i
 
 ### Remote Gradle cache
 
-Once you understand where build time goes, caching is the most effective lever to reduce it. Tuist provides a [remote cache](https://docs.tuist.dev/en/guides/features/cache) that integrates directly with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely. When a task's outputs are already cached, Gradle skips execution and pulls the result from Tuist's remote cache. Your team stops rebuilding the same things over and over, and CI times drop.
+Once you understand where build time goes, caching is the most effective lever to reduce it. Tuist provides a [remote cache](https://tuist.dev/en/docs/guides/features/cache) that integrates directly with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely. When a task's outputs are already cached, Gradle skips execution and pulls the result from Tuist's remote cache. Your team stops rebuilding the same things over and over, and CI times drop.
 
 But a remote cache is only as fast as the network between your builds and the storage. That's why Tuist hosts cache infrastructure with global coverage, giving you low latency no matter where your CI runners or developers are located. You get the speed of a local cache with the reach of a shared one, without provisioning or maintaining anything yourself.
 
@@ -59,11 +59,11 @@ And you don't have to stop at detection. With **automatic quarantining**, newly 
 
 All the data Tuist collects — build insights, test results, flaky test history — is accessible through the CLI and the API. This matters because it makes Tuist a natural fit for the growing world of AI-assisted development.
 
-For example, our [fix-flaky-tests skill](https://docs.tuist.dev/en/guides/features/agentic-coding/skills) gives coding agents like Claude Code the context they need to actually fix flaky tests. The agent queries Tuist for flaky test data, analyzes failure patterns, identifies root causes, and applies targeted corrections. Coding agents are only as effective as the context you provide them with and Tuist provides the missing link for tackling these kinds of challenges.
+For example, our [fix-flaky-tests skill](https://tuist.dev/en/docs/guides/features/agentic-coding/skills) gives coding agents like Claude Code the context they need to actually fix flaky tests. The agent queries Tuist for flaky test data, analyzes failure patterns, identifies root causes, and applies targeted corrections. Coding agents are only as effective as the context you provide them with and Tuist provides the missing link for tackling these kinds of challenges.
 
 ## Getting started
 
-First, [install the Tuist CLI](https://docs.tuist.dev/en/guides/quick-start/install-tuist). Then run `tuist init` in your Gradle project root and follow the interactive setup. The command handles authentication, project creation, and generates the configuration for you. Then apply the plugin in your `settings.gradle.kts`:
+First, [install the Tuist CLI](https://tuist.dev/en/docs/guides/quick-start/install-tuist). Then run `tuist init` in your Gradle project root and follow the interactive setup. The command handles authentication, project creation, and generates the configuration for you. Then apply the plugin in your `settings.gradle.kts`:
 
 ```kotlin
 plugins {
@@ -77,7 +77,7 @@ That's it. Build insights and test insights start flowing automatically, and ena
 org.gradle.caching=true
 ```
 
-For the full details, see the [Gradle plugin documentation](https://docs.tuist.dev/en/guides/install-gradle-plugin).
+For the full details, see the [Gradle plugin documentation](https://tuist.dev/en/docs/guides/install-gradle-plugin).
 
 ## Android-specific features
 
@@ -91,7 +91,7 @@ As your app grows, so does your bundle size. Tuist supports analyzing both `.aab
 tuist inspect bundle App.aab
 ```
 
-You get a detailed breakdown of your bundle and the bundle size tracked over time. When integrated with GitHub, Tuist posts bundle size analysis directly in your pull requests. You can also get notified directly in Slack with our [Slack integration](https://docs.tuist.dev/en/guides/integrations/slack#alert-rules), so your team gets notified about size regressions as soon as they happen, ensuring they get caught before they ship.
+You get a detailed breakdown of your bundle and the bundle size tracked over time. When integrated with GitHub, Tuist posts bundle size analysis directly in your pull requests. You can also get notified directly in Slack with our [Slack integration](https://tuist.dev/en/docs/guides/integrations/slack#alert-rules), so your team gets notified about size regressions as soon as they happen, ensuring they get caught before they ship.
 
 ![Bundle size analysis of an Android app showing file breakdown by category](/marketing/images/blog/2026/03/02/gradle/bundle-insights.png)
 
@@ -103,8 +103,8 @@ With Tuist, you don't need to host anything. We host the infrastructure for you,
 
 For teams that do want more control, there are two self-hosting options:
 
-- **Self-host everything**: Deploy the full Tuist server on your infrastructure. The whole server is [source available](https://github.com/tuist/tuist), so you can inspect exactly what's running. See the [self-hosting guide](https://docs.tuist.dev/en/guides/server/self-host/install).
-- **Self-host just the cache nodes**: This is especially interesting for teams working from the office or using self-hosted CI runners. You can deploy lightweight cache nodes close to where builds happen while letting Tuist handle the server itself, which is more involved to self-host. See the [cache self-hosting guide](https://docs.tuist.dev/en/guides/cache/self-host).
+- **Self-host everything**: Deploy the full Tuist server on your infrastructure. The whole server is [source available](https://github.com/tuist/tuist), so you can inspect exactly what's running. See the [self-hosting guide](https://tuist.dev/en/docs/guides/server/self-host/install).
+- **Self-host just the cache nodes**: This is especially interesting for teams working from the office or using self-hosted CI runners. You can deploy lightweight cache nodes close to where builds happen while letting Tuist handle the server itself, which is more involved to self-host. See the [cache self-hosting guide](https://tuist.dev/en/docs/guides/cache/self-host).
 
 ## Source available and open
 
@@ -119,7 +119,7 @@ And since we dogfood everything we do, we're also using Tuist for our own Gradle
 
 All of the Gradle features are currently **free** as our thank you to early supporters. Pricing for the remote cache will come later this year, but for now you can use **everything** mentioned here at no cost.
 
-We'll continue going deeper into build and test insights. We want to track more data to pinpoint build bottlenecks, monitor CPU usage, and bring native support for test sharding. We're also building a native Tuist Android app (releasing later this month) that will make accessing and running [Tuist Previews](https://docs.tuist.dev/en/guides/features/previews) on Android devices seamless, just like the existing [macOS](https://tuist.dev/download) and [iOS](https://apps.apple.com/us/app/tuist/id6748460335) apps do for Apple platforms. If there's anything your team is missing from the dashboard, [let us know](https://community.tuist.dev) and we can prioritize it.
+We'll continue going deeper into build and test insights. We want to track more data to pinpoint build bottlenecks, monitor CPU usage, and bring native support for test sharding. We're also building a native Tuist Android app (releasing later this month) that will make accessing and running [Tuist Previews](https://tuist.dev/en/docs/guides/features/previews) on Android devices seamless, just like the existing [macOS](https://tuist.dev/download) and [iOS](https://apps.apple.com/us/app/tuist/id6748460335) apps do for Apple platforms. If there's anything your team is missing from the dashboard, [let us know](https://community.tuist.dev) and we can prioritize it.
 
 We're excited to bring everything we've learned from scaling Apple platform builds to the Android ecosystem, and to keep growing both sides together.
 

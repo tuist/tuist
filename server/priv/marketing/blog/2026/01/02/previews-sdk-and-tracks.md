@@ -10,7 +10,7 @@ highlighted: true
 
 Over a year ago, we [introduced Tuist Previews](/blog/2024/08/06/url-centric-collaboration) with a simple premise: sharing an app preview should be as easy as sending a link. The traditional flow of building, signing, and pushing to TestFlight was too cumbersome for quick feedback loops.
 
-Initially, we focused on minimizing friction for developers, introducing features like [posting comments directly in your pull requests](https://docs.tuist.dev/en/guides/features/previews#pullmerge-request-comments), allowing anyone to click a link and start testing without checking out a branch or waiting for a local build.
+Initially, we focused on minimizing friction for developers, introducing features like [posting comments directly in your pull requests](https://tuist.dev/en/docs/guides/features/previews#pullmerge-request-comments), allowing anyone to click a link and start testing without checking out a branch or waiting for a local build.
 
 But as teams adopted previews, it became clear we needed to expand our primary audience beyond engineers. Product managers wanted to see features before they shipped. QA teams needed consistent access to the latest builds. Leadership wanted to stay informed about what's coming.
 

@@ -16,13 +16,13 @@ As Turkey's leading e-commerce platform and a super-app serving more than 10 dom
 
 ## Choosing Tuist
 
-Originally, our motivation with Tuist was to enable caching for local development. Although CI speed matters, it's the local feedback loops that directly influence a developer's ability to experiment quickly. Once we began using the [Tuist Server](https://docs.tuist.dev/en/server/introduction/why-a-server), we saw immediate benefits. With effective caching, Xcode no longer needed to spend significant time indexing files, making the IDE feel noticeably more responsive. Builds became faster, and the everyday frustration of waiting on incremental builds greatly decreased.
+Originally, our motivation with Tuist was to enable caching for local development. Although CI speed matters, it's the local feedback loops that directly influence a developer's ability to experiment quickly. Once we began using the [Tuist Server](https://tuist.dev/en/docs/server/introduction/why-a-server), we saw immediate benefits. With effective caching, Xcode no longer needed to spend significant time indexing files, making the IDE feel noticeably more responsive. Builds became faster, and the everyday frustration of waiting on incremental builds greatly decreased.
 
 <img style="max-width: 600px" src="/marketing/images/blog/2024/12/16/trendyol/build-duration-graph.webp" alt="Build Time Graph for Trendyol iOS App"/>
 
 ## The approach
 
-After speeding up compilation, we turned our attention to tests, which we could further optimize by running them selectively. At the time we started exploring this, Tuist had not yet shipped [selective testing](https://docs.tuist.dev/en/guides/develop/test/smart-runner), so we built a plugin leveraging `git diff` and `tuist graph` to identify only the modules affected by code changes. This allowed us to run a more focused set of unit and UI tests.
+After speeding up compilation, we turned our attention to tests, which we could further optimize by running them selectively. At the time we started exploring this, Tuist had not yet shipped [selective testing](https://tuist.dev/en/docs/guides/develop/test/smart-runner), so we built a plugin leveraging `git diff` and `tuist graph` to identify only the modules affected by code changes. This allowed us to run a more focused set of unit and UI tests.
 
 Integrating selective testing with binary caching can be a game-changer. Here's how the two work together:
 
@@ -48,7 +48,7 @@ Additionally, our CI build times have been reduced by 65%, decreasing from **30 
 
 ## What's next
 
-Our Tuist instance is [self-hosted](https://docs.tuist.dev/en/server/on-premise/install) within our internal infrastructure. This setup ensures ultra-fast cache transfers over our internal network and guarantees compliance with our security standards. As a result, we enjoy the performance benefits of caching without any external dependencies or potential security concerns.
+Our Tuist instance is [self-hosted](https://tuist.dev/en/docs/server/on-premise/install) within our internal infrastructure. This setup ensures ultra-fast cache transfers over our internal network and guarantees compliance with our security standards. As a result, we enjoy the performance benefits of caching without any external dependencies or potential security concerns.
 
 Our work with Tuist shows how investing in the right tools can lead to significant improvements in developer productivity and experience. We'll continue refining our strategies, exploring new techniques, and integrating with other testing methodologies. As we learn and evolve, we're committed to sharing our insights with the broader community.
 

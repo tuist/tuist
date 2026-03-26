@@ -58,4 +58,4 @@ With this information, Tuist can provide a list of tests detected as flaky. In t
 
 This is just the beginning of our work in this area. We'll iterate with teams to ensure the detection feature works well with XCTest and Swift Testing. We'll also refine the user interface to present actionable information. After that, we'll focus on preventing flakiness, which will be seamlessly integrated into the tuist test workflow. Finally, we'll provide tools to disable flaky tests, such as rules for automatic disabling or a command for manual disabling.
 
-We believe this is a crucial feature for any team that wants to ship reliable software. If you want to try it [create an account](https://docs.tuist.dev/en/server/introduction/accounts-and-projects) and run `tuist test` in your project. We welcome your feedback and look forward to hearing from you.
+We believe this is a crucial feature for any team that wants to ship reliable software. If you want to try it [create an account](https://tuist.dev/en/docs/server/introduction/accounts-and-projects) and run `tuist test` in your project. We welcome your feedback and look forward to hearing from you.

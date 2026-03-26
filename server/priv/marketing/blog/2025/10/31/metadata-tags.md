@@ -220,7 +220,7 @@ Only watchOS-specific code and its direct dependencies remain as sources. iOS an
 
 ## Standardizing tags with helpers
 
-As your tagging strategy matures, you will want consistency across your project manifests. [Project description helpers](https://docs.tuist.dev/en/guides/features/projects/code-sharing) provide a perfect way to standardize tag application:
+As your tagging strategy matures, you will want consistency across your project manifests. [Project description helpers](https://tuist.dev/en/docs/guides/features/projects/code-sharing) provide a perfect way to standardize tag application:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Target+Templates.swift
@@ -404,6 +404,6 @@ When combined with module caching, this becomes even more powerful. You get the 
 
 If you have been using Tuist but have not yet explored metadata tags, we strongly encourage you to try them. They represent a different paradigm for organizing and working with Xcode projects, one that scales naturally as your project grows.
 
-To learn more about metadata tags, check out our [documentation](https://docs.tuist.dev/en/guides/features/projects/metadata-tags). You can also explore how tags integrate with [module caching](https://docs.tuist.dev/en/guides/features/cache/module-cache) to supercharge your development workflow.
+To learn more about metadata tags, check out our [documentation](https://tuist.dev/en/docs/guides/features/projects/metadata-tags). You can also explore how tags integrate with [module caching](https://tuist.dev/en/docs/guides/features/cache/module-cache) to supercharge your development workflow.
 
 We would love to hear how you are using metadata tags. Share your experiences in our [community forum](https://community.tuist.dev/), [Slack](https://slack.tuist.dev/), or on [Mastodon](https://fosstodon.org/@tuist).

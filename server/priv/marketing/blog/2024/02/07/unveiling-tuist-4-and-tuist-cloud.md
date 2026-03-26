@@ -25,7 +25,7 @@ However, the uniqueness of software lies in its ongoing maintenance requirements
 
 Tuist, as a project, has reached a level of popularity that necessitates substantial maintenance efforts. Relying solely on volunteer contributions or donations has proven insufficient to meet these demands. Consequently, a new approach is required to sustain Tuist effectively.
 
-To address this challenge, **we are embracing a commercial open source model for Tuist**, with [a server](https://docs.tuist.dev/en/server/introduction/why-a-server) serving as the inaugural commercial complement. This model offers several key advantages:
+To address this challenge, **we are embracing a commercial open source model for Tuist**, with [a server](https://tuist.dev/en/docs/server/introduction/why-a-server) serving as the inaugural commercial complement. This model offers several key advantages:
 
 - **No Resource Starvation:** Tuist's costs are covered by its selling price, eliminating the resource scarcity that can plague a zero-priced open source model. It ensures the project's financial sustainability.
 - **No Hidden Costs:** Open source remains genuinely free under this model, with no restrictive licensing terms or unexpected financial burdens on users.
@@ -70,7 +70,7 @@ If you want to get rough estimates of the potential savings, you can use our cal
 
 We have more ideas to tackle challenges, but our initial focus is on getting organizations on board, understanding their needs, and prioritizing development accordingly. Additionally, we aim to provide actionable metrics for project and build data, helping teams ensure their projects are future-proof.
 
-If you're eager to begin using our paid features, we recommend [reviewing our documentation](https://docs.tuist.dev/en/server/introduction/why-a-server) and ensuring that `tuist cache` runs successfully with your Xcode project. You may need to make some adjustments to eliminate implicit configurations that could potentially hinder reliable caching.
+If you're eager to begin using our paid features, we recommend [reviewing our documentation](https://tuist.dev/en/docs/server/introduction/why-a-server) and ensuring that `tuist cache` runs successfully with your Xcode project. You may need to make some adjustments to eliminate implicit configurations that could potentially hinder reliable caching.
 
 > At Lapse speed is our top priority, Tuist has accelerated our development feedback loop massively. We mostly try to ship to the App Store every single day, so ensuring fast iteration speeds for feature development is of utmost importance.
 Our average build time for an internal QA build or for our PR workflows used to be around 30 minutes on the CI, and when we added macros to the project this increased to 53 minutes.
