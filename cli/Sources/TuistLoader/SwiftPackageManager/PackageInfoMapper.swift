@@ -443,6 +443,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
                 if let depTarget = targetsByName[dependencyName] {
                     if depTarget.type == .binary {
+                        // Remote binary targets don't expose a local xcframework path here, so we also fall back to
+                        // the binary target name to avoid renaming the wrapper target to a product name that Xcode
+                        // will already emit from ProcessXCFramework.
                         let matchesProductNameInPath =
                             depTarget.path.flatMap { try? RelativePath(validating: $0).basenameWithoutExt } == singleProduct.name
                         let matchesProductNameInTargetName =
