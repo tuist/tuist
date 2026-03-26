@@ -116,8 +116,7 @@ defmodule Tuist.Docs.CLI.Renderer do
 
   defp process_arguments(arguments) do
     arguments
-    |> Enum.filter(&(&1["shouldDisplay"] != false))
-    |> Enum.filter(&(&1["abstract"] != nil and &1["abstract"] != ""))
+    |> Enum.filter(&(&1["shouldDisplay"] != false and &1["abstract"] != nil and &1["abstract"] != ""))
     |> Enum.reject(&help_argument?/1)
     |> Enum.map(fn arg ->
       abstract = arg["abstract"] || ""
