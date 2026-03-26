@@ -30,3 +30,15 @@ Install into a local kind cluster:
 mise exec kind -- kind create cluster --name tuist
 mise exec helm -- helm install tuist infra/helm/tuist -f infra/helm/tuist/values-compact.yaml
 ```
+
+## Local server validation without a production license
+
+For local evaluation only, the chart can start the server in a self-hosting development mode:
+
+```bash
+mise exec helm -- helm install tuist infra/helm/tuist \
+  -f infra/helm/tuist/values-compact.yaml \
+  --set server.license.selfHostingDevelopmentMode=true
+```
+
+This bypass is disabled by default and must not be enabled for real self-hosted production deployments.

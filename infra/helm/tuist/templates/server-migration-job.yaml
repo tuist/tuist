@@ -14,6 +14,31 @@ spec:
         {{- include "tuist.componentLabels" (dict "root" . "component" "server-migration") | nindent 8 }}
     spec:
       restartPolicy: Never
+      initContainers:
+        - name: wait-for-dependencies
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"; do
+                sleep 2
+              done
+              until curl -fsS "$TUIST_CLICKHOUSE_READY_URL" >/dev/null; do
+                sleep 2
+              done
+          env:
+            - name: PGHOST
+              value: {{ include "tuist.databaseHost" . | quote }}
+            - name: PGPORT
+              value: {{ include "tuist.databasePort" . | quote }}
+            - name: PGUSER
+              value: {{ include "tuist.databaseUsername" . | quote }}
+            - name: PGDATABASE
+              value: {{ include "tuist.databaseName" . | quote }}
+            - name: TUIST_CLICKHOUSE_READY_URL
+              value: {{ include "tuist.clickhouseReadyUrl" . | quote }}
       containers:
         - name: migrate
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
@@ -25,6 +50,8 @@ spec:
           env:
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
             - name: TUIST_CLICKHOUSE_URL
               value: {{ include "tuist.clickhouseUrl" . | quote }}
             - name: TUIST_SECRET_KEY_BASE
@@ -34,6 +61,8 @@ spec:
                   key: server-secret-key-base
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}
+            - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
+              value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
             {{- if .Values.server.license.key }}
             - name: TUIST_LICENSE_KEY
               valueFrom:

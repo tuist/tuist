@@ -27,6 +27,7 @@ server:
   license:
     key: ""
     certificateBase64: ""
+    selfHostingDevelopmentMode: false
   database:
     ssl: false
   s3:

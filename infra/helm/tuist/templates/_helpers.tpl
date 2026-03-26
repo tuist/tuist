@@ -106,9 +106,49 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 {{- end -}}
 {{- end -}}
 
+{{- define "tuist.databaseHost" -}}
+{{- if eq .Values.postgresql.mode "embedded" -}}
+{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}
+{{- else -}}
+{{- .Values.postgresql.external.host -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.databasePort" -}}
+{{- if eq .Values.postgresql.mode "embedded" -}}
+5432
+{{- else -}}
+{{- .Values.postgresql.external.port -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.databaseName" -}}
+{{- if eq .Values.postgresql.mode "embedded" -}}
+{{- .Values.postgresql.embedded.database -}}
+{{- else -}}
+{{- .Values.postgresql.external.database -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.databaseUsername" -}}
+{{- if eq .Values.postgresql.mode "embedded" -}}
+{{- .Values.postgresql.embedded.username -}}
+{{- else -}}
+{{- .Values.postgresql.external.username -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.clickhouseUrl" -}}
 {{- if eq .Values.clickhouse.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}:8123/{{ .Values.clickhouse.embedded.database }}
+{{- else -}}
+{{- .Values.clickhouse.external.url -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "tuist.clickhouseReadyUrl" -}}
+{{- if eq .Values.clickhouse.mode "embedded" -}}
+http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}:8123/ping
 {{- else -}}
 {{- .Values.clickhouse.external.url -}}
 {{- end -}}

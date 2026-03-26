@@ -94,6 +94,10 @@ defmodule Tuist.Environment do
       get([:license, :certificate, :base64], secrets)
   end
 
+  def self_hosting_development_mode? do
+    truthy?(System.get_env("TUIST_SELF_HOSTING_DEVELOPMENT_MODE", "0"))
+  end
+
   def use_ipv6?(secrets \\ secrets()) do
     get([:use_ipv6], secrets)
   end

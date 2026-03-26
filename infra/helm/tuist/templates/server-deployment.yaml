@@ -55,6 +55,8 @@ spec:
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             - name: TUIST_SKIP_EMAIL_CONFIRMATION
               value: {{ .Values.server.skipEmailConfirmation | ternary "1" "0" | quote }}
+            - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
+              value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
             {{- if .Values.server.license.key }}
             - name: TUIST_LICENSE_KEY
               valueFrom:
