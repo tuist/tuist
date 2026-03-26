@@ -496,6 +496,7 @@ var targets: [Target] = [
         name: "TuistEnvironmentTesting",
         dependencies: [
             pathDependency,
+            fileSystemDependency,
             "TuistEnvironment",
         ],
         path: "cli/Sources/TuistEnvironmentTesting"

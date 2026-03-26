@@ -94,12 +94,21 @@
 
   & > [data-state="open"] ~ [data-part="positioner"] {
     display: flex;
-    position: absolute;
-    top: 100%;
-    right: 0;
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: unset !important;
+    bottom: unset !important;
     z-index: var(--noora-z-index-10);
     margin-top: var(--noora-spacing-2);
     min-width: 100%;
+    width: max-content !important;
+    transform: none !important;
+  }
+
+  &[data-align="end"] > [data-state="open"] ~ [data-part="positioner"] {
+    left: unset !important;
+    right: 0 !important;
   }
 
   /* Size: medium */

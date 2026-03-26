@@ -357,7 +357,8 @@ config :tuist, Oban,
            {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
            {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
            {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-           {"@daily", Tuist.Tests.Workers.ClearStaleFlakyFlagsWorker}
+           {"@daily", Tuist.Tests.Workers.ClearStaleFlakyFlagsWorker},
+           {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker}
          ],
          else: []
        )}

@@ -40,6 +40,10 @@ export default {
   },
 
   updated() {
+    const shouldBeOpen = getBooleanOption(this.el, "open");
+    if (shouldBeOpen && !this.collapsible.api.open) {
+      this.collapsible.api.setOpen(true);
+    }
     this.collapsible.render();
   },
 

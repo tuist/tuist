@@ -28,7 +28,7 @@ defmodule TuistWeb.Router do
     [
       frame_ancestors: "'self'",
       img_src:
-        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com #{s3_endpoint}",
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com https://videos.tuist.dev https://developer.apple.com https://tuist.dev https://*.tuist.dev #{s3_endpoint}",
       media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org #{s3_endpoint}",
       style_src:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
@@ -120,6 +120,20 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :redirect_to_localized_route
+    plug Localization, :put_locale
+  end
+
+  pipeline :browser_docs do
+    plug :accepts, ["html"]
+    plug :enable_robot_indexing
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {TuistWeb.Docs.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug SentryContextPlug
+    plug :content_security_policy
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :put_locale
   end
 
@@ -309,6 +323,24 @@ defmodule TuistWeb.Router do
           :newsletter_issue,
           metadata: %{type: :marketing},
           private: private
+    end
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :browser_docs]
+
+    get "/docs", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: %{type: :docs}
+
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      private = %{locale: locale}
+
+      live_session String.to_atom("docs_#{locale}"), on_mount: Localization do
+        live "/#{locale}/docs", DocsLive, :overview, metadata: %{type: :docs}, private: private
+        live "/#{locale}/docs/*path", DocsLive, :show, metadata: %{type: :docs}, private: private
+      end
     end
   end
 

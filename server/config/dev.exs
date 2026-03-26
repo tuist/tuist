@@ -14,6 +14,7 @@ deps_path = Path.expand("../deps", __DIR__)
 base_watchers = [
   esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
   esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
+  esbuild_docs: {Esbuild, :install_and_run, [:docs, ~w(--sourcemap=inline --watch)]},
   esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
 ]
 
@@ -46,6 +47,7 @@ base_live_reload_patterns = [
   ~r"priv/gettext/.*(po)$",
   ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
   ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
+  ~r"lib/tuist_web/docs/.*(ex|heex)$",
   ~r"priv/marketing/blog/*/.*(md)$",
   ~r"../../noora/lib/noora/.*(ex|heex)$",
   ~r"../../noora/priv/static/.*(js|css)$"
@@ -82,6 +84,24 @@ config :esbuild,
       "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/marketing", __DIR__),
+    env: %{"NODE_PATH" => deps_path}
+  ],
+  docs: [
+    args: [
+      "docs.js",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--target=es2017",
+      "--outfile=../../priv/static/docs/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_source_path}/js/index.js",
+      "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
+    ],
+    cd: Path.expand("../assets/docs", __DIR__),
     env: %{"NODE_PATH" => deps_path}
   ],
   apidocs: [

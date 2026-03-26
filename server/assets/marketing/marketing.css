@@ -2,7 +2,7 @@
 @import "../app/css/fonts.css";
 @import "noora/noora.css";
 @import "css/shared/tokens.css";
-@import "css/shared/prose.css";
+@import "../shared/css/prose.css";
 @import "css/shared/pages.css";
 @import "css/routes/shared/page.css";
 @import "css/routes/home.css";
@@ -27,6 +27,7 @@
 @import "css/layouts/components/banner.css";
 @import "css/layouts/components/window.css";
 @import "css/layouts/components/agent-prompt.css";
+@import "../shared/css/code-group.css";
 @import "css/layouts/components/prose-banner.css";
 
 :root {
