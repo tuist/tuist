@@ -135,7 +135,8 @@ class DefaultConfigurationProvider(
  */
 class TuistBuildCacheService(
     private val httpClient: TuistHttpClient,
-    private val isPushEnabled: Boolean
+    private val isPushEnabled: Boolean,
+    private val ciDetector: CIDetector = EnvironmentCIDetector()
 ) : BuildCacheService {
 
     override fun load(key: BuildCacheKey, reader: BuildCacheEntryReader): Boolean {
@@ -190,13 +191,14 @@ class TuistBuildCacheService(
 
     internal fun buildCacheUrl(config: CacheConfiguration, cacheKey: String): URI {
         val baseUri = URI.create(config.url.trimEnd('/'))
+        val isCi = ciDetector.isCi()
         return URI(
             baseUri.scheme,
             baseUri.userInfo,
             baseUri.host,
             baseUri.port,
             "${baseUri.path}/api/cache/gradle/$cacheKey",
-            "account_handle=${config.accountHandle}&project_handle=${config.projectHandle}",
+            "account_handle=${config.accountHandle}&project_handle=${config.projectHandle}&is_ci=$isCi",
             null
         )
     }

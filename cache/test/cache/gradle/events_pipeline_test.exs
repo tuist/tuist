@@ -46,14 +46,16 @@ defmodule Cache.Gradle.EventsPipelineTest do
           size: 1024,
           cache_key: "gradle-cache-key-123",
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          is_ci: true
         },
         %{
           action: "download",
           size: 2048,
           cache_key: "gradle-cache-key-456",
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          is_ci: false
         }
       ]
 
@@ -77,14 +79,16 @@ defmodule Cache.Gradle.EventsPipelineTest do
                    "project_handle" => project_handle,
                    "action" => "upload",
                    "size" => 1024,
-                   "cache_key" => "gradle-cache-key-123"
+                   "cache_key" => "gradle-cache-key-123",
+                   "is_ci" => true
                  },
                  %{
                    "account_handle" => account_handle,
                    "project_handle" => project_handle,
                    "action" => "download",
                    "size" => 2048,
-                   "cache_key" => "gradle-cache-key-456"
+                   "cache_key" => "gradle-cache-key-456",
+                   "is_ci" => false
                  }
                ]
 

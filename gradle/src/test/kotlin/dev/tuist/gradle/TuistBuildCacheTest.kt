@@ -92,6 +92,7 @@ class TuistBuildCacheTest {
         assertTrue(request.path!!.contains("/api/cache/gradle/abc123"))
         assertTrue(request.path!!.contains("account_handle=test-account"))
         assertTrue(request.path!!.contains("project_handle=test-project"))
+        assertTrue(request.path!!.contains("is_ci=false"))
     }
 
     @Test
@@ -208,7 +209,25 @@ class TuistBuildCacheTest {
         assertEquals("localhost", url.host)
         assertEquals(8080, url.port)
         assertEquals("/api/cache/gradle/hashkey", url.path)
-        assertEquals("account_handle=acct&project_handle=proj", url.query)
+        assertEquals("account_handle=acct&project_handle=proj&is_ci=false", url.query)
+    }
+
+    @Test
+    fun `buildCacheUrl includes is_ci=true when in CI environment`() {
+        val config = CacheConfiguration(
+            url = "http://localhost:8080",
+            token = "token",
+            accountHandle = "acct",
+            projectHandle = "proj"
+        )
+
+        val ciDetector = object : CIDetector {
+            override fun isCi(): Boolean = true
+        }
+        val service = createService(ciDetector = ciDetector)
+        val url = service.buildCacheUrl(config, "hashkey")
+
+        assertEquals("account_handle=acct&project_handle=proj&is_ci=true", url.query)
     }
 
     @Test
@@ -233,8 +252,13 @@ class TuistBuildCacheTest {
         projectHandle = "test-project"
     )
 
+    private val fakeCiDetector = object : CIDetector {
+        override fun isCi(): Boolean = false
+    }
+
     private fun createService(
         isPushEnabled: Boolean = true,
+        ciDetector: CIDetector = fakeCiDetector,
         configProvider: (Boolean) -> CacheConfiguration = { createConfig() }
     ): TuistBuildCacheService {
         val httpClient = TuistHttpClient(
@@ -245,7 +269,8 @@ class TuistBuildCacheTest {
         )
         return TuistBuildCacheService(
             httpClient = httpClient,
-            isPushEnabled = isPushEnabled
+            isPushEnabled = isPushEnabled,
+            ciDetector = ciDetector
         )
     }
 

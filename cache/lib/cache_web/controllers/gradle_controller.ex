@@ -49,6 +49,12 @@ defmodule CacheWeb.GradleController do
         type: :string,
         required: true,
         description: "The handle of the project"
+      ],
+      is_ci: [
+        in: :query,
+        type: :boolean,
+        required: false,
+        description: "Whether the request originates from a CI environment"
       ]
     ],
     responses: %{
@@ -60,7 +66,8 @@ defmodule CacheWeb.GradleController do
     }
   )
 
-  def download(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle}) do
+  def download(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle} = params) do
+    is_ci = Map.get(params, :is_ci, false)
     :telemetry.execute([:cache, :gradle, :download, :hit], %{}, %{})
     key = Gradle.Disk.key(account_handle, project_handle, cache_key)
 
@@ -71,7 +78,8 @@ defmodule CacheWeb.GradleController do
         :telemetry.execute([:cache, :gradle, :download, :disk_hit], %{size: size}, %{
           cache_key: cache_key,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          is_ci: is_ci
         })
 
         # In dev mode (MIX_ENV=dev), serve file directly since there's no nginx
@@ -136,6 +144,12 @@ defmodule CacheWeb.GradleController do
         type: :string,
         required: true,
         description: "The handle of the project"
+      ],
+      is_ci: [
+        in: :query,
+        type: :boolean,
+        required: false,
+        description: "Whether the request originates from a CI environment"
       ]
     ],
     request_body: {"The Gradle build cache artifact data", "application/octet-stream", nil, required: true},
@@ -151,11 +165,13 @@ defmodule CacheWeb.GradleController do
     }
   )
 
-  def save(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle}) do
+  def save(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle} = params) do
+    is_ci = Map.get(params, :is_ci, false)
+
     if Gradle.Disk.exists?(account_handle, project_handle, cache_key) do
       handle_existing_artifact(conn)
     else
-      save_new_artifact(conn, account_handle, project_handle, cache_key)
+      save_new_artifact(conn, account_handle, project_handle, cache_key, is_ci)
     end
   end
 
@@ -168,12 +184,12 @@ defmodule CacheWeb.GradleController do
     end
   end
 
-  defp save_new_artifact(conn, account_handle, project_handle, cache_key) do
+  defp save_new_artifact(conn, account_handle, project_handle, cache_key, is_ci) do
     with {:ok, target_dir} <- Gradle.Disk.ensure_artifact_directory(account_handle, project_handle, cache_key),
          {:ok, data, conn_after} <- BodyReader.read(conn, max_bytes: @max_upload_bytes, tmp_dir: target_dir) do
       size = data_size(data)
       :telemetry.execute([:cache, :gradle, :upload, :attempt], %{size: size}, %{})
-      persist_artifact(conn_after, account_handle, project_handle, cache_key, data, size)
+      persist_artifact(conn_after, account_handle, project_handle, cache_key, data, size, is_ci)
     else
       {:error, :too_large, conn_after} ->
         :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :too_large})
@@ -198,13 +214,14 @@ defmodule CacheWeb.GradleController do
     end
   end
 
-  defp persist_artifact(conn, account_handle, project_handle, cache_key, data, size) do
+  defp persist_artifact(conn, account_handle, project_handle, cache_key, data, size, is_ci) do
     case Gradle.Disk.put(account_handle, project_handle, cache_key, data) do
       :ok ->
         :telemetry.execute([:cache, :gradle, :upload, :success], %{size: size}, %{
           cache_key: cache_key,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          is_ci: is_ci
         })
 
         key = Gradle.Disk.key(account_handle, project_handle, cache_key)

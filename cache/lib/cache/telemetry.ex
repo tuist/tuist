@@ -64,7 +64,8 @@ defmodule Cache.Telemetry do
       size: measurements.size,
       cache_key: metadata.cache_key,
       account_handle: metadata.account_handle,
-      project_handle: metadata.project_handle
+      project_handle: metadata.project_handle,
+      is_ci: Map.get(metadata, :is_ci, false)
     }
 
     Cache.Gradle.EventsPipeline.async_push(event)

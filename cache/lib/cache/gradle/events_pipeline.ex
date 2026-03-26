@@ -63,7 +63,8 @@ defmodule Cache.Gradle.EventsPipeline do
           project_handle: event.project_handle,
           action: event.action,
           size: event.size,
-          cache_key: event.cache_key
+          cache_key: event.cache_key,
+          is_ci: Map.get(event, :is_ci, false)
         }
       end)
 
