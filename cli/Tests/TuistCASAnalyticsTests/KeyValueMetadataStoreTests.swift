@@ -11,8 +11,7 @@ struct KeyValueMetadataStoreTests {
         let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
         let subject = KeyValueMetadataStore(database: database)
 
-        let metadata = KeyValueMetadata(duration: 5.333)
-        try await subject.storeMetadata(metadata, for: "test-key", operationType: .read)
+        try await subject.storeMetadata(KeyValueMetadata(duration: 5.333), for: "test-key", operationType: .read)
 
         let result = try #require(try await subject.metadata(for: "test-key", operationType: .read))
         #expect(result.duration == 5.333)
@@ -24,8 +23,7 @@ struct KeyValueMetadataStoreTests {
         let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
         let subject = KeyValueMetadataStore(database: database)
 
-        let metadata = KeyValueMetadata(duration: 3.25)
-        try await subject.storeMetadata(metadata, for: "test-key", operationType: .write)
+        try await subject.storeMetadata(KeyValueMetadata(duration: 3.25), for: "test-key", operationType: .write)
 
         let result = try #require(try await subject.metadata(for: "test-key", operationType: .write))
         #expect(result.duration == 3.25)

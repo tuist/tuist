@@ -1,13 +1,9 @@
 import Foundation
 import Mockable
 
-/// Protocol for storing and retrieving CAS node ID to checksum mappings
 @Mockable
 public protocol CASNodeStoring: Sendable {
-    /// Store a mapping between a node ID and checksum hex
     func storeNode(_ nodeID: String, checksum: String) async throws
-
-    /// Retrieve checksum hex for a given node ID
     func checksum(for nodeID: String) async throws -> String?
 }
 
@@ -19,16 +15,14 @@ public struct CASNodeStore: CASNodeStoring {
     }
 
     public func storeNode(_ nodeID: String, checksum: String) async throws {
-        let sanitizedNodeID = sanitizeNodeID(nodeID)
-        try database.storeNode(key: sanitizedNodeID, value: checksum)
+        try database.storeNode(key: sanitize(nodeID), checksum: checksum)
     }
 
     public func checksum(for nodeID: String) async throws -> String? {
-        let sanitizedNodeID = sanitizeNodeID(nodeID)
-        return try database.node(for: sanitizedNodeID)
+        try database.node(for: sanitize(nodeID))
     }
 
-    private func sanitizeNodeID(_ nodeID: String) -> String {
+    private func sanitize(_ nodeID: String) -> String {
         nodeID.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")
     }
