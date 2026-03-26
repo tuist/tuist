@@ -182,9 +182,9 @@ defmodule TuistWeb.Marketing.Localization do
   @doc """
   Localizes a URL path based on the current locale.
 
-  For docs.tuist.dev URLs, inserts the locale before the `/docs` section.
+  For tuist.dev docs URLs, updates the locale segment in the path.
   For relative marketing URLs, prepends locale (except for English which has no prefix).
-  External URLs that are not docs.tuist.dev are returned as-is.
+  External URLs that are not tuist.dev docs are returned as-is.
   """
   def localized_href(href) do
     locale = Gettext.get_locale(TuistWeb.Gettext)
@@ -194,9 +194,9 @@ defmodule TuistWeb.Marketing.Localization do
   @doc """
   Localizes a URL path to a specific target locale.
 
-  For docs.tuist.dev URLs, inserts the locale before the `/docs` section.
+  For tuist.dev docs URLs, updates the locale segment in the path.
   For relative marketing URLs, prepends locale (except for English which has no prefix).
-  External URLs that are not docs.tuist.dev are returned as-is.
+  External URLs that are not tuist.dev docs are returned as-is.
   """
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def localized_href(href, target_locale) do
@@ -207,12 +207,10 @@ defmodule TuistWeb.Marketing.Localization do
       not is_nil(uri.scheme) and uri.scheme not in ["http", "https"] ->
         href
 
-      # Handle docs.tuist.dev URLs
-      uri.host == "docs.tuist.dev" ->
-        localized_path =
-          uri.path
-          |> normalize_docs_path()
-          |> then(&"/#{target_locale}#{&1}")
+      # Handle tuist.dev docs URLs (tuist.dev/LOCALE/docs/...)
+      uri.host == "tuist.dev" and docs_path?(uri.path) ->
+        docs_subpath = extract_docs_subpath(uri.path)
+        localized_path = "/#{target_locale}/docs#{docs_subpath}"
 
         uri
         |> Map.put(:path, localized_path)
@@ -250,14 +248,25 @@ defmodule TuistWeb.Marketing.Localization do
     end
   end
 
-  defp normalize_docs_path(path) do
-    localized_path = path_without_locale(path || "/")
+  defp docs_path?(nil), do: false
 
-    if localized_path == "/" do
-      "/"
-    else
-      localized_path
-    end
+  defp docs_path?(path) do
+    Enum.any?(all_locales(), fn locale -> String.starts_with?(path, "/#{locale}/docs") end)
+  end
+
+  defp extract_docs_subpath(path) do
+    result =
+      Enum.reduce(all_locales(), path, fn locale, acc ->
+        prefix = "/#{locale}/docs"
+
+        if String.starts_with?(acc, prefix) do
+          String.replace_prefix(acc, prefix, "")
+        else
+          acc
+        end
+      end)
+
+    if result == "" or result == path, do: "", else: result
   end
 
   @doc """

@@ -727,7 +727,7 @@
           Enum.empty?(@configuration_insights_analytics.result)
       }
       title={dgettext("dashboard_builds", "No data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/insights"
+      get_started_href="https://tuist.dev/en/docs/guides/develop/insights"
     >
       <:image>
         <img src="/images/empty_horizontal_bar_chart_light.png" data-theme="light" />
@@ -898,7 +898,7 @@
     <.empty_card_section
       :if={@recent_builds.ok? && Enum.empty?(@recent_builds.result)}
       title={dgettext("dashboard_builds", "No data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/insights"
+      get_started_href="https://tuist.dev/en/docs/guides/develop/insights"
     >
       <:image>
         <img src="/images/empty_bar_chart_light.png" data-theme="light" />

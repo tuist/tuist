@@ -94,9 +94,9 @@ But there's an elephant in the room. Something that would be cheaper than all th
 
 What if you didn't compile and test everything every time? What if you could diff the changes to be selective about what to compile and what to test? When Li changes the authentication module, why are you rebuilding dozens of other modules that didn't change? When someone touches a networking utility, why are you running the entire test suite instead of just the tests that actually depend on that code?
 
-Then you talk to an engineering leader at another company who faced the same wall. "We integrated Tuist," he says. "[Binary caching](https://docs.tuist.dev/en/guides/features/cache) and [selective testing](https://docs.tuist.dev/en/guides/features/selective-testing). Changed everything." The idea is simple: only rebuild what changed, only test what's affected, and share the cached results across your entire team and CI.
+Then you talk to an engineering leader at another company who faced the same wall. "We integrated Tuist," he says. "[Binary caching](https://tuist.dev/en/docs/guides/features/cache) and [selective testing](https://tuist.dev/en/docs/guides/features/selective-testing). Changed everything." The idea is simple: only rebuild what changed, only test what's affected, and share the cached results across your entire team and CI.
 
-Your team spends one week integrating Tuist. You set up [binary caching](https://docs.tuist.dev/guides/develop/build/cache) so when Li changes the authentication module, the other modules use cached builds from the last time they were compiled. You implement [selective testing](https://docs.tuist.dev/en/guides/features/selective-testing) so the CI only runs the tests affected by the change, not the entire suite. The first PR after the optimization merges in minutes instead of an hour.
+Your team spends one week integrating Tuist. You set up [binary caching](https://tuist.dev/en/docs/guides/develop/build/cache) so when Li changes the authentication module, the other modules use cached builds from the last time they were compiled. You implement [selective testing](https://tuist.dev/en/docs/guides/features/selective-testing) so the CI only runs the tests affected by the change, not the entire suite. The first PR after the optimization merges in minutes instead of an hour.
 
 Your CI time drops dramatically. The queue disappears because jobs finish faster. Review time drops because fast feedback means reviewers can stay in context. Merge conflicts drop because the faster cycle time means less overlapping work. The merge throughput more than doubles.
 
@@ -128,7 +128,7 @@ Let's take a typical scenario: a 30-person mobile team with 20-minute CI times. 
 
 **The alternative sequence that actually works:**
 
-**Month 1:** Implement [binary caching](https://docs.tuist.dev/en/guides/features/cache) and [selective testing](https://docs.tuist.dev/en/guides/features/selective-testing). When a developer changes one module, the others use cached builds. When someone touches code, only the affected tests run, not the entire suite.
+**Month 1:** Implement [binary caching](https://tuist.dev/en/docs/guides/features/cache) and [selective testing](https://tuist.dev/en/docs/guides/features/selective-testing). When a developer changes one module, the others use cached builds. When someone touches code, only the affected tests run, not the entire suite.
 
 **The result:** CI time drops from 20 minutes to 4 minutes. Wait times drop from 60 to 12 minutes per developer per day. That's 48 minutes saved per developer per day. Across 30 developers, you've saved 4 FTE worth of time annually. At €140K average salary, that's €560K in recovered value. The cost? Roughly €20K per year. Not by building faster, but by building less. Only what changed. Only what matters.
 

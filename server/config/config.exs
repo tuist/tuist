@@ -289,15 +289,15 @@ config :tuist, :urls,
   podcast: "https://podcast.tuist.dev",
   peertube: "https://videos.tuist.dev",
   status: "https://status.tuist.dev",
-  get_started: "https://docs.tuist.dev",
+  get_started: "https://tuist.dev/en/docs",
   forum: "https://community.tuist.dev",
-  documentation: "https://docs.tuist.dev",
+  documentation: "https://tuist.dev/en/docs",
   # Import environment specific config. This must remain at the bottom
   # of this file so it overrides the configuration defined above.
-  feature_generated_projects: "https://docs.tuist.dev/en/guides/features/projects",
-  feature_cache: "https://docs.tuist.dev/en/guides/features/cache",
-  feature_previews: "https://docs.tuist.dev/en/guides/features/previews",
-  feature_insights: "https://docs.tuist.dev/en/guides/features/insights",
+  feature_generated_projects: "https://tuist.dev/en/docs/guides/features/projects",
+  feature_cache: "https://tuist.dev/en/docs/guides/features/cache",
+  feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
+  feature_insights: "https://tuist.dev/en/docs/guides/features/insights",
   shop: "https://shop.tuist.dev"
 
 config :tuist_common, finch_name: Tuist.Finch

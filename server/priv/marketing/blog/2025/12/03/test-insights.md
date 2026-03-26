@@ -20,16 +20,16 @@ Test Insights gives you a comprehensive overview of your overall test suite _ove
 
 ## Getting started
 
-To get started with test insights, you will need a [Tuist account and a project](https://docs.tuist.dev/en/server/introduction/accounts-and-projects). The best way to get started is to use our [CLI](https://docs.tuist.dev/en/guides/quick-start/install-tuist) and run the `tuist init` command.
+To get started with test insights, you will need a [Tuist account and a project](https://tuist.dev/en/docs/guides/server/accounts-and-projects). The best way to get started is to use our [CLI](https://tuist.dev/en/docs/guides/quick-start/install-tuist) and run the `tuist init` command.
 
-Once you authenticate, you will need to add a `tuist inspect test` command in your Xcode scheme test post-action – unless you use [generated projects](https://docs.tuist.dev/en/guides/develop/projects), in which case we generate the post-action for you. Note that the exact script depends on your installation. If you use [mise](https://mise.jdx.dev/), the full script should be:
+Once you authenticate, you will need to add a `tuist inspect test` command in your Xcode scheme test post-action – unless you use [generated projects](https://tuist.dev/en/docs/guides/develop/projects), in which case we generate the post-action for you. Note that the exact script depends on your installation. If you use [mise](https://mise.jdx.dev/), the full script should be:
 ```sh
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
 ![Screenshot of how to set up an Xcode post action for test insights](/marketing/images/blog/2025/12/03/test-insights/inspect-test-scheme-post-action.png)
 
-For more details how to set up test insights, head over to our [docs](https://docs.tuist.dev/en/guides/develop/insights).
+For more details how to set up test insights, head over to our [docs](https://tuist.dev/en/docs/guides/develop/insights).
 
 ## Test detail
 
@@ -86,4 +86,4 @@ But this is just the beginning. The test insights will provide us with a great f
 
 Are there any day-to-day pains related to your test suite? Let us know and we'd love to prioritize solving your needs.
 
-To learn more about test insights, head over to our [documentation](https://docs.tuist.dev/en/guides/features/insights#tests). If you have any feedback or suggestions, please don't hesitate to reach out to us at [contact@tuist.dev](mailto:contact@tuist.dev).
+To learn more about test insights, head over to our [documentation](https://tuist.dev/en/docs/guides/features/insights#tests). If you have any feedback or suggestions, please don't hesitate to reach out to us at [contact@tuist.dev](mailto:contact@tuist.dev).

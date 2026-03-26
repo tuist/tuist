@@ -26,7 +26,7 @@
             switch self {
             case .missingFullHandle:
                 return
-                    "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
+                    "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
             case .executablePathMissing:
                 return "We couldn't find tuist's executable path to run inspect build in a background."
             case let .mostRecentActivityLogNotFound(projectPath):
