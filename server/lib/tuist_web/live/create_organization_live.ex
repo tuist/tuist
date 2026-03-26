@@ -78,7 +78,7 @@ defmodule TuistWeb.CreateOrganizationLive do
                 />
                 <.button
                   :if={@has_organizations}
-                  navigate={~p"/#{@current_user.account.name}/projects"}
+                  navigate={~p"/dashboard"}
                   variant="secondary"
                   label={dgettext("dashboard_account", "Cancel")}
                 />

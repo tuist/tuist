@@ -19,31 +19,22 @@ defmodule TuistWeb.CreateProjectLive do
     organization_accounts =
       current_user |> Accounts.get_user_organization_accounts() |> Enum.map(& &1.account)
 
-    selected_account =
-      case Map.get(params, "account_id") do
-        account_id when is_binary(account_id) ->
-          account_id = String.to_integer(account_id)
+    if organization_accounts == [] do
+      {:ok, push_navigate(socket, to: ~p"/organizations/new")}
+    else
+      selected_account =
+        preselected_account_id(params, current_user, organization_accounts)
 
-          if Enum.any?(organization_accounts, &(&1.id == account_id)),
-            do: account_id,
-            else: List.first(organization_accounts) && List.first(organization_accounts).id
+      socket =
+        assign(socket,
+          form: form,
+          selected_account: selected_account,
+          selected_build_system: "xcode",
+          accounts: organization_accounts
+        )
 
-        _ ->
-          case organization_accounts do
-            [first | _] -> first.id
-            [] -> nil
-          end
-      end
-
-    socket =
-      assign(socket,
-        form: form,
-        selected_account: selected_account,
-        selected_build_system: "xcode",
-        accounts: organization_accounts
-      )
-
-    {:ok, socket}
+      {:ok, socket}
+    end
   end
 
   @impl true
@@ -164,4 +155,33 @@ defmodule TuistWeb.CreateProjectLive do
         {:noreply, socket}
     end
   end
+
+  defp preselected_account_id(params, current_user, organization_accounts) do
+    explicit_id = param_account_id(params, organization_accounts)
+    explicit_id || last_visited_account_id(current_user, organization_accounts) ||
+      first_account_id(organization_accounts)
+  end
+
+  defp param_account_id(params, organization_accounts) do
+    with account_id when is_binary(account_id) <- Map.get(params, "account_id"),
+         {id, _} <- Integer.parse(account_id),
+         true <- Enum.any?(organization_accounts, &(&1.id == id)) do
+      id
+    else
+      _ -> nil
+    end
+  end
+
+  defp last_visited_account_id(current_user, organization_accounts) do
+    with project_id when not is_nil(project_id) <- current_user.last_visited_project_id,
+         %{account: account} <- Projects.get_project_account_by_project_id(project_id),
+         true <- Enum.any?(organization_accounts, &(&1.id == account.id)) do
+      account.id
+    else
+      _ -> nil
+    end
+  end
+
+  defp first_account_id([first | _]), do: first.id
+  defp first_account_id([]), do: nil
 end
