@@ -3,9 +3,13 @@ defmodule Tuist.Marketing.Changelog.EntryParser do
   This module is responsible for parsing changelog entries from markdown files.
   """
 
+  alias Tuist.Marketing.MDExConverter
+
   def parse(path, contents) do
     [frontmatter_string, body] =
-      contents |> String.replace(~r/^---\n/, "") |> String.split(["\n---\n"])
+      contents |> String.replace(~r/^---\n/, "") |> String.split(["\n---\n"], parts: 2)
+
+    {body_html, _body_template} = MDExConverter.compile_markdown(body, path, false)
 
     date_string = get_date_string_from_path(path)
     date = date_string |> Timex.parse!("{YYYY}/{M}/{D}") |> Timex.to_datetime("Etc/UTC")
@@ -24,7 +28,7 @@ defmodule Tuist.Marketing.Changelog.EntryParser do
         "date" => date
       })
 
-    {frontmatter, body}
+    {frontmatter, body_html}
   end
 
   defp get_date_string_from_path(path) do
