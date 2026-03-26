@@ -12,7 +12,7 @@
 i
 [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
 
-## Do czego służy {#what-it-is-for}
+## Do czego to służy {#what-it-is-for}
 
 CLI jest sercem Tuist. Obsługuje generowanie projektów, automatyzację przepływu
 pracy (testowanie, uruchamianie, tworzenie wykresów i sprawdzanie) oraz zapewnia
