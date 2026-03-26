@@ -42,6 +42,7 @@ struct AnalyticsStateControllerTests {
         // When
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
+            database: nil,
             stateDirectory: temporaryDirectory
         )
 
@@ -75,6 +76,7 @@ struct AnalyticsStateControllerTests {
         // When
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
+            database: nil,
             stateDirectory: temporaryDirectory
         )
 
@@ -95,6 +97,7 @@ struct AnalyticsStateControllerTests {
         // When
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
+            database: nil,
             stateDirectory: temporaryDirectory
         )
 
@@ -109,6 +112,7 @@ struct AnalyticsStateControllerTests {
         // When/Then -- should not throw
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
+            database: nil,
             stateDirectory: temporaryDirectory
         )
     }

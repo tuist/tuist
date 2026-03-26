@@ -4,6 +4,7 @@
     import Path
     import TuistAlert
     import TuistAutomation
+    import TuistCASAnalytics
     import TuistCI
     import TuistConfigLoader
     import TuistCore
@@ -51,6 +52,7 @@
         private let gitController: GitControlling
         private let ciController: CIControlling
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
+        private let casAnalyticsDatabase: CASAnalyticsDatabasing?
 
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -66,7 +68,8 @@
             serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
             gitController: GitControlling = GitController(),
             ciController: CIControlling = CIController(),
-            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator()
+            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
+            casAnalyticsDatabase: CASAnalyticsDatabasing? = try? CASAnalyticsDatabase.shared
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
@@ -82,6 +85,7 @@
             self.gitController = gitController
             self.ciController = ciController
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
+            self.casAnalyticsDatabase = casAnalyticsDatabase
         }
 
         func run(
@@ -255,18 +259,13 @@
                 to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
             )
 
-            let stateDir = Environment.current.stateDirectory
-            let casMetadataDir = buildDirectory.appending(component: "cas_metadata")
-            try await fileSystem.makeDirectory(at: casMetadataDir)
-
-            for subdirectory in ["nodes", "cas", "keyvalue"] {
-                let sourceDir = stateDir.appending(component: subdirectory)
-                if try await fileSystem.exists(sourceDir) {
-                    try await fileSystem.copy(
-                        sourceDir,
-                        to: casMetadataDir.appending(component: subdirectory)
-                    )
-                }
+            if let dbPath = casAnalyticsDatabase?.databasePath(),
+               try await fileSystem.exists(dbPath)
+            {
+                try await fileSystem.copy(
+                    dbPath,
+                    to: buildDirectory.appending(component: "cas_analytics.db")
+                )
             }
 
             let metricsSource = MachineMetricsReader.metricsFilePath

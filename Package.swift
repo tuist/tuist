@@ -420,7 +420,7 @@ tuistInspectCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistCore", "TuistLoader", "TuistAutomation",
     "TuistXCActivityLog", "TuistXcodeProjectOrWorkspacePathLocator",
     "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig",
-    "TuistRootDirectoryLocator", "TuistMachineMetrics",
+    "TuistRootDirectoryLocator", "TuistMachineMetrics", "TuistCASAnalytics",
     xcodeGraphDependency,
     commandDependency,
 ])
@@ -1148,6 +1148,7 @@ targets.append(contentsOf: [
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             "TuistCAS",
+            "TuistCASAnalytics",
             "TuistProcess",
             "TuistCore",
             "TuistSupport",
@@ -1496,8 +1497,7 @@ targets.append(contentsOf: [
     .target(
         name: "TuistCASAnalytics",
         dependencies: [
-            "TuistSupport",
-            fileSystemDependency,
+            "TuistEnvironment",
             pathDependency,
             mockableDependency,
         ],

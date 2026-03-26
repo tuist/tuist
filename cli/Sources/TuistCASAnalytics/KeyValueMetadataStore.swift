@@ -1,9 +1,5 @@
-@preconcurrency import FileSystem
 import Foundation
 import Mockable
-import Path
-import TuistEnvironment
-import TuistSupport
 
 public enum KeyValueOperationType: String, Codable {
     case read
@@ -21,10 +17,10 @@ public protocol KeyValueMetadataStoring: Sendable {
 }
 
 public struct KeyValueMetadataStore: KeyValueMetadataStoring {
-    private let fileSystem: FileSysteming
+    private let database: CASAnalyticsDatabasing
 
-    public init(fileSystem: FileSysteming = FileSystem()) {
-        self.fileSystem = fileSystem
+    public init(database: CASAnalyticsDatabasing? = nil) {
+        self.database = database ?? (try? CASAnalyticsDatabase.shared) ?? NoOpCASAnalyticsDatabase()
     }
 
     public func storeMetadata(
@@ -32,40 +28,24 @@ public struct KeyValueMetadataStore: KeyValueMetadataStoring {
         for cacheKey: String,
         operationType: KeyValueOperationType
     ) async throws {
-        let keyValueDirectory = Environment.current.stateDirectory
-            .appending(component: "keyvalue")
-            .appending(component: operationType.rawValue)
-        try await fileSystem.makeDirectory(at: keyValueDirectory)
-
         let sanitizedKey = sanitizeCacheKey(cacheKey)
-        let metadataFilePath = keyValueDirectory.appending(component: "\(sanitizedKey).json")
-
-        if try await fileSystem.exists(metadataFilePath) {
-            try await fileSystem.remove(metadataFilePath)
-        }
-
-        try await fileSystem.writeAsJSON(metadata, at: metadataFilePath)
+        let category = "keyvalue_\(operationType.rawValue)"
+        let jsonData = try JSONEncoder().encode(metadata)
+        let jsonString = String(data: jsonData, encoding: .utf8)!
+        try database.store(category: category, key: sanitizedKey, value: jsonString)
     }
 
     public func metadata(for cacheKey: String, operationType: KeyValueOperationType) async throws -> KeyValueMetadata? {
-        let keyValueDirectory = Environment.current.stateDirectory
-            .appending(component: "keyvalue")
-            .appending(component: operationType.rawValue)
         let sanitizedKey = sanitizeCacheKey(cacheKey)
-        let metadataFilePath = keyValueDirectory.appending(component: "\(sanitizedKey).json")
-
-        guard try await fileSystem.exists(metadataFilePath) else {
+        let category = "keyvalue_\(operationType.rawValue)"
+        guard let jsonString = try database.get(category: category, key: sanitizedKey) else {
             return nil
         }
-
-        return try await fileSystem.readJSONFile(at: metadataFilePath)
+        return try JSONDecoder().decode(KeyValueMetadata.self, from: jsonString.data(using: .utf8)!)
     }
 
-    // MARK: - Private Methods
-
     private func sanitizeCacheKey(_ cacheKey: String) -> String {
-        // Replace any characters that aren't filesystem-safe with underscores
-        return cacheKey.replacingOccurrences(of: "/", with: "_")
+        cacheKey.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")
             .replacingOccurrences(of: "~", with: "_")
     }
