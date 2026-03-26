@@ -32,6 +32,8 @@ defmodule Tuist.IngestRepo.Migrations.RecreateTestCaseRunsByTestRunMv do
     FROM test_case_runs
     """)
 
+    IngestRepo.query!("SYSTEM SYNC DATABASE REPLICA")
+
     backfill_by_partition()
   end
 
