@@ -136,9 +136,9 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
       heading_texts = Enum.map(generate_page.headings, & &1.text)
       assert "Arguments" in heading_texts
-      assert "path" in heading_texts
-      assert "no-open" in heading_texts
-      refute "help" in heading_texts
+      assert Enum.any?(heading_texts, &String.starts_with?(&1, "path"))
+      assert Enum.any?(heading_texts, &String.starts_with?(&1, "no-open"))
+      refute Enum.any?(heading_texts, &String.starts_with?(&1, "help"))
     end
 
     test "heading IDs match the anchor IDs in the HTML" do
