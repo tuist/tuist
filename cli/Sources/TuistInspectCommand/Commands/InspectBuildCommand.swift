@@ -1,7 +1,6 @@
 #if os(macOS)
     import ArgumentParser
     import Foundation
-    import TuistCASAnalytics
     import TuistEnvKey
     import TuistNooraExtension
 
@@ -32,7 +31,7 @@
         var jsonThroughNoora: Bool = false
 
         func run() async throws {
-            try await InspectBuildCommandService(casAnalyticsDatabase: CASAnalyticsDatabase())
+            try await InspectBuildCommandService()
                 .run(
                     path: path,
                     derivedDataPath: derivedDataPath

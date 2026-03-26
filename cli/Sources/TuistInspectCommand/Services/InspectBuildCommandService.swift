@@ -4,7 +4,6 @@
     import Path
     import TuistAlert
     import TuistAutomation
-    import TuistCASAnalytics
     import TuistCI
     import TuistConfigLoader
     import TuistCore
@@ -52,7 +51,7 @@
         private let gitController: GitControlling
         private let ciController: CIControlling
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
-        private let casAnalyticsDatabase: CASAnalyticsDatabasing
+        private let casAnalyticsDatabasePath: AbsolutePath
 
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -69,7 +68,7 @@
             gitController: GitControlling = GitController(),
             ciController: CIControlling = CIController(),
             xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
-            casAnalyticsDatabase: CASAnalyticsDatabasing
+            casAnalyticsDatabasePath: AbsolutePath = Environment.current.stateDirectory.appending(component: "cas_analytics.db")
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
@@ -85,7 +84,7 @@
             self.gitController = gitController
             self.ciController = ciController
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
-            self.casAnalyticsDatabase = casAnalyticsDatabase
+            self.casAnalyticsDatabasePath = casAnalyticsDatabasePath
         }
 
         func run(
@@ -259,10 +258,9 @@
                 to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
             )
 
-            let dbPath = casAnalyticsDatabase.databasePath()
-            if try await fileSystem.exists(dbPath) {
+            if try await fileSystem.exists(casAnalyticsDatabasePath) {
                 try await fileSystem.copy(
-                    dbPath,
+                    casAnalyticsDatabasePath,
                     to: buildDirectory.appending(component: "cas_analytics.db")
                 )
             }
