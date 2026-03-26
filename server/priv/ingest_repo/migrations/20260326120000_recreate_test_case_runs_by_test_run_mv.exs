@@ -22,7 +22,7 @@ defmodule Tuist.IngestRepo.Migrations.RecreateTestCaseRunsByTestRunMv do
   @columns ~w(id test_run_id status is_flaky is_new duration inserted_at ran_at name project_id)
 
   def up do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run")
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run SYNC")
 
     IngestRepo.query!("""
     CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_test_run
@@ -32,11 +32,13 @@ defmodule Tuist.IngestRepo.Migrations.RecreateTestCaseRunsByTestRunMv do
     FROM test_case_runs
     """)
 
+    IngestRepo.query!("SYSTEM SYNC DATABASE REPLICA")
+
     backfill_by_partition()
   end
 
   def down do
-    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run")
+    IngestRepo.query!("DROP VIEW IF EXISTS test_case_runs_by_test_run SYNC")
 
     IngestRepo.query!("""
     CREATE MATERIALIZED VIEW IF NOT EXISTS test_case_runs_by_test_run
