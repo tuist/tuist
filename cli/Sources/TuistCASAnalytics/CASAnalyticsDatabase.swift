@@ -41,19 +41,14 @@ public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Send
         _lock.lock()
         defer { _lock.unlock() }
         if let existing = _shared { return existing }
-        let instance = try! CASAnalyticsDatabase()
+        let instance = try! open()
         _shared = instance
         return instance
     }
 
-    private let db: OpaquePointer
-    private let path: AbsolutePath
-    private let lock = NSLock()
-
-    public init(stateDirectory: AbsolutePath? = nil) throws {
+    public static func open(stateDirectory: AbsolutePath? = nil) throws -> CASAnalyticsDatabase {
         let stateDir = stateDirectory ?? Environment.current.stateDirectory
         let dbPath = stateDir.appending(component: "cas_analytics.db")
-        self.path = dbPath
 
         var dbPointer: OpaquePointer?
         let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
@@ -63,11 +58,13 @@ public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Send
             sqlite3_close(dbPointer)
             throw CASAnalyticsDatabaseError.failedToOpen(message)
         }
-        self.db = db
 
         sqlite3_busy_timeout(db, 5000)
 
-        try execute("""
+        let instance = CASAnalyticsDatabase(db: db, path: dbPath)
+        try instance.execute("PRAGMA journal_mode = WAL")
+        try instance.execute("PRAGMA synchronous = NORMAL")
+        try instance.execute("""
         CREATE TABLE IF NOT EXISTS entries (
             category TEXT NOT NULL,
             key TEXT NOT NULL,
@@ -76,9 +73,16 @@ public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Send
             PRIMARY KEY (category, key)
         )
         """)
+        return instance
+    }
 
-        try execute("PRAGMA journal_mode = WAL")
-        try execute("PRAGMA synchronous = NORMAL")
+    private let db: OpaquePointer
+    private let path: AbsolutePath
+    private let lock = NSLock()
+
+    private init(db: OpaquePointer, path: AbsolutePath) {
+        self.db = db
+        self.path = path
     }
 
     deinit {

@@ -963,7 +963,7 @@ struct InspectBuildCommandServiceTests {
         )
 
         try await fileSystem.makeDirectory(at: mockedEnvironment.stateDirectory)
-        let database = try CASAnalyticsDatabase(stateDirectory: mockedEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open(stateDirectory: mockedEnvironment.stateDirectory)
         let entryCount = 200_000
         let value = String(repeating: "x", count: 64)
         for i in 0 ..< entryCount {

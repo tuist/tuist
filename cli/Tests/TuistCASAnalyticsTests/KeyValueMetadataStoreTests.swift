@@ -8,7 +8,7 @@ struct KeyValueMetadataStoreTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func storeMetadata_and_retrieve_read_operation() async throws {
         let mockEnvironment = try #require(Environment.mocked)
-        let database = try CASAnalyticsDatabase(stateDirectory: mockEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
         let subject = KeyValueMetadataStore(database: database)
 
         let metadata = KeyValueMetadata(duration: 5.333)
@@ -21,7 +21,7 @@ struct KeyValueMetadataStoreTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func storeMetadata_and_retrieve_write_operation() async throws {
         let mockEnvironment = try #require(Environment.mocked)
-        let database = try CASAnalyticsDatabase(stateDirectory: mockEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
         let subject = KeyValueMetadataStore(database: database)
 
         let metadata = KeyValueMetadata(duration: 3.25)
@@ -34,7 +34,7 @@ struct KeyValueMetadataStoreTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func read_and_write_operations_are_separate() async throws {
         let mockEnvironment = try #require(Environment.mocked)
-        let database = try CASAnalyticsDatabase(stateDirectory: mockEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
         let subject = KeyValueMetadataStore(database: database)
 
         try await subject.storeMetadata(KeyValueMetadata(duration: 1.0), for: "key", operationType: .read)
@@ -49,7 +49,7 @@ struct KeyValueMetadataStoreTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func metadata_returns_nil_when_not_stored() async throws {
         let mockEnvironment = try #require(Environment.mocked)
-        let database = try CASAnalyticsDatabase(stateDirectory: mockEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
         let subject = KeyValueMetadataStore(database: database)
 
         let result = try await subject.metadata(for: "nonexistent", operationType: .read)
@@ -59,7 +59,7 @@ struct KeyValueMetadataStoreTests {
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func storeMetadata_sanitizes_cache_key() async throws {
         let mockEnvironment = try #require(Environment.mocked)
-        let database = try CASAnalyticsDatabase(stateDirectory: mockEnvironment.stateDirectory)
+        let database = try CASAnalyticsDatabase.open(stateDirectory: mockEnvironment.stateDirectory)
         let subject = KeyValueMetadataStore(database: database)
 
         try await subject.storeMetadata(KeyValueMetadata(duration: 5.0), for: "test/cache:key~special", operationType: .read)

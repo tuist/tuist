@@ -43,7 +43,7 @@ struct AnalyticsStateControllerTests {
         // When
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
-            database: try CASAnalyticsDatabase(stateDirectory: temporaryDirectory),
+            database: try CASAnalyticsDatabase.open(stateDirectory: temporaryDirectory),
             stateDirectory: temporaryDirectory
         )
 
@@ -77,7 +77,7 @@ struct AnalyticsStateControllerTests {
         // When
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
-            database: try CASAnalyticsDatabase(stateDirectory: temporaryDirectory),
+            database: try CASAnalyticsDatabase.open(stateDirectory: temporaryDirectory),
             stateDirectory: temporaryDirectory
         )
 
@@ -98,7 +98,7 @@ struct AnalyticsStateControllerTests {
         // When
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
-            database: try CASAnalyticsDatabase(stateDirectory: temporaryDirectory),
+            database: try CASAnalyticsDatabase.open(stateDirectory: temporaryDirectory),
             stateDirectory: temporaryDirectory
         )
 
@@ -113,7 +113,7 @@ struct AnalyticsStateControllerTests {
         // When/Then -- should not throw
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
-            database: try CASAnalyticsDatabase(stateDirectory: temporaryDirectory),
+            database: try CASAnalyticsDatabase.open(stateDirectory: temporaryDirectory),
             stateDirectory: temporaryDirectory
         )
     }
