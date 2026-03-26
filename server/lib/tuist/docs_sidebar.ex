@@ -63,13 +63,14 @@ defmodule Tuist.Docs.Sidebar do
   @translations translations
 
   def tree do
-    guides_tree() ++ resources_tree() ++ references_tree()
+    guides_tree() ++ resources_tree() ++ references_tree() ++ cli_tree()
   end
 
   def tab_for_slug(slug) do
     path = Regex.replace(~r{^/[^/]+/}, slug, "/")
 
     cond do
+      String.starts_with?(path, "/cli") -> :cli
       String.starts_with?(path, "/references") -> :references
       String.starts_with?(path, "/contributors") -> :resources
       true -> :guides
@@ -80,6 +81,7 @@ defmodule Tuist.Docs.Sidebar do
   def tree_for_tab(:guides, locale), do: localize_tree(guides_tree(), locale)
   def tree_for_tab(:references, locale), do: localize_tree(references_tree(), locale)
   def tree_for_tab(:resources, locale), do: localize_tree(resources_tree(), locale)
+  def tree_for_tab(:cli, locale), do: localize_tree(cli_tree(), locale)
 
   defp localize_tree(tree, "en"), do: tree
 
@@ -377,7 +379,8 @@ defmodule Tuist.Docs.Sidebar do
       %Group{
         label: nil,
         items: [
-          %Item{label: "Changelog", url: "https://github.com/tuist/tuist/releases"},
+          %Item{label: "Changelog", url: "/changelog"},
+          %Item{label: "Releases", url: "https://github.com/tuist/tuist/releases"},
           %Item{label: "API documentation", url: "https://tuist.dev/api/docs"},
           %Item{label: "Status", url: "https://status.tuist.io"},
           %Item{
@@ -447,6 +450,26 @@ defmodule Tuist.Docs.Sidebar do
               %Item{label: "From v3 to v4", slug: "/en/references/migrations/from-v3-to-v4"}
             ]
           }
+        ]
+      }
+    ]
+  end
+
+  def cli_tree do
+    case Tuist.Docs.CLI.sidebar_items() do
+      [] -> default_cli_tree()
+      items -> items
+    end
+  end
+
+  defp default_cli_tree do
+    [
+      %Group{
+        label: "CLI",
+        items: [
+          %Item{label: "Debugging", slug: "/en/cli/debugging"},
+          %Item{label: "Directories", slug: "/en/cli/directories"},
+          %Item{label: "Shell completions", slug: "/en/cli/shell-completions"}
         ]
       }
     ]

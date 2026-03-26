@@ -78,22 +78,29 @@
         <.button_group size="large" id="docs-nav-tabs">
           <.button_group_item
             label={dgettext("docs", "Guides")}
-            navigate={docs_path("/#{@locale}")}
+            href={docs_path("/#{@locale}")}
             data-tab="guides"
             data-selected={
               !String.contains?(@current_path, "/docs/references") &&
-                !String.contains?(@current_path, "/docs/contributors")
+                !String.contains?(@current_path, "/docs/contributors") &&
+                !String.contains?(@current_path, "/docs/cli")
             }
           />
           <.button_group_item
+            label={dgettext("docs", "CLI")}
+            href={docs_path("/#{@locale}/cli")}
+            data-tab="cli"
+            data-selected={String.contains?(@current_path, "/docs/cli")}
+          />
+          <.button_group_item
             label={dgettext("docs", "References")}
-            navigate={docs_path("/#{@locale}/references/tuist-toml")}
+            href={docs_path("/#{@locale}/references/tuist-toml")}
             data-tab="references"
             data-selected={String.contains?(@current_path, "/docs/references")}
           />
           <.button_group_item
             label={dgettext("docs", "Resources")}
-            navigate={docs_path("/#{@locale}/contributors/code")}
+            href={docs_path("/#{@locale}/contributors/code")}
             data-tab="resources"
             data-selected={String.contains?(@current_path, "/docs/contributors")}
           />

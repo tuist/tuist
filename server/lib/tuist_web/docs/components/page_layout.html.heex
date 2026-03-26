@@ -41,6 +41,16 @@
             </:icon_left>
           </.tab_menu_vertical>
         </.link>
+        <.link :if={@tab == :cli} patch={docs_path("/#{@locale}/cli")} data-part="nav-link">
+          <.tab_menu_vertical
+            label="Overview"
+            data-selected={@current_slug == "/#{@locale}/cli"}
+          >
+            <:icon_left>
+              <.icon name="devices_browser" />
+            </:icon_left>
+          </.tab_menu_vertical>
+        </.link>
         <div :for={group <- @tree} data-part="nav-section">
           <.line_divider />
           <div :if={group.label} data-part="content-divider">
