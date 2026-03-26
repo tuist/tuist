@@ -30,11 +30,9 @@ extension XcodeGraph.TargetScript {
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
-        let outputPaths = try await pathStrings(
-            for: manifest.outputPaths,
-            generatorPaths: generatorPaths,
-            fileSystem: fileSystem
-        )
+        let outputPaths = manifest.outputPaths.map { 
+    generatorPaths.resolve(path: $0).pathString 
+}
         let outputFileListPaths = try await pathStrings(
             for: manifest.outputFileListPaths,
             generatorPaths: generatorPaths,
