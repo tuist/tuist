@@ -12,7 +12,7 @@
 و
 [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
 
-## ما الغرض منه {#what-it-is-for}
+## ما الغرض من ذلك {#what-it-is-for}
 
 CLI هو قلب Tuist. فهو يتولى إنشاء المشاريع وسير العمل الآلي (الاختبار والتشغيل
 والرسم البياني والتفتيش)، ويوفر واجهة لخادم Tuist لميزات مثل المصادقة والذاكرة
@@ -25,7 +25,7 @@ CLI هو قلب Tuist. فهو يتولى إنشاء المشاريع وسير ا
 - macOS 14.0+
 - Xcode 26+
 
-### قم بالإعداد محليًا {#set-up-locally}
+### الإعداد محليًا {#set-up-locally}
 
 - انسخ المستودع: `git clone git@github.com:tuist/tuist.git`
 - قم بتثبيت Mise باستخدام [نص التثبيت
@@ -44,7 +44,7 @@ CLI هو قلب Tuist. فهو يتولى إنشاء المشاريع وسير ا
 <!-- -->
 :::
 
-### قم بتشغيل Tuist {#run-tuist}
+### تشغيل Tuist {#run-tuist}
 
 #### من Xcode {#from-xcode}
 
