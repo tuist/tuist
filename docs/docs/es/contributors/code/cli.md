@@ -19,14 +19,14 @@ flujos de trabajo de automatización (prueba, ejecución, gráfico e inspección
 proporciona la interfaz con el servidor Tuist para funciones como autenticación,
 caché, información, vistas previas, registro y pruebas selectivas.
 
-## Cómo contribuir {#how-to-contribute}
+## Cómo colaborar {#how-to-contribute}
 
 ### Requisitos {#requirements}
 
 - macOS 14.0+
 - Xcode 26+
 
-### Configurar localmente {#set-up-locally}
+### Configuración local {#set-up-locally}
 
 - Clona el repositorio: `git clone git@github.com:tuist/tuist.git`
 - Instala Mise utilizando [su script de instalación
@@ -45,7 +45,7 @@ espacio de trabajo generado por Tuist. Utiliza `Tuist.xcworkspace`.
 <!-- -->
 :::
 
-### Ejecuta Tuist. {#run-tuist}
+### Ejecutar Tuist {#run-tuist}
 
 #### Desde Xcode {#from-xcode}
 
