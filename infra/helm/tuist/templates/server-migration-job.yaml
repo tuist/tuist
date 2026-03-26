@@ -61,6 +61,8 @@ spec:
                   key: server-secret-key-base
             - name: TUIST_APP_URL
               value: {{ .Values.server.appUrl | quote }}
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
             {{- if .Values.server.license.key }}
