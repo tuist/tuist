@@ -14,8 +14,8 @@ public protocol CASOutputMetadataStoring: Sendable {
 public struct CASOutputMetadataStore: CASOutputMetadataStoring {
     private let database: CASAnalyticsDatabasing
 
-    public init(database: CASAnalyticsDatabasing? = nil) {
-        self.database = database ?? (try? CASAnalyticsDatabase.shared) ?? NoOpCASAnalyticsDatabase()
+    public init(database: CASAnalyticsDatabasing) {
+        self.database = database
     }
 
     public func storeMetadata(_ metadata: CASOutputMetadata, for casID: String) async throws {

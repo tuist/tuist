@@ -4,16 +4,6 @@ import Path
 import SQLite3
 import TuistEnvironment
 
-public struct NoOpCASAnalyticsDatabase: CASAnalyticsDatabasing {
-    public init() {}
-    public func store(category _: String, key _: String, value _: String) throws {}
-    public func get(category _: String, key _: String) throws -> String? { nil }
-    public func removeOldEntries(olderThan _: Date) throws {}
-    public func databasePath() -> AbsolutePath {
-        try! AbsolutePath(validating: "/dev/null")
-    }
-}
-
 enum CASAnalyticsDatabaseError: LocalizedError {
     case failedToOpen(String)
     case failedToExecute(String)

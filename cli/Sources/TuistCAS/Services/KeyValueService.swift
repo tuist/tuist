@@ -33,10 +33,10 @@
             putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
             getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
             fileSystem: FileSystem = FileSystem(),
-            nodeStore: CASNodeStoring = CASNodeStore(),
-            metadataStore: KeyValueMetadataStoring = KeyValueMetadataStore(),
+            nodeStore: CASNodeStoring? = nil,
+            metadataStore: KeyValueMetadataStoring? = nil,
             serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
-        ) {
+        ) throws {
             self.fullHandle = fullHandle
             self.serverURL = serverURL
             self.cacheURLStore = cacheURLStore
@@ -44,8 +44,9 @@
             self.putCacheValueService = putCacheValueService
             self.getCacheValueService = getCacheValueService
             self.fileSystem = fileSystem
-            self.nodeStore = nodeStore
-            self.metadataStore = metadataStore
+            let database = try CASAnalyticsDatabase.shared
+            self.nodeStore = nodeStore ?? CASNodeStore(database: database)
+            self.metadataStore = metadataStore ?? KeyValueMetadataStore(database: database)
             self.serverAuthenticationController = serverAuthenticationController
         }
 

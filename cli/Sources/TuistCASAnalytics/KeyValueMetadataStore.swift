@@ -19,8 +19,8 @@ public protocol KeyValueMetadataStoring: Sendable {
 public struct KeyValueMetadataStore: KeyValueMetadataStoring {
     private let database: CASAnalyticsDatabasing
 
-    public init(database: CASAnalyticsDatabasing? = nil) {
-        self.database = database ?? (try? CASAnalyticsDatabase.shared) ?? NoOpCASAnalyticsDatabase()
+    public init(database: CASAnalyticsDatabasing) {
+        self.database = database
     }
 
     public func storeMetadata(

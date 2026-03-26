@@ -14,8 +14,8 @@ public protocol CASNodeStoring: Sendable {
 public struct CASNodeStore: CASNodeStoring {
     private let database: CASAnalyticsDatabasing
 
-    public init(database: CASAnalyticsDatabasing? = nil) {
-        self.database = database ?? (try? CASAnalyticsDatabase.shared) ?? NoOpCASAnalyticsDatabase()
+    public init(database: CASAnalyticsDatabasing) {
+        self.database = database
     }
 
     public func storeNode(_ nodeID: String, checksum: String) async throws {
