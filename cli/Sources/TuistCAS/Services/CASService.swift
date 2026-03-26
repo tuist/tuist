@@ -29,7 +29,8 @@
             fullHandle: String,
             serverURL: URL,
             cacheURLStore: CacheURLStoring,
-            upload: Bool = true
+            upload: Bool = true,
+            metadataStore: CASOutputMetadataStoring
         ) {
             self.fullHandle = fullHandle
             self.serverURL = serverURL
@@ -39,7 +40,7 @@
             loadCacheCASService = LoadCacheCASService()
             fileSystem = FileSystem()
             dataCompressingService = DataCompressingService()
-            metadataStore = CASOutputMetadataStore()
+            self.metadataStore = metadataStore
             serverAuthenticationController = ServerAuthenticationController()
         }
 

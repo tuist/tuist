@@ -33,8 +33,8 @@
             putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
             getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
             fileSystem: FileSystem = FileSystem(),
-            nodeStore: CASNodeStoring = CASNodeStore(),
-            metadataStore: KeyValueMetadataStoring = KeyValueMetadataStore(),
+            nodeStore: CASNodeStoring,
+            metadataStore: KeyValueMetadataStoring,
             serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
         ) {
             self.fullHandle = fullHandle

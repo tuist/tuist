@@ -20,21 +20,17 @@ public protocol CASAnalyticsDatabasing: Sendable {
     func databasePath() -> AbsolutePath
 }
 
-public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Sendable {
-    // swiftlint:disable:next force_try
-    @TaskLocal public static var current: CASAnalyticsDatabasing = {
-        let db = try! open()
-        try! db.migrate()
-        return db
-    }()
+public struct CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Sendable {
+    private let db: Connection
+    private let path: AbsolutePath
 
-    public static func open() throws -> CASAnalyticsDatabase {
+    public init() throws {
         let dbPath = Environment.current.stateDirectory.appending(component: "cas_analytics.db")
-        let db = try Connection(dbPath.pathString)
+        self.db = try Connection(dbPath.pathString)
+        self.path = dbPath
         db.busyTimeout = 5
         try db.execute("PRAGMA journal_mode = WAL")
         try db.execute("PRAGMA synchronous = NORMAL")
-        return CASAnalyticsDatabase(db: db, path: dbPath)
     }
 
     public func migrate() throws {
@@ -59,14 +55,6 @@ public final class CASAnalyticsDatabase: CASAnalyticsDatabasing, @unchecked Send
             t.column(KeyValueMetadataSchema.createdAt, defaultValue: Date())
             t.primaryKey(KeyValueMetadataSchema.key, KeyValueMetadataSchema.operationType)
         })
-    }
-
-    private let db: Connection
-    private let path: AbsolutePath
-
-    private init(db: Connection, path: AbsolutePath) {
-        self.db = db
-        self.path = path
     }
 
     // MARK: - CAS Outputs

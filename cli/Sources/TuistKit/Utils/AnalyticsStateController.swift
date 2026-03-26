@@ -9,7 +9,7 @@ public struct AnalyticsStateController {
     private let fileSystem: FileSystem
     private let database: CASAnalyticsDatabasing
 
-    public init(fileSystem: FileSystem = FileSystem(), database: CASAnalyticsDatabasing = CASAnalyticsDatabase.current) {
+    public init(fileSystem: FileSystem = FileSystem(), database: CASAnalyticsDatabasing) {
         self.fileSystem = fileSystem
         self.database = database
     }
