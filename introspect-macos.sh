@@ -253,9 +253,165 @@ meta=$(
   } | to_obj
 )
 
+# ── Co-tenancy & Resource Contention Detection ────────────────────────
+
+# CPU scheduling jitter test: measure variance in a tight loop
+# High jitter suggests the hypervisor is preempting this VM for siblings
+cpu_jitter_samples=""
+for i in $(seq 1 20); do
+  start_ns=$(date +%s%N 2>/dev/null || python3 -c "import time; print(int(time.time_ns()))")
+  # Busy-spin for ~10ms worth of work
+  j=0; while [ $j -lt 50000 ]; do j=$((j+1)); done
+  end_ns=$(date +%s%N 2>/dev/null || python3 -c "import time; print(int(time.time_ns()))")
+  delta=$((end_ns - start_ns))
+  cpu_jitter_samples="${cpu_jitter_samples}${delta}\n"
+done
+
+# CPU steal/contention: run a single-core benchmark 3 times and compare
+# Consistent times = dedicated; high variance = shared/contended
+cpu_bench_samples=""
+for i in 1 2 3; do
+  bench_start=$(python3 -c "import time; print(time.time())")
+  # Pure CPU work: compute-bound loop
+  python3 -c "
+import hashlib
+s = b'benchmark'
+for _ in range(200000):
+    s = hashlib.sha256(s).digest()
+"
+  bench_end=$(python3 -c "import time; print(time.time())")
+  elapsed=$(python3 -c "print(round($bench_end - $bench_start, 4))")
+  cpu_bench_samples="${cpu_bench_samples}run${i}: ${elapsed}s\n"
+done
+
+# Parallel CPU saturation test: use all reported cores simultaneously
+# If we get less throughput than expected, other VMs may share physical cores
+parallel_bench_start=$(python3 -c "import time; print(time.time())")
+ncores=$(sysctl -n hw.ncpu)
+pids=""
+for i in $(seq 1 "$ncores"); do
+  python3 -c "
+import hashlib
+s = b'parallel$i'
+for _ in range(200000):
+    s = hashlib.sha256(s).digest()
+" &
+  pids="$pids $!"
+done
+for pid in $pids; do wait "$pid"; done
+parallel_bench_end=$(python3 -c "import time; print(time.time())")
+parallel_elapsed=$(python3 -c "print(round($parallel_bench_end - $parallel_bench_start, 4))")
+
+# Memory pressure: can we actually allocate what's reported?
+mem_alloc_test=$(python3 -c "
+import sys
+total_gb = $(sysctl -n hw.memsize) / (1024**3)
+# Try to allocate 80% of reported memory
+target_mb = int(total_gb * 0.8 * 1024)
+try:
+    blocks = []
+    allocated = 0
+    chunk = 256  # 256MB chunks
+    while allocated < target_mb:
+        blocks.append(bytearray(chunk * 1024 * 1024))
+        allocated += chunk
+    # Touch each block to force physical allocation
+    for b in blocks:
+        b[0] = 1
+        b[-1] = 1
+    print(f'allocated_mb={allocated}, success=true')
+except MemoryError:
+    print(f'allocated_mb={allocated}, success=false, hit_limit_at={allocated}MB')
+finally:
+    del blocks
+" 2>&1)
+
+# I/O contention: sequential write latency over multiple small writes
+# High p99/p50 ratio indicates I/O scheduling contention
+io_latencies=""
+for i in $(seq 1 30); do
+  io_start=$(python3 -c "import time; print(time.time_ns())")
+  dd if=/dev/zero of=/tmp/_io_probe_$i bs=4k count=1 conv=fsync 2>/dev/null
+  io_end=$(python3 -c "import time; print(time.time_ns())")
+  io_delta=$(python3 -c "print($io_end - $io_start)")
+  io_latencies="${io_latencies}${io_delta}\n"
+  rm -f /tmp/_io_probe_$i
+done
+
+# Compute stats from the samples
+contention_stats=$(python3 -c "
+import statistics
+
+# CPU jitter
+jitter_raw = '''$(printf '%b' "$cpu_jitter_samples")'''.strip().split('\n')
+jitter = [int(x) for x in jitter_raw if x.strip()]
+if jitter:
+    jitter_mean = statistics.mean(jitter)
+    jitter_stdev = statistics.stdev(jitter) if len(jitter) > 1 else 0
+    jitter_cv = (jitter_stdev / jitter_mean * 100) if jitter_mean > 0 else 0
+    jitter_max = max(jitter)
+    jitter_min = min(jitter)
+else:
+    jitter_mean = jitter_stdev = jitter_cv = jitter_max = jitter_min = 0
+
+# IO latencies
+io_raw = '''$(printf '%b' "$io_latencies")'''.strip().split('\n')
+io_vals = sorted([int(x) for x in io_raw if x.strip()])
+if io_vals:
+    io_p50 = io_vals[len(io_vals)//2]
+    io_p99 = io_vals[int(len(io_vals)*0.99)]
+    io_mean = statistics.mean(io_vals)
+    io_stdev = statistics.stdev(io_vals) if len(io_vals) > 1 else 0
+    io_ratio = io_p99 / io_p50 if io_p50 > 0 else 0
+else:
+    io_p50 = io_p99 = io_mean = io_stdev = io_ratio = 0
+
+import json
+print(json.dumps({
+    'cpu_jitter_ns': {
+        'mean': round(jitter_mean),
+        'stdev': round(jitter_stdev),
+        'cv_percent': round(jitter_cv, 2),
+        'min': jitter_min,
+        'max': jitter_max,
+        'interpretation': 'low contention' if jitter_cv < 15 else ('moderate contention' if jitter_cv < 40 else 'high contention (likely co-tenancy)')
+    },
+    'cpu_bench_seconds': '''$(printf '%b' "$cpu_bench_samples")'''.strip(),
+    'parallel_bench': {
+        'cores_used': $ncores,
+        'wall_time_seconds': $parallel_elapsed,
+        'interpretation': 'If wall_time ~= single_core_time, cores are dedicated. If much higher, cores may be shared with other VMs.'
+    },
+    'memory_allocation_test': '$mem_alloc_test',
+    'io_fsync_latency_ns': {
+        'p50': io_p50,
+        'p99': io_p99,
+        'mean': round(io_mean),
+        'stdev': round(io_stdev),
+        'p99_p50_ratio': round(io_ratio, 2),
+        'interpretation': 'low contention' if io_ratio < 5 else ('moderate contention' if io_ratio < 20 else 'high contention (I/O scheduling interference)')
+    }
+}))
+")
+
+contention=$(
+  {
+    jq -n --arg k "scheduling_jitter_and_cpu_contention" --argjson v "$contention_stats" '[$k, $v]'
+    kv "mach_absolute_time_info" "sysctl -n kern.clockrate"
+    kv "scheduler_info" "sysctl -a 2>/dev/null | grep -E 'kern.sched|kern.quantum|kern.timer'"
+    kv "host_cpu_topology_hints" "sysctl -a 2>/dev/null | grep -E 'hw.nperflevels|hw.perflevel|hw.cpu_type'"
+    kv "thread_count" "sysctl -n kern.num_threads"
+    kv "task_count" "sysctl -n kern.num_tasks"
+    kv "vm_page_free_count" "sysctl -n vm.page_free_count"
+    kv "vm_page_speculative_count" "sysctl -n vm.page_speculative_count"
+    kv "vm_compressor_mode" "sysctl -n vm.compressor_mode"
+    kv "memory_pressure_level" "memory_pressure -S 2>/dev/null | head -5"
+  } | to_obj
+)
+
 # ── Assemble final JSON ───────────────────────────────────────────────
 jq -n \
-  --arg version "1.0.0" \
+  --arg version "2.0.0" \
   --arg collected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg hostname "$(hostname 2>/dev/null || echo '')" \
   --argjson system "$system" \
@@ -272,6 +428,7 @@ jq -n \
   --argjson runtimes "$runtimes" \
   --argjson hardware "$hw" \
   --argjson metadata "$meta" \
+  --argjson contention "$contention" \
   '{
     version: $version,
     collected_at: $collected_at,
@@ -289,5 +446,6 @@ jq -n \
     processes: $processes,
     runtimes: $runtimes,
     hardware: $hardware,
-    metadata: $metadata
+    metadata: $metadata,
+    contention: $contention
   }'
