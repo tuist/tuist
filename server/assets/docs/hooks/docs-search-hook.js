@@ -85,7 +85,15 @@ function escapeHtml(str) {
 
 // --- Hook ---
 
-export default {
+export function initDocsSearch() {
+  const el = document.getElementById("docs-search");
+  if (!el) return;
+  const instance = Object.create(DocsSearchHook);
+  instance.el = el;
+  instance.mounted();
+}
+
+const DocsSearchHook = {
   mounted() {
     this.results = [];
     this.selectedIndex = -1;
@@ -352,3 +360,5 @@ export default {
     }
   },
 };
+
+export default DocsSearchHook;
