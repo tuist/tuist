@@ -1,0 +1,20 @@
+name: Namespace VM Introspection
+
+on:
+  push:
+    branches:
+      - pepicrft/namespace-vm-introspect
+
+jobs:
+  introspect-macos:
+    name: Introspect Namespace macOS VM
+    runs-on: namespace-profile-default-macos
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run introspection
+        run: bash introspect-macos.sh | tee report.json
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: namespace-macos-introspection
+          path: report.json
