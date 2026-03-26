@@ -442,11 +442,14 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 }
 
                 if let depTarget = targetsByName[dependencyName] {
-                    if depTarget.type == .binary,
-                       let depPath = depTarget.path,
-                       (try? RelativePath(validating: depPath))?.basenameWithoutExt == singleProduct.name
-                    {
-                        return targetName
+                    if depTarget.type == .binary {
+                        let matchesProductNameInPath =
+                            depTarget.path.flatMap { try? RelativePath(validating: $0).basenameWithoutExt } == singleProduct.name
+                        let matchesProductNameInTargetName =
+                            depTarget.name == singleProduct.name || depTarget.name.hasPrefix(singleProduct.name)
+                        if matchesProductNameInPath || matchesProductNameInTargetName {
+                            return targetName
+                        }
                     }
                     queue.append(dependencyName)
                 }
