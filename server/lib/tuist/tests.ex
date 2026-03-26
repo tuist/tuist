@@ -659,6 +659,8 @@ defmodule Tuist.Tests do
   Lists test case runs with optional filters (e.g. test_case_id, test_run_id).
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
+  @test_run_mv_fields MapSet.new([:test_run_id, :name, :status, :is_flaky, :is_new, :duration, :project_id])
+
   def list_test_case_runs(attrs, opts \\ []) do
     preloads = Keyword.get(opts, :preload, [])
 
@@ -667,7 +669,11 @@ defmodule Tuist.Tests do
         list_test_case_runs_via_shard_mv(attrs, preloads)
 
       {:test_run_id, _test_run_id} ->
-        list_test_case_runs_via_test_run_mv(attrs, preloads)
+        if all_filters_supported?(attrs, @test_run_mv_fields) do
+          list_test_case_runs_via_test_run_mv(attrs, preloads)
+        else
+          list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
+        end
 
       nil ->
         list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
@@ -685,10 +691,7 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
-  @test_run_mv_fields MapSet.new([:test_run_id, :name, :status, :is_flaky, :is_new, :duration, :project_id])
-
   defp list_test_case_runs_via_test_run_mv(attrs, preloads) do
-    attrs = strip_unsupported_filters(attrs, @test_run_mv_fields)
     base_query = from(mv in TestCaseRunByTestRun)
 
     {slim_results, meta} =
@@ -754,15 +757,15 @@ defmodule Tuist.Tests do
 
   defp extract_mv_scope_filter(_), do: nil
 
-  defp strip_unsupported_filters(%{filters: filters} = attrs, supported_fields) when is_list(filters) do
-    %{attrs | filters: Enum.filter(filters, fn %{field: f} -> MapSet.member?(supported_fields, f) end)}
+  defp all_filters_supported?(%{filters: filters}, supported_fields) when is_list(filters) do
+    Enum.all?(filters, fn %{field: f} -> MapSet.member?(supported_fields, f) end)
   end
 
-  defp strip_unsupported_filters(%Flop{filters: filters} = flop, supported_fields) do
-    %{flop | filters: Enum.filter(List.wrap(filters), fn %{field: f} -> MapSet.member?(supported_fields, f) end)}
+  defp all_filters_supported?(%Flop{filters: filters}, supported_fields) do
+    filters |> List.wrap() |> Enum.all?(fn %{field: f} -> MapSet.member?(supported_fields, f) end)
   end
 
-  defp strip_unsupported_filters(attrs, _supported_fields), do: attrs
+  defp all_filters_supported?(_, _supported_fields), do: true
 
   @doc """
   Gets a test case run by its UUID.
