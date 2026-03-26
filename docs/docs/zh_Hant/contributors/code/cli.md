@@ -11,7 +11,7 @@
 與
 [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
 
-## 用途說明{#what-it-is-for}
+## 用途{#what-it-is-for}
 
 命令列介面（CLI）是 Tuist 的核心。它負責專案生成、自動化工作流程（測試、執行、圖表與檢視），並提供與 Tuist
 伺服器的介面，以實現驗證、快取、洞察、預覽、註冊表及選擇性測試等功能。
@@ -20,10 +20,10 @@
 
 ### 要求{#requirements}
 
-- macOS 14.0+
+- macOS 14.0 以上
 - Xcode 26+
 
-### 在本地端設定{#set-up-locally}
+### 在地化設定{#set-up-locally}
 
 - 複製儲存庫：`git clone git@github.com:tuist/tuist.git`
 - 請使用[官方安裝腳本](https://mise.jdx.dev/getting-started.html)（非 Homebrew）安裝
@@ -52,7 +52,7 @@
 <!-- -->
 :::
 
-#### 從終端機{#from-the-terminal}
+#### 來自終端機{#from-the-terminal}
 
 首先建立工作區：
 
