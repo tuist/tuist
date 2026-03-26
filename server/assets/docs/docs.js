@@ -25,41 +25,47 @@ topbar.config({
   barColors: { 0: "#29d" },
   shadowColor: "rgba(0, 0, 0, .3)",
 });
-function closeMobileSidebar() {
-  document.body.removeAttribute("data-sidebar-open");
-  document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
-}
 
-let sidebarScrollTop = 0;
-window.addEventListener("phx:page-loading-start", (_info) => {
+const SIDEBAR_SCROLL_SELECTOR = "#docs-sidebar [data-part='sidebar-scroll']";
+
+let savedSidebarScroll = 0;
+
+window.addEventListener("phx:page-loading-start", () => {
   topbar.show(300);
-  const sidebar = document.querySelector("#docs-sidebar [data-part='sidebar-scroll']");
-  if (sidebar) sidebarScrollTop = sidebar.scrollTop;
+  const el = document.querySelector(SIDEBAR_SCROLL_SELECTOR);
+  if (el) savedSidebarScroll = el.scrollTop;
 });
-function updateNavTabs() {
-  const path = window.location.pathname;
-  const tabs = document.querySelectorAll("#docs-nav-tabs .noora-button-group-item");
-  tabs.forEach((tab) => {
-    const tabName = tab.getAttribute("data-tab");
-    let selected = false;
-    if (tabName === "cli") selected = path.includes("/docs/cli");
-    else if (tabName === "references") selected = path.includes("/docs/references");
-    else if (tabName === "resources") selected = path.includes("/docs/contributors");
-    else if (tabName === "guides")
-      selected = !path.includes("/docs/cli") && !path.includes("/docs/references") && !path.includes("/docs/contributors");
-    if (selected) tab.setAttribute("data-selected", "");
-    else tab.removeAttribute("data-selected");
-  });
-}
 
-window.addEventListener("phx:page-loading-stop", (_info) => {
+window.addEventListener("phx:page-loading-stop", () => {
   topbar.hide();
   window.scrollTo(0, 0);
-  closeMobileSidebar();
-  updateNavTabs();
-  const sidebar = document.querySelector("#docs-sidebar [data-part='sidebar-scroll']");
-  if (sidebar) sidebar.scrollTop = sidebarScrollTop;
+
+  document.body.removeAttribute("data-sidebar-open");
+  document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
+
+  syncNavTabs();
+
+  const el = document.querySelector(SIDEBAR_SCROLL_SELECTOR);
+  if (el) el.scrollTop = savedSidebarScroll;
 });
+
+function syncNavTabs() {
+  const path = window.location.pathname;
+  const TAB_PATTERNS = {
+    cli: "/docs/cli",
+    references: "/docs/references",
+    resources: "/docs/contributors",
+  };
+
+  for (const tab of document.querySelectorAll("#docs-nav-tabs .noora-button-group-item")) {
+    const name = tab.getAttribute("data-tab");
+    const pattern = TAB_PATTERNS[name];
+    const active = pattern ? path.includes(pattern) : !Object.values(TAB_PATTERNS).some((p) => path.includes(p));
+
+    if (active) tab.setAttribute("data-selected", "");
+    else tab.removeAttribute("data-selected");
+  }
+}
 
 liveSocket.connect();
 
