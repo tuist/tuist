@@ -17,17 +17,17 @@ public protocol CASAnalyticsDatabasing: Sendable {
 
     func migrate() throws
     func removeOldEntries(olderThan: Date) throws
-    func databasePath() -> AbsolutePath
 }
 
 public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
+    public static let databaseName = "cas_analytics.db"
+
     private let db: Connection
-    private let path: AbsolutePath
 
     public init() throws {
-        let dbPath = Environment.current.stateDirectory.appending(component: "cas_analytics.db")
-        self.db = try Connection(dbPath.pathString)
-        self.path = dbPath
+        self.db = try Connection(
+            Environment.current.stateDirectory.appending(component: Self.databaseName).pathString
+        )
         db.busyTimeout = 5
         try db.execute("PRAGMA synchronous = NORMAL")
     }
@@ -126,10 +126,6 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
         try db.run(CASOutputsSchema.table.filter(CASOutputsSchema.createdAt < date).delete())
         try db.run(NodesSchema.table.filter(NodesSchema.createdAt < date).delete())
         try db.run(KeyValueMetadataSchema.table.filter(KeyValueMetadataSchema.createdAt < date).delete())
-    }
-
-    public func databasePath() -> AbsolutePath {
-        path
     }
 }
 

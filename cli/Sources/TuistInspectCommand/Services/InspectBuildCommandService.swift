@@ -4,6 +4,7 @@
     import Path
     import TuistAlert
     import TuistAutomation
+    import TuistCASAnalytics
     import TuistCI
     import TuistConfigLoader
     import TuistCore
@@ -51,8 +52,6 @@
         private let gitController: GitControlling
         private let ciController: CIControlling
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
-        private let casAnalyticsDatabasePath: AbsolutePath
-
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
             fileSystem: FileSysteming = FileSystem(),
@@ -67,8 +66,7 @@
             serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
             gitController: GitControlling = GitController(),
             ciController: CIControlling = CIController(),
-            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
-            casAnalyticsDatabasePath: AbsolutePath = Environment.current.stateDirectory.appending(component: "cas_analytics.db")
+            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator()
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
@@ -84,7 +82,6 @@
             self.gitController = gitController
             self.ciController = ciController
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
-            self.casAnalyticsDatabasePath = casAnalyticsDatabasePath
         }
 
         func run(
@@ -258,6 +255,8 @@
                 to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
             )
 
+            let casAnalyticsDatabasePath = Environment.current.stateDirectory
+                .appending(component: CASAnalyticsDatabase.databaseName)
             if try await fileSystem.exists(casAnalyticsDatabasePath) {
                 try await fileSystem.copy(
                     casAnalyticsDatabasePath,

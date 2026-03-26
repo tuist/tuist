@@ -988,8 +988,7 @@ struct InspectBuildCommandServiceTests {
             serverEnvironmentService: serverEnvironmentService,
             gitController: gitController,
             ciController: ciController,
-            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator,
-            casAnalyticsDatabasePath: database.databasePath()
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
         )
 
         var capturedZipSize: UInt64 = 0
