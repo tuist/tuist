@@ -9,6 +9,7 @@ import Config
 
 noora_source_path = Path.expand("../../noora", __DIR__)
 deps_path = Path.expand("../deps", __DIR__)
+node_modules_path = Path.expand("../node_modules", __DIR__)
 
 # Base watchers for esbuild
 base_watchers = [
@@ -102,7 +103,7 @@ config :esbuild,
       "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/docs", __DIR__),
-    env: %{"NODE_PATH" => deps_path}
+    env: %{"NODE_PATH" => "#{deps_path}:#{node_modules_path}"}
   ],
   apidocs: [
     args:

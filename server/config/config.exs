@@ -9,6 +9,7 @@ import Config
 
 # esbuild
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
+node_modules_path = Path.expand("../node_modules", __DIR__)
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
@@ -72,7 +73,7 @@ config :esbuild,
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
     cd: Path.expand("../assets/docs", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{node_modules_path}"}
   ],
   apidocs: [
     args: [
