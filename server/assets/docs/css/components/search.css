@@ -1,3 +1,7 @@
+body[data-search-open] {
+  overflow: hidden;
+}
+
 #docs-search {
   & [data-part="backdrop"] {
     display: none;
@@ -83,6 +87,10 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-medium);
     text-align: center;
+
+    &[data-state="hidden"] {
+      display: none;
+    }
   }
 
   & [data-part="results"] {

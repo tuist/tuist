@@ -41,40 +41,24 @@ const COLLECTIONS = [
   },
 ];
 
-// --- Hit helpers ---
+// --- Text helpers ---
 
-function titleFor(hit) {
-  const doc = hit.document;
-  if (doc.title) return doc.title;
-  const h = doc.hierarchy || {};
-  if (h.lvl0) return h.lvl0;
-  for (let i = 1; i <= 6; i++) {
-    if (h[`lvl${i}`]) return h[`lvl${i}`];
-  }
-  const content = doc.content || "";
-  return content.length > 80 ? content.slice(0, 80) + "..." : content || doc.url || "";
-}
+const MARKDOWN_PATTERNS = [
+  [/^#{1,6}\s+/gm, ""],
+  [/\*\*(.+?)\*\*/g, "$1"],
+  [/__(.+?)__/g, "$1"],
+  [/\*(.+?)\*/g, "$1"],
+  [/_(.+?)_/g, "$1"],
+  [/~~(.+?)~~/g, "$1"],
+  [/`(.+?)`/g, "$1"],
+  [/!\[([^\]]*)\]\([^)]+\)/g, "$1"],
+  [/\[([^\]]+)\]\([^)]+\)/g, "$1"],
+  [/https?:\/\/\S+/g, ""],
+  [/\s+/g, " "],
+];
 
-function subtitleFor(hit) {
-  const doc = hit.document;
-  if (doc.role) return doc.role;
-  const h = doc.hierarchy || {};
-  const page = h.lvl0 || "";
-  for (let i = 6; i >= 1; i--) {
-    if (h[`lvl${i}`] && h[`lvl${i}`] !== page) return h[`lvl${i}`];
-  }
-  return "";
-}
-
-function urlFor(hit) {
-  return hit.document.url_without_anchor || hit.document.url || "#";
-}
-
-function highlightMatch(text, query) {
-  if (!text || !query) return escapeHtml(text || "");
-  const escaped = escapeHtml(text);
-  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
-  return escaped.replace(re, '<mark data-part="highlight">$1</mark>');
+function stripMarkdown(text) {
+  return MARKDOWN_PATTERNS.reduce((str, [re, rep]) => str.replace(re, rep), text).trim();
 }
 
 function escapeHtml(str) {
@@ -83,63 +67,134 @@ function escapeHtml(str) {
   return el.innerHTML;
 }
 
-// --- Hook ---
+function highlightQuery(text, query) {
+  if (!text || !query) return escapeHtml(text || "");
+  const escaped = escapeHtml(text);
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+  return escaped.replace(re, '<mark data-part="highlight">$1</mark>');
+}
+
+function truncate(text, max = 80) {
+  return text.length > max ? text.slice(0, max) + "..." : text;
+}
+
+// --- Hit data extraction ---
+
+function titleFor(hit) {
+  const { document: doc } = hit;
+  if (doc.title) return doc.title;
+  const h = doc.hierarchy || {};
+  for (let i = 0; i <= 6; i++) {
+    if (h[`lvl${i}`]) return h[`lvl${i}`];
+  }
+  return truncate(doc.content || doc.url || "");
+}
+
+function contentHighlightFor(hit) {
+  const hl = hit.highlights || hit.highlight || [];
+  return Array.isArray(hl) ? hl.find((h) => h.field === "content") : hl.content;
+}
+
+function contentSnippetFor(hit) {
+  const highlight = contentHighlightFor(hit);
+  if (highlight) {
+    const raw = highlight.snippet || highlight.value || "";
+    if (raw) return stripMarkdown(raw.replace(/<\/?mark>/g, ""));
+  }
+  const content = (hit.document.content || "").trim();
+  return content ? truncate(stripMarkdown(content)) : "";
+}
+
+function subtitleFor(hit) {
+  const { document: doc } = hit;
+  const snippet = contentSnippetFor(hit);
+
+  if (contentHighlightFor(hit) && snippet) return snippet;
+  if (doc.role) return doc.role;
+
+  const h = doc.hierarchy || {};
+  const title = titleFor(hit);
+  const page = h.lvl0 || "";
+  for (let i = 6; i >= 1; i--) {
+    if (h[`lvl${i}`] && h[`lvl${i}`] !== page && h[`lvl${i}`] !== title) return h[`lvl${i}`];
+  }
+  return snippet;
+}
+
+function urlFor(hit) {
+  return hit.document.url_without_anchor || hit.document.url || "#";
+}
+
+// --- Singleton lifecycle ---
+
+let _instance = null;
 
 export function initDocsSearch() {
   const el = document.getElementById("docs-search");
   if (!el) return;
-  const instance = Object.create(DocsSearchHook);
-  instance.el = el;
-  instance.mounted();
+  if (_instance) _instance.destroy();
+  _instance = new DocsSearch(el);
 }
 
-const DocsSearchHook = {
-  mounted() {
+// --- Search controller ---
+
+class DocsSearch {
+  constructor(el) {
+    this.el = el;
     this.results = [];
     this.selectedIndex = -1;
-    this.debounceTimer = null;
+    this._debounceTimer = null;
+    this._listeners = [];
 
-    this.client = this._createClient();
-    this.modal = this.el.querySelector('[data-part="modal"]');
-    this.backdrop = this.el.querySelector('[data-part="backdrop"]');
-    this.input = this.el.querySelector('[data-part="search-input"]');
-    this.resultsEl = this.el.querySelector('[data-part="results"]');
-    this.emptyState = this.el.querySelector('[data-part="empty-state"]');
-    this.groupTpl = this.el.querySelector('[data-template="group"]');
-    this.resultTpl = this.el.querySelector('[data-template="result"]');
+    this._client = this._createClient();
+    this._modal = el.querySelector('[data-part="modal"]');
+    this._backdrop = el.querySelector('[data-part="backdrop"]');
+    this._input = el.querySelector('[data-part="search-input"]');
+    this._resultsEl = el.querySelector('[data-part="results"]');
+    this._emptyState = el.querySelector('[data-part="empty-state"]');
+    this._groupTpl = el.querySelector('[data-template="group"]');
+    this._resultTpl = el.querySelector('[data-template="result"]');
 
     this._bindGlobalShortcut();
     this._bindSearchBarTriggers();
     this._bindModalEvents();
-  },
+  }
 
-  destroyed() {
+  destroy() {
     window.removeEventListener("keydown", this._onGlobalKeydown);
-    clearTimeout(this.debounceTimer);
-  },
+    clearTimeout(this._debounceTimer);
+    for (const { el, event, handler } of this._listeners) {
+      el.removeEventListener(event, handler);
+    }
+    this._listeners = [];
+  }
 
-  // --- Public (callable from outside) ---
+  // --- Public ---
 
   open() {
-    this.modal.setAttribute("data-state", "open");
-    this.backdrop.setAttribute("data-state", "open");
-    document.body.style.overflow = "hidden";
-    requestAnimationFrame(() => this.input?.focus());
-  },
+    this._modal.setAttribute("data-state", "open");
+    this._backdrop.setAttribute("data-state", "open");
+    document.body.setAttribute("data-search-open", "");
+    requestAnimationFrame(() => this._input?.focus());
+  }
 
-  // --- Client setup ---
+  // --- Private: client ---
 
   _createClient() {
     const host = this.el.dataset.host || "https://search.tuist.dev";
-    const apiKey = this.el.dataset.apiKey || "";
     return new Typesense.Client({
       nodes: [{ host: new URL(host).hostname, port: 443, protocol: "https" }],
-      apiKey,
+      apiKey: this.el.dataset.apiKey || "",
       connectionTimeoutSeconds: 5,
     });
-  },
+  }
 
-  // --- Event binding ---
+  // --- Private: event binding ---
+
+  _on(el, event, handler) {
+    el.addEventListener(event, handler);
+    this._listeners.push({ el, event, handler });
+  }
 
   _bindGlobalShortcut() {
     this._onGlobalKeydown = (e) => {
@@ -149,7 +204,7 @@ const DocsSearchHook = {
       }
     };
     window.addEventListener("keydown", this._onGlobalKeydown);
-  },
+  }
 
   _bindSearchBarTriggers() {
     const openSearch = (e) => {
@@ -159,7 +214,7 @@ const DocsSearchHook = {
 
     const searchBar = document.querySelector("#text-input-types-search");
     if (searchBar) {
-      searchBar.addEventListener("focus", (e) => {
+      this._on(searchBar, "focus", (e) => {
         e.preventDefault();
         e.target.blur();
         this.open();
@@ -167,56 +222,46 @@ const DocsSearchHook = {
     }
 
     const wrapper = document.querySelector('.noora-text-input:has(#text-input-types-search) [data-part="wrapper"]');
-    if (wrapper) wrapper.addEventListener("click", openSearch);
+    if (wrapper) this._on(wrapper, "click", openSearch);
 
     const mobileBtn = document.querySelector('#docs-nav [data-part="mobile-actions"] button:first-child');
-    if (mobileBtn) mobileBtn.addEventListener("click", openSearch);
-  },
+    if (mobileBtn) this._on(mobileBtn, "click", openSearch);
+  }
 
   _bindModalEvents() {
-    this.backdrop.addEventListener("click", () => this._close());
+    this._on(this._backdrop, "click", () => this._close());
 
-    this.input.addEventListener("input", (e) => {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = setTimeout(() => this._search(e.target.value), 200);
+    this._on(this._input, "input", (e) => {
+      clearTimeout(this._debounceTimer);
+      this._debounceTimer = setTimeout(() => this._search(e.target.value), 200);
     });
 
-    this.input.addEventListener("keydown", (e) => {
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault();
-          this._moveSelection(1);
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          this._moveSelection(-1);
-          break;
-        case "Enter":
-          e.preventDefault();
-          this._selectCurrent();
-          break;
-        case "Escape":
-          e.preventDefault();
-          this._close();
-          break;
+    this._on(this._input, "keydown", (e) => {
+      const actions = {
+        ArrowDown: () => this._moveSelection(1),
+        ArrowUp: () => this._moveSelection(-1),
+        Enter: () => this._selectCurrent(),
+        Escape: () => this._close(),
+      };
+      if (actions[e.key]) {
+        e.preventDefault();
+        actions[e.key]();
       }
     });
-  },
+  }
 
-  // --- Search ---
+  // --- Private: search ---
 
   async _search(query) {
     if (!query || query.length < 2) {
-      this.results = [];
-      this.selectedIndex = -1;
-      this._renderResults([]);
+      this._reset();
       return;
     }
 
     const locale = this.el.dataset.locale || document.documentElement.lang || "en";
 
     try {
-      const response = await this.client.multiSearch.perform({
+      const response = await this._client.multiSearch.perform({
         searches: COLLECTIONS.map((col) => ({
           collection: col.name,
           q: query,
@@ -251,27 +296,26 @@ const DocsSearchHook = {
     } catch (err) {
       console.error("Search error:", err);
     }
-  },
+  }
 
-  // --- Rendering (template cloning) ---
+  // --- Private: rendering ---
 
   _renderResults(grouped, query = "") {
+    this._resultsEl.replaceChildren();
+
     if (grouped.length === 0) {
-      this.resultsEl.innerHTML = "";
-      this.emptyState.textContent = this.input.value.length >= 2 ? "No results found" : "No search history";
-      this.emptyState.style.display = "";
+      this._emptyState.textContent = this._input.value.length >= 2 ? "No results found" : "No search history";
+      this._emptyState.removeAttribute("data-state");
       return;
     }
 
-    this.emptyState.style.display = "none";
-    this.resultsEl.innerHTML = "";
-    let flatIndex = 0;
+    this._emptyState.setAttribute("data-state", "hidden");
 
+    let flatIndex = 0;
     for (const group of grouped) {
-      const groupEl = this.groupTpl.content.cloneNode(true);
+      const groupEl = this._groupTpl.content.cloneNode(true);
       const label = groupEl.querySelector('[data-part="group-label"]');
 
-      // Insert icon from server-rendered template
       const iconTpl = this.el.querySelector(`[data-icon="${group.icon}"]`);
       if (iconTpl) label.appendChild(iconTpl.content.cloneNode(true));
 
@@ -279,66 +323,74 @@ const DocsSearchHook = {
       span.textContent = group.label;
       label.appendChild(span);
 
-      const groupContainer = groupEl.querySelector('[data-part="result-group"]');
-
+      const container = groupEl.querySelector('[data-part="result-group"]');
       for (const hit of group.hits) {
-        const resultEl = this.resultTpl.content.cloneNode(true);
-        const link = resultEl.querySelector('[data-part="result-item"]');
-        const titleEl = resultEl.querySelector('[data-part="result-title"]');
-        const subtitleEl = resultEl.querySelector('[data-part="result-subtitle"]');
-
-        const title = titleFor(hit);
-        const subtitle = subtitleFor(hit);
-
-        link.href = urlFor(hit);
-        link.dataset.index = flatIndex;
-        if (flatIndex === this.selectedIndex) link.setAttribute("data-selected", "");
-        if (group.external) {
-          link.target = "_blank";
-          link.rel = "noopener noreferrer";
-        }
-
-        titleEl.innerHTML = highlightMatch(title, query);
-
-        if (subtitle && subtitle !== title) {
-          subtitleEl.textContent = subtitle;
-        } else {
-          subtitleEl.remove();
-        }
-
-        link.addEventListener("mouseenter", () => {
-          this.selectedIndex = parseInt(link.dataset.index, 10);
-          this._updateSelection();
-        });
-
-        groupContainer.appendChild(resultEl);
+        container.appendChild(this._buildResultEl(hit, group, query, flatIndex));
         flatIndex++;
       }
 
-      this.resultsEl.appendChild(groupEl);
+      this._resultsEl.appendChild(groupEl);
     }
-  },
+  }
 
-  // --- Navigation ---
+  _buildResultEl(hit, group, query, index) {
+    const resultEl = this._resultTpl.content.cloneNode(true);
+    const link = resultEl.querySelector('[data-part="result-item"]');
+    const titleEl = resultEl.querySelector('[data-part="result-title"]');
+    const subtitleEl = resultEl.querySelector('[data-part="result-subtitle"]');
+
+    const title = titleFor(hit);
+    const subtitle = subtitleFor(hit);
+
+    link.href = urlFor(hit);
+    link.dataset.index = index;
+    if (index === this.selectedIndex) link.setAttribute("data-selected", "");
+    if (group.external) {
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+    }
+
+    titleEl.innerHTML = highlightQuery(title, query);
+
+    if (subtitle && subtitle !== title) {
+      subtitleEl.innerHTML = highlightQuery(subtitle, query);
+    } else {
+      subtitleEl.remove();
+    }
+
+    link.addEventListener("mouseenter", () => {
+      this.selectedIndex = parseInt(link.dataset.index, 10);
+      this._updateSelection();
+    });
+
+    return resultEl;
+  }
+
+  // --- Private: navigation ---
 
   _close() {
-    this.modal.removeAttribute("data-state");
-    this.backdrop.removeAttribute("data-state");
-    document.body.style.overflow = "";
-    this.input.value = "";
+    this._modal.removeAttribute("data-state");
+    this._backdrop.removeAttribute("data-state");
+    document.body.removeAttribute("data-search-open");
+    this._input.value = "";
+    this._reset();
+  }
+
+  _reset() {
     this.results = [];
     this.selectedIndex = -1;
     this._renderResults([]);
-  },
+  }
 
   _moveSelection(direction) {
     if (this.results.length === 0) return;
     this.selectedIndex = (this.selectedIndex + direction + this.results.length) % this.results.length;
     this._updateSelection();
-  },
+  }
 
   _updateSelection() {
-    for (const [idx, item] of this.resultsEl.querySelectorAll('[data-part="result-item"]').entries()) {
+    const items = this._resultsEl.querySelectorAll('[data-part="result-item"]');
+    for (const [idx, item] of items.entries()) {
       if (idx === this.selectedIndex) {
         item.setAttribute("data-selected", "");
         item.scrollIntoView({ block: "nearest" });
@@ -346,7 +398,7 @@ const DocsSearchHook = {
         item.removeAttribute("data-selected");
       }
     }
-  },
+  }
 
   _selectCurrent() {
     if (this.selectedIndex < 0 || this.selectedIndex >= this.results.length) return;
@@ -358,7 +410,7 @@ const DocsSearchHook = {
     } else {
       window.location.href = url;
     }
-  },
-};
+  }
+}
 
-export default DocsSearchHook;
+export default DocsSearch;

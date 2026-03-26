@@ -5,7 +5,7 @@ import topbar from "../app/js/vendor/topbar.js";
 import Noora from "noora";
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
-import DocsSearchHook, { initDocsSearch } from "./hooks/docs-search-hook.js";
+import { initDocsSearch } from "./hooks/docs-search-hook.js";
 
 import "./docs.css";
 
@@ -36,6 +36,7 @@ window.addEventListener("phx:page-loading-stop", (_info) => {
   topbar.hide();
   window.scrollTo(0, 0);
   closeMobileSidebar();
+  initDocsSearch();
 });
 
 liveSocket.connect();
