@@ -42,7 +42,7 @@ defmodule Tuist.Docs.OgImage do
             overflow: hidden;
             font-family: 'DM Sans', sans-serif;
             color-scheme: light;
-            background-color: var(--noora-purple-50);
+            background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
           }
           .title {
             position: absolute;
@@ -53,7 +53,7 @@ defmodule Tuist.Docs.OgImage do
             font-size: 128px;
             font-weight: 500;
             letter-spacing: -6.4px;
-            color: var(--noora-surface-label-primary);
+            color: var(--noora-neutral-light-1200);
             line-height: 1.1;
             overflow: hidden;
             word-wrap: break-word;
@@ -68,7 +68,7 @@ defmodule Tuist.Docs.OgImage do
             font-size: 64px;
             font-weight: 500;
             letter-spacing: -3.2px;
-            color: var(--noora-surface-label-secondary);
+            color: var(--noora-neutral-light-1000);
             line-height: 1.2;
             overflow: hidden;
             word-wrap: break-word;
@@ -89,10 +89,9 @@ defmodule Tuist.Docs.OgImage do
             font-weight: 500;
             letter-spacing: -2.9px;
             line-height: 80px;
-            background: linear-gradient(92deg, var(--noora-surface-label-primary) 6%, var(--noora-surface-label-secondary) 109%);
+            background: linear-gradient(92deg, #000 6%, #6a7581 109%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            text-shadow: 0px 1.42px 4.26px rgba(27, 37, 80, 0.25);
           }
           .logo-divider {
             position: absolute;
@@ -100,7 +99,7 @@ defmodule Tuist.Docs.OgImage do
             bottom: 67px;
             width: 3px;
             height: 80px;
-            background-color: var(--noora-gray-200);
+            background-color: var(--noora-neutral-light-300);
           }
           .logo-docs {
             position: absolute;
@@ -110,10 +109,9 @@ defmodule Tuist.Docs.OgImage do
             font-weight: 500;
             letter-spacing: -2.9px;
             line-height: 80px;
-            background: linear-gradient(92deg, var(--noora-surface-label-primary) 6%, var(--noora-surface-label-secondary) 109%);
+            background: linear-gradient(92deg, #000 6%, #6a7581 109%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            text-shadow: 0px 1.42px 4.26px rgba(27, 37, 80, 0.25);
           }
           .category {
             position: absolute;
@@ -122,7 +120,7 @@ defmodule Tuist.Docs.OgImage do
             font-size: 59px;
             font-weight: 500;
             letter-spacing: -2.9px;
-            color: var(--noora-surface-label-primary);
+            color: var(--noora-neutral-light-1200);
             line-height: 80px;
           }
         </style>
