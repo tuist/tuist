@@ -154,6 +154,7 @@ defmodule Noora.Filter do
     """
     defstruct [
       :id,
+      :instance_id,
       :field,
       :display_name,
       :type,
@@ -162,6 +163,9 @@ defmodule Noora.Filter do
       :operator,
       :value
     ]
+
+    def effective_instance_id(%__MODULE__{instance_id: nil, id: id}), do: id
+    def effective_instance_id(%__MODULE__{instance_id: iid}), do: iid
   end
 
   defmodule Operations do
@@ -172,11 +176,11 @@ defmodule Noora.Filter do
     @valid_actions [:change_value, :change_operator, :delete]
 
     def update_filters(current_filters, :change_value, params) do
-      filter_id = params["payload_filter_id"]
+      instance_id = params["payload_filter_id"]
       new_value = params["value"]
 
       Enum.map(current_filters, fn filter ->
-        if filter.id == filter_id do
+        if Filter.effective_instance_id(filter) == instance_id do
           %{filter | value: new_value}
         else
           filter
@@ -185,7 +189,7 @@ defmodule Noora.Filter do
     end
 
     def update_filters(current_filters, :change_operator, params) do
-      filter_id = params["payload_filter_id"]
+      instance_id = params["payload_filter_id"]
 
       case coerce_operator(params["value"]) do
         nil ->
@@ -193,7 +197,7 @@ defmodule Noora.Filter do
 
         new_operator ->
           Enum.map(current_filters, fn filter ->
-            if filter.id == filter_id,
+            if Filter.effective_instance_id(filter) == instance_id,
               do: %{filter | operator: new_operator},
               else: filter
           end)
@@ -201,16 +205,40 @@ defmodule Noora.Filter do
     end
 
     def update_filters(current_filters, :delete, params) do
-      filter_id = params["payload_filter_id"]
-      Enum.reject(current_filters, &(&1.id == filter_id))
+      instance_id = params["payload_filter_id"]
+      Enum.reject(current_filters, &(Filter.effective_instance_id(&1) == instance_id))
     end
 
     def add_filter_to_query(filter_id, socket, params \\ nil) do
       params = params || URI.decode_query(socket.assigns.uri.query)
       filter = Enum.find(socket.assigns.available_filters, &(&1.id == filter_id))
-      filter_params = encode_filters_to_query([filter])
 
-      params |> Map.merge(filter_params) |> Map.drop(["before", "after"])
+      instance_id = next_instance_id(filter_id, params)
+      filter_with_instance = %{filter | instance_id: instance_id}
+      filter_params = encode_filters_to_query([filter_with_instance])
+
+      updated_params = params |> Map.merge(filter_params) |> Map.drop(["before", "after"])
+      {updated_params, instance_id}
+    end
+
+    def next_instance_id(filter_id, params) do
+      existing_keys = Map.keys(params)
+
+      if Enum.any?(existing_keys, &(&1 == "filter_#{filter_id}_op")) do
+        existing_numbers =
+          existing_keys
+          |> Enum.flat_map(fn key ->
+            case Regex.run(~r/^filter_#{Regex.escape(filter_id)}__(\d+)_(?:op|val)$/, key, capture: :all_but_first) do
+              [n] -> [String.to_integer(n)]
+              _ -> []
+            end
+          end)
+
+        next = if Enum.empty?(existing_numbers), do: 1, else: Enum.max(existing_numbers) + 1
+        "#{filter_id}__#{next}"
+      else
+        filter_id
+      end
     end
 
     def update_filters_in_query(params, socket, query_params \\ nil) do
@@ -271,10 +299,12 @@ defmodule Noora.Filter do
 
     def encode_filters_to_query(filters) when is_list(filters) do
       Enum.reduce(filters, %{}, fn filter, acc ->
+        iid = Filter.effective_instance_id(filter)
+
         acc
-        |> Map.put("filter_#{filter.id}_op", to_string(filter.operator))
+        |> Map.put("filter_#{iid}_op", to_string(filter.operator))
         |> Map.put(
-          "filter_#{filter.id}_val",
+          "filter_#{iid}_val",
           if(is_nil(filter.value), do: "", else: to_string(filter.value))
         )
       end)
@@ -286,29 +316,32 @@ defmodule Noora.Filter do
       |> Enum.flat_map(&build_filter(&1, params, available_filters))
     end
 
-    # Extract filter IDs from query parameters
+    # Extract instance IDs from query parameters
     defp extract_filter_ids(params) do
       params
       |> Map.keys()
       |> Enum.filter(&String.starts_with?(&1, "filter_"))
       |> Enum.map(fn key ->
-        Regex.run(~r/^filter_([^_]+(?:_[^_]+)*)_(?:op|val)$/, key, capture: :all_but_first)
+        Regex.run(~r/^filter_(.+)_(?:op|val)$/, key, capture: :all_but_first)
       end)
       |> Enum.reject(&is_nil/1)
       |> Enum.map(&List.first/1)
       |> Enum.uniq()
     end
 
-    # Build a filter from ID, params, and available filters
-    defp build_filter(id, params, available_filters) do
+    # Build a filter from instance ID, params, and available filters
+    defp build_filter(instance_id, params, available_filters) do
+      base_id = Regex.replace(~r/__\d+$/, instance_id, "")
+
       with base_filter when not is_nil(base_filter) <-
-             Enum.find(available_filters, &(&1.id == id)),
-           op_str when not is_nil(op_str) <- params["filter_#{id}_op"],
+             Enum.find(available_filters, &(&1.id == instance_id)) ||
+               Enum.find(available_filters, &(&1.id == base_id)),
+           op_str when not is_nil(op_str) <- params["filter_#{instance_id}_op"],
            operator when not is_nil(operator) <- coerce_operator(op_str) do
-        val = normalize_value(params["filter_#{id}_val"])
+        val = normalize_value(params["filter_#{instance_id}_val"])
         processed_val = coerce_option_value(val, base_filter)
 
-        create_filter(base_filter, operator, processed_val)
+        create_filter(base_filter, operator, processed_val, instance_id)
       else
         _ -> []
       end
@@ -348,11 +381,11 @@ defmodule Noora.Filter do
 
     defp coerce_option_value(val, _), do: val
 
-    defp create_filter(base_filter, operator, val) do
+    defp create_filter(base_filter, operator, val, instance_id) do
       if base_filter.type == :option && !is_nil(val) && !Enum.member?(base_filter.options, val) do
         []
       else
-        [%{base_filter | operator: operator, value: val}]
+        [%{base_filter | operator: operator, value: val, instance_id: instance_id}]
       end
     end
   end
@@ -390,25 +423,26 @@ defmodule Noora.Filter do
     end
   end
 
-  defp filter_available_filters(available_filters, active_filters) do
-    active_filter_ids = Enum.map(active_filters, & &1.id)
-    Enum.reject(available_filters, fn filter -> filter.id in active_filter_ids end)
+  defp filter_available_filters(available_filters, _active_filters) do
+    available_filters
   end
 
   attr(:filter, Filter, required: true)
 
   def active_filter(assigns) do
+    assigns = assign(assigns, :iid, Filter.effective_instance_id(assigns.filter))
+
     ~H"""
-    <div id={@filter.id} class="noora-filter">
+    <div id={@iid} class="noora-filter">
       <span data-part="label">{@filter.display_name}</span>
       <div
         :if={length(operators(@filter.type)) > 1}
-        id={"filter-#{@filter.id}-operator-dropdown"}
+        id={"filter-#{@iid}-operator-dropdown"}
         phx-hook="NooraDropdown"
         data-part="dropdown"
         data-on-select="update_filter"
         data-meta-type="change_operator"
-        data-meta-payload_filter_id={@filter.id}
+        data-meta-payload_filter_id={@iid}
       >
         <div data-part="trigger">
           <span data-part="label">
@@ -438,12 +472,12 @@ defmodule Noora.Filter do
       </span>
       <div
         :if={@filter.type === :option}
-        id={"filter-#{@filter.id}-value-dropdown"}
+        id={"filter-#{@iid}-value-dropdown"}
         phx-hook="NooraDropdown"
         data-part="dropdown"
         data-on-select="update_filter"
         data-meta-type="change_value"
-        data-meta-payload_filter_id={@filter.id}
+        data-meta-payload_filter_id={@iid}
       >
         <div data-part="trigger">
           <span :if={!is_nil(@filter.value)} data-part="badge">
@@ -473,7 +507,7 @@ defmodule Noora.Filter do
       </div>
       <div
         :if={@filter.type !== :option}
-        id={"filter-#{@filter.id}-value-popover"}
+        id={"filter-#{@iid}-value-popover"}
         phx-hook="NooraPopover"
         data-part="popover"
       >
@@ -493,7 +527,7 @@ defmodule Noora.Filter do
             <span>Filter by {@filter.display_name}</span>
             <form phx-submit="update_filter">
               <input type="hidden" name="type" value="change_value" />
-              <input type="hidden" name="payload_filter_id" value={@filter.id} />
+              <input type="hidden" name="payload_filter_id" value={@iid} />
               <.text_input
                 name="value"
                 type="basic"
@@ -534,7 +568,7 @@ defmodule Noora.Filter do
                   label="Cancel"
                   phx-click={
                     JS.dispatch("phx:close-popover",
-                      detail: %{id: "filter-#{@filter.id}-value-popover"}
+                      detail: %{id: "filter-#{@iid}-value-popover"}
                     )
                   }
                 />
@@ -548,7 +582,7 @@ defmodule Noora.Filter do
         data-part="delete-icon"
         phx-click="update_filter"
         phx-value-type="delete"
-        phx-value-payload_filter_id={@filter.id}
+        phx-value-payload_filter_id={@iid}
       >
         <.trash_x />
       </button>

@@ -204,13 +204,13 @@ defmodule TuistWeb.TestCaseLive do
         %{"value" => filter_id},
         %{assigns: %{selected_account: account, selected_project: project, test_case_id: test_case_id}} = socket
       ) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    {updated_params, instance_id} = Filter.Operations.add_filter_to_query(filter_id, socket)
 
     {:noreply,
      socket
      |> push_patch(to: ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_id}?#{updated_params}")
-     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
-     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+     |> push_event("open-dropdown", %{id: "filter-#{instance_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{instance_id}-value-popover"})}
   end
 
   def handle_event(

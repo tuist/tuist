@@ -292,7 +292,10 @@ defmodule TuistWeb.BundleLive do
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
     query_params = URI.decode_query(socket.assigns.uri.query)
     filter = Enum.find(socket.assigns.file_breakdown_available_filters, &(&1.id == filter_id))
-    filter_params = Filter.Operations.encode_filters_to_query([filter])
+
+    instance_id = Noora.Filter.Operations.next_instance_id(filter_id, query_params)
+    filter_with_instance = %{filter | instance_id: instance_id}
+    filter_params = Filter.Operations.encode_filters_to_query([filter_with_instance])
 
     updated_params =
       query_params
@@ -305,8 +308,8 @@ defmodule TuistWeb.BundleLive do
        to:
          "/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/bundles/#{socket.assigns.bundle.id}?#{URI.encode_query(updated_params)}"
      )
-     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
-     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+     |> push_event("open-dropdown", %{id: "filter-#{instance_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{instance_id}-value-popover"})}
   end
 
   def handle_event("update_filter", params, socket) do

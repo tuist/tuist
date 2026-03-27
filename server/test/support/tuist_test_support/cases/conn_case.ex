@@ -34,6 +34,7 @@ defmodule TuistTestSupport.Cases.ConnCase do
 
   setup tags do
     TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
+    Mimic.stub(Tuist.Tasks, :run_async, fn fun -> fun.() end)
 
     on_exit(fn ->
       TuistTestSupport.Utilities.truncate_clickhouse_tables()

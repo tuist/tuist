@@ -132,16 +132,14 @@ defmodule TuistWeb.GradleBuildLive do
         do: "cacheable-tasks-page",
         else: "tasks-page"
 
-    updated_params =
-      filter_id
-      |> Filter.Operations.add_filter_to_query(socket)
-      |> Map.put(page_param, "1")
+    {params, instance_id} = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params = Map.put(params, page_param, "1")
 
     {:noreply,
      socket
      |> push_patch(to: "#{build_run_path(socket)}?#{URI.encode_query(updated_params)}")
-     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
-     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+     |> push_event("open-dropdown", %{id: "filter-#{instance_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{instance_id}-value-popover"})}
   end
 
   def handle_event("update_filter", params, socket) do

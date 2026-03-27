@@ -93,10 +93,8 @@ defmodule TuistWeb.TestCasesLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params =
-      filter_id
-      |> Filter.Operations.add_filter_to_query(socket)
-      |> Map.put("page", "1")
+    {params, instance_id} = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params = Map.put(params, "page", "1")
 
     {:noreply,
      socket
@@ -104,8 +102,8 @@ defmodule TuistWeb.TestCasesLive do
        to:
          ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/tests/test-cases?#{updated_params}"
      )
-     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
-     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+     |> push_event("open-dropdown", %{id: "filter-#{instance_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{instance_id}-value-popover"})}
   end
 
   def handle_event("update_filter", params, socket) do
