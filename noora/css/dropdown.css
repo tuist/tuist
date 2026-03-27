@@ -283,6 +283,7 @@
       padding: var(--noora-spacing-3) var(--noora-spacing-4);
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-body-small);
+      text-align: center;
     }
   }
 }
