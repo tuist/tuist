@@ -44,7 +44,7 @@ defmodule TuistWeb.Endpoint do
     at: "/",
     from: :tuist,
     gzip: true,
-    cache_control_for_etags: "public, max-age=31536000, immutable",
+    cache_control_for_etags: "public, max-age=0, must-revalidate",
     only: TuistWeb.static_paths()
 
   # Code reloading can be explicitly enabled under the
