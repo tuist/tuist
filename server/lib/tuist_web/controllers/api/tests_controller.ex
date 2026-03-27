@@ -465,8 +465,6 @@ defmodule TuistWeb.API.TestsController do
           })
         end
 
-        maybe_enqueue_xcresult_processing(test_run, selected_project)
-
         conn
         |> put_status(:ok)
         |> json(%{
@@ -598,25 +596,6 @@ defmodule TuistWeb.API.TestsController do
   end
 
   defp format_ran_at(%DateTime{} = ran_at), do: DateTime.to_iso8601(ran_at)
-
-  defp maybe_enqueue_xcresult_processing(%{status: "processing"} = test_run, project) do
-    storage_key = "#{project.account.name}/#{project.name}/runs/#{test_run.id}/result_bundle.zip"
-
-    %{
-      test_run_id: test_run.id,
-      storage_key: storage_key,
-      account_id: project.account_id,
-      project_id: project.id,
-      is_ci: test_run.is_ci || false,
-      git_branch: test_run.git_branch,
-      git_commit_sha: test_run.git_commit_sha,
-      git_ref: test_run.git_ref
-    }
-    |> Tuist.Tests.Workers.ProcessXcresultWorker.new()
-    |> Oban.insert()
-  end
-
-  defp maybe_enqueue_xcresult_processing(_test_run, _project), do: :ok
 
   defp get_or_create_test(params) do
     test_id = Map.get(params, :id, UUIDv7.generate())
