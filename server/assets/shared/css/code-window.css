@@ -81,6 +81,13 @@
   font: var(--noora-font-weight-regular) var(--noora-font-code-large);
 }
 
+/* MDEx's html_inline formatter adds an inline background-color on <pre>,
+   override it so the code-window background shows through. */
+.code-window > [data-part="code"] pre {
+  background: none !important;
+  margin: 0;
+}
+
 .code-window > [data-part="code"] code {
   display: block;
   background: none;
