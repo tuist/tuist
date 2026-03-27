@@ -84,13 +84,10 @@ defmodule Tuist.Marketing.MDExConverter do
 
         %MDEx.HtmlBlock{
           literal: """
-          <div class="marketing-window">\
+          <div class="code-window">\
           <div data-part="bar">\
           <div data-part="language">#{language}</div>\
-          <div data-part="copy">\
-          <span data-icon="copy">#{@copy_icon}</span>\
-          <span data-icon="copy-check" style="display:none">#{@copy_check_icon}</span>\
-          </div>\
+          <div data-part="copy"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
           </div>\
           <div data-part="code">#{highlighted_html}</div>\
           </div>
