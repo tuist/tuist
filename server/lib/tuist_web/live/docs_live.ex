@@ -47,6 +47,7 @@ defmodule TuistWeb.DocsLive do
      socket
      |> assign(:view, :overview)
      |> assign(:videos, videos)
+     |> assign(:page_title, "Docs · Tuist")
      |> assign(:head_title, "Docs · Tuist")
      |> assign(:head_description, "Learn how to use Tuist to make mobile your competitive advantage.")}
   end
@@ -70,6 +71,7 @@ defmodule TuistWeb.DocsLive do
          |> assign(:view, :show)
          |> assign(:page, page)
          |> assign(:requested_slug, path)
+         |> assign(:page_title, head_title)
          |> assign(:head_title, head_title)
          |> assign(:head_description, page.description)}
     end
