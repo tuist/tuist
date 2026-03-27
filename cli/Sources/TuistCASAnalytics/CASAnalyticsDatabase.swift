@@ -1,7 +1,7 @@
+import CASAnalyticsDatabase // re-exports SQLite
 import Foundation
 import Mockable
 import Path
-@preconcurrency import SQLite
 import TuistEnvironment
 
 public enum KeyValueOperationType: String, Codable {
@@ -132,30 +132,4 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
         try db.run(NodesSchema.table.filter(NodesSchema.createdAt < date).delete())
         try db.run(KeyValueMetadataSchema.table.filter(KeyValueMetadataSchema.createdAt < date).delete())
     }
-}
-
-// MARK: - Table Schemas
-
-private enum CASOutputsSchema {
-    static let table = Table("cas_outputs")
-    static let key = SQLite.Expression<String>("key")
-    static let size = SQLite.Expression<Int>("size")
-    static let duration = SQLite.Expression<Double>("duration")
-    static let compressedSize = SQLite.Expression<Int>("compressed_size")
-    static let createdAt = SQLite.Expression<Date>("created_at")
-}
-
-private enum NodesSchema {
-    static let table = Table("nodes")
-    static let key = SQLite.Expression<String>("key")
-    static let checksum = SQLite.Expression<String>("checksum")
-    static let createdAt = SQLite.Expression<Date>("created_at")
-}
-
-private enum KeyValueMetadataSchema {
-    static let table = Table("keyvalue_metadata")
-    static let key = SQLite.Expression<String>("key")
-    static let operationType = SQLite.Expression<String>("operation_type")
-    static let duration = SQLite.Expression<Double>("duration")
-    static let createdAt = SQLite.Expression<Date>("created_at")
 }

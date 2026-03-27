@@ -1,7 +1,7 @@
+import CASAnalyticsDatabase
 import FileSystem
 import Foundation
 import Path
-@preconcurrency import SQLite
 
 struct CASOutputMetadataEntry: Decodable {
     let size: Int
@@ -13,7 +13,7 @@ struct KeyValueMetadataEntry: Decodable {
     let duration: Double
 }
 
-struct CASMetadataReader {
+struct CASMetadataReader: @unchecked Sendable {
     private let db: Connection?
     private let legacyCASMetadataPath: AbsolutePath?
     private let fileSystem: FileSystem
@@ -92,27 +92,4 @@ struct CASMetadataReader {
             .replacingOccurrences(of: ":", with: "_")
             .replacingOccurrences(of: "~", with: "_")
     }
-}
-
-// MARK: - Table Schemas
-
-private enum CASOutputsSchema {
-    static let table = Table("cas_outputs")
-    static let key = SQLite.Expression<String>("key")
-    static let size = SQLite.Expression<Int>("size")
-    static let duration = SQLite.Expression<Double>("duration")
-    static let compressedSize = SQLite.Expression<Int>("compressed_size")
-}
-
-private enum NodesSchema {
-    static let table = Table("nodes")
-    static let key = SQLite.Expression<String>("key")
-    static let checksum = SQLite.Expression<String>("checksum")
-}
-
-private enum KeyValueMetadataSchema {
-    static let table = Table("keyvalue_metadata")
-    static let key = SQLite.Expression<String>("key")
-    static let operationType = SQLite.Expression<String>("operation_type")
-    static let duration = SQLite.Expression<Double>("duration")
 }
