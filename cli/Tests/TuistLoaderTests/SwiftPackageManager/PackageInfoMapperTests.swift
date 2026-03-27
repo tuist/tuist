@@ -6258,6 +6258,48 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenRemoteBinaryTargetNameMatchesProductPrefix_keepsTargetNameAsProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/NMapsMapTarget"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "NMapsMap", type: .library(.automatic), targets: ["NMapsMapTarget"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "NMapsMapTarget",
+                            dependencies: [
+                                .target(name: "NMapsMapBinary", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "NMapsMapBinary",
+                            type: .binary,
+                            url: "https://repository.map.naver.com/archive/pod/NMapsMap/3.23.1/NMapsMap.zip"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "NMapsMapTarget" }))
+        #expect(mappedTarget.productName == "NMapsMapTarget")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenTargetNameContainsSpacesAndDefaultPathUsesUnderscores_mapsTargetSources() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
