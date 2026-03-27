@@ -507,7 +507,12 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         \(copyLines.joined(separator: "\n"))
         """
 
-        copySwiftMacrosBuildPhase.inputPaths = executableNames.map { "$BUILD_DIR/$CONFIGURATION/\($0)" }
+        copySwiftMacrosBuildPhase.inputPaths = executableNames.flatMap {
+            [
+                "$BUILD_DIR/$CONFIGURATION/\($0)",
+                "$(OBJROOT)/UninstalledProducts/macosx/\($0)",
+            ]
+        }
 
         copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
             [
