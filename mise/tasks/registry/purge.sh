@@ -121,6 +121,10 @@ parse_package() {
     if [[ -z "$raw_scope" || -z "$raw_name" || "$raw_name" == */* ]]; then
         fail "Package must be in scope/name format"
     fi
+
+    if [[ ! "$raw_scope" =~ ^[a-zA-Z0-9._-]+$ ]] || [[ ! "$raw_name" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        fail "Package scope and name must only contain alphanumeric characters, dots, hyphens, and underscores"
+    fi
 }
 
 normalize_scope() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
@@ -276,7 +280,18 @@ main() {
     log "Package input: ${raw_scope}/${raw_name}"
     log "Normalized storage package: ${normalized_scope}/${normalized_name}"
 
+    if [[ -n "$version" ]] && [[ ! "$version" =~ ^[a-zA-Z0-9._+-]+$ ]]; then
+        fail "Version must only contain alphanumeric characters, dots, hyphens, underscores, and plus signs"
+    fi
+
     if [[ -z "$version" ]]; then
+        log "About to purge ENTIRE package ${normalized_scope}/${normalized_name} from production"
+        log "This will delete all versions from S3 and all production node caches"
+        read -r -p '[registry:purge] Are you sure? (y/N) ' confirm
+        if [[ "$confirm" != [yY] ]]; then
+            log "Aborted by user"
+            exit 0
+        fi
         purge_package "$swift_package_root" "$metadata_package_root" "$local_swift_package_root"
     else
         purge_version "$swift_package_root" "${metadata_package_root}/index.json" "$version" "$local_swift_package_root"

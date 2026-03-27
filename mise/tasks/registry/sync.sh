@@ -25,6 +25,10 @@ parse_package() {
     if [[ -z "$raw_scope" || -z "$raw_name" || "$raw_name" == */* ]]; then
         fail "Package must be in scope/name format"
     fi
+
+    if [[ ! "$raw_scope" =~ ^[a-zA-Z0-9._-]+$ ]] || [[ ! "$raw_name" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        fail "Package scope and name must only contain alphanumeric characters, dots, hyphens, and underscores"
+    fi
 }
 
 normalize_scope() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
@@ -57,6 +61,11 @@ main() {
     local selected_host
 
     parse_package "$package"
+
+    if [[ ! "$version" =~ ^[a-zA-Z0-9._+-]+$ ]]; then
+        fail "Version must only contain alphanumeric characters, dots, hyphens, underscores, and plus signs"
+    fi
+
     normalized_scope="$(normalize_scope "$raw_scope")"
     repository_full_handle="${raw_scope}/${raw_name}"
     selected_host="$(read_random_production_host)"
@@ -77,6 +86,11 @@ tag="$4"
 
 log()  { printf '[registry:sync.remote:%s] %s\n' "$(hostname)" "$*"; }
 fail() { printf '[registry:sync.remote:%s] ERROR: %s\n' "$(hostname)" "$*" >&2; exit 1; }
+
+[[ "$scope" =~ ^[a-z0-9._-]+$ ]] || fail "Invalid scope: ${scope}"
+[[ "$name" =~ ^[a-zA-Z0-9._-]+$ ]] || fail "Invalid name: ${name}"
+[[ "$repository_full_handle" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$ ]] || fail "Invalid repository handle: ${repository_full_handle}"
+[[ "$tag" =~ ^[a-zA-Z0-9._+-]+$ ]] || fail "Invalid tag: ${tag}"
 
 find_cache_container() {
     local container_name
