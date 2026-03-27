@@ -48,13 +48,12 @@ struct WorkspaceSettingsDescriptorGeneratorTests {
         #expect(result == WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
     }
 
-    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withDerivedDataLocation() {
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withRelativeDerivedDataPath() {
         // Given
         let workspace = Workspace.test(
             generationOptions: .test(
                 enableAutomaticXcodeSchemes: nil,
-                derivedDataLocationStyle: .workspaceRelativePath,
-                derivedDataCustomLocation: "DerivedData"
+                derivedDataPath: .custom("DerivedData")
             )
         )
 
@@ -65,10 +64,28 @@ struct WorkspaceSettingsDescriptorGeneratorTests {
         #expect(
             result == WorkspaceSettingsDescriptor(
                 enableAutomaticXcodeSchemes: nil,
-                derivedDataLocationStyle: .workspaceRelativePath,
-                derivedDataCustomLocation: "DerivedData"
+                derivedDataPath: .custom("DerivedData")
             )
         )
+        #expect(result?.settings.derivedDataLocationStyle == .workspaceRelativePath)
+        #expect(result?.settings.derivedDataCustomLocation == "DerivedData")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withAbsoluteDerivedDataPath() {
+        // Given
+        let workspace = Workspace.test(
+            generationOptions: .test(
+                enableAutomaticXcodeSchemes: nil,
+                derivedDataPath: .custom("/tmp/DerivedData")
+            )
+        )
+
+        // When
+        let result = subject.generateWorkspaceSettings(workspace: workspace)
+
+        // Then
+        #expect(result?.settings.derivedDataLocationStyle == .absolutePath)
+        #expect(result?.settings.derivedDataCustomLocation == "/tmp/DerivedData")
     }
 
     @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withAllNilOptions() {

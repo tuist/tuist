@@ -15,13 +15,13 @@ protocol WorkspaceSettingsDescriptorGenerating {
 struct WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGenerating {
     func generateWorkspaceSettings(workspace: Workspace) -> WorkspaceSettingsDescriptor? {
         let options = workspace.generationOptions
-        guard options.enableAutomaticXcodeSchemes != nil || options.derivedDataLocationStyle != nil else {
+        let hasCustomDerivedData: Bool = if case .custom = options.derivedDataPath { true } else { false }
+        guard options.enableAutomaticXcodeSchemes != nil || hasCustomDerivedData else {
             return nil
         }
         return WorkspaceSettingsDescriptor(
             enableAutomaticXcodeSchemes: options.enableAutomaticXcodeSchemes,
-            derivedDataLocationStyle: options.derivedDataLocationStyle,
-            derivedDataCustomLocation: options.derivedDataCustomLocation
+            derivedDataPath: options.derivedDataPath
         )
     }
 }

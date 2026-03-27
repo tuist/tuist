@@ -13,18 +13,21 @@ import XcodeProj
 /// - seealso: `WorkspaceDescriptor`
 public struct WorkspaceSettingsDescriptor: Equatable {
     private let enableAutomaticXcodeSchemes: Bool?
-    private let derivedDataLocationStyle: Workspace.GenerationOptions.DerivedDataLocationStyle?
-    private let derivedDataCustomLocation: String?
+    private let derivedDataPath: Workspace.GenerationOptions.DerivedDataPath
 
     var settings: WorkspaceSettings {
-        WorkspaceSettings(
-            derivedDataLocationStyle: derivedDataLocationStyle.map {
-                switch $0 {
-                case .default: return .default
-                case .absolutePath: return .absolutePath
-                case .workspaceRelativePath: return .workspaceRelativePath
-                }
-            },
+        let derivedDataLocationStyle: WorkspaceSettings.DerivedDataLocationStyle?
+        let derivedDataCustomLocation: String?
+        switch derivedDataPath {
+        case .default:
+            derivedDataLocationStyle = nil
+            derivedDataCustomLocation = nil
+        case let .custom(path):
+            derivedDataLocationStyle = path.hasPrefix("/") ? .absolutePath : .workspaceRelativePath
+            derivedDataCustomLocation = path
+        }
+        return WorkspaceSettings(
+            derivedDataLocationStyle: derivedDataLocationStyle,
             derivedDataCustomLocation: derivedDataCustomLocation,
             autoCreateSchemes: enableAutomaticXcodeSchemes
         )
@@ -32,12 +35,10 @@ public struct WorkspaceSettingsDescriptor: Equatable {
 
     public init(
         enableAutomaticXcodeSchemes: Bool?,
-        derivedDataLocationStyle: Workspace.GenerationOptions.DerivedDataLocationStyle? = nil,
-        derivedDataCustomLocation: String? = nil
+        derivedDataPath: Workspace.GenerationOptions.DerivedDataPath = .default
     ) {
         self.enableAutomaticXcodeSchemes = enableAutomaticXcodeSchemes
-        self.derivedDataLocationStyle = derivedDataLocationStyle
-        self.derivedDataCustomLocation = derivedDataCustomLocation
+        self.derivedDataPath = derivedDataPath
     }
 
     public static func xcsettingsFilePath(relativeToWorkspace workspacePath: AbsolutePath) -> AbsolutePath {
