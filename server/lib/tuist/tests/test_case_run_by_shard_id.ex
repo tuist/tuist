@@ -24,5 +24,7 @@ defmodule Tuist.Tests.TestCaseRunByShardId do
     field :duration, Ch, type: "Int32"
     field :shard_index, Ch, type: "Nullable(Int32)"
     field :project_id, Ch, type: "Int64"
+    field :test_case_id, Ch, type: "Nullable(UUID)"
+    field :ran_at, Ch, type: "DateTime64(6)"
   end
 end
