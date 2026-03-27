@@ -1,4 +1,4 @@
-import CASAnalyticsDatabase
+@preconcurrency import CASAnalyticsDatabase
 import FileSystem
 import Foundation
 import Path
@@ -13,7 +13,7 @@ struct KeyValueMetadataEntry: Decodable {
     let duration: Double
 }
 
-struct CASMetadataReader: @unchecked Sendable {
+struct CASMetadataReader: Sendable {
     private let db: Connection?
     private let legacyCASMetadataPath: AbsolutePath?
     private let fileSystem: FileSystem
