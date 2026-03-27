@@ -1,7 +1,6 @@
 defmodule Tuist.Docs.Sidebar do
   @moduledoc """
   Defines the navigation sidebar tree for the documentation pages.
-  Mirrors the structure from docs/.vitepress/bars.mjs.
   """
 
   defmodule Item do
@@ -14,7 +13,7 @@ defmodule Tuist.Docs.Sidebar do
     defstruct [:label, weight: :semibold, items: []]
   end
 
-  @strings_dir Path.expand("../../../docs/.vitepress/strings", __DIR__)
+  @strings_dir Path.expand("../../priv/docs/strings", __DIR__)
 
   extract_texts = fn extract_texts, map, prefix ->
     map

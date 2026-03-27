@@ -6,8 +6,8 @@ defmodule Tuist.Docs.Loader do
   alias Tuist.Docs.Paths
 
   # Paths
-  @docs_root Path.expand("../../../docs/docs", __DIR__)
-  @locales ~w(en ar es ja ko pl pt ru yue_Hant zh_Hans)
+  @docs_root Path.expand("../../priv/docs", __DIR__)
+  @locales ~w(en ar es ja ko pl pt ru tr yue_Hant zh_Hans zh_Hant)
   @examples_root Path.expand("../../../examples/xcode", __DIR__)
 
   # Icons

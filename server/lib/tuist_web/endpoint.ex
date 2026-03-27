@@ -28,17 +28,10 @@ defmodule TuistWeb.Endpoint do
   #
   # You should set gzip to true if you are running phx.digest
   # when deploying your static files in production.
-  if Mix.env() in [:dev, :test] do
-    plug Plug.Static,
-      at: "/docs/images",
-      from: Path.expand("../../../docs/docs/public/images", __DIR__),
-      gzip: false
-  else
-    plug Plug.Static,
-      at: "/docs/images",
-      from: {:tuist, "priv/static/docs/images"},
-      gzip: false
-  end
+  plug Plug.Static,
+    at: "/docs/images",
+    from: {:tuist, "priv/static/docs/images"},
+    gzip: false
 
   plug Plug.Static,
     at: "/",
