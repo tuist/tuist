@@ -51,6 +51,7 @@
     />
     <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="docs" {assigns} />
+    <TuistWeb.LayoutComponents.head_plain_script current_user={assigns[:current_user]} {assigns} />
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
     <meta property="og:locale" content={@locale} />
     <link
