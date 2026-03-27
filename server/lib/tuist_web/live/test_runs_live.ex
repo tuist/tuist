@@ -411,13 +411,13 @@ defmodule TuistWeb.TestRunsLive do
           Map.put(options, :first, 20)
       end
 
+    {test_runs, test_runs_meta} = Tests.list_test_runs(options)
+
     socket
     |> assign(:active_filters, filters)
+    |> assign(:test_runs, test_runs)
+    |> assign(:test_runs_meta, test_runs_meta)
     |> assign(:test_runs_filter, search)
-    |> assign_async(:test_runs_data, fn ->
-      {test_runs, test_runs_meta} = Tests.list_test_runs(options)
-      {:ok, %{test_runs_data: {test_runs, test_runs_meta}}}
-    end)
   end
 
   defp build_flop_filters(filters, search) do

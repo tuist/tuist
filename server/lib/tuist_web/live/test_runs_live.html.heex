@@ -440,22 +440,10 @@
         <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
 
-      <div :if={!@test_runs_data.ok?} data-part="test-runs-table">
-        <div class="flex flex-col gap-4">
-          <.skeleton_box width="100%" height="44px" border_radius="12px" />
-          <.skeleton_box width="100%" height="44px" border_radius="12px" />
-          <.skeleton_box width="100%" height="44px" border_radius="12px" />
-          <.skeleton_box width="100%" height="44px" border_radius="12px" />
-          <.skeleton_box width="100%" height="44px" border_radius="12px" />
-        </div>
-      </div>
-
-      <% {test_runs, test_runs_meta} = if @test_runs_data.ok?, do: @test_runs_data.result, else: {[], nil} %>
-
-      <div :if={@test_runs_data.ok? && not Enum.empty?(test_runs)} data-part="test-runs-table">
+      <div :if={not Enum.empty?(@test_runs)} data-part="test-runs-table">
         <.table
           id="test-runs-table"
-          rows={test_runs}
+          rows={@test_runs}
           row_navigate={
             fn test_run ->
               url(
@@ -513,14 +501,14 @@
         </.table>
         <.pagination
           uri={@uri}
-          has_previous_page={test_runs_meta.has_previous_page?}
-          has_next_page={test_runs_meta.has_next_page?}
-          start_cursor={test_runs_meta.start_cursor}
-          end_cursor={test_runs_meta.end_cursor}
+          has_previous_page={@test_runs_meta.has_previous_page?}
+          has_next_page={@test_runs_meta.has_next_page?}
+          start_cursor={@test_runs_meta.start_cursor}
+          end_cursor={@test_runs_meta.end_cursor}
         />
       </div>
 
-      <div :if={@test_runs_data.ok? && Enum.empty?(test_runs)} data-part="empty-test-runs">
+      <div :if={Enum.empty?(@test_runs)} data-part="empty-test-runs">
         <.empty_card_section
           title={dgettext("dashboard_tests", "No data yet")}
           get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
