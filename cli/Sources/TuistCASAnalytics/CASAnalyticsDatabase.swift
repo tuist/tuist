@@ -30,7 +30,7 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
     private let db: Connection
 
     public init() throws {
-        self.db = try Connection(
+        db = try Connection(
             Environment.current.stateDirectory.appending(component: Self.databaseName).pathString
         )
         db.busyTimeout = 5
