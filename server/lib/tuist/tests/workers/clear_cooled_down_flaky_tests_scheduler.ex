@@ -1,4 +1,4 @@
-defmodule Tuist.Tests.Workers.ClearStaleFlakyFlagsWorker do
+defmodule Tuist.Tests.Workers.ClearCooledDownFlakyTestsScheduler do
   @moduledoc """
   A scheduled worker that enqueues a ClearCooledDownFlakyTestsWorker
   for each project that has flaky test cases.

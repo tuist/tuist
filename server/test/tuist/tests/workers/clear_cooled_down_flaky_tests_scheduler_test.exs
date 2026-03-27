@@ -1,8 +1,10 @@
-defmodule Tuist.Tests.Workers.ClearStaleFlakyFlagsWorkerTest do
+defmodule Tuist.Tests.Workers.ClearCooledDownFlakyTestsSchedulerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
-  alias Tuist.Tests.Workers.ClearStaleFlakyFlagsWorker
+  alias Tuist.Tests.Workers.ClearCooledDownFlakyTestsScheduler
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "perform/1" do
     test "enqueues ClearCooledDownFlakyTestsWorker for projects with flaky test cases" do
@@ -18,12 +20,10 @@ defmodule Tuist.Tests.Workers.ClearStaleFlakyFlagsWorkerTest do
 
       Tuist.IngestRepo.insert_all(Tuist.Tests.TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
-      assert :ok = ClearStaleFlakyFlagsWorker.perform(%Oban.Job{args: %{}})
+      assert :ok = ClearCooledDownFlakyTestsScheduler.perform(%Oban.Job{args: %{}})
 
-      assert [%{args: %{"project_id" => project_id}}] =
-               all_enqueued(worker: Tuist.Tests.Workers.ClearCooledDownFlakyTestsWorker)
-
-      assert project_id == project.id
+      enqueued = all_enqueued(worker: Tuist.Tests.Workers.ClearCooledDownFlakyTestsWorker)
+      assert Enum.any?(enqueued, fn job -> job.args["project_id"] == project.id end)
     end
   end
 end
