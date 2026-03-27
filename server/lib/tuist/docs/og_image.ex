@@ -1,7 +1,134 @@
 defmodule Tuist.Docs.OgImage do
   @moduledoc """
-  Generates the HTML used by Carta to render documentation open graph images.
+  Phoenix component that renders documentation OG image cards as HTML.
+  The rendered HTML is passed to Carta for screenshot capture via BrowseServo.
   """
+  use Phoenix.Component
+
+  @max_title_length 60
+  @max_description_length 120
+
+  attr :title, :string, required: true
+  attr :description, :string, default: nil
+  attr :category, :string, default: "Docs"
+  attr :font_data_uri, :string, required: true
+  attr :logo_data_uri, :string, required: true
+
+  def card(assigns) do
+    ~H"""
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          @font-face {
+            font-family: 'DM Sans';
+            font-style: normal;
+            font-weight: 400 600;
+            src: url(<%= @font_data_uri %>) format('woff2');
+          }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          html, body {
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            font-family: 'DM Sans', sans-serif;
+            background-color: #f0ecf8;
+          }
+          .title {
+            position: absolute;
+            left: 269px;
+            top: 200px;
+            width: 1380px;
+            max-height: 290px;
+            font-size: 128px;
+            font-weight: 500;
+            letter-spacing: -6.4px;
+            color: #171a1c;
+            line-height: 1.1;
+            overflow: hidden;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+          }
+          .description {
+            position: absolute;
+            left: 269px;
+            top: 500px;
+            width: 1380px;
+            max-height: 380px;
+            font-size: 64px;
+            font-weight: 500;
+            letter-spacing: -3.2px;
+            color: #4e575f;
+            line-height: 1.2;
+            overflow: hidden;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+          }
+          .logo-img {
+            position: absolute;
+            left: 67px;
+            bottom: 67px;
+            width: 80px;
+            height: 80px;
+          }
+          .logo-tuist {
+            position: absolute;
+            left: 161px;
+            bottom: 67px;
+            font-size: 59px;
+            font-weight: 500;
+            letter-spacing: -2.9px;
+            line-height: 80px;
+            background: linear-gradient(92deg, #000 6%, #6a7581 109%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0px 1.42px 4.26px rgba(27, 37, 80, 0.25);
+          }
+          .logo-divider {
+            position: absolute;
+            left: 290px;
+            bottom: 67px;
+            width: 3px;
+            height: 80px;
+            background-color: #c0c8cf;
+          }
+          .logo-docs {
+            position: absolute;
+            left: 305px;
+            bottom: 67px;
+            font-size: 59px;
+            font-weight: 500;
+            letter-spacing: -2.9px;
+            line-height: 80px;
+            background: linear-gradient(92deg, #000 6%, #6a7581 109%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0px 1.42px 4.26px rgba(27, 37, 80, 0.25);
+          }
+          .category {
+            position: absolute;
+            right: 67px;
+            bottom: 67px;
+            font-size: 59px;
+            font-weight: 500;
+            letter-spacing: -2.9px;
+            color: #171a1c;
+            line-height: 80px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="title">{truncate(@title, @max_title_length)}</div>
+        <div :if={@description} class="description">{truncate(@description, @max_description_length)}</div>
+        <img class="logo-img" src={@logo_data_uri} />
+        <div class="logo-tuist">Tuist</div>
+        <div class="logo-divider"></div>
+        <div class="logo-docs">Docs</div>
+        <div class="category">{@category}</div>
+      </body>
+    </html>
+    """
+  end
 
   def render_html(opts) do
     title = Keyword.fetch!(opts, :title)
@@ -13,136 +140,33 @@ defmodule Tuist.Docs.OgImage do
     font_base64 = fonts_dir |> Path.join("DMSans-latin.woff2") |> File.read!() |> Base.encode64()
     logo_base64 = logo_path |> File.read!() |> Base.encode64()
 
-    """
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="utf-8">
-    <style>
-      @font-face {
-        font-family: 'DM Sans';
-        font-style: normal;
-        font-weight: 400 600;
-        src: url(data:font/woff2;base64,#{font_base64}) format('woff2');
-      }
+    assigns = %{
+      title: title,
+      description: description,
+      category: category,
+      font_data_uri: "data:font/woff2;base64,#{font_base64}",
+      logo_data_uri: "data:image/webp;base64,#{logo_base64}",
+      max_title_length: @max_title_length,
+      max_description_length: @max_description_length
+    }
 
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-
-      body {
-        width: 1920px;
-        height: 1080px;
-        overflow: hidden;
-        font-family: 'DM Sans', sans-serif;
-        background: linear-gradient(to bottom, #f4f5fe, #efe8ff);
-        position: relative;
-      }
-
-      .content {
-        position: absolute;
-        top: 50%;
-        left: 269px;
-        transform: translateY(-50%);
-        width: 1383px;
-        display: flex;
-        flex-direction: column;
-        gap: 48px;
-      }
-
-      .title {
-        font-size: 128px;
-        font-weight: 500;
-        letter-spacing: -6.4px;
-        color: #171a1c;
-        line-height: 1;
-        word-wrap: break-word;
-      }
-
-      .description {
-        font-size: 64px;
-        font-weight: 500;
-        letter-spacing: -3.2px;
-        color: #4e575f;
-        line-height: 1.15;
-        word-wrap: break-word;
-      }
-
-      .footer {
-        position: absolute;
-        bottom: 67px;
-        left: 67px;
-        right: 67px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .logo-group {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-      }
-
-      .logo-img {
-        width: 80px;
-        height: 80px;
-        object-fit: contain;
-      }
-
-      .logo-text {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 59px;
-        font-weight: 500;
-        letter-spacing: -2.9px;
-        background: linear-gradient(92deg, #000 6%, #6a7581 109%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-      }
-
-      .logo-divider {
-        width: 0;
-        height: 80px;
-        border-left: 3px solid #c0c8cf;
-      }
-
-      .category {
-        font-size: 59px;
-        font-weight: 500;
-        letter-spacing: -2.9px;
-        color: #171a1c;
-      }
-    </style>
-    </head>
-    <body>
-      <div class="content">
-        <div class="title">#{escape_html(title)}</div>
-        #{if description, do: "<div class=\"description\">#{escape_html(description)}</div>", else: ""}
-      </div>
-
-      <div class="footer">
-        <div class="logo-group">
-          <img class="logo-img" src="data:image/webp;base64,#{logo_base64}" />
-          <div class="logo-text">
-            <span>Tuist</span>
-            <div class="logo-divider"></div>
-            <span>Docs</span>
-          </div>
-        </div>
-        <div class="category">#{escape_html(category)}</div>
-      </div>
-    </body>
-    </html>
-    """
+    "<!DOCTYPE html>" <>
+      (card(assigns) |> Phoenix.HTML.Safe.to_iodata() |> IO.iodata_to_binary())
   end
 
-  defp escape_html(nil), do: ""
+  def slug_to_filename(slug) do
+    [locale | rest] = slug |> String.split("/", trim: true)
+    page_path = rest |> Enum.join("-") |> then(&"#{&1}.jpg")
+    Path.join(locale, page_path)
+  end
 
-  defp escape_html(text) do
-    text
-    |> String.replace("&", "&amp;")
-    |> String.replace("<", "&lt;")
-    |> String.replace(">", "&gt;")
-    |> String.replace("\"", "&quot;")
+  defp truncate(nil, _max), do: ""
+
+  defp truncate(text, max) do
+    if String.length(text) > max do
+      text |> String.slice(0, max) |> String.trim_trailing() |> Kernel.<>("...")
+    else
+      text
+    end
   end
 end

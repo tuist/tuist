@@ -156,9 +156,10 @@ defmodule Tuist.MixProject do
       {:loki_logger_handler, "~> 0.2"},
       {:processor, path: "../processor", runtime: false},
       {:tidewave, "~> 0.5", only: :dev},
-      {:carta, git: "https://github.com/pepicrft/carta", branch: "main"},
-      {:browse_servo, "~> 0.2.0"},
-      {:browse, "~> 0.3.0", override: true}
+      {:carta, "~> 0.2.0"},
+      {:browse_chrome, "~> 0.4.0"},
+      {:browse, "~> 0.5.0", override: true},
+      {:muontrap, "~> 1.7", override: true}
     ]
   end
 
