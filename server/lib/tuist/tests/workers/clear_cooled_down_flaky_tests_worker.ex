@@ -10,8 +10,8 @@ defmodule Tuist.Tests.Workers.ClearCooledDownFlakyTestsWorker do
   @impl Oban.Worker
   def perform(%{args: %{"project_id" => project_id}}) do
     case Projects.get_project_by_id(project_id) do
-      {:ok, project} -> Tests.clear_cooled_down_flaky_tests(project)
-      {:error, :not_found} -> :ok
+      nil -> :ok
+      project -> Tests.clear_cooled_down_flaky_tests(project)
     end
   end
 end
