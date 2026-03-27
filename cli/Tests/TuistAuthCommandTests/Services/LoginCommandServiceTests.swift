@@ -342,5 +342,97 @@ struct LoginCommandServiceTests {
                 .authenticate(serverURL: .any, deviceCodeType: .any, onOpeningBrowser: .any, onAuthWaitBegin: .any)
                 .called(0)
         }
+
+        @Test(.withMockedEnvironment(), .withMockedDependencies())
+        func authenticate_with_oidc_retries_fetching_the_ci_token() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["CI"] = "1"
+
+            let retryProvider = ImmediateRetryProvider()
+            let subject = LoginCommandService(
+                serverEnvironmentService: serverEnvironmentService,
+                serverSessionController: serverSessionController,
+                userInputReader: userInputReader,
+                authenticateService: authenticateService,
+                ciOIDCAuthenticator: ciOIDCAuthenticator,
+                exchangeOIDCTokenService: exchangeOIDCTokenService,
+                retryProvider: retryProvider,
+                configLoader: configLoader
+            )
+
+            given(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .willThrow(
+                    CIOIDCAuthenticatorError.gitHubActionsOIDCTokenRequestFailed(
+                        statusCode: 503,
+                        body: "upstream connect error"
+                    )
+                )
+
+            given(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .willThrow(
+                    CIOIDCAuthenticatorError.gitHubActionsOIDCTokenRequestFailed(
+                        statusCode: 503,
+                        body: "upstream connect error"
+                    )
+                )
+
+            given(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .willReturn("oidc-jwt-token")
+
+            given(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .any)
+                .willReturn("tuist-access-token")
+
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            accessToken: "tuist-access-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            try await subject.run(
+                email: nil,
+                password: nil,
+                serverURL: serverURL.absoluteString
+            )
+
+            verify(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .called(3)
+
+            #expect(retryProvider.callCount == 2)
+        }
     #endif
 }
+
+#if os(macOS)
+    private final class ImmediateRetryProvider: RetryProviding {
+        var callCount = 0
+
+        func runWithRetries<T>(
+            operation: @Sendable @escaping () async throws -> T
+        ) async throws -> T {
+            callCount += 1
+
+            var lastError: Error?
+
+            for _ in 0 ..< 4 {
+                do {
+                    return try await operation()
+                } catch {
+                    lastError = error
+                }
+            }
+
+            throw lastError ?? CIOIDCAuthenticatorError.unsupportedCIEnvironment
+        }
+    }
+#endif
