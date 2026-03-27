@@ -375,5 +375,7 @@ workflows:
 ```
 
 ::: tip
+<!-- -->
 Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
+<!-- -->
 :::
