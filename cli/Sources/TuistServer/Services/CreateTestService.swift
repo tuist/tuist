@@ -27,7 +27,8 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             shardPlanId: String?,
-            shardIndex: Int?
+            shardIndex: Int?,
+            status: String?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -82,19 +83,24 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             shardPlanId: String?,
-            shardIndex: Int?
+            shardIndex: Int?,
+            status statusOverride: String? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 
             let status: Operations.createTest.Input.Body.jsonPayload.statusPayload? =
-                switch testSummary.status {
-                case .passed:
-                    .success
-                case .failed:
-                    .failure
-                case .skipped:
-                    .skipped
+                if let statusOverride {
+                    Operations.createTest.Input.Body.jsonPayload.statusPayload(rawValue: statusOverride)
+                } else {
+                    switch testSummary.status {
+                    case .passed:
+                        .success
+                    case .failed:
+                        .failure
+                    case .skipped:
+                        .skipped
+                    }
                 }
 
             let testModules = testSummary.testModules.map { module in

@@ -48642,6 +48642,7 @@ public enum Operations {
                         case success = "success"
                         case failure = "failure"
                         case skipped = "skipped"
+                        case processing = "processing"
                     }
                     /// The status of the test run.
                     ///

@@ -44,6 +44,7 @@
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
         private let uploadResultBundleService: UploadResultBundleServicing
         private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
+        private let createTestService: CreateTestServicing
         private let configLoader: ConfigLoading
         private let backgroundProcessRunner: BackgroundProcessRunning
         private let serverEnvironmentService: ServerEnvironmentServicing
@@ -55,6 +56,7 @@
             xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
             uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
             analyticsArtifactUploadService: AnalyticsArtifactUploadServicing = AnalyticsArtifactUploadService(),
+            createTestService: CreateTestServicing = CreateTestService(),
             configLoader: ConfigLoading = ConfigLoader(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
             serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
@@ -65,6 +67,7 @@
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
             self.uploadResultBundleService = uploadResultBundleService
             self.analyticsArtifactUploadService = analyticsArtifactUploadService
+            self.createTestService = createTestService
             self.configLoader = configLoader
             self.backgroundProcessRunner = backgroundProcessRunner
             self.serverEnvironmentService = serverEnvironmentService
@@ -153,28 +156,50 @@
             }
 
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+            let testSummary = TestSummary(
+                testPlanName: nil,
+                status: .passed,
+                duration: 0,
+                testModules: []
+            )
+
+            let test = try await createTestService.createTest(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                testSummary: testSummary,
+                buildRunId: nil,
+                gitBranch: nil,
+                gitCommitSHA: nil,
+                gitRef: nil,
+                gitRemoteURLOrigin: nil,
+                isCI: Environment.current.isCI,
+                modelIdentifier: nil,
+                macOSVersion: "",
+                xcodeVersion: nil,
+                ciRunId: nil,
+                ciProjectHandle: nil,
+                ciHost: nil,
+                ciProvider: nil,
+                shardPlanId: nil,
+                shardIndex: nil,
+                status: "processing"
+            )
+
             let components = fullHandle.components(separatedBy: "/")
             let accountHandle = components[0]
             let projectHandle = components[1]
-
-            let commandEventId = UUID().uuidString.lowercased()
 
             try await analyticsArtifactUploadService.uploadResultBundleOnly(
                 resolvedResultBundlePath,
                 accountHandle: accountHandle,
                 projectHandle: projectHandle,
-                commandEventId: commandEventId,
+                commandEventId: test.id,
                 serverURL: serverURL
             )
 
-            let testRunURL = serverURL
-                .appendingPathComponent(accountHandle)
-                .appendingPathComponent(projectHandle)
-                .appendingPathComponent("test-runs")
-                .appendingPathComponent(commandEventId)
-
             AlertController.current.success(
-                .alert("Result bundle uploaded for processing. View at \(testRunURL.absoluteString)")
+                .alert("Result bundle uploaded for processing. View at \(test.url)")
             )
         }
 
