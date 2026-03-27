@@ -16,6 +16,14 @@
             serverURL: URL
         ) async throws
 
+        func uploadResultBundleOnly(
+            _ resultBundle: AbsolutePath,
+            accountHandle: String,
+            projectHandle: String,
+            commandEventId: String,
+            serverURL: URL
+        ) async throws
+
         func uploadSession(
             _ sessionDirectory: AbsolutePath,
             accountHandle: String,
@@ -146,6 +154,25 @@
                     serverURL: serverURL
                 )
             }
+        }
+
+        public func uploadResultBundleOnly(
+            _ resultBundle: AbsolutePath,
+            accountHandle: String,
+            projectHandle: String,
+            commandEventId: String,
+            serverURL: URL
+        ) async throws {
+            try await uploadAnalyticsArtifact(
+                ServerCommandEvent.Artifact(
+                    type: .resultBundle
+                ),
+                artifactPath: resultBundle,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                commandEventId: commandEventId,
+                serverURL: serverURL
+            )
         }
 
         public func uploadSession(

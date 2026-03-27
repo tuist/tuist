@@ -159,7 +159,7 @@
 
             let commandEventId = UUID().uuidString.lowercased()
 
-            try await analyticsArtifactUploadService.uploadResultBundle(
+            try await analyticsArtifactUploadService.uploadResultBundleOnly(
                 resolvedResultBundlePath,
                 accountHandle: accountHandle,
                 projectHandle: projectHandle,
@@ -167,8 +167,14 @@
                 serverURL: serverURL
             )
 
+            let testRunURL = serverURL
+                .appendingPathComponent(accountHandle)
+                .appendingPathComponent(projectHandle)
+                .appendingPathComponent("test-runs")
+                .appendingPathComponent(commandEventId)
+
             AlertController.current.success(
-                .alert("Result bundle uploaded for server-side processing.")
+                .alert("Result bundle uploaded for processing. View at \(testRunURL.absoluteString)")
             )
         }
 
