@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.169.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* handle remote binary wrapper xcframework name collisions by [@pepicrft](https://github.com/pepicrft) in [#10054](https://github.com/tuist/tuist/pull/10054)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.1...4.169.2
+
 ## What's Changed in 4.169.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
