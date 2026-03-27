@@ -169,7 +169,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   defp atomize_keys(map) when is_map(map) do
     Map.new(map, fn
-      {k, v} when is_binary(k) -> {k |> Macro.underscore() |> String.to_atom(), v}
+      {k, v} when is_binary(k) -> {String.to_atom(k), v}
       other -> other
     end)
   end

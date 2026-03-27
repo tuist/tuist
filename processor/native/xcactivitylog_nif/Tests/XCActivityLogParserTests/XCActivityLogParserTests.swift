@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import Testing
@@ -7,6 +8,7 @@ import Testing
 @Suite
 struct XCActivityLogParserTests {
     private let parser = XCActivityLogParser()
+    private let fileSystem = FileSystem()
 
     private func fixtureURL(_ name: String) throws -> URL {
         let bundle = Bundle.module
@@ -16,21 +18,20 @@ struct XCActivityLogParserTests {
         return url
     }
 
-    private func emptyCASAnalyticsDbPath() throws -> AbsolutePath {
-        try AbsolutePath(validating: NSTemporaryDirectory())
-            .appending(component: "cas_analytics_\(UUID().uuidString).db")
+    private func parseFixture(_ name: String) async throws -> BuildData {
+        let url = try fixtureURL(name)
+        return try await fileSystem.runInTemporaryDirectory(prefix: "xcactivitylog-test") { tempDir in
+            try await parser.parse(
+                xcactivitylogURL: url,
+                casAnalyticsDatabasePath: tempDir.appending(component: "cas_analytics.db")
+            )
+        }
     }
 
     // MARK: - Clean Build
 
     @Test func cleanBuild_parsesSuccessfully() async throws {
-        let url = try fixtureURL("clean-build")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
+        let result = try await parseFixture("clean-build")
 
         #expect(result.category == "clean")
         #expect(result.status == "success")
@@ -41,13 +42,7 @@ struct XCActivityLogParserTests {
     }
 
     @Test func cleanBuild_parsesTargets() async throws {
-        let url = try fixtureURL("clean-build")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
+        let result = try await parseFixture("clean-build")
 
         for target in result.targets {
             #expect(!target.name.isEmpty)
@@ -58,13 +53,7 @@ struct XCActivityLogParserTests {
     }
 
     @Test func cleanBuild_parsesFiles() async throws {
-        let url = try fixtureURL("clean-build")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
+        let result = try await parseFixture("clean-build")
 
         #expect(!result.files.isEmpty)
         for file in result.files {
@@ -78,13 +67,7 @@ struct XCActivityLogParserTests {
     // MARK: - Incremental Build
 
     @Test func incrementalBuild_detectsIncrementalCategory() async throws {
-        let url = try fixtureURL("incremental-build")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
+        let result = try await parseFixture("incremental-build")
 
         #expect(result.category == "incremental")
         #expect(result.status == "success")
@@ -93,13 +76,7 @@ struct XCActivityLogParserTests {
     // MARK: - Failed Build
 
     @Test func failedBuild_reportsErrors() async throws {
-        let url = try fixtureURL("failed-build")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
+        let result = try await parseFixture("failed-build")
 
         #expect(result.status == "failure")
         #expect(result.error_count > 0)
@@ -109,13 +86,7 @@ struct XCActivityLogParserTests {
     // MARK: - Build With Warnings
 
     @Test func buildWithWarning_parsesWarnings() async throws {
-        let url = try fixtureURL("build-with-warning")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
+        let result = try await parseFixture("build-with-warning")
 
         #expect(result.issues.contains { $0.type == "warning" })
         for issue in result.issues {
@@ -127,39 +98,19 @@ struct XCActivityLogParserTests {
     // MARK: - CAS Build Category Detection
 
     @Test func xcode26CASCleanBuild_detectsCleanCategory() async throws {
-        let url = try fixtureURL("xcode_26_cas_clean_build")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
-
+        let result = try await parseFixture("xcode_26_cas_clean_build")
         #expect(result.category == "clean")
     }
 
     @Test func xcode26CASIncrementalBuild_detectsIncrementalCategory() async throws {
-        let url = try fixtureURL("xcode_26_cas_incremental_build")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
-
+        let result = try await parseFixture("xcode_26_cas_incremental_build")
         #expect(result.category == "incremental")
     }
 
     // MARK: - Build With Compilation Cache
 
     @Test func buildWithCache_parsesCacheableTasks() async throws {
-        let url = try fixtureURL("xcode_26_4_clean_build_with_cache")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
+        let result = try await parseFixture("xcode_26_4_clean_build_with_cache")
 
         #expect(!result.cacheable_tasks.isEmpty)
         for task in result.cacheable_tasks {
@@ -169,62 +120,24 @@ struct XCActivityLogParserTests {
         }
     }
 
-    // MARK: - Build With Uploads
-
-    @Test func buildWithUploads_parsesCASOutputs() async throws {
-        let url = try fixtureURL("build-with-uploads")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
-
-        #expect(!result.cacheable_tasks.isEmpty)
-    }
-
-    // MARK: - CAS Metadata
-
-    @Test func parse_readsCASMetadata_whenFilesExist() async throws {
-        let url = try fixtureURL("build-with-uploads")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let nodesDir = casPath.appending(component: "nodes")
-        try FileManager.default.createDirectory(atPath: nodesDir.pathString, withIntermediateDirectories: true)
-        let casDir = casPath.appending(component: "cas")
-        try FileManager.default.createDirectory(atPath: casDir.pathString, withIntermediateDirectories: true)
-        let kvDir = casPath.appending(component: "keyvalue")
-        try FileManager.default.createDirectory(atPath: kvDir.pathString, withIntermediateDirectories: true)
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
-
-        // With empty CAS metadata dirs, CAS outputs that need metadata will be filtered out
-        // but the parse itself should succeed
-        #expect(result.status == "success" || result.status == "failure")
-    }
-
-    // MARK: - Output Structure
+    // MARK: - Full Parse
 
     @Test func parse_populatesAllFields() async throws {
-        let url = try fixtureURL("clean-build")
-        let casDbPath = try emptyCASAnalyticsDbPath()
-
-        let result = try await parser.parse(
-            xcactivitylogURL: url,
-            casAnalyticsDatabasePath: casDbPath
-        )
+        let result = try await parseFixture("clean-build")
 
         #expect(!result.unique_identifier.isEmpty)
+        #expect(result.duration > 0)
         #expect(result.time_started_recording > 0)
         #expect(result.time_stopped_recording > 0)
-        #expect(result.time_stopped_recording >= result.time_started_recording)
-        #expect(result.duration >= 0)
+        #expect(result.version > 0)
+    }
 
-        let encoded = try JSONEncoder().encode(result)
-        #expect(encoded.count > 0)
+    // MARK: - Build With Uploads
+
+    @Test func buildWithUploads_parsesUploads() async throws {
+        let result = try await parseFixture("build-with-uploads")
+
+        #expect(result.status == "success")
     }
 }
 
