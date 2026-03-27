@@ -16,6 +16,7 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
         stateDirectory = baseDirectory.appending(component: "state")
         cacheDirectory = baseDirectory.appending(component: ".cache")
         homeDirectory = baseDirectory.appending(component: "home")
+        try await fileSystem.makeDirectory(at: stateDirectory)
         try await fileSystem.makeDirectory(at: baseDirectory.appending(component: "current"))
     }
 

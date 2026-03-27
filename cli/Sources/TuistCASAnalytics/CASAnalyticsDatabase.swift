@@ -30,13 +30,8 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
     private let db: Connection
 
     public init() throws {
-        let stateDirectory = Environment.current.stateDirectory
-        try FileManager.default.createDirectory(
-            atPath: stateDirectory.pathString,
-            withIntermediateDirectories: true
-        )
         db = try Connection(
-            stateDirectory.appending(component: Self.databaseName).pathString
+            Environment.current.stateDirectory.appending(component: Self.databaseName).pathString
         )
         db.busyTimeout = 5
         try db.execute("PRAGMA synchronous = NORMAL")
