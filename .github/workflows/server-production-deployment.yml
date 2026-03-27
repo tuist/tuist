@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - server/**
+      - noora/**
       - .github/workflows/server-production-deployment.yml
       - server/pnpm-lock.yaml
 
