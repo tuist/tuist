@@ -4,9 +4,12 @@
     import Path
     import TuistAlert
     import TuistAutomation
+    import TuistCI
     import TuistConfig
     import TuistConfigLoader
     import TuistCore
+    import TuistGit
+    import TuistRootDirectoryLocator
     import TuistEnvironment
     import TuistKit
     import TuistLoader
@@ -48,6 +51,11 @@
         private let configLoader: ConfigLoading
         private let backgroundProcessRunner: BackgroundProcessRunning
         private let serverEnvironmentService: ServerEnvironmentServicing
+        private let gitController: GitControlling
+        private let ciController: CIControlling
+        private let machineEnvironment: MachineEnvironmentRetrieving
+        private let xcodeBuildController: XcodeBuildControlling
+        private let rootDirectoryLocator: RootDirectoryLocating
 
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -59,7 +67,12 @@
             createTestService: CreateTestServicing = CreateTestService(),
             configLoader: ConfigLoading = ConfigLoader(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
-            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
+            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+            gitController: GitControlling = GitController(),
+            ciController: CIControlling = CIController(),
+            machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
+            xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
+            rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
@@ -71,6 +84,11 @@
             self.configLoader = configLoader
             self.backgroundProcessRunner = backgroundProcessRunner
             self.serverEnvironmentService = serverEnvironmentService
+            self.gitController = gitController
+            self.ciController = ciController
+            self.machineEnvironment = machineEnvironment
+            self.xcodeBuildController = xcodeBuildController
+            self.rootDirectoryLocator = rootDirectoryLocator
         }
 
         func run(
@@ -157,6 +175,17 @@
 
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+            let rootDirectory: AbsolutePath? = if gitController.isInGitRepository(workingDirectory: workingDirectory) {
+                try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+            } else {
+                try await rootDirectoryLocator.locate(from: workingDirectory)
+            }
+            let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
+            let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+            let ciInfo = ciController.ciInfo()
+
             let testSummary = TestSummary(
                 testPlanName: nil,
                 status: .passed,
@@ -169,18 +198,18 @@
                 serverURL: serverURL,
                 testSummary: testSummary,
                 buildRunId: nil,
-                gitBranch: nil,
-                gitCommitSHA: nil,
-                gitRef: nil,
-                gitRemoteURLOrigin: nil,
+                gitBranch: gitInfo.branch,
+                gitCommitSHA: gitInfo.sha,
+                gitRef: gitInfo.ref,
+                gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
                 isCI: Environment.current.isCI,
-                modelIdentifier: nil,
-                macOSVersion: "",
-                xcodeVersion: nil,
-                ciRunId: nil,
-                ciProjectHandle: nil,
-                ciHost: nil,
-                ciProvider: nil,
+                modelIdentifier: machineEnvironment.modelIdentifier(),
+                macOSVersion: machineEnvironment.macOSVersion,
+                xcodeVersion: try await xcodeBuildController.version()?.description,
+                ciRunId: ciInfo?.runId,
+                ciProjectHandle: ciInfo?.projectHandle,
+                ciHost: ciInfo?.host,
+                ciProvider: ciInfo?.provider,
                 shardPlanId: nil,
                 shardIndex: nil,
                 status: "processing"
