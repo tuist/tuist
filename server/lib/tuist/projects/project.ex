@@ -96,7 +96,7 @@ defmodule Tuist.Projects.Project do
     ])
     |> validate_name()
     |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
-    |> validate_number(:flaky_cooldown_days, greater_than: 0, less_than_or_equal_to: 90)
+    |> validate_number(:flaky_cooldown_days, greater_than: 0)
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
     |> validate_inclusion(:build_system, [:xcode, :gradle])

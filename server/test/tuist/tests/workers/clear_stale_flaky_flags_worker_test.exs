@@ -2,14 +2,28 @@ defmodule Tuist.Tests.Workers.ClearStaleFlakyFlagsWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
-  alias Tuist.Tests
   alias Tuist.Tests.Workers.ClearStaleFlakyFlagsWorker
 
   describe "perform/1" do
-    test "calls Tests.clear_stale_flaky_flags/0" do
-      expect(Tests, :clear_stale_flaky_flags, fn -> {:ok, 0} end)
+    test "enqueues ClearCooledDownFlakyTestsWorker for projects with flaky test cases" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
 
-      assert {:ok, 0} = ClearStaleFlakyFlagsWorker.perform(%Oban.Job{args: %{}})
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          is_flaky: true
+        )
+
+      Tuist.IngestRepo.insert_all(Tuist.Tests.TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      assert :ok = ClearStaleFlakyFlagsWorker.perform(%Oban.Job{args: %{}})
+
+      assert [%{args: %{"project_id" => project_id}}] =
+               all_enqueued(worker: Tuist.Tests.Workers.ClearCooledDownFlakyTestsWorker)
+
+      assert project_id == project.id
     end
   end
 end

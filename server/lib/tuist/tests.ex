@@ -2105,29 +2105,25 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Clears stale flaky flags from test cases.
+  Clears cooled down flaky tests for a specific project.
 
-  A test case's is_flaky flag is considered stale if there have been no flaky
-  test case runs for that test case within the project's configured
-  `flaky_cooldown_days` window (defaults to 14 days).
+  A test case's flaky flag has cooled down if there have been no flaky
+  test case runs within the project's configured `flaky_cooldown_days`
+  window (defaults to 14 days).
 
-  Returns {:ok, count} where count is the number of test cases that had their
-  is_flaky flag cleared.
+  Returns {:ok, count} where count is the number of test cases cleared.
   """
-  def clear_stale_flaky_flags do
+  def clear_cooled_down_flaky_tests(%Project{} = project) do
     flaky_test_cases =
-      ClickHouseRepo.all(from(test_case in TestCase, hints: ["FINAL"], where: test_case.is_flaky == true))
+      ClickHouseRepo.all(
+        from(test_case in TestCase,
+          hints: ["FINAL"],
+          where: test_case.is_flaky == true and test_case.project_id == ^project.id
+        )
+      )
 
     now = NaiveDateTime.utc_now()
-    project_ids = flaky_test_cases |> Enum.map(& &1.project_id) |> Enum.uniq()
-
-    project_settings =
-      from(p in Project,
-        where: p.id in ^project_ids,
-        select: {p.id, p.flaky_cooldown_days}
-      )
-      |> Repo.all()
-      |> Map.new()
+    cutoff = NaiveDateTime.add(now, -project.flaky_cooldown_days, :day)
 
     test_case_ids = Enum.map(flaky_test_cases, & &1.id)
 
@@ -2140,30 +2136,17 @@ defmodule Tuist.Tests do
       |> ClickHouseRepo.all()
       |> Map.new()
 
-    stale_test_cases =
+    cooled_down_test_cases =
       Enum.filter(flaky_test_cases, fn test_case ->
-        clear_days = Map.get(project_settings, test_case.project_id, 14)
-        cutoff = NaiveDateTime.add(now, -clear_days, :day)
-
         case Map.get(latest_flaky_runs, test_case.id) do
           nil -> true
           latest_run -> NaiveDateTime.before?(latest_run, cutoff)
         end
       end)
 
-    auto_quarantine_project_ids =
-      from(p in Project,
-        where: p.id in ^project_ids and p.auto_quarantine_flaky_tests == true,
-        select: p.id
-      )
-      |> Repo.all()
-      |> MapSet.new()
-
     test_cases_to_update =
-      Enum.map(stale_test_cases, fn test_case ->
-        should_unquarantine =
-          test_case.is_quarantined and
-            MapSet.member?(auto_quarantine_project_ids, test_case.project_id)
+      Enum.map(cooled_down_test_cases, fn test_case ->
+        should_unquarantine = test_case.is_quarantined and project.auto_quarantine_flaky_tests
 
         updates = %{is_flaky: false, inserted_at: now}
         updates = if should_unquarantine, do: Map.put(updates, :is_quarantined, false), else: updates
@@ -2176,12 +2159,10 @@ defmodule Tuist.Tests do
 
     TestCase.Buffer.insert_all(test_cases_to_update)
 
-    if Enum.any?(stale_test_cases) do
+    if Enum.any?(cooled_down_test_cases) do
       events =
-        Enum.flat_map(stale_test_cases, fn test_case ->
-          should_unquarantine =
-            test_case.is_quarantined and
-              MapSet.member?(auto_quarantine_project_ids, test_case.project_id)
+        Enum.flat_map(cooled_down_test_cases, fn test_case ->
+          should_unquarantine = test_case.is_quarantined and project.auto_quarantine_flaky_tests
 
           flaky_event = %{
             id: UUIDv7.generate(),

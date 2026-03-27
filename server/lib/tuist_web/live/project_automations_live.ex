@@ -141,7 +141,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         %{assigns: %{selected_project: selected_project}} = socket
       ) do
     case Integer.parse(days_str) do
-      {days, _} when days > 0 and days <= 90 ->
+      {days, _} when days > 0 ->
         {:ok, updated_project} =
           Projects.update_project(selected_project, %{flaky_cooldown_days: days})
 
