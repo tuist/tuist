@@ -136,14 +136,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event(
-        "update_flaky_auto_clear_days",
+        "update_flaky_cooldown_days",
         %{"value" => days_str},
         %{assigns: %{selected_project: selected_project}} = socket
       ) do
     case Integer.parse(days_str) do
       {days, _} when days > 0 and days <= 90 ->
         {:ok, updated_project} =
-          Projects.update_project(selected_project, %{flaky_auto_clear_days: days})
+          Projects.update_project(selected_project, %{flaky_cooldown_days: days})
 
         {:noreply, assign(socket, selected_project: updated_project)}
 

@@ -104,9 +104,9 @@
           <.text_input
             type="basic"
             id="flaky-auto-clear-days"
-            name="flaky_auto_clear_days"
-            value={@selected_project.flaky_auto_clear_days}
-            phx-keyup="update_flaky_auto_clear_days"
+            name="flaky_cooldown_days"
+            value={@selected_project.flaky_cooldown_days}
+            phx-keyup="update_flaky_cooldown_days"
             phx-debounce="500"
             disabled={not @selected_project.auto_mark_flaky_tests}
           />

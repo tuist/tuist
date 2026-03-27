@@ -5556,11 +5556,11 @@ defmodule Tuist.TestsTest do
       assert fetched_test_case.is_quarantined == false
     end
 
-    test "respects project-specific flaky_auto_clear_days setting" do
+    test "respects project-specific flaky_cooldown_days setting" do
       project = ProjectsFixtures.project_fixture()
 
       project
-      |> Ecto.Changeset.change(flaky_auto_clear_days: 3)
+      |> Ecto.Changeset.change(flaky_cooldown_days: 3)
       |> Tuist.Repo.update!()
 
       test_case_id = Ecto.UUID.generate()
@@ -5591,11 +5591,11 @@ defmodule Tuist.TestsTest do
       assert fetched_test_case.is_flaky == false
     end
 
-    test "does not clear flaky flag when within project-specific flaky_auto_clear_days" do
+    test "does not clear flaky flag when within project-specific flaky_cooldown_days" do
       project = ProjectsFixtures.project_fixture()
 
       project
-      |> Ecto.Changeset.change(flaky_auto_clear_days: 30)
+      |> Ecto.Changeset.change(flaky_cooldown_days: 30)
       |> Tuist.Repo.update!()
 
       test_case_id = Ecto.UUID.generate()

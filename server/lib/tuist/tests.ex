@@ -2109,7 +2109,7 @@ defmodule Tuist.Tests do
 
   A test case's is_flaky flag is considered stale if there have been no flaky
   test case runs for that test case within the project's configured
-  `flaky_auto_clear_days` window (defaults to 14 days).
+  `flaky_cooldown_days` window (defaults to 14 days).
 
   Returns {:ok, count} where count is the number of test cases that had their
   is_flaky flag cleared.
@@ -2124,7 +2124,7 @@ defmodule Tuist.Tests do
     project_settings =
       from(p in Project,
         where: p.id in ^project_ids,
-        select: {p.id, p.flaky_auto_clear_days}
+        select: {p.id, p.flaky_cooldown_days}
       )
       |> Repo.all()
       |> Map.new()
