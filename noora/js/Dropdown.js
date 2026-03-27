@@ -178,13 +178,29 @@ export default {
       const content = this.el.querySelector('[data-part="content"]');
       if (!content) return;
 
+      let visibleCount = 0;
       for (const item of content.querySelectorAll('[data-part="item"]')) {
         const label = (
           item.dataset.label ||
           item.textContent ||
           ""
         ).toLowerCase();
-        item.style.display = label.includes(query) ? "" : "none";
+        const visible = label.includes(query);
+        item.style.display = visible ? "" : "none";
+        if (visible) visibleCount++;
+      }
+
+      let emptyState = content.querySelector('[data-part="search-empty"]');
+      if (visibleCount === 0) {
+        if (!emptyState) {
+          emptyState = document.createElement("span");
+          emptyState.setAttribute("data-part", "search-empty");
+          emptyState.textContent = "No results";
+          content.querySelector('[data-part="items"]')?.appendChild(emptyState);
+        }
+        emptyState.style.display = "";
+      } else if (emptyState) {
+        emptyState.style.display = "none";
       }
     });
 
