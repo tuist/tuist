@@ -761,6 +761,8 @@ defmodule TuistWeb.API.AnalyticsController do
           selected_project.account
         )
 
+      maybe_enqueue_xcresult_processing(type, object_key, run_id, selected_project)
+
       conn
       |> put_status(:no_content)
       |> json(%{})
@@ -995,6 +997,19 @@ defmodule TuistWeb.API.AnalyticsController do
 
     {:ok, object_key}
   end
+
+  defp maybe_enqueue_xcresult_processing("result_bundle", storage_key, run_id, project) do
+    %{
+      test_run_id: run_id,
+      storage_key: storage_key,
+      account_id: project.account_id,
+      project_id: project.id
+    }
+    |> Tuist.Tests.Workers.ProcessXcresultWorker.new()
+    |> Oban.insert()
+  end
+
+  defp maybe_enqueue_xcresult_processing(_type, _storage_key, _run_id, _project), do: :ok
 
   defp bad_request_when_project_authenticated_from_non_ci_environment(%{body_params: body_params} = conn, _opts) do
     if is_nil(Authentication.current_project(conn)) or
