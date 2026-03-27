@@ -155,7 +155,10 @@ defmodule Tuist.MixProject do
       {:opentelemetry_broadway, "~> 0.3"},
       {:loki_logger_handler, "~> 0.2"},
       {:processor, path: "../processor", runtime: false},
-      {:tidewave, "~> 0.5", only: :dev}
+      {:tidewave, "~> 0.5", only: :dev},
+      {:carta, git: "https://github.com/pepicrft/carta", branch: "main"},
+      {:browse_servo, "~> 0.2.0"},
+      {:browse, "~> 0.3.0", override: true}
     ]
   end
 
