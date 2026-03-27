@@ -12,6 +12,7 @@
     bats = "1.11.1"
     java = "21"
     gradle = "8.12"
+    caddy = "2.11.2"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"
