@@ -157,7 +157,7 @@
             let accountHandle = components[0]
             let projectHandle = components[1]
 
-            let commandEventId = UUID().uuidString
+            let commandEventId = UUID().uuidString.lowercased()
 
             try await analyticsArtifactUploadService.uploadResultBundle(
                 resolvedResultBundlePath,
