@@ -13,6 +13,7 @@ defmodule Tuist.Docs.OgImage do
   attr :category, :string, default: "Docs"
   attr :font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
+
   def card(assigns) do
     ~H"""
     <html>
@@ -127,7 +128,9 @@ defmodule Tuist.Docs.OgImage do
       <body>
         <div class="content">
           <div class="title">{truncate(@title, @max_title_length)}</div>
-          <div :if={@description} class="description">{truncate(@description, @max_description_length)}</div>
+          <div :if={@description} class="description">
+            {truncate(@description, @max_description_length)}
+          </div>
         </div>
         <img class="logo-img" src={@logo_data_uri} />
         <div class="logo-tuist">Tuist</div>
@@ -160,11 +163,11 @@ defmodule Tuist.Docs.OgImage do
     }
 
     "<!DOCTYPE html>" <>
-      (card(assigns) |> Phoenix.HTML.Safe.to_iodata() |> IO.iodata_to_binary())
+      (assigns |> card() |> Phoenix.HTML.Safe.to_iodata() |> IO.iodata_to_binary())
   end
 
   def slug_to_filename(slug) do
-    [locale | rest] = slug |> String.split("/", trim: true)
+    [locale | rest] = String.split(slug, "/", trim: true)
     page_path = rest |> Enum.join("-") |> then(&"#{&1}.jpg")
     Path.join(locale, page_path)
   end

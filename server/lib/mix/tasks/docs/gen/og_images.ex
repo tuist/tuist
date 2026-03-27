@@ -6,6 +6,7 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
   use Boundary, classify_to: Tuist.Mix
 
   alias Tuist.Docs
+  alias Tuist.Docs.OgImage
   alias Tuist.Docs.Sidebar
 
   @pool Tuist.Docs.OgImagePool
@@ -24,7 +25,7 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
     logo_path =
       :tuist |> Application.app_dir("priv") |> Path.join("static/docs/images/logo.webp")
 
-    pool_size = System.schedulers_online() |> max(4)
+    pool_size = max(System.schedulers_online(), 4)
 
     {:ok, _} = Browse.start_link(@pool, implementation: BrowseChrome.Browser, pool_size: pool_size)
 
@@ -37,7 +38,7 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
     |> Task.async_stream(
       fn page ->
         slug = page.slug
-        filename = Tuist.Docs.OgImage.slug_to_filename(slug)
+        filename = OgImage.slug_to_filename(slug)
         image_path = Path.join(output_dir, filename)
 
         locale = slug |> String.split("/", trim: true) |> List.first()
@@ -45,7 +46,7 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
         category = Map.get(category_map, en_slug, "Docs")
 
         html =
-          Tuist.Docs.OgImage.render_html(
+          OgImage.render_html(
             title: page.title,
             description: page.description,
             category: category,
