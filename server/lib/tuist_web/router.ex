@@ -332,10 +332,10 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_docs]
 
     get "/docs", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/login", UserSessionController, :new, metadata: %{type: :docs}
     get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: %{type: :docs}
-    get "/docs/login", UserSessionController, :new, metadata: %{type: :docs}
 
     for locale <- ["en"] ++ Localization.additional_locales() do
       private = %{locale: locale}
