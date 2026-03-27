@@ -136,6 +136,7 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :put_locale
+    plug :fetch_current_user
   end
 
   pipeline :browser_marketing_feed do
@@ -334,11 +335,13 @@ defmodule TuistWeb.Router do
     get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: %{type: :docs}
+    get "/docs/login", UserSessionController, :new, metadata: %{type: :docs}
 
     for locale <- ["en"] ++ Localization.additional_locales() do
       private = %{locale: locale}
 
-      live_session String.to_atom("docs_#{locale}"), on_mount: Localization do
+      live_session String.to_atom("docs_#{locale}"),
+        on_mount: [{TuistWeb.Authentication, :mount_current_user}, Localization] do
         live "/#{locale}/docs", DocsLive, :overview, metadata: %{type: :docs}, private: private
         live "/#{locale}/docs/*path", DocsLive, :show, metadata: %{type: :docs}, private: private
       end
