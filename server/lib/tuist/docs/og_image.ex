@@ -1,9 +1,13 @@
 defmodule Tuist.Docs.OgImage do
   @moduledoc """
   Phoenix component that renders documentation OG image cards as HTML.
-  The rendered HTML is passed to Carta for screenshot capture via BrowseServo.
+  The rendered HTML is passed to Carta for screenshot capture via BrowseChrome.
   """
   use Phoenix.Component
+
+  @noora_tokens_path Path.expand("../../../../noora/css/tokens.css", __DIR__)
+  @external_resource @noora_tokens_path
+  @noora_tokens File.read!(@noora_tokens_path)
 
   @max_title_length 60
   @max_description_length 120
@@ -13,12 +17,17 @@ defmodule Tuist.Docs.OgImage do
   attr :category, :string, default: "Docs"
   attr :font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
+  attr :noora_tokens, :string, required: true
 
   def card(assigns) do
     ~H"""
     <html>
       <head>
         <meta charset="utf-8" />
+        <meta name="color-scheme" content="light" />
+        <style>
+          {raw(@noora_tokens)}
+        </style>
         <style>
           @font-face {
             font-family: 'DM Sans';
@@ -32,7 +41,8 @@ defmodule Tuist.Docs.OgImage do
             height: 1080px;
             overflow: hidden;
             font-family: 'DM Sans', sans-serif;
-            background-color: #f0ecf8;
+            color-scheme: light;
+            background-color: var(--noora-purple-50);
           }
           .title {
             position: absolute;
@@ -43,7 +53,7 @@ defmodule Tuist.Docs.OgImage do
             font-size: 128px;
             font-weight: 500;
             letter-spacing: -6.4px;
-            color: #171a1c;
+            color: var(--noora-surface-label-primary);
             line-height: 1.1;
             overflow: hidden;
             word-wrap: break-word;
@@ -58,7 +68,7 @@ defmodule Tuist.Docs.OgImage do
             font-size: 64px;
             font-weight: 500;
             letter-spacing: -3.2px;
-            color: #4e575f;
+            color: var(--noora-surface-label-secondary);
             line-height: 1.2;
             overflow: hidden;
             word-wrap: break-word;
@@ -79,7 +89,7 @@ defmodule Tuist.Docs.OgImage do
             font-weight: 500;
             letter-spacing: -2.9px;
             line-height: 80px;
-            background: linear-gradient(92deg, #000 6%, #6a7581 109%);
+            background: linear-gradient(92deg, var(--noora-surface-label-primary) 6%, var(--noora-surface-label-secondary) 109%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             text-shadow: 0px 1.42px 4.26px rgba(27, 37, 80, 0.25);
@@ -90,7 +100,7 @@ defmodule Tuist.Docs.OgImage do
             bottom: 67px;
             width: 3px;
             height: 80px;
-            background-color: #c0c8cf;
+            background-color: var(--noora-gray-200);
           }
           .logo-docs {
             position: absolute;
@@ -100,7 +110,7 @@ defmodule Tuist.Docs.OgImage do
             font-weight: 500;
             letter-spacing: -2.9px;
             line-height: 80px;
-            background: linear-gradient(92deg, #000 6%, #6a7581 109%);
+            background: linear-gradient(92deg, var(--noora-surface-label-primary) 6%, var(--noora-surface-label-secondary) 109%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             text-shadow: 0px 1.42px 4.26px rgba(27, 37, 80, 0.25);
@@ -112,7 +122,7 @@ defmodule Tuist.Docs.OgImage do
             font-size: 59px;
             font-weight: 500;
             letter-spacing: -2.9px;
-            color: #171a1c;
+            color: var(--noora-surface-label-primary);
             line-height: 80px;
           }
         </style>
@@ -146,6 +156,7 @@ defmodule Tuist.Docs.OgImage do
       category: category,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
       logo_data_uri: "data:image/webp;base64,#{logo_base64}",
+      noora_tokens: @noora_tokens,
       max_title_length: @max_title_length,
       max_description_length: @max_description_length
     }
