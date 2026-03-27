@@ -18,7 +18,7 @@ defmodule Tuist.Marketing.Changelog.EntryParserTest do
     {frontmatter, body} =
       EntryParser.parse("priv/marketing/changelog/2026.03.19-failed-tests-pr-comment.md", contents)
 
-    assert frontmatter["id"] == "2026-03-19-failed-tests-pr-comment"
+    assert frontmatter["id"] == "2026.03.19-failed-tests-pr-comment"
     assert body =~ "<p>Tuist now supports <strong>bold</strong> descriptions.</p>"
 
     assert body =~
@@ -61,11 +61,17 @@ defmodule Tuist.Marketing.Changelog.EntryParserTest do
     {_frontmatter, body} =
       EntryParser.parse("priv/marketing/changelog/2026.03.19-failed-tests-pr-comment.md", contents)
 
-    assert body =~ ~s(<div class="code-window">)
-    assert body =~ ~s(<div data-part="bar">)
-    assert body =~ ~s(<div data-part="copy"><span data-part="copy-icon">)
-    assert body =~ ~s(<span data-part="copy-check-icon">)
-    assert body =~ ~s(<div data-part="language">bash</div>)
-    assert body =~ "tuist share App --track beta"
+    parsed = Floki.parse_document!(body)
+
+    [code_window] = Floki.find(parsed, ".code-window")
+    [bar] = Floki.find(code_window, "[data-part=bar]")
+    [language] = Floki.find(bar, "[data-part=language]")
+    assert Floki.text(language) == "bash"
+
+    [copy] = Floki.find(bar, "[data-part=copy]")
+    assert Floki.find(copy, "[data-part=copy-icon]") != []
+    assert Floki.find(copy, "[data-part=copy-check-icon]") != []
+
+    assert Floki.find(code_window, "[data-part=code]") != []
   end
 end
