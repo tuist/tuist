@@ -68,15 +68,14 @@ struct CacheStartCommandService {
                         serverURL: serverURL,
                         cacheURLStore: cacheURLStore,
                         upload: upload,
-                        nodeStore: CASNodeStore(database: analyticsDatabase),
-                        metadataStore: KeyValueMetadataStore(database: analyticsDatabase)
+                        analyticsDatabase: analyticsDatabase
                     ),
                     CASService(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         cacheURLStore: cacheURLStore,
                         upload: upload,
-                        metadataStore: CASOutputMetadataStore(database: analyticsDatabase)
+                        analyticsDatabase: analyticsDatabase
                     ),
                 ]
             )

@@ -4,6 +4,11 @@ import Path
 @preconcurrency import SQLite
 import TuistEnvironment
 
+public enum KeyValueOperationType: String, Codable {
+    case read
+    case write
+}
+
 @Mockable
 public protocol CASAnalyticsDatabasing: Sendable {
     func storeCASOutput(key: String, size: Int, duration: TimeInterval, compressedSize: Int) throws

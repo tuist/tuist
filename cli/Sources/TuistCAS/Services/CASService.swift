@@ -16,7 +16,7 @@
         private let saveCacheCASService: SaveCacheCASServicing
         private let loadCacheCASService: LoadCacheCASServicing
         private let fileSystem: FileSysteming
-        private let metadataStore: CASOutputMetadataStoring
+        private let analyticsDatabase: CASAnalyticsDatabasing
         private let dataCompressingService: DataCompressingServicing
         private let serverAuthenticationController: ServerAuthenticationControlling
         private let upload: Bool
@@ -30,7 +30,7 @@
             serverURL: URL,
             cacheURLStore: CacheURLStoring,
             upload: Bool = true,
-            metadataStore: CASOutputMetadataStoring
+            analyticsDatabase: CASAnalyticsDatabasing
         ) {
             self.fullHandle = fullHandle
             self.serverURL = serverURL
@@ -40,7 +40,7 @@
             loadCacheCASService = LoadCacheCASService()
             fileSystem = FileSystem()
             dataCompressingService = DataCompressingService()
-            self.metadataStore = metadataStore
+            self.analyticsDatabase = analyticsDatabase
             serverAuthenticationController = ServerAuthenticationController()
         }
 
@@ -52,7 +52,7 @@
             loadCacheCASService: LoadCacheCASServicing,
             fileSystem: FileSysteming,
             dataCompressingService: DataCompressingServicing,
-            metadataStore: CASOutputMetadataStoring,
+            analyticsDatabase: CASAnalyticsDatabasing,
             serverAuthenticationController: ServerAuthenticationControlling,
             upload: Bool = true
         ) {
@@ -62,7 +62,7 @@
             self.saveCacheCASService = saveCacheCASService
             self.loadCacheCASService = loadCacheCASService
             self.fileSystem = fileSystem
-            self.metadataStore = metadataStore
+            self.analyticsDatabase = analyticsDatabase
             self.dataCompressingService = dataCompressingService
             self.serverAuthenticationController = serverAuthenticationController
             self.upload = upload
@@ -282,13 +282,13 @@
             for casID: String
         ) {
             Task {
-                let metadata = CASOutputMetadata(
-                    size: size,
-                    duration: duration,
-                    compressedSize: compressedSize
-                )
                 do {
-                    try await metadataStore.storeMetadata(metadata, for: casID)
+                    try analyticsDatabase.storeCASOutput(
+                        key: casID,
+                        size: size,
+                        duration: duration,
+                        compressedSize: compressedSize
+                    )
                 } catch {
                     Logger.current.error(
                         "Failed to store CAS metadata for casID: \(casID): \(error)"
