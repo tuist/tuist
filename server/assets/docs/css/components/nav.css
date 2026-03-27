@@ -27,11 +27,17 @@
         height: 40px;
       }
 
+      & > [data-part="logo-divider"] {
+        width: 1px;
+        height: 31px;
+        background: var(--noora-content-divider-line);
+      }
+
       & > [data-part="logo-text"] {
-        display: none;
         color: var(--noora-surface-label-primary);
         font-weight: 500;
         font-size: 20px;
+        line-height: 26px;
         letter-spacing: -0.2px;
       }
     }
@@ -121,8 +127,8 @@
         display: none;
       }
 
-      & > [data-part="logo-link"] > [data-part="logo-text"] {
-        display: block;
+      & > [data-part="logo-link"] > [data-part="logo-divider"] {
+        display: none;
       }
     }
 
