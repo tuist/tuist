@@ -1,5 +1,4 @@
 import FileSystem
-import FileSystemTesting
 import Foundation
 import Mockable
 import Testing
@@ -923,5 +922,4 @@ struct InspectBuildCommandServiceTests {
             )
             .called(1)
     }
-
 }
