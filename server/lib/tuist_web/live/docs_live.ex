@@ -494,6 +494,34 @@ defmodule TuistWeb.DocsLive do
       <article id={"docs-body-#{@page.slug}"} class="tuist-docs" data-prose phx-hook="DocsContent">
         {raw(@page.body)}
       </article>
+      <footer id="docs-page-footer">
+        <div data-part="markdown-link">
+          <span>{dgettext("docs", "View")}</span>
+          <.link_button
+            label={dgettext("docs", "as Markdown")}
+            variant="primary"
+            size="large"
+            href={docs_markdown_path(@requested_slug)}
+            target="_blank"
+            rel="noopener noreferrer"
+          />
+        </div>
+        <div data-part="edit-row">
+          <.link_button
+            label={dgettext("docs", "Edit this page")}
+            variant="primary"
+            size="large"
+            href={github_edit_url(@page.source_path)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <:icon_left><.icon name="pencil" /></:icon_left>
+          </.link_button>
+          <span :if={@page.last_modified} data-part="last-updated">
+            {dgettext("docs", "Last updated on %{date}", date: format_date(@page.last_modified))}
+          </span>
+        </div>
+      </footer>
     </TuistWeb.Docs.Components.layout>
     """
   end
@@ -528,4 +556,19 @@ defmodule TuistWeb.DocsLive do
   defp build_path(_params, locale), do: Paths.slug(locale)
 
   defp docs_path(slug), do: Paths.public_path_from_slug(slug)
+
+  defp docs_markdown_path("/" <> _ = slug) do
+    case String.split(slug, "/", trim: true) do
+      [locale | path_segments] -> "/#{locale}/docs-markdown/#{Enum.join(path_segments, "/")}"
+      [] -> "/en/docs-markdown"
+    end
+  end
+
+  defp github_edit_url(source_path) do
+    "https://github.com/tuist/tuist/edit/main/server/priv/docs/#{source_path}"
+  end
+
+  defp format_date(date) do
+    Calendar.strftime(date, "%b %d, %Y")
+  end
 end

@@ -105,6 +105,8 @@ defmodule Tuist.Docs.Loader do
     headings = extract_headings(markdown)
     html = render_markdown(markdown, locale)
 
+    last_modified = file_last_modified(source_path)
+
     %Page{
       slug: slug,
       title: attrs["title"] || title_from_markdown(markdown) || slug,
@@ -113,7 +115,8 @@ defmodule Tuist.Docs.Loader do
       body: html,
       markdown: markdown,
       source_path: relative_path,
-      headings: headings
+      headings: headings,
+      last_modified: last_modified
     }
   end
 
@@ -150,8 +153,21 @@ defmodule Tuist.Docs.Loader do
       body: html,
       markdown: markdown_with_link,
       source_path: readme_path,
-      headings: headings
+      headings: headings,
+      last_modified: file_last_modified(readme_path)
     }
+  end
+
+  defp file_last_modified(path) do
+    case File.stat(path) do
+      {:ok, %{mtime: mtime}} ->
+        mtime
+        |> NaiveDateTime.from_erl!()
+        |> NaiveDateTime.to_date()
+
+      _ ->
+        nil
+    end
   end
 
   defp excluded_source?(source_path) do

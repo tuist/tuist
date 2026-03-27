@@ -1,0 +1,26 @@
+#docs-page-footer {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--noora-spacing-15);
+
+  & [data-part="markdown-link"] {
+    display: flex;
+    align-items: baseline;
+    gap: var(--noora-spacing-1);
+    padding-top: var(--noora-spacing-10);
+    font: var(--noora-font-body-medium);
+    color: var(--noora-surface-label-primary);
+  }
+
+  & [data-part="edit-row"] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: var(--noora-spacing-12);
+  }
+
+  & [data-part="last-updated"] {
+    font: var(--noora-font-body-medium);
+    color: var(--noora-surface-label-secondary);
+  }
+}

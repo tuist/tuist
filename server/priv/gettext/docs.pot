@@ -345,3 +345,23 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Select"
 msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:511
+#, elixir-autogen, elixir-format
+msgid "Edit this page"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:521
+#, elixir-autogen, elixir-format
+msgid "Last updated on %{date}"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:499
+#, elixir-autogen, elixir-format
+msgid "View"
+msgstr ""
+
+#: lib/tuist_web/live/docs_live.ex:501
+#, elixir-autogen, elixir-format
+msgid "as Markdown"
+msgstr ""
