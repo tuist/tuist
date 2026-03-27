@@ -33,7 +33,7 @@ defmodule Tuist.Marketing.OpenGraph do
     text_options = [
       font: "Inter Variable",
       font_weight: 500,
-      font_size: 100,
+      font_size: 128,
       text_fill_color: [46, 48, 57]
     ]
 
