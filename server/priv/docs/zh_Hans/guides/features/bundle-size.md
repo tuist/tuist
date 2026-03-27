@@ -63,12 +63,12 @@ jobs:
 
 ## 拉取/合并请求注释{#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
-平台</LocalizedLink>集成。
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> 要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
+> 平台</LocalizedLink>集成。
+
 
 一旦 Tuist 项目与 [GitHub](https://github.com) 等 Git 平台连接，只要运行`tuist inspect bundle`:
 ![GitHub

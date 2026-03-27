@@ -7,11 +7,11 @@
 ---
 # 預覽{#previews}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
+
 
 在建立應用程式時，您可能想要與他人分享以獲得回饋。傳統上，團隊會透過建立、簽署並將應用程式推送至 Apple 的
 [TestFlight](https://developer.apple.com/testflight/)
@@ -19,11 +19,11 @@
 
 為了讓這個過程更為精簡，Tuist 提供了一種方法來產生您的應用程式並與任何人分享預覽。
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
-<!-- -->
-為裝置建置時，目前由您負責確保應用程式已正確簽署。我們計劃在未來簡化這項工作。
-<!-- -->
-:::
+> [!WARNING]
+> **Device Builds Need To Be Signed**
+>
+> 為裝置建置時，目前由您負責確保應用程式已正確簽署。我們計劃在未來簡化這項工作。
+
 
 ::: code-group
 ```bash [Tuist Project]
@@ -59,14 +59,14 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning UNIQUE BUILD NUMBERS IN CI
-<!-- -->
-確保`CFBundleVersion` (建置版本) 是唯一的，方法是利用大多數 CI 供應商揭露的 CI run 編號。例如，在 GitHub Actions
-中，您可以將`CFBundleVersion` 設定為 <code v-pre>${{ github.run_number }}</code> 變數。
+> [!WARNING]
+> **Unique Build Numbers In Ci**
+>
+> 確保`CFBundleVersion` (建置版本) 是唯一的，方法是利用大多數 CI 供應商揭露的 CI run 編號。例如，在 GitHub Actions
+> 中，您可以將`CFBundleVersion` 設定為 <code v-pre>${{ github.run_number }}</code> 變數。
+>
+> 上傳具有相同二進位 (build) 和相同`CFBundleVersion` 的預覽將會失敗。
 
-上傳具有相同二進位 (build) 和相同`CFBundleVersion` 的預覽將會失敗。
-<!-- -->
-:::
 
 ## 曲目{#tracks}
 
@@ -85,11 +85,11 @@ tuist share App --track nightly
 - **應用程式內更新** ：Tuist SDK 使用軌跡來決定通知使用者哪些更新
 - **篩選** ：在 Tuist 面板中輕鬆地按音軌尋找和管理預覽
 
-::: warning PREVIEWS' VISIBILITY
-<!-- -->
-只有擁有專案所屬組織存取權限的人才能存取預覽。我們計劃新增對過期連結的支援。
-<!-- -->
-:::
+> [!WARNING]
+> **Previews' Visibility**
+>
+> 只有擁有專案所屬組織存取權限的人才能存取預覽。我們計劃新增對過期連結的支援。
+
 
 ## Tuist macOS 應用程式{#tuist-macos-app}
 
@@ -104,11 +104,11 @@ tuist share App --track nightly
 
 當您現在點選預覽頁面中的「執行」時，macOS 應用程式會自動在您目前選取的裝置上啟動。
 
-::: warning REQUIREMENTS
-<!-- -->
-您需要在本機安裝 Xcode，並使用 macOS 14 或更新版本。
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> 您需要在本機安裝 Xcode，並使用 macOS 14 或更新版本。
+
 
 ## Tuist iOS 應用程式{#tuist-ios-app}
 
@@ -125,11 +125,11 @@ tuist share App --track nightly
 
 ## 拉取/合併請求註解{#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-若要取得自動的 pull/merge 請求註解，請將您的 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>整合。
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> 若要取得自動的 pull/merge 請求註解，請將您的 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>整合。
+
 
 測試新功能應該是任何程式碼檢閱的一部分。但必須在本機建立應用程式會增加不必要的摩擦，通常會導致開發人員完全跳過在裝置上測試功能。但是*如果每個拉取請求都包含一個連結，可以讓您在 Tuist macOS 應用程式中選擇的裝置上自動執行應用程式的建立呢？*
 
@@ -204,11 +204,9 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: info
-<!-- -->
-在模擬器和 App Store 版本上，更新檢查會自動停用。
-<!-- -->
-:::
+> [!NOTE]
+> 在模擬器和 App Store 版本上，更新檢查會自動停用。
+
 
 ## README 徽章{#readme-badge}
 

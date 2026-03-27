@@ -36,13 +36,13 @@ użytkowników.
 | `TUIST_POSTHOG_API_KEY` | Klucz API projektu PostHog                        | Nie      |          | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `TUIST_POSTHOG_URL`     | Adres URL punktu końcowego interfejsu API PostHog | Nie      |          | `https://eu.i.posthog.com`                        |
 
-::: info ANALYTICS ENABLEMENT
-<!-- -->
-Analityka jest włączona tylko wtedy, gdy zarówno `TUIST_POSTHOG_API_KEY` i
-`TUIST_POSTHOG_URL` są skonfigurowane. W przypadku braku którejkolwiek z tych
-zmiennych zdarzenia analityczne nie będą wysyłane.
-<!-- -->
-:::
+> [!NOTE]
+> **Analytics Enablement**
+>
+> Analityka jest włączona tylko wtedy, gdy zarówno `TUIST_POSTHOG_API_KEY` i
+> `TUIST_POSTHOG_URL` są skonfigurowane. W przypadku braku którejkolwiek z tych
+> zmiennych zdarzenia analityczne nie będą wysyłane.
+
 
 ### Cechy {#posthog-features}
 
@@ -173,12 +173,10 @@ Całkowita liczba pobranych podglądów.
 Zestaw metryk związanych z przechowywaniem artefaktów w zdalnej pamięci masowej
 (np. s3).
 
-::: napiwek
-<!-- -->
-Metryki te są przydatne do zrozumienia wydajności operacji pamięci masowej i
-zidentyfikowania potencjalnych wąskich gardeł.
-<!-- -->
-:::
+> [!TIP]
+> Metryki te są przydatne do zrozumienia wydajności operacji pamięci masowej i
+> zidentyfikowania potencjalnych wąskich gardeł.
+
 
 ### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}
 

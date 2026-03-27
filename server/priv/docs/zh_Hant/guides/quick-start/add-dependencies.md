@@ -85,12 +85,12 @@ let project = Project(
 套件管理員](https://www.swift.org/documentation/package-manager/)，執行`tuist install`
 來解析並拉取相依性。
 
-::: info SPM AS A DEPENDENCY RESOLVER
-<!-- -->
-Tuist 推薦的相依性方法僅使用 Swift Package Manager (SPM) 來解決相依性問題。然後 Tuist 將其轉換為 Xcode
-專案和目標，以達到最大的可配置性和控制性。
-<!-- -->
-:::
+> [!NOTE]
+> **Spm As A Dependency Resolver**
+>
+> Tuist 推薦的相依性方法僅使用 Swift Package Manager (SPM) 來解決相依性問題。然後 Tuist 將其轉換為 Xcode
+> 專案和目標，以達到最大的可配置性和控制性。
+
 
 ## 視覺化專案{#visualize-the-project}
 

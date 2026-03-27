@@ -7,13 +7,13 @@
 ---
 # Generated projects test sharding {#generated-projects-test-sharding}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/features/projects">Tuist generated project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-- <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> configured (for optimal shard balancing)
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/features/projects">Tuist generated project</LocalizedLink>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> - <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> configured (for optimal shard balancing)
+
 
 Test sharding for generated projects uses `tuist test` for both the build and test phases.
 
@@ -68,11 +68,11 @@ tuist test
 
 Tuist downloads the `.xctestproducts` bundle and filters it to include only the tests assigned to that shard.
 
-::: tip SELECTIVE TESTING
-<!-- -->
-Test sharding works seamlessly with <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>. The selective testing graph is persisted during the build phase and restored for each shard, so runners don't need to regenerate the project.
-<!-- -->
-:::
+> [!TIP]
+> **Selective Testing**
+>
+> Test sharding works seamlessly with <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>. The selective testing graph is persisted during the build phase and restored for each shard, so runners don't need to regenerate the project.
+
 
 ## Continuous integration {#continuous-integration}
 
@@ -385,8 +385,6 @@ workflows:
       - TUIST_SHARD_INDEX: 4
 ```
 
-::: tip
-<!-- -->
-Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
-<!-- -->
-:::
+> [!TIP]
+> Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
+

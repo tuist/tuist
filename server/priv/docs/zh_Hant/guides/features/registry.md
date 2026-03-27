@@ -34,11 +34,9 @@ tuist registry setup
 tuist registry login
 ```
 
-::: info
-<!-- -->
-驗證需要 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 帳戶和專案</LocalizedLink>。
-<!-- -->
-:::
+> [!NOTE]
+> 驗證需要 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 帳戶和專案</LocalizedLink>。
+
 
 ### 解決依賴性{#resolving-dependencies}
 
@@ -58,9 +56,7 @@ tuist registry login
 。例如，若要使用`https://github.com/pointfreeco/swift-composable-architecture`
 套件的註冊表，套件註冊表識別符應為`pointfreeco.swift-composable-architecture` 。
 
-::: info
-<!-- -->
-識別符不能包含多於一個點。如果儲存庫名稱包含一個點，就會用下劃線取代。例如，`https://github.com/groue/GRDB.swift`
-套件的註冊表標識符為`groue.GRDB_swift` 。
-<!-- -->
-:::
+> [!NOTE]
+> 識別符不能包含多於一個點。如果儲存庫名稱包含一個點，就會用下劃線取代。例如，`https://github.com/groue/GRDB.swift`
+> 套件的註冊表標識符為`groue.GRDB_swift` 。
+

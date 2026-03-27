@@ -7,12 +7,12 @@
 ---
 # 產生專案{#generated-project}
 
-::: warning REQUIREMENTS
-<!-- -->
-- 一個 <LocalizedLink href="/guides/features/projects"> 產生的專案</LocalizedLink>
-- A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - 一個 <LocalizedLink href="/guides/features/projects"> 產生的專案</LocalizedLink>
+> - A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
+
 
 若要有選擇性地使用已產生的專案執行測試，請使用`tuist test` 指令。該命令
 <LocalizedLink href="/guides/features/projects/hashing">散列</LocalizedLink>您的

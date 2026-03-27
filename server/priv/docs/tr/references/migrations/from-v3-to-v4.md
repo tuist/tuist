@@ -35,23 +35,23 @@ curl -Ls https://uninstall.tuist.io | bash
 <!-- -->
 :::
 
-::: warning MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
-<!-- -->
-Mise'ın getirdiği determinizmi benimsemeye karar verirseniz, Mise'ın [CI
-ortamlarında](https://mise.jdx.dev/continuous-integration.html) ve [Xcode
-projelerinde](https://mise.jdx.dev/ide-integration.html#xcode) nasıl
-kullanılacağına ilişkin belgelere göz atmanızı öneririz.
-<!-- -->
-:::
+> [!WARNING]
+> **Mise In Ci Environments And Xcode Projects**
+>
+> Mise'ın getirdiği determinizmi benimsemeye karar verirseniz, Mise'ın [CI
+> ortamlarında](https://mise.jdx.dev/continuous-integration.html) ve [Xcode
+> projelerinde](https://mise.jdx.dev/ide-integration.html#xcode) nasıl
+> kullanılacağına ilişkin belgelere göz atmanızı öneririz.
 
-::: info HOMEBREW IS SUPPORTED
-<!-- -->
-Tuist'i macOS için popüler bir paket yöneticisi olan Homebrew kullanarak da
-yükleyebileceğinizi unutmayın. Tuist'in Homebrew kullanılarak nasıl kurulacağına
-ilişkin talimatları
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">kurulum kılavuzunda</LocalizedLink> bulabilirsiniz.
-<!-- -->
-:::
+
+> [!NOTE]
+> **Homebrew Is Supported**
+>
+> Tuist'i macOS için popüler bir paket yöneticisi olan Homebrew kullanarak da
+> yükleyebileceğinizi unutmayın. Tuist'in Homebrew kullanılarak nasıl kurulacağına
+> ilişkin talimatları
+> <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">kurulum kılavuzunda</LocalizedLink> bulabilirsiniz.
+
 
 ### `init` kurucuları `ProjectDescription` modellerinden çıkarıldı {#dropped-init-constructors-from-projectdescription-models}
 
@@ -61,13 +61,13 @@ Artık her model, modellerin örneklerini oluşturmak için kullanabileceğiniz
 statik bir kurucu sağlamaktadır. Eğer `init` kurucularını kullanıyorsanız, bunun
 yerine statik kurucuları kullanmak için projenizi güncellemeniz gerekecektir.
 
-::: tip NAMING CONVENTION
-<!-- -->
-İzlediğimiz adlandırma kuralı, modelin adını statik kurucunun adı olarak
-kullanmaktır. Örneğin, `Target` modeli için statik kurucu `Target.target`
-şeklindedir.
-<!-- -->
-:::
+> [!TIP]
+> **Naming Convention**
+>
+> İzlediğimiz adlandırma kuralı, modelin adını statik kurucunun adı olarak
+> kullanmaktır. Örneğin, `Target` modeli için statik kurucu `Target.target`
+> şeklindedir.
+
 
 ### `--no-cache` adresi `--no-binary-cache olarak değiştirildi` {#renamed-nocache-to-nobinarycache}
 
@@ -165,15 +165,15 @@ isteyebilirsiniz. Özellikle:
     dosyası.
   - Mevcut profilleri ve sertifikaları alıp şifreleyebilen bir betik.
 
-::: tip SIGNING REQUIREMENTS
-<!-- -->
-İmzalama için anahtar zincirinde doğru sertifikaların bulunması ve provizyon
-profillerinin `~/Library/MobileDevice/Provisioning\ Profiles` dizininde
-bulunması gerekir. Anahtar zincirine sertifika yüklemek için `security` komut
-satırı aracını ve provizyon profillerini doğru dizine kopyalamak için `cp`
-komutunu kullanabilirsiniz.
-<!-- -->
-:::
+> [!TIP]
+> **Signing Requirements**
+>
+> İmzalama için anahtar zincirinde doğru sertifikaların bulunması ve provizyon
+> profillerinin `~/Library/MobileDevice/Provisioning\ Profiles` dizininde
+> bulunması gerekir. Anahtar zincirine sertifika yüklemek için `security` komut
+> satırı aracını ve provizyon profillerini doğru dizine kopyalamak için `cp`
+> komutunu kullanabilirsiniz.
+
 
 ### `Dependencies.swift aracılığıyla Carthage entegrasyonu bırakıldı` {#dropped-carthage-integration-via-dependenciesswift}
 
@@ -188,14 +188,14 @@ kullanmanız ve ardından `TargetDependency.xcframework` ve
 `TargetDependency.framework` durumlarını kullanarak etiketlerinizden bu ikili
 dosyalara başvurmanız gerekir.
 
-::: info CARTHAGE IS STILL SUPPORTED
-<!-- -->
-Bazı kullanıcılar Carthage desteğini bıraktığımızı anladı. Biz bırakmadık. Tuist
-ve Carthage'ın çıktısı arasındaki sözleşme, sistemde depolanan çerçevelere ve
-XCFrameworks'e yöneliktir. Değişen tek şey bağımlılıkların getirilmesinden kimin
-sorumlu olduğudur. Eskiden Carthage aracılığıyla Tuist'ti, şimdi Carthage.
-<!-- -->
-:::
+> [!NOTE]
+> **Carthage Is Still Supported**
+>
+> Bazı kullanıcılar Carthage desteğini bıraktığımızı anladı. Biz bırakmadık. Tuist
+> ve Carthage'ın çıktısı arasındaki sözleşme, sistemde depolanan çerçevelere ve
+> XCFrameworks'e yöneliktir. Değişen tek şey bağımlılıkların getirilmesinden kimin
+> sorumlu olduğudur. Eskiden Carthage aracılığıyla Tuist'ti, şimdi Carthage.
+
 
 ### `TargetDependency.packagePlugin` API'sini bıraktı {#dropped-the-targetdependencypackageplugin-api}
 

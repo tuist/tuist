@@ -30,19 +30,19 @@ Hacemos hash de la versión de Swift obtenida al ejecutar el comando
 `/usr/bin/xcrun swift --version` para evitar errores de compilación debidos a
 desajustes de versión de Swift entre los objetivos y los binarios.
 
-::: info ESTABILIDAD DEL MÓDULO
-<!-- -->
-Las versiones anteriores del almacenamiento en caché de binarios se basaban en
-el ajuste de compilación` ` BUILD_LIBRARY_FOR_DISTRIBUTION para habilitar
-[module
-stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-y permitir el uso de binarios con cualquier versión del compilador. Sin embargo,
-causaba problemas de compilación en proyectos con objetivos que no soportan la
-estabilidad de módulos. Los binarios generados están vinculados a la versión de
-Swift utilizada para compilarlos, y la versión de Swift debe coincidir con la
-utilizada para compilar el proyecto.
-<!-- -->
-:::
+> [!NOTE]
+> **Estabilidad Del Módulo**
+>
+> Las versiones anteriores del almacenamiento en caché de binarios se basaban en
+> el ajuste de compilación` ` BUILD_LIBRARY_FOR_DISTRIBUTION para habilitar
+> [module
+> stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
+> y permitir el uso de binarios con cualquier versión del compilador. Sin embargo,
+> causaba problemas de compilación en proyectos con objetivos que no soportan la
+> estabilidad de módulos. Los binarios generados están vinculados a la versión de
+> Swift utilizada para compilarlos, y la versión de Swift debe coincidir con la
+> utilizada para compilar el proyecto.
+
 
 #### Configuración {#configuration}
 
@@ -77,11 +77,11 @@ Si los hashes siguen siendo no deterministas, háznoslo saber y podremos ayudart
 con la depuración.
 
 
-::: info PLANIFICADA UNA MEJOR EXPERIENCIA DE DEBUGGING
-<!-- -->
-Mejorar la experiencia de depuración está en nuestra hoja de ruta. El comando
-print-hashes, que carece de contexto para entender las diferencias, será
-sustituido por un comando más fácil de usar que utilice una estructura en forma
-de árbol para mostrar las diferencias entre los hashes.
-<!-- -->
-:::
+> [!NOTE]
+> **Planificada Una Mejor Experiencia De Debugging**
+>
+> Mejorar la experiencia de depuración está en nuestra hoja de ruta. El comando
+> print-hashes, que carece de contexto para entender las diferencias, será
+> sustituido por un comando más fácil de usar que utilice una estructura en forma
+> de árbol para mostrar las diferencias entre los hashes.
+

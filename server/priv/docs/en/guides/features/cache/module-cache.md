@@ -8,12 +8,12 @@
 
 # Module cache {#module-cache}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+
 
 Tuist Module Cache provides a powerful way to optimize build times by caching your modules as binaries (`.xcframework`s) and sharing them across different environments. This capability allows you to leverage previously generated binaries, reducing the need for repeated compilation and speeding up the development process.
 
@@ -48,11 +48,9 @@ tuist test
 <!-- -->
 :::
 
-::: warning
-<!-- -->
-Binary caching is a feature designed for development workflows such as running the app on a simulator or device, or running tests. It is not intended for release builds. When archiving the app, generate a project with the sources by using `--cache-profile none`.
-<!-- -->
-:::
+> [!WARNING]
+> Binary caching is a feature designed for development workflows such as running the app on a simulator or device, or running tests. It is not intended for release builds. When archiving the app, generate a project with the sources by using `--cache-profile none`.
+
 
 ## Cache profiles {#cache-profiles}
 
@@ -82,11 +80,11 @@ tuist generate MyModule AnotherTarget
 tuist generate --cache-profile none
 ```
 
-::: info DEPRECATED FLAG
-<!-- -->
-The `--no-binary-cache` flag is deprecated. Use `--cache-profile none` instead. The deprecated flag still works for backwards compatibility.
-<!-- -->
-:::
+> [!NOTE]
+> **Deprecated Flag**
+>
+> The `--no-binary-cache` flag is deprecated. Use `--cache-profile none` instead. The deprecated flag still works for backwards compatibility.
+
 
 Precedence when resolving the effective behavior (highest to lowest):
 
@@ -106,11 +104,11 @@ Only the following target products are cacheable by Tuist:
 
 We are working on supporting libraries and targets that depend on XCTest.
 
-::: info UPSTREAM DEPENDENCIES
-<!-- -->
-When a target is non-cacheable it makes the upstream targets non-cacheable too. For example, if you have the dependency graph `A > B`, where A depends on B, if B is non-cacheable, A will also be non-cacheable.
-<!-- -->
-:::
+> [!NOTE]
+> **Upstream Dependencies**
+>
+> When a target is non-cacheable it makes the upstream targets non-cacheable too. For example, if you have the dependency graph `A > B`, where A depends on B, if B is non-cacheable, A will also be non-cacheable.
+
 
 ## Efficiency {#efficiency}
 
@@ -126,17 +124,17 @@ The above suggestions are part of the <LocalizedLink href="/guides/features/proj
 
 We recommend having a CI job that **runs in every commit in the main branch** to warm the cache. This will ensure the cache always contains binaries for the changes in `main` so local and CI branch build incrementally upon them.
 
-::: tip KEEP CACHE WARMING ISOLATED
-<!-- -->
-Run `tuist cache` in a dedicated CI step without subsequent steps that depend on the generated workspace. Since `tuist cache` modifies the workspace for cache building purposes, any CI steps that need the workspace should run `tuist generate` first to get a fresh, usable workspace.
-<!-- -->
-:::
+> [!TIP]
+> **Keep Cache Warming Isolated**
+>
+> Run `tuist cache` in a dedicated CI step without subsequent steps that depend on the generated workspace. Since `tuist cache` modifies the workspace for cache building purposes, any CI steps that need the workspace should run `tuist generate` first to get a fresh, usable workspace.
 
-::: tip CACHE WARMING USES BINARIES
-<!-- -->
-The `tuist cache` command also makes use of the binary cache to speed up the warming.
-<!-- -->
-:::
+
+> [!TIP]
+> **Cache Warming Uses Binaries**
+>
+> The `tuist cache` command also makes use of the binary cache to speed up the warming.
+
 
 The following are some examples of common workflows:
 

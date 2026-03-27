@@ -41,13 +41,13 @@ modułowym, w którym źródła i zasoby są często przenoszone:
 Tuist rozwiązuje powyższe problemy poprzez **syntezę ujednoliconego interfejsu
 dostępu do pakietów i zasobów**, który abstrahuje od szczegółów implementacji.
 
-::: warning RECOMMENDED
-<!-- -->
-Chociaż dostęp do zasobów za pośrednictwem interfejsu zsyntetyzowanego przez
-Tuist nie jest obowiązkowy, zalecamy go, ponieważ ułatwia on rozumowanie kodu i
-poruszanie się po zasobach.
-<!-- -->
-:::
+> [!WARNING]
+> **Recommended**
+>
+> Chociaż dostęp do zasobów za pośrednictwem interfejsu zsyntetyzowanego przez
+> Tuist nie jest obowiązkowy, zalecamy go, ponieważ ułatwia on rozumowanie kodu i
+> poruszanie się po zasobach.
+
 
 ## Zasoby {#resources}
 
@@ -61,11 +61,11 @@ Gdy projekt zostanie wygenerowany, Tuist zsyntetyzuje zawartość tych plików i
 zapisze je w katalogu `Derived` względem katalogu zawierającego projekt, który
 je definiuje.
 
-::: tip GITIGNORE THE DERIVED DIRECTORY
-<!-- -->
-Zalecamy dodanie katalogu `Derived` do pliku `.gitignore` projektu.
-<!-- -->
-:::
+> [!TIP]
+> **Gitignore The Derived Directory**
+>
+> Zalecamy dodanie katalogu `Derived` do pliku `.gitignore` projektu.
+
 
 ## Akcesory pakietu {#bundle-accessors}
 
@@ -89,21 +89,21 @@ do pakietu:
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-::: warning LIMITATION WITH INTERNAL TARGETS
-<!-- -->
-Obecnie Tuist nie generuje akcesorów pakietów zasobów dla wewnętrznych celów,
-które zawierają tylko źródła Objective-C. Jest to znane ograniczenie śledzone w
-[wydaniu #6456](https://github.com/tuist/tuist/issues/6456).
-<!-- -->
-:::
+> [!WARNING]
+> **Limitation With Internal Targets**
+>
+> Obecnie Tuist nie generuje akcesorów pakietów zasobów dla wewnętrznych celów,
+> które zawierają tylko źródła Objective-C. Jest to znane ograniczenie śledzone w
+> [wydaniu #6456](https://github.com/tuist/tuist/issues/6456).
 
-::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
-<!-- -->
-Jeśli produkt docelowy, na przykład biblioteka, nie obsługuje zasobów, Tuist
-umieści zasoby w produkcie docelowym typu `bundle`, zapewniając, że trafią one
-do produktu końcowego, a interfejs wskaże właściwy pakiet.
-<!-- -->
-:::
+
+> [!TIP]
+> **Supporting Resources In Libraries Through Bundles**
+>
+> Jeśli produkt docelowy, na przykład biblioteka, nie obsługuje zasobów, Tuist
+> umieści zasoby w produkcie docelowym typu `bundle`, zapewniając, że trafią one
+> do produktu końcowego, a interfejs wskaże właściwy pakiet.
+
 
 ## Accessory zasobów {#resource-accessors}
 
@@ -158,11 +158,11 @@ zasobów, których chcesz użyć:
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-::: info REFERENCE
-<!-- -->
-Możesz sprawdzić [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates),
-aby zobaczyć przykład użycia niestandardowych szablonów do syntezy akcesorów do
-zasobów.
-<!-- -->
-:::
+> [!NOTE]
+> **Reference**
+>
+> Możesz sprawdzić [this
+> fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates),
+> aby zobaczyć przykład użycia niestandardowych szablonów do syntezy akcesorów do
+> zasobów.
+

@@ -16,11 +16,9 @@ Xcode. Si el paquete está disponible en el registro, verá el registro
 [Añadiendo dependencias de
 paquetes](/images/guides/features/build/registry/registry-add-package.png)
 
-::: info
-<!-- -->
-Actualmente, Xcode no admite la sustitución automática de los paquetes de
-control de origen por sus equivalentes de registro. Deberá eliminar manualmente
-el paquete de control de origen y añadir el paquete de registro para acelerar la
-resolución.
-<!-- -->
-:::
+> [!NOTE]
+> Actualmente, Xcode no admite la sustitución automática de los paquetes de
+> control de origen por sus equivalentes de registro. Deberá eliminar manualmente
+> el paquete de control de origen y añadir el paquete de registro para acelerar la
+> resolución.
+

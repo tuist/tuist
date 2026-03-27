@@ -118,24 +118,22 @@ jobs:
 <!-- -->
 :::
 
-::: info OIDC SETUP
-<!-- -->
-Прежде чем использовать аутентификацию OIDC, необходимо
-<LocalizedLink href="/guides/integrations/gitforge/github">подключить репозиторий GitHub</LocalizedLink> к проекту Tuist. Разрешение `: id-token:
-write` необходимо для работы OIDC. В качестве альтернативы можно использовать
-токен
-<LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
-с секретом `TUIST_TOKEN`.
-<!-- -->
-:::
+> [!NOTE]
+> **Oidc Setup**
+>
+> Прежде чем использовать аутентификацию OIDC, необходимо
+> <LocalizedLink href="/guides/integrations/gitforge/github">подключить репозиторий GitHub</LocalizedLink> к проекту Tuist. Разрешение `: id-token:
+> write` необходимо для работы OIDC. В качестве альтернативы можно использовать
+> токен
+> <LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
+> с секретом `TUIST_TOKEN`.
 
-::: tip
-<!-- -->
-Мы рекомендуем использовать команду `mise use --pin` в ваших проектах Tuist,
-чтобы зафиксировать версию Tuist в разных средах. Команда создаст файл
-`.tool-versions`, содержащий версию Tuist.
-<!-- -->
-:::
+
+> [!TIP]
+> Мы рекомендуем использовать команду `mise use --pin` в ваших проектах Tuist,
+> чтобы зафиксировать версию Tuist в разных средах. Команда создаст файл
+> `.tool-versions`, содержащий версию Tuist.
+
 
 ### Облако Xcode {#xcode-cloud}
 
@@ -168,14 +166,14 @@ tuist generate
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-Используйте токен
-<LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>,
-установив переменную окружения `TUIST_TOKEN` в настройках рабочего процесса
-Xcode Cloud.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> Используйте токен
+> <LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>,
+> установив переменную окружения `TUIST_TOKEN` в настройках рабочего процесса
+> Xcode Cloud.
+
 
 ### CircleCI {#circleci}
 
@@ -232,17 +230,17 @@ jobs:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-Прежде чем использовать аутентификацию OIDC, необходимо
-<LocalizedLink href="/guides/integrations/gitforge/github">подключить репозиторий GitHub</LocalizedLink> к проекту Tuist. OIDC-токены CircleCI
-включают подключенный репозиторий GitHub, который Tuist использует для
-авторизации доступа к вашим проектам. В качестве альтернативы вы можете
-использовать токен
-<LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
-с помощью переменной окружения `TUIST_TOKEN`.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> Прежде чем использовать аутентификацию OIDC, необходимо
+> <LocalizedLink href="/guides/integrations/gitforge/github">подключить репозиторий GitHub</LocalizedLink> к проекту Tuist. OIDC-токены CircleCI
+> включают подключенный репозиторий GitHub, который Tuist использует для
+> авторизации доступа к вашим проектам. В качестве альтернативы вы можете
+> использовать токен
+> <LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
+> с помощью переменной окружения `TUIST_TOKEN`.
+
 
 ### Bitrise {#bitrise}
 
@@ -301,16 +299,16 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-Прежде чем использовать аутентификацию OIDC, необходимо
-<LocalizedLink href="/guides/integrations/gitforge/github">подключить репозиторий GitHub</LocalizedLink> к проекту Tuist. OIDC-токены Bitrise включают
-подключенный репозиторий GitHub, который Tuist использует для авторизации
-доступа к вашим проектам. В качестве альтернативы вы можете использовать токен
-<LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
-с помощью переменной окружения `TUIST_TOKEN`.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> Прежде чем использовать аутентификацию OIDC, необходимо
+> <LocalizedLink href="/guides/integrations/gitforge/github">подключить репозиторий GitHub</LocalizedLink> к проекту Tuist. OIDC-токены Bitrise включают
+> подключенный репозиторий GitHub, который Tuist использует для авторизации
+> доступа к вашим проектам. В качестве альтернативы вы можете использовать токен
+> <LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
+> с помощью переменной окружения `TUIST_TOKEN`.
+
 
 ### Codemagic {#codemagic}
 
@@ -354,10 +352,10 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-Создайте токен
-<LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
-и добавьте его в качестве секретной переменной окружения с именем `TUIST_TOKEN`.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> Создайте токен
+> <LocalizedLink href="/guides/server/authentication#project-tokens">проекта</LocalizedLink>
+> и добавьте его в качестве секретной переменной окружения с именем `TUIST_TOKEN`.
+

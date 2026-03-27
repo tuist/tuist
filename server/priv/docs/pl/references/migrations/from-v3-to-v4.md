@@ -36,23 +36,23 @@ curl -Ls https://uninstall.tuist.io | bash
 <!-- -->
 :::
 
-::: warning MISE W ŚRODOWISKACH CI I PROJEKTACH XCODE
-<!-- -->
-Jeśli zdecydujesz się skorzystać z determinizmu, który oferuje Mise, zalecamy
-zapoznanie się z dokumentacją dotyczącą korzystania z Mise w [środowiskach
-CI](https://mise.jdx.dev/continuous-integration.html) i [projektach
-Xcode](https://mise.jdx.dev/ide-integration.html#xcode).
-<!-- -->
-:::
+> [!WARNING]
+> **Mise W Środowiskach Ci I Projektach Xcode**
+>
+> Jeśli zdecydujesz się skorzystać z determinizmu, który oferuje Mise, zalecamy
+> zapoznanie się z dokumentacją dotyczącą korzystania z Mise w [środowiskach
+> CI](https://mise.jdx.dev/continuous-integration.html) i [projektach
+> Xcode](https://mise.jdx.dev/ide-integration.html#xcode).
 
-::: info WSPARCIE HOMEBREW
-<!-- -->
-Pamiętaj, że nadal możesz zainstalować Tuist za pomocą Homebrew, który jest
-popularnym menedżerem narzędzi dla macOS. Instrukcje dotyczące instalacji Tuist
-przy użyciu Homebrew można znaleźć w
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">przewodniku instalacji</LocalizedLink>.
-<!-- -->
-:::
+
+> [!NOTE]
+> **Wsparcie Homebrew**
+>
+> Pamiętaj, że nadal możesz zainstalować Tuist za pomocą Homebrew, który jest
+> popularnym menedżerem narzędzi dla macOS. Instrukcje dotyczące instalacji Tuist
+> przy użyciu Homebrew można znaleźć w
+> <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">przewodniku instalacji</LocalizedLink>.
+
 
 ### Porzuciliśmy konstruktory `init` z modeli `ProjectDescription` {#dropped-init-constructors-from-projectdescription-models}
 
@@ -62,13 +62,13 @@ model oferuje teraz statyczny konstruktor, którego można użyć do tworzenia
 instancji modeli. Jeśli korzystałeś z konstruktorów `init`, będziesz musiał
 zaktualizować swój projekt, aby zamiast tego używać konstruktorów statycznych.
 
-::: tip NAZEWNICTWO
-<!-- -->
-Konwencja nazewnictwa, której przestrzegamy, polega na używaniu nazwy modelu
-jako nazwy konstruktora statycznego. Na przykład, statyczny konstruktor dla
-modelu `Target` to `Target.target`.
-<!-- -->
-:::
+> [!TIP]
+> **Nazewnictwo**
+>
+> Konwencja nazewnictwa, której przestrzegamy, polega na używaniu nazwy modelu
+> jako nazwy konstruktora statycznego. Na przykład, statyczny konstruktor dla
+> modelu `Target` to `Target.target`.
+
 
 ### Zmieniliśmy `--no-cache` na `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
 
@@ -163,14 +163,14 @@ szczególności:
     `~/Library/MobileDevice/Provisioning\ Profiles`.
   - Skrypt, który może pobrać istniejące profile i certyfikaty i je zaszyfrować.
 
-::: tip WYMAGANIA DOTYCZĄCE PODPISYWANIA
-<!-- -->
-Podpisywanie aplikacji wymaga obecności odpowiednich certyfikatów w pęku kluczy
-oraz profili w katalogu `~/Library/MobileDevice/Provisioning\ Profiles`. Możesz
-użyć narzędzia wiersza poleceń `security`, aby zainstalować certyfikaty w pęku
-kluczy i polecenia `cp`, aby skopiować profile do odpowiedniego katalogu.
-<!-- -->
-:::
+> [!TIP]
+> **Wymagania Dotyczące Podpisywania**
+>
+> Podpisywanie aplikacji wymaga obecności odpowiednich certyfikatów w pęku kluczy
+> oraz profili w katalogu `~/Library/MobileDevice/Provisioning\ Profiles`. Możesz
+> użyć narzędzia wiersza poleceń `security`, aby zainstalować certyfikaty w pęku
+> kluczy i polecenia `cp`, aby skopiować profile do odpowiedniego katalogu.
+
 
 ### Porzuciliśmy wsparcie dla Carthage poprzez `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
 
@@ -184,15 +184,15 @@ prekompilowane frameworki i XCFrameworks do standardowego katalogu Carthage, a
 następnie odwołać się do tych plików binarnych z tagów za pomocą
 `TargetDependency.xcframework` i `TargetDependency.framework`.
 
-::: info WCIĄŻ WSPIERAMY CARTHAGE
-<!-- -->
-Niektórzy użytkownicy odnieśli wrażenie, że zrezygnowaliśmy z obsługi Carthage.
-Nie zrobiliśmy tego. Kontrakt między Tuist i Carthage dotyczy frameworków oraz
-XCFarmework-ów przechowywanych w systemie. Jedyną rzeczą, która się zmieniła,
-jest to, kto jest odpowiedzialny za pobieranie zależności. Wcześniej był to
-Tuist poprzez Carthage, teraz jest to Carthage bezpośrednio.
-<!-- -->
-:::
+> [!NOTE]
+> **Wciąż Wspieramy Carthage**
+>
+> Niektórzy użytkownicy odnieśli wrażenie, że zrezygnowaliśmy z obsługi Carthage.
+> Nie zrobiliśmy tego. Kontrakt między Tuist i Carthage dotyczy frameworków oraz
+> XCFarmework-ów przechowywanych w systemie. Jedyną rzeczą, która się zmieniła,
+> jest to, kto jest odpowiedzialny za pobieranie zależności. Wcześniej był to
+> Tuist poprzez Carthage, teraz jest to Carthage bezpośrednio.
+
 
 ### Porzuciliśmy interfejs `TargetDependency.packagePlugin` {#dropped-the-targetdependencypackageplugin-api}
 

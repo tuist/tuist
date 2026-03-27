@@ -18,11 +18,11 @@ To use the server, you'll need an account. There are two types of accounts:
 
 If you are familiar with [GitHub](https://github.com), the concept is similar to theirs, where you can have personal and organization accounts, and they are identified by a *handle* that's used when constructing URLs.
 
-::: info CLI-FIRST
-<!-- -->
-Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
-<!-- -->
-:::
+> [!NOTE]
+> **Cli-first**
+>
+> Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
+
 
 You can manage the organization through the subcommands under <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To create a new organization account, run:
 ```bash
@@ -41,10 +41,10 @@ The binding between the local and the remote project is done through the configu
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: warning TUIST PROJECT-ONLY FEATURES
-<!-- -->
-Note that some features like <LocalizedLink href="/guides/features/cache/module-cache">module caching</LocalizedLink> require a Tuist-managed project. If you are not using Tuist to manage your project, you won't be able to use those features.
-<!-- -->
-:::
+> [!WARNING]
+> **Tuist Project-only Features**
+>
+> Note that some features like <LocalizedLink href="/guides/features/cache/module-cache">module caching</LocalizedLink> require a Tuist-managed project. If you are not using Tuist to manage your project, you won't be able to use those features.
+
 
 Your project's URL is constructed by using the full handle. For example, Tuist's dashboard, which is public, is accessible at [tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), where `tuist/tuist` is the project's full handle.

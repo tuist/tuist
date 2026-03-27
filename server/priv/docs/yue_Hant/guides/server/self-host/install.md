@@ -12,14 +12,14 @@ require more control over their infrastructure. This version allows you to host
 Tuist on your own infrastructure, ensuring that your data remains secure and
 private.
 
-::: warning LICENSE REQUIRED
-<!-- -->
-Self-hosting Tuist requires a legally valid paid license. The on-premise version
-of Tuist is available only for organizations on the Enterprise plan. If you are
-interested in this version, please reach out to
-[contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
+> [!WARNING]
+> **License Required**
+>
+> Self-hosting Tuist requires a legally valid paid license. The on-premise version
+> of Tuist is available only for organizations on the Enterprise plan. If you are
+> interested in this version, please reach out to
+> [contact@tuist.dev](mailto:contact@tuist.dev).
+
 
 ## Release cadence {#release-cadence}
 
@@ -75,15 +75,15 @@ versions:
 | TimescaleDB | 2.16.1          | Required PostgreSQL extension (deprecated) |
 | ClickHouse  | 25              | Required for analytics                     |
 
-::: warning TIMESCALEDB DEPRECATION
-<!-- -->
-TimescaleDB is currently a required PostgreSQL extension for Tuist server, used
-for time-series data storage and querying. However, **TimescaleDB is
-deprecated** and will be dropped as a required dependency in the near future as
-we migrate all time-series functionality to ClickHouse. For now, ensure your
-PostgreSQL instance has TimescaleDB installed and enabled.
-<!-- -->
-:::
+> [!WARNING]
+> **Timescaledb Deprecation**
+>
+> TimescaleDB is currently a required PostgreSQL extension for Tuist server, used
+> for time-series data storage and querying. However, **TimescaleDB is
+> deprecated** and will be dropped as a required dependency in the near future as
+> we migrate all time-series functionality to ClickHouse. For now, ensure your
+> PostgreSQL instance has TimescaleDB installed and enabled.
+
 
 ### Running Docker-virtualized images {#running-dockervirtualized-images}
 
@@ -109,13 +109,13 @@ efficient time-series data storage and querying. This extension is used for
 command events, analytics, and other time-based features. Ensure your PostgreSQL
 instance has TimescaleDB installed and enabled before running Tuist.
 
-::: info MIGRATIONS
-<!-- -->
-The Docker image's entrypoint automatically runs any pending schema migrations
-before starting the service. If migrations fail due to a missing TimescaleDB
-extension, you'll need to install it in your database first.
-<!-- -->
-:::
+> [!NOTE]
+> **Migrations**
+>
+> The Docker image's entrypoint automatically runs any pending schema migrations
+> before starting the service. If migrations fail due to a missing TimescaleDB
+> extension, you'll need to install it in your database first.
+
 
 ### ClickHouse database {#clickhouse-database}
 
@@ -125,12 +125,12 @@ insights and will be the primary time-series database as we phase out
 TimescaleDB. You can choose whether to self-host ClickHouse or use their hosted
 service.
 
-::: info MIGRATIONS
-<!-- -->
-The Docker image's entrypoint automatically runs any pending ClickHouse schema
-migrations before starting the service.
-<!-- -->
-:::
+> [!NOTE]
+> **Migrations**
+>
+> The Docker image's entrypoint automatically runs any pending ClickHouse schema
+> migrations before starting the service.
+
 
 ### Storage {#storage}
 
@@ -145,12 +145,12 @@ and storing them in secure password management solutions. Rest assured, Tuist
 handles these variables with utmost care, ensuring they are never displayed in
 logs.
 
-::: info LAUNCH CHECKS
-<!-- -->
-The necessary variables are verified at startup. If any are missing, the launch
-will fail and the error message will detail the absent variables.
-<!-- -->
-:::
+> [!NOTE]
+> **Launch Checks**
+>
+> The necessary variables are verified at startup. If any are missing, the launch
+> will fail and the error message will detail the absent variables.
+
 
 ### License configuration {#license-configuration}
 
@@ -166,14 +166,14 @@ that the service is running within the terms of the agreement.
 \* Either `TUIST_LICENSE` or `TUIST_LICENSE_CERTIFICATE_BASE64` must be
 provided, but not both. Use `TUIST_LICENSE` for standard deployments.
 
-::: warning EXPIRATION DATE
-<!-- -->
-Licenses have an expiration date. Users will receive a warning while using Tuist
-commands that interact with the server if the license expires in less than 30
-days. If you are interested in renewing your license, please reach out to
-[contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
+> [!WARNING]
+> **Expiration Date**
+>
+> Licenses have an expiration date. Users will receive a warning while using Tuist
+> commands that interact with the server if the license expires in less than 30
+> days. If you are interested in renewing your license, please reach out to
+> [contact@tuist.dev](mailto:contact@tuist.dev).
+
 
 ### Base environment configuration {#base-environment-configuration}
 
@@ -261,12 +261,12 @@ is the URL your hosted-service is running at. Once you create the app, copy the
 client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID`
 and `GOOGLE_CLIENT_SECRET` respectively.
 
-::: info CONSENT SCREEN SCOPES
-<!-- -->
-You might need to create a consent screen. When you do so, make sure to add the
-`userinfo.email` and `openid` scopes and mark the app as internal.
-<!-- -->
-:::
+> [!NOTE]
+> **Consent Screen Scopes**
+>
+> You might need to create a consent screen. When you do so, make sure to add the
+> `userinfo.email` and `openid` scopes and mark the app as internal.
+
 
 #### Okta {#okta}
 
@@ -315,14 +315,14 @@ with the storage provider:
 | `TUIST_S3_PROTOCOL`                                     | The protocol to use when connecting to the storage provider (`http1` or `http2`)                                                                                     | No       | `http1`                     | `http1`                                                       |
 | `TUIST_S3_VIRTUAL_HOST`                                 | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host)                                                                            | No       | `false`                     | `1`                                                           |
 
-::: info AWS authentication with Web Identity Token from environment variables
-<!-- -->
-If your storage provider is AWS and you'd like to authenticate using a web
-identity token, you can set the environment variable
-`TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and
-Tuist will use that method using the conventional AWS environment variables.
-<!-- -->
-:::
+> [!NOTE]
+> **Aws Authentication With Web Identity Token From Environment Variables**
+>
+> If your storage provider is AWS and you'd like to authenticate using a web
+> identity token, you can set the environment variable
+> `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and
+> Tuist will use that method using the conventional AWS environment variables.
+
 
 #### Google Cloud Storage {#google-cloud-storage}
 For Google Cloud Storage, follow [these
@@ -348,24 +348,24 @@ Mailgun is supported** as the email provider.
 \* Email configuration variables are required only if you want to send emails.
 If not configured, email confirmation is automatically skipped
 
-::: info SMTP SUPPORT
-<!-- -->
-Generic SMTP support is not currently available. If you need SMTP support for
-your on-premise deployment, please reach out to
-[contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
-<!-- -->
-:::
+> [!NOTE]
+> **Smtp Support**
+>
+> Generic SMTP support is not currently available. If you need SMTP support for
+> your on-premise deployment, please reach out to
+> [contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
 
-::: info AIR-GAPPED DEPLOYMENTS
-<!-- -->
-For on-premise installations without internet access or email provider
-configuration, email confirmation is automatically skipped by default. Users can
-log in immediately after registration. If you have email configured but still
-want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require
-email confirmation when email is configured, set
-`TUIST_SKIP_EMAIL_CONFIRMATION=false`.
-<!-- -->
-:::
+
+> [!NOTE]
+> **Air-gapped Deployments**
+>
+> For on-premise installations without internet access or email provider
+> configuration, email confirmation is automatically skipped by default. Users can
+> log in immediately after registration. If you have email configured but still
+> want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require
+> email confirmation when email is configured, set
+> `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
+
 
 ### Git platform configuration {#git-platform-configuration}
 
@@ -401,13 +401,13 @@ deploying to your infrastructure:
 - Redis for persistent KV storage across deploys (optional)
 - pgweb for database administration
 
-::: danger LICENSE REQUIRED
-<!-- -->
-A valid `TUIST_LICENSE` environment variable is legally required to run the
-Tuist server, including local development instances. If you need a license,
-please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
+> [!CAUTION]
+> **License Required**
+>
+> A valid `TUIST_LICENSE` environment variable is legally required to run the
+> Tuist server, including local development instances. If you need a license,
+> please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+
 
 **Quick Start:**
 
@@ -504,13 +504,11 @@ most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/),
 utilize Docker images as fundamental units, the examples in this section should
 align well with your existing setup.
 
-::: warning
-<!-- -->
-If your deployment pipeline needs to validate that the server is up and running,
-you can send a `GET` HTTP request to `/ready` and assert a `200` status code in
-the response.
-<!-- -->
-:::
+> [!WARNING]
+> If your deployment pipeline needs to validate that the server is up and running,
+> you can send a `GET` HTTP request to `/ready` and assert a `200` status code in
+> the response.
+
 
 #### Fly {#fly}
 
@@ -645,12 +643,12 @@ In addition to Finch metrics, Tuist exposes metrics for:
 Tuist provides a set of utilities under `/ops/` that you can use to manage your
 instance.
 
-::: warning Authorization
-<!-- -->
-Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment
-variable can access the `/ops/` endpoints.
-<!-- -->
-:::
+> [!WARNING]
+> **Authorization**
+>
+> Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment
+> variable can access the `/ops/` endpoints.
+
 
 - **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the
   application. This is useful for debugging and understanding what went wrong

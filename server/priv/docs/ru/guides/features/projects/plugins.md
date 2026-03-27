@@ -103,13 +103,13 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### Плагин задачи <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-::: warning DEPRECATED
-<!-- -->
-Плагины задач устарели. Ознакомьтесь с [этой записью в
-блоге](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects), если вы
-ищете решение для автоматизации своего проекта.
-<!-- -->
-:::
+> [!WARNING]
+> **Deprecated**
+>
+> Плагины задач устарели. Ознакомьтесь с [этой записью в
+> блоге](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects), если вы
+> ищете решение для автоматизации своего проекта.
+
 
 Задачи - это `$PATH`-экспонируемые исполняемые файлы, которые вызываются
 командой `tuist`, если они следуют соглашению об именовании `tuist-<task-name>`.
@@ -135,15 +135,15 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
   установить его, выполнив команду `mise install`, они смогут запускать его,
   вызывая напрямую или через `tuist xxx`.
 
-::: info THE FUTURE OF PROJECTAUTOMATION
-<!-- -->
-Мы планируем объединить модели `ProjectAutomation` и `XcodeGraph` в единый
-обратно совместимый фреймворк, который откроет пользователю всю полноту графа
-проекта. Более того, мы выделим логику генерации в новый слой, `XcodeGraph`,
-который вы также сможете использовать из своего собственного CLI. Считайте, что
-вы создали свой собственный Tuist.
-<!-- -->
-:::
+> [!NOTE]
+> **The Future Of Projectautomation**
+>
+> Мы планируем объединить модели `ProjectAutomation` и `XcodeGraph` в единый
+> обратно совместимый фреймворк, который откроет пользователю всю полноту графа
+> проекта. Более того, мы выделим логику генерации в новый слой, `XcodeGraph`,
+> который вы также сможете использовать из своего собственного CLI. Считайте, что
+> вы создали свой собственный Tuist.
+
 
 ## Использование плагинов {#using-plugins}
 
@@ -181,21 +181,21 @@ let tuist = Tuist(
 После добавления плагинов `tuist install` соберет плагины в глобальный каталог
 кэша.
 
-::: info NO VERSION RESOLUTION
-<!-- -->
-Как вы могли заметить, мы не предоставляем разрешение версий для плагинов. Мы
-рекомендуем использовать Git-теги или SHA для обеспечения воспроизводимости.
-<!-- -->
-:::
+> [!NOTE]
+> **No Version Resolution**
+>
+> Как вы могли заметить, мы не предоставляем разрешение версий для плагинов. Мы
+> рекомендуем использовать Git-теги или SHA для обеспечения воспроизводимости.
 
-::: tip PROJECT DESCRIPTION HELPERS PLUGINS
-<!-- -->
-При использовании плагина-помощника для описания проекта имя модуля, в котором
-содержатся помощники, является именем плагина
-```swift
-import ProjectDescription
-import MyTuistPlugin
-let project = Project.app(name: "MyCoolApp", platform: .iOS)
-```
-<!-- -->
-:::
+
+> [!TIP]
+> **Project Description Helpers Plugins**
+>
+> При использовании плагина-помощника для описания проекта имя модуля, в котором
+> содержатся помощники, является именем плагина
+> ```swift
+> import ProjectDescription
+> import MyTuistPlugin
+> let project = Project.app(name: "MyCoolApp", platform: .iOS)
+> ```
+

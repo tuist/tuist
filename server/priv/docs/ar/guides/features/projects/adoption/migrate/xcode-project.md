@@ -79,12 +79,12 @@ let package = Package(
 البيان حيث ستحدد تبعياتك. ملف `Tuist.swift.swift` هو الملف الذي يمكنك من خلاله
 تحديد إعدادات Tuist على نطاق المشروع لمشروعك.
 
-::: tip PROJECT NAME WITH -TUIST SUFFIX
-<!-- -->
-لمنع التعارض مع مشروع Xcode الحالي، نوصي بإضافة لاحقة `-Tuist` إلى اسم المشروع.
-يمكنك إسقاطها بمجرد ترحيل مشروعك بالكامل إلى Tuist.
-<!-- -->
-:::
+> [!TIP]
+> **Project Name With -tuist Suffix**
+>
+> لمنع التعارض مع مشروع Xcode الحالي، نوصي بإضافة لاحقة `-Tuist` إلى اسم المشروع.
+> يمكنك إسقاطها بمجرد ترحيل مشروعك بالكامل إلى Tuist.
+
 
 ## إنشاء واختبار مشروع تويست في CI {#build-and-test-the-tuist-project-in-ci}
 
@@ -164,13 +164,12 @@ let package = Package(
 )
 ```
 
-::: tip PRODUCT TYPES
-<!-- -->
-يمكنك تجاوز نوع المنتج لحزمة معينة عن طريق إضافته إلى قاموس `productTypes` في
-`PackageSettings` structure. يفترض تويست افتراضيًا أن جميع الحزم هي أطر عمل
-ثابتة.
-<!-- -->
-:::
+> [!TIP]
+> **Product Types**
+>
+> يمكنك تجاوز نوع المنتج لحزمة معينة عن طريق إضافته إلى قاموس `productTypes` في
+> `PackageSettings` structure. يفترض تويست افتراضيًا أن جميع الحزم هي أطر عمل
+> ثابتة.
 
 
 ## تحديد ترتيب الترحيل {#determine-the-migration-order}
@@ -234,12 +233,12 @@ let project = Project(
 )
 ```
 
-::: info TEST TARGETS
-<!-- -->
-إذا كان للهدف هدف اختبار مرتبط، فيجب عليك تعريفه في ملف `Project.swift.` أيضًا
-بتكرار نفس الخطوات.
-<!-- -->
-:::
+> [!NOTE]
+> **Test Targets**
+>
+> إذا كان للهدف هدف اختبار مرتبط، فيجب عليك تعريفه في ملف `Project.swift.` أيضًا
+> بتكرار نفس الخطوات.
+
 
 ### التحقق من صحة الترحيل المستهدف {#validate-the-target-migration}
 

@@ -17,12 +17,12 @@ con Tuist. Estos son algunos escenarios en los que el andamiaje puede ser útil:
   scaffold viper --name MyFeature`.
 - Crear nuevos proyectos: `tuist scaffold feature-project --name Home`
 
-::: info NON-OPINIONATED
-<!-- -->
-Tuist no opina sobre el contenido de tus plantillas, ni para qué las utilizas.
-Sólo se requiere que estén en un directorio específico.
-<!-- -->
-:::
+> [!NOTE]
+> **Non-opinionated**
+>
+> Tuist no opina sobre el contenido de tus plantillas, ni para qué las utilizas.
+> Sólo se requiere que estén en un directorio específico.
+
 
 ## Definir una plantilla {#defining-a-template}
 
@@ -71,12 +71,10 @@ Una vez definida la plantilla, podemos utilizarla desde el comando `scaffold`:
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: info
-<!-- -->
-Dado que la plataforma es un argumento opcional, también podemos llamar al
-comando sin el argumento `--platform macos`.
-<!-- -->
-:::
+> [!NOTE]
+> Dado que la plataforma es un argumento opcional, también podemos llamar al
+> comando sin el argumento `--platform macos`.
+
 
 Si `.string` y `.files` no proporcionan suficiente flexibilidad, puede
 aprovechar el lenguaje de plantillas
@@ -93,10 +91,10 @@ nombre.
 También puede utilizar `.directory`, que ofrece la posibilidad de copiar
 carpetas enteras en una ruta determinada.
 
-::: tip PROJECT DESCRIPTION HELPERS
-<!-- -->
-Las plantillas admiten el uso de
-<LocalizedLink href="/guides/features/projects/code-sharing">ayudantes de descripción de proyectos</LocalizedLink> para reutilizar código entre
-plantillas.
-<!-- -->
-:::
+> [!TIP]
+> **Project Description Helpers**
+>
+> Las plantillas admiten el uso de
+> <LocalizedLink href="/guides/features/projects/code-sharing">ayudantes de descripción de proyectos</LocalizedLink> para reutilizar código entre
+> plantillas.
+

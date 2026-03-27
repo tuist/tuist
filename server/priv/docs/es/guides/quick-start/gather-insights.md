@@ -45,13 +45,10 @@ let tuist = Tuist(fullHandle: "my-handle/MyApp")
 compilaciones. Ejecute `tuist test` para ejecutar las pruebas e informar de los
 resultados al servidor.
 
-::: info
-<!-- -->
-Tuist pone en cola los resultados localmente e intenta enviarlos sin bloquear el
-comando. Por lo tanto, es posible que no se envíen inmediatamente después de que
-finalice el comando. En CI, los resultados se envían inmediatamente.
-<!-- -->
-:::
+> [!NOTE]
+> Tuist pone en cola los resultados localmente e intenta enviarlos sin bloquear el
+> comando. Por lo tanto, es posible que no se envíen inmediatamente después de que
+> finalice el comando. En CI, los resultados se envían inmediatamente.
 
 
 ![Una imagen que muestra una lista de ejecuciones en el

@@ -66,14 +66,14 @@ OIDC belirteçlerine, depoya bağlı tüm projelere erişim sağlayan `ci` kapsa
 grubu verilir. ` ci` kapsamının neleri içerdiği hakkında ayrıntılar için [Kapsam
 grupları](#scope-groups) bölümüne bakın.
 
-::: tip SECURITY BENEFITS
-<!-- -->
-OIDC kimlik doğrulaması uzun ömürlü belirteçlerden daha güvenlidir çünkü:
-- Döndürülecek veya yönetilecek sır yok
-- Belirteçler kısa ömürlüdür ve bireysel iş akışı çalıştırmalarına kapsamlıdır
-- Kimlik doğrulama, depo kimliğinize bağlıdır
-<!-- -->
-:::
+> [!TIP]
+> **Security Benefits**
+>
+> OIDC kimlik doğrulaması uzun ömürlü belirteçlerden daha güvenlidir çünkü:
+> - Döndürülecek veya yönetilecek sır yok
+> - Belirteçler kısa ömürlüdür ve bireysel iş akışı çalıştırmalarına kapsamlıdır
+> - Kimlik doğrulama, depo kimliğinize bağlıdır
+
 
 ## Hesap belirteçleri {#account-tokens}
 
@@ -170,12 +170,12 @@ beklenir:
 export TUIST_TOKEN=your-account-token
 ```
 
-::: tip WHEN TO USE ACCOUNT TOKENS
-<!-- -->
-İhtiyacınız olduğunda hesap jetonlarını kullanın:
-- OIDC'yi desteklemeyen CI ortamlarında kimlik doğrulama
-- Token'ın hangi işlemleri gerçekleştirebileceği üzerinde ince taneli kontrol
-- Bir hesap içinde birden fazla projeye erişebilen bir token
-- Otomatik olarak sona eren zaman sınırlı tokenlar
-<!-- -->
-:::
+> [!TIP]
+> **When To Use Account Tokens**
+>
+> İhtiyacınız olduğunda hesap jetonlarını kullanın:
+> - OIDC'yi desteklemeyen CI ortamlarında kimlik doğrulama
+> - Token'ın hangi işlemleri gerçekleştirebileceği üzerinde ince taneli kontrol
+> - Bir hesap içinde birden fazla projeye erişebilen bir token
+> - Otomatik olarak sona eren zaman sınırlı tokenlar
+

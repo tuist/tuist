@@ -41,15 +41,15 @@ comodidad, un principio que el Gestor de paquetes Swift ha heredado, las
 dificultades de uso de Xcode también están presentes en el Gestor de paquetes
 Swift.
 
-::: info EL PAPEL DEL TUISTA
-<!-- -->
-Podríamos resumir el papel de Tuist como una herramienta que evita los proyectos
-definidos implícitamente y aprovecha la explicitud para ofrecer una mejor
-experiencia al desarrollador (por ejemplo, validaciones, optimizaciones).
-Herramientas como [Bazel](https://bazel.build) van más allá y lo llevan al nivel
-del sistema de compilación.
-<!-- -->
-:::
+> [!NOTE]
+> **El Papel Del Tuista**
+>
+> Podríamos resumir el papel de Tuist como una herramienta que evita los proyectos
+> definidos implícitamente y aprovecha la explicitud para ofrecer una mejor
+> experiencia al desarrollador (por ejemplo, validaciones, optimizaciones).
+> Herramientas como [Bazel](https://bazel.build) van más allá y lo llevan al nivel
+> del sistema de compilación.
+
 
 Este es un tema del que apenas se habla en la comunidad, pero es importante.
 Mientras trabajábamos en Tuist, nos hemos dado cuenta de que muchas
@@ -81,14 +81,14 @@ errores de compilación que son difíciles de depurar cuando el proyecto crece.
 La consecuencia de esta decisión de diseño es que muchos proyectos compilan
 accidentalmente con un gráfico que no está bien definido.
 
-::: tip DETECCIÓN TUISTA DE DEPENDENCIAS IMPLÍCITAS
-<!-- -->
-Tuist proporciona un
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">comando</LocalizedLink>
-para detectar dependencias implícitas. Puedes utilizar el comando para validar
-en CI que todas tus dependencias son explícitas.
-<!-- -->
-:::
+> [!TIP]
+> **Detección Tuista De Dependencias Implícitas**
+>
+> Tuist proporciona un
+> <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">comando</LocalizedLink>
+> para detectar dependencias implícitas. Puedes utilizar el comando para validar
+> en CI que todas tus dependencias son explícitas.
+
 
 ### Encontrar dependencias implícitas en esquemas {#find-implicit-dependencies-in-schemes}
 
@@ -110,12 +110,10 @@ derivados, que actúa como un
 [singleton](https://en.wikipedia.org/wiki/Singleton_pattern), pero luego fallar
 al compilar en CI porque el estado es diferente.
 
-::: consejo
-<!-- -->
-Recomendamos deshabilitar esto en los esquemas de tu proyecto, y usar como Tuist
-que facilita la gestión del grafo de dependencias.
-<!-- -->
-:::
+> [!TIP]
+> Recomendamos deshabilitar esto en los esquemas de tu proyecto, y usar como Tuist
+> que facilita la gestión del grafo de dependencias.
+
 
 ### SwiftUI Previews and static libraries/frameworks {#swiftui-previews-and-static-librariesframeworks}
 

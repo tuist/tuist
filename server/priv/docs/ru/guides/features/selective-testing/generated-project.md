@@ -7,13 +7,13 @@
 ---
 # Сгенерированные проекты {#generated-projects}
 
-::: предупреждение РЕКВИЗИТЫ
-<!-- -->
-- Проект, созданный
-  <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Реквизиты**
+>
+> - Проект, созданный
+>   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
+
 
 Чтобы выборочно запустить тесты в сгенерированном проекте, используйте команду
 `tuist test`. Команда

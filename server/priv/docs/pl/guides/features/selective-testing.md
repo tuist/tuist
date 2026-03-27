@@ -28,39 +28,38 @@ instrukcjami opartymi na konfiguracji projektu:
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Wygenerowany projekt</LocalizedLink>
 
-::: warning MODULE VS FILE-LEVEL GRANULARITY
-<!-- -->
-Ze względu na brak możliwości wykrycia wewnątrzkodowych zależności między
-testami i źródłami, maksymalna ziarnistość testowania selektywnego znajduje się
-na poziomie celu. Dlatego zalecamy, aby cele były małe i skoncentrowane, aby
-zmaksymalizować korzyści płynące z testowania selektywnego.
-<!-- -->
-:::
+> [!WARNING]
+> **Module Vs File-level Granularity**
+>
+> Ze względu na brak możliwości wykrycia wewnątrzkodowych zależności między
+> testami i źródłami, maksymalna ziarnistość testowania selektywnego znajduje się
+> na poziomie celu. Dlatego zalecamy, aby cele były małe i skoncentrowane, aby
+> zmaksymalizować korzyści płynące z testowania selektywnego.
 
-::: warning TEST COVERAGE
-<!-- -->
-Narzędzia pokrycia testów zakładają, że cały zestaw testów jest uruchamiany
-jednocześnie, co czyni je niekompatybilnymi z selektywnym uruchamianiem testów -
-oznacza to, że dane pokrycia mogą nie odzwierciedlać rzeczywistości podczas
-korzystania z selekcji testów. Jest to znane ograniczenie i nie oznacza, że
-robisz coś źle. Zachęcamy zespoły do zastanowienia się nad tym, czy pokrycie
-nadal przynosi znaczące informacje w tym kontekście, a jeśli tak, to zapewniamy,
-że już myślimy o tym, jak sprawić, by pokrycie działało poprawnie z selektywnymi
-przebiegami w przyszłości.
-<!-- -->
-:::
+
+> [!WARNING]
+> **Test Coverage**
+>
+> Narzędzia pokrycia testów zakładają, że cały zestaw testów jest uruchamiany
+> jednocześnie, co czyni je niekompatybilnymi z selektywnym uruchamianiem testów -
+> oznacza to, że dane pokrycia mogą nie odzwierciedlać rzeczywistości podczas
+> korzystania z selekcji testów. Jest to znane ograniczenie i nie oznacza, że
+> robisz coś źle. Zachęcamy zespoły do zastanowienia się nad tym, czy pokrycie
+> nadal przynosi znaczące informacje w tym kontekście, a jeśli tak, to zapewniamy,
+> że już myślimy o tym, jak sprawić, by pokrycie działało poprawnie z selektywnymi
+> przebiegami w przyszłości.
 
 
 ## Komentarze do żądań ściągnięcia/łączenia {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj projekt
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
-z platformą
-<LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj projekt
+> <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
+> z platformą
+> <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
+
 
 Po połączeniu projektu Tuist z platformą Git, taką jak
 [GitHub](https://github.com), i rozpoczęciu korzystania z `tuist xcodebuild

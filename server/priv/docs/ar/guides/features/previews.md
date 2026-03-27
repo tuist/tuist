@@ -7,11 +7,11 @@
 ---
 # المعاينات {#previews}
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
+
 
 عند إنشاء تطبيق ما، قد ترغب في مشاركته مع الآخرين للحصول على تعليقاتهم.
 تقليديًا، هذا شيء تقوم به الفرق من خلال بناء تطبيقاتها وتوقيعها ودفعها إلى منصات
@@ -22,12 +22,12 @@
 لجعل هذه العملية أكثر بساطة، يوفر Tuist طريقة لإنشاء معاينات لتطبيقاتك ومشاركتها
 مع أي شخص.
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
-<!-- -->
-عند الإنشاء للجهاز، تقع على عاتقك حاليًا مسؤولية ضمان توقيع التطبيق بشكل صحيح.
-نخطط لتبسيط هذا الأمر في المستقبل.
-<!-- -->
-:::
+> [!WARNING]
+> **Device Builds Need To Be Signed**
+>
+> عند الإنشاء للجهاز، تقع على عاتقك حاليًا مسؤولية ضمان توقيع التطبيق بشكل صحيح.
+> نخطط لتبسيط هذا الأمر في المستقبل.
+
 
 :::: code-group
 ```bash [Tuist Project]
@@ -67,13 +67,13 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning UNIQUE BUILD NUMBERS IN CI
-<!-- -->
-تأكد من أن `CFBundleVersion` (إصدار الإنشاء) فريد من نوعه من خلال الاستفادة من رقم تشغيل CI الذي يعرضه معظم موفري CI. على سبيل المثال، في GitHub Actions، يمكنك تعيين `CFBundleVersion` إلى المتغير <code v-pre>${{ github.run_number }}</code>.
+> [!WARNING]
+> **Unique Build Numbers In Ci**
+>
+> تأكد من أن `CFBundleVersion` (إصدار الإنشاء) فريد من نوعه من خلال الاستفادة من رقم تشغيل CI الذي يعرضه معظم موفري CI. على سبيل المثال، في GitHub Actions، يمكنك تعيين `CFBundleVersion` إلى المتغير <code v-pre>${{ github.run_number }}</code>.
+>
+> سيفشل تحميل معاينة بنفس الإصدار الثنائي (البناء) ونفس `CFBundleVersion`.
 
-سيفشل تحميل معاينة بنفس الإصدار الثنائي (البناء) ونفس `CFBundleVersion`.
-<!-- -->
-:::
 
 ## المسارات {#tracks}
 
@@ -97,12 +97,12 @@ tuist share App --track nightly
 - **تصفية**: العثور على المعاينات وإدارتها بسهولة حسب المسار في لوحة معلومات
   Tuist
 
-::: warning PREVIEWS' VISIBILITY
-<!-- -->
-يمكن فقط للأشخاص الذين لديهم حق الوصول إلى المؤسسة التي ينتمي إليها المشروع
-الوصول إلى المعاينات. نخطط لإضافة دعم للروابط المنتهية الصلاحية.
-<!-- -->
-:::
+> [!WARNING]
+> **Previews' Visibility**
+>
+> يمكن فقط للأشخاص الذين لديهم حق الوصول إلى المؤسسة التي ينتمي إليها المشروع
+> الوصول إلى المعاينات. نخطط لإضافة دعم للروابط المنتهية الصلاحية.
+
 
 ## تطبيق تويست ماك أو إس {#tuist-macos-app}
 
@@ -121,11 +121,11 @@ macOS. بدلاً من تشغيل المعاينات عبر Tuist CLI، يمكن
 عندما تنقر الآن على "تشغيل" في صفحة المعاينة، سيقوم تطبيق macOS بتشغيله تلقائيًا
 على الجهاز المحدد حاليًا.
 
-::: warning REQUIREMENTS
-<!-- -->
-يجب أن يكون لديك Xcode مثبتًا محليًا وأن يكون مثبتًا على نظام macOS 14 أو أحدث.
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> يجب أن يكون لديك Xcode مثبتًا محليًا وأن يكون مثبتًا على نظام macOS 14 أو أحدث.
+
 
 ## تطبيق تويست iOS {#tuist-ios-app}
 
@@ -143,11 +143,11 @@ macOS. بدلاً من تشغيل المعاينات عبر Tuist CLI، يمكن
 
 ## تعليقات طلب السحب/الدمج {#pullmerge-request-comments}
 
-::: warning GIT PLATFORM INTEGRATION REQUIRED
-<!-- -->
-للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج <LocalizedLink href="/guides/server/accounts-and-projects">مشروعك Tuist</LocalizedLink> مع <LocalizedLink href="/guides/server/authentication">منصة Git</LocalizedLink>.
-<!-- -->
-:::
+> [!WARNING]
+> **Git Platform Integration Required**
+>
+> للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج <LocalizedLink href="/guides/server/accounts-and-projects">مشروعك Tuist</LocalizedLink> مع <LocalizedLink href="/guides/server/authentication">منصة Git</LocalizedLink>.
+
 
 يجب أن يكون اختبار الوظائف الجديدة جزءًا من أي مراجعة للكود. لكن الاضطرار إلى
 إنشاء تطبيق محليًا يضيف احتكاكًا غير ضروري، وغالبًا ما يؤدي إلى تخطي المطورين
@@ -232,11 +232,9 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: info
-<!-- -->
-يتم تعطيل التحقق من التحديث تلقائياً على أجهزة المحاكاة وإصدارات App Store.
-<!-- -->
-:::
+> [!NOTE]
+> يتم تعطيل التحقق من التحديث تلقائياً على أجهزة المحاكاة وإصدارات App Store.
+
 
 ## شارة README {#readme-badge}
 

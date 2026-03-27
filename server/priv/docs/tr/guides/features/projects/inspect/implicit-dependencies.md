@@ -29,18 +29,18 @@ tuist inspect implicit-imports
 Komut herhangi bir örtük içe aktarma tespit ederse, sıfırdan farklı bir çıkış
 koduyla çıkar.
 
-::: tip VALIDATE IN CI
-<!-- -->
-Bu komutu, her yeni kod yayınlandığında
-<LocalizedLink href="/guides/integrations/continuous-integration">sürekli entegrasyon</LocalizedLink> komutunuzun bir parçası olarak çalıştırmanızı
-şiddetle tavsiye ederiz.
-<!-- -->
-:::
+> [!TIP]
+> **Validate In Ci**
+>
+> Bu komutu, her yeni kod yayınlandığında
+> <LocalizedLink href="/guides/integrations/continuous-integration">sürekli entegrasyon</LocalizedLink> komutunuzun bir parçası olarak çalıştırmanızı
+> şiddetle tavsiye ederiz.
 
-::: warning NOT ALL IMPLICIT CASES ARE DETECTED
-<!-- -->
-Tuist, örtük bağımlılıkları tespit etmek için statik kod analizine
-dayandığından, tüm durumları yakalayamayabilir. Örneğin, Tuist koddaki derleyici
-direktifleri aracılığıyla koşullu içe aktarmaları anlayamaz.
-<!-- -->
-:::
+
+> [!WARNING]
+> **Not All Implicit Cases Are Detected**
+>
+> Tuist, örtük bağımlılıkları tespit etmek için statik kod analizine
+> dayandığından, tüm durumları yakalayamayabilir. Örneğin, Tuist koddaki derleyici
+> direktifleri aracılığıyla koşullu içe aktarmaları anlayamaz.
+

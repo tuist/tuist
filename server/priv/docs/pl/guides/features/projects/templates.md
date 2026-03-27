@@ -17,12 +17,12 @@ może być przydatne:
   MyFeature`.
 - Tworzenie nowych projektów: `tuist scaffold feature-project --name Home`
 
-::: info NON-OPINIONATED
-<!-- -->
-Tuist nie ma zdania na temat zawartości szablonów i tego, do czego ich używasz.
-Wymagane jest jedynie, aby znajdowały się one w określonym katalogu.
-<!-- -->
-:::
+> [!NOTE]
+> **Non-opinionated**
+>
+> Tuist nie ma zdania na temat zawartości szablonów i tego, do czego ich używasz.
+> Wymagane jest jedynie, aby znajdowały się one w określonym katalogu.
+
 
 ## Definiowanie szablonu {#defining-a-template}
 
@@ -92,9 +92,9 @@ aby uzyskać wartość atrybutu name pisaną małymi literami.
 Można również użyć `.directory`, który daje możliwość kopiowania całych folderów
 do podanej ścieżki.
 
-::: tip PROJECT DESCRIPTION HELPERS
-<!-- -->
-Szablony obsługują użycie
-<LocalizedLink href="/guides/features/projects/code-sharing"> pomocników opisu projektu</LocalizedLink> w celu ponownego wykorzystania kodu między szablonami.
-<!-- -->
-:::
+> [!TIP]
+> **Project Description Helpers**
+>
+> Szablony obsługują użycie
+> <LocalizedLink href="/guides/features/projects/code-sharing"> pomocników opisu projektu</LocalizedLink> w celu ponownego wykorzystania kodu między szablonami.
+

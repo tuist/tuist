@@ -29,12 +29,12 @@ Tuist 通过缓存功能解决了这些难题，大大缩短了本地开发和 C
 
 ## Xcode 缓存 {#xcode-cache}
 
-::: warning XCODE CACHE STATE
-<!-- -->
-Xcode 缓存目前针对本地增量构建进行了优化，而且整个构建任务的范围还不依赖于路径。尽管如此，您仍然可以通过插入 Tuist
-的远程缓存来体验其优势，而且随着构建系统能力的不断提高，我们预计构建时间也会逐渐缩短。
-<!-- -->
-:::
+> [!WARNING]
+> **Xcode Cache State**
+>
+> Xcode 缓存目前针对本地增量构建进行了优化，而且整个构建任务的范围还不依赖于路径。尽管如此，您仍然可以通过插入 Tuist
+> 的远程缓存来体验其优势，而且随着构建系统能力的不断提高，我们预计构建时间也会逐渐缩短。
+
 
 Apple 一直致力于在构建级别开发一种新的缓存解决方案，类似于 Bazel 和 Buck 等其他构建系统。新的缓存功能从 Xcode 26 开始提供，无论您是否使用 Tuist 的 <LocalizedLink href="/guides/features/projects">项目生成</LocalizedLink> 功能，Tuist 现在都能与之无缝集成。
 

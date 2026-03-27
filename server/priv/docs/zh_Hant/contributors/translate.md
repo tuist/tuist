@@ -19,12 +19,12 @@
 - 西班牙語
 - 葡萄牙語
 
-::: tip REQUEST A NEW LANGUAGE
-<!-- -->
-如果您認為 Tuist 可以從支援新語言中獲益，請在社群論壇中建立一個新的
-[主題](https://community.tuist.io/c/general/4)，與社群進行討論。
-<!-- -->
-:::
+> [!TIP]
+> **Request A New Language**
+>
+> 如果您認為 Tuist 可以從支援新語言中獲益，請在社群論壇中建立一個新的
+> [主題](https://community.tuist.io/c/general/4)，與社群進行討論。
+
 
 ## 如何翻譯{#how-to-translate}
 
@@ -34,11 +34,11 @@
 
 翻譯會使用 GitHub 的拉取請求同步回原始碼倉庫，維護人員會審查並合併。
 
-::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
-<!-- -->
-Weblate 會分割檔案以綁定源語言和目標語言。如果您修改來源語言，就會破壞綁定，而且調和可能會產生意想不到的結果。
-<!-- -->
-:::
+> [!WARNING]
+> **Don't Modify The Resources In The Target Language**
+>
+> Weblate 會分割檔案以綁定源語言和目標語言。如果您修改來源語言，就會破壞綁定，而且調和可能會產生意想不到的結果。
+
 
 ## 指引{#guidelines}
 
@@ -51,11 +51,11 @@ Weblate 會分割檔案以綁定源語言和目標語言。如果您修改來源
 
 ```markdown
 <!-- -->
-::: warning 루트 변수
-<!-- -->
-매니페스트의 루트에 있어야 하는 변수는...
-<!-- -->
-:::
+> [!WARNING]
+> **루트 변수**
+>
+> 매니페스트의 루트에 있어야 하는 변수는...
+
 ```
 
 ### 標題標題{#heading-titles}

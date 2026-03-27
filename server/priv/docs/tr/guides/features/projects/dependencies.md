@@ -51,13 +51,13 @@ Karmaşıklıklar ve uygulama detayları sizden soyutlanır.
 Aşağıdaki bölümlerde projenizde bağımlılıkları nasıl bildireceğinizi
 öğreneceksiniz.
 
-::: tip GRAPH VALIDATION
-<!-- -->
-Tuist, hiçbir döngü olmadığından ve tüm bağımlılıkların geçerli olduğundan emin
-olmak için projeyi oluştururken grafiği doğrular. Bu sayede, herhangi bir ekip
-bağımlılık grafiğini bozma endişesi olmadan geliştirmeye katılabilir.
-<!-- -->
-:::
+> [!TIP]
+> **Graph Validation**
+>
+> Tuist, hiçbir döngü olmadığından ve tüm bağımlılıkların geçerli olduğundan emin
+> olmak için projeyi oluştururken grafiği doğrular. Bu sayede, herhangi bir ekip
+> bağımlılık grafiğini bozma endişesi olmadan geliştirmeye katılabilir.
+
 
 ## Yerel bağımlılıklar {#local-dependencies}
 
@@ -73,13 +73,13 @@ değişkenini aşağıdaki seçeneklerden herhangi biriyle iletebilirsiniz:
 - `SDK`: Bir sistem SDK'sı ile bağımlılık bildirir.
 - `XCTest`: XCTest ile bir bağımlılık bildirir.
 
-::: info DEPENDENCY CONDITIONS
-<!-- -->
-Her bağımlılık türü, bağımlılığı platforma göre koşullu olarak bağlamak için bir
-`condition` seçeneğini kabul eder. Varsayılan olarak, hedefin desteklediği tüm
-platformlar için bağımlılığı bağlar.
-<!-- -->
-:::
+> [!NOTE]
+> **Dependency Conditions**
+>
+> Her bağımlılık türü, bağımlılığı platforma göre koşullu olarak bağlamak için bir
+> `condition` seçeneğini kabul eder. Varsayılan olarak, hedefin desteklediği tüm
+> platformlar için bağımlılığı bağlar.
+
 
 ## Dış bağımlılıklar {#external-dependencies}
 
@@ -146,14 +146,14 @@ let package = Package(
 <!-- -->
 :::
 
-::: tip PACKAGE SETTINGS
-<!-- -->
-Bir derleyici yönergesine sarılmış `PackageSettings` örneği, paketlerin nasıl
-entegre edileceğini yapılandırmanıza olanak tanır. Örneğin, yukarıdaki örnekte
-paketler için kullanılan varsayılan ürün türünü geçersiz kılmak için kullanılır.
-Varsayılan olarak buna ihtiyacınız olmamalıdır.
-<!-- -->
-:::
+> [!TIP]
+> **Package Settings**
+>
+> Bir derleyici yönergesine sarılmış `PackageSettings` örneği, paketlerin nasıl
+> entegre edileceğini yapılandırmanıza olanak tanır. Örneğin, yukarıdaki örnekte
+> paketler için kullanılan varsayılan ürün türünü geçersiz kılmak için kullanılır.
+> Varsayılan olarak buna ihtiyacınız olmamalıdır.
+
 
 > [!ÖNEMLİ] ÖZEL DERLEME YAPILANDIRMALARI Projeniz özel derleme yapılandırmaları
 > kullanıyorsa (standart `Debug` ve `Release` dışındaki yapılandırmalar),
@@ -227,13 +227,13 @@ let project = Project(
 <!-- -->
 :::
 
-::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
-<!-- -->
-**şemaları** şemalar listesini temiz tutmak için Swift paketi projeleri için
-otomatik olarak oluşturulmaz. Bunları Xcode'un kullanıcı arayüzü aracılığıyla
-oluşturabilirsiniz.
-<!-- -->
-:::
+> [!NOTE]
+> **No Schemes Generated For External Packages**
+>
+> **şemaları** şemalar listesini temiz tutmak için Swift paketi projeleri için
+> otomatik olarak oluşturulmaz. Bunları Xcode'un kullanıcı arayüzü aracılığıyla
+> oluşturabilirsiniz.
+
 
 #### Xcode'un varsayılan entegrasyonu {#xcodes-default-integration}
 
@@ -257,14 +257,14 @@ let target = .target(name: "MyTarget", dependencies: [
 Swift Makroları ve Derleme Aracı Eklentileri için sırasıyla `.macro` ve
 `.plugin` türlerini kullanmanız gerekir.
 
-::: warning SPM Build Tool Plugins
-<!-- -->
-SPM derleme aracı eklentileri, proje bağımlılıklarınız için Tuist'in [XcodeProj
-tabanlı entegrasyonunu](#tuist-s-xcodeproj-based-integration) kullanırken bile
-[Xcode'un varsayılan entegrasyonu](#xcode-s-default-integration) mekanizması
-kullanılarak bildirilmelidir.
-<!-- -->
-:::
+> [!WARNING]
+> **Spm Build Tool Plugins**
+>
+> SPM derleme aracı eklentileri, proje bağımlılıklarınız için Tuist'in [XcodeProj
+> tabanlı entegrasyonunu](#tuist-s-xcodeproj-based-integration) kullanırken bile
+> [Xcode'un varsayılan entegrasyonu](#xcode-s-default-integration) mekanizması
+> kullanılarak bildirilmelidir.
+
 
 Bir SPM derleme aracı eklentisinin pratik bir uygulaması, Xcode'un "Derleme
 Aracı Eklentilerini Çalıştır" derleme aşaması sırasında kod tiftikleme
@@ -332,14 +332,14 @@ carthage update
 tuist generate
 ```
 
-::: warning BUILD AND TEST
-<!-- -->
-Projenizi `xcodebuild build` ve `tuist test` aracılığıyla derler ve test
-ederseniz, benzer şekilde, derlemeden veya test etmeden önce `carthage update`
-komutunu çalıştırarak Carthage tarafından çözülen bağımlılıkların mevcut
-olduğundan emin olmanız gerekir.
-<!-- -->
-:::
+> [!WARNING]
+> **Build And Test**
+>
+> Projenizi `xcodebuild build` ve `tuist test` aracılığıyla derler ve test
+> ederseniz, benzer şekilde, derlemeden veya test etmeden önce `carthage update`
+> komutunu çalıştırarak Carthage tarafından çözülen bağımlılıkların mevcut
+> olduğundan emin olmanız gerekir.
+
 
 ### CocoaPods {#cocoapods}
 
@@ -357,14 +357,12 @@ tuist generate
 pod install
 ```
 
-::: warning
-<!-- -->
-CocoaPods bağımlılıkları, oluşturulmuş projele `xcodebuild` çalıştıran `build`
-veya `test` gibi iş akışlarıyla uyumlu değildir. Ayrıca, parmak izi mantığı Pods
-bağımlılıklarını hesaba katmadığı için ikili önbelleğe alma ve seçmeli test ile
-de uyumsuzdurlar.
-<!-- -->
-:::
+> [!WARNING]
+> CocoaPods bağımlılıkları, oluşturulmuş projele `xcodebuild` çalıştıran `build`
+> veya `test` gibi iş akışlarıyla uyumlu değildir. Ayrıca, parmak izi mantığı Pods
+> bağımlılıklarını hesaba katmadığı için ikili önbelleğe alma ve seçmeli test ile
+> de uyumsuzdurlar.
+
 
 ## Statik veya dinamik {#static-or-dynamic}
 
@@ -403,13 +401,13 @@ func productType() -> Product {
 
 Tuist'in <LocalizedLink href="/guides/features/projects/cost-of-convenience">maliyetleri nedeniyle örtük yapılandırma yoluyla varsayılan olarak kolaylık sağlamadığını</LocalizedLink> unutmayın. Bunun anlamı, ortaya çıkan ikili dosyaların doğru olmasını sağlamak için bağlama türünü ve [`-ObjC` bağlayıcı bayrağı](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184) gibi bazen gerekli olan ek derleme ayarlarını yapmanıza güvendiğimizdir. Bu nedenle, doğru kararları verebilmeniz için size genellikle dokümantasyon şeklinde kaynaklar sağlıyoruz.
 
-::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
-<!-- -->
-Birçok projenin entegre ettiği bir Swift paketi [The Composable
-Architecture](https://github.com/pointfreeco/swift-composable-architecture).
-Daha fazla ayrıntı için [bu bölüme](#the-composable-architecture) bakın.
-<!-- -->
-:::
+> [!TIP]
+> **Example: The Composable Architecture**
+>
+> Birçok projenin entegre ettiği bir Swift paketi [The Composable
+> Architecture](https://github.com/pointfreeco/swift-composable-architecture).
+> Daha fazla ayrıntı için [bu bölüme](#the-composable-architecture) bakın.
+
 
 ### Senaryolar {#scenarios}
 
@@ -534,13 +532,13 @@ vardır.
 Aşağıdaki yapılandırma her şeyi dinamik olarak bağlayacaktır - böylece uygulama
 + test hedefleri ve SwiftUI önizlemeleri çalışır.
 
-::: tip STATIC OR DYNAMIC
-<!-- -->
-Dinamik bağlama her zaman önerilmez. Daha fazla ayrıntı için [Statik veya
-dinamik](#static-or-dynamic) bölümüne bakın. Bu örnekte, tüm bağımlılıklar
-basitlik için koşulsuz olarak dinamik olarak bağlanmıştır.
-<!-- -->
-:::
+> [!TIP]
+> **Static Or Dynamic**
+>
+> Dinamik bağlama her zaman önerilmez. Daha fazla ayrıntı için [Statik veya
+> dinamik](#static-or-dynamic) bölümüne bakın. Bu örnekte, tüm bağımlılıklar
+> basitlik için koşulsuz olarak dinamik olarak bağlanmıştır.
+
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 6.0
@@ -589,11 +587,9 @@ let packageSettings = PackageSettings(
 #endif
 ```
 
-::: warning
-<!-- -->
-`import Sharing` yerine `import SwiftSharing` yapmanız gerekecektir.
-<!-- -->
-:::
+> [!WARNING]
+> `import Sharing` yerine `import SwiftSharing` yapmanız gerekecektir.
+
 
 ### `.swiftmodule aracılığıyla sızan geçişli statik bağımlılıklar` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
@@ -608,14 +604,12 @@ bağımlılığı
 internal import StaticModule
 ```
 
-::: info
-<!-- -->
-İçe aktarmalarda erişim seviyesi Swift 6'ya dahil edildi. Swift'in eski
-sürümlerini kullanıyorsanız, bunun yerine
-<LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>
-kullanmanız gerekir:
-<!-- -->
-:::
+> [!NOTE]
+> İçe aktarmalarda erişim seviyesi Swift 6'ya dahil edildi. Swift'in eski
+> sürümlerini kullanıyorsanız, bunun yerine
+> <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>
+> kullanmanız gerekir:
+
 
 ```swift
 @_implementationOnly import StaticModule

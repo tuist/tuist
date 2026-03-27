@@ -44,12 +44,10 @@ kimlik doğrulaması yapabilirsiniz:
 tuist registry login
 ```
 
-::: info
-<!-- -->
-Kimlik doğrulama için
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve</LocalizedLink> projesi gerekir.
-<!-- -->
-:::
+> [!NOTE]
+> Kimlik doğrulama için
+> <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve</LocalizedLink> projesi gerekir.
+
 
 ### Bağımlılıkları çözme {#resolving-dependencies}
 
@@ -73,10 +71,8 @@ dönüştürmeniz gerekir. Kayıt tanımlayıcısı her zaman
 kayıt defterini kullanmak için, paket kayıt defteri tanımlayıcısı
 `pointfreeco.swift-composable-architecture` şeklinde olacaktır.
 
-::: info
-<!-- -->
-Tanımlayıcı birden fazla nokta içeremez. Depo adı bir nokta içeriyorsa, bu nokta
-alt çizgi ile değiştirilir. Örneğin, `https://github.com/groue/GRDB.swift`
-paketi `groue.GRDB_swift` kayıt defteri tanımlayıcısına sahip olacaktır.
-<!-- -->
-:::
+> [!NOTE]
+> Tanımlayıcı birden fazla nokta içeremez. Depo adı bir nokta içeriyorsa, bu nokta
+> alt çizgi ile değiştirilir. Örneğin, `https://github.com/groue/GRDB.swift`
+> paketi `groue.GRDB_swift` kayıt defteri tanımlayıcısına sahip olacaktır.
+

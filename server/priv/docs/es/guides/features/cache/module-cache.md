@@ -8,13 +8,13 @@
 
 # Caché de módulos {#module-cache}
 
-::: advertencia REQUISITOS
-<!-- -->
-- Un proyecto generado por
-  <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requisitos**
+>
+> - Un proyecto generado por
+>   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+
 
 Tuist Module cache proporciona una potente forma de optimizar tus tiempos de
 compilación almacenando en caché tus módulos como binarios (`.xcframework`s) y
@@ -66,15 +66,13 @@ tuist test
 <!-- -->
 :::
 
-::: advertencia
-<!-- -->
-La caché binaria es una función diseñada para flujos de trabajo de desarrollo,
-como la ejecución de la aplicación en un simulador o dispositivo, o la ejecución
-de pruebas. No está pensada para compilaciones de lanzamiento. Al archivar la
-aplicación, genera un proyecto con los fuentes utilizando la opción
-`--no-binary-cache`.
-<!-- -->
-:::
+> [!WARNING]
+> La caché binaria es una función diseñada para flujos de trabajo de desarrollo,
+> como la ejecución de la aplicación en un simulador o dispositivo, o la ejecución
+> de pruebas. No está pensada para compilaciones de lanzamiento. Al archivar la
+> aplicación, genera un proyecto con los fuentes utilizando la opción
+> `--no-binary-cache`.
+
 
 ## Perfiles de caché {#cache-profiles}
 
@@ -127,13 +125,13 @@ Tuist sólo puede almacenar en caché los siguientes productos de destino:
 Estamos trabajando para dar soporte a las librerías y objetivos que dependen de
 XCTest.
 
-::: info UPSTREAM DEPENDENCIES
-<!-- -->
-Cuando un objetivo no es almacenable en caché, hace que los objetivos anteriores
-tampoco lo sean. Por ejemplo, si tienes el gráfico de dependencias `A &gt; B`,
-donde A depende de B, si B no es almacenable en caché, A tampoco lo será.
-<!-- -->
-:::
+> [!NOTE]
+> **Upstream Dependencies**
+>
+> Cuando un objetivo no es almacenable en caché, hace que los objetivos anteriores
+> tampoco lo sean. Por ejemplo, si tienes el gráfico de dependencias `A &gt; B`,
+> donde A depende de B, si B no es almacenable en caché, A tampoco lo será.
+
 
 ## Eficacia {#efficiency}
 
@@ -161,12 +159,12 @@ principal** para calentar la caché. Esto asegurará que la caché siempre conte
 binarios para los cambios en `main` para que la rama local y CI construyan
 incrementalmente sobre ellos.
 
-::: tip CACHE WARMING USES BINARIES
-<!-- -->
-El comando `tuist cache` también hace uso de la caché binaria para acelerar el
-calentamiento.
-<!-- -->
-:::
+> [!TIP]
+> **Cache Warming Uses Binaries**
+>
+> El comando `tuist cache` también hace uso de la caché binaria para acelerar el
+> calentamiento.
+
 
 A continuación se ofrecen algunos ejemplos de flujos de trabajo habituales:
 

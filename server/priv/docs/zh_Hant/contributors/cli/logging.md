@@ -14,11 +14,9 @@ CLI 採用 [swift-log](https://github.com/apple/swift-log) 記錄介面。此套
 Logger.current
 ```
 
-::: info
-<!-- -->
-當使用`Dispatch` 或分離的任務時，任務本地端不會傳播值，所以如果您使用它們，您需要取得該值並將它傳給異步操作。
-<!-- -->
-:::
+> [!NOTE]
+> 當使用`Dispatch` 或分離的任務時，任務本地端不會傳播值，所以如果您使用它們，您需要取得該值並將它傳給異步操作。
+
 
 ## 記錄什麼{#what-to-log}
 

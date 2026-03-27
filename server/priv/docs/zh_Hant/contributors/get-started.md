@@ -43,11 +43,11 @@ Swift 語言和基金會 API 中最常用的元素。
 
 **生成的專案會自動打開** 。如果您需要在未產生的情況下再次開啟，請執行`開啟 Tuist.xcworkspace` (或使用 Finder)。
 
-::: info XED .
-<!-- -->
-如果您嘗試使用`xed .` 開啟專案，它會開啟套件，而不是 Tuist 產生的專案。我們建議使用 Tuist 產生的專案來狗啃工具。
-<!-- -->
-:::
+> [!NOTE]
+> **Xed .**
+>
+> 如果您嘗試使用`xed .` 開啟專案，它會開啟套件，而不是 Tuist 產生的專案。我們建議使用 Tuist 產生的專案來狗啃工具。
+
 
 ## 編輯專案{#edit-the-project}
 
@@ -68,12 +68,12 @@ Swift 語言和基金會 API 中最常用的元素。
 
 ![如何設定執行 Tuist 的工作目錄的範例](/images/contributors/scheme-working-directory.png)。
 
-::: warning PROJECTDESCRIPTION COMPILATION
-<!-- -->
-`tuist` CLI 取決於`ProjectDescription` 框架是否存在於建立的產品目錄中。如果`tuist`
-因為找不到`ProjectDescription` 框架而無法執行，請先建立`Tuist-Workspace` 方案。
-<!-- -->
-:::
+> [!WARNING]
+> **Projectdescription Compilation**
+>
+> `tuist` CLI 取決於`ProjectDescription` 框架是否存在於建立的產品目錄中。如果`tuist`
+> 因為找不到`ProjectDescription` 框架而無法執行，請先建立`Tuist-Workspace` 方案。
+
 
 ### 從終端{#from-the-terminal}
 

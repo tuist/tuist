@@ -18,13 +18,13 @@ identificar y organizar las características de su aplicación en diferentes
 capas. También presenta sugerencias, herramientas y consejos si decide utilizar
 esta arquitectura.
 
-::: info µCARACTERÍSTICAS
-<!-- -->
-Esta arquitectura se conocía anteriormente como µFeatures. La hemos rebautizado
-como The Modular Architecture (TMA) para reflejar mejor su propósito y los
-principios que la sustentan.
-<!-- -->
-:::
+> [!NOTE]
+> **Μcaracterísticas**
+>
+> Esta arquitectura se conocía anteriormente como µFeatures. La hemos rebautizado
+> como The Modular Architecture (TMA) para reflejar mejor su propósito y los
+> principios que la sustentan.
+
 
 ## Principio básico {#core-principle}
 
@@ -64,21 +64,21 @@ puedes imponer en tu proyecto gracias al DSL de Tuist.
 | `FeatureTesting`        | `FeatureInterface`          | Prueba de datos y mocks            |
 | `CaracterísticaEjemplo` | `FeatureTesting`, `Feature` | Ejemplo de aplicación              |
 
-::: tip UI Previews
-<!-- -->
-`Feature` puede utilizar `FeatureTesting` como activo de desarrollo para
-permitir previsualizaciones de la interfaz de usuario.
-<!-- -->
-:::
+> [!TIP]
+> **Ui Previews**
+>
+> `Feature` puede utilizar `FeatureTesting` como activo de desarrollo para
+> permitir previsualizaciones de la interfaz de usuario.
 
-::: advertencia DIRECTIVAS DE COMPILACIÓN EN LUGAR DE OBJETIVOS DE PRUEBA
-<!-- -->
-Como alternativa, puedes utilizar directivas del compilador para incluir datos
-de prueba y mocks en los objetivos `Feature` o `FeatureInterface` al compilar
-para `Debug`. Simplificas el gráfico, pero acabarás compilando código que no
-necesitarás para ejecutar la aplicación.
-<!-- -->
-:::
+
+> [!WARNING]
+> **Directivas De Compilación En Lugar De Objetivos De Prueba**
+>
+> Como alternativa, puedes utilizar directivas del compilador para incluir datos
+> de prueba y mocks en los objetivos `Feature` o `FeatureInterface` al compilar
+> para `Debug`. Simplificas el gráfico, pero acabarás compilando código que no
+> necesitarás para ejecutar la aplicación.
+
 
 ## Por qué un módulo {#why-a-module}
 
@@ -170,16 +170,16 @@ func productType() -> Product {
 ```
 
 
-::: advertencia BIBLIOTECAS FUSIBLES
-<!-- -->
-Apple intentó aliviar la incomodidad de cambiar entre bibliotecas estáticas y
-dinámicas introduciendo [bibliotecas
-fusionables](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
-Sin embargo, esto introduce no-determinismo en el tiempo de compilación que hace
-que tu compilación no sea reproducible y más difícil de optimizar, por lo que no
-recomendamos su uso.
-<!-- -->
-:::
+> [!WARNING]
+> **Bibliotecas Fusibles**
+>
+> Apple intentó aliviar la incomodidad de cambiar entre bibliotecas estáticas y
+> dinámicas introduciendo [bibliotecas
+> fusionables](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
+> Sin embargo, esto introduce no-determinismo en el tiempo de compilación que hace
+> que tu compilación no sea reproducible y más difícil de optimizar, por lo que no
+> recomendamos su uso.
+
 
 ## Código {#code}
 

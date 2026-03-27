@@ -30,12 +30,12 @@ Xcode. Это поможет вам подключить вашу среду к 
 <LocalizedLink href="/guides/features/previews">предварительные просмотры</LocalizedLink>, и
 <LocalizedLink href="/guides/features/registry">реестр</LocalizedLink>.
 
-::: info МИГРАЦИЯ СУЩЕСТВУЮЩЕГО ПРОЕКТА
-<!-- -->
-Если вы хотите перенести существующий проект в сгенерированные проекты, чтобы
-улучшить процесс разработки и воспользоваться преимуществами нашего
-<LocalizedLink href="/guides/features/cache">кэша</LocalizedLink>, ознакомьтесь
-с
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">руководством по миграции</LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> **Миграция Существующего Проекта**
+>
+> Если вы хотите перенести существующий проект в сгенерированные проекты, чтобы
+> улучшить процесс разработки и воспользоваться преимуществами нашего
+> <LocalizedLink href="/guides/features/cache">кэша</LocalizedLink>, ознакомьтесь
+> с
+> <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">руководством по миграции</LocalizedLink>.
+

@@ -14,13 +14,11 @@ los siguientes métodos de instalación para asegurar una instalación válida.*
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-::: info
-<!-- -->
-Mise es una alternativa recomendada a [Homebrew](https://brew.sh) si eres un
-equipo u organización que necesita asegurar versiones deterministas de
-herramientas a través de diferentes entornos.
-<!-- -->
-:::
+> [!NOTE]
+> Mise es una alternativa recomendada a [Homebrew](https://brew.sh) si eres un
+> equipo u organización que necesita asegurar versiones deterministas de
+> herramientas a través de diferentes entornos.
+
 
 Puedes instalar Tuist a través de cualquiera de los siguientes comandos:
 
@@ -53,14 +51,14 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
-<!-- -->
-Puede verificar que los binarios de su instalación han sido creados por nosotros
-ejecutando el siguiente comando, que comprueba si el equipo del certificado es
-`U6LC622NKF`:
+> [!TIP]
+> **Verifying The Authenticity Of The Binaries**
+>
+> Puede verificar que los binarios de su instalación han sido creados por nosotros
+> ejecutando el siguiente comando, que comprueba si el equipo del certificado es
+> `U6LC622NKF`:
+>
+> ```bash
+> curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
+> ```
 
-```bash
-curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
-```
-<!-- -->
-:::

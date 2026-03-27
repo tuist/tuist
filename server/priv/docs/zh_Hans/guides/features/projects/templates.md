@@ -13,11 +13,11 @@
 - 创建遵循给定架构的新功能：`tuist scaffold viper --name MyFeature` 。
 - 创建新项目：`tuist scaffold feature-project --name Home`
 
-::: info NON-OPINIONATED
-<!-- -->
-Tuist 对模板的内容和用途没有任何意见。它们只被要求放在特定的目录中。
-<!-- -->
-:::
+> [!NOTE]
+> **Non-opinionated**
+>
+> Tuist 对模板的内容和用途没有任何意见。它们只被要求放在特定的目录中。
+
 
 ## 定义模板{#defining-a-template}
 
@@ -78,8 +78,8 @@ tuist scaffold name_of_template --name Name --platform macos
 
 您还可以使用`.directory` 将整个文件夹复制到指定路径。
 
-::: tip PROJECT DESCRIPTION HELPERS
-<!-- -->
-模板支持使用 <LocalizedLink href="/guides/features/projects/code-sharing"> 项目描述助手</LocalizedLink>，以便在不同模板之间重复使用代码。
-<!-- -->
-:::
+> [!TIP]
+> **Project Description Helpers**
+>
+> 模板支持使用 <LocalizedLink href="/guides/features/projects/code-sharing"> 项目描述助手</LocalizedLink>，以便在不同模板之间重复使用代码。
+

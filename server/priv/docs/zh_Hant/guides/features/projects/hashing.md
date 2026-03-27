@@ -24,14 +24,14 @@
 我們散列執行指令`/usr/bin/xcrun swift --version` 所獲得的 Swift 版本，以防止因目標與二進檔之間的 Swift
 版本不匹配而導致編譯錯誤。
 
-::: info MODULE STABILITY
-<!-- -->
-先前版本的二進位緩存依賴`BUILD_LIBRARY_FOR_DISTRIBUTION` 建立設定來啟用 [module
-stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-並使用任何編譯器版本的二進位檔。然而，這會在不支援模組穩定性的目標專案中造成編譯問題。產生的二進位檔會與用來編譯的 Swift 版本綁定，而 Swift
-版本必須與用來編譯專案的版本相符。
-<!-- -->
-:::
+> [!NOTE]
+> **Module Stability**
+>
+> 先前版本的二進位緩存依賴`BUILD_LIBRARY_FOR_DISTRIBUTION` 建立設定來啟用 [module
+> stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
+> 並使用任何編譯器版本的二進位檔。然而，這會在不支援模組穩定性的目標專案中造成編譯問題。產生的二進位檔會與用來編譯的 Swift 版本綁定，而 Swift
+> 版本必須與用來編譯專案的版本相符。
+
 
 #### 組態{#configuration}
 
@@ -53,8 +53,8 @@ stability](https://www.swift.org/blog/library-evolution#enabling-library-evoluti
 如果哈希值仍然是非確定的，請告訴我們，我們可以協助除錯。
 
 
-::: info BETTER DEBUGGING EXPERIENCE PLANNED
-<!-- -->
-改善我們的除錯經驗在我們的路線圖中。print-hashes 指令缺乏瞭解差異的上下文，將被更容易使用的指令取代，該指令使用樹狀結構來顯示哈希值之間的差異。
-<!-- -->
-:::
+> [!NOTE]
+> **Better Debugging Experience Planned**
+>
+> 改善我們的除錯經驗在我們的路線圖中。print-hashes 指令缺乏瞭解差異的上下文，將被更容易使用的指令取代，該指令使用樹狀結構來顯示哈希值之間的差異。
+

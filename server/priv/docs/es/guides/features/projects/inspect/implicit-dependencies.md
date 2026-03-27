@@ -30,18 +30,18 @@ tuist inspect implicit-imports
 Si el comando detecta alguna importación implícita, sale con un código de salida
 distinto de cero.
 
-::: tip VALIDAR EN CI
-<!-- -->
-Recomendamos encarecidamente ejecutar este comando como parte de su
-<LocalizedLink href="/guides/integrations/continuous-integration">comando de integración continua</LocalizedLink> cada vez que se publique nuevo código.
-<!-- -->
-:::
+> [!TIP]
+> **Validar En Ci**
+>
+> Recomendamos encarecidamente ejecutar este comando como parte de su
+> <LocalizedLink href="/guides/integrations/continuous-integration">comando de integración continua</LocalizedLink> cada vez que se publique nuevo código.
 
-::: advertencia NO SE DETECTAN TODOS LOS CASOS IMPLÍCITOS
-<!-- -->
-Dado que Tuist se basa en el análisis estático del código para detectar
-dependencias implícitas, es posible que no detecte todos los casos. Por ejemplo,
-Tuist es incapaz de entender las importaciones condicionales a través de
-directivas del compilador en el código.
-<!-- -->
-:::
+
+> [!WARNING]
+> **No Se Detectan Todos Los Casos Implícitos**
+>
+> Dado que Tuist se basa en el análisis estático del código para detectar
+> dependencias implícitas, es posible que no detecte todos los casos. Por ejemplo,
+> Tuist es incapaz de entender las importaciones condicionales a través de
+> directivas del compilador en el código.
+

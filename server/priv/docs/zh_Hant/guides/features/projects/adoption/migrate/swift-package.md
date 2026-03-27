@@ -22,12 +22,12 @@ Swift Package Manager 和原生 Xcode 專案性能的比較：
 然而，我們並沒有看到任何跡象顯示這正在發生。事實上，我們看到的恰恰相反。他們正在做一些受到 Xcode
 啟發的決定，例如透過隱含的配置來達到便利性，<LocalizedLink href="/guides/features/projects/cost-of-convenience">如您所知，</LocalizedLink>這正是規模複雜性的來源。我們認為蘋果應該遵循第一原則，重新檢視一些作為依賴管理者而非專案管理者的決策，例如使用編譯語言作為定義專案的介面。
 
-::: tip SPM AS JUST A DEPENDENCY MANAGER
-<!-- -->
-Tuist 將 Swift Package Manager
-視為相依性管理器，而且是很棒的相依性管理器。我們用它來解決相依性並建立相依性。我們不用它來定義專案，因為它不是為此而設計的。
-<!-- -->
-:::
+> [!TIP]
+> **Spm As Just A Dependency Manager**
+>
+> Tuist 將 Swift Package Manager
+> 視為相依性管理器，而且是很棒的相依性管理器。我們用它來解決相依性並建立相依性。我們不用它來定義專案，因為它不是為此而設計的。
+
 
 ## 從 Swift 套件管理員遷移至 Tuist{#migrating-from-swift-package-manager-to-tuist}
 

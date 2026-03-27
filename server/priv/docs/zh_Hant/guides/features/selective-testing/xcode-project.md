@@ -7,11 +7,11 @@
 ---
 # Xcode 專案{#xcode-project}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
+
 
 您可以透過命令列選擇性地執行 Xcode 專案的測試。為此，您可以在`xcodebuild` 指令前加上`tuist` - 例如，`tuist
 xcodebuild test -scheme App` 。該命令會對您的專案進行切細處理，成功後，它會持久化切細值，以確定在未來的執行中有哪些變更。

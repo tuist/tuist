@@ -17,12 +17,12 @@ bazı senaryolardır:
   --name MyFeature`.
 - Yeni projeler oluşturun: `tuist scaffold feature-project --name Home`
 
-::: info NON-OPINIONATED
-<!-- -->
-Tuist, şablonlarınızın içeriği ve bunları ne için kullandığınız konusunda fikir
-sahibi değildir. Sadece belirli bir dizinde olmaları gerekmektedir.
-<!-- -->
-:::
+> [!NOTE]
+> **Non-opinionated**
+>
+> Tuist, şablonlarınızın içeriği ve bunları ne için kullandığınız konusunda fikir
+> sahibi değildir. Sadece belirli bir dizinde olmaları gerekmektedir.
+
 
 ## Bir şablon tanımlama {#defining-a-template}
 
@@ -72,12 +72,10 @@ let template = Template(
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: info
-<!-- -->
-Platform isteğe bağlı bir argüman olduğundan, komutu `--platform macos` argümanı
-olmadan da çağırabiliriz.
-<!-- -->
-:::
+> [!NOTE]
+> Platform isteğe bağlı bir argüman olduğundan, komutu `--platform macos` argümanı
+> olmadan da çağırabiliriz.
+
 
 `.string` ve `.files` yeterince esneklik sağlamıyorsa, `.file` durumu
 aracılığıyla [Stencil](https://stencil.fuller.li/en/latest/) şablonlama dilinden
@@ -93,9 +91,9 @@ name niteliğinin küçük harfli değerini almak için.
 Ayrıca, tüm klasörleri belirli bir yola kopyalama imkanı veren `.directory`
 adresini de kullanabilirsiniz.
 
-::: tip PROJECT DESCRIPTION HELPERS
-<!-- -->
-Şablonlar, kodun şablonlar arasında yeniden kullanılması için
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcılarının</LocalizedLink> kullanımını destekler.
-<!-- -->
-:::
+> [!TIP]
+> **Project Description Helpers**
+>
+> Şablonlar, kodun şablonlar arasında yeniden kullanılması için
+> <LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcılarının</LocalizedLink> kullanımını destekler.
+

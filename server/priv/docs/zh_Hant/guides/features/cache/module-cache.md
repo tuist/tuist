@@ -8,12 +8,12 @@
 
 # 模組快取{#module-cache}
 
-::: warning REQUIREMENTS
-<!-- -->
-- 一個 <LocalizedLink href="/guides/features/projects"> 產生的專案</LocalizedLink>
-- A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - 一個 <LocalizedLink href="/guides/features/projects"> 產生的專案</LocalizedLink>
+> - A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
+
 
 Tuist 模組快取提供了一種強大的方式，可將模組快取為二進位檔 (`.xcframework`s)
 並在不同環境中共用，從而優化您的建立時間。此功能可讓您利用先前產生的二進位檔，減少重複編譯的需要，並加快開發流程。
@@ -52,12 +52,10 @@ tuist test
 <!-- -->
 :::
 
-::: warning
-<!-- -->
-二進位快取是專為開發工作流程設計的功能，例如在模擬器或裝置上執行應用程式，或執行測試。它不適用於發行版的建立。歸檔應用程式時，請使用`--no-binary-cache`
-旗標，產生包含原始碼的專案。
-<!-- -->
-:::
+> [!WARNING]
+> 二進位快取是專為開發工作流程設計的功能，例如在模擬器或裝置上執行應用程式，或執行測試。它不適用於發行版的建立。歸檔應用程式時，請使用`--no-binary-cache`
+> 旗標，產生包含原始碼的專案。
+
 
 ## 快取設定檔{#cache-profiles}
 
@@ -105,11 +103,11 @@ tuist generate --no-binary-cache  # equivalent to --cache-profile none
 
 我們正努力支援依賴 XCTest 的函式庫和目標。
 
-::: info UPSTREAM DEPENDENCIES
-<!-- -->
-當目標不可快取時，上游的目標也會變成不可快取。例如，如果您有依賴圖形`A &gt; B` ，其中 A 依賴於 B，如果 B 是非快取，A 也將非快取。
-<!-- -->
-:::
+> [!NOTE]
+> **Upstream Dependencies**
+>
+> 當目標不可快取時，上游的目標也會變成不可快取。例如，如果您有依賴圖形`A &gt; B` ，其中 A 依賴於 B，如果 B 是非快取，A 也將非快取。
+
 
 ## 效率{#efficiency}
 
@@ -127,11 +125,11 @@ Xcode 的功能最大化。
 我們建議**在主分支** 的每次提交中執行 CI 作業，為快取記憶體加熱。這將確保快取記憶體中總是包含`main` 中變更的二進位檔，因此本機和 CI
 分支會以增量方式建立這些變更。
 
-::: tip CACHE WARMING USES BINARIES
-<!-- -->
-`tuist cache` 指令也利用二進位快取記憶體加速暖機。
-<!-- -->
-:::
+> [!TIP]
+> **Cache Warming Uses Binaries**
+>
+> `tuist cache` 指令也利用二進位快取記憶體加速暖機。
+
 
 以下是一些常見工作流程的範例：
 

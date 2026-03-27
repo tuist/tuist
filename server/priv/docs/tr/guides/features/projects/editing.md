@@ -33,13 +33,13 @@ Komut, genel bir dizinde bir Xcode projesi oluşturur ve bunu Xcode'da açar.
 Proje, tüm manifestolarınızın geçerli olduğundan emin olmak için
 oluşturabileceğiniz bir `Manifests` dizini içerir.
 
-::: info GLOB-RESOLVED MANIFESTS
-<!-- -->
-`tuist edit`, projenin kök dizininden ( `Tuist.swift` dosyasını içeren)
-`**/{Manifest}.swift` glob'unu kullanarak dahil edilecek manifestoları çözümler.
-Projenin kök dizininde geçerli bir `Tuist.swift` dosyası olduğundan emin olun.
-<!-- -->
-:::
+> [!NOTE]
+> **Glob-resolved Manifests**
+>
+> `tuist edit`, projenin kök dizininden ( `Tuist.swift` dosyasını içeren)
+> `**/{Manifest}.swift` glob'unu kullanarak dahil edilecek manifestoları çözümler.
+> Projenin kök dizininde geçerli bir `Tuist.swift` dosyası olduğundan emin olun.
+
 
 ### Manifesto dosyalarını yok sayma {#ignoring-manifest-files}
 

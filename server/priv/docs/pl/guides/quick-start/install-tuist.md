@@ -53,14 +53,14 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-::: wskazówka WERYFIKACJA AUTENTYCZNOŚCI BINARII
-<!-- -->
-Możesz zweryfikować, czy pliki binarne Twojej instalacji zostały zbudowane przez
-nas, uruchamiając następujące polecenie, które sprawdza, czy zespół certyfikatu
-to `U6LC622NKF`:
+> [!TIP]
+> **Weryfikacja Autentyczności Binarii**
+>
+> Możesz zweryfikować, czy pliki binarne Twojej instalacji zostały zbudowane przez
+> nas, uruchamiając następujące polecenie, które sprawdza, czy zespół certyfikatu
+> to `U6LC622NKF`:
+>
+> ```bash
+> curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
+> ```
 
-```bash
-curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
-```
-<!-- -->
-:::

@@ -7,13 +7,13 @@
 ---
 # Xcode build insights {#xcode-build-insights}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-- Tuist CLI 4.138.1 or later
-- A Xcode project
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> - Tuist CLI 4.138.1 or later
+> - A Xcode project
+
 
 Working on large projects should not require rebuilding the same code repeatedly. Tuist Build Insights lets you track build analytics so you can identify trends before local and CI build times become bottlenecks.
 
@@ -23,17 +23,13 @@ To start tracking local build times, you can leverage the `tuist inspect build` 
 
 ![Post-action for inspecting builds](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
-::: info
-<!-- -->
-Set the "Provide build settings from" field to the executable or your main build target to capture build configuration.
-<!-- -->
-:::
+> [!NOTE]
+> Set the "Provide build settings from" field to the executable or your main build target to capture build configuration.
 
-::: info
-<!-- -->
-If you are not using <LocalizedLink href="/guides/features/projects">generated projects</LocalizedLink>, the post-scheme action is not executed when the build fails.
-<!-- -->
-:::
+
+> [!NOTE]
+> If you are not using <LocalizedLink href="/guides/features/projects">generated projects</LocalizedLink>, the post-scheme action is not executed when the build fails.
+
 >
 > You can execute it in that case by setting `runPostActionsOnFailure` to `YES` in the relevant `project.pbxproj` `BuildAction`:
 >
@@ -52,29 +48,25 @@ For [Mise](https://mise.jdx.dev/), activate `tuist` in the post-action environme
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: tip MISE & PROJECT PATHS
-<!-- -->
-Your environment's `PATH` is not inherited by the scheme post action, so use Mise's absolute path. This depends on how you installed Mise. Build settings should be inherited from a target so `mise` can run from `$SRCROOT`.
-<!-- -->
-:::
+> [!TIP]
+> **Mise & Project Paths**
+>
+> Your environment's `PATH` is not inherited by the scheme post action, so use Mise's absolute path. This depends on how you installed Mise. Build settings should be inherited from a target so `mise` can run from `$SRCROOT`.
+
 
 Once logged in, local builds are tracked and available from the Tuist dashboard:
 
-::: tip
-<!-- -->
-To quickly access the dashboard, run `tuist project show --web` from the CLI.
-<!-- -->
-:::
+> [!TIP]
+> To quickly access the dashboard, run `tuist project show --web` from the CLI.
+
 
 ![Dashboard with build insights](/images/guides/features/build-insights/builds-dashboard.png)
 
 ## Generated projects {#generated-projects}
 
-::: info
-<!-- -->
-Auto-generated schemes automatically include the `tuist inspect build` post-action.
-<!-- -->
-:::
+> [!NOTE]
+> Auto-generated schemes automatically include the `tuist inspect build` post-action.
+
 >
 > If you do not want to track build insights in generated schemes, disable it using [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
 
@@ -145,11 +137,11 @@ tuist setup insights
 
 This runs a local daemon that samples metrics in the background. The data is picked up automatically by `tuist inspect build` and uploaded with the build report.
 
-::: tip CI
-<!-- -->
-Run `tuist setup insights` on your CI machines before building to capture machine metrics there as well.
-<!-- -->
-:::
+> [!TIP]
+> **Ci**
+>
+> Run `tuist setup insights` on your CI machines before building to capture machine metrics there as well.
+
 
 ## Custom metadata {#custom-metadata}
 

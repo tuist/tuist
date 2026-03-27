@@ -44,15 +44,15 @@ de diferentes maneras:
   incluir la lógica de tiempo de ejecución para cambiar las configuraciones
   mediante el uso de directivas del compilador.
 
-::: info Configuraciones no estándar
-<!-- -->
-Aunque Tuist admite configuraciones no estándar y las hace más fáciles de
-gestionar en comparación con los proyectos Xcode estándar, recibirás
-advertencias si las configuraciones no son coherentes en todo el gráfico de
-dependencias. Esto ayuda a garantizar la fiabilidad de la compilación y evita
-problemas relacionados con la configuración.
-<!-- -->
-:::
+> [!NOTE]
+> **Configuraciones No Estándar**
+>
+> Aunque Tuist admite configuraciones no estándar y las hace más fáciles de
+> gestionar en comparación con los proyectos Xcode estándar, recibirás
+> advertencias si las configuraciones no son coherentes en todo el gráfico de
+> dependencias. Esto ayuda a garantizar la fiabilidad de la compilación y evita
+> problemas relacionados con la configuración.
+
 
 ## Proyectos generados
 

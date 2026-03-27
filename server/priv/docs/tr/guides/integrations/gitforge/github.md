@@ -36,23 +36,23 @@ raporu yayınlar:
 ![Çekme isteği yorumunu gösteren bir
 resim](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: info REQUIREMENTS
-<!-- -->
-Yorum yalnızca CI çalışmalarınız
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>
-olduğunda yayınlanır.
-<!-- -->
-:::
+> [!NOTE]
+> **Requirements**
+>
+> Yorum yalnızca CI çalışmalarınız
+> <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>
+> olduğunda yayınlanır.
 
-::: info GITHUB_REF
-<!-- -->
-PR işlemiyle değil de örneğin GitHub yorumuyla tetiklenen özel bir iş akışınız
-varsa `GITHUB_REF` değişkeninin `refs/pull/<pr_number>/merge` veya
-`refs/pull/<pr_number>/head` olarak ayarlandığından emin olmanız
-gerekebilir.</pr_number></pr_number>
 
-İlgili komutu çalıştırabilirsiniz, örneğin `tuist share`, ön ekli `GITHUB_REF`
-ortam değişkeni ile: <code v-pre>GITHUB_REF="refs/pull/${{
-github.event.issue.number }}/head" tuist share</code>
-<!-- -->
-:::
+> [!NOTE]
+> **Github_ref**
+>
+> PR işlemiyle değil de örneğin GitHub yorumuyla tetiklenen özel bir iş akışınız
+> varsa `GITHUB_REF` değişkeninin `refs/pull/<pr_number>/merge` veya
+> `refs/pull/<pr_number>/head` olarak ayarlandığından emin olmanız
+> gerekebilir.</pr_number></pr_number>
+>
+> İlgili komutu çalıştırabilirsiniz, örneğin `tuist share`, ön ekli `GITHUB_REF`
+> ortam değişkeni ile: <code v-pre>GITHUB_REF="refs/pull/${{
+> github.event.issue.number }}/head" tuist share</code>
+

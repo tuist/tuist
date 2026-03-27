@@ -7,11 +7,11 @@
 ---
 # Xcode 프로젝트 {#xcode-project}
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
+
 
 명령줄을 통해 Xcode 프로젝트의 테스트를 선택적으로 실행할 수 있습니다. 이를 위해 `xcodebuild` 명령 앞에 `tuist` 를
 추가할 수 있습니다(예: `tuist xcodebuild test -scheme App`). 이 명령은 프로젝트를 해시하고 성공하면 해시를

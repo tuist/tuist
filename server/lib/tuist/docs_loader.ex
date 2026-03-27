@@ -24,14 +24,15 @@ defmodule Tuist.Docs.Loader do
   @script_setup_regex ~r/<script\s+setup>.*?<\/script>\s*/s
   @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)\s+\{#([\w-]+)\}\s*$/m
   @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
-  @vitepress_container_regex ~r/^:::\s*(\w[\w-]*)([ \t]+[^\n]+)?\s*\n(.*?)^:::\s*$/ms
+  @code_group_regex ~r/^:::[ \t]*code-group[ \t]*\n(.*?)^:::[ \t]*$/ms
   @github_alert_regex ~r/<div class="markdown-alert markdown-alert-(\w+)">\s*<p class="markdown-alert-title">([^<]*)<\/p>\s*(.*?)\s*<\/div>/s
+  @bold_title_regex ~r/\A\s*<p><strong>([^<]+)<\/strong><\/p>\s*/s
   @home_cards_regex ~r/<HomeCards>\s*(.*?)\s*<\/HomeCards>/s
   @home_card_icon_regex ~r/\s+icon="[^"]*"/
   @home_card_regex ~r/<HomeCard\s+([^>]*?)\/>/s
   @home_card_attr_regex ~r/(\w+)="([^"]*)"/
   @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
-  # Lookup maps
+
   @github_alert_type_to_status %{
     "note" => "information",
     "tip" => "success",
@@ -40,14 +41,6 @@ defmodule Tuist.Docs.Loader do
     "caution" => "error"
   }
 
-  @admonition_type_to_status %{
-    "info" => "information",
-    "tip" => "success",
-    "warning" => "warning",
-    "danger" => "error"
-  }
-
-  # EEx templates
   @github_alert_template """
   <div class="noora-alert tuist-admonition" data-type="secondary" data-status="<%= status %>" data-size="large">\
   <div data-part="icon"><%= icon %></div>\
@@ -56,20 +49,6 @@ defmodule Tuist.Docs.Loader do
   <div data-part="description"><%= content %></div>\
   </div>\
   </div>\
-  """
-
-  @admonition_template """
-  <div class="noora-alert tuist-admonition" data-type="secondary" data-status="<%= status %>" data-size="large">\
-  <div data-part="icon"><%= icon %></div>\
-  <div data-part="column">\
-  <span data-part="title"><%= title_text %></span>\
-  <div data-part="description">
-
-  <%= content %>
-
-  </div>\
-  </div>\
-  </div>
   """
 
   def load_pages! do
@@ -222,7 +201,7 @@ defmodule Tuist.Docs.Loader do
       |> localize_link_components(locale)
       |> convert_home_cards(locale)
       |> strip_custom_heading_ids()
-      |> convert_vitepress_containers()
+      |> convert_code_groups()
 
     [markdown: processed_markdown]
     |> MDEx.new()
@@ -247,9 +226,16 @@ defmodule Tuist.Docs.Loader do
   end
 
   defp convert_github_alerts(html) do
-    Regex.replace(@github_alert_regex, html, fn _, type, title, content ->
+    Regex.replace(@github_alert_regex, html, fn _, type, default_title, content ->
       status = Map.get(@github_alert_type_to_status, type, "information")
       icon = admonition_icon(status)
+
+      {title, content} =
+        case Regex.run(@bold_title_regex, content) do
+          [full_match, bold_title] -> {bold_title, String.replace_prefix(content, full_match, "")}
+          _ -> {default_title, content}
+        end
+
       EEx.eval_string(@github_alert_template, status: status, icon: icon, title: title, content: content)
     end)
   end
@@ -342,13 +328,9 @@ defmodule Tuist.Docs.Loader do
     end)
   end
 
-  defp convert_vitepress_containers(markdown) do
-    Regex.replace(@vitepress_container_regex, markdown, fn _, type, title, content ->
-      if type == "code-group" do
-        convert_code_group(content)
-      else
-        convert_admonition(type, title, content)
-      end
+  defp convert_code_groups(markdown) do
+    Regex.replace(@code_group_regex, markdown, fn _, content ->
+      convert_code_group(content)
     end)
   end
 
@@ -402,37 +384,9 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
-  defp convert_admonition(type, title, content) do
-    title = if title, do: String.trim(title)
-    status = Map.get(@admonition_type_to_status, type, "information")
-    icon = admonition_icon(status)
-    title_text = if title && title != "", do: capitalize_title(title), else: default_admonition_title(type)
-
-    cleaned_content =
-      content
-      |> String.replace(~r/<!--\s*-->/, "")
-      |> String.trim()
-
-    EEx.eval_string(@admonition_template, status: status, icon: icon, title_text: title_text, content: cleaned_content)
-  end
-
   defp admonition_icon("warning"), do: @alert_triangle_icon
   defp admonition_icon("success"), do: @circle_check_icon
   defp admonition_icon(_), do: @alert_circle_icon
-
-  defp default_admonition_title("info"), do: "Info"
-  defp default_admonition_title("tip"), do: "Tip"
-  defp default_admonition_title("warning"), do: "Warning"
-  defp default_admonition_title("danger"), do: "Danger"
-  defp default_admonition_title(type), do: String.capitalize(type)
-
-  defp capitalize_title(title) do
-    title
-    |> String.split(" ")
-    |> Enum.map_join(" ", fn word ->
-      word |> String.downcase() |> String.capitalize()
-    end)
-  end
 
   defp extract_headings(markdown) do
     cleaned = String.replace(markdown, @script_setup_regex, "")

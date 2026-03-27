@@ -7,11 +7,11 @@
 ---
 # رؤى الحزمة {#bundle-size}
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع Tuist</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع Tuist</LocalizedLink>
+
 
 كلما أضفت المزيد من الميزات إلى تطبيقك، يزداد حجم حزمة تطبيقك باستمرار. في حين
 أن بعض النمو في حجم الحزمة أمر لا مفر منه مع شحن المزيد من التعليمات البرمجية
@@ -66,11 +66,11 @@ jobs:
 
 ## تعليقات طلب السحب/الدمج {#pullmerge-request-comments}
 
-::: warning GIT PLATFORM INTEGRATION REQUIRED
-<!-- -->
-للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج مشروعك <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink> مع <LocalizedLink href="/guides/server/authentication">منصة Git</LocalizedLink>.
-<!-- -->
-:::
+> [!WARNING]
+> **Git Platform Integration Required**
+>
+> للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج مشروعك <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink> مع <LocalizedLink href="/guides/server/authentication">منصة Git</LocalizedLink>.
+
 
 بمجرد توصيل مشروع Tuist الخاص بك مع منصة Git الخاصة بك مثل
 [GitHub](https://github.com)، سيقوم Tuist بنشر تعليق مباشرة في طلبات السحب/الدمج

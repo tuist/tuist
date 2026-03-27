@@ -51,13 +51,13 @@ Zawiłości i szczegóły implementacji są abstrahowane od Ciebie.
 W poniższych sekcjach dowiesz się, jak zadeklarować zależności w swoim
 projekcie.
 
-::: tip GRAPH VALIDATION
-<!-- -->
-Tuist waliduje graf podczas generowania projektu, aby upewnić się, że nie ma
-cykli i że wszystkie zależności są prawidłowe. Dzięki temu każdy zespół może
-wziąć udział w ewolucji grafu zależności bez obawy o jego uszkodzenie.
-<!-- -->
-:::
+> [!TIP]
+> **Graph Validation**
+>
+> Tuist waliduje graf podczas generowania projektu, aby upewnić się, że nie ma
+> cykli i że wszystkie zależności są prawidłowe. Dzięki temu każdy zespół może
+> wziąć udział w ewolucji grafu zależności bez obawy o jego uszkodzenie.
+
 
 ## Zależności lokalne {#local-dependencies}
 
@@ -73,13 +73,13 @@ celu `` można przekazać argument `dependencies` z dowolną z poniższych opcji
 - `SDK`: Deklaruje zależność z systemowym SDK.
 - `XCTest`: Deklaruje zależność z XCTest.
 
-::: info DEPENDENCY CONDITIONS
-<!-- -->
-Każdy typ zależności akceptuje `warunek` opcję warunkowego łączenia zależności w
-oparciu o platformę. Domyślnie łączy ona zależność dla wszystkich platform
-obsługiwanych przez cel.
-<!-- -->
-:::
+> [!NOTE]
+> **Dependency Conditions**
+>
+> Każdy typ zależności akceptuje `warunek` opcję warunkowego łączenia zależności w
+> oparciu o platformę. Domyślnie łączy ona zależność dla wszystkich platform
+> obsługiwanych przez cel.
+
 
 ## Zależności zewnętrzne {#external-dependencies}
 
@@ -145,14 +145,14 @@ let package = Package(
 <!-- -->
 :::
 
-::: tip PACKAGE SETTINGS
-<!-- -->
-Instancja `PackageSettings` opakowana w dyrektywę kompilatora pozwala
-skonfigurować sposób integracji pakietów. Na przykład w powyższym przykładzie
-służy do zastąpienia domyślnego typu produktu używanego dla pakietów. Domyślnie
-nie powinno to być potrzebne.
-<!-- -->
-:::
+> [!TIP]
+> **Package Settings**
+>
+> Instancja `PackageSettings` opakowana w dyrektywę kompilatora pozwala
+> skonfigurować sposób integracji pakietów. Na przykład w powyższym przykładzie
+> służy do zastąpienia domyślnego typu produktu używanego dla pakietów. Domyślnie
+> nie powinno to być potrzebne.
+
 
 > [Jeśli projekt używa niestandardowych konfiguracji kompilacji (konfiguracji
 > innych niż standardowe `Debug` i `Release`), należy je określić w
@@ -224,13 +224,13 @@ let project = Project(
 <!-- -->
 :::
 
-::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
-<!-- -->
-Schematy **** nie są automatycznie tworzone dla projektów Swift Package, aby
-zachować czystość listy schematów. Można je utworzyć za pomocą interfejsu
-użytkownika Xcode.
-<!-- -->
-:::
+> [!NOTE]
+> **No Schemes Generated For External Packages**
+>
+> Schematy **** nie są automatycznie tworzone dla projektów Swift Package, aby
+> zachować czystość listy schematów. Można je utworzyć za pomocą interfejsu
+> użytkownika Xcode.
+
 
 #### Domyślna integracja Xcode {#xcodes-default-integration}
 
@@ -254,14 +254,14 @@ let target = .target(name: "MyTarget", dependencies: [
 W przypadku makr Swift i wtyczek Build Tool należy użyć odpowiednio typów
 `.macro` i `.plugin`.
 
-::: warning SPM Build Tool Plugins
-<!-- -->
-Wtyczki narzędzi kompilacji SPM muszą być zadeklarowane przy użyciu mechanizmu
-[Domyślna integracja Xcode](#xcode-s-default-integration), nawet jeśli używana
-jest integracja Tuist [Oparta na
-XcodeProj](#tuist-s-xcodeproj-based-integration) dla zależności projektu.
-<!-- -->
-:::
+> [!WARNING]
+> **Spm Build Tool Plugins**
+>
+> Wtyczki narzędzi kompilacji SPM muszą być zadeklarowane przy użyciu mechanizmu
+> [Domyślna integracja Xcode](#xcode-s-default-integration), nawet jeśli używana
+> jest integracja Tuist [Oparta na
+> XcodeProj](#tuist-s-xcodeproj-based-integration) dla zależności projektu.
+
 
 Praktycznym zastosowaniem wtyczki narzędzia kompilacji SPM jest wykonywanie
 lintingu kodu podczas fazy kompilacji Xcode "Run Build Tool Plug-ins". W
@@ -328,14 +328,14 @@ carthage update
 tuist generate
 ```
 
-::: warning BUILD AND TEST
-<!-- -->
-Jeśli budujesz i testujesz swój projekt za pomocą `xcodebuild build` i `tuist
-test`, musisz również upewnić się, że zależności rozwiązane przez Carthage są
-obecne, uruchamiając polecenie `carthage update` przed budowaniem lub
-testowaniem.
-<!-- -->
-:::
+> [!WARNING]
+> **Build And Test**
+>
+> Jeśli budujesz i testujesz swój projekt za pomocą `xcodebuild build` i `tuist
+> test`, musisz również upewnić się, że zależności rozwiązane przez Carthage są
+> obecne, uruchamiając polecenie `carthage update` przed budowaniem lub
+> testowaniem.
+
 
 ### CocoaPods {#cocoapods}
 
@@ -352,14 +352,12 @@ tuist generate
 pod install
 ```
 
-::: warning
-<!-- -->
-Zależności CocoaPods nie są kompatybilne z przepływami pracy, takimi jak `build`
-lub `test`, które uruchamiają `xcodebuild` zaraz po wygenerowaniu projektu. Są
-one również niekompatybilne z buforowaniem binarnym i testowaniem selektywnym,
-ponieważ logika fingerprintingu nie uwzględnia zależności Pods.
-<!-- -->
-:::
+> [!WARNING]
+> Zależności CocoaPods nie są kompatybilne z przepływami pracy, takimi jak `build`
+> lub `test`, które uruchamiają `xcodebuild` zaraz po wygenerowaniu projektu. Są
+> one również niekompatybilne z buforowaniem binarnym i testowaniem selektywnym,
+> ponieważ logika fingerprintingu nie uwzględnia zależności Pods.
+
 
 ## Statyczne lub dynamiczne {#static-or-dynamic}
 
@@ -413,13 +411,13 @@ aby zapewnić poprawność wynikowych plików binarnych. W związku z tym nasze
 stanowisko polega na dostarczaniu zasobów, zwykle w postaci dokumentacji, w celu
 podejmowania właściwych decyzji.
 
-::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
-<!-- -->
-Pakiet Swift, który integruje wiele projektów, to [The Composable
-Architecture](https://github.com/pointfreeco/swift-composable-architecture).
-Więcej szczegółów można znaleźć w [tej sekcji](#the-composable-architecture).
-<!-- -->
-:::
+> [!TIP]
+> **Example: The Composable Architecture**
+>
+> Pakiet Swift, który integruje wiele projektów, to [The Composable
+> Architecture](https://github.com/pointfreeco/swift-composable-architecture).
+> Więcej szczegółów można znaleźć w [tej sekcji](#the-composable-architecture).
+
 
 ### Scenariusze {#scenarios}
 
@@ -544,13 +542,13 @@ konfiguracyjne](https://github.com/pointfreeco/swift-sharing/issues/150#issuecom
 Poniższa konfiguracja połączy wszystko dynamicznie - więc aplikacja + cele
 testowe i podglądy SwiftUI działają.
 
-::: tip STATIC OR DYNAMIC
-<!-- -->
-Dynamiczne linkowanie nie zawsze jest zalecane. Więcej szczegółów można znaleźć
-w sekcji [Statyczne lub dynamiczne](#static-or-dynamic). W tym przykładzie
-wszystkie zależności są łączone dynamicznie bez warunków dla uproszczenia.
-<!-- -->
-:::
+> [!TIP]
+> **Static Or Dynamic**
+>
+> Dynamiczne linkowanie nie zawsze jest zalecane. Więcej szczegółów można znaleźć
+> w sekcji [Statyczne lub dynamiczne](#static-or-dynamic). W tym przykładzie
+> wszystkie zależności są łączone dynamicznie bez warunków dla uproszczenia.
+
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 6.0
@@ -599,11 +597,9 @@ let packageSettings = PackageSettings(
 #endif
 ```
 
-::: warning
-<!-- -->
-Zamiast `import Sharing` należy `import SwiftSharing`.
-<!-- -->
-:::
+> [!WARNING]
+> Zamiast `import Sharing` należy `import SwiftSharing`.
+
 
 ### Przejściowe zależności statyczne wyciekają przez `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 

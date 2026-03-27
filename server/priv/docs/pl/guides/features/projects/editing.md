@@ -33,14 +33,14 @@ Polecenie tworzy projekt Xcode w katalogu globalnym i otwiera go w Xcode.
 Projekt zawiera katalog `Manifests`, który można skompilować, aby upewnić się,
 że wszystkie manifesty są prawidłowe.
 
-::: info GLOB-RESOLVED MANIFESTS
-<!-- -->
-`tuist edit` rozwiązuje manifesty, które mają być dołączone przy użyciu globu
-`**/{Manifest}.swift` z katalogu głównego projektu (zawierającego plik
-`Tuist.swift` ). Upewnij się, że w katalogu głównym projektu znajduje się
-poprawny plik `Tuist.swift`.
-<!-- -->
-:::
+> [!NOTE]
+> **Glob-resolved Manifests**
+>
+> `tuist edit` rozwiązuje manifesty, które mają być dołączone przy użyciu globu
+> `**/{Manifest}.swift` z katalogu głównego projektu (zawierającego plik
+> `Tuist.swift` ). Upewnij się, że w katalogu głównym projektu znajduje się
+> poprawny plik `Tuist.swift`.
+
 
 ### Ignorowanie plików manifestu {#ignoring-manifest-files}
 

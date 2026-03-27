@@ -25,10 +25,10 @@ tuist init
 Xcode
 專案或工作區的步驟。它會幫助您將設定連線至遠端伺服器，讓您可以使用<LocalizedLink href="/guides/features/selective-testing">選擇性測試</LocalizedLink>、<LocalizedLink href="/guides/features/previews">預覽</LocalizedLink>和<LocalizedLink href="/guides/features/registry">註冊表</LocalizedLink>等功能。
 
-::: info MIGRATE AN EXISTING PROJECT
-<!-- -->
-如果您想要將現有專案遷移至已產生的專案，以改善開發人員的經驗，並利用我們的
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink> 優勢，請參閱我們的
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration 指南</LocalizedLink>。
-<!-- -->
-:::
+> [!NOTE]
+> **Migrate An Existing Project**
+>
+> 如果您想要將現有專案遷移至已產生的專案，以改善開發人員的經驗，並利用我們的
+> <LocalizedLink href="/guides/features/cache">cache</LocalizedLink> 優勢，請參閱我們的
+> <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration 指南</LocalizedLink>。
+

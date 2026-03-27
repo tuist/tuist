@@ -29,19 +29,19 @@ tuist inspect implicit-imports
 Jeśli polecenie wykryje jakikolwiek niejawny import, zakończy działanie z kodem
 wyjścia innym niż zero.
 
-::: tip VALIDATE IN CI
-<!-- -->
-Zdecydowanie zalecamy uruchamianie tego polecenia jako części polecenia
-<LocalizedLink href="/guides/integrations/continuous-integration">ciągłej integracji</LocalizedLink> za każdym razem, gdy nowy kod jest przesyłany w górę
-strumienia.
-<!-- -->
-:::
+> [!TIP]
+> **Validate In Ci**
+>
+> Zdecydowanie zalecamy uruchamianie tego polecenia jako części polecenia
+> <LocalizedLink href="/guides/integrations/continuous-integration">ciągłej integracji</LocalizedLink> za każdym razem, gdy nowy kod jest przesyłany w górę
+> strumienia.
 
-::: warning NOT ALL IMPLICIT CASES ARE DETECTED
-<!-- -->
-Ponieważ Tuist opiera się na statycznej analizie kodu w celu wykrycia ukrytych
-zależności, może nie wychwycić wszystkich przypadków. Na przykład, Tuist nie
-jest w stanie zrozumieć importu warunkowego poprzez dyrektywy kompilatora w
-kodzie.
-<!-- -->
-:::
+
+> [!WARNING]
+> **Not All Implicit Cases Are Detected**
+>
+> Ponieważ Tuist opiera się na statycznej analizie kodu w celu wykrycia ukrytych
+> zależności, może nie wychwycić wszystkich przypadków. Na przykład, Tuist nie
+> jest w stanie zrozumieć importu warunkowego poprzez dyrektywy kompilatora w
+> kodzie.
+

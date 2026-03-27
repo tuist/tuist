@@ -16,12 +16,10 @@ eklenmesini istiyorsanız, bunu şu şekilde ayarlayabilirsiniz:
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-::: warning
-<!-- -->
-Etki alanını ayarladığınız kuruluşa bağlı bir e-posta kullanarak Google'da
-kimliğinizin doğrulanmış olması gerekir.
-<!-- -->
-:::
+> [!WARNING]
+> Etki alanını ayarladığınız kuruluşa bağlı bir e-posta kullanarak Google'da
+> kimliğinizin doğrulanmış olması gerekir.
+
 
 ## Okta {#okta}
 
@@ -64,12 +62,10 @@ yapılandırmanız gerekecektir:
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-::: warning
-<!-- -->
-Tuist şu anda Okta organizasyonunuzdan kullanıcıların otomatik olarak
-sağlanmasını ve kaldırılmasını desteklemediğinden, kullanıcıların başlangıçta
-Okta kontrol panelleri aracılığıyla oturum açmaları gerekir. Okta panosu
-üzerinden oturum açtıklarında, Tuist organizasyonunuza otomatik olarak
-ekleneceklerdir.
-<!-- -->
-:::
+> [!WARNING]
+> Tuist şu anda Okta organizasyonunuzdan kullanıcıların otomatik olarak
+> sağlanmasını ve kaldırılmasını desteklemediğinden, kullanıcıların başlangıçta
+> Okta kontrol panelleri aracılığıyla oturum açmaları gerekir. Okta panosu
+> üzerinden oturum açtıklarında, Tuist organizasyonunuza otomatik olarak
+> ekleneceklerdir.
+

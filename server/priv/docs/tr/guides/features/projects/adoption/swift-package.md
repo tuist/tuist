@@ -11,23 +11,21 @@ Tuist, `Package.swift` adresini projeleriniz için bir DSL olarak kullanmayı
 destekler ve paket hedeflerinizi yerel bir Xcode projesine ve hedeflerine
 dönüştürür.
 
-::: warning
-<!-- -->
-Bu özelliğin amacı, geliştiricilerin Swift paketi içinde Tuist'i benimsemenin
-etkisini değerlendirmeleri için kolay bir yol sağlamaktır. Bu nedenle, Swift
-paketi Paket Yöneticisi özelliklerinin tamamını desteklemeyi veya Tuist'in
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcıları</LocalizedLink> gibi benzersiz özelliklerini paketler dünyasına
-getirmeyi planlamıyoruz.
-<!-- -->
-:::
+> [!WARNING]
+> Bu özelliğin amacı, geliştiricilerin Swift paketi içinde Tuist'i benimsemenin
+> etkisini değerlendirmeleri için kolay bir yol sağlamaktır. Bu nedenle, Swift
+> paketi Paket Yöneticisi özelliklerinin tamamını desteklemeyi veya Tuist'in
+> <LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcıları</LocalizedLink> gibi benzersiz özelliklerini paketler dünyasına
+> getirmeyi planlamıyoruz.
 
-::: info ROOT DIRECTORY
-<!-- -->
-Tuist komutları, kökü bir `Tuist` veya bir `.git` dizini ile tanımlanan belirli
-bir
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">dizin yapısı</LocalizedLink> bekler.
-<!-- -->
-:::
+
+> [!NOTE]
+> **Root Directory**
+>
+> Tuist komutları, kökü bir `Tuist` veya bir `.git` dizini ile tanımlanan belirli
+> bir
+> <LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">dizin yapısı</LocalizedLink> bekler.
+
 
 ## Tuist'i bir Swift paketi ile Kullanma {#using-tuist-with-a-swift-package}
 

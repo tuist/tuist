@@ -51,14 +51,14 @@ resto. Las complejidades y los detalles de implementación se abstraen de ti.
 
 En las siguientes secciones aprenderás a declarar dependencias en tu proyecto.
 
-::: tip GRAPH VALIDATION
-<!-- -->
-Tuist valida el grafo al generar el proyecto para asegurarse de que no hay
-ciclos y de que todas las dependencias son válidas. Gracias a ello, cualquier
-equipo puede participar en la evolución del grafo de dependencias sin
-preocuparse por romperlo.
-<!-- -->
-:::
+> [!TIP]
+> **Graph Validation**
+>
+> Tuist valida el grafo al generar el proyecto para asegurarse de que no hay
+> ciclos y de que todas las dependencias son válidas. Gracias a ello, cualquier
+> equipo puede participar en la evolución del grafo de dependencias sin
+> preocuparse por romperlo.
+
 
 ## Dependencias locales {#local-dependencies}
 
@@ -74,13 +74,13 @@ pasar el argumento `dependencies` con cualquiera de las siguientes opciones:
 - `SDK`: Declara una dependencia con un SDK del sistema.
 - `XCTest`: Declara una dependencia con XCTest.
 
-::: info DEPENDENCY CONDITIONS
-<!-- -->
-Cada tipo de dependencia acepta la opción `condition` para vincular
-condicionalmente la dependencia en función de la plataforma. Por defecto,
-vincula la dependencia para todas las plataformas que admite el destino.
-<!-- -->
-:::
+> [!NOTE]
+> **Dependency Conditions**
+>
+> Cada tipo de dependencia acepta la opción `condition` para vincular
+> condicionalmente la dependencia en función de la plataforma. Por defecto,
+> vincula la dependencia para todas las plataformas que admite el destino.
+
 
 ## Dependencias externas {#external-dependencies}
 
@@ -147,14 +147,14 @@ let package = Package(
 <!-- -->
 :::
 
-::: tip PACKAGE SETTINGS
-<!-- -->
-La instancia `PackageSettings` envuelta en una directiva de compilador permite
-configurar cómo se integran los paquetes. Por ejemplo, en el ejemplo anterior se
-utiliza para anular el tipo de producto por defecto utilizado para los paquetes.
-Por defecto, no debería necesitarla.
-<!-- -->
-:::
+> [!TIP]
+> **Package Settings**
+>
+> La instancia `PackageSettings` envuelta en una directiva de compilador permite
+> configurar cómo se integran los paquetes. Por ejemplo, en el ejemplo anterior se
+> utiliza para anular el tipo de producto por defecto utilizado para los paquetes.
+> Por defecto, no debería necesitarla.
+
 
 > [IMPORTANTE] CONFIGURACIONES DE CONSTRUCCIÓN PERSONALIZADAS Si su proyecto
 > utiliza configuraciones de construcción personalizadas (configuraciones
@@ -228,13 +228,13 @@ let project = Project(
 <!-- -->
 :::
 
-::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
-<!-- -->
-Los esquemas **** no se crean automáticamente para los proyectos de paquetes
-Swift para mantener limpia la lista de esquemas. Puede crearlos a través de la
-interfaz de usuario de Xcode.
-<!-- -->
-:::
+> [!NOTE]
+> **No Schemes Generated For External Packages**
+>
+> Los esquemas **** no se crean automáticamente para los proyectos de paquetes
+> Swift para mantener limpia la lista de esquemas. Puede crearlos a través de la
+> interfaz de usuario de Xcode.
+
 
 #### Integración por defecto de Xcode {#xcodes-default-integration}
 
@@ -258,15 +258,15 @@ let target = .target(name: "MyTarget", dependencies: [
 Para las macros Swift y los plugins de herramientas de compilación, deberá
 utilizar los tipos `.macro` y `.plugin` respectivamente.
 
-::: warning SPM Build Tool Plugins
-<!-- -->
-Los plugins de la herramienta de compilación SPM deben ser declarados usando el
-mecanismo de [integración por defecto de Xcode](#xcode-s-default-integration),
-incluso cuando se usa [integración basada en
-XcodeProj](#tuist-s-xcodeproj-based-integration) de Tuist para las dependencias
-de tu proyecto.
-<!-- -->
-:::
+> [!WARNING]
+> **Spm Build Tool Plugins**
+>
+> Los plugins de la herramienta de compilación SPM deben ser declarados usando el
+> mecanismo de [integración por defecto de Xcode](#xcode-s-default-integration),
+> incluso cuando se usa [integración basada en
+> XcodeProj](#tuist-s-xcodeproj-based-integration) de Tuist para las dependencias
+> de tu proyecto.
+
 
 Una aplicación práctica de un plugin de herramientas de compilación SPM es
 realizar la limpieza de código durante la fase de compilación de Xcode "Ejecutar
@@ -336,14 +336,14 @@ carthage update
 tuist generate
 ```
 
-::: warning BUILD AND TEST
-<!-- -->
-Si construyes y pruebas tu proyecto a través de `xcodebuild build` y `tuist
-test`, necesitarás igualmente asegurarte de que las dependencias resueltas por
-Carthage están presentes ejecutando el comando `carthage update` antes de
-construir o probar.
-<!-- -->
-:::
+> [!WARNING]
+> **Build And Test**
+>
+> Si construyes y pruebas tu proyecto a través de `xcodebuild build` y `tuist
+> test`, necesitarás igualmente asegurarte de que las dependencias resueltas por
+> Carthage están presentes ejecutando el comando `carthage update` antes de
+> construir o probar.
+
 
 ### CocoaPods {#cocoapods}
 
@@ -360,15 +360,13 @@ tuist generate
 pod install
 ```
 
-::: advertencia
-<!-- -->
-Las dependencias de CocoaPods no son compatibles con flujos de trabajo como
-`build` o `test` que ejecutan `xcodebuild` justo después de generar el proyecto.
-También son incompatibles con el almacenamiento en caché de binarios y las
-pruebas selectivas, ya que la lógica de huella digital no tiene en cuenta las
-dependencias de Pods.
-<!-- -->
-:::
+> [!WARNING]
+> Las dependencias de CocoaPods no son compatibles con flujos de trabajo como
+> `build` o `test` que ejecutan `xcodebuild` justo después de generar el proyecto.
+> También son incompatibles con el almacenamiento en caché de binarios y las
+> pruebas selectivas, ya que la lógica de huella digital no tiene en cuenta las
+> dependencias de Pods.
+
 
 ## Estática o dinámica {#static-or-dynamic}
 
@@ -422,13 +420,13 @@ para asegurarnos de que los binarios resultantes son correctos. Por lo tanto, la
 postura que adoptamos es proporcionarle los recursos, normalmente en forma de
 documentación, para que tome las decisiones correctas.
 
-::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
-<!-- -->
-Un paquete Swift que muchos proyectos integran es [The Composable
-Architecture](https://github.com/pointfreeco/swift-composable-architecture). Ver
-más detalles en [esta sección](#the-composable-architecture).
-<!-- -->
-:::
+> [!TIP]
+> **Example: The Composable Architecture**
+>
+> Un paquete Swift que muchos proyectos integran es [The Composable
+> Architecture](https://github.com/pointfreeco/swift-composable-architecture). Ver
+> más detalles en [esta sección](#the-composable-architecture).
+
 
 ### Escenarios {#scenarios}
 
@@ -558,13 +556,13 @@ La siguiente configuración enlazará todo dinámicamente - por lo que la
 aplicación + los objetivos de prueba y las vistas previas de SwiftUI están
 funcionando.
 
-::: tip STATIC OR DYNAMIC
-<!-- -->
-No siempre se recomienda la vinculación dinámica. Véase la sección [Estático o
-dinámico](#static-or-dynamic) para más detalles. En este ejemplo, todas las
-dependencias se enlazan dinámicamente sin condiciones por simplicidad.
-<!-- -->
-:::
+> [!TIP]
+> **Static Or Dynamic**
+>
+> No siempre se recomienda la vinculación dinámica. Véase la sección [Estático o
+> dinámico](#static-or-dynamic) para más detalles. En este ejemplo, todas las
+> dependencias se enlazan dinámicamente sin condiciones por simplicidad.
+
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 6.0
@@ -613,11 +611,9 @@ let packageSettings = PackageSettings(
 #endif
 ```
 
-::: advertencia
-<!-- -->
-En lugar de `import Sharing` tendrás que `import SwiftSharing`.
-<!-- -->
-:::
+> [!WARNING]
+> En lugar de `import Sharing` tendrás que `import SwiftSharing`.
+
 
 ### Fugas de dependencias estáticas transitivas a través de `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
@@ -632,14 +628,12 @@ dependencia estática utilizando
 internal import StaticModule
 ```
 
-::: info
-<!-- -->
-El nivel de acceso en las importaciones se incluyó en Swift 6. Si utiliza
-versiones anteriores de Swift, deberá utilizar
-<LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>
-en su lugar:
-<!-- -->
-:::
+> [!NOTE]
+> El nivel de acceso en las importaciones se incluyó en Swift 6. Si utiliza
+> versiones anteriores de Swift, deberá utilizar
+> <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>
+> en su lugar:
+
 
 ```swift
 @_implementationOnly import StaticModule

@@ -22,24 +22,20 @@ En cada ejecución, crea un archivo de registro en
 utilizar `$TUIST_XDG_STATE_HOME` para establecer un directorio de estado
 específico de Tuist, que tiene prioridad sobre `$XDG_STATE_HOME`.
 
-::: consejo
-<!-- -->
-Obtenga más información sobre la organización de directorios de Tuist y sobre
-cómo configurar directorios personalizados en la documentación
-<LocalizedLink href="/cli/directories">Directorios</LocalizedLink>.
-<!-- -->
-:::
+> [!TIP]
+> Obtenga más información sobre la organización de directorios de Tuist y sobre
+> cómo configurar directorios personalizados en la documentación
+> <LocalizedLink href="/cli/directories">Directorios</LocalizedLink>.
+
 
 Por defecto, la CLI muestra la ruta de logs cuando la ejecución finaliza
 inesperadamente. Si no lo hace, puede encontrar los registros en la ruta
 mencionada anteriormente (es decir, el archivo de registro más reciente).
 
-::: advertencia
-<!-- -->
-La información sensible no se redacta, así que tenga cuidado al compartir los
-registros.
-<!-- -->
-:::
+> [!WARNING]
+> La información sensible no se redacta, así que tenga cuidado al compartir los
+> registros.
+
 
 ### Integración continua {#diagnose-issues-using-logs-ci}
 

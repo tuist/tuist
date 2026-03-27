@@ -82,13 +82,13 @@ let package = Package(
 Tuist.swift` dosyası, projeniz için proje kapsamındaki Tuist ayarlarını
 tanımlayabileceğiniz yerdir.
 
-::: tip PROJECT NAME WITH -TUIST SUFFIX
-<!-- -->
-Mevcut Xcode projesiyle çakışmaları önlemek için, proje adına `-Tuist` son ekini
-eklemenizi öneririz. Projenizi Tuist'e tam olarak geçirdikten sonra bunu
-bırakabilirsiniz.
-<!-- -->
-:::
+> [!TIP]
+> **Project Name With -tuist Suffix**
+>
+> Mevcut Xcode projesiyle çakışmaları önlemek için, proje adına `-Tuist` son ekini
+> eklemenizi öneririz. Projenizi Tuist'e tam olarak geçirdikten sonra bunu
+> bırakabilirsiniz.
+
 
 ## Tuist projesini CI'da derleyin ve test edin {#build-and-test-the-tuist-project-in-ci}
 
@@ -171,13 +171,12 @@ let package = Package(
 )
 ```
 
-::: tip PRODUCT TYPES
-<!-- -->
-Belirli bir paket için ürün türünü `PackageSettings` yapısındaki `productTypes`
-sözlüğüne ekleyerek geçersiz kılabilirsiniz. Tuist varsayılan olarak tüm
-paketlerin statik çerçeveler olduğunu varsayar.
-<!-- -->
-:::
+> [!TIP]
+> **Product Types**
+>
+> Belirli bir paket için ürün türünü `PackageSettings` yapısındaki `productTypes`
+> sözlüğüne ekleyerek geçersiz kılabilirsiniz. Tuist varsayılan olarak tüm
+> paketlerin statik çerçeveler olduğunu varsayar.
 
 
 ## Geçiş sırasını belirleyin {#determine-the-migration-order}
@@ -245,12 +244,12 @@ let project = Project(
 )
 ```
 
-::: info TEST TARGETS
-<!-- -->
-Hedefin ilişkili bir test hedefi varsa, aynı adımları tekrarlayarak bunu
-`Project.swift` dosyasında da tanımlamalısınız.
-<!-- -->
-:::
+> [!NOTE]
+> **Test Targets**
+>
+> Hedefin ilişkili bir test hedefi varsa, aynı adımları tekrarlayarak bunu
+> `Project.swift` dosyasında da tanımlamalısınız.
+
 
 ### Hedef geçişi doğrulayın {#validate-the-target-migration}
 

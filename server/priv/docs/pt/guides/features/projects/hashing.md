@@ -30,17 +30,17 @@ We hash the Swift version obtained from running the command `/usr/bin/xcrun
 swift --version` to prevent compilation errors due to Swift version mismatches
 between the targets and the binaries.
 
-::: info MODULE STABILITY
-<!-- -->
-Previous versions of binary caching relied on the
-`BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module
-stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-and enable using binaries with any compiler version. However, it caused
-compilation issues in projects with targets that don't support module stability.
-Generated binaries are bound to the Swift version used to compile them, and the
-Swift version must match the one used to compile the project.
-<!-- -->
-:::
+> [!NOTE]
+> **Module Stability**
+>
+> Previous versions of binary caching relied on the
+> `BUILD_LIBRARY_FOR_DISTRIBUTION` build setting to enable [module
+> stability](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
+> and enable using binaries with any compiler version. However, it caused
+> compilation issues in projects with targets that don't support module stability.
+> Generated binaries are bound to the Swift version used to compile them, and the
+> Swift version must match the one used to compile the project.
+
 
 #### Configuration {#configuration}
 
@@ -74,11 +74,11 @@ If the hashes are still non-deterministic, let us know and we can help with the
 debugging.
 
 
-::: info BETTER DEBUGGING EXPERIENCE PLANNED
-<!-- -->
-Improving our debugging experience is in our roadmap. The print-hashes command,
-which lacks the context to understand the differences, will be replaced by a
-more user-friendly command that uses a tree-like structure to show the
-differences between the hashes.
-<!-- -->
-:::
+> [!NOTE]
+> **Better Debugging Experience Planned**
+>
+> Improving our debugging experience is in our roadmap. The print-hashes command,
+> which lacks the context to understand the differences, will be replaced by a
+> more user-friendly command that uses a tree-like structure to show the
+> differences between the hashes.
+

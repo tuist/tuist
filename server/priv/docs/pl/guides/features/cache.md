@@ -43,15 +43,15 @@ rozwiązania buforowania, aby osiągnąć najlepsze wyniki.
 
 ## Pamięć podręczna Xcode {#xcode-cache}
 
-::: warning XCODE CACHE STATE
-<!-- -->
-Buforowanie Xcode jest obecnie zoptymalizowane pod kątem lokalnych kompilacji
-przyrostowych, a całe spektrum zadań kompilacji nie jest jeszcze niezależne od
-ścieżki. Mimo to możesz doświadczyć korzyści, podłączając zdalną pamięć
-podręczną Tuist i spodziewamy się, że czasy kompilacji poprawią się z czasem, w
-miarę jak możliwości systemu kompilacji będą się poprawiać.
-<!-- -->
-:::
+> [!WARNING]
+> **Xcode Cache State**
+>
+> Buforowanie Xcode jest obecnie zoptymalizowane pod kątem lokalnych kompilacji
+> przyrostowych, a całe spektrum zadań kompilacji nie jest jeszcze niezależne od
+> ścieżki. Mimo to możesz doświadczyć korzyści, podłączając zdalną pamięć
+> podręczną Tuist i spodziewamy się, że czasy kompilacji poprawią się z czasem, w
+> miarę jak możliwości systemu kompilacji będą się poprawiać.
+
 
 Apple pracuje nad nowym rozwiązaniem buforowania na poziomie kompilacji,
 podobnym do innych systemów kompilacji, takich jak Bazel i Buck. Nowa funkcja
