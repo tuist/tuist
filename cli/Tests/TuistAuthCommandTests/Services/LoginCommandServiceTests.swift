@@ -362,21 +362,11 @@ struct LoginCommandServiceTests {
 
             given(ciOIDCAuthenticator)
                 .fetchOIDCToken()
-                .willThrow(
-                    CIOIDCAuthenticatorError.gitHubActionsOIDCTokenRequestFailed(
-                        statusCode: 503,
-                        body: "upstream connect error"
-                    )
-                )
+                .willThrow(RetryTestError.failed)
 
             given(ciOIDCAuthenticator)
                 .fetchOIDCToken()
-                .willThrow(
-                    CIOIDCAuthenticatorError.gitHubActionsOIDCTokenRequestFailed(
-                        statusCode: 503,
-                        body: "upstream connect error"
-                    )
-                )
+                .willThrow(RetryTestError.failed)
 
             given(ciOIDCAuthenticator)
                 .fetchOIDCToken()
@@ -432,7 +422,11 @@ struct LoginCommandServiceTests {
                 }
             }
 
-            throw lastError ?? CIOIDCAuthenticatorError.unsupportedCIEnvironment
+            throw lastError ?? RetryTestError.failed
         }
+    }
+
+    private enum RetryTestError: Error {
+        case failed
     }
 #endif
