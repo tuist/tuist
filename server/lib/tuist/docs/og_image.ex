@@ -45,33 +45,31 @@ defmodule Tuist.Docs.OgImage do
             color-scheme: light;
             background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
           }
-          .title {
+          .content {
             position: absolute;
-            left: 269px;
-            top: 200px;
-            width: 1380px;
-            max-height: 290px;
+            left: calc(50% - 191.5px);
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 1383px;
+            display: flex;
+            flex-direction: column;
+            gap: 48px;
+          }
+          .title {
             font-size: 128px;
             font-weight: 500;
             letter-spacing: -6.4px;
             color: #171a1c;
-            line-height: 1.1;
-            overflow: hidden;
+            line-height: normal;
             word-wrap: break-word;
             overflow-wrap: break-word;
           }
           .description {
-            position: absolute;
-            left: 269px;
-            top: 500px;
-            width: 1380px;
-            max-height: 380px;
             font-size: 64px;
             font-weight: 500;
             letter-spacing: -3.2px;
             color: #4e575f;
-            line-height: 1.2;
-            overflow: hidden;
+            line-height: normal;
             word-wrap: break-word;
             overflow-wrap: break-word;
           }
@@ -127,8 +125,10 @@ defmodule Tuist.Docs.OgImage do
         </style>
       </head>
       <body>
-        <div class="title">{truncate(@title, @max_title_length)}</div>
-        <div :if={@description} class="description">{truncate(@description, @max_description_length)}</div>
+        <div class="content">
+          <div class="title">{truncate(@title, @max_title_length)}</div>
+          <div :if={@description} class="description">{truncate(@description, @max_description_length)}</div>
+        </div>
         <img class="logo-img" src={@logo_data_uri} />
         <div class="logo-tuist">Tuist</div>
         <div class="logo-divider"></div>
