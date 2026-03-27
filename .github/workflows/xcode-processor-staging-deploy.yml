@@ -1,0 +1,38 @@
+name: Xcode Processor Staging Deploy
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Sha of the commit to be deployed
+        required: true
+
+defaults:
+  run:
+    working-directory: xcode_processor
+
+jobs:
+  deploy:
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 45
+    environment: xcode-processor-staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: xcode_processor
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.XCODE_PROCESSOR_SSH_PRIVATE_KEY }}
+      - name: Deploy
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          mise run deploy ${{ secrets.XCODE_PROCESSOR_HOST }} staging
