@@ -8,7 +8,8 @@ public struct XCActivityLogParser: Sendable {
 
     public func parse(
         xcactivitylogURL: URL,
-        casAnalyticsDatabasePath: AbsolutePath
+        casAnalyticsDatabasePath: AbsolutePath,
+        legacyCASMetadataPath: AbsolutePath? = nil
     ) async throws -> BuildData {
         let activityLog = try ActivityParser().parseActivityLogInURL(
             xcactivitylogURL,
@@ -46,7 +47,10 @@ public struct XCActivityLogParser: Sendable {
         let issues = extractIssues(from: steps)
         let files = extractFiles(from: steps)
 
-        let casReader = CASMetadataReader(databasePath: casAnalyticsDatabasePath)
+        let casReader = CASMetadataReader(
+            databasePath: casAnalyticsDatabasePath,
+            legacyCASMetadataPath: legacyCASMetadataPath
+        )
 
         let cacheableTasks = try await analyzeCacheableTasks(
             buildSteps: steps,
@@ -298,14 +302,14 @@ public struct XCActivityLogParser: Sendable {
 
             let readDuration: Double?
             if cacheStatus == "hit_remote" || cacheStatus == "miss" {
-                readDuration = casReader.readKeyValueMetadata(key: key, operationType: "read")?.duration
+                readDuration = await casReader.readKeyValueMetadata(key: key, operationType: "read")?.duration
             } else {
                 readDuration = nil
             }
 
             let writeDuration: Double?
             if status.hasUpload {
-                writeDuration = casReader.readKeyValueMetadata(key: key, operationType: "write")?.duration
+                writeDuration = await casReader.readKeyValueMetadata(key: key, operationType: "write")?.duration
             } else {
                 writeDuration = nil
             }
@@ -380,8 +384,8 @@ public struct XCActivityLogParser: Sendable {
         operation: String,
         casReader: CASMetadataReader
     ) async -> CASOutput? {
-        guard let checksum = casReader.readChecksum(nodeID: nodeID),
-              let metadata = casReader.readOutputMetadata(checksum: checksum)
+        guard let checksum = await casReader.readChecksum(nodeID: nodeID),
+              let metadata = await casReader.readOutputMetadata(checksum: checksum)
         else { return nil }
         return CASOutput(
             node_id: nodeID,
