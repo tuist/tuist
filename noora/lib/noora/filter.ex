@@ -469,8 +469,6 @@ defmodule Noora.Filter do
                 type="text"
                 placeholder="Search..."
                 data-part="search-input"
-                phx-hook="NooraDropdownSearch"
-                id={"filter-#{@filter.id}-search"}
               />
             </div>
             <.dropdown_item

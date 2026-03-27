@@ -153,6 +153,8 @@ export default {
     this.menu = new Menu(this.el, this.context);
     this.menu.init();
 
+    this.setupSearch();
+
     this.handleOpenDropdown = (event) => {
       if (event.detail.id == this.el.id) {
         this.menu.api.setOpen(true);
@@ -165,6 +167,44 @@ export default {
     };
     window.addEventListener("phx:open-dropdown", this.handleOpenDropdown);
     window.addEventListener("phx:close-dropdown", this.handleCloseDropdown);
+  },
+
+  setupSearch() {
+    const searchInput = this.el.querySelector('[data-part="search-input"]');
+    if (!searchInput) return;
+
+    searchInput.addEventListener("input", () => {
+      const query = searchInput.value.toLowerCase();
+      const content = this.el.querySelector('[data-part="content"]');
+      if (!content) return;
+
+      for (const item of content.querySelectorAll('[data-part="item"]')) {
+        const label = (
+          item.dataset.label ||
+          item.textContent ||
+          ""
+        ).toLowerCase();
+        item.style.display = label.includes(query) ? "" : "none";
+      }
+    });
+
+    searchInput.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+    });
+
+    const originalOnOpenChange = this.context.onOpenChange;
+    this.context.onOpenChange = (details) => {
+      if (!details.open) {
+        searchInput.value = "";
+        const content = this.el.querySelector('[data-part="content"]');
+        if (content) {
+          for (const item of content.querySelectorAll('[data-part="item"]')) {
+            item.style.display = "";
+          }
+        }
+      }
+      originalOnOpenChange(details);
+    };
   },
 
   updated() {
