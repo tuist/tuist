@@ -134,4 +134,24 @@ defmodule TuistWeb.ProjectAutomationsLive do
         {:noreply, socket}
     end
   end
+
+  def handle_event(
+        "update_flaky_cooldown_days",
+        %{"value" => days_str},
+        %{assigns: %{selected_project: selected_project}} = socket
+      ) do
+    case Integer.parse(days_str) do
+      {days, _} ->
+        case Projects.update_project(selected_project, %{flaky_cooldown_days: days}) do
+          {:ok, updated_project} ->
+            {:noreply, assign(socket, selected_project: updated_project)}
+
+          {:error, _changeset} ->
+            {:noreply, socket}
+        end
+
+      :error ->
+        {:noreply, socket}
+    end
+  end
 end

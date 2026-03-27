@@ -61,6 +61,7 @@
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
+    gap: var(--noora-spacing-6);
     border-bottom: 1px solid var(--noora-surface-border-secondary);
     padding: var(--noora-spacing-4) 0;
 
@@ -123,8 +124,39 @@
         font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
       }
 
+      & > [data-part="label-with-tooltip"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & .noora-tooltip [data-part="trigger"] {
+          color: var(--noora-surface-label-secondary);
+
+          & svg {
+            width: 16px;
+            height: 16px;
+          }
+        }
+      }
+
       & .noora-text-input {
-        width: 280px;
+        width: 220px;
+      }
+
+      & input[type="number"] {
+        -moz-appearance: textfield;
+        appearance: textfield;
+
+        &::-webkit-inner-spin-button,
+        &::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
       }
     }
   }
