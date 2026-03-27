@@ -72,6 +72,7 @@
           </label>
           <.text_input
             type="basic"
+            input_type="number"
             id="auto-mark-flaky-threshold"
             name="threshold"
             value={@selected_project.auto_mark_flaky_threshold}
@@ -103,6 +104,7 @@
           </div>
           <.text_input
             type="basic"
+            input_type="number"
             id="flaky-auto-clear-days"
             name="flaky_cooldown_days"
             value={@selected_project.flaky_cooldown_days}
