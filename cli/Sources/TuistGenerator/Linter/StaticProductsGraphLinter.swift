@@ -13,7 +13,10 @@ protocol StaticProductsGraphLinting {
 
 struct StaticProductsGraphLinter: StaticProductsGraphLinting {
     func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue] {
-        warnings(
+        if case .none = configGeneratedProjectOptions.generationOptions.staticSideEffectsWarningTargets {
+            return []
+        }
+        return warnings(
             in: Array(graphTraverser.dependencies.keys),
             graphTraverser: graphTraverser,
             configGeneratedProjectOptions: configGeneratedProjectOptions
