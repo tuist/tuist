@@ -275,6 +275,8 @@
   & [data-part="items"] {
     align-self: stretch;
     padding: var(--noora-spacing-2);
+    max-height: 16rem;
+    overflow-y: auto;
   }
 }
 
