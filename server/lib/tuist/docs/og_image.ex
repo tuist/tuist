@@ -5,10 +5,6 @@ defmodule Tuist.Docs.OgImage do
   """
   use Phoenix.Component
 
-  @noora_tokens_path Path.expand("../../../../noora/css/tokens.css", __DIR__)
-  @external_resource @noora_tokens_path
-  @noora_tokens File.read!(@noora_tokens_path)
-
   @max_title_length 60
   @max_description_length 120
 
@@ -17,17 +13,11 @@ defmodule Tuist.Docs.OgImage do
   attr :category, :string, default: "Docs"
   attr :font_data_uri, :string, required: true
   attr :logo_data_uri, :string, required: true
-  attr :noora_tokens, :string, required: true
-
   def card(assigns) do
     ~H"""
     <html>
       <head>
         <meta charset="utf-8" />
-        <meta name="color-scheme" content="light" />
-        <style>
-          {raw(@noora_tokens)}
-        </style>
         <style>
           @font-face {
             font-family: 'DM Sans';
@@ -35,6 +25,17 @@ defmodule Tuist.Docs.OgImage do
             font-weight: 400 600;
             src: url(<%= @font_data_uri %>) format('woff2');
           }
+          /*
+           * Colors are hardcoded as hex instead of using Noora CSS variables because
+           * headless Chrome doesn't reliably resolve oklch() values in gradient and
+           * background-clip contexts. The hex equivalents match the Figma design
+           * (node 352-4324) and correspond to these Noora tokens:
+           *   #f4f5fe / #efe8ff  → --noora-purple-50 / --noora-purple-100 (background)
+           *   #171a1c            → --noora-neutral-light-1200 (title, category)
+           *   #4e575f            → --noora-neutral-light-1000 (description)
+           *   #000 / #6a7581    → logo gradient (from Figma, not a direct token)
+           *   #c0c8cf            → --noora-neutral-light-300 (divider)
+           */
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body {
             width: 1920px;
@@ -53,7 +54,7 @@ defmodule Tuist.Docs.OgImage do
             font-size: 128px;
             font-weight: 500;
             letter-spacing: -6.4px;
-            color: var(--noora-neutral-light-1200);
+            color: #171a1c;
             line-height: 1.1;
             overflow: hidden;
             word-wrap: break-word;
@@ -68,7 +69,7 @@ defmodule Tuist.Docs.OgImage do
             font-size: 64px;
             font-weight: 500;
             letter-spacing: -3.2px;
-            color: var(--noora-neutral-light-1000);
+            color: #4e575f;
             line-height: 1.2;
             overflow: hidden;
             word-wrap: break-word;
@@ -99,7 +100,7 @@ defmodule Tuist.Docs.OgImage do
             bottom: 67px;
             width: 3px;
             height: 80px;
-            background-color: var(--noora-neutral-light-300);
+            background-color: #c0c8cf;
           }
           .logo-docs {
             position: absolute;
@@ -120,7 +121,7 @@ defmodule Tuist.Docs.OgImage do
             font-size: 59px;
             font-weight: 500;
             letter-spacing: -2.9px;
-            color: var(--noora-neutral-light-1200);
+            color: #171a1c;
             line-height: 80px;
           }
         </style>
@@ -154,7 +155,6 @@ defmodule Tuist.Docs.OgImage do
       category: category,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
       logo_data_uri: "data:image/webp;base64,#{logo_base64}",
-      noora_tokens: @noora_tokens,
       max_title_length: @max_title_length,
       max_description_length: @max_description_length
     }
