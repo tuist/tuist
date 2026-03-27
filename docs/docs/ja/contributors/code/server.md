@@ -10,7 +10,7 @@
 Source:
 [github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
 
-## 目的{#what-it-is-for}
+## 用途{#what-it-is-for}
 
 サーバーはTuistのサーバーサイド機能（認証、アカウントとプロジェクト、キャッシュストレージ、インサイト、プレビュー、レジストリ、統合機能（GitHub、Slack、SSO））を支えています。Phoenix/Elixirアプリケーションで、PostgresとClickHouseを使用しています。
 
@@ -20,11 +20,11 @@ TimescaleDBは非推奨となり、今後削除されます。現時点でロー
 <!-- -->
 :::
 
-## 貢献方法{#how-to-contribute}
+## 投稿方法{#how-to-contribute}
 
 サーバーへの貢献にはCLA（`server/CLA.md` ）への署名が必要です。
 
-### ローカルに設定する{#set-up-locally}
+### ローカル環境の設定{#set-up-locally}
 
 ```bash
 cd server
