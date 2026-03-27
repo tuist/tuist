@@ -471,11 +471,13 @@ defmodule Noora.Filter do
                 data-part="search-input"
               />
             </div>
-            <.dropdown_item
-              :for={option <- @filter.options}
-              value={option}
-              label={Map.get(@filter.options_display_names, option, to_string(option))}
-            />
+            <div data-part="items">
+              <.dropdown_item
+                :for={option <- @filter.options}
+                value={option}
+                label={Map.get(@filter.options_display_names, option, to_string(option))}
+              />
+            </div>
           </div>
         </div>
       </div>
