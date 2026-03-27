@@ -3,7 +3,8 @@ defmodule Tuist.Tests.Workers.ClearStaleFlakyFlagsWorker do
   A worker that clears stale flaky flags from test cases.
 
   A test case's is_flaky flag is considered stale if there have been no flaky
-  test case runs for that test case in the last 14 days.
+  test case runs for that test case within the project's configured
+  `flaky_auto_clear_days` window (defaults to 14 days).
   """
   use Oban.Worker
 

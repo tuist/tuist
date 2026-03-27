@@ -697,7 +697,7 @@ msgstr ""
 msgid "Configure your report notifications"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:108
+#: lib/tuist_web/live/project_automations_live.html.heex:139
 #: lib/tuist_web/live/project_notifications_live.html.heex:206
 #: lib/tuist_web/live/project_notifications_live.html.heex:302
 #: lib/tuist_web/live/project_notifications_live.html.heex:631
@@ -741,8 +741,8 @@ msgstr ""
 msgid "Slack"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:117
-#: lib/tuist_web/live/project_automations_live.html.heex:127
+#: lib/tuist_web/live/project_automations_live.html.heex:148
+#: lib/tuist_web/live/project_automations_live.html.heex:158
 #: lib/tuist_web/live/project_notifications_live.html.heex:215
 #: lib/tuist_web/live/project_notifications_live.html.heex:225
 #: lib/tuist_web/live/project_notifications_live.html.heex:506
@@ -752,7 +752,7 @@ msgstr ""
 msgid "Select channel"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:126
+#: lib/tuist_web/live/project_automations_live.html.heex:157
 #: lib/tuist_web/live/project_notifications_live.html.heex:224
 #: lib/tuist_web/live/project_notifications_live.html.heex:505
 #: lib/tuist_web/live/project_notifications_live.html.heex:866
@@ -856,12 +856,12 @@ msgstr ""
 msgid "Auto-mark tests as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:165
+#: lib/tuist_web/live/project_automations_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Auto-quarantine flaky tests"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:148
+#: lib/tuist_web/live/project_automations_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Automatically quarantine tests when they are detected as flaky"
 msgstr ""
@@ -891,12 +891,12 @@ msgstr ""
 msgid "Minimum occurrences"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:97
+#: lib/tuist_web/live/project_automations_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Slack notifications"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:145
+#: lib/tuist_web/live/project_automations_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "Test quarantine"
 msgstr ""
@@ -1094,4 +1094,14 @@ msgstr ""
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
+msgstr ""
+
+#: lib/tuist_web/live/project_automations_live.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "Number of days without a flaky occurrence before the flaky flag is automatically cleared from a test case"
+msgstr ""
+
+#: lib/tuist_web/live/project_automations_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Cooldown period (days)"
 msgstr ""

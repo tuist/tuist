@@ -2108,32 +2108,48 @@ defmodule Tuist.Tests do
   Clears stale flaky flags from test cases.
 
   A test case's is_flaky flag is considered stale if there have been no flaky
-  test case runs for that test case in the last 14 days.
+  test case runs for that test case within the project's configured
+  `flaky_auto_clear_days` window (defaults to 14 days).
 
   Returns {:ok, count} where count is the number of test cases that had their
   is_flaky flag cleared.
   """
   def clear_stale_flaky_flags do
-    fourteen_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+    flaky_test_cases =
+      ClickHouseRepo.all(from(test_case in TestCase, hints: ["FINAL"], where: test_case.is_flaky == true))
 
-    recent_flaky_subquery =
-      from(flaky_run in FlakyTestCaseRun,
-        where: flaky_run.inserted_at >= ^fourteen_days_ago,
-        group_by: flaky_run.test_case_id,
-        select: flaky_run.test_case_id
-      )
-
-    query =
-      from(test_case in TestCase,
-        hints: ["FINAL"],
-        where: test_case.is_flaky == true,
-        where: test_case.id not in subquery(recent_flaky_subquery)
-      )
-
-    stale_test_cases = ClickHouseRepo.all(query)
     now = NaiveDateTime.utc_now()
+    project_ids = flaky_test_cases |> Enum.map(& &1.project_id) |> Enum.uniq()
 
-    project_ids = stale_test_cases |> Enum.map(& &1.project_id) |> Enum.uniq()
+    project_settings =
+      from(p in Project,
+        where: p.id in ^project_ids,
+        select: {p.id, p.flaky_auto_clear_days}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    test_case_ids = Enum.map(flaky_test_cases, & &1.id)
+
+    latest_flaky_runs =
+      from(flaky_run in FlakyTestCaseRun,
+        where: flaky_run.test_case_id in ^test_case_ids,
+        group_by: flaky_run.test_case_id,
+        select: {flaky_run.test_case_id, max(flaky_run.inserted_at)}
+      )
+      |> ClickHouseRepo.all()
+      |> Map.new()
+
+    stale_test_cases =
+      Enum.filter(flaky_test_cases, fn test_case ->
+        clear_days = Map.get(project_settings, test_case.project_id, 14)
+        cutoff = NaiveDateTime.add(now, -clear_days, :day)
+
+        case Map.get(latest_flaky_runs, test_case.id) do
+          nil -> true
+          latest_run -> NaiveDateTime.before?(latest_run, cutoff)
+        end
+      end)
 
     auto_quarantine_project_ids =
       from(p in Project,

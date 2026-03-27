@@ -5555,6 +5555,74 @@ defmodule Tuist.TestsTest do
       assert fetched_test_case.is_flaky == false
       assert fetched_test_case.is_quarantined == false
     end
+
+    test "respects project-specific flaky_auto_clear_days setting" do
+      project = ProjectsFixtures.project_fixture()
+
+      project
+      |> Ecto.Changeset.change(flaky_auto_clear_days: 3)
+      |> Tuist.Repo.update!()
+
+      test_case_id = Ecto.UUID.generate()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true,
+        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -5, :day)
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {:ok, count} = Tests.clear_stale_flaky_flags()
+
+      assert count >= 1
+
+      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
+      assert fetched_test_case.is_flaky == false
+    end
+
+    test "does not clear flaky flag when within project-specific flaky_auto_clear_days" do
+      project = ProjectsFixtures.project_fixture()
+
+      project
+      |> Ecto.Changeset.change(flaky_auto_clear_days: 30)
+      |> Tuist.Repo.update!()
+
+      test_case_id = Ecto.UUID.generate()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true,
+        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -20, :day)
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {:ok, _count} = Tests.clear_stale_flaky_flags()
+
+      {:ok, fetched_test_case} = Tests.get_test_case_by_id(test_case_id)
+      assert fetched_test_case.is_flaky == true
+    end
   end
 
   describe "is_new detection for test case runs" do

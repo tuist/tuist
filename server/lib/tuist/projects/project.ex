@@ -37,6 +37,7 @@ defmodule Tuist.Projects.Project do
     field :flaky_test_alerts_slack_channel_name, :string
     field :auto_mark_flaky_tests, :boolean, default: true
     field :auto_mark_flaky_threshold, :integer, default: 1
+    field :flaky_auto_clear_days, :integer, default: 14
 
     belongs_to :account, Account
 
@@ -90,10 +91,12 @@ defmodule Tuist.Projects.Project do
       :flaky_test_alerts_slack_channel_name,
       :auto_mark_flaky_tests,
       :auto_mark_flaky_threshold,
+      :flaky_auto_clear_days,
       :build_system
     ])
     |> validate_name()
     |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
+    |> validate_number(:flaky_auto_clear_days, greater_than: 0, less_than_or_equal_to: 90)
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
     |> validate_inclusion(:build_system, [:xcode, :gradle])

@@ -80,6 +80,37 @@
             disabled={not @selected_project.auto_mark_flaky_tests}
           />
         </div>
+        <div data-part="stacked-row-content">
+          <div data-part="label-with-tooltip">
+            <label data-part="label">
+              {dgettext("dashboard_projects", "Cooldown period (days)")}
+            </label>
+            <.tooltip
+              id="flaky-cooldown-tooltip"
+              title={
+                dgettext(
+                  "dashboard_projects",
+                  "Number of days without a flaky occurrence before the flaky flag is automatically cleared from a test case"
+                )
+              }
+            >
+              <:trigger :let={attrs}>
+                <span {attrs}>
+                  <.info_circle />
+                </span>
+              </:trigger>
+            </.tooltip>
+          </div>
+          <.text_input
+            type="basic"
+            id="flaky-auto-clear-days"
+            name="flaky_auto_clear_days"
+            value={@selected_project.flaky_auto_clear_days}
+            phx-keyup="update_flaky_auto_clear_days"
+            phx-debounce="500"
+            disabled={not @selected_project.auto_mark_flaky_tests}
+          />
+        </div>
       </div>
       <div data-part="slack-section">
         <div data-part="content">

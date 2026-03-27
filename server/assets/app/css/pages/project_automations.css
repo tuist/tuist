@@ -123,6 +123,34 @@
         font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
       }
 
+      & > [data-part="label-with-tooltip"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & .noora-tooltip {
+          display: inline-flex;
+          align-items: center;
+
+          & [data-part="trigger"] {
+            display: inline-flex;
+            align-items: center;
+            cursor: help;
+            color: var(--noora-surface-label-secondary);
+
+            & svg {
+              width: 16px;
+              height: 16px;
+            }
+          }
+        }
+      }
+
       & .noora-text-input {
         width: 280px;
       }
