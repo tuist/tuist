@@ -868,7 +868,7 @@
   --noora-font-body-medium: 0.875rem/1.25rem var(--noora-font-body);
   --noora-font-body-small: 0.75rem/1rem var(--noora-font-body);
   --noora-font-body-xsmall: 0.625rem/0.75rem var(--noora-font-body);
-  --noora-font-code-large: 1rem/1.5rem var(--noora-font-code);
+  --noora-font-code-large: 0.875rem/1.25rem var(--noora-font-code);
   --noora-font-code-medium: 0.75rem/1rem var(--noora-font-code);
   --noora-font-code-small: 0.625rem/0.75rem var(--noora-font-code);
 
