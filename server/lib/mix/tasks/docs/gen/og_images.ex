@@ -24,7 +24,7 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
     logo_path =
       :tuist |> Application.app_dir("priv") |> Path.join("static/docs/images/logo.webp")
 
-    pool_size = 4
+    pool_size = System.schedulers_online() |> max(4)
 
     {:ok, _} = Browse.start_link(@pool, implementation: BrowseChrome.Browser, pool_size: pool_size)
 
