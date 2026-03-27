@@ -94,6 +94,8 @@ defmodule TuistWeb.TestCaseLive do
       {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
       users = Accounts.get_organization_members(organization)
 
+      sorted_users = Enum.sort_by(users, fn user -> String.downcase(user.account.name) end)
+
       filters ++
         [
           %Filter.Filter{
@@ -101,11 +103,12 @@ defmodule TuistWeb.TestCaseLive do
             field: :ran_by,
             display_name: dgettext("dashboard_tests", "Ran by"),
             type: :option,
-            options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
+            searchable: true,
+            options: [:ci] ++ Enum.map(sorted_users, fn user -> user.account.id end),
             options_display_names:
               Map.merge(
                 %{ci: dgettext("dashboard_tests", "CI")},
-                Map.new(users, fn user -> {user.account.id, user.account.name} end)
+                Map.new(sorted_users, fn user -> {user.account.id, user.account.name} end)
               ),
             operator: :==,
             value: nil

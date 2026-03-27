@@ -253,6 +253,23 @@
     position: relative;
     z-index: var(--noora-z-index-1);
     padding: var(--noora-spacing-2) var(--noora-spacing-2) 0;
+
+    & [data-part="search-input"] {
+      width: 100%;
+      box-sizing: border-box;
+      border: 0;
+      border-bottom: 1px solid light-dark(var(--noora-neutral-light-300), var(--noora-neutral-dark-900));
+      border-radius: 0;
+      background: transparent;
+      padding: var(--noora-spacing-2) var(--noora-spacing-2) var(--noora-spacing-3);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-small);
+      outline: none;
+
+      &::placeholder {
+        color: var(--noora-surface-label-secondary);
+      }
+    }
   }
 
   & [data-part="items"] {

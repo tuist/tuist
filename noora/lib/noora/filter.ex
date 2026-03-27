@@ -160,7 +160,8 @@ defmodule Noora.Filter do
       :options,
       :options_display_names,
       :operator,
-      :value
+      :value,
+      searchable: false
     ]
   end
 
@@ -463,6 +464,15 @@ defmodule Noora.Filter do
         </div>
         <div data-part="positioner">
           <div class="noora-dropdown-content" data-part="content">
+            <div :if={@filter.searchable} data-part="search">
+              <input
+                type="text"
+                placeholder="Search..."
+                data-part="search-input"
+                phx-hook="NooraDropdownSearch"
+                id={"filter-#{@filter.id}-search"}
+              />
+            </div>
             <.dropdown_item
               :for={option <- @filter.options}
               value={option}
