@@ -4,5 +4,15 @@ defmodule Tuist.Docs.Page do
   """
 
   @enforce_keys [:slug, :title, :body, :source_path]
-  defstruct [:slug, :title, :title_template, :description, :body, :source_path, :markdown, headings: []]
+  defstruct [
+    :slug,
+    :title,
+    :title_template,
+    :description,
+    :body,
+    :source_path,
+    :markdown,
+    :last_modified,
+    headings: []
+  ]
 end
