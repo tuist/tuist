@@ -272,9 +272,9 @@ defmodule TuistWeb.GradleBuildRunsLive do
     ran_by_filter =
       if Accounts.organization?(project.account) do
         {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
-        users = Accounts.get_organization_members(organization)
-
-        sorted_users = Enum.sort_by(users, fn user -> String.downcase(user.account.name) end)
+        users =
+          Accounts.get_organization_members(organization)
+          |> Enum.sort_by(fn user -> user.account.name end)
 
         [
           %Filter.Filter{
@@ -283,11 +283,11 @@ defmodule TuistWeb.GradleBuildRunsLive do
             display_name: dgettext("dashboard_gradle", "Ran by"),
             type: :option,
             searchable: true,
-            options: [:ci] ++ Enum.map(sorted_users, fn user -> user.account.id end),
+            options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:
               Map.merge(
                 %{ci: "CI"},
-                Map.new(sorted_users, fn user -> {user.account.id, user.account.name} end)
+                Map.new(users, fn user -> {user.account.id, user.account.name} end)
               ),
             operator: :==,
             value: nil
