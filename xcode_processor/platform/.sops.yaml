@@ -1,0 +1,4 @@
+creation_rules:
+  - path_regex: secrets\.yaml$
+    age: >-
+      <AGE_PUBLIC_KEY_FROM_BOOTSTRAP>

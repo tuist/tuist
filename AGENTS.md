@@ -12,6 +12,8 @@ This file provides guidance to AI agents when working with code in this reposito
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
+- `processor/` - Build processor service (Elixir/Phoenix + Swift NIF) - see `processor/AGENTS.md`
+- `xcode_processor/` - Xcode processor service for xcresult processing (Elixir/Phoenix + Swift NIF, macOS) - see `xcode_processor/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
 ## Global Guardrails

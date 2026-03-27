@@ -1,0 +1,95 @@
+{ config, pkgs, ... }:
+
+let
+  alloyConfig = pkgs.writeText "alloy-config.alloy" ''
+    prometheus.exporter.self "alloy" {
+    }
+
+    prometheus.scrape "alloy" {
+      targets    = prometheus.exporter.self.alloy.targets
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+      scrape_interval = "60s"
+    }
+
+    prometheus.scrape "xcode_processor" {
+      targets = [
+        {"__address__" = "127.0.0.1:4003", "job" = "xcode-processor"},
+      ]
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+      metrics_path = "/metrics"
+      scrape_interval = "15s"
+    }
+
+    prometheus.remote_write "grafana_cloud" {
+      endpoint {
+        url = sys.env("GRAFANA_PROMETHEUS_REMOTE_WRITE_URL")
+
+        basic_auth {
+          username = sys.env("GRAFANA_PROMETHEUS_REMOTE_WRITE_USERNAME")
+          password = sys.env("GRAFANA_PROMETHEUS_REMOTE_WRITE_PASSWORD")
+        }
+      }
+    }
+
+    loki.write "grafana_cloud" {
+      endpoint {
+        url = sys.env("GRAFANA_LOKI_URL")
+
+        basic_auth {
+          username = sys.env("GRAFANA_LOKI_USERNAME")
+          password = sys.env("GRAFANA_LOKI_PASSWORD")
+        }
+      }
+    }
+
+    otelcol.receiver.otlp "default" {
+      grpc {
+        endpoint = "127.0.0.1:4317"
+      }
+    }
+
+    otelcol.processor.batch "default" {
+      output {
+        traces = [otelcol.exporter.otlphttp.grafana_cloud.input]
+      }
+    }
+
+    otelcol.exporter.otlphttp "grafana_cloud" {
+      client {
+        endpoint = sys.env("GRAFANA_TEMPO_URL")
+        auth     = otelcol.auth.basic.grafana_cloud.handler
+      }
+    }
+
+    otelcol.auth.basic "grafana_cloud" {
+      username = sys.env("GRAFANA_TEMPO_USERNAME")
+      password = sys.env("GRAFANA_TEMPO_PASSWORD")
+    }
+  '';
+in
+{
+  launchd.daemons."grafana-alloy" = {
+    serviceConfig = {
+      ProgramArguments = [
+        "${pkgs.grafana-alloy}/bin/alloy"
+        "run"
+        "${alloyConfig}"
+      ];
+      KeepAlive = true;
+      RunAtLoad = true;
+      StandardOutPath = "/var/log/grafana-alloy/stdout.log";
+      StandardErrorPath = "/var/log/grafana-alloy/stderr.log";
+      EnvironmentVariables = {
+        GRAFANA_PROMETHEUS_REMOTE_WRITE_URL = "$(cat ${config.sops.secrets.grafana_prometheus_remote_write_url.path})";
+        GRAFANA_PROMETHEUS_REMOTE_WRITE_USERNAME = "$(cat ${config.sops.secrets.grafana_prometheus_remote_write_username.path})";
+        GRAFANA_PROMETHEUS_REMOTE_WRITE_PASSWORD = "$(cat ${config.sops.secrets.grafana_prometheus_remote_write_password.path})";
+        GRAFANA_TEMPO_URL = "$(cat ${config.sops.secrets.grafana_tempo_url.path})";
+        GRAFANA_TEMPO_USERNAME = "$(cat ${config.sops.secrets.grafana_tempo_username.path})";
+        GRAFANA_TEMPO_PASSWORD = "$(cat ${config.sops.secrets.grafana_tempo_password.path})";
+        GRAFANA_LOKI_URL = "$(cat ${config.sops.secrets.grafana_loki_url.path})";
+        GRAFANA_LOKI_USERNAME = "$(cat ${config.sops.secrets.grafana_loki_username.path})";
+        GRAFANA_LOKI_PASSWORD = "$(cat ${config.sops.secrets.grafana_loki_password.path})";
+      };
+    };
+  };
+}
