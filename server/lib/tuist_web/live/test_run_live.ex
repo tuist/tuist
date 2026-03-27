@@ -121,6 +121,24 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, socket}
   end
 
+  def handle_event("refresh_test_run", _params, %{assigns: %{run: run, selected_project: project}} = socket) do
+    case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan]) do
+      {:ok, refreshed_run} ->
+        refreshed_run = Map.put(refreshed_run, :project, project)
+
+        {:noreply,
+         socket
+         |> assign(:run, refreshed_run)
+         |> assign_initial_analytics_state()
+         |> assign_initial_test_cases_state()
+         |> assign_initial_failures_state()
+         |> assign_initial_flaky_runs_state()}
+
+      {:error, :not_found} ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("search-selective-testing", %{"search" => search}, socket) do
     socket =
       push_patch(
