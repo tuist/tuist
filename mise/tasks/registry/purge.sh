@@ -1,78 +1,48 @@
 #!/usr/bin/env bash
+#MISE description="Purge a Swift package (or a specific version) from the production registry"
+#USAGE arg "<package>" help="Package in scope/name format (e.g., onevcat/rainbow)"
+#USAGE arg "[version]" help="Specific version to purge (e.g., 4.2.1, v2.0.0-alpha.1). If omitted, purges the entire package."
+
 set -euo pipefail
 
-readonly SCRIPT_NAME="$(basename "$0")"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly RCLONE_REMOTE="tigris"
 readonly REGISTRY_BUCKET="tuist-registry"
 readonly REGISTRY_ROOT="${RCLONE_REMOTE}:${REGISTRY_BUCKET}"
-readonly DEPLOY_PRODUCTION_CONFIG_FILE="${PROJECT_ROOT}/cache/config/deploy.production.yml"
+readonly DEPLOY_CONFIG="${MISE_PROJECT_ROOT}/cache/config/deploy.production.yml"
 readonly LOCAL_REGISTRY_ROOT="/cas/registry/swift"
 
 cleanup_paths=()
 
-log() {
-    printf '[%s] %s\n' "$SCRIPT_NAME" "$*"
-}
-
-warn() {
-    printf '[%s] WARNING: %s\n' "$SCRIPT_NAME" "$*" >&2
-}
-
-fail() {
-    printf '[%s] ERROR: %s\n' "$SCRIPT_NAME" "$*" >&2
-    exit 1
-}
-
-usage() {
-    cat >&2 <<EOF
-Usage: ${SCRIPT_NAME} scope/name [version]
-
-Examples:
-  ${SCRIPT_NAME} onevcat/rainbow
-  ${SCRIPT_NAME} onevcat/Rainbow 4.2.1
-  ${SCRIPT_NAME} onevcat/Rainbow v2.0.0-alpha.1
-EOF
-    exit 1
-}
-
 cleanup() {
-    local path
-
     for path in "${cleanup_paths[@]:-}"; do
-        if [[ -n "$path" && -e "$path" ]]; then
-            rm -rf "$path"
-        fi
+        [[ -n "$path" && -e "$path" ]] && rm -rf "$path"
     done
 }
 
 trap cleanup EXIT
 
-require_command() {
-    local command_name="$1"
+log()  { printf '[registry:purge] %s\n' "$*"; }
+warn() { printf '[registry:purge] WARNING: %s\n' "$*" >&2; }
+fail() { printf '[registry:purge] ERROR: %s\n' "$*" >&2; exit 1; }
 
-    if ! command -v "$command_name" >/dev/null 2>&1; then
-        fail "Missing required command: ${command_name}"
-    fi
-}
+# -- rclone configuration check -----------------------------------------------
 
 print_rclone_setup_instructions() {
     cat >&2 <<EOF
-[${SCRIPT_NAME}] ERROR: rclone remote "${RCLONE_REMOTE}" is not configured.
+[registry:purge] ERROR: rclone remote "${RCLONE_REMOTE}" is not configured.
 
-Set it up with the production registry Tigris credentials from 1Password/Kamal secrets, for example:
+Set it up with the production registry Tigris credentials from 1Password/Kamal secrets:
   export S3_ACCESS_KEY_ID='...'
   export S3_SECRET_ACCESS_KEY='...'
   export S3_HOST='fly.storage.tigris.dev'
   export S3_REGION='auto'
 
-  rclone config create ${RCLONE_REMOTE} s3 \
-    provider Other \
-    env_auth false \
-    access_key_id "\$S3_ACCESS_KEY_ID" \
-    secret_access_key "\$S3_SECRET_ACCESS_KEY" \
-    endpoint "https://\$S3_HOST" \
+  rclone config create ${RCLONE_REMOTE} s3 \\
+    provider Other \\
+    env_auth false \\
+    access_key_id "\$S3_ACCESS_KEY_ID" \\
+    secret_access_key "\$S3_SECRET_ACCESS_KEY" \\
+    endpoint "https://\$S3_HOST" \\
     region "\${S3_REGION:-auto}"
 
 Then verify it:
@@ -82,11 +52,6 @@ EOF
 
 check_rclone_configuration() {
     local remotes
-
-    log "Checking required commands"
-    require_command rclone
-    require_command jq
-    require_command ssh
 
     log "Checking rclone remote configuration"
     remotes="$(rclone listremotes 2>/dev/null || true)"
@@ -104,25 +69,22 @@ check_rclone_configuration() {
     fi
 }
 
+# -- host discovery ------------------------------------------------------------
+
 read_all_production_hosts() {
-    local hosts=()
+    local hosts
 
-    if [[ ! -f "$DEPLOY_PRODUCTION_CONFIG_FILE" ]]; then
-        fail "Missing production deploy config file: ${DEPLOY_PRODUCTION_CONFIG_FILE}"
+    if [[ ! -f "$DEPLOY_CONFIG" ]]; then
+        fail "Missing production deploy config: ${DEPLOY_CONFIG}"
     fi
 
-    mapfile -t hosts < <(sed -n '/^[[:space:]]*hosts:[[:space:]]*$/,$ {
-        /^[[:space:]]*hosts:/d
-        /^[[:space:]]*-[[:space:]]/ { s/^[[:space:]]*-[[:space:]]*//; p; b; }
-        /^[[:space:]]*$/b
-        q
-    }' "$DEPLOY_PRODUCTION_CONFIG_FILE")
+    hosts="$(yq '.servers.web.hosts[]' "$DEPLOY_CONFIG")"
 
-    if [[ "${#hosts[@]}" -eq 0 ]]; then
-        fail "Unable to determine any production cache hosts from ${DEPLOY_PRODUCTION_CONFIG_FILE}"
+    if [[ -z "$hosts" ]]; then
+        fail "No production cache hosts found in ${DEPLOY_CONFIG}"
     fi
 
-    printf '%s\n' "${hosts[@]}"
+    printf '%s\n' "$hosts"
 }
 
 purge_local_caches() {
@@ -144,6 +106,8 @@ purge_local_caches() {
     done
 }
 
+# -- package / version normalization -------------------------------------------
+
 parse_package() {
     local package="$1"
 
@@ -159,13 +123,8 @@ parse_package() {
     fi
 }
 
-normalize_scope() {
-    printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
-}
-
-normalize_name() {
-    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr '.' '_'
-}
+normalize_scope() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+normalize_name()  { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr '.' '_'; }
 
 strip_leading_zeros() {
     local value="$1"
@@ -184,23 +143,15 @@ add_trailing_semantic_version_zeros() {
     IFS='.' read -r -a parts <<<"$version"
 
     case "${#parts[@]}" in
-        1)
-            printf '%s.0.0' "$(strip_leading_zeros "${parts[0]}")"
-            ;;
-        2)
-            printf '%s.%s.0' \
-                "$(strip_leading_zeros "${parts[0]}")" \
-                "$(strip_leading_zeros "${parts[1]}")"
-            ;;
-        3)
-            printf '%s.%s.%s' \
-                "$(strip_leading_zeros "${parts[0]}")" \
-                "$(strip_leading_zeros "${parts[1]}")" \
-                "$(strip_leading_zeros "${parts[2]}")"
-            ;;
-        *)
-            printf '%s' "$version"
-            ;;
+        1) printf '%s.0.0' "$(strip_leading_zeros "${parts[0]}")" ;;
+        2) printf '%s.%s.0' \
+               "$(strip_leading_zeros "${parts[0]}")" \
+               "$(strip_leading_zeros "${parts[1]}")" ;;
+        3) printf '%s.%s.%s' \
+               "$(strip_leading_zeros "${parts[0]}")" \
+               "$(strip_leading_zeros "${parts[1]}")" \
+               "$(strip_leading_zeros "${parts[2]}")" ;;
+        *) printf '%s' "$version" ;;
     esac
 }
 
@@ -226,18 +177,7 @@ normalize_version() {
     printf '%s' "$(add_trailing_semantic_version_zeros "$version")"
 }
 
-build_updated_metadata() {
-    local metadata_file="$1"
-    local output_file="$2"
-    local normalized_version="$3"
-    local updated_at="$4"
-
-    jq \
-        --arg version "$normalized_version" \
-        --arg updated_at "$updated_at" \
-        '.releases = ((.releases // {}) | del(.[$version])) | .updated_at = $updated_at' \
-        "$metadata_file" >"$output_file"
-}
+# -- purge operations ----------------------------------------------------------
 
 purge_package() {
     local swift_package_root="$1"
@@ -297,7 +237,12 @@ purge_version() {
 
     if [[ "$metadata_has_release" == "true" ]]; then
         updated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-        build_updated_metadata "$downloaded_metadata_file" "$updated_metadata_file" "$normalized_version" "$updated_at"
+
+        jq \
+            --arg version "$normalized_version" \
+            --arg updated_at "$updated_at" \
+            '.releases = ((.releases // {}) | del(.[$version])) | .updated_at = $updated_at' \
+            "$downloaded_metadata_file" >"$updated_metadata_file"
 
         log "Uploading updated metadata to ${metadata_file}"
         rclone copyto "$updated_metadata_file" "$metadata_file"
@@ -308,19 +253,19 @@ purge_version() {
     purge_local_caches "${local_swift_package_root}/${normalized_version}"
 }
 
+# -- main ----------------------------------------------------------------------
+
 main() {
+    local package="$usage_package"
+    local version="${usage_version:-}"
     local normalized_scope
     local normalized_name
     local swift_package_root
     local metadata_package_root
     local local_swift_package_root
 
-    if [[ "$#" -ne 1 && "$#" -ne 2 ]]; then
-        usage
-    fi
-
     check_rclone_configuration
-    parse_package "$1"
+    parse_package "$package"
 
     normalized_scope="$(normalize_scope "$raw_scope")"
     normalized_name="$(normalize_name "$raw_name")"
@@ -331,13 +276,13 @@ main() {
     log "Package input: ${raw_scope}/${raw_name}"
     log "Normalized storage package: ${normalized_scope}/${normalized_name}"
 
-    if [[ "$#" -eq 1 ]]; then
+    if [[ -z "$version" ]]; then
         purge_package "$swift_package_root" "$metadata_package_root" "$local_swift_package_root"
     else
-        purge_version "$swift_package_root" "${metadata_package_root}/index.json" "$2" "$local_swift_package_root"
+        purge_version "$swift_package_root" "${metadata_package_root}/index.json" "$version" "$local_swift_package_root"
     fi
 
     log "Registry purge completed"
 }
 
-main "$@"
+main
