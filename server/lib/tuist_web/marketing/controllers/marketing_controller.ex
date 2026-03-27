@@ -691,7 +691,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   defp put_resp_header_cache_control(conn, _opts) do
-    put_resp_header(conn, "cache-control", "public, max-age=86400, immutable")
+    put_resp_header(conn, "cache-control", "public, max-age=60, stale-while-revalidate=86400")
   end
 
   defp put_resp_header_server(conn, _opts) do
