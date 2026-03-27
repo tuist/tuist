@@ -2,7 +2,7 @@
 {
   "title": "Test Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Track test performance and identify flaky tests with Tuist Test Insights for Xcode and Gradle projects."
+  "description": "Identify flaky and slow tests in Xcode and Gradle with Tuist Test Insights."
 }
 ---
 # Test Insights {#test-insights}

@@ -2,7 +2,7 @@
 {
   "title": "Logging",
   "titleTemplate": ":title · CLI · Contributors · Tuist",
-  "description": "Learn how to contribute to Tuist by reviewing code"
+  "description": "How logging works in the Tuist CLI and guidelines for contributors."
 }
 ---
 # Logging {#logging}

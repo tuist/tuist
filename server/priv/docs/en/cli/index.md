@@ -2,7 +2,7 @@
 {
   "title": "CLI",
   "titleTemplate": ":title · Tuist",
-  "description": "Learn about the Tuist command-line interface, its commands, and how to configure it for your workflow."
+  "description": "The Tuist CLI, its commands, and how to configure it for your workflow."
 }
 ---
 # CLI {#cli}

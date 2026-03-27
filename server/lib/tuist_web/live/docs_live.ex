@@ -66,6 +66,9 @@ defmodule TuistWeb.DocsLive do
             template -> String.replace(template, ":title", page.title)
           end
 
+        og_image_filename = Tuist.Docs.OgImage.slug_to_filename(path)
+        og_image_path = "/docs/images/og/generated/#{og_image_filename}"
+
         {:noreply,
          socket
          |> assign(:view, :show)
@@ -73,7 +76,9 @@ defmodule TuistWeb.DocsLive do
          |> assign(:requested_slug, path)
          |> assign(:page_title, head_title)
          |> assign(:head_title, head_title)
-         |> assign(:head_description, page.description)}
+         |> assign(:head_description, page.description)
+         |> assign(:head_image, Tuist.Environment.app_url(path: og_image_path))
+         |> assign(:head_twitter_card, "summary_large_image")}
     end
   end
 

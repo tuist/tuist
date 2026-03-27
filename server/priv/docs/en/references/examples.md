@@ -2,7 +2,7 @@
 {
   "title": "Examples",
   "titleTemplate": ":title · References · Tuist",
-  "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
+  "description": "Browse example projects that demonstrate Tuist features and patterns."
 }
 ---
 # Examples

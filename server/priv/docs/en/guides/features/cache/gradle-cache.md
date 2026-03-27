@@ -2,7 +2,7 @@
 {
   "title": "Gradle cache",
   "titleTemplate": ":title · Cache · Features · Guides · Tuist",
-  "description": "Use Tuist's Gradle plugin to share build cache artifacts remotely across your team and CI environments."
+  "description": "Share Gradle build cache artifacts across your team and CI with Tuist."
 }
 ---
 # Gradle cache {#gradle-cache}

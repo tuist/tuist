@@ -2,7 +2,7 @@
 {
   "title": "Model Context Protocol (MCP)",
   "titleTemplate": ":title · Agentic coding · Features · Guides · Tuist",
-  "description": "Learn how to use Tuist's MCP endpoint to give AI agents access to your project's test insights and more."
+  "description": "Give AI agents access to test insights and more via Tuist's MCP endpoint."
 }
 ---
 # Model Context Protocol (MCP)
