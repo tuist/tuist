@@ -1032,9 +1032,8 @@ public enum Module: String, CaseIterable {
                 ]
             case .casAnalytics:
                 [
-                    .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
-                    .external(name: "FileSystem"),
+                    .external(name: "CASAnalyticsDatabase"),
                 ]
             case .launchctl:
                 [
