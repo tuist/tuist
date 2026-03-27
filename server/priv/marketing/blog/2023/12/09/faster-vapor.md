@@ -67,7 +67,7 @@ tuist generate Settings Documentation
 
 Tuist will include the sources of these targets and attempt to use binaries for everything else, including your project targets.
 
-If you wish to share binaries across environments, use [Tuist Cache](https://docs.tuist.dev/en/guides/develop/cache). Sign in with `tuist auth login` and create your projects. Your CI times, and consequently costs, will significantly reduce, sometimes by up to 80%.
+If you wish to share binaries across environments, use [Tuist Cache](https://tuist.dev/en/docs/guides/features/cache). Sign in with `tuist auth login` and create your projects. Your CI times, and consequently costs, will significantly reduce, sometimes by up to 80%.
 
 ## Linux
 

@@ -189,7 +189,7 @@ defmodule CacheWeb.XcodeController do
 
         key = Xcode.Disk.key(account_handle, project_handle, id)
         :ok = CacheArtifacts.track_artifact_access(key)
-        S3Transfers.enqueue_xcode_upload(account_handle, project_handle, key)
+        S3Transfers.enqueue_upload_if_missing(account_handle, project_handle, :xcode_cache, key)
         send_resp(conn, :no_content, "")
 
       {:error, :exists} ->

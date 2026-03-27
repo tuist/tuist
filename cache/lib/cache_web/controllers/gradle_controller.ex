@@ -209,7 +209,7 @@ defmodule CacheWeb.GradleController do
 
         key = Gradle.Disk.key(account_handle, project_handle, cache_key)
         :ok = CacheArtifacts.track_artifact_access(key)
-        S3Transfers.enqueue_gradle_upload(account_handle, project_handle, key)
+        S3Transfers.enqueue_upload_if_missing(account_handle, project_handle, :gradle, key)
         send_resp(conn, :created, "")
 
       {:error, :exists} ->

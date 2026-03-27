@@ -415,7 +415,7 @@ defmodule CacheWeb.XcodeModuleController do
               Disk.key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
 
             :ok = CacheArtifacts.track_artifact_access(key)
-            S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, key)
+            S3Transfers.enqueue_upload_if_missing(upload.account_handle, upload.project_handle, :xcode_module, key)
 
             :telemetry.execute(
               [:cache, :xcode_module, :multipart, :complete],
