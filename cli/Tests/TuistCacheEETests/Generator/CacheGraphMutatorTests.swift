@@ -2071,6 +2071,113 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             []
         )
     }
+
+    /// Nineteenth scenario - a hostless test target explicitly imports a cached dynamic
+    /// transitive dependency of a source dynamic framework. External static xcframework deps
+    /// must remain behind the cached dynamic node rather than being re-added to the source framework.
+    ///
+    /// ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+    /// │ FeatureTests     ├──►│ Feature          ├──►│ Library          │
+    /// │ (unitTests)      │   │ (framework, dyn.)│   │ (framework, dyn.)│
+    /// └────────┬─────────┘   └──────────────────┘   └────────┬─────────┘
+    ///          │                                              │
+    ///          └──────────────────────────────────────────────►│
+    ///                                                         ▼
+    ///                                                ┌────────────────────┐
+    ///                                                │ GoogleMaps         │
+    ///                                                │ (static xcframework)│
+    ///                                                └────────────────────┘
+    func test_map_when_hostless_test_explicitly_imports_cached_dynamic_framework_with_external_static_xcframework(
+    ) async throws {
+        let path = try temporaryPath()
+
+        let feature = Target.test(name: "Feature", destinations: [.iPhone], product: .framework)
+        let library = Target.test(name: "Library", destinations: [.iPhone], product: .framework)
+        let tests = Target.test(name: "FeatureTests", destinations: [.iPhone], product: .unitTests)
+        let project = Project.test(
+            path: path.appending(component: "Project"),
+            name: "Project",
+            targets: [feature, library, tests]
+        )
+        let libraryGraphTarget = GraphTarget.test(
+            path: project.path, target: library, project: project
+        )
+
+        let googleMapsPath = path.appending(component: "GoogleMaps.xcframework")
+        let googleMaps = GraphDependency.testXCFramework(
+            path: googleMapsPath,
+            linking: .static,
+            moduleMaps: [
+                googleMapsPath.appending(component: "GoogleMaps.modulemap"),
+            ]
+        )
+
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: feature.name, path: project.path): [
+                    .target(name: library.name, path: project.path),
+                ],
+                .target(name: tests.name, path: project.path): [
+                    .target(name: feature.name, path: project.path),
+                    .target(name: library.name, path: project.path),
+                ],
+                .target(name: library.name, path: project.path): [
+                    googleMaps,
+                ],
+                googleMaps: [],
+            ]
+        )
+
+        let libraryXCFrameworkPath = path.appending(component: "Library.xcframework")
+        let xcframeworks = [
+            libraryGraphTarget: libraryXCFrameworkPath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == libraryXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: libraryXCFrameworkPath, linking: .dynamic)
+            } else {
+                fatalError("Unexpected load call for \(path)")
+            }
+        }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["Feature", "FeatureTests"]),
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(
+            got.dependencies[
+                .target(name: feature.name, path: project.path),
+                default: Set()
+            ],
+            [
+                .testXCFramework(path: libraryXCFrameworkPath, linking: .dynamic),
+            ]
+        )
+        XCTAssertEqual(
+            got.dependencies[
+                .target(name: tests.name, path: project.path),
+                default: Set()
+            ],
+            [
+                .target(name: feature.name, path: project.path),
+                .testXCFramework(path: libraryXCFrameworkPath, linking: .dynamic),
+            ]
+        )
+        XCTAssertEqual(
+            got.dependencies[
+                .testXCFramework(path: libraryXCFrameworkPath, linking: .dynamic),
+                default: Set()
+            ],
+            [
+                googleMaps,
+            ]
+        )
+    }
 }
 
 final class MockArtifactLoader: ArtifactLoading {
