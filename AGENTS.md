@@ -6,10 +6,12 @@ This file provides guidance to AI agents when working with code in this reposito
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
+- `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
 - `docs/` - Documentation and guides - see `docs/AGENTS.md`
+- `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
@@ -29,6 +31,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `cli` - Changes to the Tuist CLI (Swift)
+- `noora` - Changes to the Noora web component library
 - `skills` - Changes to the Agent Skills package
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides

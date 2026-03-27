@@ -43,6 +43,64 @@ defmodule Tuist.BuildsTest do
       assert build.status == "success"
     end
 
+    test "creates a build with machine metrics" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      base_ts = 1_741_500_000.0
+
+      machine_metrics = [
+        %{
+          timestamp: base_ts + 1.0,
+          cpu_usage_percent: 45.5,
+          memory_used_bytes: 8_000_000_000,
+          memory_total_bytes: 16_000_000_000,
+          network_bytes_in: 1_000_000,
+          network_bytes_out: 500_000,
+          disk_bytes_read: 2_000_000,
+          disk_bytes_written: 1_500_000
+        },
+        %{
+          timestamp: base_ts + 2.0,
+          cpu_usage_percent: 72.3,
+          memory_used_bytes: 10_000_000_000,
+          memory_total_bytes: 16_000_000_000,
+          network_bytes_in: 2_000_000,
+          network_bytes_out: 1_000_000,
+          disk_bytes_read: 3_000_000,
+          disk_bytes_written: 2_500_000
+        }
+      ]
+
+      # When
+      {:ok, build} =
+        Builds.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          account_id: account_id,
+          status: "success",
+          issues: [],
+          files: [],
+          targets: [],
+          machine_metrics: machine_metrics
+        })
+
+      # Then
+      build = Tuist.ClickHouseRepo.preload(build, [:machine_metrics])
+      assert length(build.machine_metrics) == 2
+      assert_in_delta Enum.at(build.machine_metrics, 0).timestamp, base_ts + 1.0, 0.001
+      assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 45.5, 0.01
+      assert_in_delta Enum.at(build.machine_metrics, 1).timestamp, base_ts + 2.0, 0.001
+      assert_in_delta Enum.at(build.machine_metrics, 1).cpu_usage_percent, 72.3, 0.01
+    end
+
     test "creates a build with cacheable tasks and calculates counts correctly" do
       # Given
       project_id = ProjectsFixtures.project_fixture().id
@@ -1387,6 +1445,36 @@ defmodule Tuist.BuildsTest do
       assert metrics.p90_write_duration == 0
       assert metrics.p50_read_duration == 0
       assert metrics.p50_write_duration == 0
+    end
+  end
+
+  describe "total_count/0" do
+    test "returns the total number of builds" do
+      # Given
+      before_count = Builds.total_count()
+      RunsFixtures.build_fixture()
+      RunsFixtures.build_fixture()
+
+      # When
+      count = Builds.total_count()
+
+      # Then
+      assert count >= before_count + 2
+    end
+  end
+
+  describe "last_24h_build_count/0" do
+    test "returns the number of builds from the last 24 hours" do
+      # Given
+      before_count = Builds.last_24h_build_count()
+      RunsFixtures.build_fixture()
+      RunsFixtures.build_fixture()
+
+      # When
+      count = Builds.last_24h_build_count()
+
+      # Then
+      assert count >= before_count + 2
     end
   end
 

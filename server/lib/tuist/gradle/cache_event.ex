@@ -17,6 +17,7 @@ defmodule Tuist.Gradle.CacheEvent do
     field :project_id, Ch, type: "Int64"
     field :account_handle, Ch, type: "String"
     field :project_handle, Ch, type: "String"
+    field :cache_endpoint, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime"
   end
 end

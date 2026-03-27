@@ -29,6 +29,7 @@ defmodule TuistWeb.SSOSettingsLive do
       |> assign(selected_tab: "sso")
       |> assign(organization: organization)
       |> assign(sso_enabled: sso_enabled)
+      |> assign(sso_enforced: organization.sso_enforced)
       |> assign(flash_message: nil)
       |> assign_form_from_organization(organization)
       |> assign_saved_state()
@@ -39,9 +40,18 @@ defmodule TuistWeb.SSOSettingsLive do
 
   @impl true
   def handle_event("toggle_sso", _params, socket) do
+    sso_enabled = not socket.assigns.sso_enabled
+
     socket
-    |> assign(sso_enabled: not socket.assigns.sso_enabled, flash_message: nil)
+    |> assign(sso_enabled: sso_enabled, sso_enforced: sso_enabled and socket.assigns.sso_enforced, flash_message: nil)
     |> compute_form_valid()
+    |> compute_has_changes()
+    |> then(&{:noreply, &1})
+  end
+
+  def handle_event("toggle_sso_enforced", _params, socket) do
+    socket
+    |> assign(sso_enforced: not socket.assigns.sso_enforced, flash_message: nil)
     |> compute_has_changes()
     |> then(&{:noreply, &1})
   end
@@ -58,6 +68,10 @@ defmodule TuistWeb.SSOSettingsLive do
     |> then(&{:noreply, &1})
   end
 
+  def handle_event("select_provider", _params, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("validate_sso", %{"sso" => form_params}, socket) do
     socket
     |> assign(current_form_params: form_params)
@@ -66,25 +80,36 @@ defmodule TuistWeb.SSOSettingsLive do
     |> then(&{:noreply, &1})
   end
 
+  def handle_event("validate_sso", _params, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("save_sso", _params, %{assigns: %{sso_enabled: false}} = socket) do
     disable_sso(socket)
   end
 
   def handle_event("save_sso", params, socket) do
-    case socket.assigns.selected_provider do
-      "google" -> save_google_sso(socket, params)
-      "okta" -> save_okta_sso(socket, params)
+    case validate_sso_enforcement(socket) do
+      :ok ->
+        case socket.assigns.selected_provider do
+          "google" -> save_google_sso(socket, params)
+          "okta" -> save_okta_sso(socket, params)
+        end
+
+      {:error, message} ->
+        {:noreply, assign(socket, flash_message: {"error", message})}
     end
   end
 
   defp disable_sso(%{assigns: %{organization: organization}} = socket) do
-    if is_nil(organization.sso_provider) do
+    if is_nil(organization.sso_provider) and not organization.sso_enforced do
       {:noreply, socket}
     else
       {:ok, updated_organization} =
         Accounts.update_organization(organization, %{
           sso_provider: nil,
           sso_organization_id: nil,
+          sso_enforced: false,
           okta_client_id: nil,
           okta_encrypted_client_secret: nil
         })
@@ -92,6 +117,7 @@ defmodule TuistWeb.SSOSettingsLive do
       {:noreply,
        socket
        |> assign(organization: updated_organization)
+       |> assign(sso_enforced: false)
        |> assign_form_from_organization(updated_organization)
        |> assign_saved_state()
        |> assign(flash_message: nil)}
@@ -107,6 +133,7 @@ defmodule TuistWeb.SSOSettingsLive do
           Accounts.update_organization(organization, %{
             sso_provider: :google,
             sso_organization_id: domain,
+            sso_enforced: socket.assigns.sso_enforced,
             okta_client_id: nil,
             okta_encrypted_client_secret: nil
           })
@@ -128,7 +155,7 @@ defmodule TuistWeb.SSOSettingsLive do
     client_id = String.trim(params["sso"]["okta_client_id"] || "")
     client_secret = String.trim(params["sso"]["okta_client_secret"] || "")
 
-    attrs = %{sso_organization_id: domain, okta_client_id: client_id}
+    attrs = %{sso_organization_id: domain, okta_client_id: client_id, sso_enforced: socket.assigns.sso_enforced}
 
     attrs =
       if client_secret == "",
@@ -143,6 +170,35 @@ defmodule TuistWeb.SSOSettingsLive do
      |> assign_form_from_organization(updated_organization)
      |> assign_saved_state()
      |> assign(flash_message: nil)}
+  end
+
+  defp validate_sso_enforcement(%{assigns: %{sso_enforced: false}}), do: :ok
+
+  defp validate_sso_enforcement(%{assigns: %{current_user: current_user}} = socket) do
+    provider = String.to_atom(socket.assigns.selected_provider)
+
+    sso_organization_id =
+      case socket.assigns.selected_provider do
+        "google" -> String.trim(socket.assigns.current_form_params["google_domain"] || "")
+        "okta" -> String.trim(socket.assigns.current_form_params["okta_domain"] || "")
+      end
+
+    has_identity =
+      not is_nil(
+        Accounts.find_oauth2_identity(%{user: current_user, provider: provider},
+          provider_organization_id: sso_organization_id
+        )
+      )
+
+    if has_identity do
+      :ok
+    else
+      {:error,
+       dgettext(
+         "dashboard_account",
+         "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
+       )}
+    end
   end
 
   defp validate_google_sso(domain, current_user) do
@@ -177,6 +233,7 @@ defmodule TuistWeb.SSOSettingsLive do
     |> assign(
       saved_state: %{
         sso_enabled: socket.assigns.sso_enabled,
+        sso_enforced: socket.assigns.sso_enforced,
         selected_provider: socket.assigns.selected_provider,
         form_params: socket.assigns.current_form_params
       },
@@ -222,6 +279,7 @@ defmodule TuistWeb.SSOSettingsLive do
 
     has_changes =
       socket.assigns.sso_enabled != saved.sso_enabled or
+        socket.assigns.sso_enforced != saved.sso_enforced or
         socket.assigns.selected_provider != saved.selected_provider or
         socket.assigns.current_form_params != saved.form_params
 

@@ -19,7 +19,7 @@
   <:actions>
     <.button
       label={dgettext("dashboard_gradle", "Tuist documentation")}
-      href="https://docs.tuist.dev/en/guides/features/cache/gradle-cache"
+      href="https://tuist.dev/en/docs/guides/features/cache/gradle-cache"
       target="_blank"
     >
       <:icon_right><.chevron_right /></:icon_right>
@@ -491,6 +491,15 @@
     icon="dashboard"
     data-part="recent-builds"
   >
+    <:actions>
+      <.button
+        variant="secondary"
+        label={dgettext("dashboard_gradle", "View more")}
+        size="medium"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
+        disabled={Enum.empty?(@builds)}
+      />
+    </:actions>
     <.card_section :if={not Enum.empty?(@builds)} data-part="recent-builds-section">
       <div data-part="builds-section">
         <div data-part="builds-chart">
@@ -606,7 +615,7 @@
     <div :if={Enum.empty?(@builds)} data-part="empty-builds">
       <.empty_card_section
         title={dgettext("dashboard_gradle", "No data yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/features/cache/gradle-cache"
+        get_started_href="https://tuist.dev/en/docs/guides/features/cache/gradle-cache"
         data-part="empty-builds-table-card-section"
       >
         <:image>

@@ -49,7 +49,7 @@ defmodule TuistWeb.MCPControllerTest do
       assert is_map(response["result"]["capabilities"])
     end
 
-    test "returns protocol error when session is not initialized", %{conn: conn} do
+    test "returns error when session is not initialized", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
 
@@ -63,27 +63,40 @@ defmodule TuistWeb.MCPControllerTest do
           "params" => %{}
         })
 
-      response = json_response(conn, 200)
-      assert response["jsonrpc"] == "2.0"
-      assert is_binary(response["id"])
-      assert response["error"]["code"] == -32_600
-      assert response["error"]["message"] == "Invalid Request"
+      assert conn.status == 400
+      response = json_response(conn, 400)
+      assert response["error"] == "Missing session ID"
     end
 
-    test "returns 202 for notifications", %{conn: conn} do
+    test "returns 202 for notifications after initialize", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
 
-      conn =
+      # First initialize to get a session ID
+      init_conn =
         conn
         |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 1,
+          "method" => "initialize",
+          "params" => @initialize_params
+        })
+
+      [session_id] = get_resp_header(init_conn, "mcp-session-id")
+
+      # Then send notification with the session ID
+      notification_conn =
+        build_conn()
+        |> authenticated_mcp_conn(user.token)
+        |> put_req_header("mcp-session-id", session_id)
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "method" => "notifications/initialized",
           "params" => %{}
         })
 
-      assert conn.status == 202
+      assert notification_conn.status == 202
     end
 
     test "returns rate limit error when rate limited", %{conn: conn} do
@@ -143,7 +156,7 @@ defmodule TuistWeb.MCPControllerTest do
       assert session_id != ""
     end
 
-    test "returns parse error for an invalid JSON-RPC message", %{conn: conn} do
+    test "returns error for request without session ID", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
 
@@ -152,8 +165,9 @@ defmodule TuistWeb.MCPControllerTest do
         |> authenticated_mcp_conn(user.token)
         |> post_mcp(%{"invalid" => "not a jsonrpc message"})
 
+      assert conn.status == 400
       response = json_response(conn, 400)
-      assert response["error"]["code"] == -32_700
+      assert response["error"] == "Missing session ID"
     end
   end
 

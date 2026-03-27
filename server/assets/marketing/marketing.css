@@ -2,7 +2,7 @@
 @import "../app/css/fonts.css";
 @import "noora/noora.css";
 @import "css/shared/tokens.css";
-@import "css/shared/prose.css";
+@import "../shared/css/prose.css";
 @import "css/shared/pages.css";
 @import "css/routes/shared/page.css";
 @import "css/routes/home.css";
@@ -13,6 +13,12 @@
 @import "css/routes/case-study.css";
 @import "css/routes/changelog.css";
 @import "css/routes/pricing.css";
+@import "css/routes/cache.css";
+@import "css/routes/build-insights.css";
+@import "css/routes/selective-testing.css";
+@import "css/routes/flaky-tests.css";
+@import "css/routes/test-insights.css";
+@import "css/routes/previews.css";
 @import "css/routes/newsletter.css";
 @import "css/routes/newsletter-verify.css";
 @import "css/components/header-background.css";
@@ -20,6 +26,8 @@
 @import "css/layouts/components/footer.css";
 @import "css/layouts/components/banner.css";
 @import "css/layouts/components/window.css";
+@import "css/layouts/components/agent-prompt.css";
+@import "../shared/css/code-group.css";
 @import "css/layouts/components/prose-banner.css";
 
 :root {
@@ -39,6 +47,8 @@ body {
   padding: 0px;
   overflow-x: hidden;
   font-family: var(--noora-font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 
   & > div[data-part="content"] {
     background: var(--noora-surface-background-primary);

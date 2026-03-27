@@ -61,8 +61,24 @@
           }
         }
 
+        & > [data-part="badge-processing"] {
+          background: var(--noora-surface-background-secondary);
+          & > [data-part="icon"] {
+            color: var(--noora-surface-label-secondary);
+          }
+        }
+
+        & > [data-part="badge-warning"] {
+          background: var(--noora-icon-warning-background);
+          & > [data-part="icon"] {
+            color: var(--noora-icon-warning-label);
+          }
+        }
+
         & > [data-part="badge-success"],
-        & > [data-part="badge-failure"] {
+        & > [data-part="badge-failure"],
+        & > [data-part="badge-processing"],
+        & > [data-part="badge-warning"] {
           border-radius: var(--noora-radius-large);
           & > [data-part="icon"] {
             padding: var(--noora-spacing-3);
@@ -463,6 +479,68 @@
       }
     }
   }
+
+  & > [data-part="processing-state"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+
+    & > [data-part="image"] {
+      & > img {
+        border-radius: 10px;
+      }
+
+      & > img[data-theme="light"] {
+        display: block;
+        box-shadow:
+          0px 60px 16.667px 0px oklch(31.3% 0 0 / 0),
+          0px 38.333px 15.833px 0px oklch(31.3% 0 0 / 0.01),
+          0px 21.667px 13.333px 0px oklch(31.3% 0 0 / 0.05),
+          0px 10px 10px 0px oklch(31.3% 0 0 / 0.09),
+          0px 2.5px 5px 0px oklch(31.3% 0 0 / 0.1),
+          0px 0px 0px 0.833px oklch(31.8% 0.011 248.2 / 0.08);
+      }
+
+      & > img[data-theme="dark"] {
+        display: none;
+        box-shadow:
+          0px 60px 16.667px 0px oklch(0% 0 0 / 0),
+          0px 38.333px 15.833px 0px oklch(0% 0 0 / 0.01),
+          0px 21.667px 13.333px 0px oklch(0% 0 0 / 0.05),
+          0px 10px 10px 0px oklch(0% 0 0 / 0.09),
+          0px 2.5px 5px 0px oklch(0% 0 0 / 0.1),
+          0px 0px 0px 0.833px oklch(31.6% 0.01 260.7 / 0.9) inset;
+      }
+
+      html[data-theme="dark"] & {
+        & > img[data-theme="light"] {
+          display: none;
+        }
+
+        & > img[data-theme="dark"] {
+          display: block;
+        }
+      }
+    }
+
+    & > [data-part="labels"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+  }
 }
 
 .issue-card {
@@ -470,7 +548,12 @@
   box-shadow: var(--noora-border-light-default);
   border-radius: var(--noora-radius-large);
   background-color: var(--noora-surface-background-primary);
-  padding: var(--noora-spacing-4) var(--noora-spacing-4) var(--noora-spacing-5) var(--noora-spacing-4);
+  padding: var(--noora-spacing-4);
+
+  &[data-state="open"] {
+    padding-bottom: var(--noora-spacing-5);
+  }
+
   & > [data-part="root"] {
     & > [data-part="trigger"] {
       display: flex;
@@ -488,9 +571,9 @@
         & > [data-part="icon"] {
           border-radius: var(--noora-radius-large);
 
-          padding: var(--noora-spacing-3);
-          width: 20px;
-          height: 20px;
+          padding: var(--noora-spacing-4);
+          width: 24px;
+          height: 24px;
 
           .issue-card[data-type="warning"] & {
             background-color: var(--noora-icon-warning-background);
@@ -521,11 +604,11 @@
           & > [data-part="title"] {
             margin: 0;
             color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
           }
           & > [data-part="subtitle"] {
             color: var(--noora-surface-label-secondary);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
           }
         }
       }

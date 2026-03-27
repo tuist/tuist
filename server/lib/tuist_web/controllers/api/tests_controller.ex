@@ -6,10 +6,11 @@ defmodule TuistWeb.API.TestsController do
   alias Tuist.Tests
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -18,6 +19,173 @@ defmodule TuistWeb.API.TestsController do
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
 
   tags ["Tests"]
+
+  operation(:index,
+    summary: "List test runs for a project.",
+    operation_id: "listTestRuns",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      git_branch: [
+        in: :query,
+        type: :string,
+        description: "Filter by git branch."
+      ],
+      status: [
+        in: :query,
+        type: %Schema{
+          title: "TestRunStatus",
+          type: :string,
+          enum: ["success", "failure", "skipped"]
+        },
+        description: "Filter by test run status."
+      ],
+      scheme: [
+        in: :query,
+        type: :string,
+        description: "Filter by scheme name."
+      ],
+      page: [
+        in: :query,
+        type: %Schema{
+          title: "TestRunsIndexPage",
+          description: "The page number to return.",
+          type: :integer,
+          default: 1,
+          minimum: 1
+        }
+      ],
+      page_size: [
+        in: :query,
+        type: %Schema{
+          title: "TestRunsIndexPageSize",
+          description: "The maximum number of test runs to return in a single page.",
+          type: :integer,
+          default: 20,
+          minimum: 1,
+          maximum: 100
+        }
+      ]
+    ],
+    responses: %{
+      ok:
+        {"List of test runs", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             test_runs: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
+                   duration: %Schema{type: :integer, description: "Duration in milliseconds."},
+                   status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
+                   is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
+                   is_flaky: %Schema{type: :boolean, description: "Whether the run was flaky."},
+                   scheme: %Schema{type: :string, nullable: true, description: "Build scheme."},
+                   git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
+                   git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
+                   ran_at: %Schema{
+                     type: :string,
+                     format: :"date-time",
+                     nullable: true,
+                     description: "ISO 8601 timestamp."
+                   },
+                   total_test_count: %Schema{type: :integer, description: "Total number of test cases."},
+                   ran_tests: %Schema{type: :integer, description: "Number of test cases that ran."},
+                   skipped_tests: %Schema{type: :integer, description: "Number of skipped test cases."}
+                 },
+                 required: [:id, :duration, :status, :is_ci, :is_flaky]
+               }
+             },
+             pagination_metadata: PaginationMetadata
+           },
+           required: [:test_runs, :pagination_metadata]
+         }},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+    }
+  )
+
+  def index(
+        %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
+        _params
+      ) do
+    filters = [%{field: :project_id, op: :==, value: selected_project.id}]
+
+    filters =
+      if Map.get(params, :git_branch) do
+        filters ++ [%{field: :git_branch, op: :==, value: params.git_branch}]
+      else
+        filters
+      end
+
+    filters =
+      if Map.get(params, :status) do
+        filters ++ [%{field: :status, op: :==, value: params.status}]
+      else
+        filters
+      end
+
+    filters =
+      if Map.get(params, :scheme) do
+        filters ++ [%{field: :scheme, op: :==, value: params.scheme}]
+      else
+        filters
+      end
+
+    attrs = %{
+      filters: filters,
+      order_by: [:ran_at],
+      order_directions: [:desc],
+      page: page,
+      page_size: page_size
+    }
+
+    {test_runs, meta} = Tests.list_test_runs(attrs)
+    metrics_list = Tests.Analytics.test_runs_metrics(selected_project.id, test_runs)
+    metrics_map = Map.new(metrics_list, &{&1.test_run_id, &1})
+
+    json(conn, %{
+      test_runs:
+        Enum.map(test_runs, fn run ->
+          run_metrics = Map.get(metrics_map, run.id, %{})
+
+          %{
+            id: run.id,
+            duration: run.duration,
+            status: to_string(run.status),
+            is_ci: run.is_ci,
+            is_flaky: run.is_flaky,
+            scheme: run.scheme,
+            git_branch: run.git_branch,
+            git_commit_sha: run.git_commit_sha,
+            ran_at: format_ran_at(run.ran_at),
+            total_test_count: Map.get(run_metrics, :total_tests, 0),
+            ran_tests: Map.get(run_metrics, :ran_tests, 0),
+            skipped_tests: Map.get(run_metrics, :skipped_tests, 0)
+          }
+        end),
+      pagination_metadata: %{
+        has_next_page: meta.has_next_page?,
+        has_previous_page: meta.has_previous_page?,
+        current_page: meta.current_page,
+        page_size: meta.page_size,
+        total_count: meta.total_count,
+        total_pages: meta.total_pages
+      }
+    })
+  end
 
   operation(:create,
     summary: "Create a new test run.",
@@ -113,6 +281,15 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              description: "The UUID of an associated Gradle build."
            },
+           shard_plan_id: %Schema{
+             type: :string,
+             description: "The shard plan ID if this test run is part of a sharded execution."
+           },
+           shard_index: %Schema{
+             type: :integer,
+             description: "The zero-based shard index for this test result.",
+             nullable: true
+           },
            build_system: BuildSystem.schema(),
            test_modules: %Schema{
              type: :array,
@@ -178,6 +355,10 @@ defmodule TuistWeb.API.TestsController do
                        duration: %Schema{
                          type: :integer,
                          description: "The duration of the test case in milliseconds."
+                       },
+                       is_quarantined: %Schema{
+                         type: :boolean,
+                         description: "Whether this test case was quarantined when it ran."
                        },
                        failures: %Schema{
                          type: :array,
@@ -445,7 +626,9 @@ defmodule TuistWeb.API.TestsController do
           test_modules: Map.get(params, :test_modules, []),
           test_cases: Map.get(params, :test_cases, []),
           build_run_id: Map.get(params, :build_run_id),
-          gradle_build_id: Map.get(params, :gradle_build_id)
+          gradle_build_id: Map.get(params, :gradle_build_id),
+          shard_plan_id: Map.get(params, :shard_plan_id),
+          shard_index: Map.get(params, :shard_index)
         })
     end
   end

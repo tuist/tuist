@@ -1,5 +1,16 @@
 import Config
 
+if config_env() == :dev do
+  cache_port = String.to_integer(System.get_env("TUIST_CACHE_PORT") || "8087")
+  server_url = System.get_env("TUIST_CACHE_SERVER_URL") || "http://localhost:8080"
+
+  config :cache, CacheWeb.Endpoint,
+    url: [host: "localhost", port: cache_port, scheme: "http"],
+    http: [ip: {0, 0, 0, 0}, port: cache_port]
+
+  config :cache, server_url: server_url
+end
+
 if config_env() == :prod do
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
@@ -102,6 +113,11 @@ if config_env() == :prod do
     issuer: "tuist",
     secret_key: System.get_env("GUARDIAN_SECRET_KEY")
 
+  config :cache, Cache.KeyValueRepo,
+    database: System.get_env("KEY_VALUE_DATABASE_PATH") || "/data/key_value.sqlite",
+    pool_size: String.to_integer(System.get_env("KEY_VALUE_POOL_SIZE") || System.get_env("POOL_SIZE") || "2"),
+    show_sensitive_data_on_connection_error: false
+
   config :cache, Cache.Repo,
     database: "/data/repo.sqlite",
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "2"),
@@ -119,6 +135,7 @@ if config_env() == :prod do
 
   config :cache, :s3,
     bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing"),
+    xcode_cache_bucket: System.get_env("S3_XCODE_CACHE_BUCKET"),
     registry_bucket: System.get_env("S3_REGISTRY_BUCKET"),
     protocols: s3_protocol
 
@@ -129,7 +146,17 @@ if config_env() == :prod do
     disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 70.0),
     api_key: System.get_env("TUIST_CACHE_API_KEY"),
     registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
-    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST")
+    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
+    key_value_max_db_size_bytes: String.to_integer(System.get_env("KEY_VALUE_MAX_DB_SIZE_BYTES") || "26843545600"),
+    key_value_eviction_min_retention_days:
+      String.to_integer(System.get_env("KEY_VALUE_EVICTION_MIN_RETENTION_DAYS") || "1"),
+    key_value_read_busy_timeout_ms: String.to_integer(System.get_env("KEY_VALUE_READ_BUSY_TIMEOUT_MS") || "2000"),
+    key_value_maintenance_busy_timeout_ms:
+      String.to_integer(System.get_env("KEY_VALUE_MAINTENANCE_BUSY_TIMEOUT_MS") || "50"),
+    key_value_eviction_max_duration_ms:
+      String.to_integer(System.get_env("KEY_VALUE_EVICTION_MAX_DURATION_MS") || "300000"),
+    key_value_eviction_hysteresis_release_bytes:
+      String.to_integer(System.get_env("KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES") || "#{23 * 1024 * 1024 * 1024}")
 
   # Note: connect_options cannot be used with Finch
   # Connection settings are handled at the Finch pool level

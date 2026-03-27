@@ -1,0 +1,39 @@
+.noora-dismiss-icon {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  outline: 0;
+  border: 0;
+  border-radius: var(--noora-radius-small);
+  background: transparent;
+  padding: 0;
+  color: var(--noora-surface-label-secondary);
+
+  &:not(:disabled):hover {
+    cursor: pointer;
+    color: var(--noora-surface-label-primary);
+  }
+
+  &:not(:disabled):active {
+    box-shadow: 0 0 0 1px var(--noora-surface-border-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  & svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  &[data-size="small"] {
+    width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
+  }
+
+  &[data-size="large"] {
+    width: var(--noora-icon-size-large);
+    height: var(--noora-icon-size-large);
+  }
+}

@@ -27,9 +27,6 @@ mise install
 brew services start postgresql@16
 mise run clickhouse:start
 
-# Minimal secrets
-export TUIST_SECRET_KEY_BASE="$(mix phx.gen.secret)"
-
 # Install dependencies + set up the database
 mise run install
 
@@ -37,8 +34,10 @@ mise run install
 mise run dev
 ```
 
+Open `http://localhost:8080` in your browser. In development, the login page includes a **Log in as test user** button that signs you in with the pre-made account (`tuistrocks@tuist.dev` / `tuistrocks`).
+
 > [!NOTE]
-> First-party developers load encrypted secrets from `priv/secrets/dev.key`. External contributors won't have that key, and that's fine. The server still runs locally with `TUIST_SECRET_KEY_BASE`, but OAuth, Stripe, and other integrations remain disabled.
+> First-party developers can load encrypted secrets from `priv/secrets/dev.key`. External contributors don't need this key — the server runs locally without it. OAuth, Stripe, and other third-party integrations will be disabled, but core functionality works.
 
 ### Tests and formatting {#tests-and-formatting}
 

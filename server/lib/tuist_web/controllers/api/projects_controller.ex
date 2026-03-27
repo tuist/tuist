@@ -11,7 +11,7 @@ defmodule TuistWeb.API.ProjectsController do
   alias TuistWeb.API.Schemas.Project
   alias TuistWeb.Authentication
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -245,17 +245,17 @@ defmodule TuistWeb.API.ProjectsController do
         |> put_status(:not_found)
         |> json(%Error{message: "Account #{account_handle} not found."})
 
+      is_nil(project) ->
+        conn
+        |> put_status(:not_found)
+        |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
+
       Authorization.authorize(:project_read, user, account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%Error{
           message: "You don't have permission to read the #{project.name} project."
         })
-
-      is_nil(project) ->
-        conn
-        |> put_status(:not_found)
-        |> json(%Error{message: "Project #{account_handle}/#{project_handle} not found."})
 
       !is_nil(project) ->
         Tuist.PubSub.broadcast(%{user: user}, "projects.#{project.id}", :show)

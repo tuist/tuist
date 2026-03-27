@@ -3,59 +3,69 @@ defmodule TuistWeb.Webhooks.GradleCacheController do
 
   alias Tuist.Gradle
   alias Tuist.Projects
+  alias TuistWeb.Plugs.RequireCacheEndpointPlug
 
   require Logger
 
   def handle(conn, %{"events" => events}) when is_list(events) do
-    full_handles =
-      events
-      |> Enum.map(fn event ->
-        "#{event["account_handle"]}/#{event["project_handle"]}"
-      end)
-      |> Enum.uniq()
+    conn = RequireCacheEndpointPlug.call(conn, [])
 
-    projects_map = Projects.projects_by_full_handles(full_handles)
+    if conn.halted do
+      conn
+    else
+      cache_endpoint = conn.assigns.cache_endpoint
 
-    cache_events =
-      events
-      |> Enum.map(fn event ->
-        %{
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "action" => action,
-          "size" => size,
-          "cache_key" => cache_key
-        } = event
+      full_handles =
+        events
+        |> Enum.map(fn event ->
+          "#{event["account_handle"]}/#{event["project_handle"]}"
+        end)
+        |> Enum.uniq()
 
-        full_handle = "#{account_handle}/#{project_handle}"
+      projects_map = Projects.projects_by_full_handles(full_handles)
 
-        case Map.get(projects_map, full_handle) do
-          %{id: project_id} ->
-            %{
-              action: action,
-              size: size,
-              cache_key: cache_key,
-              is_ci: Map.get(event, "is_ci", false),
-              gradle_build_id: Map.get(event, "gradle_build_id"),
-              project_id: project_id,
-              account_handle: account_handle,
-              project_handle: project_handle
-            }
+      cache_events =
+        events
+        |> Enum.map(fn event ->
+          %{
+            "account_handle" => account_handle,
+            "project_handle" => project_handle,
+            "action" => action,
+            "size" => size,
+            "cache_key" => cache_key
+          } = event
 
-          nil ->
-            Logger.warning("Project not found for Gradle cache event: #{full_handle}")
+          full_handle = "#{account_handle}/#{project_handle}"
 
-            nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
+          case Map.get(projects_map, full_handle) do
+            %{id: project_id} ->
+              %{
+                action: action,
+                size: size,
+                cache_key: cache_key,
+                is_ci: Map.get(event, "is_ci", false),
+                gradle_build_id: Map.get(event, "gradle_build_id"),
+                project_id: project_id,
+                account_handle: account_handle,
+                project_handle: project_handle,
+                cache_endpoint: cache_endpoint
+              }
 
-    Gradle.create_cache_events(cache_events)
+            nil ->
+              Logger.warning("Project not found for Gradle cache event: #{full_handle}")
 
-    conn
-    |> put_status(:accepted)
-    |> json(%{})
-    |> halt()
+              nil
+          end
+        end)
+        |> Enum.reject(&is_nil/1)
+
+      Gradle.create_cache_events(cache_events)
+
+      conn
+      |> put_status(:accepted)
+      |> json(%{})
+      |> halt()
+    end
   end
 
   def handle(conn, _params) do

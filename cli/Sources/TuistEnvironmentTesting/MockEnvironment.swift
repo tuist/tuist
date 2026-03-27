@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import Testing
@@ -6,14 +7,16 @@ import TuistEnvironment
 public final class MockEnvironment: Environmenting, @unchecked Sendable {
     private let baseDirectory: AbsolutePath
 
-    public init() throws {
+    public init() async throws {
+        let fileSystem = FileSystem()
         let tempDir = FileManager.default.temporaryDirectory
         let uniqueDir = tempDir.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: uniqueDir, withIntermediateDirectories: true)
         baseDirectory = try AbsolutePath(validating: uniqueDir.path)
+        try await fileSystem.makeDirectory(at: baseDirectory)
         stateDirectory = baseDirectory.appending(component: "state")
         cacheDirectory = baseDirectory.appending(component: ".cache")
         homeDirectory = baseDirectory.appending(component: "home")
+        try await fileSystem.makeDirectory(at: baseDirectory.appending(component: "current"))
     }
 
     deinit {
@@ -89,7 +92,7 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        let mockEnvironment = try MockEnvironment()
+        let mockEnvironment = try await MockEnvironment()
         mockEnvironment.variables = ProcessInfo.processInfo.environment.filter { inheritedVariables.contains($0.key) }
         mockEnvironment.arguments = arguments
         if legacyModuleCache {
@@ -118,7 +121,7 @@ extension Trait where Self == EnvironmentTestingTrait {
 public func withMockedEnvironment(
     _ closure: () async throws -> Void
 ) async throws {
-    let mockEnvironment = try MockEnvironment()
+    let mockEnvironment = try await MockEnvironment()
     try await Environment.$current.withValue(mockEnvironment) {
         try await closure()
     }

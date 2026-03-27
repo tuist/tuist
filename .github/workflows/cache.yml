@@ -29,6 +29,8 @@ defaults:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_CEILING_PATHS: ${{ github.workspace }}
 
 jobs:
   format:

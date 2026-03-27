@@ -17,14 +17,16 @@ defmodule Cache.PromEx do
        endpoint: CacheWeb.Endpoint,
        duration_buckets: [10, 100, 500, 1000, 5000, 10_000, 30_000]},
       PromEx.Plugins.Oban,
-      Cache.CAS.PromExPlugin,
+      Cache.Xcode.PromExPlugin,
       Cache.KeyValue.PromExPlugin,
-      Cache.Module.PromExPlugin,
+      Cache.XcodeModule.PromExPlugin,
+      Cache.Repo.PromExPlugin,
       Cache.Finch.PromExPlugin,
       Cache.SQLiteBuffer.PromExPlugin,
       Cache.S3Transfers.PromExPlugin,
       Cache.S3.PromExPlugin,
-      Cache.Authentication.PromExPlugin
+      Cache.Authentication.PromExPlugin,
+      TuistCommon.HTTP.TransportPromExPlugin
     ]
   end
 end

@@ -73,7 +73,7 @@
   font-style: normal;
   font-weight: 100 900;
   src: url("/fonts/InterVariable.woff2") format("woff2");
-  font-family: "InterVariable";
+  font-family: "Inter Variable";
   font-display: swap;
 }
 
@@ -81,6 +81,6 @@
   font-style: italic;
   font-weight: 100 900;
   src: url("/fonts/InterVariable-Italic.woff2") format("woff2");
-  font-family: "InterVariable";
+  font-family: "Inter Variable";
   font-display: swap;
 }

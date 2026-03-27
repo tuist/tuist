@@ -1,0 +1,176 @@
+defmodule Tuist.Builds.Workers.ProcessBuildWorker do
+  @moduledoc false
+  use Oban.Worker, queue: :default, max_attempts: 3
+
+  alias Tuist.Accounts
+  alias Tuist.Builds
+  alias Tuist.Storage
+
+  require Logger
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{
+        args:
+          %{"build_id" => build_id, "storage_key" => storage_key, "account_id" => account_id, "project_id" => project_id} =
+            args,
+        attempt: attempt,
+        max_attempts: max_attempts
+      }) do
+    processor_url = Tuist.Environment.processor_url()
+    xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
+
+    result =
+      if is_nil(processor_url) or processor_url == "" do
+        process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled)
+      else
+        send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled)
+      end
+
+    build_metadata = Map.get(args, "build_metadata", %{})
+
+    case result do
+      {:ok, parsed_data} ->
+        parsed_data = Map.put(parsed_data, "project_id", project_id)
+        replace_build_run(build_id, parsed_data, account_id, build_metadata)
+
+        case Map.get(args, "vcs_comment_params", %{}) do
+          params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
+          _ -> :ok
+        end
+
+      {:error, reason} ->
+        if attempt >= max_attempts do
+          mark_failed_build_processing(build_id, project_id, account_id, build_metadata)
+        end
+
+        {:error, reason}
+    end
+  end
+
+  defp process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
+    with {:ok, account} <- Accounts.get_account_by_id(account_id) do
+      temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}.zip")
+
+      try do
+        case Storage.download_to_file(storage_key, temp_path, account) do
+          {:ok, _} ->
+            Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled)
+
+          {:error, _} = error ->
+            error
+        end
+      after
+        File.rm(temp_path)
+      end
+    end
+  end
+
+  defp send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled) do
+    webhook_secret = Tuist.Environment.processor_webhook_secret()
+
+    if is_nil(webhook_secret) or webhook_secret == "" do
+      Logger.error("Processor webhook secret not configured for build #{build_id}")
+      {:error, "webhook_secret_not_configured"}
+    else
+      payload = %{
+        build_id: build_id,
+        storage_key: storage_key,
+        account_id: account_id,
+        project_id: project_id,
+        xcode_cache_upload_enabled: xcode_cache_upload_enabled
+      }
+
+      json_body = Jason.encode!(payload)
+
+      signature =
+        :hmac
+        |> :crypto.mac(:sha256, webhook_secret, json_body)
+        |> Base.encode16(case: :lower)
+
+      case Req.post("#{processor_url}/webhooks/process-build",
+             body: json_body,
+             headers: [
+               {"content-type", "application/json"},
+               {"x-webhook-signature", signature}
+             ],
+             receive_timeout: 300_000
+           ) do
+        {:ok, %{status: 200, body: parsed_data}} ->
+          {:ok, parsed_data}
+
+        {:ok, %{status: status, body: body}} ->
+          Logger.error("Processor returned #{status} for build #{build_id}: #{inspect(body)}")
+          {:error, "processor_error_#{status}: #{inspect(body)}"}
+
+        {:error, reason} ->
+          Logger.error("Processor request failed for build #{build_id}: #{inspect(reason)}")
+          {:error, reason}
+      end
+    end
+  end
+
+  defp replace_build_run(build_id, parsed_data, account_id, build_metadata) do
+    parsed = atomize_keys(parsed_data)
+
+    attrs =
+      Map.merge(base_build_attrs(build_id, account_id, build_metadata), %{
+        project_id: parsed[:project_id],
+        duration: parsed[:duration] || 0,
+        status: parsed[:status] || "success",
+        category: parsed[:category],
+        targets: Enum.map(parsed[:targets] || [], &atomize_keys/1),
+        issues: Enum.map(parsed[:issues] || [], &atomize_keys/1),
+        files: Enum.map(parsed[:files] || [], &atomize_keys/1),
+        cacheable_tasks: Enum.map(parsed[:cacheable_tasks] || [], &atomize_keys/1),
+        cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1),
+        machine_metrics: Enum.map(parsed[:machine_metrics] || [], &atomize_keys/1)
+      })
+
+    {:ok, _build} = Builds.create_build(attrs)
+    :ok
+  end
+
+  defp mark_failed_build_processing(build_id, project_id, account_id, build_metadata) do
+    attrs =
+      Map.merge(base_build_attrs(build_id, account_id, build_metadata), %{
+        project_id: project_id,
+        status: "failed_processing",
+        duration: 0
+      })
+
+    Builds.create_build(attrs)
+  end
+
+  defp base_build_attrs(build_id, account_id, build_metadata) do
+    case Builds.get_build(build_id) do
+      nil ->
+        Map.merge(
+          %{id: build_id, account_id: account_id, is_ci: false},
+          atomize_keys(build_metadata)
+        )
+
+      existing_build ->
+        existing_build
+        |> Map.from_struct()
+        |> Map.drop([
+          :__meta__,
+          :project,
+          :ran_by_account,
+          :issues,
+          :files,
+          :targets,
+          :machine_metrics,
+          :cacheable_tasks_count,
+          :cacheable_task_local_hits_count,
+          :cacheable_task_remote_hits_count
+        ])
+    end
+  end
+
+  defp atomize_keys(map) when is_map(map) do
+    Map.new(map, fn
+      {k, v} when is_binary(k) -> {String.to_atom(k), v}
+      other -> other
+    end)
+  end
+end

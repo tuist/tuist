@@ -14,9 +14,7 @@ public enum Package: Equatable, Codable, Sendable {
         case registry
         case local
     }
-}
 
-extension Package {
     public enum Requirement: Codable, Equatable, Sendable {
         case upToNextMajor(from: Version)
         case upToNextMinor(from: Version)
@@ -35,9 +33,7 @@ extension Package {
             fatalError()
         }
     }
-}
 
-extension Package {
     /// Create a package dependency that uses the version requirement, starting with the given minimum version,
     /// going up to the next major version.
     ///
@@ -224,11 +220,9 @@ extension Package {
         )
         return .registry(identifier: id, requirement: .range(from: range.lowerBound, to: upperBound))
     }
-}
 
-// Mark common APIs used by mistake as unavailable to provide better error messages.
+    // Mark common APIs used by mistake as unavailable to provide better error messages.
 
-extension Package {
     @available(*, unavailable, message: "use package(url:_:) with the .exact(Version) initializer instead")
     public static func package(url _: String, version _: Version) -> Package {
         fatalError()

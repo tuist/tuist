@@ -28,21 +28,21 @@ defmodule TuistWeb.Router do
     [
       frame_ancestors: "'self'",
       img_src:
-        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com #{s3_endpoint}",
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com https://videos.tuist.dev https://developer.apple.com https://tuist.dev https://*.tuist.dev #{s3_endpoint}",
       media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org #{s3_endpoint}",
       style_src:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
       style_src_attr: "'unsafe-inline'",
       style_src_elem:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me https://marketing.tuist.dev",
-      # wasm-unsafe-eval is necssary for the Shiki code highlighting
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
         "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
       font_src:
         "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src: "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com #{s3_endpoint}"
+      connect_src:
+        "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com https://search.tuist.dev #{s3_endpoint}"
     ]
   end
 
@@ -121,6 +121,20 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :redirect_to_localized_route
+    plug Localization, :put_locale
+  end
+
+  pipeline :browser_docs do
+    plug :accepts, ["html"]
+    plug :enable_robot_indexing
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {TuistWeb.Docs.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug SentryContextPlug
+    plug :content_security_policy
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :put_locale
   end
 
@@ -213,8 +227,38 @@ defmodule TuistWeb.Router do
              metadata: %{type: :marketing},
              private: private
 
-        live Path.join(locale_path_prefix, "/qa"),
-             TuistWeb.Marketing.MarketingQALive,
+        live Path.join(locale_path_prefix, "/cache"),
+             TuistWeb.Marketing.MarketingCacheLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/build-insights"),
+             TuistWeb.Marketing.MarketingBuildInsightsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/selective-testing"),
+             TuistWeb.Marketing.MarketingSelectiveTestingLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/flaky-tests"),
+             TuistWeb.Marketing.MarketingFlakyTestsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/test-insights"),
+             TuistWeb.Marketing.MarketingTestInsightsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/previews"),
+             TuistWeb.Marketing.MarketingPreviewsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
+             TuistWeb.Marketing.MarketingBlogPostLive,
              metadata: %{type: :marketing},
              private: private
       end
@@ -232,12 +276,6 @@ defmodule TuistWeb.Router do
       get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug/iframe.html"),
           TuistWeb.Marketing.MarketingBlogIframeController,
           :show,
-          metadata: %{type: :marketing},
-          private: private
-
-      get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
-          MarketingController,
-          :blog_post,
           metadata: %{type: :marketing},
           private: private
 
@@ -290,6 +328,24 @@ defmodule TuistWeb.Router do
   end
 
   scope "/", TuistWeb do
+    pipe_through [:open_api, :browser_docs]
+
+    get "/docs", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: %{type: :docs}
+
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      private = %{locale: locale}
+
+      live_session String.to_atom("docs_#{locale}"), on_mount: Localization do
+        live "/#{locale}/docs", DocsLive, :overview, metadata: %{type: :docs}, private: private
+        live "/#{locale}/docs/*path", DocsLive, :show, metadata: %{type: :docs}, private: private
+      end
+    end
+  end
+
+  scope "/", TuistWeb do
     pipe_through [:open_api, :browser_app]
 
     get "/ready", PageController, :ready
@@ -318,7 +374,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [:mcp]
 
-    forward "/mcp", TuistWeb.Plugs.MCPPlug, server: Tuist.MCP.Server
+    forward "/mcp", EMCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
   end
 
   scope path: "/api",
@@ -363,6 +419,7 @@ defmodule TuistWeb.Router do
 
         scope "/bundles" do
           get "/", BundlesController, :index
+          get "/:bundle_id/artifacts", BundleArtifactsController, :show
           get "/:bundle_id", BundlesController, :show
           post "/", BundlesController, :create
         end
@@ -370,6 +427,7 @@ defmodule TuistWeb.Router do
         scope "/runs" do
           get "/", RunsController, :index
           post "/", RunsController, :create
+          get "/:run_id/module-cache-targets", ModuleCacheTargetsController, :index
           post "/:run_id/start", AnalyticsController, :multipart_start_project
           post "/:run_id/generate-url", AnalyticsController, :multipart_generate_url_project
           post "/:run_id/complete", AnalyticsController, :multipart_complete_project
@@ -390,11 +448,14 @@ defmodule TuistWeb.Router do
         end
 
         scope "/tests" do
+          get "/", TestsController, :index
+
           scope "/test-cases" do
             get "/", TestCasesController, :index
 
             scope "/runs" do
               get "/", TestCaseRunsController, :index
+              get "/:test_case_run_id/attachments", TestCaseRunAttachmentsController, :index
               get "/:test_case_run_id", TestCaseRunsController, :show
             end
 
@@ -402,17 +463,47 @@ defmodule TuistWeb.Router do
             get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end
 
+          get "/:test_run_id/modules", TestModuleRunsController, :index
+          get "/:test_run_id/suites", TestSuiteRunsController, :index
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
+
+          scope "/shards" do
+            post "/", ShardsController, :create
+            post "/upload/start", ShardsController, :start_upload
+            post "/upload/generate-url", ShardsController, :generate_url
+            post "/upload/complete", ShardsController, :complete
+            get "/:reference/:shard_index", ShardsController, :show
+          end
         end
 
         scope "/builds" do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
+          post "/upload/start", BuildsController, :multipart_start
+          post "/upload/generate-url", BuildsController, :multipart_generate_url
+          post "/upload/complete", BuildsController, :multipart_complete
+
+          scope "/gradle" do
+            get "/:build_id/tasks", GradleTasksController, :index
+          end
+        end
+
+        scope "/xcode" do
+          scope "/builds" do
+            get "/", BuildsController, :index
+            get "/:build_id/targets", BuildTargetsController, :index
+            get "/:build_id/files", BuildFilesController, :index
+            get "/:build_id/issues", BuildIssuesController, :index
+            get "/:build_id/cache-tasks", BuildCacheTasksController, :index
+            get "/:build_id/cas-outputs", BuildCASOutputsController, :index
+            get "/:build_id", BuildsController, :show
+            post "/", BuildsController, :create
+          end
         end
 
         scope "/gradle" do
@@ -430,24 +521,6 @@ defmodule TuistWeb.Router do
           get "/:preview_id", PreviewsController, :show
           get "/", PreviewsController, :index
           delete "/:preview_id", PreviewsController, :delete
-        end
-
-        scope "/qa" do
-          post "/runs/:qa_run_id/steps", QAController, :create_step
-          patch "/runs/:qa_run_id/steps/:step_id", QAController, :update_step
-          patch "/runs/:qa_run_id", QAController, :update_run
-
-          post "/runs/:qa_run_id/screenshots", QAController, :create_screenshot
-
-          post "/runs/:qa_run_id/recordings/upload/start", QAController, :start_recording_upload
-
-          post "/runs/:qa_run_id/recordings/upload/generate-url",
-               QAController,
-               :generate_recording_upload_url
-
-          post "/runs/:qa_run_id/recordings/upload/complete",
-               QAController,
-               :complete_recording_upload
         end
 
         scope "/tokens" do
@@ -568,17 +641,6 @@ defmodule TuistWeb.Router do
         script: :csp_nonce
       }
 
-    live_session :ops_qa,
-      layout: {TuistWeb.Layouts, :ops},
-      on_mount: [
-        {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Authorization, [:current_user, :read, :ops]},
-        {TuistWeb.LayoutLive, :ops}
-      ] do
-      live "/qa", TuistWeb.OpsQALive
-      live "/qa/:qa_run_id/logs", TuistWeb.OpsQALogsLive
-    end
-
     live_session :ops_cache,
       layout: {TuistWeb.Layouts, :ops},
       on_mount: [
@@ -698,16 +760,6 @@ defmodule TuistWeb.Router do
     get "/:id/icon.png", PreviewController, :download_icon
   end
 
-  scope "/:account_handle/:project_handle/qa/runs/:qa_run_id/screenshots", TuistWeb do
-    pipe_through [
-      :open_api,
-      :browser_app_image,
-      :analytics
-    ]
-
-    get "/:screenshot_id", QAController, :download_screenshot
-  end
-
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
     pipe_through [
       :open_api,
@@ -758,6 +810,7 @@ defmodule TuistWeb.Router do
       :open_api,
       :browser_app,
       :require_authenticated_user,
+      :require_sso_authentication,
       :analytics
     ]
 
@@ -783,6 +836,7 @@ defmodule TuistWeb.Router do
       :browser_app,
       :rate_limit,
       :require_authenticated_user_for_private_projects,
+      :require_sso_authentication,
       :analytics,
       :require_user_can_read_project
     ]
@@ -801,6 +855,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-cases/runs/:test_case_run_id", TestCaseRunLive
       live "/tests/flaky-tests", FlakyTestsLive
       live "/tests/quarantined-tests", QuarantinedTestsLive
+      live "/tests/shards", ShardsLive
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive
@@ -815,11 +870,10 @@ defmodule TuistWeb.Router do
       live "/builds/build-runs", BuildRunsLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
       live "/previews", PreviewsLive
-      live "/qa", QALive
-      live "/qa/:qa_run_id", QARunLive, :overview
-      live "/qa/:qa_run_id/logs", QARunLive, :logs
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
+      get "/runs/:run_id/download_session", RunsController, :download_session
+      get "/builds/build-runs/:build_run_id/download", BuildController, :download
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,
@@ -829,7 +883,6 @@ defmodule TuistWeb.Router do
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/bundles", ProjectBundleSettingsLive
       live "/settings/notifications", ProjectNotificationsLive
-      live "/settings/qa", QASettingsLive
     end
 
     # Redirects for renamed routes

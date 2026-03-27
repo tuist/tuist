@@ -87,15 +87,21 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 buildableFolders: resourceBuildableFolders
             )
             modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
-            // Asset catalogs and string catalogs need to be included in the main target's sources
-            // build phase so Xcode generates typed asset symbols (mirroring SwiftPM's PIF builder).
-            let codeGeneratingResourceExtensions: Set<String> = ["xcassets", "xcstrings"]
+            // Asset catalogs need to be included in the main target's sources build phase so
+            // Xcode generates typed asset symbols (mirroring SwiftPM's PIF builder).
+            // String catalogs (.xcstrings) are NOT added to Sources because doing so triggers
+            // Xcode's string extraction which marks all strings as "stale" when the target uses
+            // a companion resource bundle (bundle: .module). They are kept in the main target's
+            // Resources phase (see below) so Xcode can correctly associate string references
+            // in Swift code with the catalog entries.
+            let codeGeneratingResourceExtensions: Set<String> = ["xcassets"]
             for resource in target.resources.resources {
                 if let ext = resource.path.extension, codeGeneratingResourceExtensions.contains(ext) {
                     modifiedTarget.sources.append(SourceFile(path: resource.path))
                 }
             }
-            modifiedTarget.resources.resources = []
+            let mainTargetRetainedResources = target.resources.resources.filter { $0.path.extension == "xcstrings" }
+            modifiedTarget.resources.resources = mainTargetRetainedResources
             modifiedTarget.copyFiles = []
             modifiedTarget.buildableFolders = remainingBuildableFolders
             modifiedTarget.dependencies.append(.target(
@@ -103,6 +109,15 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 status: .required,
                 condition: .when(target.dependencyPlatformFilters)
             ))
+            // Setting PACKAGE_RESOURCE_BUNDLE_NAME tells Xcode that a companion bundle target
+            // owns the compiled asset catalogs, which suppresses LinkAssetCatalog on this target
+            // while preserving GenerateAssetSymbols for typed resource accessors. Without this,
+            // xcodebuild archive fails for static targets because LinkAssetCatalog references
+            // an UninstalledProducts path that doesn't exist during archiving.
+            var base = modifiedTarget.settings?.base ?? SettingsDictionary()
+            base["PACKAGE_RESOURCE_BUNDLE_NAME"] = .string(bundleName)
+            modifiedTarget.settings = modifiedTarget.settings?.with(base: base)
+                ?? Settings(base: base, configurations: [:])
             additionalTargets.append(resourcesTarget)
         }
 

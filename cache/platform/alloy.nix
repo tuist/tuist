@@ -66,6 +66,8 @@
       }
     }
 
+    prometheus.exporter.self "alloy" {}
+
     prometheus.exporter.unix "default" {
       include_exporter_metrics = true
       disable_collectors = []
@@ -90,7 +92,7 @@
     prometheus.scrape "process_exporter" {
       targets = prometheus.exporter.process.default.targets
 
-      scrape_interval = "15s"
+      scrape_interval = "30s"
 
       forward_to = [prometheus.relabel.process_exporter.receiver]
     }
@@ -114,7 +116,7 @@
         },
       ]
 
-      scrape_interval = "15s"
+      scrape_interval = "30s"
 
       forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
@@ -122,12 +124,35 @@
     prometheus.scrape "unix_exporter" {
       targets = prometheus.exporter.unix.default.targets
 
-      scrape_interval = "15s"
+      scrape_interval = "30s"
 
       forward_to = [prometheus.relabel.unix_exporter.receiver]
     }
 
     prometheus.relabel "unix_exporter" {
+      rule {
+        target_label = "instance"
+        replacement  = "${config.networking.hostName}"
+      }
+
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+    }
+
+    prometheus.scrape "alloy" {
+      targets = prometheus.exporter.self.alloy.targets
+
+      scrape_interval = "30s"
+
+      forward_to = [prometheus.relabel.alloy.receiver]
+    }
+
+    prometheus.relabel "alloy" {
+      rule {
+        action        = "keep"
+        source_labels = ["__name__"]
+        regex         = "cache_nginx_.*"
+      }
+
       rule {
         target_label = "instance"
         replacement  = "${config.networking.hostName}"
@@ -175,23 +200,121 @@
     }
 
     loki.process "nginx_access" {
-      // Extract status code from log line
+      // Extract request details so nginx can emit response-code metrics that
+      // still include responses generated before a request reaches Phoenix.
       stage.regex {
-        expression = "\" (?P<status>\\d{3}) "
+        expression = "\"(?P<method>\\S+) (?P<request_path>\\S+) [^\"]+\" (?P<status>\\d{3}) .* rt=(?P<request_time>[0-9.]+)"
       }
 
-      // Sample 2xx responses - keep 10%
+      stage.regex {
+        source = "status"
+        expression = "^(?P<status_class>\\d)\\d\\d$"
+      }
+
+      stage.template {
+        source   = "path_group"
+        template = "other"
+      }
+
       stage.match {
-        selector = "{status=~\"2..\"}"
+        selector = "{job=\"cache-nginx\"} |= \"/api/cache/cas/\""
+
+        stage.template {
+          source   = "path_group"
+          template = "xcode"
+        }
+      }
+
+      stage.match {
+        selector = "{job=\"cache-nginx\"} |= \"/api/cache/keyvalue/\""
+
+        stage.template {
+          source   = "path_group"
+          template = "keyvalue"
+        }
+      }
+
+      stage.match {
+        selector = "{job=\"cache-nginx\"} |= \"/api/cache/gradle/\""
+
+        stage.template {
+          source   = "path_group"
+          template = "gradle"
+        }
+      }
+
+      stage.match {
+        selector = "{job=\"cache-nginx\"} |= \"/api/cache/module/\""
+
+        stage.template {
+          source   = "path_group"
+          template = "module"
+        }
+      }
+
+      stage.match {
+        selector = "{job=\"cache-nginx\"} |= \"/api/registry/swift\""
+
+        stage.template {
+          source   = "path_group"
+          template = "registry"
+        }
+      }
+
+      stage.match {
+        selector = "{job=\"cache-nginx\"} |= \" /metrics \""
+
+        stage.template {
+          source   = "path_group"
+          template = "metrics"
+        }
+      }
+
+      stage.template {
+        source   = "method"
+        template = "{{ if or (eq .method \"GET\") (eq .method \"HEAD\") (eq .method \"POST\") (eq .method \"PUT\") (eq .method \"DELETE\") (eq .method \"PATCH\") (eq .method \"OPTIONS\") (eq .method \"CONNECT\") (eq .method \"TRACE\") (eq .method \"PROPFIND\") }}{{ .method }}{{ else }}INVALID{{ end }}"
+      }
+
+      stage.labels {
+        values = {
+          method = "",
+          path_group = "",
+          status = "",
+          status_class = "",
+        }
+      }
+
+      stage.metrics {
+        metric.counter {
+          name        = "http_responses_total"
+          description = "Total nginx responses by path group, method, and status"
+          prefix      = "cache_nginx_"
+
+          match_all         = true
+          action            = "inc"
+          max_idle_duration = "24h"
+        }
+      }
+
+      stage.metrics {
+        metric.histogram {
+          name              = "request_duration_seconds"
+          description       = "Nginx request duration by path group, method, and status"
+          prefix            = "cache_nginx_"
+          source            = "request_time"
+          buckets           = [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30]
+          max_idle_duration = "24h"
+        }
+      }
+
+      // Sample successful responses to keep log volume manageable while still
+      // preserving all response-code metrics above.
+      stage.match {
+        selector = "{status_class=\"2\"}"
 
         stage.sampling {
           rate = 0.1
         }
-      }
-
-      // Drop status label to avoid high cardinality
-      stage.label_drop {
-        values = ["status"]
       }
 
       forward_to = [loki.write.grafana_cloud.receiver]

@@ -8,7 +8,7 @@ last_updated: 2025-08-08
 
 1.1. Tuist GmbH, Jessnerstr. 27a, 10247 Berlin, Germany ("**Tuist**", "**we**", "**our**", or "**us**"), is an integrated and open-core toolchain provider for app development. Our developer-centric platform extends Apple's native development tools, offering automation, insights, and optimized workflows to streamline the app development life cycle for Swift and iOS projects. We provide a suite of services and software solutions, including, but not limited to, project generation, caching, selective testing, app previews, build, test, and bundle insights, and package registry, all designed to improve productivity, scalability, and collaboration for development teams. Our offerings are available through a combination of free and paid plans, with support for enterprise features, priority support, and custom terms as required by business customers.
 
-1.2. These ToS outline the terms and conditions for the provision of services offered by Tuist. The functionalities and capabilities of the Platform are outlined in detail in our documentation to be found under [https://docs.tuist.dev](https://docs.tuist.dev).
+1.2. These ToS outline the terms and conditions for the provision of services offered by Tuist. The functionalities and capabilities of the Platform are outlined in detail in our documentation to be found under [https://tuist.dev/en/docs](https://tuist.dev/en/docs).
 
 1.3. Capitalized terms used but not defined within this Agreement will have the meaning set forth in Section 2.
 
@@ -60,7 +60,7 @@ Confidential Information also includes all summaries and abstracts of the Confid
 
 2.13. "**Data Processing Services**" means any digital service that is provided to You that enables ubiquitous and on-demand network access to a shared pool of configurable, scalable, and elastic computing resources of a centralized, distributed, or highly distributed nature that can be rapidly provisioned and released with minimal management effort or service provider interaction.
 
-2.14. "**Documentation**" means the technical specification documentation generally made available by Tuist to its customers with regard to the then-current version of the Platform from time to time. You can access the Documentation at any time at [https://docs.tuist.dev](https://docs.tuist.dev).
+2.14. "**Documentation**" means the technical specification documentation generally made available by Tuist to its customers with regard to the then-current version of the Platform from time to time. You can access the Documentation at any time at [https://tuist.dev/en/docs](https://tuist.dev/en/docs).
 
 2.15. "**Effective Date**" means the date on which You have subscribed to the Services.
 

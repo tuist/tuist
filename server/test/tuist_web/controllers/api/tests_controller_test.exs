@@ -9,6 +9,227 @@ defmodule TuistWeb.API.TestsControllerTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
 
+  describe "GET /api/projects/:account_handle/:project_handle/tests" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns test runs for a project", %{conn: conn, user: user, project: project} do
+      # Given
+      test_run_id = UUIDv7.generate()
+
+      stub(Tests, :list_test_runs, fn _attrs ->
+        {[
+           %{
+             id: test_run_id,
+             duration: 5000,
+             status: :success,
+             is_ci: true,
+             is_flaky: false,
+             scheme: "App",
+             git_branch: "main",
+             git_commit_sha: "abc123",
+             ran_at: ~N[2026-01-15 10:00:00]
+           }
+         ],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs ->
+        [%{test_run_id: test_run_id, total_tests: 42, ran_tests: 40, skipped_tests: 2}]
+      end)
+
+      # When
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert length(response["test_runs"]) == 1
+
+      run = hd(response["test_runs"])
+      assert run["id"] == test_run_id
+      assert run["duration"] == 5000
+      assert run["status"] == "success"
+      assert run["is_ci"] == true
+      assert run["is_flaky"] == false
+      assert run["scheme"] == "App"
+      assert run["git_branch"] == "main"
+      assert run["git_commit_sha"] == "abc123"
+      assert run["total_test_count"] == 42
+      assert run["ran_tests"] == 40
+      assert run["skipped_tests"] == 2
+
+      assert response["pagination_metadata"]["has_next_page"] == false
+      assert response["pagination_metadata"]["current_page"] == 1
+      assert response["pagination_metadata"]["total_count"] == 1
+    end
+
+    test "returns empty list when there are no test runs", %{conn: conn, user: user, project: project} do
+      # Given
+      stub(Tests, :list_test_runs, fn _attrs ->
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
+
+      # When
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["test_runs"] == []
+      assert response["pagination_metadata"]["total_count"] == 0
+    end
+
+    test "filters test runs by git_branch", %{conn: conn, user: user, project: project} do
+      # Given
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
+
+      expect(Tests, :list_test_runs, fn attrs ->
+        assert %{field: :git_branch, op: :==, value: "main"} in attrs.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      # When
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests?git_branch=main")
+
+      # Then
+      assert json_response(conn, :ok)
+    end
+
+    test "filters test runs by status", %{conn: conn, user: user, project: project} do
+      # Given
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
+
+      expect(Tests, :list_test_runs, fn attrs ->
+        assert %{field: :status, op: :==, value: "failure"} in attrs.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      # When
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests?status=failure")
+
+      # Then
+      assert json_response(conn, :ok)
+    end
+
+    test "filters test runs by scheme", %{conn: conn, user: user, project: project} do
+      # Given
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
+
+      expect(Tests, :list_test_runs, fn attrs ->
+        assert %{field: :scheme, op: :==, value: "MyApp"} in attrs.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      # When
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests?scheme=MyApp")
+
+      # Then
+      assert json_response(conn, :ok)
+    end
+
+    test "uses zero counts when metrics are not found for a run", %{conn: conn, user: user, project: project} do
+      # Given
+      test_run_id = UUIDv7.generate()
+
+      stub(Tests, :list_test_runs, fn _attrs ->
+        {[
+           %{
+             id: test_run_id,
+             duration: 1000,
+             status: :success,
+             is_ci: false,
+             is_flaky: false,
+             scheme: nil,
+             git_branch: nil,
+             git_commit_sha: nil,
+             ran_at: nil
+           }
+         ],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
+
+      # When
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests")
+
+      # Then
+      response = json_response(conn, :ok)
+      run = hd(response["test_runs"])
+      assert run["total_test_count"] == 0
+      assert run["ran_tests"] == 0
+      assert run["skipped_tests"] == 0
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      # Given
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+
+      # When
+      conn = get(conn, "/api/projects/#{project.account.name}/#{project.name}/tests")
+
+      # Then
+      assert json_response(conn, :forbidden)
+    end
+  end
+
   describe "POST /api/:account_handle/:project_handle/tests" do
     setup %{conn: conn} do
       stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)

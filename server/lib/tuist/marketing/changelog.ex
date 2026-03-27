@@ -9,10 +9,7 @@ defmodule Tuist.Marketing.Changelog do
     as: :entries,
     parser: Tuist.Marketing.Changelog.EntryParser,
     highlighters: [],
-    earmark_options: [
-      smartypants: false,
-      postprocessor: &Tuist.Earmark.ASTProcessor.process/1
-    ]
+    html_converter: Tuist.Marketing.MDExConverter
 
   @entries Enum.reverse(@entries)
   @categories @entries |> Enum.map(& &1.category) |> Enum.uniq()

@@ -1,0 +1,159 @@
+defmodule Cache.Xcode.DiskTest do
+  use ExUnit.Case, async: true
+  use Mimic
+
+  alias Cache.CacheArtifacts
+  alias Cache.Disk
+  alias Cache.Xcode
+
+  @test_account "test_account"
+  @test_project "test_project"
+  @test_id "abc123"
+  @test_key "#{@test_account}/#{@test_project}/xcode/ab/c1/#{@test_id}"
+
+  setup do
+    {:ok, test_storage_dir} = Briefly.create(directory: true)
+
+    Disk
+    |> stub(:storage_dir, fn -> test_storage_dir end)
+    |> stub(:artifact_path, fn key -> Path.join(test_storage_dir, key) end)
+
+    stub(CacheArtifacts, :track_artifact_access, fn _key -> :ok end)
+    {:ok, test_storage_dir: test_storage_dir}
+  end
+
+  describe "key/3" do
+    test "constructs sharded Xcode cache key" do
+      key = Xcode.Disk.key(@test_account, @test_project, @test_id)
+      assert key == @test_key
+    end
+
+    test "uses sharding for nested id" do
+      nested_id = "deeply/nested/artifact"
+      key = Xcode.Disk.key(@test_account, @test_project, nested_id)
+      assert key == "#{@test_account}/#{@test_project}/xcode/de/ep/#{nested_id}"
+    end
+  end
+
+  describe "exists?/3" do
+    test "returns true when file exists" do
+      path = Disk.artifact_path(@test_key)
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "test content")
+
+      assert Xcode.Disk.exists?(@test_account, @test_project, @test_id) == true
+    end
+
+    test "returns false when file doesn't exist" do
+      assert Xcode.Disk.exists?("nonexistent", "project", "abcd1234") == false
+    end
+  end
+
+  describe "put/4" do
+    test "writes binary data to disk successfully" do
+      data = "test artifact data"
+
+      assert Xcode.Disk.put(@test_account, @test_project, @test_id, data) == :ok
+
+      path = Disk.artifact_path(@test_key)
+      assert File.exists?(path)
+      assert File.read!(path) == data
+    end
+
+    test "creates parent directories if they don't exist" do
+      data = "nested artifact"
+
+      assert Xcode.Disk.put("account", "project", "deeply/nested/artifact", data) == :ok
+
+      path = Disk.artifact_path("account/project/xcode/de/ep/deeply/nested/artifact")
+      assert File.exists?(path)
+      assert File.read!(path) == data
+    end
+
+    test "overwrites existing file" do
+      path = Disk.artifact_path(@test_key)
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "old content")
+
+      new_data = "new content"
+      assert Xcode.Disk.put(@test_account, @test_project, @test_id, new_data) == :ok
+
+      assert File.read!(path) == new_data
+    end
+
+    test "handles binary data" do
+      binary_data = <<1, 2, 3, 4, 5, 255, 0, 128>>
+
+      assert Xcode.Disk.put(@test_account, @test_project, @test_id, binary_data) == :ok
+
+      path = Disk.artifact_path(@test_key)
+      assert File.read!(path) == binary_data
+    end
+
+    test "handles file tuple input" do
+      {:ok, tmp_path} = Briefly.create()
+      File.write!(tmp_path, "file content")
+
+      assert Xcode.Disk.put(@test_account, @test_project, @test_id, {:file, tmp_path}) == :ok
+
+      path = Disk.artifact_path(@test_key)
+      assert File.exists?(path)
+      assert File.read!(path) == "file content"
+    end
+  end
+
+  describe "get_local_path/3" do
+    test "returns path when file exists" do
+      data = "test content"
+      assert Xcode.Disk.put(@test_account, @test_project, @test_id, data) == :ok
+
+      result = Xcode.Disk.get_local_path(@test_account, @test_project, @test_id)
+      assert {:ok, path} = result
+      assert path == Disk.artifact_path(@test_key)
+      assert File.read!(path) == data
+    end
+
+    test "returns error when file doesn't exist" do
+      result = Xcode.Disk.get_local_path("nonexistent", "project", "abcd1234")
+      assert result == {:error, :not_found}
+    end
+  end
+
+  describe "stat/3" do
+    test "returns file stat for existing artifact" do
+      data = "test content for stat"
+      assert Xcode.Disk.put(@test_account, @test_project, @test_id, data) == :ok
+
+      assert {:ok, stat} = Xcode.Disk.stat(@test_account, @test_project, @test_id)
+      assert %File.Stat{} = stat
+      assert stat.size == byte_size(data)
+      assert stat.type == :regular
+    end
+
+    test "returns error for non-existent artifact" do
+      assert {:error, :enoent} = Xcode.Disk.stat("nonexistent", "project", "abcd1234")
+    end
+  end
+
+  describe "local_accel_path/3" do
+    test "builds internal X-Accel-Redirect path with sharded structure" do
+      path = Xcode.Disk.local_accel_path(@test_account, @test_project, @test_id)
+      assert path == "/internal/local/#{@test_account}/#{@test_project}/xcode/ab/c1/#{@test_id}"
+    end
+
+    test "builds internal path for nested id with sharded structure" do
+      nested_id = "deeply/nested/artifact"
+      path = Xcode.Disk.local_accel_path(@test_account, @test_project, nested_id)
+      assert path == "/internal/local/#{@test_account}/#{@test_project}/xcode/de/ep/#{nested_id}"
+    end
+  end
+
+  describe "integration test" do
+    test "put and exists? roundtrip" do
+      original_data = "This is test artifact content for roundtrip testing"
+
+      assert Xcode.Disk.put(@test_account, @test_project, @test_id, original_data) == :ok
+      assert Xcode.Disk.exists?(@test_account, @test_project, @test_id) == true
+    end
+  end
+end

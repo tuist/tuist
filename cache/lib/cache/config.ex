@@ -75,9 +75,16 @@ defmodule Cache.Config do
   end
 
   @doc """
-  Returns the bucket for cache artifacts (CAS and module).
+  Returns the bucket for cache artifacts (module and Gradle).
   """
   def cache_bucket, do: Application.get_env(:cache, :s3)[:bucket]
+
+  @doc """
+  Returns the dedicated bucket for Xcode cache artifacts, or nil if not configured.
+
+  When nil, Xcode cache artifacts use the shared cache bucket (`cache_bucket/0`).
+  """
+  def xcode_cache_bucket, do: Application.get_env(:cache, :s3)[:xcode_cache_bucket]
 
   @doc """
   Returns the bucket for registry artifacts, or nil if not configured.
@@ -107,11 +114,7 @@ defmodule Cache.Config do
   end
 
   def s3_virtual_host do
-    if Application.get_env(:ex_aws, :s3)[:virtual_host] do
-      true
-    else
-      false
-    end
+    !!Application.get_env(:ex_aws, :s3)[:virtual_host]
   end
 
   def server_url, do: Application.get_env(:cache, :server_url)
@@ -119,8 +122,31 @@ defmodule Cache.Config do
   @default_orphan_scan_max_dirs 50
   def orphan_scan_max_dirs, do: Application.get_env(:cache, :orphan_scan_max_dirs, @default_orphan_scan_max_dirs)
 
+  def repo_busy_timeout_ms(repo \\ Cache.Repo) do
+    Application.get_env(:cache, repo)[:busy_timeout] || 30_000
+  end
+
+  def key_value_eviction_max_duration_ms do
+    Application.get_env(:cache, :key_value_eviction_max_duration_ms, 300_000)
+  end
+
+  def key_value_read_busy_timeout_ms do
+    Application.get_env(:cache, :key_value_read_busy_timeout_ms, 2_000)
+  end
+
+  def key_value_maintenance_busy_timeout_ms do
+    Application.get_env(:cache, :key_value_maintenance_busy_timeout_ms, 50)
+  end
+
   def s3_config do
     Application.fetch_env(:ex_aws, :s3)
+  end
+
+  def cache_endpoint do
+    node()
+    |> to_string()
+    |> String.split("@")
+    |> List.last()
   end
 
   defp parse_float(nil, default), do: default

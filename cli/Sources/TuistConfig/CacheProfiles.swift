@@ -1,5 +1,5 @@
 /// Cache profile type.
-public enum CacheProfileType: Codable, Equatable, Sendable, Hashable {
+public enum CacheProfileType: Codable, Equatable, Sendable, Hashable, ExpressibleByStringLiteral {
     /// Replace external dependencies only (system default)
     case onlyExternal
     /// Replace as many targets as possible with cached binaries
@@ -8,9 +8,7 @@ public enum CacheProfileType: Codable, Equatable, Sendable, Hashable {
     case none
     /// Use named custom profile from `profiles` dictionary
     case custom(String)
-}
 
-extension CacheProfileType: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         switch BaseCacheProfile(rawValue: value) {
         case .onlyExternal:
@@ -81,29 +79,41 @@ public struct CacheProfiles: Codable, Equatable, Sendable, Hashable {
     }
 }
 
+/// Represents a cache storage backend.
+public enum CacheStorageOption: Codable, Equatable, Sendable, Hashable {
+    /// Store and fetch cached binaries on the local machine.
+    case local
+    /// Store and fetch cached binaries from the remote Tuist server.
+    case remote
+}
+
 public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
     public var keepSourceTargets: Bool
     public var profiles: CacheProfiles
+    /// The storage backends to use for caching.
+    public var storages: [CacheStorageOption]
 
     public init(
         keepSourceTargets: Bool,
-        profiles: CacheProfiles
+        profiles: CacheProfiles,
+        storages: [CacheStorageOption] = [.local, .remote]
     ) {
         self.keepSourceTargets = keepSourceTargets
         self.profiles = profiles
+        self.storages = storages
     }
-}
 
-#if DEBUG
-    extension CacheOptions {
+    #if DEBUG
         public static func test(
             keepSourceTargets: Bool = false,
-            profiles: CacheProfiles = .init([:], default: .onlyExternal)
+            profiles: CacheProfiles = .init([:], default: .onlyExternal),
+            storages: [CacheStorageOption] = [.local, .remote]
         ) -> Self {
             .init(
                 keepSourceTargets: keepSourceTargets,
-                profiles: profiles
+                profiles: profiles,
+                storages: storages
             )
         }
-    }
-#endif
+    #endif
+}

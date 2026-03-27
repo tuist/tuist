@@ -38,7 +38,7 @@ struct SettingsHelper {
     func settingsProviderProduct(_ target: Target) -> BuildSettingsProvider.Product? {
         if target.isAggregate { return nil }
         switch target.product {
-        case .app, .watch2App, .appClip:
+        case .app, .watch2App, .watch2AppContainer, .appClip:
             return .application
         case .dynamicLibrary:
             return .dynamicLibrary

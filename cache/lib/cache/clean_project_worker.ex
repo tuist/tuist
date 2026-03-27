@@ -5,6 +5,7 @@ defmodule Cache.CleanProjectWorker do
 
   use Oban.Worker, queue: :clean, max_attempts: 3
 
+  alias Cache.Config
   alias Cache.Disk
   alias Cache.S3
 
@@ -20,14 +21,24 @@ defmodule Cache.CleanProjectWorker do
         Logger.error("Failed to clean disk cache for project #{account_handle}/#{project_handle}: #{inspect(reason)}")
     end
 
-    case S3.delete_all_with_prefix("#{account_handle}/#{project_handle}/") do
-      {:ok, count} ->
-        Logger.info("Cleaned #{count} S3 objects for project #{account_handle}/#{project_handle}")
-
-      {:error, reason} ->
-        Logger.error("Failed to clean S3 objects for project #{account_handle}/#{project_handle}: #{inspect(reason)}")
+    if Config.xcode_cache_bucket() do
+      delete_s3_artifacts(account_handle, project_handle, :xcode_cache, "xcode cache")
     end
 
+    delete_s3_artifacts(account_handle, project_handle, :cache, "cache")
+
     :ok
+  end
+
+  defp delete_s3_artifacts(account_handle, project_handle, type, label) do
+    prefix = "#{account_handle}/#{project_handle}/"
+
+    case S3.delete_all_with_prefix(prefix, type: type) do
+      {:ok, count} ->
+        Logger.info("Cleaned #{count} S3 #{label} objects with prefix #{prefix}")
+
+      {:error, reason} ->
+        Logger.error("Failed to clean S3 #{label} objects with prefix #{prefix}: #{inspect(reason)}")
+    end
   end
 end

@@ -108,30 +108,32 @@
                 }
                 .filter { dependency in
                     switch target.target.product {
-                    case .app:
+                    case .app, .watch2AppContainer:
                         switch dependency.target.product {
                         case .appExtension, .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
                             return false
-                        case .app, .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
-                             .commandLineTool, .watch2Extension, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro:
+                        case .app, .watch2AppContainer, .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests,
+                             .uiTests, .bundle, .commandLineTool, .watch2Extension, .tvTopShelfExtension, .appClip, .xpc,
+                             .systemExtension, .macro:
                             return true
                         }
                     case .watch2App:
                         switch dependency.target.product {
                         case .watch2Extension:
                             return false
-                        case .app, .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
-                             .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
-                             .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
+                        case .app, .watch2AppContainer, .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests,
+                             .uiTests, .bundle, .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro,
+                             .appExtension, .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App:
                             return true
                         }
                     case .unitTests, .uiTests:
                         switch dependency.target.product {
                         case .app:
                             return !excludeAppDependenciesForTests
-                        case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests, .uiTests, .bundle,
-                             .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro, .appExtension,
-                             .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App, .watch2Extension:
+                        case .watch2AppContainer, .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .unitTests,
+                             .uiTests, .bundle, .commandLineTool, .tvTopShelfExtension, .appClip, .xpc, .systemExtension, .macro,
+                             .appExtension, .stickerPackExtension, .messagesExtension, .extensionKitExtension, .watch2App,
+                             .watch2Extension:
                             return true
                         }
                     case .staticLibrary, .dynamicLibrary, .framework, .staticFramework, .bundle,

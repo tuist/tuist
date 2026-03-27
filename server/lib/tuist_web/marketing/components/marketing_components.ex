@@ -408,4 +408,36 @@ defmodule TuistWeb.Marketing.MarketingComponents do
     </div>
     """
   end
+
+  attr :title, :string, required: true
+  attr :docs_href, :string, required: true
+
+  def feature_cta(assigns) do
+    ~H"""
+    <section data-part="cta">
+      <div id="marketing-banner">
+        <img
+          data-part="background"
+          src={~p"/marketing/images/components/banner/background.webp"}
+          alt=""
+        />
+        <h2 data-part="title">
+          {@title}
+        </h2>
+        <nav data-part="actions" aria-label="Primary actions">
+          <.button
+            href={~p"/users/register"}
+            label={dgettext("marketing", "Get started")}
+          />
+          <.button
+            href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+            variant="secondary"
+            label={dgettext("marketing", "Talk to us")}
+            target="_blank"
+          />
+        </nav>
+      </div>
+    </section>
+    """
+  end
 end

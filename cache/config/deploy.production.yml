@@ -4,9 +4,13 @@ servers:
       - cache-eu-central.tuist.dev
       - cache-eu-north.tuist.dev
       - cache-us-east.tuist.dev
+      - cache-us-east-2.tuist.dev
+      - cache-us-east-3.tuist.dev
       - cache-us-west.tuist.dev
       - cache-ap-southeast.tuist.dev
       - cache-sa-west.tuist.dev
+      - cache-au-east.tuist.dev
+      - cache-us-central.tuist.dev
 
 env:
   clear:

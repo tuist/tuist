@@ -430,6 +430,23 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
+  describe "get_session_key/1" do
+    test "returns the session object key" do
+      # Given
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # When
+      got = CommandEvents.get_session_key(command_event)
+
+      # Then
+      assert got ==
+               "#{project.account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
+    end
+  end
+
   describe "get_user_account_names_for_runs/1" do
     test "returns user account names for runs with users" do
       # Given

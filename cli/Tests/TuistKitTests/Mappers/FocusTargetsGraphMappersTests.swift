@@ -249,6 +249,111 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         XCTAssertEqual(pruningTargets.map(\.name), [exampleApp.name])
     }
 
+    func test_map_when_included_products_does_not_prune_pre_action_build_settings_target() throws {
+        // Given
+        let appTarget = Target.test(name: "App", product: .app)
+        let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
+        let framework = Target.test(name: "Framework")
+        let path = try temporaryPath()
+        let project = Project.test(
+            path: path,
+            targets: [appTarget, framework, frameworkTests],
+            schemes: [
+                .test(
+                    name: "FrameworkTests",
+                    buildAction: .test(
+                        targets: [TargetReference(projectPath: path, name: "FrameworkTests")],
+                        preActions: [
+                            ExecutionAction(
+                                title: "Report build start",
+                                scriptText: "echo $TARGET_BUILD_DIR",
+                                target: TargetReference(projectPath: path, name: "App"),
+                                shellPath: "/bin/sh"
+                            ),
+                        ]
+                    ),
+                    testAction: .test(
+                        targets: [.test(target: TargetReference(projectPath: path, name: "FrameworkTests"))]
+                    )
+                ),
+            ]
+        )
+        let subject = FocusTargetsGraphMappers(includedTargets: Set(), includedProducts: [.unitTests, .uiTests])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: frameworkTests.name, path: path): [
+                    .target(name: framework.name, path: path),
+                ],
+                .target(name: appTarget.name, path: path): [
+                    .target(name: framework.name, path: path),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+
+        // Then — App should NOT be pruned because it's referenced as a pre-action build settings provider
+        XCTAssertEmpty(pruningTargets.map(\.name))
+    }
+
+    func test_map_when_included_products_prunes_pre_action_target_from_fully_pruned_scheme() throws {
+        // Given
+        // A scheme whose only build target is an app (not a test) — the entire scheme will be pruned,
+        // so its pre-action target should also be pruned
+        let appTarget = Target.test(name: "App", product: .app)
+        let helperTarget = Target.test(name: "Helper", product: .framework)
+        let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
+        let framework = Target.test(name: "Framework")
+        let path = try temporaryPath()
+        let project = Project.test(
+            path: path,
+            targets: [appTarget, helperTarget, framework, frameworkTests],
+            schemes: [
+                .test(
+                    name: "AppScheme",
+                    buildAction: .test(
+                        targets: [TargetReference(projectPath: path, name: "App")],
+                        preActions: [
+                            ExecutionAction(
+                                title: "Pre-action",
+                                scriptText: "echo $TARGET_BUILD_DIR",
+                                target: TargetReference(projectPath: path, name: "Helper"),
+                                shellPath: "/bin/sh"
+                            ),
+                        ]
+                    )
+                ),
+            ]
+        )
+        let subject = FocusTargetsGraphMappers(includedTargets: Set(), includedProducts: [.unitTests, .uiTests])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: frameworkTests.name, path: path): [
+                    .target(name: framework.name, path: path),
+                ],
+                .target(name: appTarget.name, path: path): [
+                    .target(name: helperTarget.name, path: path),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+
+        // Then — App and Helper should both be pruned since the scheme has no surviving test targets
+        XCTAssertEqual(
+            pruningTargets.map(\.name).sorted(),
+            ["App", "Helper"]
+        )
+    }
+
     func test_map_when_included_products_with_explicit_filters_uses_filters() throws {
         // Given
         let framework = Target.test(name: "Framework")
@@ -281,6 +386,80 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         XCTAssertEqual(
             pruningTargets.map(\.name).sorted(),
             [frameworkTests.name]
+        )
+    }
+
+    func test_map_when_included_targets_were_pruned_by_selective_testing_does_not_throw() throws {
+        // Given
+        let aTarget = Target.test(name: "App", product: .app)
+        let aTests = Target.test(name: "AppTests", product: .unitTests)
+        let libTests = Target.test(name: "LibTests", product: .unitTests)
+        let subject = FocusTargetsGraphMappers(
+            includedTargets: [.named("AppTests"), .named("LibTests")]
+        )
+        let path = try temporaryPath()
+        // The initial graph (before selective testing) had LibTests
+        let initialProject = Project.test(path: path, targets: [aTarget, aTests, libTests])
+        let initialGraph = Graph.test(
+            projects: [initialProject.path: initialProject],
+            dependencies: [
+                .target(name: aTests.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+            ]
+        )
+        // After selective testing + tree shaking, LibTests was removed
+        let project = Project.test(path: path, targets: [aTarget, aTests])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: aTests.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = initialGraph
+
+        // When / Then — should not throw despite LibTests missing from the current graph
+        let (_, gotSideEffects, _) = try subject.map(graph: graph, environment: environment)
+        XCTAssertEmpty(gotSideEffects)
+    }
+
+    func test_map_when_some_included_targets_were_pruned_and_others_do_not_exist_throws() throws {
+        // Given
+        let aTarget = Target.test(name: "App", product: .app)
+        let aTests = Target.test(name: "AppTests", product: .unitTests)
+        let libTests = Target.test(name: "LibTests", product: .unitTests)
+        let subject = FocusTargetsGraphMappers(
+            includedTargets: [.named("AppTests"), .named("LibTests"), .named("NonExistent")]
+        )
+        let path = try temporaryPath()
+        let initialProject = Project.test(path: path, targets: [aTarget, aTests, libTests])
+        let initialGraph = Graph.test(
+            projects: [initialProject.path: initialProject],
+            dependencies: [
+                .target(name: aTests.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+            ]
+        )
+        let project = Project.test(path: path, targets: [aTarget, aTests])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: aTests.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = initialGraph
+
+        // When / Then — LibTests is in initialGraph so it's fine, but NonExistent is truly missing
+        XCTAssertThrowsSpecific(
+            try subject.map(graph: graph, environment: environment),
+            FocusTargetsGraphMappersError.targetsNotFound(["NonExistent"])
         )
     }
 

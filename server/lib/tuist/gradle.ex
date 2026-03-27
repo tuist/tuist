@@ -7,6 +7,7 @@ defmodule Tuist.Gradle do
 
   import Ecto.Query
 
+  alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Build
@@ -40,8 +41,23 @@ defmodule Tuist.Gradle do
     tasks = Map.get(attrs, :tasks, [])
 
     task_counts = compute_task_counts(tasks)
+    build_entry = build_entry(attrs, build_id, task_counts, now)
 
-    build_entry = %{
+    Build.Buffer.insert(build_entry)
+
+    if !Enum.empty?(tasks) do
+      create_tasks(build_id, attrs.project_id, tasks, now)
+    end
+
+    machine_metrics = Map.get(attrs, :machine_metrics, [])
+
+    create_machine_metrics(build_id, machine_metrics, now)
+
+    {:ok, build_id}
+  end
+
+  defp build_entry(attrs, build_id, task_counts, now) do
+    %{
       id: build_id,
       project_id: attrs.project_id,
       account_id: attrs.account_id,
@@ -62,16 +78,9 @@ defmodule Tuist.Gradle do
       tasks_skipped_count: task_counts.skipped,
       tasks_no_source_count: task_counts.no_source,
       cacheable_tasks_count: task_counts.cacheable,
+      requested_tasks: Map.get(attrs, :requested_tasks, []),
       inserted_at: now
     }
-
-    Build.Buffer.insert(build_entry)
-
-    if !Enum.empty?(tasks) do
-      create_tasks(build_id, attrs.project_id, tasks, now)
-    end
-
-    {:ok, build_id}
   end
 
   defp compute_task_counts(tasks) do
@@ -89,6 +98,26 @@ defmodule Tuist.Gradle do
         end)
       end
     )
+  end
+
+  defp create_machine_metrics(build_id, metrics, now) do
+    entries =
+      Enum.map(metrics, fn metric ->
+        %{
+          gradle_build_id: build_id,
+          timestamp: metric.timestamp,
+          cpu_usage_percent: metric.cpu_usage_percent / 1,
+          memory_used_bytes: metric.memory_used_bytes,
+          memory_total_bytes: metric.memory_total_bytes,
+          network_bytes_in: metric.network_bytes_in,
+          network_bytes_out: metric.network_bytes_out,
+          disk_bytes_read: metric.disk_bytes_read,
+          disk_bytes_written: metric.disk_bytes_written,
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(BuildMachineMetric, entries)
   end
 
   defp create_tasks(build_id, project_id, tasks, now) do
@@ -134,8 +163,18 @@ defmodule Tuist.Gradle do
 
   Returns `{builds, meta}` where `meta` contains pagination info.
   """
-  def list_builds(project_id, flop_params \\ %{}) do
+  def list_builds(project_id, flop_params \\ %{}, opts \\ []) do
     base_query = from(b in Build, where: b.project_id == ^project_id)
+
+    base_query =
+      Enum.reduce(Keyword.get(opts, :requested_tasks_filters, []), base_query, fn
+        {:has, value}, q ->
+          from(b in q, where: fragment("has(?, ?)", b.requested_tasks, ^value))
+
+        {:not_has, value}, q ->
+          from(b in q, where: fragment("NOT has(?, ?)", b.requested_tasks, ^value))
+      end)
+
     ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Build)
   end
 
@@ -260,6 +299,7 @@ defmodule Tuist.Gradle do
           project_id: event.project_id,
           account_handle: event.account_handle,
           project_handle: event.project_handle,
+          cache_endpoint: event.cache_endpoint,
           inserted_at: now
         }
       end)

@@ -32,6 +32,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
+  MISE_GITHUB_ATTESTATIONS: 0
 
 concurrency:
   group: docs-${{ github.head_ref }}
@@ -82,8 +83,8 @@ jobs:
           working_directory: docs
       - name: Authenticate with Tuist
         run: tuist auth login
-      - name: Setup Tuist cache
-        run: tuist setup cache
+      - name: Setup Tuist
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-hit != 'true'
         run: tuist install
@@ -210,11 +211,17 @@ jobs:
         with:
           path: .build
           key: ${{ steps.spm-cache.outputs.cache-primary-key }}
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y curl
       - uses: jdx/mise-action@v2
+        with:
+          working_directory: docs
+      - uses: 1password/install-cli-action@v2
       - name: Deploy to Cloudflare Pages
+        working-directory: docs
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
           CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
         run: |
-          op run -- npx wrangler pages deploy --commit-hash ${{ github.sha }} --branch main --project-name tuist-projectdescription .build/documentation
+          op run -- npx wrangler pages deploy --commit-hash ${{ github.sha }} --branch main --project-name tuist-projectdescription ../.build/documentation

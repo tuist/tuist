@@ -1,0 +1,272 @@
+.noora-avatar {
+  --noora-avatar-gray-background: light-dark(
+    var(--noora-neutral-light-300),
+    var(--noora-neutral-dark-900)
+  );
+  --noora-avatar-gray-label: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-dark-50)
+  );
+  --noora-avatar-red-background: light-dark(
+    var(--noora-red-100),
+    var(--noora-red-800)
+  );
+  --noora-avatar-red-label: light-dark(
+    var(--noora-red-800),
+    var(--noora-red-100)
+  );
+  --noora-avatar-orange-background: light-dark(
+    var(--noora-orange-100),
+    var(--noora-orange-800)
+  );
+  --noora-avatar-orange-label: light-dark(
+    var(--noora-orange-800),
+    var(--noora-orange-100)
+  );
+  --noora-avatar-yellow-background: light-dark(
+    var(--noora-yellow-100),
+    var(--noora-yellow-800)
+  );
+  --noora-avatar-yellow-label: light-dark(
+    var(--noora-yellow-800),
+    var(--noora-yellow-100)
+  );
+  --noora-avatar-azure-background: light-dark(
+    var(--noora-azure-100),
+    var(--noora-azure-800)
+  );
+  --noora-avatar-azure-label: light-dark(
+    var(--noora-azure-800),
+    var(--noora-azure-100)
+  );
+  --noora-avatar-blue-background: light-dark(
+    var(--noora-blue-100),
+    var(--noora-blue-800)
+  );
+  --noora-avatar-blue-label: light-dark(
+    var(--noora-blue-800),
+    var(--noora-blue-100)
+  );
+  --noora-avatar-purple-background: light-dark(
+    var(--noora-purple-100),
+    var(--noora-purple-800)
+  );
+  --noora-avatar-purple-label: light-dark(
+    var(--noora-purple-800),
+    var(--noora-purple-100)
+  );
+  --noora-avatar-pink-background: light-dark(
+    var(--noora-pink-100),
+    var(--noora-pink-800)
+  );
+  --noora-avatar-pink-label: light-dark(
+    var(--noora-pink-800),
+    var(--noora-pink-100)
+  );
+
+  --noora-size-2xsmall: 20px;
+  --noora-size-xsmall: 24px;
+  --noora-size-small: 32px;
+  --noora-size-medium: 40px;
+  --noora-size-large: 46px;
+  --noora-size-xlarge: 56px;
+  --noora-size-2xlarge: 64px;
+
+  display: flex;
+  align-items: center;
+  border-radius: var(--noora-radius-xlarge);
+  overflow: hidden;
+
+  &[data-color="gray"] {
+    background-color: var(--noora-avatar-gray-background);
+    & [data-part="initials"] {
+      color: var(--noora-avatar-gray-label);
+    }
+  }
+
+  &[data-color="red"] {
+    background-color: var(--noora-avatar-red-background);
+    & [data-part="initials"] {
+      color: var(--noora-avatar-red-label);
+    }
+  }
+
+  &[data-color="orange"] {
+    background-color: var(--noora-avatar-orange-background);
+    & [data-part="initials"] {
+      color: var(--noora-avatar-orange-label);
+    }
+  }
+
+  &[data-color="yellow"] {
+    background-color: var(--noora-avatar-yellow-background);
+    & [data-part="initials"] {
+      color: var(--noora-avatar-yellow-label);
+    }
+  }
+
+  &[data-color="azure"] {
+    background-color: var(--noora-avatar-azure-background);
+    & [data-part="initials"] {
+      color: var(--noora-avatar-azure-label);
+    }
+  }
+
+  &[data-color="blue"] {
+    background-color: var(--noora-avatar-blue-background);
+    & [data-part="initials"] {
+      color: var(--noora-avatar-blue-label);
+    }
+  }
+
+  &[data-color="purple"] {
+    background-color: var(--noora-avatar-purple-background);
+    & [data-part="initials"] {
+      color: var(--noora-avatar-purple-label);
+    }
+  }
+
+  &[data-color="pink"] {
+    background-color: var(--noora-avatar-pink-background);
+    & [data-part="initials"] {
+      color: var(--noora-avatar-pink-label);
+    }
+  }
+
+  &[data-size="2xsmall"] {
+    border-radius: var(--noora-radius-small);
+
+    &,
+    & [data-part="image"],
+    .noora-avatar__fallback-image {
+      width: var(--noora-size-2xsmall);
+      height: var(--noora-size-2xsmall);
+    }
+
+    & [data-part="initials"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  &[data-size="xsmall"] {
+    border-radius: var(--noora-radius-small);
+
+    &,
+    & [data-part="image"],
+    .noora-avatar__fallback-image {
+      width: var(--noora-size-xsmall);
+      height: var(--noora-size-xsmall);
+    }
+
+    & [data-part="initials"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  &[data-size="small"] {
+    border-radius: var(--noora-radius-medium);
+
+    &,
+    & [data-part="image"],
+    .noora-avatar__fallback-image {
+      width: var(--noora-size-small);
+      height: var(--noora-size-small);
+    }
+
+    & [data-part="initials"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  &[data-size="medium"] {
+    border-radius: var(--noora-radius-large);
+
+    &,
+    & [data-part="image"],
+    .noora-avatar__fallback-image {
+      width: var(--noora-size-medium);
+      height: var(--noora-size-medium);
+    }
+
+    & [data-part="initials"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+    }
+  }
+
+  &[data-size="large"] {
+    border-radius: var(--noora-radius-large);
+
+    &,
+    & [data-part="image"],
+    .noora-avatar__fallback-image {
+      width: var(--noora-size-large);
+      height: var(--noora-size-large);
+    }
+
+    & [data-part="initials"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
+    }
+  }
+
+  &[data-size="xlarge"] {
+    border-radius: var(--noora-radius-xlarge);
+
+    &,
+    & [data-part="image"],
+    .noora-avatar__fallback-image {
+      width: var(--noora-size-xlarge);
+      height: var(--noora-size-xlarge);
+    }
+
+    & [data-part="initials"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
+    }
+  }
+
+  &[data-size="2xlarge"] {
+    border-radius: var(--noora-radius-xlarge);
+
+    &,
+    & [data-part="image"],
+    .noora-avatar__fallback-image {
+      width: var(--noora-size-2xlarge);
+      height: var(--noora-size-2xlarge);
+    }
+
+    & [data-part="initials"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
+    }
+  }
+
+  & [data-part="image"],
+  .noora-avatar__fallback-image {
+    position: relative;
+    top: 0;
+    left: 0;
+  }
+  & [data-part="image"] {
+    display: none;
+  }
+
+  & [data-part="image"][data-state="visible"] {
+    display: block;
+  }
+
+  & [data-part="fallback"][data-state="hidden"] {
+    display: none;
+  }
+
+  & [data-part="initials"] {
+    flex-grow: 1;
+    font: var(--noora-font-weight-regular) var(--noora-font-heading-large);
+    text-align: center;
+  }
+
+  & [data-part="fallback-image-background"] {
+    fill: var(--noora-avatar-gray-background);
+  }
+
+  & [data-part="fallback-image-label"] {
+    fill: var(--noora-avatar-gray-label);
+  }
+}

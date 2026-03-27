@@ -18,10 +18,11 @@ The Tuist cache service is a standalone service that provides Content Addressabl
 
 ## Overview {#overview}
 
-The service uses a two-tier storage architecture:
+The service uses a two-tier storage architecture plus local SQLite metadata:
 
 - **Local disk**: Primary storage for low-latency cache hits
 - **S3**: Durable storage that persists artifacts and allows recovery after eviction
+- **SQLite**: Local metadata for artifact access tracking, orphan cleanup, background jobs, and key-value cache data
 
 ```mermaid
 flowchart LR
@@ -48,6 +49,15 @@ Artifacts are stored on local disk in a sharded directory structure:
 - **Path**: `{account}/{project}/cas/{shard1}/{shard2}/{artifact_id}`
 - **Sharding**: First four characters of the artifact ID create a two-level shard (e.g., `ABCD1234` → `AB/CD/ABCD1234`)
 
+### SQLite Metadata {#sqlite}
+
+The cache service uses two SQLite databases:
+
+- **Primary metadata DB**: Stores `cache_artifacts`, orphan scan cursors, Oban jobs, and other service metadata.
+- **Key-value DB**: Stores `key_value_entries` and `key_value_entry_hashes` in a dedicated SQLite file.
+
+The key-value store is split into its own database so it can use SQLite incremental auto-vacuum without affecting artifact metadata and orphan cleanup state.
+
 ### S3 Integration {#s3}
 
 S3 provides durable storage:
@@ -57,11 +67,21 @@ S3 provides durable storage:
 
 ### Disk Eviction {#eviction}
 
-The service manages disk space using LRU eviction:
+The service manages disk space using multiple background processes:
 
-- Access times are tracked in SQLite
+- **CAS disk eviction** uses LRU semantics backed by `cache_artifacts`
 - When disk usage exceeds 85%, the oldest artifacts are deleted until usage drops to 70%
 - Artifacts remain in S3 after local eviction
+- **KV eviction** removes old key-value entries by retention and can also shrink the dedicated KV database when it grows past its configured size budget
+
+### Orphan Cleanup {#orphan-cleanup}
+
+The service also runs an orphan cleanup worker for disk artifacts:
+
+- It scans the storage tree for files that exist on disk but have no corresponding `cache_artifacts` row.
+- This can happen if a file is written to disk but the metadata write is lost before the SQLite buffer flush completes.
+- Files newer than a safety window are ignored to avoid racing with in-flight uploads.
+- If an orphan is deleted and later requested again, the next cache miss causes it to be uploaded again, so the system self-heals.
 
 ### Authentication {#authentication}
 

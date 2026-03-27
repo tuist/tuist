@@ -7,6 +7,8 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlug do
   import Phoenix.Controller
   import Plug.Conn
 
+  @docs_locale_redirect ~r{^/docs/(?<locale>[^/]+)(?<rest>/.*)?$}
+
   @redirects %{
     "/blog/2024/12/16/trendyol" => "/customers/trendyol"
   }
@@ -14,7 +16,7 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlug do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    case Map.get(@redirects, conn.request_path) do
+    case docs_path_redirect(conn) || Map.get(@redirects, conn.request_path) do
       nil ->
         conn
 
@@ -23,6 +25,18 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlug do
         |> put_status(:moved_permanently)
         |> redirect(to: new_path)
         |> halt()
+    end
+  end
+
+  defp docs_path_redirect(conn) do
+    case Regex.named_captures(@docs_locale_redirect, conn.request_path) do
+      %{"locale" => locale, "rest" => rest} ->
+        rest = rest || ""
+        path = "/#{locale}/docs#{rest}"
+        if conn.query_string == "", do: path, else: "#{path}?#{conn.query_string}"
+
+      nil ->
+        nil
     end
   end
 end

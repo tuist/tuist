@@ -10,10 +10,7 @@ defmodule Tuist.Marketing.Pages do
     as: :pages,
     parser: Tuist.Marketing.Pages.PageParser,
     highlighters: [],
-    earmark_options: [
-      smartypants: false,
-      postprocessor: &Tuist.Earmark.ASTProcessor.process/1
-    ]
+    html_converter: Tuist.Marketing.MDExConverter
 
   def get_pages, do: @pages
 end

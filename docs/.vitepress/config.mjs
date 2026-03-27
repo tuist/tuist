@@ -497,12 +497,24 @@ export default withMermaid(
 /:locale/tutorials/xcode/get-started /:locale/tutorials/xcode/create-a-generated-project 301
 /:locale/tutorials/xcode/add-dependencies /:locale/tutorials/xcode/create-a-generated-project 301
 /:locale/tutorials/xcode/gather-insights /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/guides/features/insights /:locale/guides/features/build-insights 301
+/:locale/guides/features/insights/xcode-cache /:locale/guides/features/build-insights/xcode 301
+/:locale/guides/features/insights/gradle-cache /:locale/guides/features/build-insights/gradle 301
 /:locale/cli/logging /:locale/cli/debugging 301
 ${cliLocaleRedirects}
 ${projectDescriptionRedirects}
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
+/en/* https://tuist.dev/en/docs/:splat 301
+/ko/* https://tuist.dev/ko/docs/:splat 301
+/ja/* https://tuist.dev/ja/docs/:splat 301
+/ru/* https://tuist.dev/ru/docs/:splat 301
+/es/* https://tuist.dev/es/docs/:splat 301
+/pt/* https://tuist.dev/pt/docs/:splat 301
+/ar/* https://tuist.dev/ar/docs/:splat 301
+/pl/* https://tuist.dev/pl/docs/:splat 301
+/* https://tuist.dev/en/docs/:splat 301
     `;
       await fs.writeFile(redirectsPath, redirects);
     },

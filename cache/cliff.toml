@@ -38,19 +38,6 @@ body = """
 {%- endfor -%}
 {% endfor %}
 
-{%- if github -%}
-{% if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}
-  {% raw %}\n{% endraw -%}
-  ## New Contributors
-{%- endif %}\
-{% for contributor in github.contributors | filter(attribute="is_first_time", value=true) %}
-  * [@{{ contributor.username }}](https://github.com/{{ contributor.username }}) made their first contribution
-    {%- if contributor.pr_number %} in \
-      [#{{ contributor.pr_number }}]({{ self::remote_url() }}/pull/{{ contributor.pr_number }}) \
-    {%- endif %}
-{%- endfor -%}
-{%- endif -%}
-
 {% if version %}
     {% if previous.version %}
       **Full Changelog**: {{ self::remote_url() }}/compare/{{ previous.version }}...{{ version }}

@@ -60,6 +60,7 @@ defmodule TuistWeb.TestCasesLiveTest do
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-cases")
+      render_async(lv)
 
       # Then
       assert has_element?(lv, "[data-part='test-cases-table']")

@@ -16,7 +16,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
     public static let validResourceExtensions: [String] = [
         // Resource
         "md", "xcstrings", "plist", "rtf", "tutorial", "sks", "xcprivacy", "gpx", "strings", "stringsdict",
-        "geojson", "txt", "json", "js",
+        "geojson", "txt", "json", "js", "mp4", "mov", "avi", "mp3", "wav", "aac",
 
         // User interface
         "storyboard", "xib",
@@ -200,6 +200,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
             .unitTests,
             .uiTests,
             .appExtension,
+            .watch2AppContainer,
             .watch2Extension,
             .messagesExtension,
             .appClip,
@@ -228,7 +229,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
     """)
     public var supportsSources: Bool {
         switch product {
-        case .stickerPackExtension, .watch2App:
+        case .stickerPackExtension, .watch2App, .watch2AppContainer:
             return false
         case .bundle:
             // Bundles only support source when targetting macOS only
@@ -254,6 +255,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
              .bundle,
              .appExtension,
              .watch2App,
+             .watch2AppContainer,
              .watch2Extension,
              .tvTopShelfExtension,
              .messagesExtension,
@@ -310,7 +312,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
     /// Determines if the target is able to embed a watch application
     /// i.e. a product that can be bundled with a watchOS application
     public func canEmbedWatchApplications() -> Bool {
-        supports(.iOS) && product == .app
+        supports(.iOS) && (product == .app || product == .watch2AppContainer)
     }
 
     /// Determines if the target is able to embed an system extension
@@ -413,24 +415,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
     public static func < (lhs: Target, rhs: Target) -> Bool {
         lhs.name < rhs.name
     }
-}
 
-extension Sequence<Target> {
-    /// Filters and returns only the targets that are test bundles.
-    var testBundles: [Target] {
-        filter(\.product.testsBundle)
-    }
-
-    /// Filters and returns only the targets that are apps and app clips.
-    var apps: [Target] {
-        filter { $0.product == .app || $0.product == .appClip }
-    }
-}
-
-#if DEBUG
-    extension Target {
-        /// Creates a Target with test data
-        /// Note: Referenced paths may not exist
+    #if DEBUG
         public static func test(
             name: String = "Target",
             destinations: Destinations = [.iPhone, .iPad],
@@ -493,8 +479,6 @@ extension Sequence<Target> {
             )
         }
 
-        /// Creates a Target with test data
-        /// Note: Referenced paths may not exist
         public static func test(
             name: String = "Target",
             platform: Platform,
@@ -557,7 +541,6 @@ extension Sequence<Target> {
             )
         }
 
-        /// Creates a bare bones Target with as little data as possible
         public static func empty(
             name: String = "Target",
             destinations: Destinations = [.iPhone, .iPad],
@@ -606,7 +589,6 @@ extension Sequence<Target> {
             )
         }
 
-        /// Maps a platform to a set of Destinations.  For migration purposes
         private static func destinationsFrom(_ platform: Platform) -> Destinations {
             switch platform {
             case .iOS:
@@ -621,5 +603,17 @@ extension Sequence<Target> {
                 return .visionOS
             }
         }
+    #endif
+}
+
+extension Sequence<Target> {
+    /// Filters and returns only the targets that are test bundles.
+    var testBundles: [Target] {
+        filter(\.product.testsBundle)
     }
-#endif
+
+    /// Filters and returns only the targets that are apps and app clips.
+    var apps: [Target] {
+        filter { $0.product == .app || $0.product == .appClip }
+    }
+}

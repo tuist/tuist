@@ -1,5 +1,6 @@
 #if canImport(TuistLoader)
     import FileSystem
+    import FileSystemTesting
     import Foundation
     import Mockable
     import Testing
@@ -142,6 +143,100 @@
                 given(serverAuthenticationController)
                     .authenticationToken(serverURL: .any)
                     .willReturn(.project("project-token"))
+                given(securityController)
+                    .addInternetPassword(
+                        accountName: .any,
+                        serverName: .any,
+                        password: .any,
+                        securityProtocol: .any,
+                        update: .any,
+                        applications: .any
+                    )
+                    .willReturn()
+                given(manifestFilesLocator)
+                    .locatePackageManifest(at: .any)
+                    .willReturn(nil)
+
+                // When
+                try await subject.run(path: nil)
+
+                // Then
+                verify(securityController)
+                    .addInternetPassword(
+                        accountName: .any,
+                        serverName: .any,
+                        password: .any,
+                        securityProtocol: .any,
+                        update: .any,
+                        applications: .any
+                    )
+                    .called(1)
+            }
+        }
+
+        @Test(.inTemporaryDirectory, .withMockedEnvironment())
+        func login_when_ci_and_account_token() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            try await withMockedDependencies {
+                // Given
+                given(configLoader)
+                    .loadConfig(path: .any)
+                    .willReturn(.test(fullHandle: "tuist/tuist"))
+                given(fullHandleService)
+                    .parse(.any)
+                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                given(serverEnvironmentService)
+                    .url(configServerURL: .any)
+                    .willReturn(.test())
+                let mockEnvironment = try #require(Environment.mocked)
+                mockEnvironment.variables = ["CI": "1"]
+                let accountJWT = try JWT.make(
+                    expiryDate: Date().addingTimeInterval(+60),
+                    typ: "access",
+                    type: "account"
+                )
+                given(serverAuthenticationController)
+                    .authenticationToken(serverURL: .any)
+                    .willReturn(.account(try JWT.parse(accountJWT.token)))
+                given(swiftPackageManagerController)
+                    .packageRegistryLogin(token: .any, registryURL: .any)
+                    .willReturn()
+                given(manifestFilesLocator)
+                    .locatePackageManifest(at: .any)
+                    .willReturn(temporaryDirectory)
+
+                // When
+                try await subject.run(path: nil)
+
+                // Then
+                verify(swiftPackageManagerController)
+                    .packageRegistryLogin(token: .any, registryURL: .any)
+                    .called(1)
+            }
+        }
+
+        @Test(.withMockedEnvironment()) func login_when_ci_and_account_token_and_xcode_project() async throws {
+            try await withMockedDependencies {
+                // Given
+                given(configLoader)
+                    .loadConfig(path: .any)
+                    .willReturn(.test(fullHandle: "tuist/tuist"))
+                given(fullHandleService)
+                    .parse(.any)
+                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                given(serverEnvironmentService)
+                    .url(configServerURL: .any)
+                    .willReturn(.test())
+                let mockEnvironment = try #require(Environment.mocked)
+                mockEnvironment.variables = ["CI": "1"]
+                let accountJWT = try JWT.make(
+                    expiryDate: Date().addingTimeInterval(+60),
+                    typ: "access",
+                    type: "account"
+                )
+                given(serverAuthenticationController)
+                    .authenticationToken(serverURL: .any)
+                    .willReturn(.account(try JWT.parse(accountJWT.token)))
                 given(securityController)
                     .addInternetPassword(
                         accountName: .any,

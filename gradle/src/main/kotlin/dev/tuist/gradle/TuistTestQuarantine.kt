@@ -28,16 +28,26 @@ data class QuarantinedSuite(
     val name: String
 )
 
+data class TestIdentifier(
+    val suiteName: String?,
+    val testName: String
+) {
+    fun matches(className: String?, name: String): Boolean {
+        if (suiteName != null && suiteName != className) return false
+        return testName == name
+    }
+}
+
 class TuistTestQuarantineService(
     private val httpClient: TuistHttpClient,
     private val baseUrl: String
 ) {
     private val logger = Logging.getLogger(TuistTestQuarantineService::class.java)
 
-    private var cachedExclusions: Map<String, List<String>>? = null
+    private var cachedExclusions: Map<String, List<TestIdentifier>>? = null
 
     @Synchronized
-    fun getQuarantinedTests(): Map<String, List<String>> {
+    fun getQuarantinedTests(): Map<String, List<TestIdentifier>> {
         cachedExclusions?.let { return it }
 
         val result = try {
@@ -51,7 +61,7 @@ class TuistTestQuarantineService(
         return result
     }
 
-    private fun fetchQuarantinedTests(): Map<String, List<String>> {
+    private fun fetchQuarantinedTests(): Map<String, List<TestIdentifier>> {
         return httpClient.execute { config ->
             val url = URI(baseUrl.trimEnd('/')).resolve(
                 "/api/projects/${config.accountHandle}/${config.projectHandle}/tests/test-cases?quarantined=true&page_size=500"
@@ -68,7 +78,7 @@ class TuistTestQuarantineService(
                         ).use { reader ->
                             Gson().fromJson(reader, QuarantinedTestCasesResponse::class.java)
                         }
-                        buildExclusionMap(response.testCases)
+                        buildQuarantineMap(response.testCases)
                     }
                     HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
                     else -> {
@@ -87,16 +97,14 @@ class TuistTestQuarantineService(
         }
     }
 
-    private fun buildExclusionMap(testCases: List<QuarantinedTestCase>): Map<String, List<String>> {
+    private fun buildQuarantineMap(testCases: List<QuarantinedTestCase>): Map<String, List<TestIdentifier>> {
         return testCases.groupBy(
             keySelector = { it.module.name },
             valueTransform = { testCase ->
-                val suiteName = testCase.suite?.name?.takeIf { it.isNotBlank() }
-                if (suiteName != null) {
-                    "$suiteName.${testCase.name}"
-                } else {
-                    "*.${testCase.name}"
-                }
+                TestIdentifier(
+                    suiteName = testCase.suite?.name?.takeIf { it.isNotBlank() },
+                    testName = testCase.name
+                )
             }
         )
     }

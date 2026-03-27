@@ -71,15 +71,15 @@ final class InstallServiceTests: TuistUnitTestCase {
             _ = Plugins.test()
         }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )
         )
 
         // Package.resolved
-        try fileHandler.touch(expectedPackageResolvedPath)
-        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
+        try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When
         try await subject.run(
@@ -89,7 +89,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         let savedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", ".build", "Derived", "Package.resolved"])
-        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+        let savedPackageResolvedContents = try await fileSystem.readTextFile(at: savedPackageResolvedPath)
 
         // Then
         verify(swiftPackageManagerController)
@@ -151,15 +151,15 @@ final class InstallServiceTests: TuistUnitTestCase {
 
         pluginService.fetchRemotePluginsStub = { _ in }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )
         )
 
         // Package.resolved
-        try fileHandler.touch(expectedPackageResolvedPath)
-        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
+        try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When
         try await subject.run(
@@ -169,7 +169,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         let savedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", ".build", "Derived", "Package.resolved"])
-        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+        let savedPackageResolvedContents = try await fileSystem.readTextFile(at: savedPackageResolvedPath)
 
         // Then
         verify(swiftPackageManagerController)
@@ -202,15 +202,15 @@ final class InstallServiceTests: TuistUnitTestCase {
 
         pluginService.fetchRemotePluginsStub = { _ in }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )
         )
 
         // Package.resolved
-        try fileHandler.touch(expectedPackageResolvedPath)
-        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
+        try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When
         try await subject.run(
@@ -220,7 +220,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         let savedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", ".build", "Derived", "Package.resolved"])
-        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+        let savedPackageResolvedContents = try await fileSystem.readTextFile(at: savedPackageResolvedPath)
 
         // Then
         verify(swiftPackageManagerController)
@@ -251,11 +251,11 @@ final class InstallServiceTests: TuistUnitTestCase {
             .willReturn()
 
         // Dependencies.swift in root
-        try fileHandler.touch(expectedFoundPackageLocation)
+        try await fileSystem.makeDirectory(at: expectedFoundPackageLocation.parentDirectory)
+        try await fileSystem.touch(expectedFoundPackageLocation)
 
         // Package.resolved
-        try fileHandler.touch(expectedPackageResolvedPath)
-        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+        try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When - This will cause the `loadDependenciesStub` closure to be called and assert if needed
         try await subject.run(
@@ -270,7 +270,7 @@ final class InstallServiceTests: TuistUnitTestCase {
             "Derived",
             "Package.resolved",
         ])
-        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+        let savedPackageResolvedContents = try await fileSystem.readTextFile(at: savedPackageResolvedPath)
 
         // Then
         XCTAssertEqual(savedPackageResolvedContents, "resolved")
@@ -300,7 +300,7 @@ final class InstallServiceTests: TuistUnitTestCase {
             _ = Plugins.test()
         }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )
@@ -350,7 +350,7 @@ final class InstallServiceTests: TuistUnitTestCase {
             _ = Plugins.test()
         }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )
@@ -400,7 +400,7 @@ final class InstallServiceTests: TuistUnitTestCase {
             _ = Plugins.test()
         }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )

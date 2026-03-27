@@ -11,6 +11,7 @@ public struct BundleCommand: ParsableCommand {
             subcommands: [
                 BundleListCommand.self,
                 BundleShowCommand.self,
+                BundleArtifactCommand.self,
             ]
         )
     }

@@ -12,8 +12,7 @@ export const MobileMenuDropdown = {
   },
 
   updated() {
-    this.cleanup();
-    this.initDropdown();
+    this.updateDropdown();
   },
 
   destroyed() {
@@ -36,6 +35,35 @@ export const MobileMenuDropdown = {
     }
   },
 
+  updateDropdown() {
+    const menu = this.el;
+    const action = menu.querySelector('[data-part="action"]');
+    const dropdown = menu.querySelector('[data-part="dropdown"]');
+
+    if (!action || !dropdown) return;
+
+    this.dropdown = dropdown;
+
+    // Restore the visual open/closed state without animation after a LiveView patch
+    const isOpen = this.isOpen || false;
+    menu.setAttribute("data-open", isOpen ? "true" : "false");
+    action.setAttribute("data-open", isOpen ? "true" : "false");
+    action.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    dropdown.setAttribute("data-open", isOpen ? "true" : "false");
+    dropdown.setAttribute("aria-hidden", isOpen ? "false" : "true");
+
+    dropdown.style.transition = "height 0.35s cubic-bezier(0.4, 0, 0.2, 1)";
+    if (isOpen) {
+      dropdown.style.display = "flex";
+      dropdown.style.height = "auto";
+      dropdown.style.overflow = "visible";
+    } else {
+      dropdown.style.height = "0px";
+      dropdown.style.overflow = "hidden";
+      dropdown.style.display = "none";
+    }
+  },
+
   initDropdown() {
     const menu = this.el;
     const action = menu.querySelector('[data-part="action"]');
@@ -48,7 +76,7 @@ export const MobileMenuDropdown = {
 
     this.dropdown = dropdown;
     this.listeners = [];
-    let isOpen = false;
+    this.isOpen = false;
 
     // Helper to add and track event listeners
     const addListener = (element, event, handler) => {
@@ -61,13 +89,27 @@ export const MobileMenuDropdown = {
     dropdown.style.overflow = "hidden";
     dropdown.style.transition = "height 0.35s cubic-bezier(0.4, 0, 0.2, 1)";
 
-    const setOpenState = (state) => {
-      isOpen = state;
+    const setOpenState = (state, animate = true) => {
+      this.isOpen = state;
       menu.setAttribute("data-open", state ? "true" : "false");
       action.setAttribute("data-open", state ? "true" : "false");
       action.setAttribute("aria-expanded", state ? "true" : "false");
       dropdown.setAttribute("data-open", state ? "true" : "false");
       dropdown.setAttribute("aria-hidden", state ? "false" : "true");
+
+      if (!animate) {
+        // Restore state instantly without animation
+        if (state) {
+          dropdown.style.display = "flex";
+          dropdown.style.height = "auto";
+          dropdown.style.overflow = "visible";
+        } else {
+          dropdown.style.height = "0px";
+          dropdown.style.overflow = "hidden";
+          dropdown.style.display = "none";
+        }
+        return;
+      }
 
       if (state) {
         // Opening: calculate target height
@@ -87,7 +129,7 @@ export const MobileMenuDropdown = {
 
         // After animation, set to auto for dynamic content
         this.transitionEndHandler = () => {
-          if (isOpen) {
+          if (this.isOpen) {
             dropdown.style.height = "auto";
             dropdown.style.overflow = "visible";
           }
@@ -113,7 +155,7 @@ export const MobileMenuDropdown = {
 
         // After animation, hide completely
         this.transitionEndHandler = () => {
-          if (!isOpen) {
+          if (!this.isOpen) {
             dropdown.style.display = "none";
           }
           dropdown.removeEventListener("transitionend", this.transitionEndHandler);
@@ -128,7 +170,7 @@ export const MobileMenuDropdown = {
     const toggleDropdown = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      setOpenState(!isOpen);
+      setOpenState(!this.isOpen);
     };
 
     const keydownHandler = (e) => {
@@ -152,96 +194,7 @@ export const MobileMenuDropdown = {
     // Handle keyboard interaction
     addListener(action, "keydown", keydownHandler);
 
-    // Initialize closed state
-    setOpenState(false);
-  },
-};
-
-/**
- * MobileMenu Hook
- *
- * Manages the main mobile menu open/close state with smooth animations.
- * Prevents body scroll when menu is open and handles escape key to close.
- */
-export const MobileMenu = {
-  mounted() {
-    this.initMenu();
-  },
-
-  updated() {
-    this.cleanup();
-    this.initMenu();
-  },
-
-  destroyed() {
-    this.cleanup();
-  },
-
-  cleanup() {
-    // Remove all event listeners
-    if (this.listeners) {
-      this.listeners.forEach(({ element, event, handler }) => {
-        element.removeEventListener(event, handler);
-      });
-      this.listeners = [];
-    }
-
-    // Restore body scroll if menu was open
-    if (this.isOpen) {
-      document.body.style.overflow = "";
-      this.isOpen = false;
-    }
-  },
-
-  initMenu() {
-    const button = this.el;
-    const navbar = document.getElementById("marketing-navbar");
-    this.isOpen = false;
-    this.listeners = [];
-
-    if (!navbar) {
-      console.error("Marketing navbar not found");
-      return;
-    }
-
-    // Helper to add and track event listeners
-    const addListener = (element, event, handler) => {
-      element.addEventListener(event, handler);
-      this.listeners.push({ element, event, handler });
-    };
-
-    const setOpenState = (state) => {
-      this.isOpen = state;
-      navbar.dataset.mobileMenuOpen = state ? "true" : "false";
-      button.setAttribute("aria-expanded", state ? "true" : "false");
-
-      // Prevent body scroll when menu is open
-      if (state) {
-        document.body.style.overflow = "hidden";
-      } else {
-        document.body.style.overflow = "";
-      }
-    };
-
-    const toggleMenu = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setOpenState(!this.isOpen);
-    };
-
-    const handleEscape = (e) => {
-      if (e.key === "Escape" && this.isOpen) {
-        setOpenState(false);
-      }
-    };
-
-    // Initialize ARIA attributes
-    button.setAttribute("role", "button");
-    button.setAttribute("aria-expanded", "false");
-    button.setAttribute("aria-label", "Toggle mobile menu");
-
-    // Event listeners
-    addListener(button, "click", toggleMenu);
-    addListener(document, "keydown", handleEscape);
+    // Restore previous state or initialize closed
+    setOpenState(false, false);
   },
 };

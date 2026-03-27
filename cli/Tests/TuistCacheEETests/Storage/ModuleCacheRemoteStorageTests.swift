@@ -67,10 +67,10 @@ struct ModuleCacheRemoteStorageTests {
             getCacheActionItemService: getCacheActionItemService,
             uploadCacheActionItemService: uploadCacheActionItemService,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem,
             retryProvider: retryProvider,
-            concurrencyLimit: 15
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
         )
     }
 

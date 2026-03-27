@@ -1,0 +1,202 @@
+.noora-badge {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: var(--noora-radius-small);
+  padding: var(--noora-spacing-1) var(--noora-spacing-4);
+
+  &[data-disabled] {
+    background: var(--noora-badge-disabled-background) !important;
+    color: var(--noora-badge-disabled-label) !important;
+  }
+
+  &[data-icon] {
+    padding-left: var(--noora-spacing-2);
+  }
+
+  &[data-dot] {
+    padding-left: var(--noora-spacing-0);
+  }
+
+  &[data-icon-only] {
+    padding: var(--noora-spacing-1);
+  }
+
+  &[data-size="small"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
+    &[data-icon] {
+      gap: var(--noora-spacing-1);
+    }
+
+    & [data-part="icon"] {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+
+      & svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+  }
+
+  &[data-size="large"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    &[data-icon] {
+      gap: var(--noora-spacing-2);
+    }
+
+    &[data-icon-only] {
+      padding: var(--noora-spacing-2);
+    }
+
+    & [data-part="icon"] {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+
+      & svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+  }
+
+  &[data-style="fill"] {
+    color: var(--noora-badge-fill-label);
+
+    &[data-color="neutral"] {
+      background: var(--noora-badge-fill-neutral);
+    }
+
+    &[data-color="destructive"] {
+      background: var(--noora-badge-fill-destructive);
+    }
+
+    &[data-color="warning"] {
+      background: var(--noora-badge-fill-warning);
+    }
+
+    &[data-color="attention"] {
+      background: var(--noora-badge-fill-attention);
+    }
+
+    &[data-color="success"] {
+      background: var(--noora-badge-fill-success);
+    }
+
+    &[data-color="information"] {
+      background: var(--noora-badge-fill-information);
+    }
+
+    &[data-color="focus"] {
+      background: var(--noora-badge-fill-focus);
+    }
+
+    &[data-color="primary"] {
+      background: var(--noora-badge-fill-primary);
+    }
+
+    &[data-color="secondary"] {
+      background: var(--noora-badge-fill-secondary);
+    }
+  }
+
+  &[data-style="light-fill"] {
+    &[data-color="neutral"] {
+      background: var(--noora-badge-light-fill-neutral-background);
+      color: var(--noora-badge-light-fill-neutral-label);
+    }
+
+    &[data-color="destructive"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+      color: var(--noora-badge-light-fill-destructive-label);
+    }
+
+    &[data-color="warning"] {
+      background: var(--noora-badge-light-fill-warning-background);
+      color: var(--noora-badge-light-fill-warning-label);
+    }
+
+    &[data-color="attention"] {
+      background: var(--noora-badge-light-fill-attention-background);
+      color: var(--noora-badge-light-fill-attention-label);
+    }
+
+    &[data-color="success"] {
+      background: var(--noora-badge-light-fill-success-background);
+      color: var(--noora-badge-light-fill-success-label);
+    }
+
+    &[data-color="information"] {
+      background: var(--noora-badge-light-fill-information-background);
+      color: var(--noora-badge-light-fill-information-label);
+    }
+
+    &[data-color="focus"] {
+      background: var(--noora-badge-light-fill-focus-background);
+      color: var(--noora-badge-light-fill-focus-label);
+    }
+
+    &[data-color="primary"] {
+      background: var(--noora-badge-light-fill-primary-background);
+      color: var(--noora-badge-light-fill-primary-label);
+    }
+
+    &[data-color="secondary"] {
+      background: var(--noora-badge-light-fill-secondary-background);
+      color: var(--noora-badge-light-fill-secondary-label);
+    }
+  }
+}
+
+.noora-status-badge {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--noora-spacing-2);
+  box-shadow: var(--noora-border-light-default);
+  border-radius: var(--noora-radius-medium);
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-2) var(--noora-spacing-4) var(--noora-spacing-2)
+    var(--noora-spacing-2);
+
+  & [data-part="icon"] {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
+  }
+
+  & [data-part="label"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+  }
+
+  &:not([data-status="disabled"]) {
+    color: var(--noora-surface-label-primary);
+  }
+
+  &[data-status="disabled"] {
+    color: var(--noora-surface-label-disabled);
+  }
+
+  &[data-status="success"] [data-part="icon"] {
+    color: var(--noora-badge-status-success);
+  }
+  &[data-status="error"] [data-part="icon"] {
+    color: var(--noora-badge-status-error);
+  }
+  &[data-status="warning"] [data-part="icon"] {
+    color: var(--noora-badge-status-warning);
+  }
+  &[data-status="attention"] [data-part="icon"] {
+    color: var(--noora-badge-status-attention);
+  }
+  &[data-status="in_progress"] [data-part="icon"] {
+    color: var(--noora-badge-status-in-progress);
+  }
+}

@@ -1,0 +1,114 @@
+name: Noora
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - noora/**
+      - .github/workflows/noora.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - noora/**
+      - .github/workflows/noora.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noora-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  MIX_ENV: test
+  PNPM_HOME: ~/.pnpm
+  MISE_GITHUB_ATTESTATIONS: 0
+
+defaults:
+  run:
+    working-directory: noora
+
+jobs:
+  build:
+    name: Build
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    env:
+      MIX_ENV: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir node pnpm"
+          cache: "false"
+          working_directory: noora
+      - name: Install Elixir dependencies
+        run: mix deps.get
+      - name: Compile
+        run: mix compile --warnings-as-errors
+      - name: Install JS dependencies
+        run: pnpm install
+      - name: Build JS assets
+        run: pnpm run build
+
+  lint:
+    name: Lint
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir node pnpm"
+          cache: "false"
+          working_directory: noora
+      - name: Install Elixir dependencies
+        run: mix deps.get
+      - name: Check Elixir formatting
+        run: mix format --check-formatted
+      - name: Install JS dependencies
+        run: pnpm install
+      - name: Check JS/CSS formatting
+        run: pnpm prettier --check "js/**/*.js" "css/**/*.css"
+
+  test:
+    name: Test
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "node pnpm"
+          cache: "false"
+          working_directory: noora
+      - name: Install JS dependencies
+        run: pnpm install
+      - name: Run tests
+        run: pnpm run test
+
+  docker_build:
+    name: Docker Build (Storybook)
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build storybook Docker image
+        run: docker build -f storybook/Dockerfile .

@@ -10,7 +10,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 
 # A virtual platform team for developers who ship
 
-**Tuist helps teams scale app development and ship faster** -- transforming the complexity of large codebases into a smooth, productive experience that grows with your team.
+**Tuist helps teams scale app development and ship faster**; transforming the complexity of large codebases into a smooth, productive experience that grows with your team.
 
 <br/>
 
@@ -38,17 +38,11 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         linkText="Share and iterate faster"
         link="/guides/features/previews"/>
     <HomeCard
-        icon="✅"
-        title="QA"
-        details="Automate your QA with our agent that tests your app and reports any issues autonomously."
-        linkText="Let us test your app for you"
-        link="/guides/features/qa"/>
-    <HomeCard
         icon="📊"
         title="Insights"
         details="Monitor build performance and project health with actionable metrics that prevent problems before they happen."
         linkText="Stay ahead of issues"
-        link="/guides/features/insights"/>
+        link="/guides/features/build-insights"/>
     <HomeCard
         icon="⚖️"
         title="Bundle size"

@@ -95,6 +95,21 @@
           <:col :let={build} label={dgettext("dashboard_gradle", "Commit SHA")}>
             <.text_cell label={SHA.format_commit_sha(build.git_commit_sha)} />
           </:col>
+          <:col :let={build} label={dgettext("dashboard_gradle", "Requested tasks")}>
+            <.text_cell label={
+              case build.requested_tasks do
+                [] ->
+                  dgettext("dashboard_gradle", "Unknown")
+
+                tasks ->
+                  truncated = Enum.take(tasks, 2)
+
+                  if length(tasks) > 2,
+                    do: Enum.join(truncated, " ") <> " +#{length(tasks) - 2}",
+                    else: Enum.join(truncated, " ")
+              end
+            } />
+          </:col>
           <:col :let={build} label={dgettext("dashboard_gradle", "Built by")}>
             <.gradle_build_ran_by_badge_cell build={build} />
           </:col>
@@ -175,7 +190,7 @@
       <div :if={Enum.empty?(@build_runs)} data-part="empty-build-runs">
         <.empty_card_section
           title={dgettext("dashboard_gradle", "No data yet")}
-          get_started_href="https://docs.tuist.dev/en/guides/features/cache/gradle-cache"
+          get_started_href="https://tuist.dev/en/docs/guides/features/cache/gradle-cache"
           data-part="empty-build-runs-table-card-section"
         >
           <:image>

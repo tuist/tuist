@@ -234,7 +234,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         name: "App",
                         settings: .test(
                             base: [
-                                "FRAMEWORK_SEARCH_PATHS": [
+                                "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
                                     "\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64\"",
                                 ],
                             ]
@@ -246,6 +246,126 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
 
         // When
         let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(
+            expectedGraph,
+            gotGraph
+        )
+        XCTAssertEmpty(gotSideEffects)
+    }
+
+    // MARK: - Regression: device vs simulator slice selection (tuist/tuist#9723)
+
+    func test_map_when_static_xcframework_framework_with_device_and_simulator_slices(
+    ) async throws {
+        // Given
+        // An xcframework with both device (ios-arm64) and simulator (ios-arm64-simulator) slices.
+        // FRAMEWORK_SEARCH_PATHS must use SDK-conditioned keys so that device and simulator
+        // builds each find only the correct binary for their platform.
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(
+                    components: Constants.tuistDirectoryName,
+                    Constants.SwiftPackageManager.packageSwiftName
+                )
+            )
+        let googleMapsPath = projectPath
+            .parentDirectory
+            .appending(component: "GoogleMaps.xcframework")
+        let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.makeDirectory(at: googleMapsHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: googleMapsHeadersPath.appending(component: "module.modulemap")
+        )
+
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "App"
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .testXCFramework(
+                        path: try temporaryPath()
+                            .appending(component: "DynamicFramework.xcframework")
+                    ),
+                ],
+                .testXCFramework(
+                    path: try temporaryPath()
+                        .appending(component: "DynamicFramework.xcframework")
+                ): [
+                    .testXCFramework(
+                        path: googleMapsPath,
+                        infoPlist: .test(
+                            libraries: [
+                                .test(
+                                    identifier: "ios-arm64",
+                                    path: try RelativePath(
+                                        validating: "GoogleMaps.framework/GoogleMaps"
+                                    ),
+                                    platform: .iOS,
+                                    architectures: [.arm64]
+                                ),
+                                .test(
+                                    identifier: "ios-arm64-simulator",
+                                    path: try RelativePath(
+                                        validating: "GoogleMaps.framework/GoogleMaps"
+                                    ),
+                                    platform: .iOS,
+                                    platformVariant: .simulator,
+                                    architectures: [.arm64]
+                                ),
+                            ]
+                        ),
+                        linking: .static,
+                        moduleMaps: [
+                            googleMapsHeadersPath.appending(component: "module.modulemap"),
+                        ]
+                    ),
+                ],
+            ]
+        )
+
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "App",
+                        settings: .test(
+                            base: [
+                                "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
+                                    "\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64\"",
+                                ],
+                                "FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]": [
+                                    "\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64-simulator\"",
+                                ],
+                            ]
+                        )
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(
+            graph: graph,
+            environment: MapperEnvironment()
+        )
 
         // Then
         XCTAssertBetterEqual(
@@ -743,7 +863,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         name: "App",
                         settings: .test(
                             base: [
-                                "FRAMEWORK_SEARCH_PATHS": [
+                                "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
                                     "\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64\"",
                                 ],
                             ]
@@ -1247,7 +1367,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         name: "App",
                         settings: .test(
                             base: [
-                                "FRAMEWORK_SEARCH_PATHS": [
+                                "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
                                     "\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64\"",
                                 ],
                             ]

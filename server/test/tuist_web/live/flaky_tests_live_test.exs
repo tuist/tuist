@@ -30,9 +30,9 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       project: project
     } do
       # Given
-      create_flaky_test_case(project, "testFlakyExample")
-
-      Process.sleep(100)
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testFlakyExample", ran_at: recent)
+      RunsFixtures.optimize_test_case_runs()
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
@@ -48,10 +48,10 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       project: project
     } do
       # Given
-      create_flaky_test_case(project, "testFirstFlaky")
-      create_flaky_test_case(project, "testSecondFlaky")
-
-      Process.sleep(100)
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testFirstFlaky", ran_at: recent)
+      create_flaky_test_case(project, "testSecondFlaky", ran_at: recent)
+      RunsFixtures.optimize_test_case_runs()
 
       # When
       {:ok, lv, _html} =
@@ -87,12 +87,64 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       # Then
       assert has_element?(lv, "[data-part='flaky-tests']")
     end
+
+    test "filters flaky tests table by environment", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testCIFlaky", is_ci: true, ran_at: recent)
+      create_flaky_test_case(project, "testLocalFlaky", is_ci: false, ran_at: recent)
+      RunsFixtures.optimize_test_case_runs()
+
+      # When - filter by CI environment
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?analytics-environment=ci")
+
+      # Then
+      assert has_element?(lv, "#flaky-tests-table", "testCIFlaky")
+      refute has_element?(lv, "#flaky-tests-table", "testLocalFlaky")
+    end
+
+    test "filters flaky tests table by time range", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      recent = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      create_flaky_test_case(project, "testRecentFlaky", ran_at: recent)
+
+      old_datetime = NaiveDateTime.add(NaiveDateTime.utc_now(), -60 * 24 * 60 * 60)
+      create_flaky_test_case(project, "testOldFlaky", ran_at: old_datetime)
+      RunsFixtures.optimize_test_case_runs()
+
+      # When - use default 30-day range
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests?analytics-date-range=last-30-days"
+        )
+
+      # Then
+      assert has_element?(lv, "#flaky-tests-table", "testRecentFlaky")
+      refute has_element?(lv, "#flaky-tests-table", "testOldFlaky")
+    end
   end
 
-  defp create_flaky_test_case(project, name) do
+  defp create_flaky_test_case(project, name, opts) do
     test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: name, is_flaky: true)
 
     IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+    RunsFixtures.test_case_run_fixture(
+      Keyword.merge(
+        [project_id: project.id, test_case_id: test_case.id, is_flaky: true],
+        opts
+      )
+    )
 
     test_case
   end

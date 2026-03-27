@@ -24,7 +24,7 @@ defmodule TuistWeb.RunDetailLive do
         _ -> nil
       end
 
-    run = Tuist.ClickHouseRepo.preload(run, [:xcode_targets])
+    run = Tuist.ClickHouseRepo.preload(run, xcode_targets: Xcode.xcode_targets_preload_query(run))
     slug = Projects.get_project_slug_from_id(project.id)
 
     {:ok,
@@ -39,6 +39,9 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:has_binary_cache_data, Xcode.has_binary_cache_data?(run))
      |> assign_async(:has_result_bundle, fn ->
        {:ok, %{has_result_bundle: CommandEvents.has_result_bundle?(run)}}
+     end)
+     |> assign_async(:has_session, fn ->
+       {:ok, %{has_session: CommandEvents.has_session?(run)}}
      end)}
   end
 

@@ -730,7 +730,7 @@ msgstr ""
 msgid "United States"
 msgstr ""
 
-#: lib/tuist/vcs.ex:493
+#: lib/tuist/vcs.ex:500
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -1032,7 +1032,7 @@ msgstr ""
 msgid "Provider"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.ex:35
+#: lib/tuist_web/live/sso_settings_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "SSO"
 msgstr ""
@@ -1052,7 +1052,7 @@ msgstr ""
 msgid "Single Sign-On"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.ex:155
+#: lib/tuist_web/live/sso_settings_live.ex:211
 #, elixir-autogen, elixir-format
 msgid "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
 msgstr ""
@@ -1067,7 +1067,7 @@ msgstr ""
 msgid "SSO provider"
 msgstr ""
 
-#: lib/tuist_web/live/sso_settings_live.html.heex:212
+#: lib/tuist_web/live/sso_settings_live.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr ""
@@ -1120,4 +1120,19 @@ msgstr ""
 #: lib/tuist_web/live/sso_settings_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Set the sign-in redirect URI to:"
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "Enforce SSO"
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
+msgstr ""
+
+#: lib/tuist_web/live/sso_settings_live.ex:197
+#, elixir-autogen, elixir-format
+msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
 msgstr ""

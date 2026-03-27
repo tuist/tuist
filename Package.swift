@@ -420,7 +420,7 @@ tuistInspectCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistCore", "TuistLoader", "TuistAutomation",
     "TuistXCActivityLog", "TuistXcodeProjectOrWorkspacePathLocator",
     "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig",
-    "TuistRootDirectoryLocator",
+    "TuistRootDirectoryLocator", "TuistMachineMetrics",
     xcodeGraphDependency,
     commandDependency,
 ])
@@ -496,6 +496,7 @@ var targets: [Target] = [
         name: "TuistEnvironmentTesting",
         dependencies: [
             pathDependency,
+            fileSystemDependency,
             "TuistEnvironment",
         ],
         path: "cli/Sources/TuistEnvironmentTesting"
@@ -845,6 +846,7 @@ var targets: [Target] = [
             "TuistAlert",
             "TuistThreadSafe",
             "TuistUserInputReader",
+            .target(name: "TuistMachineMetrics", condition: .when(platforms: [.macOS])),
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "Crypto", package: "apple.swift-crypto"),
         ],
@@ -1051,6 +1053,16 @@ targets.append(contentsOf: [
         path: "cli/Sources/ProjectDescription",
         exclude: ["AGENTS.md"]
     ),
+    .target(
+        name: "TuistMachineMetrics",
+        dependencies: [
+            fileSystemDependency,
+            swiftToolsSupportDependency,
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistMachineMetrics",
+        exclude: ["AGENTS.md"]
+    ),
 ])
 
 // MARK: - macOS-only targets
@@ -1157,6 +1169,7 @@ targets.append(contentsOf: [
             "TuistXCResultService",
             "TuistCI",
             "TuistLaunchctl",
+            "TuistMachineMetrics",
             "ProjectDescription",
             "ProjectAutomation",
             xcodeProjDependency,
@@ -1426,11 +1439,10 @@ targets.append(contentsOf: [
             "TuistRootDirectoryLocator",
             "TuistCASAnalytics",
             "TuistGit",
-            algorithmsDependency,
             fileSystemDependency,
-            swiftToolsSupportDependency,
             pathDependency,
             .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
+            .product(name: "XCActivityLogParser", package: "xcactivitylog_nif"),
         ],
         path: "cli/Sources/TuistXCActivityLog",
         exclude: ["AGENTS.md"],
@@ -1501,6 +1513,9 @@ targets.append(contentsOf: [
             commandDependency,
             mockableDependency,
             pathDependency,
+            fileSystemDependency,
+            "TuistEnvironment",
+            "TuistLogging",
         ],
         path: "cli/Sources/TuistLaunchctl",
         exclude: ["AGENTS.md"],
@@ -1668,6 +1683,7 @@ let package = Package(
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.46")),
+        .package(path: "processor/native/xcactivitylog_nif"),
         .package(id: "modelcontextprotocol.swift-sdk", .upToNextMajor(from: "0.9.0")),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),

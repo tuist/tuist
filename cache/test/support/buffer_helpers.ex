@@ -17,6 +17,7 @@ defmodule Cache.BufferTestHelpers do
 
   alias Cache.CacheArtifactsBuffer
   alias Cache.KeyValueBuffer
+  alias Cache.KeyValueRepo
   alias Cache.S3TransfersBuffer
   alias Cache.SQLiteBuffer
   alias Ecto.Adapters.SQL.Sandbox
@@ -30,7 +31,7 @@ defmodule Cache.BufferTestHelpers do
     {suffix, context} = ensure_suffix(context)
     name = :"kv_buf_test_#{suffix}"
     pid = start_supervised!({SQLiteBuffer, [name: name, buffer_module: KeyValueBuffer]})
-    Sandbox.allow(Cache.Repo, self(), pid)
+    Sandbox.allow(KeyValueRepo, self(), pid)
 
     stub(KeyValueBuffer, :enqueue, fn key, payload ->
       KeyValueBuffer.enqueue(key, payload, name)

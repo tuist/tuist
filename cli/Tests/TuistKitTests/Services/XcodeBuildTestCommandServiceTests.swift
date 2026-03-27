@@ -9,12 +9,13 @@ import TuistAutomation
 import TuistConfigLoader
 import TuistCore
 import TuistLoader
+import TuistRootDirectoryLocator
 import TuistSupport
 import TuistTesting
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
+import TuistXCResultService
 import XcodeGraph
-
 import protocol XcodeGraphMapper.XcodeGraphMapping
 
 @testable import TuistKit
@@ -29,10 +30,29 @@ struct XcodeBuildTestCommandServiceTests {
     private let xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
     private let derivedDataLocator = MockDerivedDataLocating()
     private let xcActivityLogController = MockXCActivityLogControlling()
-    private let inspectResultBundleService = MockInspectResultBundleServicing()
+    private let uploadResultBundleService = MockUploadResultBundleServicing()
+    private let xcResultService = MockXCResultServicing()
+    private let rootDirectoryLocator = MockRootDirectoryLocating()
+    private let testQuarantineService = MockTestQuarantineServicing()
     private let subject: XcodeBuildTestCommandService
 
     init() {
+        given(testQuarantineService)
+            .quarantinedTests(config: .any, skipQuarantine: .any)
+            .willReturn([])
+        given(testQuarantineService)
+            .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)
+            .willProduce { summary, _ in summary }
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testSummary: .any)
+            .willReturn(false)
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(nil)
+
         subject = XcodeBuildTestCommandService(
             fileSystem: fileSystem,
             xcodeBuildController: xcodeBuildController,
@@ -42,7 +62,10 @@ struct XcodeBuildTestCommandServiceTests {
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
             derivedDataLocator: derivedDataLocator,
             xcActivityLogController: xcActivityLogController,
-            inspectResultBundleService: inspectResultBundleService
+            uploadResultBundleService: uploadResultBundleService,
+            xcResultService: xcResultService,
+            rootDirectoryLocator: rootDirectoryLocator,
+            testQuarantineService: testQuarantineService
         )
     }
 
@@ -161,6 +184,11 @@ struct XcodeBuildTestCommandServiceTests {
                 .loadConfig(path: .any)
                 .willReturn(.test(fullHandle: "tuist/tuist"))
 
+            xcResultService.reset()
+            given(xcResultService)
+                .parse(path: .any, rootDirectory: .any)
+                .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
+
             given(xcodeBuildArgumentParser)
                 .parse(.any)
                 .willReturn(
@@ -177,16 +205,28 @@ struct XcodeBuildTestCommandServiceTests {
                 .run(arguments: .any)
                 .willReturn()
 
-            given(inspectResultBundleService)
-                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+            given(uploadResultBundleService)
+                .uploadResultBundle(
+                    testSummary: .any,
+                    projectDerivedDataDirectory: .any,
+                    config: .any,
+                    shardPlanId: .any,
+                    shardIndex: .any
+                )
                 .willThrow(TestError("Inspect failed"))
 
             // When
             try await subject.run(passthroughXcodebuildArguments: arguments)
 
             // Then
-            verify(inspectResultBundleService)
-                .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+            verify(uploadResultBundleService)
+                .uploadResultBundle(
+                    testSummary: .any,
+                    projectDerivedDataDirectory: .any,
+                    config: .any,
+                    shardPlanId: .any,
+                    shardIndex: .any
+                )
                 .called(1)
             let warnings = alertController.warnings()
             #expect(warnings.count == 1)

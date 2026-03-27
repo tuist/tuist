@@ -7,7 +7,7 @@ defmodule Tuist.MixProject do
       version: "0.1.0",
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
-      test_paths: ["test", "runner/test"],
+      test_paths: ["test"],
       start_permanent: Enum.member?([:prod, :stag, :can], Mix.env()),
       aliases: aliases(),
       deps: deps(),
@@ -41,7 +41,7 @@ defmodule Tuist.MixProject do
       {:ecto_sql, "~> 3.12"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
-      {:phoenix_live_reload, "~> 1.2", only: :dev},
+      {:phoenix_live_reload, "~> 1.6.1", only: :dev},
       {:phoenix_live_view, "~> 1.1.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
@@ -105,7 +105,7 @@ defmodule Tuist.MixProject do
       {:retry, "~> 0.19"},
       {:redirect, "~> 0.4.0"},
       {:let_me, "~> 1.2"},
-      {:anubis_mcp, "~> 0.17.1"},
+      {:emcp, "~> 0.3.2"},
       {:ua_parser, "~> 1.8"},
       {:money, "~> 1.12"},
       {:image, "~> 0.60"},
@@ -128,20 +128,19 @@ defmodule Tuist.MixProject do
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
       {:ecto_ch, "~> 0.8.3"},
-      (System.get_env("NOORA_LOCAL") &&
-         {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.70.0"},
+      {:noora, path: "../noora"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
-      {:runner, path: "runner", runtime: false},
       {:tuist_common, path: "../tuist_common"},
       {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:peep, "4.2.1", override: true},
       {:langchain, "~> 0.4"},
       {:earmark, "~> 1.4"},
+      {:mdex, "~> 0.11"},
+      {:mdex_mermaid, "~> 0.3"},
       {:html_sanitize_ex, "~> 1.4"},
       {:posthog, "~> 1.0", runtime: false},
       {:opentelemetry_api, "~> 1.4"},
@@ -154,7 +153,9 @@ defmodule Tuist.MixProject do
       {:opentelemetry_logger_metadata, "~> 0.1"},
       {:opentelemetry_bandit, "~> 0.3"},
       {:opentelemetry_broadway, "~> 0.3"},
-      {:loki_logger_handler, "~> 0.2"}
+      {:loki_logger_handler, "~> 0.2"},
+      {:processor, path: "../processor", runtime: false},
+      {:tidewave, "~> 0.5", only: :dev}
     ]
   end
 
@@ -182,14 +183,20 @@ defmodule Tuist.MixProject do
         "ecto.migrate"
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["esbuild.install --if-missing"],
+      "assets.setup": [
+        "cmd --cd .. pnpm install --filter noora",
+        "esbuild.install --if-missing"
+      ],
       "assets.build": [
+        "cmd --cd ../noora pnpm run build",
         "esbuild app",
         "esbuild marketing",
+        "esbuild docs",
         "esbuild apidocs"
       ],
       "assets.deploy": [
         "esbuild marketing --minify",
+        "esbuild docs --minify",
         "esbuild app --minify",
         "esbuild apidocs --minify",
         "phx.digest"

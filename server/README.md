@@ -15,29 +15,27 @@ Contributions to the Tuist Server require signing a Contributor License Agreemen
 
 ### Set up
 
-1. Clone the repository: `git clone https://github.com/tuist/server.git`.
+1. Clone the repository: `git clone https://github.com/tuist/tuist.git`.
 1. Open the folder: `cd server`.
-1. Get the private key from 1Password.
-1. Create a `priv/secrets/dev.key` file and add the key to decrypt the secrets needed for development.
-1. Install additional system dependencies with: `mise install`.
+1. Install system dependencies with: `mise install`.
 1. Start Postgres with: `brew services start postgresql@16`.
 1. Start ClickHouse with: `mise run clickhouse:start`
-1. Create a new database with: `mise run db:create`.
-1. Load the data into database with: `mise run db:load`.
-1. Seed your database with data: `mise run db:seed`.
+1. Install dependencies: `mise run install`
+1. Create and set up the database: `mise run db:setup`
 1. Run the server: `mise run dev`
-1. We already have a pre-made user account that you can use to test the server:
+1. Open the clone-specific local URL in your browser and log in with the pre-made test user account. With `mise activate` enabled, each repo clone persists its own numeric suffix in `.tuist-dev-instance`, which scopes the local service ports, MinIO ports, and server databases. For example, a suffix of `443` yields `http://localhost:8523`:
 
 ```
 Email: tuistrocks@tuist.dev
 Pass: tuistrocks
 ```
 
+> [!NOTE]
+> First-party developers can load encrypted secrets from `priv/secrets/dev.key`. External contributors don't need this key — the server runs locally without it. OAuth, Stripe, and other third-party integrations will be disabled, but core functionality works.
+
 #### To run additional features
 1. Clone the repository: `https://github.com/tuist/tuist.git`.
 1. Go to `tuist/examples/xcode/generated_ios_app_with_frameworks`.
-1. Change the url in `Tuist/Config.swift` to `http://localhost:8080`.
+1. Change the url in `Tuist/Config.swift` to the clone-specific local URL, for example `http://localhost:8523`.
 1. Run `tuist auth` to authenticate.
 1. You are now connected to the local Tuist Server!  You can try running `tuist cache` and see the binaries being uploaded.
-
-

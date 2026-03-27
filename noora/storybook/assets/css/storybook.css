@@ -1,0 +1,11 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+@import "../../../css/noora.css";
+
+@layer utilities {
+  * {
+    font-family: system-ui;
+  }
+}

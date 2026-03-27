@@ -1,5 +1,9 @@
 <div id="flaky-tests">
-  <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
+  <.card
+    title={dgettext("dashboard_tests", "Flaky Tests")}
+    icon="progress_x"
+    data-part="flaky-tests"
+  >
     <:actions>
       <.dropdown
         id="flaky-tests-analytics-environment-dropdown"
@@ -176,13 +180,6 @@
         <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
       </:image>
     </.empty_card_section>
-  </.card>
-
-  <.card
-    title={dgettext("dashboard_tests", "Flaky Tests")}
-    icon="progress_x"
-    data-part="flaky-tests"
-  >
     <.card_section data-part="flaky-tests-section">
       <div data-part="filters">
         <.form for={%{}} phx-change="search-flaky-tests" phx-debounce="200">
@@ -340,7 +337,7 @@
       <div :if={Enum.empty?(@flaky_tests)} data-part="empty-flaky-tests">
         <.empty_card_section
           title={dgettext("dashboard_tests", "No flaky tests")}
-          get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
+          get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
           data-part="empty-flaky-tests-table-card-section"
         >
           <:image>

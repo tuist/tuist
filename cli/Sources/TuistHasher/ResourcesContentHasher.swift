@@ -41,6 +41,7 @@ public struct ResourcesContentHasher: ResourcesContentHashing {
         var children: [MerkleNode] = try await resources.resources
             .sorted(by: { $0.path < $1.path })
             .concurrentMap { try await hashResourceFileElement(element: $0) }
+            .sorted(by: { $0.hash < $1.hash })
 
         if let privacyManifest = resources.privacyManifest {
             children.append(try privacyManifestContentHasher.hash(

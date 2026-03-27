@@ -17,10 +17,10 @@ import {
   gitForgesIcon,
   selfHostingIcon,
   agenticBuildingIcon,
-  qaIcon,
   slackIcon,
   testInsightsIcon,
   flakyTestsIcon,
+  testShardingIcon,
   networkIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
@@ -583,16 +583,16 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.develop.items.insights.text",
           )}</span>`,
-          link: `/${locale}/guides/features/insights`,
+          link: `/${locale}/guides/features/build-insights`,
           collapsed: true,
           items: [
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/xcode-icon.png" alt="Xcode" width="16" height="16" />Xcode</span>`,
-              link: `/${locale}/guides/features/insights/xcode-cache`,
+              link: `/${locale}/guides/features/build-insights/xcode`,
             },
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" />Gradle</span>`,
-              link: `/${locale}/guides/features/insights/gradle-cache`,
+              link: `/${locale}/guides/features/build-insights/gradle`,
             },
           ],
         },
@@ -633,18 +633,33 @@ export async function guidesSidebar(locale) {
           ],
         },
         {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${testShardingIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.test-sharding.text",
+          )}</span>`,
+          link: `/${locale}/guides/features/test-sharding`,
+          collapsed: true,
+          items: [
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/xcode-icon.png" alt="Xcode" width="16" height="16" />Xcode</span>`,
+              link: `/${locale}/guides/features/test-sharding/xcode`,
+            },
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/xcode-icon.png" alt="Xcode" width="16" height="16" />Generated projects</span>`,
+              link: `/${locale}/guides/features/test-sharding/generated-projects`,
+            },
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" />Gradle</span>`,
+              link: `/${locale}/guides/features/test-sharding/gradle`,
+            },
+          ],
+        },
+        {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${bundleSizeIcon()} ${localizedString(
             locale,
             "sidebars.guides.items.develop.items.bundle-size.text",
           )}</span>`,
           link: `/${locale}/guides/features/bundle-size`,
-        },
-        {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${qaIcon()} ${localizedString(
-            locale,
-            "sidebars.guides.items.develop.items.qa.text",
-          )}</span>`,
-          link: `/${locale}/guides/features/qa`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${previewsIcon()} ${localizedString(

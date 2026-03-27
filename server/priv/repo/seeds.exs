@@ -8,6 +8,7 @@ alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.Builds.Build
+alias Tuist.Builds.BuildMachineMetric
 alias Tuist.Bundles
 alias Tuist.CommandEvents.Event
 alias Tuist.Environment
@@ -17,10 +18,11 @@ alias Tuist.Gradle.Task, as: GradleTask
 alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
-alias Tuist.QA
-alias Tuist.QA.Log
-alias Tuist.QA.Run
 alias Tuist.Repo
+alias Tuist.Shards.ShardPlan
+alias Tuist.Shards.ShardPlanModule
+alias Tuist.Shards.ShardPlanTestSuite
+alias Tuist.Shards.ShardRun
 alias Tuist.Slack.Installation
 alias Tuist.Tests.Test
 alias Tuist.Tests.TestCaseEvent
@@ -229,8 +231,6 @@ end
 email = "tuistrocks@tuist.dev"
 password = "tuistrocks"
 
-FunWithFlags.enable(:qa)
-
 _account =
   case Accounts.get_user_by_email(email) do
     {:error, :not_found} ->
@@ -338,17 +338,6 @@ tuist_project =
       )
   end
 
-if is_nil(Repo.get_by(QA.LaunchArgumentGroup, project_id: tuist_project.id, name: "login-credentials")) do
-  %QA.LaunchArgumentGroup{}
-  |> QA.LaunchArgumentGroup.create_changeset(%{
-    project_id: tuist_project.id,
-    name: "login-credentials",
-    value: "--email tuistrocks@tuist.dev --password tuistrocks",
-    description: "Log in credentials that can be used to skip the login"
-  })
-  |> Repo.insert!()
-end
-
 android_project =
   case Projects.get_project_by_slug("tuist/android") do
     {:ok, project} ->
@@ -371,11 +360,19 @@ user_account_id = user.account.id
 project_id = tuist_project.id
 
 build_generator = fn _i ->
-  status = Enum.random(["success", "failure"])
+  status = Enum.random(["success", "success", "success", "failure", "failure", "processing", "failed_processing"])
   is_ci = Enum.random([true, false])
-  total_tasks = Enum.random(50..200)
-  remote_hits = Enum.random(0..div(total_tasks, 2))
-  local_hits = Enum.random(0..(total_tasks - remote_hits))
+  is_pending = status in ["processing", "failed_processing"]
+
+  {total_tasks, remote_hits, local_hits} =
+    if is_pending do
+      {0, 0, 0}
+    else
+      total = Enum.random(50..200)
+      remote = Enum.random(0..div(total, 2))
+      local = Enum.random(0..(total - remote))
+      {total, remote, local}
+    end
 
   available_tags = [
     "nightly",
@@ -407,7 +404,7 @@ build_generator = fn _i ->
 
   %{
     id: UUIDv7.generate(),
-    duration: Enum.random(10_000..100_000),
+    duration: if(is_pending, do: 0, else: Enum.random(10_000..100_000)),
     macos_version: Enum.random(["11.2.3", "12.3.4", "13.4.5", "14.0", "14.5"]),
     xcode_version: Enum.random(["12.4", "13.0", "13.2", "14.0", "15.0", "15.2"]),
     is_ci: is_ci,
@@ -415,13 +412,14 @@ build_generator = fn _i ->
     project_id: project_id,
     account_id: if(is_ci, do: org_account_id, else: user_account_id),
     scheme: Enum.random(["App", "AppTests"]),
-    configuration: Enum.random(["Debug", "Release"]),
+    configuration: if(is_pending, do: "", else: Enum.random(["Debug", "Release"])),
     inserted_at:
       NaiveDateTime.new!(
         Date.add(DateTime.utc_now(), -Enum.random(0..400)),
         Time.new!(Enum.random(0..23), Enum.random(0..59), Enum.random(0..59), {0, 6})
       ),
     status: status,
+    category: if(is_pending, do: "incremental", else: Enum.random(["clean", "incremental"])),
     cacheable_tasks_count: total_tasks,
     cacheable_task_remote_hits_count: remote_hits,
     cacheable_task_local_hits_count: local_hits,
@@ -530,7 +528,9 @@ cas_output_generator = fn build ->
   end)
 end
 
-cas_outputs = SeedHelpers.parallel_flat_map(builds, cas_output_generator)
+completed_builds = Enum.reject(builds, fn b -> b.status in ["processing", "failed_processing"] end)
+
+cas_outputs = SeedHelpers.parallel_flat_map(completed_builds, cas_output_generator)
 SeedHelpers.insert_bulk_ch(cas_outputs, Tuist.Builds.CASOutput, IngestRepo, "CAS outputs")
 
 # Generate CAS events based on CAS outputs
@@ -561,11 +561,11 @@ cas_outputs_by_build = Enum.group_by(cas_outputs, & &1.build_run_id)
 builds_by_id = Map.new(builds, fn b -> {b.id, b} end)
 
 # For cacheable tasks, use a proportion of builds based on scale
-cacheable_tasks_build_count = min(length(builds), max(500, div(seed_config.build_runs, 4)))
+cacheable_tasks_build_count = min(length(completed_builds), max(500, div(seed_config.build_runs, 4)))
 IO.puts("Generating cacheable tasks for #{cacheable_tasks_build_count} builds...")
 
 cacheable_tasks =
-  builds
+  completed_builds
   |> Enum.map(& &1.id)
   |> Enum.shuffle()
   |> Enum.take(cacheable_tasks_build_count)
@@ -722,7 +722,7 @@ if seed_config.targets_per_build > 0 do
   project_names = ["App", "Modules", "Features", "Core", "Platform"]
 
   build_targets =
-    SeedHelpers.parallel_flat_map(builds, fn build ->
+    SeedHelpers.parallel_flat_map(completed_builds, fn build ->
       target_count = max(5, Enum.random(div(seed_config.targets_per_build, 2)..seed_config.targets_per_build))
       inserted_at = NaiveDateTime.truncate(build.inserted_at, :second)
       selected_targets = Enum.take_random(target_names, min(target_count, length(target_names)))
@@ -811,7 +811,7 @@ if seed_config.files_per_build > 0 do
   project_names_for_files = ["App", "Modules", "Features", "Core", "Platform"]
 
   build_files =
-    SeedHelpers.parallel_flat_map(builds, fn build ->
+    SeedHelpers.parallel_flat_map(completed_builds, fn build ->
       file_count = max(10, Enum.random(div(seed_config.files_per_build, 2)..seed_config.files_per_build))
       inserted_at = NaiveDateTime.truncate(build.inserted_at, :second)
 
@@ -930,7 +930,7 @@ test_case_definitions =
   end
 
 {test_case_id_map, _test_cases_with_flaky_run, _new_test_case_ids} =
-  Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions)
+  Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions, %{})
 
 # Update flaky test cases to be marked as is_flaky
 # ~70% stay quarantined, ~30% get unquarantined (to show chart going down)
@@ -1239,6 +1239,250 @@ IO.puts("  - Module runs: #{:counters.get(module_run_counter, 1)}")
 IO.puts("  - Suite runs: #{:counters.get(suite_run_counter, 1)}")
 IO.puts("  - Case runs: #{:counters.get(case_run_counter, 1)}")
 IO.puts("  - Failures: #{:counters.get(failure_counter, 1)}")
+
+# =============================================================================
+# Shard Plans and Shard Runs
+# =============================================================================
+# ~10% of test runs are sharded. Each sharded run has a shard plan with
+# 2-4 shards, shard_plan_modules (or shard_plan_test_suites for suite
+# granularity), and shard_runs tracking per-shard execution.
+
+IO.puts("Generating shard plans and shard runs...")
+
+recent_test_runs =
+  IngestRepo.all(
+    from(t in Test,
+      where: t.project_id == ^tuist_project.id,
+      where: t.is_ci == true,
+      order_by: [desc: t.ran_at],
+      limit: 200
+    )
+  )
+
+sharded_test_runs = Enum.take_random(recent_test_runs, recent_test_runs |> length() |> div(10) |> max(5))
+
+shard_plan_count = 0
+shard_run_count = 0
+shard_module_count = 0
+shard_suite_count = 0
+
+# Group test runs into shard plans (2-4 test runs per plan = 2-4 shards)
+sharded_test_runs
+|> Enum.chunk_every(Enum.random(2..4))
+|> Enum.each(fn test_run_group ->
+  shard_count = length(test_run_group)
+  granularity = Enum.random(["module", "module", "module", "suite"])
+  plan_id = Ecto.UUID.generate()
+  reference = "github-#{Enum.random(10_000..99_999)}-1"
+  now = NaiveDateTime.utc_now()
+
+  IngestRepo.insert_all(ShardPlan, [
+    %{
+      id: plan_id,
+      reference: reference,
+      project_id: project_id,
+      shard_count: shard_count,
+      granularity: granularity,
+      inserted_at: now
+    }
+  ])
+
+  shard_plan_count = shard_plan_count + 1
+
+  # Update test runs to link to this shard plan
+  test_run_group
+  |> Enum.with_index()
+  |> Enum.each(fn {test_run, shard_index} ->
+    updated = %{test_run | shard_plan_id: plan_id, inserted_at: NaiveDateTime.utc_now()}
+
+    attrs =
+      updated
+      |> Map.from_struct()
+      |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs, :shard_plan])
+
+    IngestRepo.insert_all(Test, [attrs])
+
+    # Create shard run
+    IngestRepo.insert_all(ShardRun, [
+      %{
+        shard_plan_id: plan_id,
+        project_id: project_id,
+        test_run_id: test_run.id,
+        shard_index: shard_index,
+        status: test_run.status || "success",
+        duration: test_run.duration || 0,
+        ran_at: test_run.ran_at || now,
+        inserted_at: now
+      }
+    ])
+
+    shard_run_count = shard_run_count + 1
+
+    # Create shard target assignments
+    if granularity == "suite" do
+      suite_names =
+        Enum.take_random(
+          [
+            "LoginTests",
+            "SignupTests",
+            "ProfileTests",
+            "SettingsTests",
+            "NetworkTests",
+            "DatabaseTests",
+            "CacheTests",
+            "AnalyticsTests",
+            "PaymentTests",
+            "SearchTests"
+          ],
+          Enum.random(2..4)
+        )
+
+      suite_rows =
+        Enum.map(suite_names, fn suite_name ->
+          module = Enum.random(module_names)
+
+          %{
+            shard_plan_id: plan_id,
+            project_id: project_id,
+            shard_index: shard_index,
+            module_name: module,
+            test_suite_name: suite_name,
+            estimated_duration_ms: Enum.random(2_000..15_000),
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(ShardPlanTestSuite, suite_rows)
+      shard_suite_count = shard_suite_count + length(suite_rows)
+    else
+      assigned_modules = Enum.take_random(module_names, Enum.random(1..3))
+
+      module_rows =
+        Enum.map(assigned_modules, fn module ->
+          %{
+            shard_plan_id: plan_id,
+            project_id: project_id,
+            shard_index: shard_index,
+            module_name: module,
+            estimated_duration_ms: Enum.random(5_000..30_000),
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(ShardPlanModule, module_rows)
+      shard_module_count = shard_module_count + length(module_rows)
+    end
+  end)
+end)
+
+IO.puts("  - Shard plans: #{shard_plan_count}")
+IO.puts("  - Shard runs: #{shard_run_count}")
+IO.puts("  - Shard plan modules: #{shard_module_count}")
+IO.puts("  - Shard plan test suites: #{shard_suite_count}")
+
+# Create a few in-progress sharded test runs (some shards haven't reported yet)
+IO.puts("Generating in-progress sharded test runs...")
+
+for i <- 1..3 do
+  plan_id = Ecto.UUID.generate()
+  shard_count = Enum.random(3..5)
+  reported_shards = Enum.random(1..(shard_count - 1))
+  now = NaiveDateTime.utc_now()
+  reference = "github-inprogress-#{i}"
+
+  IngestRepo.insert_all(ShardPlan, [
+    %{
+      id: plan_id,
+      reference: reference,
+      project_id: project_id,
+      shard_count: shard_count,
+      granularity: "module",
+      inserted_at: now
+    }
+  ])
+
+  test_run_id = UUIDv7.generate()
+
+  IngestRepo.insert_all(Test, [
+    %{
+      id: test_run_id,
+      duration: Enum.random(10_000..30_000),
+      macos_version: "15.3",
+      xcode_version: "16.2",
+      is_ci: true,
+      is_flaky: false,
+      model_identifier: "MacBookPro14,2",
+      scheme: "AppTests",
+      status: "in_progress",
+      git_branch: "main",
+      git_commit_sha: "abc123def456",
+      git_ref: "refs/heads/main",
+      ran_at: now,
+      project_id: project_id,
+      account_id: org_account_id,
+      shard_plan_id: plan_id,
+      inserted_at: now,
+      ci_run_id: "#{Enum.random(19_000_000_000..20_000_000_000)}",
+      ci_project_handle: "tuist/tuist",
+      ci_host: "",
+      ci_provider: "github"
+    }
+  ])
+
+  # Only some shards have reported
+  for shard_index <- 0..(reported_shards - 1) do
+    IngestRepo.insert_all(ShardRun, [
+      %{
+        shard_plan_id: plan_id,
+        project_id: project_id,
+        test_run_id: test_run_id,
+        shard_index: shard_index,
+        status: Enum.random(["success", "success", "success", "failure"]),
+        duration: Enum.random(5_000..20_000),
+        ran_at: now,
+        inserted_at: now
+      }
+    ])
+
+    # Add module assignments for each shard
+    assigned_modules = Enum.take_random(module_names, Enum.random(1..3))
+
+    module_rows =
+      Enum.map(assigned_modules, fn module ->
+        %{
+          shard_plan_id: plan_id,
+          project_id: project_id,
+          shard_index: shard_index,
+          module_name: module,
+          estimated_duration_ms: Enum.random(5_000..30_000),
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(ShardPlanModule, module_rows)
+  end
+
+  # Add module assignments for pending shards too (plan assigned them, they just haven't run)
+  for shard_index <- reported_shards..(shard_count - 1) do
+    assigned_modules = Enum.take_random(module_names, Enum.random(1..3))
+
+    module_rows =
+      Enum.map(assigned_modules, fn module ->
+        %{
+          shard_plan_id: plan_id,
+          project_id: project_id,
+          shard_index: shard_index,
+          module_name: module,
+          estimated_duration_ms: Enum.random(5_000..30_000),
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(ShardPlanModule, module_rows)
+  end
+end
+
+IO.puts("  - Created 3 in-progress sharded test runs")
 
 # Generate command events with module cache data linked to test runs
 # This ensures test runs have binary cache analytics available
@@ -2059,283 +2303,6 @@ Enum.each(test_previews, fn preview_attrs ->
   end)
 end)
 
-app_builds = AppBuild |> Repo.all() |> Repo.preload(preview: :project)
-
-qa_prompts = [
-  "Test the main app flow and login functionality",
-  "Verify that all buttons work correctly and navigation is smooth",
-  "Check if the app handles edge cases properly",
-  "Test the user registration and onboarding process",
-  "Validate the app's performance under various conditions",
-  "Test accessibility features and VoiceOver support",
-  "Verify dark mode and light mode switching",
-  "Test the payment flow and subscription features",
-  "Check if push notifications work correctly",
-  "Test offline functionality and data synchronization"
-]
-
-qa_statuses = ["pending", "running", "completed", "failed"]
-
-selected_app_builds = Enum.take_random(app_builds, 25)
-
-qa_runs =
-  Enum.map(selected_app_builds, fn app_build ->
-    status = Enum.random(qa_statuses)
-    prompt = Enum.random(qa_prompts)
-
-    git_refs = ["main", "develop", "feature/new-ui", "feature/qa-testing", "release/v1.2.0"]
-
-    inserted_at =
-      DateTime.new!(
-        Date.add(DateTime.utc_now(), -Enum.random(0..30)),
-        Time.new!(
-          Enum.random(0..23),
-          Enum.random(0..59),
-          Enum.random(0..59)
-        )
-      )
-
-    finished_at =
-      if status in ["completed", "failed"] do
-        duration_minutes = Enum.random(5..45)
-        DateTime.add(inserted_at, duration_minutes * 60, :second)
-      end
-
-    base_attrs = %{
-      id: UUIDv7.generate(),
-      app_build_id: app_build.id,
-      prompt: prompt,
-      status: status,
-      git_ref: Enum.random(git_refs),
-      issue_comment_id: if(Enum.random([true, false]), do: Enum.random(1000..9999)),
-      inserted_at: inserted_at,
-      updated_at: inserted_at
-    }
-
-    if finished_at do
-      Map.put(base_attrs, :finished_at, finished_at)
-    else
-      base_attrs
-    end
-  end)
-
-Repo.insert_all(Run, qa_runs)
-
-qa_logs =
-  Enum.flat_map(qa_runs, fn qa_run ->
-    log_messages =
-      case qa_run.status do
-        "pending" ->
-          [
-            {"info", "QA run initialized"},
-            {"debug", "Waiting for agent to become available"}
-          ]
-
-        "running" ->
-          [
-            {"info", "QA run initialized"},
-            {"debug", "Waiting for agent to become available"},
-            {"info", "QA agent started"},
-            {"info", "Starting test execution"},
-            {"debug", "Loading app on simulator"},
-            {"info", "Running automated tests..."}
-          ]
-
-        "completed" ->
-          [
-            {"info", "QA run initialized"},
-            {"debug", "Waiting for agent to become available"},
-            {"info", "QA agent started"},
-            {"info", "Starting test execution"},
-            {"debug", "Loading app on simulator"},
-            {"info", "Running automated tests..."},
-            {"debug", "Screenshot captured for main screen"},
-            {"info", "Testing navigation flows"},
-            {"debug", "All UI elements found and verified"},
-            {"info", "Testing user interactions"},
-            {"debug", "Form validation tests passed"},
-            {"info", "Testing edge cases"},
-            {"debug", "Error handling validated"},
-            {"info", "All tests completed successfully"},
-            {"info", "Generating test summary"},
-            {"info", "QA run completed successfully"}
-          ]
-
-        "failed" ->
-          [
-            {"info", "QA run initialized"},
-            {"debug", "Waiting for agent to become available"},
-            {"info", "QA agent started"},
-            {"info", "Starting test execution"},
-            {"debug", "Loading app on simulator"},
-            {"info", "Running automated tests..."},
-            {"warning", "App took longer than expected to load"},
-            {"debug", "Screenshot captured for main screen"},
-            {"info", "Testing navigation flows"},
-            {"error", "Button element not found on screen"},
-            {"debug", "Attempting to retry element lookup"},
-            {"error", "Element lookup failed after retry"},
-            {"warning", "Continuing with remaining tests"},
-            {"info", "Testing user interactions"},
-            {"error", "Form submission failed - validation error"},
-            {"debug", "Error details: Required field missing"},
-            {"error", "Critical test failure detected"},
-            {"info", "Stopping test execution due to failures"},
-            {"error", "QA run failed with critical issues"}
-          ]
-      end
-
-    base_time = qa_run.inserted_at
-
-    duration_minutes =
-      case qa_run.status do
-        "pending" -> 1
-        "running" -> 15
-        "completed" -> 30
-        "failed" -> 20
-      end
-
-    log_messages
-    |> Enum.with_index()
-    |> Enum.map(fn {{level, message}, index} ->
-      minutes_offset = div(duration_minutes * index, length(log_messages))
-
-      log_timestamp =
-        base_time
-        |> NaiveDateTime.add(minutes_offset * 60, :second)
-        |> NaiveDateTime.truncate(:second)
-
-      level_int =
-        case level do
-          "debug" -> 0
-          "info" -> 1
-          "warning" -> 2
-          "error" -> 3
-        end
-
-      app_build = Enum.find(app_builds, &(&1.id == qa_run.app_build_id))
-      project_id = app_build.preview.project.id
-
-      %{
-        project_id: project_id,
-        qa_run_id: qa_run.id,
-        data: message,
-        type: level_int,
-        timestamp: log_timestamp,
-        inserted_at: log_timestamp
-      }
-    end)
-  end)
-
-qa_logs
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  processed_logs =
-    Enum.map(chunk, fn log ->
-      %{
-        log
-        | timestamp: NaiveDateTime.truncate(log.timestamp, :second),
-          inserted_at: NaiveDateTime.truncate(log.inserted_at, :second)
-      }
-    end)
-
-  IngestRepo.insert_all(Log, processed_logs, timeout: 120_000)
-end)
-
-token_usage_data =
-  Enum.flat_map(qa_runs, fn qa_run ->
-    app_build = Enum.find(app_builds, &(&1.id == qa_run.app_build_id))
-    account_id = app_build.preview.project.account_id
-
-    case qa_run.status do
-      "completed" ->
-        base_time = qa_run.inserted_at
-
-        [
-          %{
-            id: UUIDv7.generate(),
-            input_tokens: Enum.random(800..1500),
-            output_tokens: Enum.random(400..800),
-            model: "claude-sonnet-4-20250514",
-            feature: "qa",
-            feature_resource_id: qa_run.id,
-            account_id: account_id,
-            timestamp: DateTime.add(base_time, Enum.random(10..30), :second),
-            inserted_at: DateTime.add(base_time, Enum.random(10..30), :second),
-            updated_at: DateTime.add(base_time, Enum.random(10..30), :second)
-          },
-          %{
-            id: UUIDv7.generate(),
-            input_tokens: Enum.random(500..1000),
-            output_tokens: Enum.random(300..600),
-            model: "claude-sonnet-4-20250514",
-            feature: "qa",
-            feature_resource_id: qa_run.id,
-            account_id: account_id,
-            timestamp: DateTime.add(base_time, Enum.random(60..120), :second),
-            inserted_at: DateTime.add(base_time, Enum.random(60..120), :second),
-            updated_at: DateTime.add(base_time, Enum.random(60..120), :second)
-          },
-          %{
-            id: UUIDv7.generate(),
-            input_tokens: Enum.random(200..600),
-            output_tokens: Enum.random(100..300),
-            model: "claude-sonnet-4-20250514",
-            feature: "qa",
-            feature_resource_id: qa_run.id,
-            account_id: account_id,
-            timestamp: DateTime.add(base_time, Enum.random(150..200), :second),
-            inserted_at: DateTime.add(base_time, Enum.random(150..200), :second),
-            updated_at: DateTime.add(base_time, Enum.random(150..200), :second)
-          }
-        ]
-
-      "failed" ->
-        base_time = qa_run.inserted_at
-
-        [
-          %{
-            id: UUIDv7.generate(),
-            input_tokens: Enum.random(600..1200),
-            output_tokens: Enum.random(300..600),
-            model: "claude-sonnet-4-20250514",
-            feature: "qa",
-            feature_resource_id: qa_run.id,
-            account_id: account_id,
-            timestamp: DateTime.add(base_time, Enum.random(10..30), :second),
-            inserted_at: DateTime.add(base_time, Enum.random(10..30), :second),
-            updated_at: DateTime.add(base_time, Enum.random(10..30), :second)
-          }
-        ]
-
-      "running" ->
-        base_time = qa_run.inserted_at
-
-        [
-          %{
-            id: UUIDv7.generate(),
-            input_tokens: Enum.random(400..800),
-            output_tokens: Enum.random(200..400),
-            model: "claude-sonnet-4-20250514",
-            feature: "qa",
-            feature_resource_id: qa_run.id,
-            account_id: account_id,
-            timestamp: DateTime.add(base_time, Enum.random(5..15), :second),
-            inserted_at: DateTime.add(base_time, Enum.random(5..15), :second),
-            updated_at: DateTime.add(base_time, Enum.random(5..15), :second)
-          }
-        ]
-
-      _ ->
-        []
-    end
-  end)
-
-if !Enum.empty?(token_usage_data) do
-  Repo.insert_all(Billing.TokenUsage, token_usage_data)
-  IO.puts("Created #{length(token_usage_data)} token usage records")
-end
-
 # Create bundles with artifacts
 bundle_types = [:app, :ipa, :xcarchive]
 
@@ -2885,6 +2852,95 @@ SeedHelpers.insert_bulk_ch(gradle_cache_events, GradleCacheEvent, IngestRepo, "G
 IO.puts(
   "  - Created #{length(gradle_builds)} Gradle builds with #{length(gradle_tasks)} tasks and #{length(gradle_cache_events)} cache events"
 )
+
+# =============================================================================
+# Machine Metrics for Build Runs
+# =============================================================================
+#
+# Generate realistic machine metrics (CPU, memory, network, disk) for a subset
+# of Xcode and Gradle builds so the machine metrics tab has data to display.
+
+machine_metrics_build_count = min(200, length(builds))
+
+IO.puts(
+  "Generating machine metrics for #{machine_metrics_build_count} Xcode builds and #{length(gradle_builds)} Gradle builds..."
+)
+
+xcode_machine_metrics =
+  builds
+  |> Enum.take(machine_metrics_build_count)
+  |> Enum.flat_map(fn build ->
+    # Build duration is in ms, generate a metric every ~5 seconds over the build duration
+    duration_seconds = max(div(build.duration, 1000), 10)
+    sample_count = max(div(duration_seconds, 5), 2)
+    # Use build inserted_at as epoch base
+    base_epoch = build.inserted_at |> NaiveDateTime.diff(~N[1970-01-01 00:00:00]) |> Kernel.*(1.0)
+    total_memory = Enum.random([8, 16, 32, 64]) * 1_073_741_824
+
+    Enum.map(0..(sample_count - 1), fn i ->
+      t = base_epoch + i * 5.0
+      # Simulate a build profile: CPU ramps up, peaks mid-build, then drops
+      progress = i / max(sample_count - 1, 1)
+      base_cpu = 20.0 + 60.0 * :math.sin(progress * :math.pi())
+      cpu = min(100.0, max(0.0, base_cpu + (:rand.uniform() - 0.5) * 15.0))
+
+      # Memory grows over time
+      mem_ratio = 0.3 + 0.4 * progress + (:rand.uniform() - 0.5) * 0.05
+      memory_used = trunc(total_memory * min(mem_ratio, 0.95))
+
+      %{
+        build_run_id: build.id,
+        gradle_build_id: nil,
+        timestamp: t,
+        cpu_usage_percent: Float.round(cpu, 1),
+        memory_used_bytes: memory_used,
+        memory_total_bytes: total_memory,
+        network_bytes_in: Enum.random(0..5_000_000),
+        network_bytes_out: Enum.random(0..2_000_000),
+        disk_bytes_read: Enum.random(0..10_000_000),
+        disk_bytes_written: Enum.random(0..8_000_000),
+        inserted_at: NaiveDateTime.truncate(build.inserted_at, :second)
+      }
+    end)
+  end)
+
+SeedHelpers.insert_bulk_ch(xcode_machine_metrics, BuildMachineMetric, IngestRepo, "Xcode machine metrics")
+
+gradle_machine_metrics =
+  Enum.flat_map(gradle_builds, fn build ->
+    duration_seconds = max(div(build.duration_ms, 1000), 10)
+    sample_count = max(div(duration_seconds, 5), 2)
+    base_epoch = build.inserted_at |> NaiveDateTime.diff(~N[1970-01-01 00:00:00]) |> Kernel.*(1.0)
+    total_memory = Enum.random([8, 16, 32, 64]) * 1_073_741_824
+
+    Enum.map(0..(sample_count - 1), fn i ->
+      t = base_epoch + i * 5.0
+      progress = i / max(sample_count - 1, 1)
+      base_cpu = 25.0 + 55.0 * :math.sin(progress * :math.pi())
+      cpu = min(100.0, max(0.0, base_cpu + (:rand.uniform() - 0.5) * 15.0))
+      mem_ratio = 0.35 + 0.35 * progress + (:rand.uniform() - 0.5) * 0.05
+      memory_used = trunc(total_memory * min(mem_ratio, 0.95))
+
+      %{
+        build_run_id: nil,
+        gradle_build_id: build.id,
+        timestamp: t,
+        cpu_usage_percent: Float.round(cpu, 1),
+        memory_used_bytes: memory_used,
+        memory_total_bytes: total_memory,
+        network_bytes_in: Enum.random(0..5_000_000),
+        network_bytes_out: Enum.random(0..2_000_000),
+        disk_bytes_read: Enum.random(0..10_000_000),
+        disk_bytes_written: Enum.random(0..8_000_000),
+        inserted_at: NaiveDateTime.truncate(build.inserted_at, :second)
+      }
+    end)
+  end)
+
+SeedHelpers.insert_bulk_ch(gradle_machine_metrics, BuildMachineMetric, IngestRepo, "Gradle machine metrics")
+
+IO.puts("  - Xcode machine metrics: #{length(xcode_machine_metrics)} data points")
+IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data points")
 
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")

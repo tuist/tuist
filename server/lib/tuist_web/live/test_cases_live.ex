@@ -392,16 +392,20 @@ defmodule TuistWeb.TestCasesLive do
       page_size: 20
     }
 
-    {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options)
-
     socket
     |> assign(:active_filters, filters)
-    |> assign(:test_cases, test_cases)
-    |> assign(:test_cases_meta, test_cases_meta)
-    |> assign(:test_cases_page, page)
+    |> assign(:test_cases_current_page, page)
     |> assign(:test_cases_sort_by, sort_by)
     |> assign(:test_cases_sort_order, sort_order)
     |> assign(:test_cases_filter, search)
+    |> assign_async(
+      :test_cases_page,
+      fn ->
+        {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options)
+        {:ok, %{test_cases_page: %{test_cases: test_cases, meta: test_cases_meta}}}
+      end,
+      reset: true
+    )
   end
 
   defp parse_page(nil), do: 1

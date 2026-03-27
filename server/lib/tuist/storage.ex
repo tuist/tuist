@@ -150,6 +150,14 @@ defmodule Tuist.Storage do
     exists
   end
 
+  def download_to_file(object_key, file_path, actor) do
+    {config, bucket_name} = s3_config_and_bucket(actor)
+
+    bucket_name
+    |> ExAws.S3.download_file(object_key, file_path)
+    |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+  end
+
   def get_object_as_string(object_key, actor) do
     {time, result} =
       Performance.measure_time_in_milliseconds(fn ->

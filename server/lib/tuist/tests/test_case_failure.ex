@@ -4,6 +4,7 @@ defmodule Tuist.Tests.TestCaseFailure do
   This is a ClickHouse entity that stores test case failure data.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 

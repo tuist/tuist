@@ -5,12 +5,18 @@ defmodule TuistWeb.API.BuildsController do
   alias OpenApiSpex.Schema
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
+  alias Tuist.Storage
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadCompletion
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadParts
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
+  alias TuistWeb.API.Schemas.ArtifactUploadId
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.Authentication
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -119,7 +125,11 @@ defmodule TuistWeb.API.BuildsController do
                  properties: %{
                    id: %Schema{type: :string, format: :uuid, description: "The build ID."},
                    duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
-                   status: %Schema{type: :string, enum: ["success", "failure"], description: "Build status."},
+                   status: %Schema{
+                     type: :string,
+                     enum: ["success", "failure", "processing", "failed_processing"],
+                     description: "Build status."
+                   },
                    category: %Schema{
                      type: :string,
                      enum: ["clean", "incremental"],
@@ -482,7 +492,7 @@ defmodule TuistWeb.API.BuildsController do
            status: %Schema{
              type: :string,
              description: "The status of the build run.",
-             enum: ["success", "failure"]
+             enum: ["success", "failure", "processing"]
            },
            category: %Schema{
              type: :string,
@@ -767,6 +777,10 @@ defmodule TuistWeb.API.BuildsController do
                required: [:node_id, :checksum, :size, :duration, :compressed_size, :operation]
              }
            },
+           xcode_cache_upload_enabled: %Schema{
+             type: :boolean,
+             description: "Whether Xcode cache upload was enabled for this build."
+           },
            custom_metadata: %Schema{
              type: :object,
              description: "Custom metadata for the build run.",
@@ -783,11 +797,37 @@ defmodule TuistWeb.API.BuildsController do
                  description: "Key-value pairs for structured data. URL values will auto-link in the UI."
                }
              }
+           },
+           machine_metrics: %Schema{
+             type: :array,
+             description: "Machine performance metrics collected during the build.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 timestamp: %Schema{type: :number, description: "Unix timestamp in seconds."},
+                 cpu_usage_percent: %Schema{type: :number, description: "CPU usage percentage (0-100)."},
+                 memory_used_bytes: %Schema{type: :integer, description: "Memory used in bytes."},
+                 memory_total_bytes: %Schema{type: :integer, description: "Total memory in bytes."},
+                 network_bytes_in: %Schema{type: :integer, description: "Network bytes received per second."},
+                 network_bytes_out: %Schema{type: :integer, description: "Network bytes sent per second."},
+                 disk_bytes_read: %Schema{type: :integer, description: "Disk bytes read per second."},
+                 disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."}
+               },
+               required: [
+                 :timestamp,
+                 :cpu_usage_percent,
+                 :memory_used_bytes,
+                 :memory_total_bytes,
+                 :network_bytes_in,
+                 :network_bytes_out,
+                 :disk_bytes_read,
+                 :disk_bytes_written
+               ]
+             }
            }
          },
          required: [
            :id,
-           :duration,
            :is_ci
          ]
        }},
@@ -805,39 +845,40 @@ defmodule TuistWeb.API.BuildsController do
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    account = Authentication.authenticated_subject_account(conn)
+
     run_params =
       body_params
       |> Map.put(:project, selected_project)
-      |> Map.put(:account, Authentication.authenticated_subject_account(conn))
+      |> Map.put(:account, account)
 
-    case get_or_create_build(run_params) do
-      {:ok, build} ->
-        Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-          git_commit_sha: build.git_commit_sha,
-          git_ref: build.git_ref,
-          git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-          project_id: selected_project.id,
-          preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-          preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-          command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-          test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-          bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-          build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
-        })
+    {:ok, build} = get_or_create_build(run_params)
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          type: "build",
-          id: build.id,
-          duration: build.duration,
-          project_id: build.project_id,
-          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
-        })
-
-      {:error, _changeset} ->
-        conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
+    if build.status not in ["processing", "failed_processing"] do
+      Tuist.VCS.enqueue_vcs_pull_request_comment(%{
+        git_commit_sha: build.git_commit_sha,
+        git_ref: build.git_ref,
+        git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
+        project_id: selected_project.id,
+        preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+        preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+        command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+        test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
+        bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+        build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+      })
     end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{
+      type: "build",
+      id: build.id,
+      status: build.status,
+      duration: build.duration,
+      project_id: build.project_id,
+      url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
+    })
   end
 
   defp get_or_create_build(params) do
@@ -850,7 +891,7 @@ defmodule TuistWeb.API.BuildsController do
 
         build_attrs = %{
           id: params.id,
-          duration: params.duration,
+          duration: Map.get(params, :duration, 0),
           macos_version: Map.get(params, :macos_version),
           xcode_version: Map.get(params, :xcode_version),
           is_ci: Map.get(params, :is_ci),
@@ -873,13 +914,59 @@ defmodule TuistWeb.API.BuildsController do
           targets: Map.get(params, :targets, []),
           cacheable_tasks: Map.get(params, :cacheable_tasks, []),
           cas_outputs: Map.get(params, :cas_outputs, []),
+          xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
           custom_tags: Map.get(custom_metadata, :tags, []),
-          custom_values: Map.get(custom_metadata, :values, %{})
+          custom_values: Map.get(custom_metadata, :values, %{}),
+          machine_metrics: Map.get(params, :machine_metrics, [])
         }
 
-        build_attrs
-        |> Builds.create_build()
-        |> handle_build_creation_result(params.id)
+        {:ok, build} = build_attrs |> Builds.create_build() |> handle_build_creation_result(params.id)
+
+        if build.status == "processing" do
+          storage_key = Builds.build_storage_key(params.project.account.name, params.project.name, params.id)
+
+          %{
+            build_id: build.id,
+            storage_key: storage_key,
+            account_id: params.account.id,
+            project_id: params.project.id,
+            xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
+            build_metadata: %{
+              macos_version: Map.get(params, :macos_version),
+              xcode_version: Map.get(params, :xcode_version),
+              is_ci: Map.get(params, :is_ci),
+              model_identifier: Map.get(params, :model_identifier),
+              scheme: Map.get(params, :scheme),
+              configuration: Map.get(params, :configuration),
+              git_branch: Map.get(params, :git_branch),
+              git_commit_sha: Map.get(params, :git_commit_sha),
+              git_ref: Map.get(params, :git_ref),
+              ci_run_id: Map.get(params, :ci_run_id),
+              ci_project_handle: Map.get(params, :ci_project_handle),
+              ci_host: Map.get(params, :ci_host),
+              ci_provider: Map.get(params, :ci_provider),
+              git_remote_url_origin: Map.get(params, :git_remote_url_origin),
+              custom_tags: Map.get(custom_metadata, :tags, []),
+              custom_values: Map.get(custom_metadata, :values, %{})
+            },
+            vcs_comment_params: %{
+              git_commit_sha: Map.get(params, :git_commit_sha),
+              git_ref: Map.get(params, :git_ref),
+              git_remote_url_origin: Map.get(params, :git_remote_url_origin),
+              project_id: params.project.id,
+              preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+              preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+              command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+              test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
+              bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+              build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+            }
+          }
+          |> Tuist.Builds.Workers.ProcessBuildWorker.new()
+          |> Oban.insert!()
+        end
+
+        {:ok, build}
     end
   end
 
@@ -894,5 +981,196 @@ defmodule TuistWeb.API.BuildsController do
     else
       {:error, changeset}
     end
+  end
+
+  operation(:multipart_start,
+    summary: "Start a multipart upload for a build archive.",
+    description:
+      "Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.",
+    operation_id: "startBuildsMultipartUpload",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Build multipart upload start params", "application/json",
+       %Schema{
+         title: "BuildMultipartUploadStartParams",
+         description: "Parameters to start a multipart upload for a build archive.",
+         type: :object,
+         properties: %{
+           build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The build ID."
+           }
+         },
+         required: [:build_id]
+       }},
+    responses: %{
+      ok: {"The multipart upload has been started", "application/json", ArtifactUploadId},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project doesn't exist", "application/json", Error}
+    }
+  )
+
+  def multipart_start(
+        %{assigns: %{selected_project: selected_project}, body_params: %{build_id: build_id}} = conn,
+        _params
+      ) do
+    account = Authentication.authenticated_subject_account(conn)
+    object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
+
+    multipart_upload_id = Storage.multipart_start(object_key, account)
+
+    json(conn, %{status: "success", data: %{upload_id: multipart_upload_id}})
+  end
+
+  operation(:multipart_generate_url,
+    summary: "Generate a signed URL for uploading a build archive part.",
+    description:
+      "Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).",
+    operation_id: "generateBuildsMultipartUploadURL",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Build multipart upload URL generation params", "application/json",
+       %Schema{
+         title: "BuildMultipartUploadURLGenerationParams",
+         description: "Parameters to generate a signed URL for a build multipart upload part.",
+         type: :object,
+         properties: %{
+           build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The build ID."
+           },
+           multipart_upload_part: ArtifactMultipartUploadPart
+         },
+         required: [:build_id, :multipart_upload_part]
+       }},
+    responses: %{
+      ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project doesn't exist", "application/json", Error}
+    }
+  )
+
+  def multipart_generate_url(
+        %{
+          assigns: %{selected_project: selected_project},
+          body_params: %{
+            build_id: build_id,
+            multipart_upload_part: %{part_number: part_number, upload_id: multipart_upload_id} = multipart_upload_part
+          }
+        } = conn,
+        _params
+      ) do
+    content_length = Map.get(multipart_upload_part, :content_length)
+    object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
+
+    url =
+      Storage.multipart_generate_url(
+        object_key,
+        multipart_upload_id,
+        part_number,
+        selected_project.account,
+        expires_in: 120,
+        content_length: content_length
+      )
+
+    json(conn, %{status: "success", data: %{url: url}})
+  end
+
+  operation(:multipart_complete,
+    summary: "Complete a multipart upload for a build archive.",
+    description:
+      "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.",
+    operation_id: "completeBuildsMultipartUpload",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Build multipart upload completion params", "application/json",
+       %Schema{
+         title: "BuildMultipartUploadCompletionParams",
+         description: "Parameters to complete a multipart upload for a build.",
+         type: :object,
+         properties: %{
+           build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The build ID."
+           },
+           multipart_upload_parts: ArtifactMultipartUploadParts
+         },
+         required: [:build_id, :multipart_upload_parts]
+       }},
+    responses: %{
+      ok: {"The upload has been completed", "application/json", ArtifactMultipartUploadCompletion},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project doesn't exist", "application/json", Error}
+    }
+  )
+
+  def multipart_complete(
+        %{
+          assigns: %{selected_project: selected_project},
+          body_params: %{
+            build_id: build_id,
+            multipart_upload_parts: %ArtifactMultipartUploadParts{parts: parts, upload_id: multipart_upload_id}
+          }
+        } = conn,
+        _params
+      ) do
+    object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
+
+    :ok =
+      Storage.multipart_complete_upload(
+        object_key,
+        multipart_upload_id,
+        Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+          {part_number, etag}
+        end),
+        selected_project.account
+      )
+
+    json(conn, %{status: "success", data: %{}})
   end
 end

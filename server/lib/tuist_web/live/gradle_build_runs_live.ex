@@ -7,6 +7,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
+  alias Tuist.Accounts
   alias Tuist.Gradle
   alias Tuist.Repo
   alias TuistWeb.Utilities.Query
@@ -15,7 +16,8 @@ defmodule TuistWeb.GradleBuildRunsLive do
   @page_size 20
 
   def assign_mount(socket) do
-    assign(socket, :available_filters, define_filters())
+    project = socket.assigns.selected_project
+    assign(socket, :available_filters, define_filters(project))
   end
 
   def assign_handle_params(socket, params) do
@@ -105,8 +107,22 @@ defmodule TuistWeb.GradleBuildRunsLive do
         base_flop_filters ++ [%{field: :root_project_name, op: :=~, value: search}]
       end
 
-    {is_ci_filters, remaining_filters} = Enum.split_with(filters, &(&1.id == "is_ci"))
+    {ran_by_filters, remaining_filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
+    {is_ci_filters, remaining_filters} = Enum.split_with(remaining_filters, &(&1.id == "is_ci"))
+    {requested_tasks_filters, remaining_filters} = Enum.split_with(remaining_filters, &(&1.id == "requested_tasks"))
     filter_flop_filters = Filter.Operations.convert_filters_to_flop(remaining_filters)
+
+    ran_by_flop_filters =
+      Enum.flat_map(ran_by_filters, fn
+        %{value: :ci, operator: op} ->
+          [%{field: :is_ci, op: op, value: true}]
+
+        %{value: value, operator: op} when not is_nil(value) ->
+          [%{field: :account_id, op: op, value: value}]
+
+        _ ->
+          []
+      end)
 
     is_ci_flop_filters =
       Enum.flat_map(is_ci_filters, fn
@@ -120,7 +136,19 @@ defmodule TuistWeb.GradleBuildRunsLive do
           []
       end)
 
-    flop_filters = base_flop_filters ++ filter_flop_filters ++ is_ci_flop_filters
+    requested_tasks_query_filters =
+      Enum.flat_map(requested_tasks_filters, fn
+        %{value: value, operator: :=~} when is_binary(value) and value != "" ->
+          [{:has, value}]
+
+        %{value: value, operator: :"!=~"} when is_binary(value) and value != "" ->
+          [{:not_has, value}]
+
+        _ ->
+          []
+      end)
+
+    flop_filters = base_flop_filters ++ filter_flop_filters ++ ran_by_flop_filters ++ is_ci_flop_filters
 
     order_by =
       case build_runs_sort_by do
@@ -144,7 +172,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
       order_directions: order_directions
     }
 
-    {builds, meta} = Gradle.list_builds(project.id, flop_params)
+    {builds, meta} = Gradle.list_builds(project.id, flop_params, requested_tasks_filters: requested_tasks_query_filters)
     builds = Repo.preload(builds, :built_by_account)
 
     socket
@@ -178,8 +206,8 @@ defmodule TuistWeb.GradleBuildRunsLive do
     "?#{URI.encode_query(query_params)}"
   end
 
-  defp define_filters do
-    [
+  defp define_filters(project) do
+    base = [
       %Filter.Filter{
         id: "status",
         field: :status,
@@ -203,6 +231,14 @@ defmodule TuistWeb.GradleBuildRunsLive do
         value: ""
       },
       %Filter.Filter{
+        id: "requested_tasks",
+        field: :requested_tasks,
+        display_name: dgettext("dashboard_gradle", "Requested tasks"),
+        type: :list,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
         id: "is_ci",
         field: :is_ci,
         display_name: dgettext("dashboard_gradle", "Environment"),
@@ -214,7 +250,50 @@ defmodule TuistWeb.GradleBuildRunsLive do
         },
         operator: :==,
         value: nil
+      },
+      %Filter.Filter{
+        id: "gradle_version",
+        field: :gradle_version,
+        display_name: dgettext("dashboard_gradle", "Gradle version"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "java_version",
+        field: :java_version,
+        display_name: dgettext("dashboard_gradle", "Java version"),
+        type: :text,
+        operator: :=~,
+        value: ""
       }
     ]
+
+    ran_by_filter =
+      if Accounts.organization?(project.account) do
+        {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
+        users = Accounts.get_organization_members(organization)
+
+        [
+          %Filter.Filter{
+            id: "ran_by",
+            field: :ran_by,
+            display_name: dgettext("dashboard_gradle", "Ran by"),
+            type: :option,
+            options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
+            options_display_names:
+              Map.merge(
+                %{ci: "CI"},
+                Map.new(users, fn user -> {user.account.id, user.account.name} end)
+              ),
+            operator: :==,
+            value: nil
+          }
+        ]
+      else
+        []
+      end
+
+    base ++ ran_by_filter
   end
 end

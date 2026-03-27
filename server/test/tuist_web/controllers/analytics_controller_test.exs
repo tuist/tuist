@@ -7,7 +7,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
-  alias Tuist.CommandEvents.Buffer
+  alias Tuist.CommandEvents.Event.Buffer
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Storage
@@ -815,6 +815,37 @@ defmodule TuistWeb.AnalyticsControllerTest do
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
     end
+
+    test "starts multipart upload for a session - postgres", %{conn: conn} do
+      # Given
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      account = project.account
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
+
+      expect(Storage, :multipart_start, fn ^object_key, _account ->
+        upload_id
+      end)
+
+      conn = Authentication.put_current_project(conn, project)
+      conn = assign(conn, :selected_project, project)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/runs/#{command_event.id}/start",
+          type: "session"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
   end
 
   describe "POST /api/runs/:run_id/generate-url" do
@@ -1223,6 +1254,37 @@ defmodule TuistWeb.AnalyticsControllerTest do
           ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/start",
           type: "result_bundle_object",
           name: "some-id"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+      response_data = response["data"]
+      assert response_data["upload_id"] == upload_id
+    end
+
+    test "starts multipart upload for a session using project from URL",
+         %{conn: conn, user: user} do
+      # Given
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+      upload_id = "12344"
+
+      object_key =
+        "#{account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
+
+      expect(Storage, :multipart_start, fn ^object_key, _account ->
+        upload_id
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{account.name}/#{project.name}/runs/#{command_event.id}/start",
+          type: "session"
         )
 
       response = json_response(conn, :ok)

@@ -116,10 +116,8 @@ public struct JWT: Equatable {
             type: payload.type
         )
     }
-}
 
-#if DEBUG
-    extension JWT {
+    #if DEBUG
         public static func test(
             token: String = "token",
             expiryDate: Date = Date(),
@@ -135,5 +133,5 @@ public struct JWT: Equatable {
                 type: type
             )
         }
-    }
-#endif
+    #endif
+}

@@ -1,7 +1,7 @@
 import Foundation
 import Path
+import TuistEnvironment
 import TuistMigration
-import TuistSupport
 
 struct MigrationSettingsToXCConfigService {
     // MARK: - Attributes
@@ -17,10 +17,11 @@ struct MigrationSettingsToXCConfigService {
     // MARK: - Internal
 
     func run(xcodeprojPath: String, xcconfigPath: String, target: String?) async throws {
+        let cwd = try await Environment.current.currentWorkingDirectory()
         try await settingsToXCConfigExtractor.extract(
-            xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: FileHandler.shared.currentPath),
+            xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: cwd),
             targetName: target,
-            xcconfigPath: try AbsolutePath(validating: xcconfigPath, relativeTo: FileHandler.shared.currentPath)
+            xcconfigPath: try AbsolutePath(validating: xcconfigPath, relativeTo: cwd)
         )
     }
 }

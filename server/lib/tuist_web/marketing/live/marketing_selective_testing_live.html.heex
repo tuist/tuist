@@ -1,0 +1,205 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-selective-testing">
+    <TuistWeb.Marketing.MarketingComponents.navbar current_user={@current_user} />
+
+    <section data-part="header">
+      <div data-part="titles">
+        <span data-part="label">{dgettext("marketing", "Selective Testing")}</span>
+        <h1 data-part="heading">
+          {dgettext("marketing", "Run impacted tests.")}<br />
+          {dgettext("marketing", "Faster CI feedback.")}
+        </h1>
+      </div>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+        )}
+      </p>
+      <nav data-part="actions">
+        <.button
+          href={
+            TuistWeb.Marketing.MarketingHTML.localized_href(
+              "https://tuist.dev/en/docs/guides/features/selective-testing"
+            )
+          }
+          label={dgettext("marketing", "Read docs")}
+          target="_blank"
+          variant="secondary"
+          size="large"
+        />
+      </nav>
+    </section>
+
+    <section data-part="hero-image">
+      <img
+        src={~p"/marketing/images/selective-testing/selective_testing_header.webp"}
+        alt={dgettext("marketing", "Selective Testing dashboard illustration")}
+      />
+    </section>
+
+    <section data-part="testing-types">
+      <div data-part="grid">
+        <div data-part="testing-type">
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Change-based test selection")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Detects which modules have changed since the last successful test run and filters the test suite down to only affected test targets."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="testing-type">
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Selection insights")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Provides analytics on test selection effectiveness, helping you evaluate filtering accuracy and reorganize test targets to improve selection over time."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="testing-type">
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Seamless toolchain integration")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Integrates with the build toolchains you already use with minimal changes to your scripts, pipelines, and configuration files."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section data-part="stats">
+      <div data-part="content">
+        <div data-part="stat">
+          <span data-part="label">{dgettext("marketing", "Test runs in the last 24 hours")}</span>
+          <span
+            data-part="value"
+            id="test-runs-counter"
+            phx-hook="CounterAnimation"
+            data-counter-target={@test_runs_last_24h}
+            data-counter-duration="2000"
+          >
+            0
+          </span>
+        </div>
+        <%!-- <div data-part="testimonial">
+          <p data-part="quote">
+            {dgettext(
+              "marketing",
+              "\"Selective Testing drastically reduced our CI times. By running only the tests impacted by each change, we get faster feedback, lower infrastructure costs, and more confidence in every pull request.\""
+            )}
+          </p>
+          <div data-part="author">
+            <span data-part="name">{dgettext("marketing", "Example name, Senior Engineer")}</span>
+            <div data-part="logo">
+              <svg
+                width="77"
+                height="46"
+                viewBox="0 0 77 46"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M38.7137 32.2925H41.4087V24.6625C41.4087 22.825 42.7212 21.39 44.4187 21.39C46.1162 21.39 47.5862 22.755 47.5862 24.6625V32.2925H50.5087V24.5225C50.5087 21.25 47.8137 18.73 44.8737 18.73C43.7887 18.73 42.4062 19.115 41.4087 20.48V19.0275H38.7137V32.2925ZM66.3287 18.73C62.3912 18.73 59.3112 21.8625 59.3112 25.7475C59.3112 29.7025 62.3212 32.6075 66.3287 32.6075C70.3362 32.6075 73.4162 29.72 73.4162 25.7475C73.4162 21.8625 70.4062 18.73 66.3287 18.73ZM66.3287 29.86C64.0887 29.86 62.3212 28.0225 62.3212 25.7475C62.3212 23.315 64.1762 21.5475 66.3287 21.5475C68.6387 21.5475 70.4937 23.2975 70.4937 25.7475C70.4937 28.0225 68.7087 29.86 66.3287 29.86ZM58.8387 32.2925V29.475C56.8262 30.4725 54.9012 29.7025 54.9012 27.4975V21.705H58.5237V19.045H54.9187V15.615H52.0662V27.0425C52.0662 31.7675 55.3037 33.36 58.8387 32.2925ZM30.0862 18.73C26.1487 18.73 23.0687 21.8625 23.0687 25.7475C23.0687 29.7025 26.0787 32.6075 30.0862 32.6075C34.0937 32.6075 37.1737 29.72 37.1737 25.7475C37.1737 21.8625 34.1637 18.73 30.0862 18.73ZM30.0862 29.86C27.8462 29.86 26.0787 28.0225 26.0787 25.7475C26.0787 23.315 27.8462 21.5475 30.0862 21.5475C32.3962 21.5475 34.2512 23.2975 34.2512 25.7475C34.2512 28.0225 32.3962 29.86 30.0862 29.86ZM11.9562 12.9375C6.40875 12.9375 2.15625 17.1375 2.15625 22.8425C2.15625 28.3375 6.39125 32.6775 11.9562 32.6775C17.6612 32.6775 21.9137 28.3375 21.9137 22.93C21.8962 17.1375 17.6612 12.9375 11.9562 12.9375ZM11.9562 29.7025C8.10625 29.7025 5.25375 26.815 5.25375 22.8425C5.25375 18.73 8.10625 15.685 11.9562 15.685C15.8937 15.685 18.7462 18.73 18.7462 22.7725C18.7462 26.815 15.8937 29.7025 11.9562 29.7025Z"
+                  fill="#4E575F"
+                />
+                <path
+                  d="M21.4417 33.0623C15.8942 32.4498 12.3417 29.7023 10.5742 24.5223L13.3567 23.6123C14.7392 27.7248 17.3642 29.7898 21.7567 30.2448L21.4417 33.0623Z"
+                  fill="#4E575F"
+                />
+              </svg>
+            </div>
+          </div>
+        </div> --%>
+      </div>
+    </section>
+
+    <section data-part="features">
+      <div data-part="feature-row">
+        <div data-part="feature">
+          <div data-part="image">
+            <img
+              src={~p"/marketing/images/selective-testing/selective_testing_feature_run.webp"}
+              alt={dgettext("marketing", "Run only what matters")}
+            />
+          </div>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Run only what matters")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Only the tests affected by your changes are executed, skipping everything that hasn't changed."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="feature">
+          <div data-part="image">
+            <img
+              src={~p"/marketing/images/selective-testing/selective_testing_feature_adopt.webp"}
+              alt={dgettext("marketing", "Easy to adopt")}
+            />
+          </div>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Easy to adopt")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Integrates with your existing build toolchain with minimal configuration changes."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div data-part="feature-row">
+        <div data-part="feature">
+          <div data-part="image">
+            <img
+              src={~p"/marketing/images/selective-testing/selective_testing_feature_pr.webp"}
+              alt={dgettext("marketing", "Automatic PR comments")}
+            />
+          </div>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Automatic PR comments")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "When connected to GitHub, Tuist posts a summary in your PR showing exactly which tests ran and which were safely skipped."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="feature">
+          <div data-part="image">
+            <img
+              src={~p"/marketing/images/selective-testing/selective_testing_feature_caching.webp"}
+              alt={dgettext("marketing", "Caching compounds the speed")}
+            />
+          </div>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Caching compounds the speed")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Selective testing pairs with caching to reuse unchanged artifacts and skip unaffected tests."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <TuistWeb.Marketing.MarketingComponents.feature_cta
+      title={dgettext("marketing", "Run only the tests that matter")}
+      docs_href="https://tuist.dev/en/docs/guides/features/selective-testing"
+    />
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

@@ -12,7 +12,7 @@ defmodule TuistWeb.API.OrganizationsController do
   alias TuistWeb.API.Schemas.OrganizationUsage
   alias TuistWeb.Authentication
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_message: TuistWeb.RenderAPIErrorPlug
   )
@@ -282,6 +282,7 @@ defmodule TuistWeb.API.OrganizationsController do
           members: admins ++ users,
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
+          sso_enforced: organization.sso_enforced,
           invitations:
             Enum.map(
               Tuist.Repo.preload(organization, invitations: [inviter: :account]).invitations,
@@ -371,6 +372,11 @@ defmodule TuistWeb.API.OrganizationsController do
              type: :string,
              description: "The SSO organization ID to be associated with the SSO provider",
              nullable: true
+           },
+           sso_enforced: %Schema{
+             type: :boolean,
+             description: "When true, organization members must use SSO and cannot log in with email and password",
+             nullable: true
            }
          }
        }},
@@ -410,7 +416,8 @@ defmodule TuistWeb.API.OrganizationsController do
         {:ok, organization} =
           Accounts.update_organization(organization, %{
             sso_provider: nil,
-            sso_organization_id: nil
+            sso_organization_id: nil,
+            sso_enforced: false
           })
 
         json(conn, %{
@@ -419,6 +426,7 @@ defmodule TuistWeb.API.OrganizationsController do
           plan: get_plan(organization.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
+          sso_enforced: organization.sso_enforced,
           members: [],
           invitations: []
         })
@@ -439,6 +447,7 @@ defmodule TuistWeb.API.OrganizationsController do
           organization: organization,
           sso_provider: sso_provider,
           sso_organization_id: body_params.sso_organization_id,
+          sso_enforced: Map.get(body_params, :sso_enforced, false),
           conn: conn
         })
     end
@@ -448,11 +457,13 @@ defmodule TuistWeb.API.OrganizationsController do
          organization: organization,
          sso_provider: sso_provider,
          sso_organization_id: sso_organization_id,
+         sso_enforced: sso_enforced,
          conn: %Plug.Conn{} = conn
        }) do
     case Accounts.update_organization(organization, %{
            sso_provider: String.to_atom(sso_provider),
-           sso_organization_id: sso_organization_id
+           sso_organization_id: sso_organization_id,
+           sso_enforced: sso_enforced || false
          }) do
       {:ok, organization} ->
         json(conn, %{
@@ -461,6 +472,7 @@ defmodule TuistWeb.API.OrganizationsController do
           plan: get_plan(organization.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
+          sso_enforced: organization.sso_enforced,
           members: [],
           invitations: []
         })

@@ -14,6 +14,26 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
       assert conn.halted
     end
 
+    test "redirects docs locale paths to locale-first docs paths", %{conn: conn} do
+      conn = %{conn | request_path: "/docs/ja/guides/features/cache"}
+
+      conn = LegacyRedirectsPlug.call(conn, [])
+
+      assert conn.status == 301
+      assert redirected_to(conn, 301) == "/ja/docs/guides/features/cache"
+      assert conn.halted
+    end
+
+    test "preserves query strings when redirecting docs locale paths", %{conn: conn} do
+      conn = %{conn | request_path: "/docs/ja/guides/features/cache", query_string: "tab=setup"}
+
+      conn = LegacyRedirectsPlug.call(conn, [])
+
+      assert conn.status == 301
+      assert redirected_to(conn, 301) == "/ja/docs/guides/features/cache?tab=setup"
+      assert conn.halted
+    end
+
     test "passes through non-matching paths", %{conn: conn} do
       conn = %{conn | request_path: "/blog/2024/01/01/other-post"}
 

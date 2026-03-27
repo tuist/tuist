@@ -23,34 +23,35 @@ defmodule Tuist.Repo.Migrations.CreateCacheEndpoints do
     drop table(:cache_endpoints)
   end
 
-  defp seed_endpoints_for_environment(:prod) do
-    execute seed_sql("https://cache-eu-central.tuist.dev", "EU Central")
-    execute seed_sql("https://cache-eu-north.tuist.dev", "EU North")
-    execute seed_sql("https://cache-us-east.tuist.dev", "US East")
-    execute seed_sql("https://cache-us-west.tuist.dev", "US West")
-    execute seed_sql("https://cache-ap-southeast.tuist.dev", "Asia Pacific Southeast")
-    execute seed_sql("https://cache-sa-west.tuist.dev", "South America West")
-  end
+  defp seed_endpoints_for_environment(env) do
+    case env do
+      :prod ->
+        execute seed_sql("https://cache-eu-central.tuist.dev", "EU Central")
+        execute seed_sql("https://cache-eu-north.tuist.dev", "EU North")
+        execute seed_sql("https://cache-us-east.tuist.dev", "US East")
+        execute seed_sql("https://cache-us-west.tuist.dev", "US West")
+        execute seed_sql("https://cache-ap-southeast.tuist.dev", "Asia Pacific Southeast")
+        execute seed_sql("https://cache-sa-west.tuist.dev", "South America West")
 
-  defp seed_endpoints_for_environment(:stag) do
-    execute seed_sql("https://cache-eu-central-staging.tuist.dev", "EU Central Staging")
-    execute seed_sql("https://cache-us-east-staging.tuist.dev", "US East Staging")
-  end
+      :stag ->
+        execute seed_sql("https://cache-eu-central-staging.tuist.dev", "EU Central Staging")
+        execute seed_sql("https://cache-us-east-staging.tuist.dev", "US East Staging")
 
-  defp seed_endpoints_for_environment(:can) do
-    execute seed_sql("https://cache-eu-central-canary.tuist.dev", "EU Central Canary")
-  end
+      :can ->
+        execute seed_sql("https://cache-eu-central-canary.tuist.dev", "EU Central Canary")
 
-  defp seed_endpoints_for_environment(:dev) do
-    execute seed_sql("http://localhost:8087", "Local Dev")
-  end
+      :dev ->
+        cache_port = System.get_env("TUIST_CACHE_PORT") || "8087"
+        execute seed_sql("http://localhost:#{cache_port}", "Local Dev")
 
-  defp seed_endpoints_for_environment(:test) do
-    execute seed_sql("https://cache-eu-central-test.tuist.dev", "EU Central Test")
-    execute seed_sql("https://cache-us-east-test.tuist.dev", "US East Test")
-  end
+      :test ->
+        execute seed_sql("https://cache-eu-central-test.tuist.dev", "EU Central Test")
+        execute seed_sql("https://cache-us-east-test.tuist.dev", "US East Test")
 
-  defp seed_endpoints_for_environment(_), do: :ok
+      _ ->
+        :ok
+    end
+  end
 
   defp seed_sql(url, display_name) do
     now =

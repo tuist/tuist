@@ -38,7 +38,8 @@ struct AnalyticsUploadCommandServiceTests {
             .upload(
                 commandEvent: .matching { $0.name == event.name },
                 fullHandle: .value(fullHandle),
-                serverURL: .value(URL(string: serverURL)!)
+                serverURL: .value(URL(string: serverURL)!),
+                sessionDirectory: .any
             )
             .willReturn(serverCommandEvent)
 
@@ -54,7 +55,8 @@ struct AnalyticsUploadCommandServiceTests {
             .upload(
                 commandEvent: .any,
                 fullHandle: .value(fullHandle),
-                serverURL: .value(URL(string: serverURL)!)
+                serverURL: .value(URL(string: serverURL)!),
+                sessionDirectory: .any
             )
             .called(1)
     }
@@ -74,7 +76,8 @@ struct AnalyticsUploadCommandServiceTests {
             .upload(
                 commandEvent: .any,
                 fullHandle: .value(fullHandle),
-                serverURL: .value(URL(string: serverURL)!)
+                serverURL: .value(URL(string: serverURL)!),
+                sessionDirectory: .any
             )
             .willReturn(serverCommandEvent)
 
@@ -104,7 +107,8 @@ struct AnalyticsUploadCommandServiceTests {
             .upload(
                 commandEvent: .any,
                 fullHandle: .value(fullHandle),
-                serverURL: .value(URL(string: serverURL)!)
+                serverURL: .value(URL(string: serverURL)!),
+                sessionDirectory: .any
             )
             .willThrow(TestError.uploadFailed)
 

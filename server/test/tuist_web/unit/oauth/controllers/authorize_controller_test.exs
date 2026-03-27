@@ -2,6 +2,7 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  import ExUnit.CaptureLog
   import Phoenix.ConnTest
   import Plug.Conn
 
@@ -136,10 +137,12 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
         error_description: "User not authenticated"
       }
 
-      conn =
-        conn
-        |> Plug.Test.init_test_session(%{})
-        |> AuthorizeController.authorize_error(error)
+      {conn, _log} =
+        with_log(fn ->
+          conn
+          |> Plug.Test.init_test_session(%{})
+          |> AuthorizeController.authorize_error(error)
+        end)
 
       assert conn.status == 302
       assert redirected_to(conn) == "/users/log_in"
@@ -154,11 +157,13 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
         error_description: "Invalid client_id or redirect_uri."
       }
 
-      conn =
-        conn
-        |> Plug.Test.init_test_session(%{})
-        |> assign(:current_user, user)
-        |> AuthorizeController.authorize_error(error)
+      {conn, _log} =
+        with_log(fn ->
+          conn
+          |> Plug.Test.init_test_session(%{})
+          |> assign(:current_user, user)
+          |> AuthorizeController.authorize_error(error)
+        end)
 
       assert conn.status == 401
       body = json_response(conn, 401)
@@ -179,11 +184,13 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
         redirect_uri: "http://127.0.0.1:3000/callback"
       }
 
-      conn =
-        conn
-        |> Plug.Test.init_test_session(%{})
-        |> assign(:current_user, user)
-        |> AuthorizeController.authorize_error(error)
+      {conn, _log} =
+        with_log(fn ->
+          conn
+          |> Plug.Test.init_test_session(%{})
+          |> assign(:current_user, user)
+          |> AuthorizeController.authorize_error(error)
+        end)
 
       assert conn.status == 302
       location = redirected_to(conn)

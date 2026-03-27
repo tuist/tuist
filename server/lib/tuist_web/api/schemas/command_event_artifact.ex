@@ -18,9 +18,10 @@ defmodule TuistWeb.API.Schemas.CommandEventArtifact do
         - result_bundle: A result bundle artifact that represents the whole `.xcresult` bundle
         - invocation_record: An invocation record artifact. This is a root bundle object of the result bundle
         - result_bundle_object: A result bundle object. There are many different bundle objects per result bundle.
+        - session: A zipped CLI session directory containing logs and network recordings.
         """,
         type: :string,
-        enum: ["result_bundle", "invocation_record", "result_bundle_object"]
+        enum: ["result_bundle", "invocation_record", "result_bundle_object", "session"]
       },
       name: %Schema{
         description: "The name of the file. It's used only for certain types such as result_bundle_object",

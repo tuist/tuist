@@ -11,6 +11,7 @@
     import TuistGit
     import TuistLoader
     import TuistLogging
+    import TuistMachineMetrics
     import TuistProcess
     import TuistServer
     import TuistSupport
@@ -21,12 +22,11 @@
         case missingFullHandle
         case executablePathMissing
         case mostRecentActivityLogNotFound(AbsolutePath)
-
         var errorDescription: String? {
             switch self {
             case .missingFullHandle:
                 return
-                    "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
+                    "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
             case .executablePathMissing:
                 return "We couldn't find tuist's executable path to run inspect build in a background."
             case let .mostRecentActivityLogNotFound(projectPath):
@@ -42,6 +42,7 @@
         private let machineEnvironment: MachineEnvironmentRetrieving
         private let xcodeBuildController: XcodeBuildControlling
         private let createBuildService: CreateBuildServicing
+        private let uploadBuildService: UploadBuildServicing
         private let configLoader: ConfigLoading
         private let xcActivityLogController: XCActivityLogControlling
         private let backgroundProcessRunner: BackgroundProcessRunning
@@ -57,6 +58,7 @@
             machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
             xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
             createBuildService: CreateBuildServicing = CreateBuildService(),
+            uploadBuildService: UploadBuildServicing = UploadBuildService(),
             configLoader: ConfigLoading = ConfigLoader(),
             xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
@@ -71,6 +73,7 @@
             self.machineEnvironment = machineEnvironment
             self.xcodeBuildController = xcodeBuildController
             self.createBuildService = createBuildService
+            self.uploadBuildService = uploadBuildService
             self.configLoader = configLoader
             self.xcActivityLogController = xcActivityLogController
             self.backgroundProcessRunner = backgroundProcessRunner
@@ -130,9 +133,9 @@
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 referenceDate: referenceDate
             )
-            let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
-            try await createBuild(
-                for: xcactivityLog,
+
+            try await createRemoteBuild(
+                mostRecentActivityLogPath: mostRecentActivityLogPath,
                 projectPath: projectPath
             )
         }
@@ -173,8 +176,8 @@
             return mostRecentActivityLogPath
         }
 
-        private func createBuild(
-            for xcactivityLog: XCActivityLog,
+        private func createRemoteBuild(
+            mostRecentActivityLogPath: AbsolutePath,
             projectPath: AbsolutePath
         ) async throws {
             let config =
@@ -185,54 +188,98 @@
                 throw InspectBuildCommandServiceError.missingFullHandle
             }
 
-            let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
-            let ciInfo = ciController.ciInfo()
-            let customMetadata = readCustomMetadata()
-            let build = try await createBuildService.createBuild(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                id: xcactivityLog.mainSection.uniqueIdentifier,
-                category: xcactivityLog.category,
-                configuration: Environment.current.variables["CONFIGURATION"],
-                customMetadata: customMetadata,
-                duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
-                    - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
-                files: xcactivityLog.files,
-                gitBranch: gitInfo.branch,
-                gitCommitSHA: gitInfo.sha,
-                gitRef: gitInfo.ref,
-                gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
-                isCI: Environment.current.isCI,
-                issues: truncateIssuesIfNeeded(xcactivityLog.issues),
-                modelIdentifier: machineEnvironment.modelIdentifier(),
-                macOSVersion: machineEnvironment.macOSVersion,
-                scheme: Environment.current.schemeName,
-                targets: xcactivityLog.targets,
-                xcodeVersion: try await xcodeBuildController.version()?.description,
-                status: xcactivityLog.buildStep.errorCount == 0 ? .success : .failure,
-                ciRunId: ciInfo?.runId,
-                ciProjectHandle: ciInfo?.projectHandle,
-                ciHost: ciInfo?.host,
-                ciProvider: ciInfo?.provider,
-                cacheableTasks: xcactivityLog.cacheableTasks,
-                casOutputs: config.cache.upload ? xcactivityLog.casOutputs :
-                    xcactivityLog.casOutputs.filter { $0.operation != .upload }
-            )
+            let buildId = mostRecentActivityLogPath.basenameWithoutExt
+
+            let build: ServerBuild = try await fileSystem.runInTemporaryDirectory(prefix: "build") { tempDirectory in
+                let archivePath = try await bundleBuild(
+                    mostRecentActivityLogPath: mostRecentActivityLogPath,
+                    into: tempDirectory
+                )
+                try await uploadBuildService.uploadBuild(
+                    buildId: buildId,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    filePath: archivePath
+                )
+
+                let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
+                let ciInfo = ciController.ciInfo()
+                let customMetadata = readCustomMetadata()
+                return try await createBuildService.createBuild(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    id: buildId,
+                    category: .incremental,
+                    configuration: Environment.current.variables["CONFIGURATION"],
+                    customMetadata: customMetadata,
+                    duration: 0,
+                    files: [],
+                    gitBranch: gitInfo.branch,
+                    gitCommitSHA: gitInfo.sha,
+                    gitRef: gitInfo.ref,
+                    gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+                    isCI: Environment.current.isCI,
+                    issues: [],
+                    modelIdentifier: machineEnvironment.modelIdentifier(),
+                    macOSVersion: machineEnvironment.macOSVersion,
+                    scheme: Environment.current.schemeName,
+                    targets: [],
+                    xcodeCacheUploadEnabled: config.cache.upload,
+                    xcodeVersion: try await xcodeBuildController.version()?.description,
+                    status: .processing,
+                    ciRunId: ciInfo?.runId,
+                    ciProjectHandle: ciInfo?.projectHandle,
+                    ciHost: ciInfo?.host,
+                    ciProvider: ciInfo?.provider,
+                    cacheableTasks: [],
+                    casOutputs: [],
+                    machineMetrics: []
+                )
+            }
             AlertController.current.success(
-                .alert("View the analyzed build at \(build.url.absoluteString)")
+                .alert("Build uploaded for processing. View status at \(build.url.absoluteString)")
             )
         }
 
-        private func truncateIssuesIfNeeded(_ issues: [XCActivityIssue]) -> [XCActivityIssue] {
-            issues
-                .prefix(1000)
-                .map {
-                    var issue = $0
-                    if let message = issue.message, message.count > 1000 {
-                        issue.message = message.prefix(1000) + "..."
-                    }
-                    return issue
+        private func bundleBuild(
+            mostRecentActivityLogPath: AbsolutePath,
+            into tempDirectory: AbsolutePath
+        ) async throws -> AbsolutePath {
+            let buildDirectory = tempDirectory.appending(component: "build")
+            try await fileSystem.makeDirectory(at: buildDirectory)
+
+            let xcactivitylogDir = buildDirectory.appending(component: "xcactivitylog")
+            try await fileSystem.makeDirectory(at: xcactivitylogDir)
+            try await fileSystem.copy(
+                mostRecentActivityLogPath,
+                to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
+            )
+
+            let stateDir = Environment.current.stateDirectory
+            let casMetadataDir = buildDirectory.appending(component: "cas_metadata")
+            try await fileSystem.makeDirectory(at: casMetadataDir)
+
+            for subdirectory in ["nodes", "cas", "keyvalue"] {
+                let sourceDir = stateDir.appending(component: subdirectory)
+                if try await fileSystem.exists(sourceDir) {
+                    try await fileSystem.copy(
+                        sourceDir,
+                        to: casMetadataDir.appending(component: subdirectory)
+                    )
                 }
+            }
+
+            let metricsSource = MachineMetricsReader.metricsFilePath
+            if try await fileSystem.exists(metricsSource) {
+                try await fileSystem.copy(
+                    metricsSource,
+                    to: buildDirectory.appending(component: "machine_metrics.jsonl")
+                )
+            }
+
+            let zipPath = tempDirectory.appending(component: "build.zip")
+            try await fileSystem.zipFileOrDirectoryContent(at: buildDirectory, to: zipPath)
+            return zipPath
         }
 
         private func path(_ path: String?) async throws -> AbsolutePath {

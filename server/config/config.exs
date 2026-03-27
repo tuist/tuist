@@ -7,6 +7,10 @@
 # General application configuration
 import Config
 
+# esbuild
+noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
+node_modules_path = Path.expand("../node_modules", __DIR__)
+
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
   contexts: [
@@ -19,24 +23,67 @@ config :boruta, Boruta.Oauth,
 config :ecto_ch,
   default_table_engine: "MergeTree"
 
-# esbuild
 config :esbuild,
   version: "0.25.2",
   app: [
-    args:
-      ~w(app.js --bundle --target=es2017 --outfile=../../priv/static/app/assets/bundle.js --external:/fonts/* --external:/images/*),
+    args: [
+      "app.js",
+      "--bundle",
+      "--target=es2017",
+      "--outfile=../../priv/static/app/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_static_path}/noora.js",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
     cd: Path.expand("../assets/app", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ],
   marketing: [
-    args:
-      ~w(marketing.js --bundle --loader:.svg=dataurl --loader:.jpg=dataurl --loader:.png=dataurl --loader:.webp=dataurl --target=es2017 --outfile=../../priv/static/marketing/assets/bundle.js --external:/fonts/* --external:/images/*),
+    args: [
+      "marketing.js",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--target=es2017",
+      "--outfile=../../priv/static/marketing/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_static_path}/noora.js",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
     cd: Path.expand("../assets/marketing", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ],
+  docs: [
+    args: [
+      "docs.js",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--target=es2017",
+      "--outfile=../../priv/static/docs/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_static_path}/noora.js",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
+    cd: Path.expand("../assets/docs", __DIR__),
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{node_modules_path}"}
+  ],
   apidocs: [
-    args:
-      ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
+    args: [
+      "apidocs.js",
+      "--bundle",
+      "--target=es2017",
+      "--outfile=../../priv/static/apidocs/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*"
+    ],
     cd: Path.expand("../assets/apidocs", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ]
@@ -242,15 +289,15 @@ config :tuist, :urls,
   podcast: "https://podcast.tuist.dev",
   peertube: "https://videos.tuist.dev",
   status: "https://status.tuist.dev",
-  get_started: "https://docs.tuist.dev",
+  get_started: "https://tuist.dev/en/docs",
   forum: "https://community.tuist.dev",
-  documentation: "https://docs.tuist.dev",
+  documentation: "https://tuist.dev/en/docs",
   # Import environment specific config. This must remain at the bottom
   # of this file so it overrides the configuration defined above.
-  feature_generated_projects: "https://docs.tuist.dev/en/guides/features/projects",
-  feature_cache: "https://docs.tuist.dev/en/guides/features/cache",
-  feature_previews: "https://docs.tuist.dev/en/guides/features/previews",
-  feature_insights: "https://docs.tuist.dev/en/guides/features/insights",
+  feature_generated_projects: "https://tuist.dev/en/docs/guides/features/projects",
+  feature_cache: "https://tuist.dev/en/docs/guides/features/cache",
+  feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
+  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
   shop: "https://shop.tuist.dev"
 
 config :tuist_common, finch_name: Tuist.Finch

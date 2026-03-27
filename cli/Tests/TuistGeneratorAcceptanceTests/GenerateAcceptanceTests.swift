@@ -98,15 +98,15 @@ struct GenerateAcceptanceTestiOSAppWithTests {
     @Test(.withFixture("generated_ios_app_with_tests"), .inTemporaryDirectory)
     func focused_targets() async throws {
         let fixturePath = try fixtureDirectory()
-        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
 
-        func generatedTargets() throws -> [String] {
-            try XcodeProj(pathString: xcodeprojPath.pathString).pbxproj.nativeTargets.map(\.name).sorted()
+        func generatedTargets() async throws -> [String] {
+            let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+            return try XcodeProj(pathString: xcodeprojPath.pathString).pbxproj.nativeTargets.map(\.name).sorted()
         }
 
         try await run(GenerateCommand.self)
         #expect(
-            try generatedTargets() == [
+            try await generatedTargets() == [
                 "App",
                 "App-dash",
                 "App-dashUITests",
@@ -119,7 +119,7 @@ struct GenerateAcceptanceTestiOSAppWithTests {
             ]
         )
         try await run(GenerateCommand.self, "AppCore")
-        #expect(try generatedTargets() == ["AppCore"])
+        #expect(try await generatedTargets() == ["AppCore"])
     }
 }
 
@@ -208,8 +208,8 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
             )
         }
         for resource in [
-            "StaticFramework3.framework",
-            "StaticFramework4.framework",
+            "StaticFramework3_StaticFramework3.bundle",
+            "StaticFramework4_StaticFramework4.bundle",
         ] {
             try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
@@ -233,12 +233,12 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
             resource: "StaticFramework2Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework3.framework",
+            "StaticFramework3_StaticFramework3.bundle",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework3Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework4.framework",
+            "StaticFramework4_StaticFramework4.bundle",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework4Resources-tuist.png"
         )
@@ -345,11 +345,11 @@ struct GenerateAcceptanceTestIosAppWithCustomDevelopmentRegion {
             )
         }
 
+        let stringsContent = try await FileSystem().readTextFile(
+            at: fixturePath.appending(components: "Derived", "Sources", "TuistStrings+App.swift")
+        )
         #expect(
-            try FileHandler.shared.readTextFile(
-                fixturePath.appending(components: "Derived", "Sources", "TuistStrings+App.swift")
-            )
-            .contains(
+            stringsContent.contains(
                 """
                 public static let evening = AppStrings.tr("Greetings", "evening")
                 """
@@ -375,21 +375,18 @@ struct GenerateAcceptanceTestiOSAppWithCustomResourceParserOptions {
             )
         }
 
+        let customStringsContent = try await FileSystem().readTextFile(
+            at: fixturePath.appending(components: "Derived", "Sources", "TuistStrings+App.swift")
+        )
         #expect(
-            try FileHandler.shared.readTextFile(
-                fixturePath.appending(components: "Derived", "Sources", "TuistStrings+App.swift")
-            )
-            .contains(
+            customStringsContent.contains(
                 """
                 public static let evening = AppStrings.tr("Greetings", "Good/evening")
                 """
             )
         )
         #expect(
-            try FileHandler.shared.readTextFile(
-                fixturePath.appending(components: "Derived", "Sources", "TuistStrings+App.swift")
-            )
-            .contains(
+            customStringsContent.contains(
                 """
                 public static let morning = AppStrings.tr("Greetings", "Good/morning")
                 """
@@ -625,6 +622,27 @@ struct GenerateAcceptanceTestiOSAppWithLocalBinarySwiftPackage {
     }
 }
 
+struct GenerateAcceptanceTestAppWithSignedLocalBinarySwiftPackage {
+    @Test(.withFixture("generated_app_with_signed_local_binary_swift_package"), .inTemporaryDirectory)
+    func app_with_signed_local_binary_swift_package() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        try await run(GenerateCommand.self)
+
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let allFileReferences = xcodeproj.pbxproj.fileReferences
+        let signedBinaryReference = try #require(
+            allFileReferences.first(where: { $0.path == "SelfSignedXCFramework.xcframework" })
+        )
+
+        #expect(
+            signedBinaryReference.expectedSignature
+                == "SelfSigned:EF61C3C0339FC84805357AFEC2E0BB0E6A0D5EE64165B333F934BF9E282785BC"
+        )
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithExtensions {
     @Test(.withFixture("generated_ios_app_with_extensions"), .inTemporaryDirectory)
     func ios_app_with_extensions() async throws {
@@ -832,7 +850,7 @@ struct GenerateAcceptanceTestGeneratedStaticFrameworkIncludesMetalLib {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "StaticMetallibFramework")
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticMetallibFramework.framework",
+            "StaticMetallibFramework_StaticMetallibFramework.bundle",
             destination: "Debug",
             resource: "default.metallib"
         )
@@ -1207,6 +1225,39 @@ struct GeneratediOSStaticLibraryWithStringResources {
     }
 }
 
+struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
+    @Test(.withFixture("generated_ios_app_with_static_framework_with_xcstrings"), .inTemporaryDirectory)
+    func ios_app_with_static_framework_with_xcstrings() async throws {
+        let fixturePath = try fixtureDirectory()
+        try await run(GenerateCommand.self)
+
+        let fileSystem = FileSystem()
+        let xcstringsPath = fixturePath.appending(
+            components: "StaticFramework", "Resources", "Localizable.xcstrings"
+        )
+        let contentBeforeBuild = try await fileSystem.readFile(at: xcstringsPath)
+
+        try await run(BuildCommand.self)
+
+        let contentAfterBuild = try await fileSystem.readFile(at: xcstringsPath)
+        #expect(
+            contentBeforeBuild == contentAfterBuild,
+            "Localizable.xcstrings was modified during build — Xcode likely added stale extraction state"
+        )
+
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            resource: "StaticFramework_StaticFramework.bundle"
+        )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "StaticFramework_StaticFramework.bundle",
+            destination: "Debug-iphonesimulator",
+            resource: "Localizable.strings"
+        )
+    }
+}
+
 struct GenerateAcceptanceTestsAppWithMetalOptions {
     @Test(.withFixture("generated_app_with_metal_options"), .inTemporaryDirectory)
     func app_with_metal_options() async throws {
@@ -1397,22 +1448,22 @@ struct GenerateAcceptanceTestAppWithMacBundle {
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-iphonesimulator",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "ProjectResourcesFramework.framework/Resources/greeting.txt"
+            resource: "App_ProjectResourcesFramework.bundle/**/greeting.txt"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "ProjectResourcesFramework.framework/Resources/Info.plist"
+            resource: "App_ProjectResourcesFramework.bundle/**/Info.plist"
         )
         try await XCTAssertProductWithDestinationDoesNotContainResource(
             "App.app",
@@ -1440,17 +1491,17 @@ struct GenerateAcceptanceTestAppWithMacBundle {
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "ProjectResourcesFramework.framework/Resources/greeting.txt"
+            resource: "App_ProjectResourcesFramework.bundle/**/greeting.txt"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "ProjectResourcesFramework.framework/Resources/Info.plist"
+            resource: "App_ProjectResourcesFramework.bundle/**/Info.plist"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",

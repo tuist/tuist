@@ -12,6 +12,7 @@ defmodule Tuist.Accounts.Organization do
   schema "organizations" do
     field :sso_provider, Ecto.Enum, values: [okta: 1, google: 2]
     field :sso_organization_id, :string
+    field :sso_enforced, :boolean, default: false
     field :okta_client_id, :string
     field :okta_encrypted_client_secret, Tuist.Vault.Binary
 
@@ -26,6 +27,7 @@ defmodule Tuist.Accounts.Organization do
     |> cast(attrs, [
       :sso_provider,
       :sso_organization_id,
+      :sso_enforced,
       :okta_client_id,
       :okta_encrypted_client_secret,
       :created_at
@@ -42,6 +44,7 @@ defmodule Tuist.Accounts.Organization do
     |> cast(attrs, [
       :sso_provider,
       :sso_organization_id,
+      :sso_enforced,
       :okta_client_id,
       :okta_encrypted_client_secret
     ])

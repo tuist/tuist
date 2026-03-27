@@ -5,6 +5,28 @@ ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-$
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 # ========================================
+# Stage: Swift NIF builder
+# Only built when referenced by selfhosted target (BuildKit skips otherwise)
+# ========================================
+FROM swift:6.2-bookworm AS swift-builder
+
+RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /nif
+
+COPY processor/native/xcactivitylog_nif/Package.swift .
+COPY processor/native/xcactivitylog_nif/Package.resolved .
+COPY processor/native/xcactivitylog_nif/Sources/ Sources/
+COPY processor/native/xcactivitylog_nif/Tests/ Tests/
+COPY processor/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
+
+RUN swift build -c release --replace-scm-with-registry && \
+    cp .build/release/libXCActivityLogNIF.so /nif/libXCActivityLogNIF.so && \
+    mkdir -p /nif/swift-libs && \
+    cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
+
+# ========================================
 # Stage 1: NPM dependencies
 # ========================================
 FROM node:22-slim AS npm-deps
@@ -16,9 +38,16 @@ COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
+# Build noora static assets (JS + CSS) from source
+COPY noora /noora
+WORKDIR /noora
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install
+RUN npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
+    npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
+WORKDIR /app
+
 # ========================================
 # Stage 2: Base dependencies builder
-# Compiles all dependencies including runner as a dependency
 # ========================================
 FROM ${BUILDER_IMAGE} AS deps-builder
 
@@ -38,70 +67,40 @@ ENV TUIST_HOSTED=$TUIST_HOSTED
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
 
-# Only runner's mix.exs needed for deps.get to work
-COPY server/runner/mix.exs runner/mix.exs
-
-# Copy tuist_common for path dependency
+# Copy path dependencies (only mix.exs/mix.lock for dep resolution)
 COPY tuist_common /tuist_common
+COPY noora /noora
+COPY processor/mix.exs processor/mix.lock /processor/
 
 RUN mix deps.get --only $MIX_ENV
 
 # Config files must be present before compiling dependencies
 COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
 
-# Minimal runner source needed for compilation
-COPY server/runner/lib runner/lib
+# Copy processor source for path dependency compilation
+COPY processor/lib /processor/lib
 
 RUN mix deps.compile
 
 # ========================================
-# Stage 3: Runner binary builder
-# Builds the runner binary using compiled deps from deps-builder
-# ========================================
-FROM ${BUILDER_IMAGE} AS runner-binary-builder
-
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git xz-utils p7zip-full wget \
-  && apt-get clean && rm -f /var/lib/apt/lists/*_*
-
-# Zig is not available via apt-get
-RUN wget -q https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz \
-  && tar -xf zig-x86_64-linux-0.14.1.tar.xz \
-  && mv zig-x86_64-linux-0.14.1 /usr/local/zig \
-  && ln -s /usr/local/zig/zig /usr/local/bin/zig \
-  && rm zig-x86_64-linux-0.14.1.tar.xz
-
-WORKDIR /app
-
-RUN mix local.hex --force && \
-  mix local.rebar --force
-
-ARG MIX_ENV=prod
-ENV MIX_ENV=$MIX_ENV
-ARG TUIST_HOSTED=1
-ENV TUIST_HOSTED=$TUIST_HOSTED
-
-# Reuse compiled dependencies from deps-builder
-COPY --from=deps-builder /app/mix.* ./
-COPY --from=deps-builder /app/deps deps
-COPY --from=deps-builder /app/_build _build
-COPY --from=deps-builder /app/config config
-COPY --from=deps-builder /tuist_common /tuist_common
-
-COPY server/runner runner
-
-WORKDIR /app/runner
-RUN mix deps.get --only $MIX_ENV
-RUN MIX_ENV=prod mix release runner
-RUN mkdir -p /app/build && cp burrito_out/runner_macos /app/build/runner
-
-# ========================================
-# Stage 4: Main application builder
+# Stage 3: Main application builder
 # ========================================
 FROM deps-builder AS builder
 
 COPY server/priv priv
 COPY skills/skills priv/static/skills
+COPY docs/docs/public/images priv/static/docs/images
+COPY docs/docs/public/logo.png priv/static/docs/images/logo.png
 COPY server/assets assets
+
+# Docs markdown files needed at compile time by Tuist.Docs.Loader
+COPY docs/docs /docs/docs
+
+# Sidebar translation strings needed at compile time by Tuist.Docs.Sidebar
+COPY docs/.vitepress/strings /docs/.vitepress/strings
+
+# Xcode example READMEs needed at compile time by Tuist.Docs.Loader
+COPY examples/xcode /examples/xcode
 
 COPY server/lib lib
 
@@ -111,14 +110,35 @@ COPY server/config/runtime.exs config/
 COPY server/rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
+COPY --from=npm-deps /noora/priv/static /noora/priv/static
 RUN mix assets.deploy
 
 RUN mix release
 
 # ========================================
-# Stage 5: Final runtime image
+# Stage: NIF bridge builder (for selfhosted)
+# Compiles the C NIF bridge linking against the Swift library
 # ========================================
-FROM ${RUNNER_IMAGE}
+FROM builder AS nif-bridge-builder
+
+COPY processor/native/xcactivitylog_nif/nif_bridge.c /tmp/nif/nif_bridge.c
+COPY --from=swift-builder /nif/libXCActivityLogNIF.so /tmp/nif/libXCActivityLogNIF.so
+
+RUN mkdir -p /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native && \
+    ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell) && \
+    cc -shared -fPIC \
+      -o /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/xcactivitylog_nif.so \
+      /tmp/nif/nif_bridge.c \
+      -I"$ERL_INCLUDE" \
+      -L/tmp/nif \
+      -lXCActivityLogNIF \
+      -Wl,-rpath,'$ORIGIN' && \
+    cp /tmp/nif/libXCActivityLogNIF.so /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/
+
+# ========================================
+# Stage 5: Common runtime base
+# ========================================
+FROM ${RUNNER_IMAGE} AS runner-base
 
 RUN apt-get update -y && \
   apt-get upgrade -y && \
@@ -174,7 +194,29 @@ RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
 
-COPY --from=runner-binary-builder /app/build/runner /app/bin/runner
+# ========================================
+# Stage: Self-hosted runtime — includes Swift NIF
+# Build with: docker build --target runner-selfhosted .
+# ========================================
+FROM runner-base AS runner-selfhosted
+
+# Swift runtime libraries needed by the NIF
+COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
+RUN ldconfig
+
+# Copy compiled NIF .so files into processor priv dir
+COPY --from=nif-bridge-builder /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/ /app/lib/processor-0.1.0/priv/native/
+
+USER nobody
+
+CMD ["sh", "-c", "/app/bin/start"]
+
+# ========================================
+# Stage: Default runtime (hosted) — no Swift NIF
+# BuildKit skips swift-builder since it's not referenced by this target
+# This must be the LAST stage so it's the default docker build target
+# ========================================
+FROM runner-base AS runner
 
 USER nobody
 

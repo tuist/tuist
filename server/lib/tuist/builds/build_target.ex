@@ -50,6 +50,8 @@ defmodule Tuist.Builds.BuildTarget do
   end
 
   defp normalize_status_value(:success), do: 0
+  defp normalize_status_value("success"), do: 0
   defp normalize_status_value(:failure), do: 1
-  defp normalize_status_value(other), do: other
+  defp normalize_status_value("failure"), do: 1
+  defp normalize_status_value(_other), do: 0
 end

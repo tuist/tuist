@@ -13,11 +13,6 @@
       <nav data-part="navigation">
         <.tab_menu_horizontal>
           <.tab_menu_horizontal_item
-            label={dgettext("dashboard", "QA")}
-            selected={String.starts_with?(@current_path, "/ops/qa")}
-            navigate={~p"/ops/qa"}
-          />
-          <.tab_menu_horizontal_item
             label={dgettext("dashboard", "Cache")}
             selected={String.starts_with?(@current_path, "/ops/cache")}
             navigate={~p"/ops/cache"}

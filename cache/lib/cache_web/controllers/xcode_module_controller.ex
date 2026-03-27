@@ -1,0 +1,594 @@
+defmodule CacheWeb.XcodeModuleController do
+  use CacheWeb, :controller
+  use OpenApiSpex.ControllerSpecs
+
+  alias Cache.BodyReader
+  alias Cache.CacheArtifacts
+  alias Cache.MultipartUploads
+  alias Cache.S3
+  alias Cache.S3Transfers
+  alias Cache.XcodeModule.Disk
+  alias CacheWeb.API.Schemas.CompleteMultipartUploadRequest
+  alias CacheWeb.API.Schemas.Error
+  alias CacheWeb.API.Schemas.StartMultipartUploadResponse
+
+  require Logger
+
+  plug OpenApiSpex.Plug.CastAndValidate, json_render_error_v2: true
+
+  action_fallback CacheWeb.CacheFallbackController
+
+  tags(["ModuleCache"])
+
+  @max_part_size 10 * 1024 * 1024
+
+  operation(:download,
+    summary: "Download a module cache artifact",
+    operation_id: "downloadModuleCacheArtifact",
+    parameters: [
+      id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The artifact identifier"
+      ],
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
+      ],
+      hash: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "Artifact hash"
+      ],
+      name: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "Artifact name"
+      ],
+      cache_category: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "Cache category (builds)"
+      ]
+    ],
+    responses: %{
+      ok: {"Artifact content", "application/octet-stream", nil},
+      not_found: {"Artifact not found", "application/json", Error},
+      unauthorized: {"Unauthorized", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      bad_request: {"Bad request", "application/json", Error}
+    }
+  )
+
+  def download(
+        conn,
+        %{id: _id, account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params
+      ) do
+    category = Map.get(params, :cache_category, "builds")
+    key = Disk.key(account_handle, project_handle, category, hash, name)
+
+    :telemetry.execute([:cache, :xcode_module, :download, :hit], %{}, %{})
+    :ok = CacheArtifacts.track_artifact_access(key)
+
+    case Disk.stat(account_handle, project_handle, category, hash, name) do
+      {:ok, %File.Stat{size: size}} ->
+        local_path = Disk.local_accel_path(account_handle, project_handle, category, hash, name)
+
+        :telemetry.execute([:cache, :xcode_module, :download, :disk_hit], %{size: size}, %{
+          category: category,
+          hash: hash,
+          name: name,
+          account_handle: account_handle,
+          project_handle: project_handle
+        })
+
+        conn
+        |> put_resp_header("x-accel-redirect", local_path)
+        |> send_resp(:ok, "")
+
+      {:error, _} ->
+        :telemetry.execute([:cache, :xcode_module, :download, :disk_miss], %{}, %{})
+
+        S3Transfers.enqueue_module_download(account_handle, project_handle, key)
+
+        case S3.presign_download_url(key) do
+          {:ok, url} ->
+            conn
+            |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
+            |> send_resp(:ok, "")
+
+          {:error, reason} ->
+            Logger.error("Failed to presign S3 URL for module artifact: #{inspect(reason)}")
+            :telemetry.execute([:cache, :xcode_module, :download, :error], %{}, %{reason: inspect(reason)})
+            {:error, :not_found}
+        end
+    end
+  end
+
+  operation(:exists,
+    summary: "Check if a module cache artifact exists",
+    operation_id: "moduleCacheArtifactExists",
+    parameters: [
+      id: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The artifact identifier"
+      ],
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
+      ],
+      hash: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "Artifact hash"
+      ],
+      name: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "Artifact name"
+      ],
+      cache_category: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "Cache category (builds)"
+      ]
+    ],
+    responses: %{
+      no_content: {"Artifact exists", nil, nil},
+      not_found: {"Artifact not found", "application/json", Error},
+      unauthorized: {"Unauthorized", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      bad_request: {"Bad request", "application/json", Error}
+    }
+  )
+
+  def exists(
+        conn,
+        %{id: _id, account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params
+      ) do
+    category = Map.get(params, :cache_category, "builds")
+    key = Disk.key(account_handle, project_handle, category, hash, name)
+
+    if Disk.exists?(account_handle, project_handle, category, hash, name) or S3.exists?(key) do
+      send_resp(conn, :no_content, "")
+    else
+      {:error, :not_found}
+    end
+  end
+
+  operation(:start_multipart,
+    summary: "Start a multipart module cache upload",
+    operation_id: "startModuleCacheMultipartUpload",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
+      ],
+      hash: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "Artifact hash"
+      ],
+      name: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "Artifact name"
+      ],
+      cache_category: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "Cache category (builds)"
+      ]
+    ],
+    responses: %{
+      ok: {"Upload started", "application/json", StartMultipartUploadResponse},
+      unauthorized: {"Unauthorized", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      bad_request: {"Bad request", "application/json", Error}
+    }
+  )
+
+  def start_multipart(
+        conn,
+        %{account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params
+      ) do
+    category = Map.get(params, :cache_category, "builds")
+
+    if Disk.exists?(account_handle, project_handle, category, hash, name) do
+      json(conn, %{upload_id: nil})
+    else
+      case MultipartUploads.start_upload(account_handle, project_handle, category, hash, name) do
+        {:ok, upload_id} ->
+          :telemetry.execute([:cache, :xcode_module, :multipart, :start], %{}, %{})
+          json(conn, %{upload_id: upload_id})
+
+        {:error, _reason} ->
+          {:error, :persist_error}
+      end
+    end
+  end
+
+  operation(:upload_part,
+    summary: "Upload a part of a multipart module cache upload",
+    operation_id: "uploadModuleCachePart",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
+      ],
+      upload_id: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The upload ID from start_multipart"
+      ],
+      part_number: [
+        in: :query,
+        type: :integer,
+        required: true,
+        description: "Part number (1-indexed)"
+      ]
+    ],
+    request_body: {"The part data", "application/octet-stream", nil, required: true},
+    responses: %{
+      no_content: {"Part uploaded successfully", nil, nil},
+      not_found: {"Upload not found", "application/json", Error},
+      request_entity_too_large: {"Part exceeds 10MB limit", "application/json", Error},
+      unprocessable_entity: {"Total upload size exceeds 2GB limit", "application/json", Error},
+      request_timeout: {"Request body read timed out", "application/json", Error},
+      unauthorized: {"Unauthorized", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      bad_request: {"Bad request", "application/json", Error}
+    }
+  )
+
+  def upload_part(conn, %{upload_id: upload_id, part_number: part_number}) do
+    case MultipartUploads.claim_sequential_write(upload_id, part_number) do
+      {:direct_write, path, offset} ->
+        handle_direct_part_upload(conn, path, offset, upload_id, part_number)
+
+      :buffer ->
+        handle_buffered_part_upload(conn, upload_id, part_number)
+
+      {:error, :upload_not_found} ->
+        {:error, :not_found}
+    end
+  end
+
+  defp handle_direct_part_upload(conn, path, offset, upload_id, part_number) do
+    case :file.open(path, [:write, :read, :binary, :raw]) do
+      {:ok, device} ->
+        case :file.position(device, offset) do
+          {:ok, ^offset} ->
+            result = do_direct_write(conn, device, upload_id, part_number)
+            :file.close(device)
+            result
+
+          _error ->
+            :file.close(device)
+            MultipartUploads.abort_write(upload_id)
+            {:error, :persist_error}
+        end
+
+      {:error, _reason} ->
+        MultipartUploads.abort_write(upload_id)
+        {:error, :persist_error}
+    end
+  end
+
+  defp do_direct_write(conn, device, upload_id, part_number) do
+    opts = [max_bytes: @max_part_size, read_length: 262_144, read_timeout: 60_000]
+
+    case BodyReader.read_to_device(conn, device, opts) do
+      {:ok, size, conn_after} ->
+        case MultipartUploads.confirm_write(upload_id, part_number, size) do
+          :ok ->
+            :telemetry.execute(
+              [:cache, :xcode_module, :multipart, :part],
+              %{size: size, part_number: part_number},
+              %{}
+            )
+
+            send_resp(conn_after, :no_content, "")
+
+          {:error, :total_size_exceeded} ->
+            {:error, :total_size_exceeded}
+
+          {:error, _reason} ->
+            {:error, :persist_error}
+        end
+
+      {:error, :cancelled, conn_after} ->
+        MultipartUploads.abort_write(upload_id)
+        send_resp(conn_after, :no_content, "")
+
+      {:error, :too_large, _conn_after} ->
+        MultipartUploads.abort_write(upload_id)
+        {:error, :part_too_large}
+
+      {:error, :timeout, _conn_after} ->
+        MultipartUploads.abort_write(upload_id)
+        {:error, :timeout}
+
+      {:error, _reason, _conn_after} ->
+        MultipartUploads.abort_write(upload_id)
+        {:error, :persist_error}
+    end
+  end
+
+  operation(:complete_multipart,
+    summary: "Complete a multipart module cache upload",
+    operation_id: "completeModuleCacheMultipartUpload",
+    parameters: [
+      account_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the account"
+      ],
+      project_handle: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The handle of the project"
+      ],
+      upload_id: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The upload ID from start_multipart"
+      ]
+    ],
+    request_body: {"Completion request", "application/json", CompleteMultipartUploadRequest, required: true},
+    responses: %{
+      no_content: {"Upload completed successfully", nil, nil},
+      not_found: {"Upload not found", "application/json", Error},
+      bad_request: {"Parts mismatch or missing parts", "application/json", Error},
+      internal_server_error: {"Failed to assemble artifact", "application/json", Error},
+      unauthorized: {"Unauthorized", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error}
+    }
+  )
+
+  def complete_multipart(conn, %{upload_id: upload_id}) do
+    case MultipartUploads.complete_upload(upload_id) do
+      {:ok, upload} ->
+        parts_from_client =
+          normalize_part_numbers(Map.get(conn.body_params, :parts) || Map.get(conn.body_params, "parts"))
+
+        result =
+          with {:ok, validated_parts} <- validate_part_numbers(parts_from_client),
+               :ok <- verify_parts(upload.parts, validated_parts),
+               {:ok, buffered_part_paths} <- get_ordered_buffered_part_paths(upload.parts, validated_parts),
+               :ok <- Disk.complete_assembly(upload.assembly_path, upload, buffered_part_paths) do
+            Enum.each(buffered_part_paths, &File.rm/1)
+            :ok
+          end
+
+        case result do
+          :ok ->
+            key =
+              Disk.key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
+
+            :ok = CacheArtifacts.track_artifact_access(key)
+            S3Transfers.enqueue_upload_if_missing(upload.account_handle, upload.project_handle, :xcode_module, key)
+
+            :telemetry.execute(
+              [:cache, :xcode_module, :multipart, :complete],
+              %{
+                size: upload.total_bytes,
+                parts_count: map_size(upload.parts)
+              },
+              %{}
+            )
+
+            send_resp(conn, :no_content, "")
+
+          {:error, :parts_mismatch} ->
+            cleanup_failed_completion(upload)
+            {:error, :parts_mismatch}
+
+          {:error, :exists} ->
+            cleanup_failed_completion(upload)
+            send_resp(conn, :no_content, "")
+
+          {:error, _reason} ->
+            cleanup_failed_completion(upload)
+            {:error, :persist_error}
+        end
+
+      {:error, :not_found} ->
+        {:error, :not_found}
+
+      {:error, :write_in_progress} ->
+        {:error, :persist_error}
+    end
+  end
+
+  defp handle_buffered_part_upload(conn, upload_id, part_number) do
+    case read_part_body(conn) do
+      {:ok, tmp_path, size, conn_after} ->
+        register_buffered_part(conn_after, upload_id, part_number, tmp_path, size)
+
+      {:error, :too_large, _conn_after} ->
+        {:error, :part_too_large}
+
+      {:error, :timeout, _conn_after} ->
+        {:error, :timeout}
+
+      {:error, _reason, _conn_after} ->
+        {:error, :persist_error}
+    end
+  end
+
+  defp register_buffered_part(conn_after, upload_id, part_number, tmp_path, size) do
+    case MultipartUploads.add_part(upload_id, part_number, tmp_path, size) do
+      :ok ->
+        :telemetry.execute([:cache, :xcode_module, :multipart, :part], %{size: size, part_number: part_number}, %{})
+        send_resp(conn_after, :no_content, "")
+
+      {:error, reason} ->
+        File.rm(tmp_path)
+        translate_add_part_error(reason)
+    end
+  end
+
+  defp translate_add_part_error(:upload_not_found), do: {:error, :not_found}
+  defp translate_add_part_error(:part_write_in_progress), do: {:error, :persist_error}
+  defp translate_add_part_error(reason), do: {:error, reason}
+
+  defp read_part_body(conn) do
+    tmp_dir = buffered_part_tmp_dir()
+    File.mkdir_p(tmp_dir)
+    opts = [max_bytes: @max_part_size, read_length: 262_144, read_timeout: 60_000, tmp_dir: tmp_dir]
+
+    case BodyReader.read(conn, opts) do
+      {:ok, {:file, tmp_path}, conn_after} ->
+        case File.stat(tmp_path) do
+          {:ok, %File.Stat{size: size}} ->
+            {:ok, tmp_path, size, conn_after}
+
+          _ ->
+            File.rm(tmp_path)
+            {:error, :read_error, conn_after}
+        end
+
+      {:ok, data, conn_after} when is_binary(data) ->
+        tmp_path = tmp_path()
+
+        case File.write(tmp_path, data) do
+          :ok ->
+            {:ok, tmp_path, byte_size(data), conn_after}
+
+          {:error, _} ->
+            File.rm(tmp_path)
+            {:error, :read_error, conn_after}
+        end
+
+      {:error, reason, conn_after} ->
+        {:error, reason, conn_after}
+    end
+  end
+
+  defp tmp_path do
+    unique = :erlang.unique_integer([:positive, :monotonic])
+    Path.join(buffered_part_tmp_dir(), "cache-part-#{unique}")
+  end
+
+  defp buffered_part_tmp_dir, do: Path.join(Cache.Disk.storage_dir(), "tmp")
+
+  defp validate_part_numbers(:invalid), do: {:error, :parts_mismatch}
+
+  defp validate_part_numbers(parts) when is_list(parts) do
+    if Enum.any?(parts, &(&1 == :invalid)) do
+      {:error, :parts_mismatch}
+    else
+      {:ok, parts}
+    end
+  end
+
+  defp validate_part_numbers(_), do: {:error, :parts_mismatch}
+
+  defp verify_parts(server_parts, client_parts) do
+    server_part_numbers = server_parts |> Map.keys() |> Enum.sort()
+
+    if server_part_numbers == client_parts do
+      :ok
+    else
+      {:error, :parts_mismatch}
+    end
+  end
+
+  defp get_ordered_buffered_part_paths(server_parts, client_parts) do
+    client_parts
+    |> Enum.reduce_while({:ok, []}, fn part_num, {:ok, acc} ->
+      case server_parts[part_num] do
+        %{written: true} ->
+          {:cont, {:ok, acc}}
+
+        %{path: path} ->
+          {:cont, {:ok, [path | acc]}}
+
+        _ ->
+          {:halt, {:error, :parts_mismatch}}
+      end
+    end)
+    |> then(fn
+      {:ok, paths} -> {:ok, Enum.reverse(paths)}
+      error -> error
+    end)
+  end
+
+  defp cleanup_failed_completion(upload) do
+    File.rm(upload.assembly_path)
+
+    Enum.each(upload.parts, fn
+      {_part_number, %{path: path}} -> File.rm(path)
+      _ -> :ok
+    end)
+  end
+
+  defp normalize_part_numbers(parts) when is_list(parts) do
+    parts
+    |> Enum.map(fn
+      n when is_integer(n) -> n
+      n when is_binary(n) -> parse_part_number(n)
+      _ -> :invalid
+    end)
+    |> Enum.sort()
+    |> Enum.uniq()
+  end
+
+  defp normalize_part_numbers(_parts), do: :invalid
+
+  defp parse_part_number(n) do
+    case Integer.parse(n) do
+      {int, ""} -> int
+      _ -> :invalid
+    end
+  end
+end

@@ -11,16 +11,13 @@ import XcodeGraph
 /// xcframeworks.
 /// See this PR for more context: https://github.com/tuist/tuist/pull/6757
 public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let manifestFilesLocator: ManifestFilesLocating
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
         self.manifestFilesLocator = manifestFilesLocator
     }
@@ -70,18 +67,23 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
             var settings = SettingsDictionary()
             if !staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
-                settings["FRAMEWORK_SEARCH_PATHS"] = .array(
-                    staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies
-                        .compactMap {
-                            if let library = $0.infoPlist.libraries
-                                .first(where: { target.supportedPlatforms.contains($0.platform.graphPlatform) })
-                            {
-                                return "\"$(SRCROOT)/\($0.path.appending(component: library.identifier).relative(to: project.path).pathString)\""
-                            } else {
-                                return nil
-                            }
-                        }
-                )
+                var pathsBySDKCondition: [String: [String]] = [:]
+
+                for xcframework in staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies {
+                    for library in xcframework.infoPlist.libraries {
+                        let platform = library.platform.graphPlatform
+                        guard target.supportedPlatforms.contains(platform) else { continue }
+
+                        let path =
+                            "\"$(SRCROOT)/\(xcframework.path.appending(component: library.identifier).relative(to: project.path).pathString)\""
+                        let sdkCondition = library.sdkCondition
+                        pathsBySDKCondition[sdkCondition, default: []].append(path)
+                    }
+                }
+
+                for sdkCondition in pathsBySDKCondition.keys.sorted() {
+                    settings["FRAMEWORK_SEARCH_PATHS[\(sdkCondition)]"] = .array(pathsBySDKCondition[sdkCondition]!)
+                }
             }
 
             if !staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
@@ -163,7 +165,6 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         derivedDirectory: AbsolutePath
     ) async throws -> [SideEffectDescriptor] {
         let fileSystem = fileSystem
-        let fileHandler = fileHandler
         return try await staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
             .concurrentFlatMap { xcframework -> [SideEffectDescriptor] in
                 guard let moduleMap = xcframework.moduleMaps.first
@@ -177,7 +178,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     .file(
                         FileDescriptor(
                             path: headersDirectory.appending(components: "module.modulemap"),
-                            contents: try fileHandler.readFile(moduleMap)
+                            contents: try await fileSystem.readFile(at: moduleMap)
                         )
                     ),
                 ]
@@ -187,7 +188,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                         .file(
                             FileDescriptor(
                                 path: headersDirectory.appending(components: "\(name).h"),
-                                contents: String(data: try fileHandler.readFile(umbrellaHeader), encoding: .utf8)?
+                                contents: String(data: try await fileSystem.readFile(at: umbrellaHeader), encoding: .utf8)?
                                     .replacingOccurrences(of: "<\(name)/", with: "<")
                                     .data(using: .utf8)
                             )
@@ -334,6 +335,23 @@ extension XCFrameworkInfoPlist.Library.Platform {
         case .tvOS: return .tvOS
         case .watchOS: return .watchOS
         case .visionOS: return .visionOS
+        }
+    }
+}
+
+extension XCFrameworkInfoPlist.Library {
+    fileprivate var sdkCondition: String {
+        let graphPlatform = platform.graphPlatform
+        switch platformVariant {
+        case .simulator:
+            if let simulatorSDK = graphPlatform.xcodeSimulatorSDK {
+                return "sdk=\(simulatorSDK)*"
+            }
+            return "sdk=\(graphPlatform.xcodeSdkRoot)*"
+        case .maccatalyst:
+            return "sdk=iphoneos*"
+        case nil:
+            return "sdk=\(graphPlatform.xcodeSdkRoot)*"
         }
     }
 }

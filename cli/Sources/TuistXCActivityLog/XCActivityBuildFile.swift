@@ -12,10 +12,8 @@ public struct XCActivityBuildFile: Hashable, Equatable {
     public let path: RelativePath
     /// Compilation duration in milliseconds
     public let compilationDuration: Int
-}
 
-#if DEBUG
-    extension XCActivityBuildFile {
+    #if DEBUG
         public static func test(
             type: XCActivityBuildFileType = .swift,
             target: String = "Target",
@@ -32,5 +30,5 @@ public struct XCActivityBuildFile: Hashable, Equatable {
                 compilationDuration: compilationDuration
             )
         }
-    }
-#endif
+    #endif
+}

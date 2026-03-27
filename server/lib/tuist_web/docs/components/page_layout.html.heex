@@ -1,0 +1,103 @@
+<main
+  id="docs-page-layout"
+  data-part="page"
+>
+  <div
+    :if={@headings != []}
+    id="docs-mobile-toc"
+    data-state="closed"
+    data-part="mobile-toc"
+    role="navigation"
+    aria-label={dgettext("docs", "Table of contents")}
+  >
+    <.link_button
+      label={dgettext("docs", "Return to top")}
+      variant="primary"
+      size="small"
+      href="#"
+      phx-click={JS.set_attribute({"data-state", "closed"}, to: "#docs-mobile-toc")}
+    />
+    <.line_divider />
+    <a
+      :for={heading <- @headings}
+      href={"##{heading.id}"}
+      data-part="mobile-toc-item"
+      data-level={heading.level}
+      phx-click={JS.set_attribute({"data-state", "closed"}, to: "#docs-mobile-toc")}
+    >
+      {heading.text}
+    </a>
+  </div>
+  <div id="docs-layout">
+    <nav
+      id="docs-sidebar"
+      aria-label={dgettext("docs", "Documentation navigation")}
+    >
+      <div data-part="sidebar-scroll">
+        <.link :if={@tab == :guides} patch={docs_path("/#{@locale}")} data-part="nav-link">
+          <.tab_menu_vertical label="Overview" data-selected={@current_slug == "/#{@locale}"}>
+            <:icon_left>
+              <.icon name="smart_home" />
+            </:icon_left>
+          </.tab_menu_vertical>
+        </.link>
+        <.link :if={@tab == :cli} patch={docs_path("/#{@locale}/cli")} data-part="nav-link">
+          <.tab_menu_vertical
+            label="Overview"
+            data-selected={@current_slug == "/#{@locale}/cli"}
+          >
+            <:icon_left>
+              <.icon name="devices_browser" />
+            </:icon_left>
+          </.tab_menu_vertical>
+        </.link>
+        <div :for={group <- @tree} data-part="nav-section">
+          <.line_divider />
+          <div :if={group.label} data-part="content-divider">
+            <.icon name={group_icon(group.label)} />
+            <span>{group.label}</span>
+          </div>
+          <div data-part="nav-items">
+            <.nav_items items={group.items} current_slug={@current_slug} />
+          </div>
+        </div>
+      </div>
+    </nav>
+    <div id="docs-content">
+      <div id="docs-mobile-copy" data-part="mobile-copy">
+        <.button_dropdown
+          id="docs-mobile-copy-dropdown"
+          label={dgettext("docs", "Copy page")}
+          size="medium"
+          phx-click="copy-page-markdown"
+          data-align="end"
+        >
+          <:icon_left><.copy /></:icon_left>
+          <.dropdown_item
+            label={dgettext("docs", "Copy page")}
+            description={dgettext("docs", "Copy page as markdown for LLMs")}
+            value="copy-markdown"
+            size="large"
+            on_click="copy-page-markdown"
+          >
+            <:left_icon><.copy /></:left_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            label={dgettext("docs", "View as Markdown")}
+            description={dgettext("docs", "View this page as plain text")}
+            value="view-markdown"
+            href={docs_markdown_path(@current_slug)}
+            size="large"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <:left_icon><.icon name="markdown" /></:left_icon>
+            <:right_icon><.external_link /></:right_icon>
+          </.dropdown_item>
+        </.button_dropdown>
+      </div>
+      {render_slot(@inner_block)}
+    </div>
+    <.toc :if={@headings != []} headings={@headings} current_slug={@current_slug} />
+  </div>
+</main>

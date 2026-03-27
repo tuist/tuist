@@ -21,6 +21,7 @@ defmodule TuistWeb.UserLoginLive do
       |> assign(:okta_configured?, Environment.okta_oauth_configured?())
       |> assign(:apple_configured?, Environment.apple_oauth_configured?())
       |> assign(:tuist_hosted?, Environment.tuist_hosted?())
+      |> assign(:dev?, Environment.dev?())
 
     {
       :ok,
@@ -175,6 +176,25 @@ defmodule TuistWeb.UserLoginLive do
               tabindex={4}
             />
           </.form>
+          <form
+            :if={@dev?}
+            action={~p"/users/log_in"}
+            method="post"
+            style="display: contents;"
+          >
+            <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+            <input type="hidden" name="user[email]" value="tuistrocks@tuist.dev" />
+            <input type="hidden" name="user[password]" value="tuistrocks" />
+            <button
+              type="submit"
+              class="noora-button"
+              data-variant="secondary"
+              data-size="large"
+              style="width: 100%;"
+            >
+              <span>{dgettext("dashboard_auth", "Log in as test user")}</span>
+            </button>
+          </form>
         </div>
         <div data-part="bottom-link">
           <span>{dgettext("dashboard_auth", "Don't have an account?")}</span>

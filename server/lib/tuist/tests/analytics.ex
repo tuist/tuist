@@ -11,6 +11,7 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
 
   @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
@@ -426,7 +427,7 @@ defmodule Tuist.Tests.Analytics do
   """
   def get_test_run_metrics(test_run_id) do
     query =
-      from t in TestCaseRun,
+      from t in TestCaseRunByTestRun,
         where: t.test_run_id == ^test_run_id,
         select: %{
           total_count: fragment("coalesce(count(?), 0)", t.id),
@@ -448,13 +449,13 @@ defmodule Tuist.Tests.Analytics do
   - skipped_tests: Number of skipped test targets
   - ran_tests: Number of test cases that actually ran
   """
-  def test_runs_metrics(test_runs) when is_list(test_runs) do
+  def test_runs_metrics(project_id, test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
 
     test_case_counts =
       ClickHouseRepo.all(
         from(t in TestCaseRun,
-          where: t.test_run_id in ^test_run_ids,
+          where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
           group_by: t.test_run_id,
           select: %{
             test_run_id: t.test_run_id,

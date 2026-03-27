@@ -232,7 +232,7 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
             // App Extensions can safely link the same static products as apps
             // as they are an independent product
             return false
-        case (.app, .watch2App):
+        case (.app, .watch2App), (.watch2AppContainer, .watch2App):
             // Watch Apps (and their extension) can safely link the same static products as apps
             // as they are an independent product
             return false
@@ -274,11 +274,9 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
             category: .staticSideEffects
         )
     }
-}
 
-// MARK: - Helper Types
+    // MARK: - Helper Types
 
-extension StaticProductsGraphLinter {
     private struct StaticDependencyWarning: Hashable, Comparable {
         var staticProduct: GraphDependency
         var linkingDependencies: [GraphDependency]

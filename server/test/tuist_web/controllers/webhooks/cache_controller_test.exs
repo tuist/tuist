@@ -67,6 +67,7 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "test-cache-node.tuist.dev")
         |> post(~p"/webhooks/cache", body)
 
       # Then
@@ -84,16 +85,19 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
       assert event1.size == 512
       assert event1.cas_id == "ghi789"
       assert event1.project_id == project.id
+      assert event1.cache_endpoint == "test-cache-node.tuist.dev"
 
       assert event2.action == "upload"
       assert event2.size == 1024
       assert event2.cas_id == "abc123"
       assert event2.project_id == project.id
+      assert event2.cache_endpoint == "test-cache-node.tuist.dev"
 
       assert event3.action == "download"
       assert event3.size == 2048
       assert event3.cas_id == "def456"
       assert event3.project_id == project.id
+      assert event3.cache_endpoint == "test-cache-node.tuist.dev"
     end
 
     test "rejects requests with invalid signature", %{conn: conn, project: project} do
@@ -118,6 +122,7 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-cache-signature", invalid_signature)
+        |> put_req_header("x-cache-endpoint", "test-cache-node.tuist.dev")
         |> post(~p"/webhooks/cache", json_body)
 
       # Then
@@ -125,6 +130,61 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
       assert conn.resp_body == "Invalid signature"
 
       # Verify no events were created
+      events = ClickHouseRepo.all(from e in CASEvent, where: e.project_id == ^project.id)
+      assert events == []
+    end
+
+    test "rejects requests without x-cache-endpoint header", %{conn: conn, project: project} do
+      events_params = %{
+        "events" => [
+          %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "action" => "upload",
+            "size" => 1024,
+            "cas_id" => "abc123"
+          }
+        ]
+      }
+
+      {body, signature} = sign_request(events_params)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> post(~p"/webhooks/cache", body)
+
+      assert json_response(conn, 400) == %{"error" => "Missing x-cache-endpoint header"}
+
+      events = ClickHouseRepo.all(from e in CASEvent, where: e.project_id == ^project.id)
+      assert events == []
+    end
+
+    test "rejects requests with empty x-cache-endpoint header", %{conn: conn, project: project} do
+      events_params = %{
+        "events" => [
+          %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "action" => "upload",
+            "size" => 1024,
+            "cas_id" => "abc123"
+          }
+        ]
+      }
+
+      {body, signature} = sign_request(events_params)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "")
+        |> post(~p"/webhooks/cache", body)
+
+      assert json_response(conn, 400) == %{"error" => "Missing x-cache-endpoint header"}
+
       events = ClickHouseRepo.all(from e in CASEvent, where: e.project_id == ^project.id)
       assert events == []
     end

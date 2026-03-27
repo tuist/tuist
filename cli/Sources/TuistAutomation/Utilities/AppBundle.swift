@@ -70,6 +70,18 @@ public struct AppBundle: Equatable {
                     try container.encode(name)
                 }
             }
+
+            #if DEBUG
+                public static func test(
+                    name: String? = "AppIcon",
+                    iconFiles: [String] = ["AppIcon60x60"]
+                ) -> Self {
+                    .init(
+                        name: name,
+                        iconFiles: iconFiles
+                    )
+                }
+            #endif
         }
 
         public struct BundleIcons: Codable, Equatable {
@@ -91,6 +103,16 @@ public struct AppBundle: Equatable {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
                 primaryIcon = try container.decodeIfPresent(PrimaryBundleIcon.self, forKey: .primaryIcon)
             }
+
+            #if DEBUG
+                public static func test(
+                    primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon = .test()
+                ) -> Self {
+                    .init(
+                        primaryIcon: primaryIcon
+                    )
+                }
+            #endif
         }
 
         /// App version number (e.g. 10.3) - CFBundleShortVersionString
@@ -101,6 +123,9 @@ public struct AppBundle: Equatable {
 
         /// Name of the app
         public let name: String
+
+        /// Executable file name (CFBundleExecutable), if present in Info.plist
+        public let executableName: String?
 
         /// Bundle ID
         public let bundleId: String
@@ -118,6 +143,7 @@ public struct AppBundle: Equatable {
             version: String,
             buildVersion: String,
             name: String,
+            executableName: String?,
             bundleId: String,
             minimumOSVersion: Version,
             supportedPlatforms: [DestinationType],
@@ -126,6 +152,7 @@ public struct AppBundle: Equatable {
             self.version = version
             self.buildVersion = buildVersion
             self.name = name
+            self.executableName = executableName
             self.bundleId = bundleId
             self.minimumOSVersion = minimumOSVersion
             self.supportedPlatforms = supportedPlatforms
@@ -136,10 +163,16 @@ public struct AppBundle: Equatable {
             case version = "CFBundleShortVersionString"
             case buildVersion = "CFBundleVersion"
             case name = "CFBundleName"
+            case executableName = "CFBundleExecutable"
             case bundleId = "CFBundleIdentifier"
             case minimumOSVersion = "MinimumOSVersion"
             case supportedPlatforms = "CFBundleSupportedPlatforms"
             case bundleIcons = "CFBundleIcons"
+        }
+
+        /// macOS bundles use LSMinimumSystemVersion instead of MinimumOSVersion
+        private enum MacOSCodingKeys: String, CodingKey {
+            case minimumSystemVersion = "LSMinimumSystemVersion"
         }
 
         public init(from decoder: any Decoder) throws {
@@ -149,10 +182,17 @@ public struct AppBundle: Equatable {
             buildVersion = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.buildVersion)
             let name = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.name)
             self.name = name
+            executableName = try container.decodeIfPresent(String.self, forKey: AppBundle.InfoPlist.CodingKeys.executableName)
             bundleId = try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.bundleId)
-            minimumOSVersion = Version(
-                stringLiteral: try container.decode(String.self, forKey: AppBundle.InfoPlist.CodingKeys.minimumOSVersion)
-            )
+            // iOS/tvOS/watchOS/visionOS use MinimumOSVersion, macOS uses LSMinimumSystemVersion
+            if let version = try container.decodeIfPresent(String.self, forKey: .minimumOSVersion) {
+                minimumOSVersion = Version(stringLiteral: version)
+            } else {
+                let macOSContainer = try decoder.container(keyedBy: MacOSCodingKeys.self)
+                minimumOSVersion = Version(
+                    stringLiteral: try macOSContainer.decode(String.self, forKey: .minimumSystemVersion)
+                )
+            }
             supportedPlatforms = try container.decode([String].self, forKey: AppBundle.InfoPlist.CodingKeys.supportedPlatforms)
                 .map { platformSDK in
                     if let platform = Platform.allCases
@@ -172,11 +212,33 @@ public struct AppBundle: Equatable {
                 forKey: .bundleIcons
             )
         }
-    }
-}
 
-#if DEBUG
-    extension AppBundle {
+        #if DEBUG
+            public static func test(
+                version: String = "1.0",
+                buildVersion: String = "1",
+                name: String = "App",
+                executableName: String? = "App",
+                bundleId: String = "dev.tuist.App",
+                minimumOSVersion: Version = Version("17.4"),
+                supportedPlatforms: [DestinationType] = [.simulator(.iOS)],
+                bundleIcons: BundleIcons = .test()
+            ) -> Self {
+                .init(
+                    version: version,
+                    buildVersion: buildVersion,
+                    name: name,
+                    executableName: executableName,
+                    bundleId: bundleId,
+                    minimumOSVersion: minimumOSVersion,
+                    supportedPlatforms: supportedPlatforms,
+                    bundleIcons: bundleIcons
+                )
+            }
+        #endif
+    }
+
+    #if DEBUG
         public static func test(
             path: AbsolutePath = try! AbsolutePath(validating: "/App.app"), // swiftlint:disable:this force_try
             infoPlist: InfoPlist = .test()
@@ -186,50 +248,5 @@ public struct AppBundle: Equatable {
                 infoPlist: infoPlist
             )
         }
-    }
-
-    extension AppBundle.InfoPlist {
-        public static func test(
-            version: String = "1.0",
-            buildVersion: String = "1",
-            name: String = "App",
-            bundleId: String = "dev.tuist.App",
-            minimumOSVersion: Version = Version("17.4"),
-            supportedPlatforms: [DestinationType] = [.simulator(.iOS)],
-            bundleIcons: BundleIcons = .test()
-        ) -> Self {
-            .init(
-                version: version,
-                buildVersion: buildVersion,
-                name: name,
-                bundleId: bundleId,
-                minimumOSVersion: minimumOSVersion,
-                supportedPlatforms: supportedPlatforms,
-                bundleIcons: bundleIcons
-            )
-        }
-    }
-
-    extension AppBundle.InfoPlist.BundleIcons {
-        public static func test(
-            primaryIcon: AppBundle.InfoPlist.PrimaryBundleIcon = .test()
-        ) -> Self {
-            .init(
-                primaryIcon: primaryIcon
-            )
-        }
-    }
-
-    extension AppBundle.InfoPlist.PrimaryBundleIcon {
-        public static func test(
-            name: String? = "AppIcon",
-            iconFiles: [String] = ["AppIcon60x60"]
-        ) -> Self {
-            .init(
-                name: name,
-                iconFiles: iconFiles
-            )
-        }
-    }
-
-#endif
+    #endif
+}

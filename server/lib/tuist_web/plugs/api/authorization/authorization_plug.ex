@@ -12,9 +12,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:bundle), do: :bundle
   def init(:cache), do: :cache
   def init(:preview), do: :preview
-  def init(:qa_run), do: :qa_run
-  def init(:qa_step), do: :qa_step
-  def init(:qa_screenshot), do: :qa_screenshot
   def init(:test), do: :test
   def init(:build), do: :build
 
@@ -22,7 +19,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     opts
   end
 
-  @project_categories [:run, :bundle, :cache, :preview, :qa_run, :qa_step, :qa_screenshot, :test, :build]
+  @project_categories [:run, :bundle, :cache, :preview, :test, :build]
 
   def call(conn, category) when category in @project_categories do
     authorize_project(conn, category)

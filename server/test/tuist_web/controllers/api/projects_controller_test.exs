@@ -537,6 +537,27 @@ defmodule TuistWeb.API.ProjectsControllerTest do
              }
     end
 
+    test "Returns a not found error if a project does not exist under another user's account", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      conn = get(conn, "/api/projects/#{account.name}/non-existing-project")
+
+      # Then
+      response = json_response(conn, :not_found)
+
+      assert response == %{
+               "message" => "Project #{account.name}/non-existing-project not found."
+             }
+    end
+
     test "Returns an unauthenticated error if a user doesn't have a permission to read the project",
          %{
            conn: conn,

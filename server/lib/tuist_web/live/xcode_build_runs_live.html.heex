@@ -103,9 +103,19 @@
               status="success"
             />
             <.status_badge_cell
-              :if={build_run.status != "success"}
+              :if={build_run.status == "failure"}
               label={dgettext("dashboard_builds", "Failed")}
               status="error"
+            />
+            <.status_badge_cell
+              :if={build_run.status == "processing"}
+              label={dgettext("dashboard_builds", "Processing")}
+              status="in_progress"
+            />
+            <.status_badge_cell
+              :if={build_run.status == "failed_processing"}
+              label={dgettext("dashboard_builds", "Failed processing")}
+              status="warning"
             />
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Branch")}>
@@ -203,7 +213,7 @@
       <div :if={Enum.empty?(@build_runs)} data-part="empty-build-runs">
         <.empty_card_section
           title={dgettext("dashboard_builds", "No data yet")}
-          get_started_href="https://docs.tuist.dev/en/guides/develop/insights"
+          get_started_href="https://tuist.dev/en/docs/guides/features/build-insights"
           data-part="empty-build-runs-table-card-section"
         >
           <:image>

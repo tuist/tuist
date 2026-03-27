@@ -32,6 +32,8 @@ data class TestReport(
     @SerializedName("git_ref") val gitRef: String?,
     @SerializedName("git_remote_url_origin") val gitRemoteUrlOrigin: String?,
     @SerializedName("gradle_build_id") val gradleBuildId: String? = null,
+    @SerializedName("shard_plan_id") val shardPlanId: String? = null,
+    @SerializedName("shard_index") val shardIndex: Int? = null,
     @SerializedName("test_modules") val testModules: List<TestModule>
 )
 
@@ -55,7 +57,8 @@ data class TestCase(
     val status: String,
     val duration: Long,
     val failures: List<TestFailure>,
-    val repetitions: List<TestCaseRepetition>? = null
+    val repetitions: List<TestCaseRepetition>? = null,
+    @SerializedName("is_quarantined") val isQuarantined: Boolean = false
 )
 
 data class TestCaseRepetition(
@@ -82,11 +85,22 @@ internal data class TestAttempt(
     val resultType: TestResult.ResultType,
     val startTime: Long,
     val endTime: Long,
-    val exception: Throwable?
+    val exception: Throwable?,
+    val isQuarantined: Boolean = false
 )
 
 internal class TestReportCollector {
     private val attemptsByModule = mutableMapOf<String, MutableList<TestAttempt>>()
+
+    fun hasNonQuarantinedFailures(moduleName: String): Boolean {
+        val attempts = attemptsByModule[moduleName] ?: return false
+        return attempts.any { it.resultType == TestResult.ResultType.FAILURE && !it.isQuarantined }
+    }
+
+    fun hasQuarantinedFailures(moduleName: String): Boolean {
+        val attempts = attemptsByModule[moduleName] ?: return false
+        return attempts.any { it.resultType == TestResult.ResultType.FAILURE && it.isQuarantined }
+    }
 
     fun collectTestResult(
         moduleName: String,
@@ -95,10 +109,11 @@ internal class TestReportCollector {
         resultType: TestResult.ResultType,
         startTime: Long,
         endTime: Long,
-        exception: Throwable?
+        exception: Throwable?,
+        isQuarantined: Boolean = false
     ) {
         attemptsByModule.getOrPut(moduleName) { mutableListOf() }.add(
-            TestAttempt(testName, className, resultType, startTime, endTime, exception)
+            TestAttempt(testName, className, resultType, startTime, endTime, exception, isQuarantined)
         )
     }
 
@@ -110,11 +125,13 @@ internal class TestReportCollector {
         gitCommitSha: String?,
         gitRef: String?,
         gitRemoteUrlOrigin: String?,
-        gradleBuildId: String?
+        gradleBuildId: String?,
+        shardPlanId: String? = null,
+        shardIndex: Int? = null
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
             val testCases = buildTestCases(attempts)
-            val moduleStatus = if (testCases.any { it.status == "failure" }) "failure" else "success"
+            val moduleStatus = if (testCases.any { it.status == "failure" && !it.isQuarantined }) "failure" else "success"
             val moduleDuration = testCases.sumOf { it.duration }
 
             val testSuites = testCases
@@ -123,7 +140,7 @@ internal class TestReportCollector {
                 .map { (suiteName, cases) ->
                     TestSuite(
                         name = suiteName,
-                        status = if (cases.any { it.status == "failure" }) "failure" else "success",
+                        status = if (cases.any { it.status == "failure" && !it.isQuarantined }) "failure" else "success",
                         duration = cases.sumOf { it.duration }
                     )
                 }
@@ -137,8 +154,8 @@ internal class TestReportCollector {
             )
         }
 
-        val hasFailure = testModules.any { it.status == "failure" }
-        val overallStatus = if (hasFailure) "failure" else "success"
+        val hasNonQuarantinedFailure = testModules.any { it.status == "failure" }
+        val overallStatus = if (hasNonQuarantinedFailure) "failure" else "success"
 
         return TestReport(
             duration = totalDurationMs,
@@ -151,6 +168,8 @@ internal class TestReportCollector {
             gitRef = gitRef,
             gitRemoteUrlOrigin = gitRemoteUrlOrigin,
             gradleBuildId = gradleBuildId,
+            shardPlanId = shardPlanId,
+            shardIndex = shardIndex,
             testModules = testModules
         )
     }
@@ -193,7 +212,8 @@ internal class TestReportCollector {
                     status = finalStatus,
                     duration = totalDuration,
                     failures = failures,
-                    repetitions = repetitions
+                    repetitions = repetitions,
+                    isQuarantined = attempts.any { it.isQuarantined }
                 )
             }
     }
@@ -277,11 +297,24 @@ abstract class TuistTestInsightsService :
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
     internal var uploadInBackground: Boolean? = null
     internal var buildInsightsService: TuistBuildInsightsService? = null
+    internal var shardPlanId: String? = null
+    internal var shardIndex: Int? = null
 
     private val collector = TestReportCollector()
     private var earliestStartTime: Long = Long.MAX_VALUE
     private var latestEndTime: Long = Long.MIN_VALUE
     @Volatile private var hasTests = false
+
+    @Volatile
+    internal var quarantineMap: Map<String, List<TestIdentifier>> = emptyMap()
+
+    internal fun hasNonQuarantinedFailures(moduleName: String): Boolean {
+        return collector.hasNonQuarantinedFailures(moduleName)
+    }
+
+    internal fun hasQuarantinedFailures(moduleName: String): Boolean {
+        return collector.hasQuarantinedFailures(moduleName)
+    }
 
     @Synchronized
     internal fun onTestFinished(
@@ -300,15 +333,17 @@ abstract class TuistTestInsightsService :
             result.successfulTestCount > 0 -> TestResult.ResultType.SUCCESS
             else -> result.resultType
         }
+        val quarantinedIds = quarantineMap[moduleName] ?: emptyList()
+        val isQuarantined = quarantinedIds.any { it.matches(descriptor.className, descriptor.name) }
         collector.collectTestResult(
             moduleName, descriptor.name, descriptor.className,
-            actualResultType, result.startTime, result.endTime, result.exception
+            actualResultType, result.startTime, result.endTime, result.exception, isQuarantined
         )
     }
 
     override fun close() {
         if (!hasTests) {
-            logger.lifecycle("Tuist: No test results collected, skipping test insights upload.")
+            logger.debug("Tuist: No test results collected, skipping test insights upload.")
             return
         }
 
@@ -361,7 +396,9 @@ abstract class TuistTestInsightsService :
             gitCommitSha = gitInfoProvider.commitSha(),
             gitRef = gitInfoProvider.ref(),
             gitRemoteUrlOrigin = gitInfoProvider.remoteUrlOrigin(),
-            gradleBuildId = gradleBuildId
+            gradleBuildId = gradleBuildId,
+            shardPlanId = shardPlanId,
+            shardIndex = shardIndex
         )
 
         val response = httpClient.execute { config ->
@@ -460,13 +497,24 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                 })
 
                 if (quarantineService != null) {
+                    testTask.ignoreFailures = true
+
                     testTask.doFirst {
-                        val exclusions = quarantineService.getQuarantinedTests()
-                        val moduleExclusions = exclusions[moduleName] ?: return@doFirst
-                        for (pattern in moduleExclusions) {
-                            testTask.filter.excludeTestsMatching(pattern)
+                        val quarantineMap = quarantineService.getQuarantinedTests()
+                        serviceProvider.get().quarantineMap = quarantineMap
+                        val modulePatterns = quarantineMap[moduleName]
+                        if (modulePatterns != null) {
+                            logger.lifecycle("Tuist: Found ${modulePatterns.size} quarantined test(s) in module $moduleName")
                         }
-                        logger.lifecycle("Tuist: Quarantined ${moduleExclusions.size} test(s) in module $moduleName")
+                    }
+
+                    testTask.doLast {
+                        val service = serviceProvider.get()
+                        if (service.hasNonQuarantinedFailures(moduleName)) {
+                            throw org.gradle.api.GradleException("There were failing tests in module $moduleName")
+                        } else if (service.hasQuarantinedFailures(moduleName)) {
+                            logger.lifecycle("Tuist: All failing tests in module $moduleName are quarantined")
+                        }
                     }
                 }
             }

@@ -7,7 +7,16 @@ defmodule Tuist.Gradle.Build do
 
   @derive {
     Flop.Schema,
-    filterable: [:project_id, :status, :is_ci, :git_branch, :root_project_name],
+    filterable: [
+      :project_id,
+      :status,
+      :is_ci,
+      :git_branch,
+      :root_project_name,
+      :account_id,
+      :gradle_version,
+      :java_version
+    ],
     sortable: [:inserted_at, :duration_ms, :status],
     default_order: %{
       order_by: [:inserted_at],
@@ -38,6 +47,8 @@ defmodule Tuist.Gradle.Build do
     field :tasks_skipped_count, Ch, type: "UInt32"
     field :tasks_no_source_count, Ch, type: "UInt32"
     field :cacheable_tasks_count, Ch, type: "UInt32"
+    field :requested_tasks, {:array, Ch}, type: "String", default: []
     field :inserted_at, Ch, type: "DateTime"
+    has_many :machine_metrics, Tuist.Builds.BuildMachineMetric, foreign_key: :gradle_build_id, references: :id
   end
 end

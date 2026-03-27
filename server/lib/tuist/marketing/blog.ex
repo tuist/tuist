@@ -9,10 +9,7 @@ defmodule Tuist.Marketing.Blog do
     as: :posts,
     parser: Tuist.Marketing.Blog.PostParser,
     highlighters: [],
-    earmark_options: [
-      smartypants: false,
-      postprocessor: &Tuist.Earmark.ASTProcessor.process/1
-    ]
+    html_converter: Tuist.Marketing.MDExConverter
 
   @posts Enum.reverse(@posts)
   @categories @posts |> Enum.map(& &1.category) |> Enum.uniq()
@@ -39,13 +36,6 @@ defmodule Tuist.Marketing.Blog do
         marketing: true
       )
     end
-  end
-
-  @doc """
-  Processes blog post content to extract components and HTML chunks.
-  """
-  def process_content(content) do
-    Tuist.Marketing.BlogContentProcessor.process_content(content)
   end
 
   def get_authors do

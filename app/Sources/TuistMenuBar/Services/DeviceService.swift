@@ -251,7 +251,7 @@ final class DeviceService: DeviceServicing {
         guard let archivePath = try await remoteArtifactDownloader.download(url: url)
         else { throw DeviceServiceError.appDownloadFailed(preview.id) }
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
-        let unarchivedDirectory = try fileUnarchiver.unzip()
+        let unarchivedDirectory = try await fileUnarchiver.unzip()
 
         switch selectedDevice {
         case .device, .simulator:

@@ -2,14 +2,14 @@ defmodule Cache.Disk do
   @moduledoc """
   Shared disk infrastructure for cache artifact storage.
 
-  Provides common disk operations used by all cache domains (CAS, Gradle, Registry, Module).
+  Provides common disk operations used by all cache domains (Xcode, Gradle, Registry, Module).
   Handles artifact path construction, directory sharding, file operations, and disk usage monitoring.
 
   Domain-specific disk operations are implemented in:
-  - `Cache.CAS.Disk` - Xcode compilation cache (CAS) operations
+  - `Cache.Xcode.Disk` - Xcode compilation cache operations
   - `Cache.Gradle.Disk` - Gradle build cache operations
   - `Cache.Registry.Disk` - Swift package registry operations
-  - `Cache.Module.Disk` - Module cache operations
+  - `Cache.XcodeModule.Disk` - Xcode module cache operations
 
   This module stores artifacts on the local filesystem with configurable storage directory.
   Uses two-level directory sharding to prevent ext4 directory index overflow.
@@ -22,8 +22,8 @@ defmodule Cache.Disk do
 
   ## Examples
 
-      iex> Cache.Disk.artifact_path("account/project/cas/AB/CD/ABCD1234")
-      "/var/tuist/cas/account/project/cas/AB/CD/ABCD1234"
+      iex> Cache.Disk.artifact_path("account/project/xcode/AB/CD/ABCD1234")
+      "/var/tuist/cas/account/project/xcode/AB/CD/ABCD1234"
   """
   def artifact_path(key) do
     Path.join(storage_dir(), key)
@@ -89,7 +89,7 @@ defmodule Cache.Disk do
   @doc """
   Deletes all artifacts for a project from disk.
 
-  Removes the entire project directory, which includes both CAS and module cache artifacts.
+  Removes the entire project directory, which includes both Xcode cache and module cache artifacts.
   Returns :ok on success, {:error, reason} on failure.
   """
   def delete_project(account_handle, project_handle) do
@@ -163,7 +163,7 @@ defmodule Cache.Disk do
         {:error, :exists}
 
       {:error, reason} ->
-        Logger.error("Failed to move CAS artifact to #{target_path}: #{inspect(reason)}")
+        Logger.error("Failed to move artifact to #{target_path}: #{inspect(reason)}")
         {:error, reason}
     end
   end

@@ -1,5 +1,18 @@
 import Config
 
+config :cache, Cache.KeyValueRepo,
+  busy_timeout: 30_000,
+  journal_mode: :wal,
+  synchronous: :normal,
+  temp_store: :memory,
+  cache_size: -64_000,
+  auto_vacuum: :incremental,
+  journal_size_limit: 67_108_864,
+  queue_target: 1_000,
+  queue_interval: 1_000,
+  custom_pragmas: [mmap_size: 268_435_456],
+  priv: "priv/key_value_repo"
+
 config :cache, Cache.PromEx,
   disabled: false,
   manual_metrics_start_delay: :no_delay,
@@ -21,7 +34,7 @@ config :cache, Cache.Repo,
 config :cache, Cache.SQLiteBuffer,
   flush_interval_ms: 500,
   flush_timeout_ms: 30_000,
-  max_batch_size: 1000,
+  max_batch_size: 1_000,
   shutdown_ms: 30_000
 
 config :cache, CacheWeb.Endpoint,
@@ -51,14 +64,14 @@ config :cache, Oban,
      crontab: [
        {"*/10 * * * *", Cache.DiskEvictionWorker},
        {"0 * * * *", Cache.OrphanCleanupWorker},
-       {"0 */6 * * *", Cache.KeyValueEvictionWorker},
+       {"*/15 * * * *", Cache.KeyValueEvictionWorker},
        {"* * * * *", Cache.S3TransferWorker},
        {"*/10 * * * *", Cache.Registry.SyncWorker},
        {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}
      ]}
   ]
 
-config :cache, ecto_repos: [Cache.Repo]
+config :cache, ecto_repos: [Cache.Repo, Cache.KeyValueRepo]
 
 config :cache,
   env: config_env(),
@@ -71,6 +84,12 @@ config :cache,
   events_batch_size: 100,
   events_batch_timeout: 5_000,
   key_value_eviction_max_age_days: 30,
+  key_value_max_db_size_bytes: 25 * 1024 * 1024 * 1024,
+  key_value_eviction_min_retention_days: 1,
+  key_value_read_busy_timeout_ms: 2_000,
+  key_value_maintenance_busy_timeout_ms: 50,
+  key_value_eviction_max_duration_ms: 300_000,
+  key_value_eviction_hysteresis_release_bytes: 23 * 1024 * 1024 * 1024,
   registry_sync_limit: 1_000
 
 config :ex_aws, http_client: TuistCommon.AWS.Client
@@ -92,7 +111,7 @@ config :mime, :types, %{
 
 config :opentelemetry, traces_exporter: :none
 
-config :phoenix, :json_library, Jason
+config :phoenix, :json_library, JSON
 
 config :sentry,
   client: TuistCommon.SentryHTTPClient,

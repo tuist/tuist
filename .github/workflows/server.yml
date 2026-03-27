@@ -7,6 +7,7 @@ on:
     paths:
       - server/**
       - tuist_common/**
+      - noora/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
   pull_request:
@@ -14,6 +15,7 @@ on:
     paths:
       - server/**
       - tuist_common/**
+      - noora/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
       - pnpm-lock.yaml
@@ -31,14 +33,15 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
   MISE_TASK_RUN_AUTO_INSTALL: 0
+  MISE_GITHUB_ATTESTATIONS: 0
 
 defaults:
   run:
     working-directory: server
 
 jobs:
-  gettext_marketing:
-    name: Gettext (Marketing)
+  gettext:
+    name: Gettext
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
@@ -98,36 +101,10 @@ jobs:
           done
 
           echo "✅ All marketing translations present"
-  gettext_dashboard:
-    name: Gettext (Dashboard)
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "erlang elixir"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
       - name: Check dashboard gettext templates are up-to-date
         run: |
           # Dashboard domains to check
-          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
 
           # Backup all dashboard .pot files
           for domain in $DASHBOARD_DOMAINS; do
@@ -163,7 +140,7 @@ jobs:
       - name: Check dashboard translations templates exist
         run: |
           # Dashboard domains to check
-          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
 
           MISSING_DOMAINS=""
           for domain in $DASHBOARD_DOMAINS; do
@@ -373,6 +350,12 @@ jobs:
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - name: Install dependencies
         run: mix deps.get && pnpm install --ignore-workspace
+      - name: Build noora static assets
+        working-directory: noora
+        run: |
+          pnpm install
+          npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js
+          npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
       - name: Install esbuild
         run: mix esbuild.install
       - name: Check esbuild output
@@ -403,9 +386,16 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "erlang elixir ubi:aquasecurity/trivy"
+          install_args: "erlang elixir"
           cache: "false"
           working_directory: server
+      - name: Install Trivy
+        env:
+          TRIVY_VERSION: "0.69.3"
+        run: |
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
+          sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
+          rm /tmp/trivy.tar.gz
       - name: Restore Mix Cache
         uses: actions/cache@v4
         with:
@@ -435,6 +425,7 @@ jobs:
         with:
           context: .
           file: ./server/Dockerfile
+          target: runner
           push: false
           tags: tuist/tuist
           build-args: |

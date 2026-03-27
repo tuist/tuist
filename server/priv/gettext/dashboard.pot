@@ -21,22 +21,23 @@ msgstr ""
 msgid "400"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:37
+#: lib/tuist_web/controllers/error_html.ex:34
+#: lib/tuist_web/controllers/error_html.ex:49
 #, elixir-autogen, elixir-format
 msgid "401"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:58
+#: lib/tuist_web/controllers/error_html.ex:70
 #, elixir-autogen, elixir-format
 msgid "404"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:79
+#: lib/tuist_web/controllers/error_html.ex:91
 #, elixir-autogen, elixir-format
 msgid "429"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:94
+#: lib/tuist_web/controllers/error_html.ex:106
 #, elixir-autogen, elixir-format
 msgid "500"
 msgstr ""
@@ -63,18 +64,18 @@ msgid "Billing"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:48
-#: lib/tuist_web/components/app_layout_components.ex:212
+#: lib/tuist_web/components/app_layout_components.ex:223
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:31
-#: lib/tuist_web/components/app_layout_components.ex:195
+#: lib/tuist_web/components/app_layout_components.ex:206
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:334
+#: lib/tuist_web/components/app_layout_components.ex:341
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr ""
@@ -87,7 +88,7 @@ msgstr ""
 msgid "CI"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:157
+#: lib/tuist_web/components/app_layout_components.ex:168
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
 msgstr ""
@@ -103,22 +104,22 @@ msgstr ""
 msgid "Download macOS app"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:42
+#: lib/tuist_web/components/layouts/ops.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:121
+#: lib/tuist_web/controllers/error_html.ex:133
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:56
+#: lib/tuist_web/components/layouts/ops.html.heex:51
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:36
+#: lib/tuist_web/components/layouts/ops.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr ""
@@ -129,12 +130,12 @@ msgstr ""
 msgid "Get started"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:143
+#: lib/tuist_web/controllers/error_html.ex:155
 #, elixir-autogen, elixir-format
 msgid "Go to dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:66
+#: lib/tuist_web/components/layouts/ops.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr ""
@@ -155,7 +156,7 @@ msgstr ""
 msgid "Invalid installation request. Please try again."
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:31
+#: lib/tuist_web/components/layouts/ops.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr ""
@@ -165,7 +166,7 @@ msgstr ""
 msgid "Learn more"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:26
+#: lib/tuist_web/components/layouts/ops.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr ""
@@ -180,7 +181,7 @@ msgstr ""
 msgid "Members"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:134
+#: lib/tuist_web/components/app_layout_components.ex:145
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr ""
@@ -200,7 +201,7 @@ msgstr ""
 msgid "No data yet"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:52
+#: lib/tuist_web/controllers/error_html.ex:64
 #, elixir-autogen, elixir-format
 msgid "Not found"
 msgstr ""
@@ -211,12 +212,12 @@ msgstr ""
 msgid "Only operations roles can access this page."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:86
+#: lib/tuist_web/controllers/error_html.ex:98
 #, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:53
+#: lib/tuist_web/controllers/error_html.ex:65
 #, elixir-autogen, elixir-format
 msgid "Oops, we couldn't find that page"
 msgstr ""
@@ -232,7 +233,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:32
+#: lib/tuist_web/controllers/error_html.ex:44
 #, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
 msgstr ""
@@ -242,7 +243,7 @@ msgstr ""
 msgid "Prev"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:308
+#: lib/tuist_web/components/app_layout_components.ex:330
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr ""
@@ -252,39 +253,33 @@ msgstr ""
 msgid "Projects"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:323
-#: lib/tuist_web/components/layouts/ops.html.heex:16
-#, elixir-autogen, elixir-format
-msgid "QA"
-msgstr ""
-
-#: lib/tuist_web/controllers/error_html.ex:85
+#: lib/tuist_web/controllers/error_html.ex:97
 #, elixir-autogen, elixir-format
 msgid "Server error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:346
+#: lib/tuist_web/components/app_layout_components.ex:353
 #: lib/tuist_web/components/layouts/account.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:89
+#: lib/tuist_web/controllers/error_html.ex:101
 #, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:46
+#: lib/tuist_web/controllers/error_html.ex:58
 #, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:67
+#: lib/tuist_web/controllers/error_html.ex:79
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:49
+#: lib/tuist_web/components/layouts/ops.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
@@ -295,19 +290,19 @@ msgid "Switch to your preferred theme"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:94
-#: lib/tuist_web/components/app_layout_components.ex:258
+#: lib/tuist_web/components/app_layout_components.ex:269
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:79
-#: lib/tuist_web/components/app_layout_components.ex:243
+#: lib/tuist_web/components/app_layout_components.ex:254
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:62
-#: lib/tuist_web/components/app_layout_components.ex:226
+#: lib/tuist_web/components/app_layout_components.ex:237
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr ""
@@ -322,7 +317,7 @@ msgstr ""
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:23
+#: lib/tuist_web/controllers/auth_controller.ex:25
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
 msgstr ""
@@ -365,18 +360,18 @@ msgstr ""
 msgid "The run you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:73
+#: lib/tuist_web/controllers/error_html.ex:85
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:74
+#: lib/tuist_web/controllers/error_html.ex:86
 #, elixir-autogen, elixir-format
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:373
-#: lib/tuist_web/components/app_layout_components.ex:400
+#: lib/tuist_web/components/app_layout_components.ex:380
+#: lib/tuist_web/components/app_layout_components.ex:416
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -386,7 +381,7 @@ msgstr ""
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:28
+#: lib/tuist_web/controllers/error_html.ex:40
 #, elixir-autogen, elixir-format
 msgid "Unauthorized"
 msgstr ""
@@ -398,12 +393,12 @@ msgstr ""
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:185
+#: lib/tuist_web/components/app_layout_components.ex:196
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr ""
 
-#: lib/tuist_web/controllers/error_html.ex:29
+#: lib/tuist_web/controllers/error_html.ex:41
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to view this page"
 msgstr ""
@@ -442,7 +437,7 @@ msgid "p99"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:109
-#: lib/tuist_web/components/app_layout_components.ex:273
+#: lib/tuist_web/components/app_layout_components.ex:284
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
 msgstr ""
@@ -463,17 +458,17 @@ msgid "This is a public dashboard for the %{account_name}/%{project_name} projec
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:120
-#: lib/tuist_web/components/app_layout_components.ex:284
+#: lib/tuist_web/components/app_layout_components.ex:295
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:169
+#: lib/tuist_web/components/app_layout_components.ex:180
 #, elixir-autogen, elixir-format
 msgid "Generations"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:297
+#: lib/tuist_web/components/app_layout_components.ex:319
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr ""
@@ -483,7 +478,7 @@ msgstr ""
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:21
+#: lib/tuist_web/components/layouts/ops.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr ""
@@ -496,4 +491,40 @@ msgstr ""
 #: lib/tuist_web/components/layouts/account.html.heex:57
 #, elixir-autogen, elixir-format
 msgid "SSO"
+msgstr ""
+
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:73
+#, elixir-autogen, elixir-format
+msgid "Metrics"
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:289
+#, elixir-autogen, elixir-format
+msgid "Failed to authenticate."
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:65
+#: lib/tuist_web/controllers/auth_controller.ex:75
+#: lib/tuist_web/controllers/auth_controller.ex:85
+#: lib/tuist_web/controllers/auth_controller.ex:204
+#: lib/tuist_web/controllers/auth_controller.ex:214
+#: lib/tuist_web/controllers/auth_controller.ex:224
+#, elixir-autogen, elixir-format
+msgid "Failed to authenticate with Okta."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:28
+#, elixir-autogen, elixir-format
+msgid "Authentication failed"
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:280
+#, elixir-autogen, elixir-format
+msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:131
+#: lib/tuist_web/components/app_layout_components.ex:306
+#, elixir-autogen, elixir-format
+msgid "Shards"
 msgstr ""

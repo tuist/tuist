@@ -489,6 +489,30 @@ struct XCActivityLogControllerTests {
         #expect(got.cacheableTasks.map(\.nodeIDs).flatMap { $0 }.count == 13)
     }
 
+    @Test func parseXcode26CASCleanBuild() async throws {
+        // Given
+        let logPath = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_cas_clean_build.xcactivitylog"))
+
+        // When
+        let got = try await subject.parse(logPath)
+
+        // Then
+        #expect(got.category == .clean)
+    }
+
+    @Test func parseXcode26CASIncrementalBuild() async throws {
+        // Given
+        let logPath = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_cas_incremental_build.xcactivitylog"))
+
+        // When
+        let got = try await subject.parse(logPath)
+
+        // Then
+        #expect(got.category == .incremental)
+    }
+
     @Test(.withMockedEnvironment())
     func parseBuildXCActivityLogWithLocalHits() async throws {
         // Given

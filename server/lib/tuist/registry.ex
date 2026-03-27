@@ -13,6 +13,7 @@ defmodule Tuist.Registry do
           scope: event.scope,
           name: event.name,
           version: event.version,
+          cache_endpoint: event.cache_endpoint,
           inserted_at: now
         }
       end)

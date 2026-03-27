@@ -23,6 +23,18 @@ defmodule TuistWeb.ErrorHTML do
     |> render_error_page()
   end
 
+  def render("401.html", %{reason: %TuistWeb.Errors.UnauthorizedError{message: error_message}} = assigns) do
+    assigns
+    |> Map.put(:head_title, dgettext("dashboard", "Authentication failed"))
+    |> Map.put(:title, error_message)
+    |> Map.put(
+      :message,
+      error_message
+    )
+    |> Map.put(:error_name, dgettext("dashboard", "401"))
+    |> render_error_page()
+  end
+
   def render("401.html", assigns) do
     assigns
     |> Map.put(:head_title, dgettext("dashboard", "Unauthorized"))

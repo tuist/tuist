@@ -132,7 +132,8 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
 
         // Then
         // Assert that `outputPath` was created
-        XCTAssertTrue(fileHandler.isFolder(outputPath))
+        let outputPathIsFolder = try await fileSystem.exists(outputPath, isDirectory: true)
+        XCTAssertTrue(outputPathIsFolder)
     }
 
     func test_package_registry_login() async throws {

@@ -215,6 +215,155 @@ struct UploadAnalyticsServiceTests {
         #expect(got == serverCommandEvent)
     }
 
+    @Test(.inTemporaryDirectory) func upload_uploads_session_when_directory_exists() async throws {
+        // Given
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        let sessionDirectory = temporaryDirectory.appending(component: "session")
+        try await fileSystem.makeDirectory(at: sessionDirectory)
+        try await fileSystem.writeText("log content", at: sessionDirectory.appending(component: "logs.txt"))
+
+        let event = CommandEvent.test()
+        let eventID = UUID().uuidString
+        let serverCommandEvent: ServerCommandEvent = .test(id: eventID)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        given(analyticsArtifactUploadService)
+            .uploadSession(
+                .value(sessionDirectory),
+                accountHandle: .value("tuist-org"),
+                projectHandle: .value("tuist"),
+                commandEventId: .value(eventID),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(())
+
+        // When
+        let got = try await subject.upload(
+            commandEvent: event,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            sessionDirectory: sessionDirectory
+        )
+
+        // Then
+        #expect(got == serverCommandEvent)
+        verify(analyticsArtifactUploadService)
+            .uploadSession(
+                .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_does_not_upload_session_when_directory_missing() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        let sessionDirectory = temporaryDirectory.appending(component: "nonexistent-session")
+
+        let event = CommandEvent.test()
+        let serverCommandEvent: ServerCommandEvent = .test(id: UUID().uuidString)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        // When
+        let got = try await subject.upload(
+            commandEvent: event,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            sessionDirectory: sessionDirectory
+        )
+
+        // Then
+        #expect(got == serverCommandEvent)
+        verify(analyticsArtifactUploadService)
+            .uploadSession(
+                .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_does_not_upload_session_when_nil() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        let event = CommandEvent.test()
+        let serverCommandEvent: ServerCommandEvent = .test(id: UUID().uuidString)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        // When
+        let got = try await subject.upload(
+            commandEvent: event,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+
+        // Then
+        #expect(got == serverCommandEvent)
+        verify(analyticsArtifactUploadService)
+            .uploadSession(
+                .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(0)
+    }
+
     @Test(.inTemporaryDirectory) func upload_does_not_delete_result_bundle_outside_runs_directory() async throws {
         // Given
         let fileSystem = FileSystem()

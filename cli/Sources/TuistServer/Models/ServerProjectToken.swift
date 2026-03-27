@@ -3,17 +3,18 @@ import Foundation
 public struct ServerProjectToken {
     public let id: String
     public let insertedAt: Date
-}
 
-extension ServerProjectToken {
+    init(id: String, insertedAt: Date) {
+        self.id = id
+        self.insertedAt = insertedAt
+    }
+
     init(_ projectToken: Components.Schemas.ProjectToken) {
         id = projectToken.id
         insertedAt = projectToken.inserted_at
     }
-}
 
-#if DEBUG
-    extension ServerProjectToken {
+    #if DEBUG
         public static func test(
             id: String = "project-token-id",
             insertedAt: Date = Date()
@@ -23,5 +24,5 @@ extension ServerProjectToken {
                 insertedAt: insertedAt
             )
         }
-    }
-#endif
+    #endif
+}

@@ -19,7 +19,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -988,6 +988,9 @@ defmodule TuistWeb.API.AnalyticsController do
 
         "result_bundle_object" ->
           CommandEvents.get_result_bundle_object_key(run_id, project, name)
+
+        "session" ->
+          CommandEvents.get_session_key(run_id, project)
       end
 
     {:ok, object_key}

@@ -585,6 +585,12 @@ public struct GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .extensionKitExtension),
             LintableTarget(platform: .macOS, product: .bundle),
         ],
+        LintableTarget(platform: .iOS, product: .bundle): [
+            LintableTarget(platform: .iOS, product: .staticLibrary),
+            LintableTarget(platform: .iOS, product: .dynamicLibrary),
+            LintableTarget(platform: .iOS, product: .framework),
+            LintableTarget(platform: .iOS, product: .staticFramework),
+        ],
         LintableTarget(platform: .macOS, product: .bundle): [
             LintableTarget(platform: .iOS, product: .app),
             LintableTarget(platform: .iOS, product: .staticLibrary),
@@ -731,6 +737,10 @@ public struct GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .appExtension),
             LintableTarget(platform: .macOS, product: .macro),
+        ],
+        LintableTarget(platform: .iOS, product: .watch2AppContainer): [
+            LintableTarget(platform: .watchOS, product: .watch2App),
+            LintableTarget(platform: .watchOS, product: .app),
         ],
         LintableTarget(platform: .watchOS, product: .watch2App): [
             LintableTarget(platform: .watchOS, product: .watch2Extension),

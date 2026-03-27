@@ -3,9 +3,11 @@ defmodule TuistWeb.GradleBuildLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.MachineMetricsCharts
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
+  alias Tuist.ClickHouseRepo
   alias Tuist.Gradle
   alias Tuist.Repo
   alias Tuist.Tests
@@ -46,8 +48,11 @@ defmodule TuistWeb.GradleBuildLive do
         {:error, :not_found} -> nil
       end
 
+    build = ClickHouseRepo.preload(build, [:machine_metrics])
+
     build_started_at = Gradle.build_started_at(build.id)
     aggregates = Gradle.task_cache_aggregates(build.id)
+    machine_metrics = build.machine_metrics
 
     download_throughput =
       if aggregates.download_duration_ms > 0,
@@ -81,6 +86,7 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:upload_throughput, upload_throughput)
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
+    |> assign(:machine_metrics, machine_metrics)
   end
 
   @doc """
@@ -198,7 +204,11 @@ defmodule TuistWeb.GradleBuildLive do
     sort_order = params["cacheable-tasks-sort-order"] || "desc"
 
     flop_params = %{
-      filters: [%{field: :cacheable, op: :==, value: true}] ++ text_filters ++ dropdown_filters,
+      filters:
+        [
+          %{field: :cacheable, op: :==, value: true},
+          %{field: :outcome, op: :!=, value: "up_to_date"}
+        ] ++ text_filters ++ dropdown_filters,
       page: String.to_integer(params["cacheable-tasks-page"] || "1"),
       page_size: @table_page_size,
       order_by: [sort_by],

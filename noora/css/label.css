@@ -1,0 +1,24 @@
+.noora-label {
+  display: inline-flex;
+  gap: var(--noora-spacing-1);
+
+  & label {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="required-indicator"] {
+    color: var(--noora-surface-label-destructive);
+  }
+
+  & [data-part="sublabel"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  &[disabled] label,
+  &[disabled] [data-part="required-indicator"],
+  &[disabled] [data-part="sublabel"] {
+    color: var(--noora-surface-label-disabled);
+  }
+}

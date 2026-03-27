@@ -7,7 +7,7 @@ import Foundation
 /// It hosts the name as well as the variant of
 /// a configuration to help infer the appropriate
 /// default settings.
-public struct BuildConfiguration: Codable, Sendable {
+public struct BuildConfiguration: Equatable, Hashable, Comparable, CustomStringConvertible, Codable, Sendable {
     public enum Variant: String, Codable, Sendable {
         case debug, release
     }
@@ -30,28 +30,20 @@ public struct BuildConfiguration: Codable, Sendable {
     public static func debug(_ name: String) -> BuildConfiguration {
         BuildConfiguration(name: name, variant: .debug)
     }
-}
 
-extension BuildConfiguration: Equatable {
     public static func == (lhs: BuildConfiguration, rhs: BuildConfiguration) -> Bool {
         lhs.name.caseInsensitiveCompare(rhs.name) == .orderedSame && lhs.variant == rhs.variant
     }
-}
 
-extension BuildConfiguration: Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(name.lowercased())
         hasher.combine(variant)
     }
-}
 
-extension BuildConfiguration: Comparable {
     public static func < (lhs: BuildConfiguration, rhs: BuildConfiguration) -> Bool {
         lhs.name < rhs.name
     }
-}
 
-extension BuildConfiguration: CustomStringConvertible {
     public var description: String {
         "\(name) (\(variant.rawValue))"
     }

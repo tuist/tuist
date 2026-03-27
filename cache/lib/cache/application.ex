@@ -3,6 +3,11 @@ defmodule Cache.Application do
 
   use Application
 
+  alias Cache.DBConnection.TelemetryListener
+  alias TuistCommon.HTTP.TransportLogger
+
+  require Logger
+
   @impl true
   def start(_type, _args) do
     if System.get_env("SKIP_MIGRATIONS") != "true" do
@@ -14,12 +19,15 @@ defmodule Cache.Application do
     end
 
     Oban.Telemetry.attach_default_logger()
+    TransportLogger.attach(:cache)
     start_sentry_logger()
     start_loki_logger()
     start_opentelemetry()
 
     base_children = [
-      Cache.Repo,
+      {DBConnection.TelemetryListener, name: TelemetryListener},
+      {Cache.Repo, connection_listeners: {[TelemetryListener], :cache}},
+      {Cache.KeyValueRepo, connection_listeners: {[TelemetryListener], :key_value}},
       Cache.KeyValueBuffer,
       Cache.CacheArtifactsBuffer,
       Cache.S3TransfersBuffer,
@@ -41,7 +49,7 @@ defmodule Cache.Application do
     children =
       if Cache.Config.analytics_enabled?() do
         base_children ++
-          [Cache.CASEventsPipeline, Cache.GradleCacheEventsPipeline, Cache.RegistryDownloadEventsPipeline]
+          [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline]
       else
         base_children
       end
@@ -86,7 +94,22 @@ defmodule Cache.Application do
           :request_id,
           :auth_account_handle,
           :selected_account_handle,
-          :selected_project_handle
+          :selected_project_handle,
+          :method,
+          :route,
+          :request_path,
+          :reason,
+          :error,
+          :kind,
+          :event,
+          :duration_ms,
+          :remote_address,
+          :remote_port,
+          :recv_oct,
+          :send_oct,
+          :req_body_bytes,
+          :request_span_context,
+          :connection_span_context
         ]
       )
     end

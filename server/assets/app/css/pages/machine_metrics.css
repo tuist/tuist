@@ -1,0 +1,27 @@
+.tuist-machine-metrics {
+  & [data-part="charts-grid"] {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="chart-card"] {
+    gap: var(--noora-spacing-7);
+    overflow: clip;
+  }
+
+  & #cpu-usage-chart,
+  & #memory-usage-chart {
+    height: 148px;
+  }
+
+  & #network-io-chart,
+  & #disk-io-chart {
+    height: 180px;
+  }
+
+  & [data-part="chart-title"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+  }
+}

@@ -1,0 +1,23 @@
+.noora-hint-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--noora-spacing-2);
+  font: var(--noora-font-body-small);
+
+  & svg {
+    width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
+  }
+
+  &[data-variant="default"] {
+    color: var(--noora-surface-label-secondary);
+  }
+
+  &[data-variant="destructive"] {
+    color: var(--noora-surface-label-destructive);
+  }
+
+  &[data-variant="disabled"] {
+    color: var(--noora-surface-label-disabled);
+  }
+}

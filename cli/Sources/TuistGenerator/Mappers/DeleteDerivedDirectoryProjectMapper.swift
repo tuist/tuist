@@ -3,22 +3,18 @@ import Foundation
 import TuistConstants
 import TuistCore
 import TuistLogging
-import TuistSupport
 import XcodeGraph
 
 /// A project mapper that returns side effects to delete the derived directory.
 public struct DeleteDerivedDirectoryProjectMapper: ProjectMapping {
     private let derivedDirectoryName: String
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
 
     public init(
         derivedDirectoryName: String = Constants.DerivedDirectory.name,
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.derivedDirectoryName = derivedDirectoryName
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
     }
 
@@ -33,15 +29,15 @@ public struct DeleteDerivedDirectoryProjectMapper: ProjectMapping {
             return (project, [])
         }
 
-        let sideEffects: [SideEffectDescriptor] = try fileHandler.contentsOfDirectory(derivedDirectoryPath)
-            .filter { $0.extension != "modulemap" }
-            .map {
-                if fileHandler.isFolder($0) {
-                    return .directory(DirectoryDescriptor(path: $0, state: .absent))
-                } else {
-                    return .file(FileDescriptor(path: $0, state: .absent))
-                }
+        let contents = try await fileSystem.glob(directory: derivedDirectoryPath, include: ["*"]).collect()
+        var sideEffects: [SideEffectDescriptor] = []
+        for item in contents where item.extension != "modulemap" {
+            if try await fileSystem.exists(item, isDirectory: true) {
+                sideEffects.append(.directory(DirectoryDescriptor(path: item, state: .absent)))
+            } else {
+                sideEffects.append(.file(FileDescriptor(path: item, state: .absent)))
             }
+        }
 
         return (project, sideEffects)
     }

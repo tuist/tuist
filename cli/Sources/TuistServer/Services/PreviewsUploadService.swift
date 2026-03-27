@@ -193,7 +193,7 @@ public protocol PreviewsUploadServicing {
 
                 if let iconPath = metadata.iconPath {
                     let unarchiver = try fileArchiver.makeFileUnarchiver(for: apkPath)
-                    let unzippedPath = try unarchiver.unzip()
+                    let unzippedPath = try await unarchiver.unzip()
                     let iconAbsolutePath = unzippedPath.appending(iconPath)
                     if try await fileSystem.exists(iconAbsolutePath) {
                         try await uploadPreviewIconService.uploadPreviewIcon(
@@ -252,7 +252,10 @@ public protocol PreviewsUploadServicing {
                             .makeFileArchiver(for: [bundle.path])
                             .zip(name: bundle.path.basename)
                         let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
-                        let binaryId = try appBundleBinaryId(at: bundle.path, name: bundle.infoPlist.name)
+                        let binaryId = try appBundleBinaryId(
+                            at: bundle.path,
+                            name: bundle.infoPlist.executableName ?? bundle.infoPlist.name
+                        )
 
                         preview = try await uploadPreviewBuild(
                             buildPath: bundleArchivePath,
@@ -436,7 +439,7 @@ public protocol PreviewsUploadServicing {
 
             private func ipaBinaryId(at path: AbsolutePath) async throws -> String {
                 let unarchiver = try fileArchiver.makeFileUnarchiver(for: path)
-                let unzippedPath = try unarchiver.unzip()
+                let unzippedPath = try await unarchiver.unzip()
 
                 guard let appPath = try await fileSystem.glob(directory: unzippedPath, include: ["Payload/*.app"])
                     .collect()
@@ -450,7 +453,11 @@ public protocol PreviewsUploadServicing {
             }
 
             private func appBundleBinaryId(at path: AbsolutePath, name: String) throws -> String {
-                let executablePath = path.appending(component: name)
+                // macOS bundles use Contents/MacOS/ subdirectory layout
+                let isMacOSBundle = FileManager.default.fileExists(atPath: path.appending(component: "Contents").pathString)
+                let executablePath = isMacOSBundle
+                    ? path.appending(components: "Contents", "MacOS", name)
+                    : path.appending(component: name)
                 guard let uuids = try? precompiledMetadataProvider.uuids(binaryPath: executablePath),
                       let uuid = uuids.first
                 else {

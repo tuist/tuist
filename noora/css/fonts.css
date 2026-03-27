@@ -1,0 +1,14 @@
+/*
+ * Noora fonts from external CDNs (Google Fonts and rsms.me).
+ * Import this file before noora.css if you want to use the default fonts.
+ *
+ * Fonts used:
+ * - DM Sans (weights 400, 500, 600) - Primary headings font
+ * - Geist Mono (weights 400, 700) - Monospace font for code
+ * - Inter Variable (weights 100-900) - Body text font
+ *
+ * If you prefer to self-host fonts, don't import this file and provide
+ * your own @font-face declarations instead.
+ */
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Geist+Mono:wght@400;700&display=swap");
+@import "https://rsms.me/inter/inter.css";

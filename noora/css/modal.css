@@ -1,0 +1,162 @@
+.noora-modal {
+  box-sizing: border-box;
+
+  & [data-part="backdrop"] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: var(--noora-z-index-11);
+    backdrop-filter: blur(2.5px);
+    background: var(--noora-surface-overlay);
+    width: 100dvw;
+    height: 100dvh;
+    pointer-events: none;
+
+    /* Prevent flashing of the component before script load */
+    &:not([data-state]) {
+      display: none;
+    }
+  }
+
+  & > [data-part="positioner"] {
+    display: flex;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translateY(-50%) translateX(-50%);
+    z-index: var(--noora-z-index-12);
+    box-sizing: border-box;
+
+    /* Prevent flashing of the component before script load */
+    &:not(:has(> div[data-state])) {
+      display: none;
+    }
+
+    & > [data-part="content"] {
+      box-sizing: border-box;
+      box-shadow: var(--noora-border-heavy);
+      border-radius: var(--noora-radius-2xlarge);
+      background: var(--noora-surface-background-primary);
+
+      & > [data-part="body"] {
+        padding: var(--noora-spacing-2) var(--noora-spacing-7);
+        font: var(--noora-font-body-medium);
+      }
+
+      & > [data-part="header"] {
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        padding: var(--noora-spacing-7) var(--noora-spacing-6)
+          var(--noora-spacing-6) var(--noora-spacing-7);
+        width: 100%;
+
+        & [data-part="header-content"] {
+          display: flex;
+          flex-grow: 1;
+          flex-direction: column;
+          justify-content: center;
+          gap: var(--noora-spacing-2);
+        }
+
+        & [data-part="row"] {
+          display: flex;
+          justify-content: space-between;
+          gap: var(--noora-spacing-6);
+        }
+
+        & [data-part="icon"] {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          color: var(--noora-surface-label-primary);
+
+          & svg {
+            width: var(--noora-icon-size-large);
+            height: var(--noora-icon-size-large);
+          }
+        }
+
+        & [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & [data-part="description"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-body-small);
+        }
+
+        &[data-type="error"] [data-part="icon"] {
+          color: var(--noora-icon-destructive-label);
+        }
+
+        &[data-type="success"] [data-part="icon"] {
+          color: var(--noora-icon-success-label);
+        }
+
+        &[data-type="warning"] [data-part="icon"] {
+          color: var(--noora-icon-warning-label);
+        }
+
+        &[data-type="info"] [data-part="icon"] {
+          color: var(--noora-icon-info-label);
+        }
+
+        &[data-size="small"] {
+          gap: var(--noora-spacing-5);
+        }
+
+        &[data-size="large"] {
+          gap: var(--noora-spacing-6);
+
+          & [data-part="icon"] {
+            border-radius: var(--noora-radius-large);
+            padding: 10px;
+          }
+
+          &[data-type="icon"] [data-part="icon"] {
+            box-shadow: var(--noora-border-light-default);
+          }
+
+          &[data-type="error"] [data-part="icon"] {
+            background: var(--noora-icon-destructive-background);
+          }
+
+          &[data-type="success"] [data-part="icon"] {
+            background: var(--noora-icon-success-background);
+          }
+
+          &[data-type="warning"] [data-part="icon"] {
+            background: var(--noora-icon-warning-background);
+          }
+
+          &[data-type="info"] [data-part="icon"] {
+            background: var(--noora-icon-info-background);
+          }
+        }
+      }
+    }
+  }
+
+  & [data-part="footer"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--noora-spacing-7);
+
+    & [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-5);
+    }
+
+    &[data-type="stretch"] {
+      & div {
+        flex-grow: 1;
+        & * {
+          width: 100%;
+        }
+      }
+    }
+  }
+}

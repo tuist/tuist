@@ -13,39 +13,30 @@ import TuistServer
 import TuistSupport
 
 enum SetupCacheCommandServiceError: Equatable, LocalizedError {
-    case failedToLoadLaunchDaemon(String)
     case missingFullHandle
-    case missingExecutablePath
 
     var errorDescription: String? {
         switch self {
-        case let .failedToLoadLaunchDaemon(error):
-            return "Failed to load LaunchDaemon: \(error)"
         case .missingFullHandle:
             return
-                "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
-        case .missingExecutablePath:
-            return "Failed to determine the current tuist executable path"
+                "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
         }
     }
 }
 
 struct SetupCacheCommandService {
-    private let fileSystem: FileSysteming
-    private let launchctlController: LaunchctlControlling
+    private let launchAgentService: LaunchAgentServicing
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let manifestLoader: ManifestLoading
 
     init(
-        fileSystem: FileSysteming = FileSystem(),
-        launchctlController: LaunchctlControlling = LaunchctlController(),
+        launchAgentService: LaunchAgentServicing = LaunchAgentService(),
         configLoader: ConfigLoading = ConfigLoader(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         manifestLoader: ManifestLoading = ManifestLoader.current
     ) {
-        self.fileSystem = fileSystem
-        self.launchctlController = launchctlController
+        self.launchAgentService = launchAgentService
         self.configLoader = configLoader
         self.serverEnvironmentService = serverEnvironmentService
         self.manifestLoader = manifestLoader
@@ -63,17 +54,34 @@ struct SetupCacheCommandService {
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        let tuistBinaryPath = try await determineTuistBinaryPath()
-        let launchDaemonPlistPath = try await createLaunchDaemonPlist(
-            fullHandle: fullHandle,
-            url: serverURL.absoluteString,
-            upload: config.cache.upload,
-            tuistBinaryPath: tuistBinaryPath
+        var programArguments = [
+            "cache-start",
+            fullHandle,
+        ]
+
+        programArguments.append(contentsOf: ["--url", serverURL.absoluteString])
+
+        if !config.cache.upload {
+            programArguments.append("--no-upload")
+        }
+
+        var environmentVariables: [String: String] = [:]
+        if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.token] {
+            environmentVariables["TUIST_TOKEN"] = token
+        } else if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
+            AlertController.current
+                .warning("Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_TOKEN` to authenticate on the CI")
+            environmentVariables["TUIST_TOKEN"] = token
+        }
+
+        let label = "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
+
+        try await launchAgentService.setupLaunchAgent(
+            label: label,
+            plistFileName: "\(label).plist",
+            programArguments: programArguments,
+            environmentVariables: environmentVariables
         )
-
-        try await launchDaemon(plistPath: launchDaemonPlistPath)
-
-        Logger.current.debug("LaunchAgent configured and loaded successfully")
 
         if try await manifestLoader.hasRootManifest(at: path) {
             if let generationOptions = config.project.generatedProject?.generationOptions,
@@ -113,162 +121,5 @@ struct SetupCacheCommandService {
                 """
             )
         }
-    }
-
-    private func createLaunchDaemonPlist(
-        fullHandle: String,
-        url: String?,
-        upload: Bool,
-        tuistBinaryPath: AbsolutePath
-    ) async throws -> AbsolutePath {
-        let launchAgentsDir = Environment.current.homeDirectory.appending(
-            components: "Library", "LaunchAgents"
-        )
-        let plistFileName =
-            "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_")).plist"
-        let plistPath = launchAgentsDir.appending(component: plistFileName)
-
-        if try await !fileSystem.exists(launchAgentsDir) {
-            try await fileSystem.makeDirectory(at: launchAgentsDir)
-        }
-
-        // If plist already exists, unload it first
-        if try await fileSystem.exists(plistPath) {
-            Logger.current.debug("Existing LaunchAgent found. Unloading...")
-            do {
-                try await launchctlController.unload(plistPath: plistPath)
-            } catch {
-                // It's ok if unload fails - the agent might not be loaded
-                Logger.current.debug(
-                    "Failed to unload existing LaunchAgent: \(error.localizedDescription)"
-                )
-            }
-            try await fileSystem.remove(plistPath)
-        }
-
-        var programArguments = [
-            tuistBinaryPath.pathString,
-            "cache-start",
-            fullHandle,
-        ]
-
-        if let url {
-            programArguments.append(contentsOf: ["--url", url])
-        }
-
-        if !upload {
-            programArguments.append("--no-upload")
-        }
-
-        var environmentVariables: [String: String] = [:]
-        if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.token] {
-            environmentVariables["TUIST_TOKEN"] = token
-        } else if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
-            AlertController.current
-                .warning("Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_TOKEN` to authenticate on the CI")
-            environmentVariables["TUIST_TOKEN"] = token
-        }
-
-        let plistContent = launchAgentPlist(
-            programPath: tuistBinaryPath.pathString,
-            programArguments: programArguments,
-            label: "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))",
-            environmentVariables: environmentVariables
-        )
-
-        try await fileSystem.writeText(plistContent, at: plistPath)
-
-        Logger.current.debug("Created LaunchDaemon plist at: \(plistPath.pathString)")
-
-        return plistPath
-    }
-
-    private func launchAgentPlist(
-        programPath: String,
-        programArguments: [String],
-        label: String,
-        environmentVariables: [String: String] = [:]
-    ) -> String {
-        let programArgumentsXML =
-            programArguments
-                .map { "<string>\($0)</string>" }
-                .joined(separator: "\n\t\t")
-
-        let environmentVariablesXML: String
-        if environmentVariables.isEmpty {
-            environmentVariablesXML = ""
-        } else {
-            let envVarEntries = environmentVariables.map { key, value in
-                """
-                \t<key>\(key)</key>
-                \t<string>\(value)</string>
-                """
-            }.joined(separator: "\n\t")
-            environmentVariablesXML = """
-            <key>EnvironmentVariables</key>
-            <dict>
-            \(envVarEntries)
-            </dict>
-            """
-        }
-
-        return """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>Label</key>
-            <string>\(label)</string>
-            <key>Program</key>
-            <string>\(programPath)</string>
-            <key>ProgramArguments</key>
-            <array>
-                \(programArgumentsXML)
-            </array>
-            \(environmentVariablesXML)
-            <key>RunAtLoad</key>
-            <true/>
-            <key>KeepAlive</key>
-            <true/>
-        </dict>
-        </plist>
-        """
-    }
-
-    private func launchDaemon(plistPath: AbsolutePath) async throws {
-        do {
-            try await launchctlController.load(plistPath: plistPath)
-            Logger.current.debug("Loaded LaunchAgent")
-        } catch {
-            throw SetupCacheCommandServiceError.failedToLoadLaunchDaemon(error.localizedDescription)
-        }
-    }
-
-    private func determineTuistBinaryPath() async throws -> AbsolutePath {
-        guard let currentPath = Environment.current.currentExecutablePath() else {
-            throw SetupCacheCommandServiceError.missingExecutablePath
-        }
-
-        // Check if the current executable is mise-managed
-        if currentPath.pathString.contains("/.local/share/mise/installs/tuist/") {
-            let homeDir = Environment.current.homeDirectory
-
-            let misePath = homeDir.appending(
-                components: ".local", "share", "mise", "installs", "tuist", "latest", "tuist"
-            )
-            if try await fileSystem.exists(misePath) {
-                return misePath
-            }
-
-            // Check old mise path (with bin directory)
-            let oldMisePath = homeDir.appending(
-                components: ".local", "share", "mise", "installs", "tuist", "latest", "bin", "tuist"
-            )
-            if try await fileSystem.exists(oldMisePath) {
-                return oldMisePath
-            }
-        }
-
-        return currentPath
     }
 }

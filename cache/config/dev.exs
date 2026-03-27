@@ -4,6 +4,11 @@ config :cache, Cache.Guardian,
   issuer: "tuist",
   secret_key: "development_guardian_secret_key_at_least_64_characters_long_for_dev"
 
+config :cache, Cache.KeyValueRepo,
+  database: "dev_key_value.sqlite3",
+  pool_size: 10,
+  show_sensitive_data_on_connection_error: true
+
 config :cache, Cache.Repo,
   database: "dev.sqlite3",
   pool_size: 10,

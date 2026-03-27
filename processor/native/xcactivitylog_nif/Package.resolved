@@ -1,0 +1,54 @@
+{
+  "originHash" : "b044431242c767c72939217d570a8d61a4079e5ca86f2c3d70a137b4ca7800c8",
+  "pins" : [
+    {
+      "identity" : "1024jp.gzipswift",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "5.2.0"
+      }
+    },
+    {
+      "identity" : "apple.swift-argument-parser",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.7.0"
+      }
+    },
+    {
+      "identity" : "krzyzanowskim.cryptoswift",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.3.3"
+      }
+    },
+    {
+      "identity" : "kylef.pathkit",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.0.1"
+      }
+    },
+    {
+      "identity" : "kylef.spectre",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.10.1"
+      }
+    },
+    {
+      "identity" : "MobileNativeFoundation.XCLogParser",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.2.46"
+      }
+    }
+  ],
+  "version" : 3
+}

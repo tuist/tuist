@@ -103,7 +103,7 @@ defmodule TuistWeb.XcodeCacheLive do
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/xcode-cache?#{query_params}")}
   end
 
-  def handle_info({:build_created, _build}, socket) do
+  def handle_info({:xcode_build_created, _build}, socket) do
     # Only update when pagination is inactive
     if Query.has_pagination_params?(socket.assigns.uri.query) do
       {:noreply, socket}

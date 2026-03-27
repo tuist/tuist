@@ -46,20 +46,12 @@ defmodule TuistWeb.BuildsLive do
     end
   end
 
-  def handle_info({:build_created, _build}, socket) do
-    {:noreply, TuistWeb.XcodeBuildsLive.handle_info_build_created(socket)}
+  def handle_info({:xcode_build_created, _build}, socket) do
+    TuistWeb.XcodeBuildsLive.handle_info({:xcode_build_created, nil}, socket)
   end
 
   def handle_info({:gradle_build_created, _build}, socket) do
-    if Query.has_pagination_params?(socket.assigns.uri.query) do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> TuistWeb.GradleBuildsLive.assign_handle_params(socket.assigns.current_params)
-       |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(socket.assigns.current_params)
-       |> TuistWeb.GradleBuildsLive.assign_initial_configuration_insights()}
-    end
+    TuistWeb.GradleBuildsLive.handle_info({:gradle_build_created, nil}, socket)
   end
 
   def handle_info(_event, socket) do

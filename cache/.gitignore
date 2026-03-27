@@ -1,4 +1,6 @@
 dev.sqlite*
+dev_key_value.sqlite*
 test.sqlite*
+test_key_value.sqlite*
 /_build/
 /deps/

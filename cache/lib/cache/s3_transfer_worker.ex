@@ -53,11 +53,12 @@ defmodule Cache.S3TransferWorker do
     end
   end
 
-  defp execute_transfer(:upload, %{artifact_type: :registry, key: key}) do
+  defp execute_transfer(:upload, %{artifact_type: artifact_type, key: key})
+       when artifact_type in [:registry, :xcode_cache] do
     local_path = Disk.artifact_path(key)
 
     if File.exists?(local_path) do
-      S3.upload_file(key, local_path, type: :registry)
+      S3.upload_file(key, local_path, type: artifact_type)
     else
       :ok
     end
@@ -65,14 +66,21 @@ defmodule Cache.S3TransferWorker do
 
   defp execute_transfer(:upload, %{key: key}), do: S3.upload(key)
 
-  defp execute_transfer(:download, %{artifact_type: :registry, key: key}), do: S3.download(key, type: :registry)
+  defp execute_transfer(:download, %{artifact_type: artifact_type, key: key})
+       when artifact_type in [:registry, :xcode_cache] do
+    S3.download(key, type: artifact_type)
+  end
 
   defp execute_transfer(:download, %{key: key}), do: S3.download(key)
 
   defp handle_result(_type, {:ok, {transfer, :ok}}), do: transfer.id
 
   defp handle_result(:download, {:ok, {transfer, {:ok, :hit}}}) do
-    {:ok, %{size: size}} = transfer.key |> Disk.artifact_path() |> File.stat()
+    size =
+      case transfer.key |> Disk.artifact_path() |> File.stat() do
+        {:ok, %{size: size}} -> size
+        {:error, _} -> 0
+      end
 
     :telemetry.execute([:cache, transfer.artifact_type, :download, :s3_hit], %{size: size}, %{
       account_handle: transfer.account_handle,

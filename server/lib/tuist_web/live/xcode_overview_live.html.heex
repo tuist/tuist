@@ -85,358 +85,366 @@
         </:actions>
       </.date_picker>
     </:actions>
-    <div data-part="widgets">
-      <.widget
-        loading={!@binary_cache_hit_rate_analytics.ok?}
-        title={dgettext("dashboard_projects", "Cache effectiveness")}
-        description={
-          dgettext(
-            "dashboard_projects",
-            "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
-          )
-        }
-        value={
-          if @binary_cache_hit_rate_analytics.ok?,
-            do:
-              dgettext("dashboard_projects", "%{binary_cache_effectiveness}%",
-                binary_cache_effectiveness:
-                  (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              )
-        }
-        id="widget-binary-cache-effectiveness"
-        trend_value={
-          if @binary_cache_hit_rate_analytics.ok?,
-            do: @binary_cache_hit_rate_analytics.result.trend,
-            else: nil
-        }
-        trend_label={@analytics_trend_label}
-        empty={
-          @binary_cache_hit_rate_analytics.ok? &&
-            @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
-        }
-      />
-      <.widget
-        loading={!@selective_testing_analytics.ok?}
-        title={dgettext("dashboard_projects", "Selective test effectiveness")}
-        description={
-          dgettext(
-            "dashboard_projects",
-            "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
-          )
-        }
-        value={
-          if @selective_testing_analytics.ok?,
-            do:
-              dgettext("dashboard_projects", "%{selective_tests_effectiveness}%",
-                selective_tests_effectiveness:
-                  (@selective_testing_analytics.result.hit_rate * 100)
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              )
-        }
-        id="widget-selective-tests-effectiveness"
-        trend_value={
-          if @selective_testing_analytics.ok?,
-            do: @selective_testing_analytics.result.trend,
-            else: nil
-        }
-        trend_label={@analytics_trend_label}
-        empty={
-          @selective_testing_analytics.ok? && @selective_testing_analytics.result.hit_rate == 0.0
-        }
-      />
-      <.widget
-        loading={!@build_analytics.ok?}
-        title={dgettext("dashboard_projects", "Average build time")}
-        description={
-          dgettext(
-            "dashboard_projects",
-            "Average time it takes to build a project as reported from Xcode post actions."
-          )
-        }
-        value={
-          if @build_analytics.ok?,
-            do:
-              dgettext("dashboard_projects", "%{duration}s",
-                duration: Float.round(@build_analytics.result.total_average_duration / 1000, 1)
-              )
-        }
-        id="widget-average-build-time"
-        trend_value={if @build_analytics.ok?, do: @build_analytics.result.trend, else: nil}
-        trend_label={@analytics_trend_label}
-        trend_type={:inverse}
-        empty={@build_analytics.ok? && @build_analytics.result.total_average_duration == 0}
-      />
-      <.widget
-        loading={!@test_analytics.ok?}
-        title={dgettext("dashboard_projects", "Average test time")}
-        description={
-          dgettext(
-            "dashboard_projects",
-            "Average time it takes to test a project when using the 'tuist test' command."
-          )
-        }
-        value={
-          if @test_analytics.ok?,
-            do:
-              dgettext("dashboard_projects", "%{duration}s",
-                duration: Float.round(@test_analytics.result.total_average_duration / 1000, 1)
-              )
-        }
-        id="widget-average-test-time"
-        trend_value={if @test_analytics.ok?, do: @test_analytics.result.trend, else: nil}
-        trend_label={@analytics_trend_label}
-        trend_type={:inverse}
-        empty={@test_analytics.ok? && @test_analytics.result.total_average_duration == 0}
-      />
-    </div>
-    <div data-part="cache-cards-section">
-      <.card_section
-        :if={!@binary_cache_hit_rate_analytics.ok? || !@selective_testing_analytics.ok?}
-        data-part="cache-effectiveness-card-chart-section"
-      >
-        <div data-part="effectiveness-chart">
-          <div data-part="legends">
-            <.skeleton_legend />
-            <.skeleton_legend />
-          </div>
-          <.skeleton_chart />
-        </div>
-      </.card_section>
-      <.card_section
-        :if={
-          @binary_cache_hit_rate_analytics.ok? &&
-            @selective_testing_analytics.ok? &&
-            @binary_cache_hit_rate_analytics.result.cache_hit_rate != 0.0
-        }
-        data-part="cache-effectiveness-card-chart-section"
-      >
-        <div data-part="effectiveness-chart">
-          <div data-part="legends">
-            <.legend
-              title={dgettext("dashboard_projects", "Cache effectiveness")}
-              value={
+    <div data-part="analytics-content">
+      <div data-part="widgets">
+        <.widget
+          loading={!@binary_cache_hit_rate_analytics.ok?}
+          title={dgettext("dashboard_projects", "Cache effectiveness")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
+            )
+          }
+          value={
+            if @binary_cache_hit_rate_analytics.ok?,
+              do:
                 dgettext("dashboard_projects", "%{binary_cache_effectiveness}%",
                   binary_cache_effectiveness:
                     (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
                     |> Decimal.from_float()
                     |> Decimal.round(1)
                 )
-              }
-              style="primary"
-            />
-            <.legend
-              title={dgettext("dashboard_projects", "Selective test effectiveness")}
-              value={
-                dgettext("dashboard_projects", "%{selective_test_effectiveness}%",
-                  selective_test_effectiveness:
+          }
+          id="widget-binary-cache-effectiveness"
+          trend_value={
+            if @binary_cache_hit_rate_analytics.ok?,
+              do: @binary_cache_hit_rate_analytics.result.trend,
+              else: nil
+          }
+          trend_label={@analytics_trend_label}
+          empty={
+            @binary_cache_hit_rate_analytics.ok? &&
+              @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
+          }
+        />
+        <.widget
+          loading={!@selective_testing_analytics.ok?}
+          title={dgettext("dashboard_projects", "Selective test effectiveness")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
+            )
+          }
+          value={
+            if @selective_testing_analytics.ok?,
+              do:
+                dgettext("dashboard_projects", "%{selective_tests_effectiveness}%",
+                  selective_tests_effectiveness:
                     (@selective_testing_analytics.result.hit_rate * 100)
                     |> Decimal.from_float()
                     |> Decimal.round(1)
                 )
+          }
+          id="widget-selective-tests-effectiveness"
+          trend_value={
+            if @selective_testing_analytics.ok?,
+              do: @selective_testing_analytics.result.trend,
+              else: nil
+          }
+          trend_label={@analytics_trend_label}
+          empty={
+            @selective_testing_analytics.ok? &&
+              @selective_testing_analytics.result.hit_rate == 0.0
+          }
+        />
+        <.widget
+          loading={!@build_analytics.ok?}
+          title={dgettext("dashboard_projects", "Average build time")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "Average time it takes to build a project as reported from Xcode post actions."
+            )
+          }
+          value={
+            if @build_analytics.ok?,
+              do:
+                dgettext("dashboard_projects", "%{duration}s",
+                  duration: Float.round(@build_analytics.result.total_average_duration / 1000, 1)
+                )
+          }
+          id="widget-average-build-time"
+          trend_value={if @build_analytics.ok?, do: @build_analytics.result.trend, else: nil}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          empty={@build_analytics.ok? && @build_analytics.result.total_average_duration == 0}
+        />
+        <.widget
+          loading={!@test_analytics.ok?}
+          title={dgettext("dashboard_projects", "Average test time")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "Average time it takes to test a project when using the 'tuist test' command."
+            )
+          }
+          value={
+            if @test_analytics.ok?,
+              do:
+                dgettext("dashboard_projects", "%{duration}s",
+                  duration: Float.round(@test_analytics.result.total_average_duration / 1000, 1)
+                )
+          }
+          id="widget-average-test-time"
+          trend_value={if @test_analytics.ok?, do: @test_analytics.result.trend, else: nil}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          empty={@test_analytics.ok? && @test_analytics.result.total_average_duration == 0}
+        />
+      </div>
+      <div
+        :if={
+          !@binary_cache_hit_rate_analytics.ok? ||
+            @binary_cache_hit_rate_analytics.result.cache_hit_rate != 0.0
+        }
+        data-part="cache-cards-section"
+      >
+        <.card_section
+          :if={!@binary_cache_hit_rate_analytics.ok? || !@selective_testing_analytics.ok?}
+          data-part="cache-effectiveness-card-chart-section"
+        >
+          <div data-part="effectiveness-chart">
+            <div data-part="legends">
+              <.skeleton_legend />
+              <.skeleton_legend />
+            </div>
+            <.skeleton_chart />
+          </div>
+        </.card_section>
+        <.card_section
+          :if={
+            @binary_cache_hit_rate_analytics.ok? &&
+              @selective_testing_analytics.ok? &&
+              @binary_cache_hit_rate_analytics.result.cache_hit_rate != 0.0
+          }
+          data-part="cache-effectiveness-card-chart-section"
+        >
+          <div data-part="effectiveness-chart">
+            <div data-part="legends">
+              <.legend
+                title={dgettext("dashboard_projects", "Cache effectiveness")}
+                value={
+                  dgettext("dashboard_projects", "%{binary_cache_effectiveness}%",
+                    binary_cache_effectiveness:
+                      (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
+                      |> Decimal.from_float()
+                      |> Decimal.round(1)
+                  )
+                }
+                style="primary"
+              />
+              <.legend
+                title={dgettext("dashboard_projects", "Selective test effectiveness")}
+                value={
+                  dgettext("dashboard_projects", "%{selective_test_effectiveness}%",
+                    selective_test_effectiveness:
+                      (@selective_testing_analytics.result.hit_rate * 100)
+                      |> Decimal.from_float()
+                      |> Decimal.round(1)
+                  )
+                }
+                style="secondary"
+              />
+            </div>
+            <.chart
+              id="chart-single-multi-series-line"
+              type="line"
+              extra_options={
+                %{
+                  grid: %{
+                    width: "93%",
+                    left: "0%",
+                    right: "7%",
+                    height: "88%",
+                    top: "5%"
+                  },
+                  xAxis: %{
+                    boundaryGap: false,
+                    type: "category",
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "fn:toLocaleDate",
+                      customValues: [
+                        @binary_cache_hit_rate_analytics.result.dates |> hd(),
+                        @binary_cache_hit_rate_analytics.result.dates |> List.last()
+                      ],
+                      padding: [10, 0, 0, 0]
+                    }
+                  },
+                  yAxis: %{
+                    splitLine: %{
+                      lineStyle: %{
+                        color: "var:noora-chart-lines"
+                      }
+                    },
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "{value}%"
+                    }
+                  },
+                  tooltip:
+                    if @analytics_preset == "last-24-hours" do
+                      %{valueFormat: "{value}%", dateFormat: "hour"}
+                    else
+                      %{valueFormat: "{value}%"}
+                    end,
+                  legend: %{
+                    show: false
+                  }
+                }
               }
-              style="secondary"
+              series={[
+                %{
+                  data:
+                    Enum.zip(
+                      @binary_cache_hit_rate_analytics.result.dates,
+                      @binary_cache_hit_rate_analytics.result.values
+                      |> Enum.map(&(&1 * 100))
+                      |> Enum.map(&Decimal.from_float/1)
+                      |> Enum.map(&Decimal.round(&1, 1))
+                    )
+                    |> Enum.map(&Tuple.to_list/1),
+                  name: dgettext("dashboard_projects", "Cache effectiveness"),
+                  type: "line",
+                  smooth: 0.1,
+                  symbol: "none"
+                },
+                %{
+                  data:
+                    Enum.zip(
+                      @selective_testing_analytics.result.dates,
+                      @selective_testing_analytics.result.values
+                      |> Enum.map(&(&1 * 100))
+                      |> Enum.map(&Decimal.from_float/1)
+                      |> Enum.map(&Decimal.round(&1, 1))
+                    )
+                    |> Enum.map(&Tuple.to_list/1),
+                  name: dgettext("dashboard_projects", "Selective test effectiveness"),
+                  type: "line",
+                  smooth: 0.1,
+                  symbol: "none"
+                }
+              ]}
+              y_axis_min={0}
+              y_axis_max={100}
+            />
+          </div>
+        </.card_section>
+        <.card_section
+          :if={
+            @build_time_analytics.ok? &&
+              @analytics_environment == "ci" &&
+              @build_time_analytics.result.total_time_saved != 0 &&
+              @build_time_analytics.result.total_build_time != 0
+          }
+          data-part="time-saved-card-chart-section"
+        >
+          <div data-part="legends">
+            <.legend
+              title={dgettext("dashboard_projects", "Build time saved")}
+              value={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @build_time_analytics.result.total_time_saved,
+                  include_seconds: false
+                )
+              }
+              style="primary"
             />
           </div>
           <.chart
-            id="chart-single-multi-series-line"
-            type="line"
+            id="time-saved-segmented-chart"
+            type="bar"
+            style="height: 100px"
             extra_options={
               %{
                 grid: %{
-                  width: "93%",
-                  left: "0%",
-                  right: "7%",
-                  height: "88%",
-                  top: "5%"
+                  left: "5%",
+                  right: "50px",
+                  top: "15px",
+                  bottom: "15px"
                 },
                 xAxis: %{
-                  boundaryGap: false,
-                  type: "category",
+                  type: "value",
                   axisLabel: %{
                     color: "var:noora-surface-label-secondary",
-                    formatter: "fn:toLocaleDate",
-                    customValues: [
-                      @binary_cache_hit_rate_analytics.result.dates |> hd(),
-                      @binary_cache_hit_rate_analytics.result.dates |> List.last()
-                    ],
-                    padding: [10, 0, 0, 0]
-                  }
+                    formatter:
+                      if(@build_time_analytics.result.total_build_time < 3_600_000,
+                        do: "fn:formatSeconds",
+                        else: "fn:formatHours"
+                      ),
+                    hideOverlap: true
+                  },
+                  axisTick: %{show: false}
                 },
                 yAxis: %{
+                  type: "category",
+                  data: [dgettext("dashboard_projects", "Build time")],
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary"
+                  },
+                  axisLine: %{show: false},
+                  axisTick: %{show: false},
                   splitLine: %{
                     lineStyle: %{
                       color: "var:noora-chart-lines"
                     }
-                  },
-                  axisLabel: %{
-                    color: "var:noora-surface-label-secondary",
-                    formatter: "{value}%"
                   }
                 },
-                tooltip:
-                  if @analytics_preset == "last-24-hours" do
-                    %{valueFormat: "{value}%", dateFormat: "hour"}
-                  else
-                    %{valueFormat: "{value}%"}
-                  end,
-                legend: %{
-                  show: false
+                legend: %{show: false},
+                tooltip: %{
+                  trigger: "axis",
+                  axisPointer: %{type: "none"},
+                  valueFormat:
+                    if(@build_time_analytics.result.total_build_time < 3_600_000,
+                      do: "fn:formatSeconds",
+                      else: "fn:formatHours"
+                    )
                 }
               }
             }
             series={[
               %{
-                data:
-                  Enum.zip(
-                    @binary_cache_hit_rate_analytics.result.dates,
-                    @binary_cache_hit_rate_analytics.result.values
-                    |> Enum.map(&(&1 * 100))
-                    |> Enum.map(&Decimal.from_float/1)
-                    |> Enum.map(&Decimal.round(&1, 1))
+                name: dgettext("dashboard_projects", "Saved"),
+                type: "bar",
+                stack: "total",
+                itemStyle: %{
+                  color: "var:noora-chart-legend-primary",
+                  borderRadius: [0, 4, 4, 0]
+                },
+                data: [
+                  if(@build_time_analytics.result.total_build_time < 3_600_000,
+                    do:
+                      (@build_time_analytics.result.total_time_saved / 1000)
+                      |> Decimal.from_float()
+                      |> Decimal.round(1),
+                    else:
+                      (@build_time_analytics.result.total_time_saved / 3_600_000)
+                      |> Decimal.from_float()
+                      |> Decimal.round(2)
                   )
-                  |> Enum.map(&Tuple.to_list/1),
-                name: dgettext("dashboard_projects", "Cache effectiveness"),
-                type: "line",
-                smooth: 0.1,
-                symbol: "none"
-              },
-              %{
-                data:
-                  Enum.zip(
-                    @selective_testing_analytics.result.dates,
-                    @selective_testing_analytics.result.values
-                    |> Enum.map(&(&1 * 100))
-                    |> Enum.map(&Decimal.from_float/1)
-                    |> Enum.map(&Decimal.round(&1, 1))
-                  )
-                  |> Enum.map(&Tuple.to_list/1),
-                name: dgettext("dashboard_projects", "Selective test effectiveness"),
-                type: "line",
-                smooth: 0.1,
-                symbol: "none"
+                ]
               }
             ]}
-            y_axis_min={0}
-            y_axis_max={100}
+            x_axis_min={0}
           />
-        </div>
-      </.card_section>
-      <.card_section
+        </.card_section>
+      </div>
+      <.empty_card_section
         :if={
-          @build_time_analytics.ok? &&
-            @analytics_environment == "ci" &&
-            @build_time_analytics.result.total_time_saved != 0 &&
-            @build_time_analytics.result.total_build_time != 0
+          @binary_cache_hit_rate_analytics.ok? &&
+            @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
         }
-        data-part="time-saved-card-chart-section"
+        title={dgettext("dashboard_projects", "Binary cache and selective testing: no data yet")}
+        get_started_href="https://tuist.dev/en/docs/"
       >
-        <div data-part="legends">
-          <.legend
-            title={dgettext("dashboard_projects", "Build time saved")}
-            value={
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @build_time_analytics.result.total_time_saved,
-                include_seconds: false
-              )
-            }
-            style="primary"
-          />
-        </div>
-        <.chart
-          id="time-saved-segmented-chart"
-          type="bar"
-          style="height: 100px"
-          extra_options={
-            %{
-              grid: %{
-                left: "5%",
-                right: "50px",
-                top: "15px",
-                bottom: "15px"
-              },
-              xAxis: %{
-                type: "value",
-                axisLabel: %{
-                  color: "var:noora-surface-label-secondary",
-                  formatter:
-                    if(@build_time_analytics.result.total_build_time < 3_600_000,
-                      do: "fn:formatSeconds",
-                      else: "fn:formatHours"
-                    ),
-                  hideOverlap: true
-                },
-                axisTick: %{show: false}
-              },
-              yAxis: %{
-                type: "category",
-                data: [dgettext("dashboard_projects", "Build time")],
-                axisLabel: %{
-                  color: "var:noora-surface-label-secondary"
-                },
-                axisLine: %{show: false},
-                axisTick: %{show: false},
-                splitLine: %{
-                  lineStyle: %{
-                    color: "var:noora-chart-lines"
-                  }
-                }
-              },
-              legend: %{show: false},
-              tooltip: %{
-                trigger: "axis",
-                axisPointer: %{type: "none"},
-                valueFormat:
-                  if(@build_time_analytics.result.total_build_time < 3_600_000,
-                    do: "fn:formatSeconds",
-                    else: "fn:formatHours"
-                  )
-              }
-            }
-          }
-          series={[
-            %{
-              name: dgettext("dashboard_projects", "Saved"),
-              type: "bar",
-              stack: "total",
-              itemStyle: %{
-                color: "var:noora-chart-legend-primary",
-                borderRadius: [0, 4, 4, 0]
-              },
-              data: [
-                if(@build_time_analytics.result.total_build_time < 3_600_000,
-                  do:
-                    (@build_time_analytics.result.total_time_saved / 1000)
-                    |> Decimal.from_float()
-                    |> Decimal.round(1),
-                  else:
-                    (@build_time_analytics.result.total_time_saved / 3_600_000)
-                    |> Decimal.from_float()
-                    |> Decimal.round(2)
-                )
-              ]
-            }
-          ]}
-          x_axis_min={0}
-        />
-      </.card_section>
+        <:image>
+          <img src="/images/empty_line_chart_light.png" data-theme="light" />
+          <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
     </div>
-    <.empty_card_section
-      :if={
-        @binary_cache_hit_rate_analytics.ok? &&
-          @selective_testing_analytics.ok? &&
-          @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
-      }
-      title={dgettext("dashboard_projects", "Binary cache and selective testing: no data yet")}
-      get_started_href="https://docs.tuist.dev/en/"
-    >
-      <:image>
-        <img src="/images/empty_line_chart_light.png" data-theme="light" />
-        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
-      </:image>
-    </.empty_card_section>
   </.card>
   <.card title={dgettext("dashboard_projects", "Tests")} icon="subtask">
     <:actions>
@@ -525,7 +533,7 @@
     <.empty_card_section
       :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_projects", "Runs: no data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+      get_started_href="https://tuist.dev/en/docs/guides/features/selective-testing"
     >
       <:image>
         <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -571,7 +579,7 @@
       :if={@latest_app_previews.ok? && Enum.empty?(@latest_app_previews.result)}
       data-part="empty-previews-card-section"
       title={dgettext("dashboard_projects", "No previews yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/features/previews"
+      get_started_href="https://tuist.dev/en/docs/guides/features/previews"
     >
       <:image>
         <img src="/images/empty_previews_light.png" data-theme="light" />
@@ -902,7 +910,7 @@
       <.empty_card_section
         :if={@recent_build_runs.ok? && Enum.empty?(@recent_build_runs.result)}
         title={dgettext("dashboard_projects", "No recent builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
+        get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
       >
         <:image>
           <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -1022,7 +1030,7 @@
             @builds_duration_analytics.result.total_average_duration == 0
         }
         title={dgettext("dashboard_projects", "No builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
+        get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
       >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />

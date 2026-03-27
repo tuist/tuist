@@ -23,8 +23,8 @@
 
     eventsConfig = ''
       # Max simultaneous connections per worker. With auto workers on an
-      # 8-vCPU node this allows 32 K total connections.
-      worker_connections 4096;
+      # 8-vCPU node this allows 128 K total connections.
+      worker_connections 16384;
       # Accept all pending connections at once instead of one per epoll
       # wake — reduces event-loop iterations during connection bursts.
       multi_accept on;
@@ -51,9 +51,10 @@
       keepalive_requests 50000;
 
       # Cap concurrent streams so one HTTP/2 connection cannot monopolise
-      # a worker. 256 covers the CLI's 100-module concurrency with room
-      # for registry and Xcode requests on the same connection.
-      http2_max_concurrent_streams 256;
+      # a worker. 128 covers the CLI's 100-module concurrency; heavier
+      # clients are forced to open additional TCP connections which the
+      # kernel distributes across workers.
+      http2_max_concurrent_streams 128;
       # 16 KB is the default HTTP/2 max frame size; values above this
       # are silently split by most clients. Matches the spec ceiling.
       http2_chunk_size 16k;

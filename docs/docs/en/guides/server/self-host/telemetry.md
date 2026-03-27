@@ -93,7 +93,7 @@ You can also point `TUIST_LOKI_URL` directly at a Loki instance if it exposes th
 
 ## Prometheus metrics {#prometheus-metrics}
 
-You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint on port 9091. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend keeping the default of 15 seconds).
+You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint on port 9091. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend 30 seconds to balance observability with metrics ingestion costs).
 
 ## PostHog analytics {#posthog-analytics}
 
@@ -462,14 +462,84 @@ The total number of users.
 
 A set of metrics related to the database connection.
 
+The repo pool metrics are sampled internally every 100ms and then exposed to Prometheus on `/metrics`. The `last_value` metrics below show the most recent pool state at scrape time. The pressure metrics further down are sums derived from those 100ms samples, which makes short saturation windows easier to spot even when they recover before the next scrape.
+
 ### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}
 
 The number of database queries that are sitting in a queue waiting to be assigned to a database connection.
+
+#### Tags {#tuist_repo_pool_checkout_queue_length-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
 
 ### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
 
 The number of database connections that are ready to be assigned to a database query.
 
+#### Tags {#tuist_repo_pool_ready_conn_count-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
+### `tuist_repo_pool_size` (last_value) {#tuist_repo_pool_size-last_value}
+
+The configured number of connections in the pool.
+
+#### Tags {#tuist_repo_pool_size-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
+### `tuist_repo_pool_checkout_queue_total_samples_sum` (sum) {#tuist_repo_pool_checkout_queue_total_samples_sum-sum}
+
+The total number of repo pool polls taken (increments by 1 on every poll). Use this as the denominator when computing busyness or starvation percentages: `rate(busy_samples) / rate(total_samples)` or `rate(starved_samples) / rate(total_samples)`.
+
+#### Tags {#tuist_repo_pool_checkout_queue_total_samples_sum-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
+### `tuist_repo_pool_checkout_queue_observed_sum` (sum) {#tuist_repo_pool_checkout_queue_observed_sum-sum}
+
+The sum of queued checkout requests observed across repo pool polls. This is useful for detecting short bursts of pool contention that may not be visible in the latest queue-length sample alone.
+
+#### Tags {#tuist_repo_pool_checkout_queue_observed_sum-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
+### `tuist_repo_pool_checkout_queue_busy_samples_sum` (sum) {#tuist_repo_pool_checkout_queue_busy_samples_sum-sum}
+
+The number of repo pool polls where at least one database checkout request was waiting in the queue.
+
+#### Tags {#tuist_repo_pool_checkout_queue_busy_samples_total-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
+
+### `tuist_repo_pool_checkout_queue_starved_samples_sum` (sum) {#tuist_repo_pool_checkout_queue_starved_samples_sum-sum}
+
+The number of repo pool polls where checkout requests were queued and no ready connections were available. A sustained increase here usually means the pool is saturated.
+
+#### Tags {#tuist_repo_pool_checkout_queue_starved_samples_total-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `repo` | The repository that emitted the metric, such as `postgres`, `clickhouse_read`, or `clickhouse_write`. |
+| `database` | The backing database type, such as `postgres` or `clickhouse`. |
 
 ### `tuist_repo_pool_db_connection_connected` (counter) {#tuist_repo_pool_db_connection_connected-counter}
 
@@ -478,6 +548,12 @@ The number of connections that have been established to the database.
 ### `tuist_repo_pool_db_connection_disconnected` (counter) {#tuist_repo_pool_db_connection_disconnected-counter}
 
 The number of connections that have been disconnected from the database.
+
+#### Tags {#tuist_repo_pool_db_connection_connected_and_disconnected-tags}
+
+| Tag | Description |
+|--- | ---- |
+| `tag` | The DBConnection listener tag that identifies the emitting repository. |
 
 ## HTTP metrics {#http-metrics}
 

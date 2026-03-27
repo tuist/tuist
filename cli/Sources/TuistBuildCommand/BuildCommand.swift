@@ -15,9 +15,20 @@ public struct BuildCommand: AsyncParsableCommand {
 
     private static var subcommands: [ParsableCommand.Type] {
         #if os(macOS)
-            [BuildRunCommand.self, BuildListCommand.self, BuildShowCommand.self]
+            [
+                BuildRunCommand.self,
+                BuildListCommand.self,
+                BuildShowCommand.self,
+                BuildXcodeCommand.self,
+                BuildGradleCommand.self,
+            ]
         #else
-            [BuildListCommand.self, BuildShowCommand.self]
+            [
+                BuildListCommand.self,
+                BuildShowCommand.self,
+                BuildXcodeCommand.self,
+                BuildGradleCommand.self,
+            ]
         #endif
     }
 

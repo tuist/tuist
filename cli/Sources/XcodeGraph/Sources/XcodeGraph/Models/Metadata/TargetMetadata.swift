@@ -18,10 +18,8 @@ public struct TargetMetadata: Codable, Equatable, Sendable {
     public static func metadata(tags: Set<String> = Set(), isLocal: Bool = true) -> TargetMetadata {
         self.init(tags: tags, isLocal: isLocal)
     }
-}
 
-#if DEBUG
-    extension TargetMetadata {
+    #if DEBUG
         public static func test(
             tags: Set<String> = []
         ) -> TargetMetadata {
@@ -29,5 +27,5 @@ public struct TargetMetadata: Codable, Equatable, Sendable {
                 tags: tags
             )
         }
-    }
-#endif
+    #endif
+}

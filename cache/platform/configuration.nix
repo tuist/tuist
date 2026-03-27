@@ -104,8 +104,19 @@
       # CPU cost, but avoids softnet backlog overflows.
       "net.core.netdev_budget" = 600;
       "net.core.netdev_budget_usecs" = 16000;
+
+      # Keep swap as an OOM shock absorber for transient BEAM binary-memory
+      # spikes without aggressively paging out hot application memory.
+      "vm.swappiness" = 10;
     };
   };
+
+  swapDevices = [
+    {
+      device = "/var/lib/swapfile";
+      size = 8192;
+    }
+  ];
 
   services.openssh.enable = true;
   security.sudo.wheelNeedsPassword = false;

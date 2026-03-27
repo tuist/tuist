@@ -2,6 +2,8 @@ defmodule TuistWeb.API.GradleControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -30,6 +32,7 @@ defmodule TuistWeb.API.GradleControllerTest do
         git_branch: "main",
         git_commit_sha: "abc123",
         root_project_name: "my-app",
+        requested_tasks: ["assembleDebug", "test"],
         tasks: [
           %{
             task_path: ":app:compileKotlin",
@@ -65,9 +68,90 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build.status == "success"
       assert build.gradle_version == "8.5"
       assert build.is_ci == true
+      assert build.requested_tasks == ["assembleDebug", "test"]
+      assert build.account_id == user.account.id
       assert build.tasks_executed_count == 1
       assert build.tasks_local_hit_count == 1
       assert build.cacheable_tasks_count == 2
+    end
+
+    test "creates a build with machine metrics", %{conn: conn, user: user, project: project} do
+      body = %{
+        duration_ms: 10_000,
+        status: "success",
+        tasks: [],
+        machine_metrics: [
+          %{
+            timestamp: 1_741_500_001.0,
+            cpu_usage_percent: 55.0,
+            memory_used_bytes: 8_000_000_000,
+            memory_total_bytes: 16_000_000_000,
+            network_bytes_in: 1_000_000,
+            network_bytes_out: 500_000,
+            disk_bytes_read: 2_000_000,
+            disk_bytes_written: 1_500_000
+          },
+          %{
+            timestamp: 1_741_500_002.0,
+            cpu_usage_percent: 80.0,
+            memory_used_bytes: 12_000_000_000,
+            memory_total_bytes: 16_000_000_000,
+            network_bytes_in: 3_000_000,
+            network_bytes_out: 1_500_000,
+            disk_bytes_read: 5_000_000,
+            disk_bytes_written: 3_000_000
+          }
+        ]
+      }
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{user.account.name}/#{project.name}/gradle/builds", body)
+
+      response = json_response(conn, 201)
+      assert is_binary(response["id"])
+
+      Buffer.flush()
+
+      build_id = response["id"]
+
+      build =
+        Tuist.ClickHouseRepo.one(from(b in Tuist.Gradle.Build, where: b.id == ^build_id))
+
+      build = Tuist.ClickHouseRepo.preload(build, [:machine_metrics])
+      assert length(build.machine_metrics) == 2
+      assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 55.0, 0.01
+      assert_in_delta Enum.at(build.machine_metrics, 1).cpu_usage_percent, 80.0, 0.01
+    end
+
+    test "attributes the build to the authenticated user, not the organization", %{conn: conn} do
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: member, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      conn = Authentication.put_current_user(conn, member)
+
+      body = %{
+        duration_ms: 5000,
+        status: "success",
+        tasks: []
+      }
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{organization.account.name}/#{project.name}/gradle/builds", body)
+
+      response = json_response(conn, 201)
+
+      Buffer.flush()
+
+      {:ok, build} = Gradle.get_build(response["id"])
+      assert build.account_id == member.account.id
+      refute build.account_id == organization.account.id
     end
 
     test "creates a build with no tasks", %{conn: conn, user: user, project: project} do
@@ -255,6 +339,7 @@ defmodule TuistWeb.API.GradleControllerTest do
           git_branch: "main",
           git_commit_sha: "abc123",
           root_project_name: "my-app",
+          requested_tasks: ["assembleRelease"],
           tasks: [
             %{
               task_path: ":app:compileKotlin",
@@ -278,6 +363,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert response["git_branch"] == "main"
       assert response["git_commit_sha"] == "abc123"
       assert response["root_project_name"] == "my-app"
+      assert response["requested_tasks"] == ["assembleRelease"]
 
       assert length(response["tasks"]) == 1
       task = hd(response["tasks"])

@@ -14,7 +14,7 @@ defmodule Cache.Registry.SyncCursor do
          |> ExAws.S3.get_object(@key)
          |> ExAws.request() do
       {:ok, %{body: body}} ->
-        case Jason.decode(body) do
+        case JSON.decode(body) do
           {:ok, %{"cursor" => cursor}} when is_integer(cursor) and cursor >= 0 -> cursor
           _ -> 0
         end
@@ -30,7 +30,7 @@ defmodule Cache.Registry.SyncCursor do
 
   def put(cursor) when is_integer(cursor) and cursor >= 0 do
     body =
-      Jason.encode!(%{
+      JSON.encode!(%{
         cursor: cursor,
         updated_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
       })

@@ -1,5 +1,8 @@
 version: "1"
 
+previews:
+  expireAfterDays: 1
+
 services:
   - &server-base
     type: web
@@ -27,6 +30,10 @@ services:
         value: 1
       - key: TUIST_DATABASE_POOL_SIZE
         value: 40
+      - key: TUIST_CLICKHOUSE_POOL_SIZE
+        value: 80
+      - key: TUIST_CLICKHOUSE_MAX_THREADS
+        value: 4
       - key: TUIST_S3_POOL_COUNT
         value: 1
       - key: TUIST_S3_POOL_SIZE
@@ -37,6 +44,8 @@ services:
         value: http://tuist-fmpt:4317
       - key: TUIST_LOKI_URL
         value: http://tuist-fmpt:3100
+      - key: TUIST_PROCESSOR_URL
+        value: http://processor.tuist.dev:4002
     domains:
       - tuist.dev
 
@@ -73,6 +82,8 @@ services:
         value: http://tuist-fmpt:4317
       - key: TUIST_LOKI_URL
         value: http://tuist-fmpt:3100
+      - key: TUIST_PROCESSOR_URL
+        value: http://processor-canary.tuist.dev:4002
     domains:
       - canary.tuist.dev
 
@@ -104,6 +115,8 @@ services:
         value: http://tuist-fmpt:4317
       - key: TUIST_LOKI_URL
         value: http://tuist-fmpt:3100
+      - key: TUIST_PROCESSOR_URL
+        value: http://processor-staging.tuist.dev:4002
     domains:
       - staging.tuist.dev
 
@@ -140,6 +153,28 @@ services:
       - key: LOKI_TOKEN
         sync: false
 
+  - type: web
+    name: noora-storybook
+    region: frankfurt
+    runtime: docker
+    repo: https://github.com/tuist/tuist
+    dockerfilePath: noora/storybook/Dockerfile
+    dockerContext: noora
+    plan: starter
+    numInstances: 1
+    autoDeployTrigger: "off"
+    previews:
+      generation: "off"
+    envVars:
+      - key: SECRET_KEY_BASE
+        generateValue: true
+      - key: PHX_HOST
+        value: storybook.noora.tuist.dev
+      - key: PORT
+        value: "8080"
+    domains:
+      - storybook.noora.tuist.dev
+
   # ── Preview environment ─────────────────────────────────────────────
   # Each PR touching server/** gets an isolated preview with its own
   # PostgreSQL and embedded ClickHouse. No MASTER_KEY or encrypted
@@ -152,7 +187,7 @@ services:
     repo: https://github.com/tuist/tuist
     dockerfilePath: server/Dockerfile
     dockerCommand: /app/bin/start-preview
-    plan: standard
+    plan: starter
     numInstances: 1
     previews:
       generation: manual
@@ -164,7 +199,7 @@ services:
       - key: MIX_ENV
         value: stag
       - key: TUIST_HOSTED
-        value: 0
+        value: 1
       - key: EMBED_CLICKHOUSE
         value: true
       - key: TUIST_USE_SSL_FOR_DATABASE

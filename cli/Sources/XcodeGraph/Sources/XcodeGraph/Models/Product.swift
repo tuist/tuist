@@ -13,6 +13,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable, Sen
     case appExtension = "app_extension"
     ///    case watchApp = "watch_app"
     case watch2App = "watch_2_app"
+    case watch2AppContainer = "watch_2_app_container"
     //    case watchExtension = "watch_extension"
     case watch2Extension = "watch_2_extension"
     case tvTopShelfExtension = "tv_top_shelf_extension"
@@ -50,6 +51,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable, Sen
         //            return "watchApp"
         case .watch2App:
             return "watch2App"
+        case .watch2AppContainer:
+            return "watch2AppContainer"
         //        case .watchExtension:
         //            return "watchExtension"
         case .watch2Extension:
@@ -103,6 +106,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable, Sen
         //            return "watch application"
         case .watch2App:
             return "watch 2 application"
+        case .watch2AppContainer:
+            return "watch 2 app container"
         //        case .watchExtension:
         //            return "watch extension"
         case .watch2Extension:
@@ -157,6 +162,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable, Sen
             .staticLibrary,
             .unitTests,
             .uiTests,
+            .watch2AppContainer,
             .xpc:
             return false
         }

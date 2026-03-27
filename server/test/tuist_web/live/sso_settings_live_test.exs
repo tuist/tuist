@@ -181,6 +181,129 @@ defmodule TuistWeb.SSOSettingsLiveTest do
     end
   end
 
+  describe "SSO enforcement" do
+    test "shows enforce SSO toggle when SSO is enabled", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+      html = render_hook(lv, "toggle_sso")
+
+      assert html =~ "Enforce SSO"
+    end
+
+    test "hides enforce SSO toggle when SSO is disabled", %{conn: conn, account: account} do
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/sso")
+
+      refute html =~ "Enforce SSO"
+    end
+
+    test "rejects enforcement when user has no matching SSO identity", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["google"]})
+      render_hook(lv, "toggle_sso_enforced")
+
+      render_hook(lv, "validate_sso", %{
+        "sso" => %{"google_domain" => "example.com"}
+      })
+
+      html =
+        lv
+        |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
+        |> render_submit()
+
+      assert html =~ "You must authenticate with the SSO provider before enforcing SSO"
+    end
+
+    test "allows enforcement when user has matching Google SSO identity", %{
+      conn: conn,
+      account: account,
+      user: user
+    } do
+      Accounts.link_oauth_identity_to_user(user, %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: "example.com"
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["google"]})
+      render_hook(lv, "toggle_sso_enforced")
+
+      render_hook(lv, "validate_sso", %{
+        "sso" => %{"google_domain" => "example.com"}
+      })
+
+      html =
+        lv
+        |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
+        |> render_submit()
+
+      refute html =~ "You must authenticate with the SSO provider"
+      assert html =~ "Enforce SSO"
+    end
+
+    test "disabling SSO also disables enforcement", %{conn: conn, user: user} do
+      Accounts.link_oauth_identity_to_user(user, %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: "enforced.com"
+      })
+
+      %{account: enforced_account} =
+        AccountsFixtures.organization_fixture(
+          name: "enforced-org",
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "enforced.com",
+          preload: [:account]
+        )
+
+      # Enable enforcement via direct DB update
+      {:ok, org} = Accounts.get_organization_by_id(enforced_account.organization_id)
+      Accounts.update_organization(org, %{sso_enforced: true})
+
+      conn = init_test_session(conn, %{auth_method: :google})
+      {:ok, lv, html} = live(conn, ~p"/#{enforced_account.name}/sso")
+
+      # Verify enforcement is shown as enabled
+      assert html =~ "Enforce SSO"
+
+      # Disable SSO entirely
+      render_hook(lv, "toggle_sso")
+
+      html =
+        lv
+        |> form("#sso-form")
+        |> render_submit()
+
+      # Enforcement toggle should be hidden (SSO is off)
+      refute html =~ "Enforce SSO"
+    end
+  end
+
+  test "handles validate_sso event without sso params", %{conn: conn, account: account} do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+    html = render_hook(lv, "validate_sso", %{})
+
+    assert html =~ "Single Sign-On"
+  end
+
+  test "handles select_provider event with empty value", %{conn: conn, account: account} do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+    render_hook(lv, "toggle_sso")
+    html = render_hook(lv, "select_provider", %{"value" => []})
+
+    assert html =~ "Single Sign-On"
+  end
+
   describe "disable SSO" do
     test "disables Google SSO", %{conn: conn, user: user} do
       %{account: google_account} =

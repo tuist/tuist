@@ -9,6 +9,7 @@ defmodule Cache.S3Transfers do
   import Ecto.Query
 
   alias Cache.Repo
+  alias Cache.S3
   alias Cache.S3Transfer
   alias Cache.S3TransfersBuffer
 
@@ -17,8 +18,8 @@ defmodule Cache.S3Transfers do
 
   Entries are queued and flushed in batches to reduce SQLite contention.
   """
-  def enqueue_cas_upload(account_handle, project_handle, key) do
-    enqueue(:upload, account_handle, project_handle, :xcode_cas, key)
+  def enqueue_xcode_upload(account_handle, project_handle, key) do
+    enqueue(:upload, account_handle, project_handle, :xcode_cache, key)
   end
 
   @doc """
@@ -26,8 +27,8 @@ defmodule Cache.S3Transfers do
 
   Entries are queued and flushed in batches to reduce SQLite contention.
   """
-  def enqueue_cas_download(account_handle, project_handle, key) do
-    enqueue(:download, account_handle, project_handle, :xcode_cas, key)
+  def enqueue_xcode_download(account_handle, project_handle, key) do
+    enqueue(:download, account_handle, project_handle, :xcode_cache, key)
   end
 
   @doc """
@@ -115,7 +116,24 @@ defmodule Cache.S3Transfers do
     Enum.each(ids, &S3TransfersBuffer.enqueue_delete/1)
   end
 
+  @doc """
+  Asynchronously checks S3 and enqueues an artifact upload only when missing.
+  """
+  def enqueue_upload_if_missing(account_handle, project_handle, artifact_type, key) do
+    Task.start(fn ->
+      if !S3.exists?(key, type: storage_type(artifact_type)) do
+        enqueue(:upload, account_handle, project_handle, artifact_type, key)
+      end
+    end)
+
+    :ok
+  end
+
   defp enqueue(type, account_handle, project_handle, artifact_type, key) do
     S3TransfersBuffer.enqueue(type, account_handle, project_handle, artifact_type, key)
   end
+
+  defp storage_type(:xcode_cache), do: :xcode_cache
+  defp storage_type(:registry), do: :registry
+  defp storage_type(_artifact_type), do: :cache
 end

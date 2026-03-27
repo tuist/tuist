@@ -5,15 +5,23 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias Tuist.Builds.Build
+  alias Tuist.Cache.CASEvent
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
-  alias Tuist.QA.Logs
+  alias Tuist.Tests.TestCase
+  alias Tuist.Tests.TestCaseEvent
+  alias Tuist.Tests.TestCaseFailure
+  alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunRepetition
+  alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestSuiteRun
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
+  alias TuistCommon.HTTP.TransportLogger
 
   require Logger
 
@@ -26,6 +34,7 @@ defmodule Tuist.Application do
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
+    EMCP.SessionStore.ETS.init()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -59,14 +68,18 @@ defmodule Tuist.Application do
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     ReqTelemetry.attach_default_logger(:pipeline)
+    TransportLogger.attach(:tuist)
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
       OpentelemetryLoggerMetadata.setup()
       OpentelemetryBandit.setup()
       OpentelemetryPhoenix.setup(adapter: :bandit)
-      OpentelemetryEcto.setup(event_prefix: [:tuist, :repo])
       OpentelemetryFinch.setup()
       OpentelemetryBroadway.setup()
+      ecto_skip_metrics = [additional_span_attributes: %{:"metrics.skip" => true}]
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
     end
   end
 
@@ -98,7 +111,22 @@ defmodule Tuist.Application do
           :request_id,
           :auth_account_handle,
           :selected_account_handle,
-          :selected_project_handle
+          :selected_project_handle,
+          :method,
+          :route,
+          :request_path,
+          :reason,
+          :error,
+          :kind,
+          :event,
+          :duration_ms,
+          :remote_address,
+          :remote_port,
+          :recv_oct,
+          :send_oct,
+          :req_body_bytes,
+          :request_span_context,
+          :connection_span_context
         ]
       )
     end
@@ -108,17 +136,24 @@ defmodule Tuist.Application do
     children =
       [
         {DBConnection.TelemetryListener, name: TelemetryListener},
-        {Tuist.Repo, connection_listeners: [TelemetryListener]},
-        Tuist.ClickHouseRepo,
-        Tuist.IngestRepo,
-        Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
+        {Tuist.Repo, connection_listeners: {[TelemetryListener], :postgres}},
+        {Tuist.ClickHouseRepo, connection_listeners: {[TelemetryListener], :clickhouse_read}},
+        {Tuist.IngestRepo, connection_listeners: {[TelemetryListener], :clickhouse_write}},
+        Supervisor.child_spec(CommandEvents.Event.Buffer, id: CommandEvents.Event.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
-        Supervisor.child_spec(Logs.Buffer, id: Logs.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
         Supervisor.child_spec(Buffer, id: Buffer),
         Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
+        Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
+        Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
+        Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
+        Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),
+        Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
+        Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
+        Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
+        Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
@@ -127,8 +162,6 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
-        Anubis.Server.Registry,
-        {Tuist.MCP.Server, transport: {:streamable_http, start: true}},
         TuistWeb.Telemetry,
         TuistWeb.Endpoint
       ]
@@ -175,6 +208,13 @@ defmodule Tuist.Application do
           {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
         ],
         else: []
+    )
+    # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
+    # may not exist) and dev (noisy debug logs every 5 s).
+    |> Kernel.++(
+      if Environment.test?() or Environment.dev?(),
+        do: [],
+        else: [Tuist.Marketing.Stats]
     )
   end
 

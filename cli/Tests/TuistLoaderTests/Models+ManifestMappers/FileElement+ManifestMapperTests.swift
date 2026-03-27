@@ -31,7 +31,7 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
                 manifest: manifest,
                 generatorPaths: generatorPaths,
                 fileSystem: fileSystem,
-                includeFiles: { !FileHandler.shared.isFolder($0) }
+                includeFiles: { try await !self.fileSystem.exists($0, isDirectory: true) }
             )
 
             // Then
@@ -62,7 +62,7 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
             manifest: manifest,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem,
-            includeFiles: { !FileHandler.shared.isFolder($0) }
+            includeFiles: { try await !self.fileSystem.exists($0, isDirectory: true) }
         )
 
         // Then
@@ -168,7 +168,7 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
             manifest: manifest,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem,
-            includeFiles: { !FileHandler.shared.isFolder($0) }
+            includeFiles: { try await !self.fileSystem.exists($0, isDirectory: true) }
         )
 
         // Then

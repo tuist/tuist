@@ -1,0 +1,81 @@
+@import "../app/css/fonts.css";
+@import "noora/noora.css";
+@import "../shared/css/prose.css";
+@import "../shared/css/code-window.css";
+@import "../shared/css/code-group.css";
+@import "./css/layouts/root.css";
+@import "./css/components/nav.css";
+@import "./css/components/toc.css";
+@import "./css/components/admonition.css";
+@import "./css/components/overview.css";
+@import "./css/components/search.css";
+
+:root {
+  color-scheme: light;
+  --docs-nav-height: 73px;
+  --docs-sidebar-width: 220px;
+  --docs-content-width: 800px;
+  --docs-toc-width: 250px;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --docs-nav-height: 56px;
+  }
+}
+
+html {
+  overflow-x: hidden;
+  scroll-padding-top: var(--docs-nav-height);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  margin: 0;
+  background: oklch(98.5% 0.004 264.5);
+  padding: 0;
+  font-family: var(--noora-font-body);
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+
+/* Screen-reader only: visually hidden but accessible to assistive technologies */
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  margin: -1px;
+  border: 0;
+  padding: 0;
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}
+
+/* Skip-to-content link */
+.docs-skip-link {
+  position: fixed;
+  top: -100%;
+  left: var(--noora-spacing-4);
+  z-index: 100;
+  border-radius: var(--noora-radius-medium);
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-3) var(--noora-spacing-5);
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  text-decoration: none;
+
+  &:focus {
+    top: var(--noora-spacing-4);
+    outline: 2px solid var(--noora-surface-label-primary);
+    outline-offset: 2px;
+  }
+}

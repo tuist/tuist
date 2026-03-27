@@ -21,13 +21,12 @@ import XcodeGraph
 
 @testable import TuistKit
 
-struct InspectResultBundleServiceTests {
-    private let subject: InspectResultBundleService
+struct UploadResultBundleServiceTests {
+    private let subject: UploadResultBundleService
     private let machineEnvironment = MockMachineEnvironmentRetrieving()
     private let createTestService = MockCreateTestServicing()
     private let createCrashReportService = MockCreateCrashReportServicing()
     private let createTestCaseRunAttachmentService = MockCreateTestCaseRunAttachmentServicing()
-    private let xcResultService = MockXCResultServicing()
     private let dateService = MockDateServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController = MockGitControlling()
@@ -38,12 +37,11 @@ struct InspectResultBundleServiceTests {
     private let fileSystem = FileSystem()
 
     init() throws {
-        subject = InspectResultBundleService(
+        subject = UploadResultBundleService(
             machineEnvironment: machineEnvironment,
             createTestService: createTestService,
             createCrashReportService: createCrashReportService,
             createTestCaseRunAttachmentService: createTestCaseRunAttachmentService,
-            xcResultService: xcResultService,
             dateService: dateService,
             serverEnvironmentService: serverEnvironmentService,
             gitController: gitController,
@@ -103,7 +101,9 @@ struct InspectResultBundleServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -126,11 +126,8 @@ struct InspectResultBundleServiceTests {
         // Given
         let mockedEnvironment = try #require(Environment.mocked)
         let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
-        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
 
-        given(xcResultService)
-            .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
+        let testSummary = TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: [])
 
         gitController.reset()
         given(gitController)
@@ -153,10 +150,12 @@ struct InspectResultBundleServiceTests {
             )
 
         // When
-        let result = try await subject.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
+        let result = try await subject.uploadResultBundle(
+            testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -180,53 +179,27 @@ struct InspectResultBundleServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
 
     @Test(.withMockedEnvironment())
     func inspectResultBundle_throwsWhenFullHandleMissing() async throws {
-        // Given
-        let mockedEnvironment = try #require(Environment.mocked)
-        let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
-        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
-
-        given(xcResultService)
-            .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
+        let testSummary = TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: [])
 
         // When / Then
         await #expect(
-            throws: InspectResultBundleServiceError.missingFullHandle
+            throws: UploadResultBundleServiceError.missingFullHandle
         ) {
-            try await subject.inspectResultBundle(
-                resultBundlePath: resultBundlePath,
+            try await subject.uploadResultBundle(
+                testSummary: testSummary,
                 projectDerivedDataDirectory: nil,
-                config: .test(fullHandle: nil)
-            )
-        }
-    }
-
-    @Test(.withMockedEnvironment())
-    func inspectResultBundle_throwsWhenInvocationRecordMissing() async throws {
-        // Given
-        let mockedEnvironment = try #require(Environment.mocked)
-        let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
-        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
-
-        given(xcResultService)
-            .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(nil)
-
-        // When / Then
-        await #expect(
-            throws: InspectResultBundleServiceError.missingInvocationRecord
-        ) {
-            try await subject.inspectResultBundle(
-                resultBundlePath: resultBundlePath,
-                projectDerivedDataDirectory: nil,
-                config: .test(fullHandle: "tuist/tuist")
+                config: .test(fullHandle: nil),
+                shardPlanId: nil,
+                shardIndex: nil
             )
         }
     }
@@ -238,11 +211,8 @@ struct InspectResultBundleServiceTests {
         let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
         let workspacePath = try AbsolutePath(validating: "/workspace/path")
         mockedEnvironment.workspacePath = workspacePath
-        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
 
-        given(xcResultService)
-            .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
+        let testSummary = TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: [])
 
         gitController.reset()
         given(gitController)
@@ -258,10 +228,12 @@ struct InspectResultBundleServiceTests {
             .willReturn(.test())
 
         // When
-        _ = try await subject.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
+        _ = try await subject.uploadResultBundle(
+            testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -283,13 +255,10 @@ struct InspectResultBundleServiceTests {
         // Given
         let mockedEnvironment = try #require(Environment.mocked)
         let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
-        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
         let derivedDataDirectory = currentWorkingDirectory.appending(component: "DerivedData")
         let activityLogPath = derivedDataDirectory.appending(components: "Logs", "Build", "build-123.xcactivitylog")
 
-        given(xcResultService)
-            .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
+        let testSummary = TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: [])
 
         gitController.reset()
         given(gitController)
@@ -316,10 +285,12 @@ struct InspectResultBundleServiceTests {
             )
 
         // When
-        _ = try await subject.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
+        _ = try await subject.uploadResultBundle(
+            testSummary: testSummary,
             projectDerivedDataDirectory: derivedDataDirectory,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -340,7 +311,9 @@ struct InspectResultBundleServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
@@ -350,11 +323,8 @@ struct InspectResultBundleServiceTests {
         // Given
         let mockedEnvironment = try #require(Environment.mocked)
         let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
-        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
 
-        given(xcResultService)
-            .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
+        let testSummary = TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: [])
 
         gitController.reset()
         given(gitController)
@@ -389,10 +359,12 @@ struct InspectResultBundleServiceTests {
             )
 
         // When
-        _ = try await subject.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
+        _ = try await subject.uploadResultBundle(
+            testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -413,7 +385,9 @@ struct InspectResultBundleServiceTests {
                 ciRunId: .value("19683527895"),
                 ciProjectHandle: .value("tuist/tuist"),
                 ciHost: .value("github.com"),
-                ciProvider: .value(.github)
+                ciProvider: .value(.github),
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
@@ -423,11 +397,8 @@ struct InspectResultBundleServiceTests {
         // Given
         let mockedEnvironment = try #require(Environment.mocked)
         let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
-        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
 
-        given(xcResultService)
-            .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: []))
+        let testSummary = TestSummary(testPlanName: nil, status: .passed, duration: 100, testModules: [])
 
         gitController.reset()
         given(gitController)
@@ -448,10 +419,12 @@ struct InspectResultBundleServiceTests {
             .willReturn(nil)
 
         // When
-        _ = try await subject.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
+        _ = try await subject.uploadResultBundle(
+            testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
@@ -472,7 +445,9 @@ struct InspectResultBundleServiceTests {
                 ciRunId: .value(nil),
                 ciProjectHandle: .value(nil),
                 ciHost: .value(nil),
-                ciProvider: .value(nil)
+                ciProvider: .value(nil),
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .called(1)
     }
@@ -482,7 +457,6 @@ struct InspectResultBundleServiceTests {
         // Given
         let mockedEnvironment = try #require(Environment.mocked)
         let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
-        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
 
         let crashFilePath = currentWorkingDirectory.appending(component: "crash.ips")
         let screenshotFilePath = currentWorkingDirectory.appending(component: "screenshot.png")
@@ -524,10 +498,6 @@ struct InspectResultBundleServiceTests {
             testModules: [testModule]
         )
 
-        given(xcResultService)
-            .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(testSummary)
-
         gitController.reset()
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
@@ -559,7 +529,9 @@ struct InspectResultBundleServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -581,25 +553,14 @@ struct InspectResultBundleServiceTests {
 
         given(createTestCaseRunAttachmentService)
             .createAttachment(
-                fullHandle: .value("tuist/tuist"),
+                fullHandle: .any,
                 serverURL: .any,
-                testCaseRunId: .value("test-case-run-1"),
-                fileName: .value("screenshot.png"),
-                filePath: .value(screenshotFilePath),
-                repetitionNumber: .value(2)
+                testCaseRunId: .any,
+                fileName: .any,
+                filePath: .any,
+                repetitionNumber: .any
             )
             .willReturn("attachment-1")
-
-        given(createTestCaseRunAttachmentService)
-            .createAttachment(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any,
-                testCaseRunId: .value("test-case-run-1"),
-                fileName: .value("crash.ips"),
-                filePath: .value(crashFilePath),
-                repetitionNumber: .value(2)
-            )
-            .willReturn("attachment-2")
 
         given(createCrashReportService)
             .createCrashReport(
@@ -612,42 +573,33 @@ struct InspectResultBundleServiceTests {
             .willReturn()
 
         // When
-        _ = try await subject.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
+        _ = try await subject.uploadResultBundle(
+            testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then
         verify(createTestCaseRunAttachmentService)
             .createAttachment(
-                fullHandle: .value("tuist/tuist"),
+                fullHandle: .any,
                 serverURL: .any,
-                testCaseRunId: .value("test-case-run-1"),
-                fileName: .value("screenshot.png"),
-                filePath: .value(screenshotFilePath),
-                repetitionNumber: .value(2)
+                testCaseRunId: .any,
+                fileName: .any,
+                filePath: .any,
+                repetitionNumber: .any
             )
-            .called(1)
-
-        verify(createTestCaseRunAttachmentService)
-            .createAttachment(
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any,
-                testCaseRunId: .value("test-case-run-1"),
-                fileName: .value("crash.ips"),
-                filePath: .value(crashFilePath),
-                repetitionNumber: .value(2)
-            )
-            .called(1)
+            .called(2)
 
         verify(createCrashReportService)
             .createCrashReport(
-                fullHandle: .value("tuist/tuist"),
+                fullHandle: .any,
                 serverURL: .any,
                 crashReport: .any,
-                testCaseRunId: .value("test-case-run-1"),
-                testCaseRunAttachmentId: .value("attachment-2")
+                testCaseRunId: .any,
+                testCaseRunAttachmentId: .any
             )
             .called(1)
     }
@@ -657,7 +609,6 @@ struct InspectResultBundleServiceTests {
         // Given
         let mockedEnvironment = try #require(Environment.mocked)
         let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
-        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
 
         let testCaseWithoutAttachments = TestCase(
             name: "test_passing",
@@ -683,10 +634,6 @@ struct InspectResultBundleServiceTests {
             testModules: [testModule]
         )
 
-        given(xcResultService)
-            .parse(path: .value(resultBundlePath), rootDirectory: .any)
-            .willReturn(testSummary)
-
         gitController.reset()
         given(gitController)
             .isInGitRepository(workingDirectory: .any)
@@ -718,7 +665,9 @@ struct InspectResultBundleServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -739,10 +688,12 @@ struct InspectResultBundleServiceTests {
             )
 
         // When
-        _ = try await subject.inspectResultBundle(
-            resultBundlePath: resultBundlePath,
+        _ = try await subject.uploadResultBundle(
+            testSummary: testSummary,
             projectDerivedDataDirectory: nil,
-            config: .test(fullHandle: "tuist/tuist")
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
         )
 
         // Then

@@ -16,9 +16,10 @@ struct LaunchctlControllerTests {
         )
     }
 
-    @Test func load_plist() async throws {
+    @Test func bootstrap_plist() async throws {
         // Given
         let plistPath = try AbsolutePath(validating: "/Users/test/Library/LaunchAgents/com.example.service.plist")
+        let uid = getuid()
         given(commandRunner)
             .run(
                 arguments: .any,
@@ -30,7 +31,7 @@ struct LaunchctlControllerTests {
             })
 
         // When
-        try await subject.load(plistPath: plistPath)
+        try await subject.bootstrap(plistPath: plistPath)
 
         // Then
         verify(commandRunner)
@@ -38,7 +39,8 @@ struct LaunchctlControllerTests {
                 arguments: .value(
                     [
                         "/bin/launchctl",
-                        "load",
+                        "bootstrap",
+                        "gui/\(uid)",
                         plistPath.pathString,
                     ]
                 ),
@@ -48,9 +50,10 @@ struct LaunchctlControllerTests {
             .called(1)
     }
 
-    @Test func unload_plist() async throws {
+    @Test func bootout_label() async throws {
         // Given
-        let plistPath = try AbsolutePath(validating: "/Users/test/Library/LaunchAgents/com.example.service.plist")
+        let label = "tuist.cache.org_project"
+        let uid = getuid()
         given(commandRunner)
             .run(
                 arguments: .any,
@@ -62,7 +65,7 @@ struct LaunchctlControllerTests {
             })
 
         // When
-        try await subject.unload(plistPath: plistPath)
+        try await subject.bootout(label: label)
 
         // Then
         verify(commandRunner)
@@ -70,8 +73,8 @@ struct LaunchctlControllerTests {
                 arguments: .value(
                     [
                         "/bin/launchctl",
-                        "unload",
-                        plistPath.pathString,
+                        "bootout",
+                        "gui/\(uid)/\(label)",
                     ]
                 ),
                 environment: .any,

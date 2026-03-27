@@ -10,6 +10,7 @@ defmodule Tuist.Registry.DownloadEvent do
     field :scope, Ch, type: "String"
     field :name, Ch, type: "String"
     field :version, Ch, type: "String"
+    field :cache_endpoint, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime"
   end
 end

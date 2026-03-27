@@ -4,7 +4,7 @@
     id="bundles-empty-state"
     title={dgettext("dashboard_cache", "Explore bundle analysis")}
     subtitle={dgettext("dashboard_cache", "Run the following command to analyze a bundle.")}
-    learn_more_href="https://docs.tuist.dev/en/guides/develop/bundle-size"
+    learn_more_href="https://tuist.dev/en/docs/guides/features/bundle-size"
   >
     <:light_background>
       <.empty_state_light_background />
@@ -130,149 +130,156 @@
           </:actions>
         </.date_picker>
       </:actions>
-      <div data-part="widgets">
-        <.widget
-          title={dgettext("dashboard_cache", "Install size (MB)")}
-          description={
-            dgettext(
-              "dashboard_cache",
-              "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
-            )
+      <div data-part="analytics-content">
+        <div data-part="widgets">
+          <.widget
+            title={dgettext("dashboard_cache", "Install size (MB)")}
+            description={
+              dgettext(
+                "dashboard_cache",
+                "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
+              )
+            }
+            value={
+              @bundle_size_last_bundle && format_bytes(@bundle_size_last_bundle.install_size)
+            }
+            id="widget-install-size"
+            phx_click="select_widget"
+            phx_value_widget="install-size"
+            selected={@bundle_size_selected_widget == "install-size"}
+            trend_value={
+              (@bundle_size_last_bundle && @bundle_size_previous_bundle &&
+                 (1 -
+                    @bundle_size_previous_bundle.install_size /
+                      @bundle_size_last_bundle.install_size) *
+                   100) ||
+                0.0
+            }
+            trend_type={:inverse}
+            trend_label={bundle_size_trend_label(@bundle_size_preset)}
+            empty={is_nil(@bundle_size_last_bundle)}
+          />
+          <.widget
+            title={dgettext("dashboard_cache", "Download size (MB)")}
+            description={
+              dgettext(
+                "dashboard_cache",
+                "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
+              )
+            }
+            value={
+              (@bundle_size_last_bundle && @bundle_size_last_bundle.download_size &&
+                 format_bytes(@bundle_size_last_bundle.download_size)) ||
+                dgettext("dashboard_cache", "0 MB")
+            }
+            id="widget-download-size"
+            phx_click="select_widget"
+            phx_value_widget="download-size"
+            selected={@bundle_size_selected_widget == "download-size"}
+            trend_value={
+              bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)
+            }
+            trend_type={:inverse}
+            trend_label={bundle_size_trend_label(@bundle_size_preset)}
+            empty={is_nil(@bundle_size_last_bundle)}
+          />
+        </div>
+        <.card_section
+          :if={!@bundle_size_analytics.ok?}
+          data-part="bundle-size-chart-card-section"
+        >
+          <span data-part="legend" class="tuist-loading-skeleton">
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          </span>
+          <.skeleton_chart />
+        </.card_section>
+        <.card_section
+          :if={
+            @bundle_size_analytics.ok? &&
+              Enum.any?(@bundle_size_analytics.result, fn [_date, value] -> value != 0 end)
           }
-          value={@bundle_size_last_bundle && format_bytes(@bundle_size_last_bundle.install_size)}
-          id="widget-install-size"
-          phx_click="select_widget"
-          phx_value_widget="install-size"
-          selected={@bundle_size_selected_widget == "install-size"}
-          trend_value={
-            (@bundle_size_last_bundle && @bundle_size_previous_bundle &&
-               (1 -
-                  @bundle_size_previous_bundle.install_size /
-                    @bundle_size_last_bundle.install_size) *
-                 100) ||
-              0.0
-          }
-          trend_type={:inverse}
-          trend_label={bundle_size_trend_label(@bundle_size_preset)}
-          empty={is_nil(@bundle_size_last_bundle)}
-        />
-        <.widget
-          title={dgettext("dashboard_cache", "Download size (MB)")}
-          description={
-            dgettext(
-              "dashboard_cache",
-              "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
-            )
-          }
-          value={
-            (@bundle_size_last_bundle && @bundle_size_last_bundle.download_size &&
-               format_bytes(@bundle_size_last_bundle.download_size)) ||
-              dgettext("dashboard_cache", "0 MB")
-          }
-          id="widget-download-size"
-          phx_click="select_widget"
-          phx_value_widget="download-size"
-          selected={@bundle_size_selected_widget == "download-size"}
-          trend_value={
-            bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)
-          }
-          trend_type={:inverse}
-          trend_label={bundle_size_trend_label(@bundle_size_preset)}
-          empty={is_nil(@bundle_size_last_bundle)}
-        />
-      </div>
-      <.card_section :if={!@bundle_size_analytics.ok?} data-part="bundle-size-chart-card-section">
-        <span data-part="legend" class="tuist-loading-skeleton">
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-        </span>
-        <.skeleton_chart />
-      </.card_section>
-      <.card_section
-        :if={
-          @bundle_size_analytics.ok? &&
-            Enum.any?(@bundle_size_analytics.result, fn [_date, value] -> value != 0 end)
-        }
-        data-part="bundle-size-chart-card-section"
-      >
-        <span data-part="legend">
-          {case @bundle_size_selected_widget do
-            "download-size" -> dgettext("dashboard_cache", "Download size (MB)")
-            _ -> dgettext("dashboard_cache", "Install size (MB)")
-          end}
-        </span>
-        <.chart
-          id="average-bundle-size-chart"
-          type="line"
-          extra_options={
-            %{
-              grid: %{
-                width: "93%",
-                left: "0.4%",
-                height: "88%",
-                top: "5%"
-              },
-              xAxis: %{
-                boundaryGap: false,
-                type: "category",
-                axisLabel: %{
-                  color: "var:noora-surface-label-secondary",
-                  formatter: "fn:toLocaleDate",
-                  customValues: [
-                    @bundle_size_analytics.result |> List.first() |> List.first(),
-                    @bundle_size_analytics.result |> List.last() |> List.first()
-                  ],
-                  padding: [10, 0, 0, 0]
-                }
-              },
-              yAxis: %{
-                splitNumber: 4,
-                splitLine: %{
-                  lineStyle: %{
-                    color: "var:noora-chart-lines"
+          data-part="bundle-size-chart-card-section"
+        >
+          <span data-part="legend">
+            {case @bundle_size_selected_widget do
+              "download-size" -> dgettext("dashboard_cache", "Download size (MB)")
+              _ -> dgettext("dashboard_cache", "Install size (MB)")
+            end}
+          </span>
+          <.chart
+            id="average-bundle-size-chart"
+            type="line"
+            extra_options={
+              %{
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  height: "88%",
+                  top: "5%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @bundle_size_analytics.result |> List.first() |> List.first(),
+                      @bundle_size_analytics.result |> List.last() |> List.first()
+                    ],
+                    padding: [10, 0, 0, 0]
                   }
                 },
-                axisLabel: %{
-                  color: "var:noora-surface-label-secondary",
-                  formatter: "fn:formatBytes"
+                yAxis: %{
+                  splitNumber: 4,
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:formatBytes"
+                  }
+                },
+                tooltip: %{
+                  valueFormat: "fn:formatBytes"
+                },
+                legend: %{
+                  show: false
                 }
-              },
-              tooltip: %{
-                valueFormat: "fn:formatBytes"
-              },
-              legend: %{
-                show: false
               }
             }
+            series={[
+              %{
+                color: "var:noora-chart-primary",
+                data: @bundle_size_analytics.result,
+                name:
+                  case @bundles_sort_by do
+                    "install-size" -> dgettext("dashboard_cache", "Install size")
+                    _ -> dgettext("dashboard_cache", "Donwload size")
+                  end,
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        </.card_section>
+        <.empty_card_section
+          :if={
+            @bundle_size_analytics.ok? &&
+              Enum.all?(@bundle_size_analytics.result, fn [_date, value] -> value == 0 end)
           }
-          series={[
-            %{
-              color: "var:noora-chart-primary",
-              data: @bundle_size_analytics.result,
-              name:
-                case @bundles_sort_by do
-                  "install-size" -> dgettext("dashboard_cache", "Install size")
-                  _ -> dgettext("dashboard_cache", "Donwload size")
-                end,
-              type: "line",
-              smooth: 0.1,
-              symbol: "none"
-            }
-          ]}
-          y_axis_min={0}
-        />
-      </.card_section>
-      <.empty_card_section
-        :if={
-          @bundle_size_analytics.ok? &&
-            Enum.all?(@bundle_size_analytics.result, fn [_date, value] -> value == 0 end)
-        }
-        title={dgettext("dashboard_cache", "No bundles yet")}
-      >
-        <:image>
-          <img src="/images/empty_line_chart_light.png" data-theme="light" />
-          <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
-        </:image>
-      </.empty_card_section>
+          title={dgettext("dashboard_cache", "No bundles yet")}
+        >
+          <:image>
+            <img src="/images/empty_line_chart_light.png" data-theme="light" />
+            <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
     </.card>
     <.card
       title={dgettext("dashboard_cache", "Bundles")}

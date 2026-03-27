@@ -1,0 +1,119 @@
+.noora-toggle {
+  & [data-part="root"] {
+    display: flex;
+    gap: var(--noora-spacing-5);
+    align-items: center;
+    user-select: none;
+
+    &[data-disabled] {
+      cursor: not-allowed;
+    }
+  }
+
+  & [data-part="control"] {
+    &[data-disabled] {
+      cursor: not-allowed;
+
+      & [data-part="track"] {
+        background: var(--noora-choice-selector-disabled-background);
+      }
+    }
+
+    &:not([data-disabled])[data-state="unchecked"][data-hover] {
+      & [data-part="track"] {
+        background: var(--noora-choice-selector-switch-off-background-hover);
+      }
+    }
+
+    &:not([data-disabled])[data-state="checked"][data-hover] {
+      & [data-part="track"] {
+        background: var(--noora-choice-selector-check-background-hover);
+      }
+    }
+  }
+
+  & [data-part="label"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+
+    &:has(+ [data-part="description"]) {
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="description"] {
+    margin-top: var(--noora-spacing-2);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="hidden-input"]:not([value]) {
+    display: none;
+  }
+
+  & .noora-toggle-control {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    box-sizing: border-box;
+    width: 32px;
+    height: 20px;
+
+    & [data-part="track"] {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 28px;
+      height: 14px;
+      border-radius: var(--noora-radius-small);
+      box-shadow: var(--noora-border-light-default);
+      transition:
+        background-color 0.15s ease-in-out,
+        box-shadow 0.15s ease-in-out;
+    }
+
+    & [data-part="thumb"] {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: var(--noora-radius-small);
+      background: var(--noora-choice-selector-label);
+      box-shadow: var(--noora-border-light-default);
+      transition: left 0.15s ease-in-out;
+    }
+
+    &[data-state="unchecked"] {
+      & [data-part="track"] {
+        background: var(--noora-choice-selector-switch-off-background);
+      }
+
+      & [data-part="thumb"] {
+        left: 0;
+      }
+    }
+
+    &[data-state="checked"] {
+      & [data-part="track"] {
+        background: var(--noora-choice-selector-check-background);
+        box-shadow: var(--noora-choice-selector-check-border);
+      }
+
+      & [data-part="thumb"] {
+        left: 14px;
+      }
+    }
+
+    &[data-disabled] {
+      cursor: not-allowed;
+
+      & [data-part="track"] {
+        background: var(--noora-choice-selector-disabled-background);
+        box-shadow: var(--noora-border-light-default);
+      }
+
+      & [data-part="thumb"] {
+        opacity: 0.6;
+      }
+    }
+  }
+}

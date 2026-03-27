@@ -1,0 +1,213 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-test-insights">
+    <TuistWeb.Marketing.MarketingComponents.navbar current_user={@current_user} />
+
+    <section data-part="header">
+      <div data-part="titles">
+        <span data-part="label">{dgettext("marketing", "Test Insights")}</span>
+        <h1 data-part="heading">
+          {dgettext("marketing", "Track test health.")}<br />
+          {dgettext("marketing", "Improve suite reliability.")}
+        </h1>
+      </div>
+      <p data-part="subtitle">
+        {dgettext(
+          "marketing",
+          "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+        )}
+      </p>
+      <nav data-part="actions">
+        <.button
+          href={
+            TuistWeb.Marketing.MarketingHTML.localized_href(
+              "https://tuist.dev/en/docs/guides/features/test-insights"
+            )
+          }
+          label={dgettext("marketing", "Read docs")}
+          target="_blank"
+          variant="secondary"
+          size="large"
+        />
+      </nav>
+    </section>
+
+    <section data-part="hero-image">
+      <img
+        src={~p"/marketing/images/test-insights/test_insights_header.webp"}
+        alt={dgettext("marketing", "Test Insights dashboard illustration")}
+      />
+    </section>
+
+    <section data-part="test-types">
+      <div data-part="grid">
+        <div data-part="test-type">
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Test duration tracking")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Records execution time for every test run across local and CI environments. Surfaces slow tests and duration trends over time on the Tuist dashboard."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="test-type">
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Failure analysis")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Quickly understand why a run failed by drilling into individual test results, seeing pass/fail history, and correlating failures with specific changes."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="test-type">
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Flaky test integration")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Test Insights feeds directly into flaky test detection, automatically surfacing tests whose results oscillate without code changes (see Flaky Tests above)."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section data-part="stats">
+      <div data-part="content">
+        <div data-part="stat">
+          <span data-part="label">
+            {dgettext("marketing", "Test cases processed in the last 24 hours")}
+          </span>
+          <span
+            data-part="value"
+            id="test-cases-counter"
+            phx-hook="CounterAnimation"
+            data-counter-target={@test_case_runs_last_24h}
+            data-counter-duration="2000"
+          >
+            0
+          </span>
+        </div>
+        <%!-- <div data-part="testimonial">
+          <p data-part="quote">
+            {dgettext(
+              "marketing",
+              "\"Tuist's Test Insights gave us a clear view into our test suite performance. We can now quickly identify slow or unstable tests and keep our CI fast and reliable.\""
+            )}
+          </p>
+          <div data-part="author">
+            <span data-part="name">{dgettext("marketing", "Example name, Senior Engineer")}</span>
+            <div data-part="logo">
+              <svg
+                width="77"
+                height="46"
+                viewBox="0 0 77 46"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M38.7137 32.2925H41.4087V24.6625C41.4087 22.825 42.7212 21.39 44.4187 21.39C46.1162 21.39 47.5862 22.755 47.5862 24.6625V32.2925H50.5087V24.5225C50.5087 21.25 47.8137 18.73 44.8737 18.73C43.7887 18.73 42.4062 19.115 41.4087 20.48V19.0275H38.7137V32.2925ZM66.3287 18.73C62.3912 18.73 59.3112 21.8625 59.3112 25.7475C59.3112 29.7025 62.3212 32.6075 66.3287 32.6075C70.3362 32.6075 73.4162 29.72 73.4162 25.7475C73.4162 21.8625 70.4062 18.73 66.3287 18.73ZM66.3287 29.86C64.0887 29.86 62.3212 28.0225 62.3212 25.7475C62.3212 23.315 64.1762 21.5475 66.3287 21.5475C68.6387 21.5475 70.4937 23.2975 70.4937 25.7475C70.4937 28.0225 68.7087 29.86 66.3287 29.86ZM58.8387 32.2925V29.475C56.8262 30.4725 54.9012 29.7025 54.9012 27.4975V21.705H58.5237V19.045H54.9187V15.615H52.0662V27.0425C52.0662 31.7675 55.3037 33.36 58.8387 32.2925ZM30.0862 18.73C26.1487 18.73 23.0687 21.8625 23.0687 25.7475C23.0687 29.7025 26.0787 32.6075 30.0862 32.6075C34.0937 32.6075 37.1737 29.72 37.1737 25.7475C37.1737 21.8625 34.1637 18.73 30.0862 18.73ZM30.0862 29.86C27.8462 29.86 26.0787 28.0225 26.0787 25.7475C26.0787 23.315 27.8462 21.5475 30.0862 21.5475C32.3962 21.5475 34.2512 23.2975 34.2512 25.7475C34.2512 28.0225 32.3962 29.86 30.0862 29.86ZM11.9562 12.9375C6.40875 12.9375 2.15625 17.1375 2.15625 22.8425C2.15625 28.3375 6.39125 32.6775 11.9562 32.6775C17.6612 32.6775 21.9137 28.3375 21.9137 22.93C21.8962 17.1375 17.6612 12.9375 11.9562 12.9375ZM11.9562 29.7025C8.10625 29.7025 5.25375 26.815 5.25375 22.8425C5.25375 18.73 8.10625 15.685 11.9562 15.685C15.8937 15.685 18.7462 18.73 18.7462 22.7725C18.7462 26.815 15.8937 29.7025 11.9562 29.7025Z"
+                  fill="#4E575F"
+                />
+                <path
+                  d="M21.4417 33.0623C15.8942 32.4498 12.3417 29.7023 10.5742 24.5223L13.3567 23.6123C14.7392 27.7248 17.3642 29.7898 21.7567 30.2448L21.4417 33.0623Z"
+                  fill="#4E575F"
+                />
+              </svg>
+            </div>
+          </div>
+        </div> --%>
+      </div>
+    </section>
+
+    <section data-part="features">
+      <div data-part="feature-row">
+        <div data-part="feature">
+          <div data-part="image">
+            <img
+              src={~p"/marketing/images/test-insights/test_insights_feature_1.webp"}
+              alt={dgettext("marketing", "Spot slow tests early")}
+            />
+          </div>
+          <div data-part="text">
+            <h3 data-part="title">{dgettext("marketing", "Spot slow tests early")}</h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Track test durations over time and identify tests that are gradually slowing down"
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="feature">
+          <div data-part="image">
+            <img
+              src={~p"/marketing/images/test-insights/test_insights_feature_2.webp"}
+              alt={dgettext("marketing", "From red build to root cause in clicks")}
+            />
+          </div>
+          <div data-part="text">
+            <h3 data-part="title">
+              {dgettext("marketing", "From red build to root cause in clicks")}
+            </h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Drill into any failed run to see exactly which tests failed and their history, no more scrolling through raw CI logs."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div data-part="feature-row">
+        <div data-part="feature">
+          <div data-part="image">
+            <img
+              src={~p"/marketing/images/test-insights/test_insights_feature_3.webp"}
+              alt={dgettext("marketing", "See the health of your test suite at a glance")}
+            />
+          </div>
+          <div data-part="text">
+            <h3 data-part="title">
+              {dgettext("marketing", "See the health of your test suite at a glance")}
+            </h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "The dashboard shows test pass rates, duration trends, and flaky tests over time."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="feature">
+          <div data-part="image">
+            <img
+              src={~p"/marketing/images/test-insights/test_insights_feature_4.webp"}
+              alt={dgettext("marketing", "Start tracking with minimal effort")}
+            />
+          </div>
+          <div data-part="text">
+            <h3 data-part="title">
+              {dgettext("marketing", "Start tracking with minimal effort")}
+            </h3>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Insights are captured automatically with minimal setup, so your test health data starts flowing right away."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <TuistWeb.Marketing.MarketingComponents.feature_cta
+      title={dgettext("marketing", "Get full visibility into your test suite")}
+      docs_href="https://tuist.dev/en/docs/guides/features/test-insights"
+    />
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

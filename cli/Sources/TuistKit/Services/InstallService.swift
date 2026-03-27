@@ -7,6 +7,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistDependencies
+import TuistEnvironment
 import TuistLoader
 import TuistLogging
 import TuistPlugin
@@ -16,7 +17,6 @@ struct InstallService {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling
-    private let fileHandler: FileHandling
     private let manifestFilesLocator: ManifestFilesLocating
     private let fileSystem: FileSysteming
 
@@ -24,14 +24,12 @@ struct InstallService {
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
         self.swiftPackageManagerController = swiftPackageManagerController
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
         self.manifestFilesLocator = manifestFilesLocator
     }
@@ -41,7 +39,7 @@ struct InstallService {
         update: Bool,
         passthroughArguments: [String]
     ) async throws {
-        let path = try self.path(path)
+        let path = try await self.path(path)
 
         try await fetchPlugins(path: path)
         try await fetchDependencies(path: path, update: update, passthroughArguments: passthroughArguments)
@@ -49,12 +47,8 @@ struct InstallService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: fileHandler.currentPath)
-        } else {
-            return fileHandler.currentPath
-        }
+    private func path(_ path: String?) async throws -> AbsolutePath {
+        try await Environment.current.pathRelativeToWorkingDirectory(path)
     }
 
     private func fetchPlugins(path: AbsolutePath) async throws {

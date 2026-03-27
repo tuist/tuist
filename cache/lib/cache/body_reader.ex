@@ -2,8 +2,8 @@ defmodule Cache.BodyReader do
   @moduledoc """
   Handles reading request bodies from Plug connections.
 
-  Small bodies are read into memory, large bodies are streamed to temporary files
-  to avoid memory pressure.
+  Bodies that fit within the configured read chunk stay in memory, while larger
+  bodies are streamed to temporary files or devices to avoid memory pressure.
 
   ## Timeout Strategy
 
@@ -16,7 +16,8 @@ defmodule Cache.BodyReader do
   """
 
   @max_upload_bytes 25 * 1024 * 1024
-  @default_opts [length: @max_upload_bytes, read_length: 262_144]
+  @default_read_length 262_144
+  @default_opts [length: @default_read_length, read_length: @default_read_length]
 
   @doc """
   Reads the request body from the connection.
@@ -28,18 +29,18 @@ defmodule Cache.BodyReader do
   """
 
   def read(conn, opts \\ []) do
-    merged_opts = Keyword.merge(read_opts(conn), opts)
     max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
+    merged_opts = merged_opts(conn, opts, max_bytes)
 
     conn
-    |> Plug.Conn.read_body(merged_opts)
+    |> Plug.Conn.read_body(plug_read_opts(merged_opts))
     |> handle_read_result(conn, merged_opts, :store, max_bytes)
   rescue
     Bandit.HTTPError ->
       {:error, :cancelled, conn}
 
-    Bandit.TransportError ->
-      {:error, :cancelled, conn}
+    e in [Bandit.TransportError] ->
+      normalize_transport_error(e, conn)
   end
 
   @doc """
@@ -49,19 +50,19 @@ defmodule Cache.BodyReader do
   or `{:error, reason, conn}` on failure.
   """
   def read_to_device(conn, device, opts \\ []) do
-    merged_opts = Keyword.merge(read_opts(conn), opts)
     max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
+    merged_opts = merged_opts(conn, opts, max_bytes)
     writer = fn chunk -> :file.write(device, chunk) end
 
     conn
-    |> Plug.Conn.read_body(merged_opts)
+    |> Plug.Conn.read_body(plug_read_opts(merged_opts))
     |> handle_device_result(conn, merged_opts, writer, max_bytes)
   rescue
     Bandit.HTTPError ->
       {:error, :cancelled, conn}
 
-    Bandit.TransportError ->
-      {:error, :cancelled, conn}
+    e in [Bandit.TransportError] ->
+      normalize_transport_error(e, conn)
   end
 
   defp handle_device_result({:ok, body, conn_after}, _conn, _opts, writer, max_bytes) do
@@ -106,11 +107,15 @@ defmodule Cache.BodyReader do
   Useful when the upload already exists and we need to consume the body.
   """
 
-  def drain(conn) do
-    opts = read_opts(conn)
+  def drain(conn, opts \\ []) do
+    max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
+    merged_opts = merged_opts(conn, opts, max_bytes)
 
-    case conn |> Plug.Conn.read_body(opts) |> handle_read_result(conn, opts, :discard, @max_upload_bytes) do
-      {:ok, _, conn_after} -> {:ok, conn_after}
+    case conn
+         |> Plug.Conn.read_body(plug_read_opts(merged_opts))
+         |> handle_read_result(conn, merged_opts, :discard, max_bytes) do
+      {:ok, :discarded, conn_after} -> {:ok, conn_after}
+      {:ok, conn_after, _bytes_read} -> {:ok, conn_after}
       {:error, _reason, conn_after} -> {:error, conn_after}
     end
   rescue
@@ -121,7 +126,14 @@ defmodule Cache.BodyReader do
   defp handle_read_result(result, conn, opts, mode, max_bytes) do
     case result do
       {:ok, body, conn_after} ->
-        {:ok, body, conn_after}
+        if byte_size(body) > max_bytes do
+          {:error, :too_large, conn_after}
+        else
+          case mode do
+            :store -> {:ok, body, conn_after}
+            :discard -> {:ok, :discarded, conn_after}
+          end
+        end
 
       {:more, chunk, conn_after} ->
         read_chunks(conn_after, opts, chunk, byte_size(chunk), mode, max_bytes)
@@ -140,6 +152,9 @@ defmodule Cache.BodyReader do
   defp normalize_error(:too_large, conn), do: {:error, :too_large, conn}
   defp normalize_error(reason, conn) when reason in [:timeout, :econnaborted], do: {:error, :timeout, conn}
   defp normalize_error(reason, conn), do: {:error, reason, conn}
+
+  defp normalize_transport_error(%{error: :timeout}, conn), do: {:error, :timeout, conn}
+  defp normalize_transport_error(_error, conn), do: {:error, :cancelled, conn}
 
   defp read_chunks(conn, opts, _first_chunk, bytes_read, :discard, max_bytes) do
     read_loop(conn, opts, bytes_read, fn _chunk -> :ok end, max_bytes)
@@ -180,14 +195,14 @@ defmodule Cache.BodyReader do
     chunk_opts = Keyword.put(opts, :read_timeout, chunk_timeout(opts))
 
     conn
-    |> Plug.Conn.read_body(chunk_opts)
+    |> Plug.Conn.read_body(plug_read_opts(chunk_opts))
     |> handle_loop_result(conn, opts, bytes_read, writer, max_bytes)
   rescue
     Bandit.HTTPError ->
       {:error, :cancelled, conn}
 
-    Bandit.TransportError ->
-      {:error, :cancelled, conn}
+    e in [Bandit.TransportError] ->
+      normalize_transport_error(e, conn)
   end
 
   defp handle_loop_result(result, conn, opts, bytes_read, writer, max_bytes) do
@@ -202,7 +217,7 @@ defmodule Cache.BodyReader do
         write_chunk(conn_after, opts, bytes_read, chunk, writer, max_bytes, true)
 
       {:error, reason} ->
-        {:error, reason, conn}
+        normalize_error(reason, conn)
     end
   end
 
@@ -232,9 +247,25 @@ defmodule Cache.BodyReader do
     Path.join(base, ".cache-upload-#{unique}")
   end
 
-  defp read_opts(conn) do
-    base_opts = Map.get(conn.private, :body_read_opts, @default_opts)
-    TuistCommon.BodyReader.read_opts(conn, base_opts)
+  defp merged_opts(conn, opts, max_bytes) do
+    conn.private
+    |> Map.get(:body_read_opts, @default_opts)
+    |> Keyword.merge(opts)
+    |> normalize_length(max_bytes)
+    |> then(&TuistCommon.BodyReader.read_opts(conn, &1))
+  end
+
+  defp normalize_length(opts, max_bytes) do
+    length =
+      opts
+      |> Keyword.get(:length, Keyword.get(opts, :read_length, @default_read_length))
+      |> min(max_bytes)
+
+    Keyword.put(opts, :length, length)
+  end
+
+  defp plug_read_opts(opts) do
+    Keyword.drop(opts, [:max_bytes, :tmp_dir])
   end
 
   defp chunk_timeout(opts) do

@@ -10,18 +10,21 @@ defmodule Tuist.Marketing.Blog.Post do
     :excerpt,
     :slug,
     :title,
+    :live,
     :type,
     :interviewee_avatar,
     :interviewee_name,
     :interviewee_x_handle,
     :author,
     :body,
+    :body_template,
     :interviewee_role,
     :image_url,
     :tags,
     :category,
     :highlighted,
-    :og_image_path
+    :og_image_path,
+    :cta_title
   ]
 
   def build(_filename, attrs, body) do
@@ -33,18 +36,21 @@ defmodule Tuist.Marketing.Blog.Post do
       excerpt: attrs["excerpt"],
       slug: attrs["slug"],
       title: title,
+      live: attrs["live"] || false,
       type: attrs["type"],
       interviewee_avatar: attrs["interviewee_avatar"],
       interviewee_name: attrs["interviewee_name"],
       interviewee_role: attrs["interviewee_role"],
       interviewee_x_handle: attrs["interviewee_x_handle"],
       body: body,
+      body_template: attrs["body_template"],
       author: attrs["author"],
       image_url: attrs["image_url"],
       category: attrs["category"],
       tags: attrs["tags"] || [],
       highlighted: attrs["highlighted"] || false,
-      og_image_path: attrs["og_image_path"]
+      og_image_path: attrs["og_image_path"],
+      cta_title: attrs["cta_title"]
     )
   end
 end

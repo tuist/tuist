@@ -44,13 +44,15 @@ defmodule TuistWeb.XcodeBuildsLive do
     |> assign_recent_builds()
   end
 
-  def handle_info_build_created(socket) do
+  def handle_info({:xcode_build_created, _build}, socket) do
     if Query.has_pagination_params?(socket.assigns.uri.query) do
-      socket
+      {:noreply, socket}
     else
-      socket |> assign_analytics(socket.assigns.current_params) |> assign_recent_builds()
+      {:noreply, socket |> assign_analytics(socket.assigns.current_params) |> assign_recent_builds()}
     end
   end
+
+  def handle_info(_event, socket), do: {:noreply, socket}
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
@@ -281,7 +283,9 @@ defmodule TuistWeb.XcodeBuildsLive do
             %{
               first: 40,
               filters: [
-                %{field: :project_id, op: :==, value: project.id}
+                %{field: :project_id, op: :==, value: project.id},
+                %{field: :status, op: :!=, value: "processing"},
+                %{field: :status, op: :!=, value: "failed_processing"}
               ],
               order_by: [:inserted_at],
               order_directions: [:desc]
@@ -294,7 +298,7 @@ defmodule TuistWeb.XcodeBuildsLive do
             color =
               case run.status do
                 "success" -> "var:noora-chart-primary"
-                "failure" -> "var:noora-chart-destructive"
+                _ -> "var:noora-chart-destructive"
               end
 
             value = run.duration

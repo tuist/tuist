@@ -126,6 +126,16 @@ defmodule Tuist.CommandEvents do
     Storage.generate_download_url(get_result_bundle_key(command_event), project.account)
   end
 
+  def has_session?(command_event) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    Storage.object_exists?(get_session_key(command_event), project.account)
+  end
+
+  def generate_session_url(command_event) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    Storage.generate_download_url(get_session_key(command_event), project.account)
+  end
+
   def get_result_bundle_key(command_event) do
     {:ok, project} = get_project_for_command_event(command_event, preload: :account)
     "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
@@ -142,6 +152,11 @@ defmodule Tuist.CommandEvents do
     "#{project.account.name}/#{project.name}/runs/#{command_event.id}/#{result_bundle_object_id}.json"
   end
 
+  def get_session_key(command_event) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
+  end
+
   def get_result_bundle_key(run_id, project) do
     "#{get_command_event_artifact_base_path_key(run_id, project)}/result_bundle.zip"
   end
@@ -152,6 +167,10 @@ defmodule Tuist.CommandEvents do
 
   def get_result_bundle_object_key(run_id, project, result_bundle_object_id) do
     "#{get_command_event_artifact_base_path_key(run_id, project)}/#{result_bundle_object_id}.json"
+  end
+
+  def get_session_key(run_id, project) do
+    "#{get_command_event_artifact_base_path_key(run_id, project)}/session.zip"
   end
 
   def get_command_event_artifact_base_path_key(run_id, project) do
@@ -173,7 +192,7 @@ defmodule Tuist.CommandEvents do
 
     event_attrs = Event.changeset(processed_event)
     command_event = struct(Event, event_attrs)
-    {:ok, _} = Tuist.CommandEvents.Buffer.insert(command_event)
+    {:ok, _} = Event.Buffer.insert(command_event)
 
     project = Repo.get!(Project, command_event.project_id)
     account = Repo.get!(Account, project.account_id)

@@ -31,8 +31,9 @@ struct AnalyticsUploadCommandService {
         self.retryProvider = retryProvider
     }
 
-    func run(eventFilePath: String, fullHandle: String, serverURL: String) async throws {
+    func run(eventFilePath: String, fullHandle: String, serverURL: String, sessionDirectory: String? = nil) async throws {
         let eventPath = try AbsolutePath(validating: eventFilePath)
+        let sessionDirectory = try sessionDirectory.map { try AbsolutePath(validating: $0) }
         do {
             guard let url = URL(string: serverURL) else {
                 throw AnalyticsUploadCommandServiceError.invalidServerURL(serverURL)
@@ -44,7 +45,8 @@ struct AnalyticsUploadCommandService {
                 try await uploadAnalyticsService.upload(
                     commandEvent: commandEvent,
                     fullHandle: fullHandle,
-                    serverURL: url
+                    serverURL: url,
+                    sessionDirectory: sessionDirectory
                 )
             }
         } catch {

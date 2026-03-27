@@ -47,7 +47,7 @@ public struct AppBundleLoader: AppBundleLoading {
     }
 
     public func load(ipa: AbsolutePath) async throws -> AppBundle {
-        let unarchivedIPA = try fileArchiverFactory.makeFileUnarchiver(for: ipa).unzip()
+        let unarchivedIPA = try await fileArchiverFactory.makeFileUnarchiver(for: ipa).unzip()
 
         guard let appBundlePath = try await fileSystem.glob(
             directory: unarchivedIPA,
@@ -65,9 +65,13 @@ public struct AppBundleLoader: AppBundleLoading {
     }
 
     public func load(_ appBundle: AbsolutePath) async throws -> AppBundle {
-        let infoPlistPath = appBundle.appending(component: "Info.plist")
+        // macOS bundles use Contents/ subdirectory layout, other Apple platforms use flat layout.
+        let isMacOSBundle = try await fileSystem.exists(appBundle.appending(component: "Contents"), isDirectory: true)
+        let infoPlistPath = isMacOSBundle
+            ? appBundle.appending(components: "Contents", "Info.plist")
+            : appBundle.appending(component: "Info.plist")
 
-        if try await !fileSystem.exists(infoPlistPath) {
+        guard try await fileSystem.exists(infoPlistPath) else {
             throw AppBundleLoaderError.missingInfoPlist(infoPlistPath)
         }
 

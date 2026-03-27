@@ -1,0 +1,45 @@
+{
+  "name": "noora",
+  "main": "index.js",
+  "license": "MIT",
+  "packageManager": "pnpm@10.32.0",
+  "module": "./priv/static/noora.js",
+  "exports": {
+    ".": "./priv/static/noora.js",
+    "./noora.css": "./priv/static/noora.css",
+    "./fonts.css": "./priv/static/fonts.css"
+  },
+  "scripts": {
+    "build:css": "esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css",
+    "build:js": "esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js",
+    "test": "vitest",
+    "build": "pnpm run build:js && pnpm run build:css"
+  },
+  "dependencies": {
+    "@zag-js/avatar": "^1.8.2",
+    "@zag-js/checkbox": "^1.8.2",
+    "@zag-js/collapsible": "^1.8.2",
+    "@zag-js/core": "^1.8.2",
+    "@zag-js/date-picker": "^1.8.2",
+    "@zag-js/dialog": "^1.8.2",
+    "@zag-js/menu": "^1.8.2",
+    "@zag-js/pin-input": "^1.8.2",
+    "@zag-js/popover": "^1.11.0",
+    "@zag-js/select": "^1.8.2",
+    "@zag-js/store": "^1.8.2",
+    "@zag-js/switch": "^1.32.0",
+    "@zag-js/tabs": "^1.8.2",
+    "@zag-js/tags-input": "^1.9.3",
+    "@zag-js/tooltip": "^1.8.2",
+    "@zag-js/types": "^1.8.2",
+    "@zag-js/utils": "^1.8.2",
+    "culori": "^4.0.1",
+    "echarts": "^5.6.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.0",
+    "prettier": "^3.7.4",
+    "prettier-plugin-css-order": "^2.1.2",
+    "vitest": "^4.0.0"
+  }
+}

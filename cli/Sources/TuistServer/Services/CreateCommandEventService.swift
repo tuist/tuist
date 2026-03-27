@@ -200,6 +200,7 @@
             case .commandLineTool: .command_line_tool
             case .appExtension: .app_extension
             case .watch2App: .watch_2_app
+            case .watch2AppContainer: .app
             case .watch2Extension: .watch_2_extension
             case .tvTopShelfExtension: .tv_top_shelf_extension
             case .messagesExtension: .messages_extension

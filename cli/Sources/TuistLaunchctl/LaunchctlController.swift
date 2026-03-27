@@ -6,11 +6,11 @@ import Path
 /// Utility to interact with the `launchctl` CLI.
 @Mockable
 public protocol LaunchctlControlling {
-    /// Loads a LaunchAgent or LaunchDaemon from the given plist path.
-    func load(plistPath: AbsolutePath) async throws
+    /// Bootstraps a LaunchAgent from the given plist path into the current user's GUI domain.
+    func bootstrap(plistPath: AbsolutePath) async throws
 
-    /// Unloads a LaunchAgent or LaunchDaemon from the given plist path.
-    func unload(plistPath: AbsolutePath) async throws
+    /// Boots out a LaunchAgent by label from the current user's GUI domain.
+    func bootout(label: String) async throws
 }
 
 public struct LaunchctlController: LaunchctlControlling {
@@ -20,23 +20,26 @@ public struct LaunchctlController: LaunchctlControlling {
         self.commandRunner = commandRunner
     }
 
-    public func load(plistPath: AbsolutePath) async throws {
+    public func bootstrap(plistPath: AbsolutePath) async throws {
+        let uid = getuid()
         _ = try await commandRunner.run(
             arguments: [
                 "/bin/launchctl",
-                "load",
+                "bootstrap",
+                "gui/\(uid)",
                 plistPath.pathString,
             ]
         )
         .awaitCompletion()
     }
 
-    public func unload(plistPath: AbsolutePath) async throws {
+    public func bootout(label: String) async throws {
+        let uid = getuid()
         _ = try await commandRunner.run(
             arguments: [
                 "/bin/launchctl",
-                "unload",
-                plistPath.pathString,
+                "bootout",
+                "gui/\(uid)/\(label)",
             ]
         )
         .awaitCompletion()

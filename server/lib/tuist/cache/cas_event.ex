@@ -3,6 +3,7 @@ defmodule Tuist.Cache.CASEvent do
   Ecto schema for CAS events stored in ClickHouse.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   @primary_key false
   schema "cas_events" do
@@ -11,6 +12,7 @@ defmodule Tuist.Cache.CASEvent do
     field :size, Ch, type: "Int64"
     field :cas_id, Ch, type: "String"
     field :project_id, Ch, type: "Int64"
+    field :cache_endpoint, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime"
   end
 end

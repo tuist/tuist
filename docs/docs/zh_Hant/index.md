@@ -38,12 +38,6 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         linkText="Share and iterate faster"
         link="/guides/features/previews"/>
     <HomeCard
-        icon="✅"
-        title="QA"
-        details="Automate your QA with our agent that tests your app and reports any issues autonomously."
-        linkText="Let us test your app for you"
-        link="/guides/features/qa"/>
-    <HomeCard
         icon="📊"
         title="Insights"
         details="Monitor build performance and project health with actionable metrics that prevent problems before they happen."

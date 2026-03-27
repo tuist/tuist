@@ -5,8 +5,9 @@ defmodule TuistWeb.API.GradleController do
   alias OpenApiSpex.Schema
   alias Tuist.Gradle
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.PaginationMetadata
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -57,6 +58,12 @@ defmodule TuistWeb.API.GradleController do
              nullable: true,
              description: "Root project name."
            },
+           requested_tasks: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             nullable: true,
+             description: "The tasks requested by the user (e.g., assembleRelease)."
+           },
            tasks: %Schema{
              type: :array,
              items: %Schema{
@@ -86,6 +93,33 @@ defmodule TuistWeb.API.GradleController do
                },
                required: [:task_path, :outcome]
              }
+           },
+           machine_metrics: %Schema{
+             type: :array,
+             description: "Machine performance metrics collected during the build.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 timestamp: %Schema{type: :number, description: "Unix timestamp in seconds."},
+                 cpu_usage_percent: %Schema{type: :number, description: "CPU usage percentage (0-100)."},
+                 memory_used_bytes: %Schema{type: :integer, description: "Memory used in bytes."},
+                 memory_total_bytes: %Schema{type: :integer, description: "Total memory in bytes."},
+                 network_bytes_in: %Schema{type: :integer, description: "Network bytes received per second."},
+                 network_bytes_out: %Schema{type: :integer, description: "Network bytes sent per second."},
+                 disk_bytes_read: %Schema{type: :integer, description: "Disk bytes read per second."},
+                 disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."}
+               },
+               required: [
+                 :timestamp,
+                 :cpu_usage_percent,
+                 :memory_used_bytes,
+                 :memory_total_bytes,
+                 :network_bytes_in,
+                 :network_bytes_out,
+                 :disk_bytes_read,
+                 :disk_bytes_written
+               ]
+             }
            }
          },
          required: [:duration_ms, :status, :tasks]
@@ -105,7 +139,7 @@ defmodule TuistWeb.API.GradleController do
     }
   )
 
-  def create_build(%{assigns: %{selected_project: project, selected_account: account}, body_params: body} = conn, _params) do
+  def create_build(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
     tasks =
       Enum.map(body.tasks, fn task ->
         %{
@@ -123,7 +157,7 @@ defmodule TuistWeb.API.GradleController do
     attrs = %{
       id: body[:id] || UUIDv7.generate(),
       project_id: project.id,
-      account_id: account.id,
+      account_id: TuistWeb.Authentication.authenticated_subject_account(conn).id,
       duration_ms: body.duration_ms,
       status: body.status,
       gradle_version: body[:gradle_version],
@@ -133,7 +167,9 @@ defmodule TuistWeb.API.GradleController do
       git_commit_sha: body[:git_commit_sha],
       git_ref: body[:git_ref],
       root_project_name: body[:root_project_name],
-      tasks: tasks
+      requested_tasks: body[:requested_tasks] || [],
+      tasks: tasks,
+      machine_metrics: Map.get(body, :machine_metrics, [])
     }
 
     {:ok, build_id} = Gradle.create_build(attrs)
@@ -172,15 +208,40 @@ defmodule TuistWeb.API.GradleController do
         required: true,
         description: "The handle of the project."
       ],
-      limit: [
+      git_branch: [
         in: :query,
-        type: %Schema{type: :integer, default: 50, minimum: 1, maximum: 100},
-        description: "Maximum number of builds to return."
+        type: :string,
+        description: "Filter by git branch."
       ],
-      offset: [
+      status: [
         in: :query,
-        type: %Schema{type: :integer, default: 0, minimum: 0},
-        description: "Number of builds to skip."
+        type: %Schema{
+          title: "GradleBuildStatus",
+          type: :string,
+          enum: ["success", "failure", "cancelled"]
+        },
+        description: "Filter by build status."
+      ],
+      page_size: [
+        in: :query,
+        type: %Schema{
+          title: "GradleBuildsIndexPageSize",
+          description: "The maximum number of builds to return in a single page.",
+          type: :integer,
+          default: 20,
+          minimum: 1,
+          maximum: 100
+        }
+      ],
+      page: [
+        in: :query,
+        type: %Schema{
+          title: "GradleBuildsIndexPage",
+          description: "The page number to return.",
+          type: :integer,
+          default: 1,
+          minimum: 1
+        }
       ]
     ],
     responses: %{
@@ -201,7 +262,9 @@ defmodule TuistWeb.API.GradleController do
                    java_version: %Schema{type: :string, nullable: true},
                    is_ci: %Schema{type: :boolean},
                    git_branch: %Schema{type: :string, nullable: true},
+                   git_commit_sha: %Schema{type: :string, nullable: true},
                    root_project_name: %Schema{type: :string, nullable: true},
+                   requested_tasks: %Schema{type: :array, items: %Schema{type: :string}},
                    tasks_local_hit_count: %Schema{type: :integer},
                    tasks_remote_hit_count: %Schema{type: :integer},
                    tasks_up_to_date_count: %Schema{type: :integer},
@@ -211,19 +274,43 @@ defmodule TuistWeb.API.GradleController do
                    inserted_at: %Schema{type: :string, format: :"date-time"}
                  }
                }
-             }
+             },
+             pagination_metadata: PaginationMetadata
            },
-           required: [:builds]
+           required: [:builds, :pagination_metadata]
          }},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
 
-  def list_builds(%{assigns: %{selected_project: project}, params: params} = conn, _params) do
-    limit = Map.get(params, :limit, 50)
-    offset = Map.get(params, :offset, 0)
+  def list_builds(
+        %{assigns: %{selected_project: project}, params: %{page_size: page_size, page: page} = params} = conn,
+        _params
+      ) do
+    filters = [%{field: :project_id, op: :==, value: project.id}]
 
-    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: limit, page: div(offset, limit) + 1})
+    filters =
+      if Map.get(params, :git_branch) do
+        filters ++ [%{field: :git_branch, op: :==, value: params.git_branch}]
+      else
+        filters
+      end
+
+    filters =
+      if Map.get(params, :status) do
+        filters ++ [%{field: :status, op: :==, value: params.status}]
+      else
+        filters
+      end
+
+    {builds, meta} =
+      Gradle.list_builds(project.id, %{
+        filters: filters,
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        page: page,
+        page_size: page_size
+      })
 
     json(conn, %{
       builds:
@@ -236,7 +323,9 @@ defmodule TuistWeb.API.GradleController do
             java_version: build.java_version,
             is_ci: build.is_ci,
             git_branch: build.git_branch,
+            git_commit_sha: build.git_commit_sha,
             root_project_name: build.root_project_name,
+            requested_tasks: build.requested_tasks,
             tasks_local_hit_count: build.tasks_local_hit_count,
             tasks_remote_hit_count: build.tasks_remote_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
@@ -245,7 +334,15 @@ defmodule TuistWeb.API.GradleController do
             cache_hit_rate: Gradle.cache_hit_rate(build),
             inserted_at: build.inserted_at
           }
-        end)
+        end),
+      pagination_metadata: %{
+        has_next_page: meta.has_next_page?,
+        has_previous_page: meta.has_previous_page?,
+        current_page: meta.current_page,
+        page_size: meta.page_size,
+        total_count: meta.total_count,
+        total_pages: meta.total_pages
+      }
     })
   end
 
@@ -288,6 +385,7 @@ defmodule TuistWeb.API.GradleController do
              git_commit_sha: %Schema{type: :string, nullable: true},
              git_ref: %Schema{type: :string, nullable: true},
              root_project_name: %Schema{type: :string, nullable: true},
+             requested_tasks: %Schema{type: :array, items: %Schema{type: :string}},
              tasks_local_hit_count: %Schema{type: :integer},
              tasks_remote_hit_count: %Schema{type: :integer},
              tasks_up_to_date_count: %Schema{type: :integer},
@@ -343,6 +441,7 @@ defmodule TuistWeb.API.GradleController do
             git_commit_sha: build.git_commit_sha,
             git_ref: build.git_ref,
             root_project_name: build.root_project_name,
+            requested_tasks: build.requested_tasks,
             tasks_local_hit_count: build.tasks_local_hit_count,
             tasks_remote_hit_count: build.tasks_remote_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,

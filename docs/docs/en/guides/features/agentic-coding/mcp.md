@@ -37,6 +37,28 @@ Open **Settings → Connectors → Add custom connector**, then set:
 Complete OAuth in the browser when prompted.
 :::
 
+::: details OpenCode
+Add the Tuist MCP server to `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "tuist": {
+      "type": "remote",
+      "url": "https://tuist.dev/mcp"
+    }
+  }
+}
+```
+
+Then authenticate the server:
+
+```bash
+opencode mcp auth tuist
+```
+:::
+
 ::: details Cursor
 Open **Cursor Settings → Tools & Integrations → MCP Tools** and add:
 
@@ -64,43 +86,79 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 The following tools are available through the Tuist MCP server:
 
+#### Projects
+
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_projects` | List all projects accessible to the authenticated user. | None |
+
+#### Xcode builds
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_xcode_builds` | List Xcode build runs for a project. | `account_handle`, `project_handle` |
+| `get_xcode_build` | Get detailed information about a specific Xcode build run. Accepts a build ID or a Tuist dashboard URL. | `build_run_id` |
+| `list_xcode_build_targets` | List build targets for a specific Xcode build run. | `build_run_id` |
+| `list_xcode_build_files` | List compiled files for a specific Xcode build run. | `build_run_id` |
+| `list_xcode_build_issues` | List build issues (warnings and errors) for a specific build run. | `build_run_id` |
+| `list_xcode_build_cache_tasks` | List cacheable tasks (cache hits/misses) for a specific Xcode build run. | `build_run_id` |
+| `list_xcode_build_cas_outputs` | List CAS (Content Addressable Storage) outputs for a specific Xcode build run. | `build_run_id` |
+
+#### Gradle builds
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_gradle_builds` | List Gradle build runs for a project. | `account_handle`, `project_handle` |
+| `get_gradle_build` | Get detailed information about a specific Gradle build run. | `build_run_id` |
+| `list_gradle_build_tasks` | List tasks for a specific Gradle build run, including outcome and cache status. | `build_run_id` |
+
+#### Tests
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_test_runs` | List test runs for a project. | `account_handle`, `project_handle` |
+| `get_test_run` | Get detailed metrics for a test run. | `test_run_id` |
+| `list_test_module_runs` | List test module runs for a specific test run. | `test_run_id` |
+| `list_test_suite_runs` | List test suite runs for a specific test run, optionally filtered by module. | `test_run_id` |
 | `list_test_cases` | List test cases for a project (supports filters like `flaky`). | `account_handle`, `project_handle` |
 | `get_test_case` | Get detailed metrics for a test case including reliability rate, flakiness rate, and run counts. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
-| `get_test_run` | Get detailed metrics for a test run. | `test_run_id` |
+| `list_test_case_runs` | List test case runs, optionally filtered by test case or test run. | `account_handle`, `project_handle` |
 | `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
+| `list_test_case_run_attachments` | List attachments for a test case run. Each attachment includes a temporary download URL. | `test_case_run_id` |
 
-#### `list_projects`
+#### Bundles
 
-Returns all projects the authenticated user has access to, including each project's `id`, `name`, `account_handle`, and `full_handle`.
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_bundles` | List bundles (app binaries) for a project. | `account_handle`, `project_handle` |
+| `get_bundle` | Get detailed information about a specific bundle. | `bundle_id` |
+| `get_bundle_artifact_tree` | Get the full artifact tree for a bundle as a flat list sorted by path. | `bundle_id` |
 
-#### `list_test_cases`
+#### Generations
 
-Returns test cases for a given project. Supports pagination through `page` and `page_size`, and optional filters such as `flaky=true`, `quarantined=true`, `module_name`, `suite_name`, and `name`.
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_generations` | List generation runs for a project. | `account_handle`, `project_handle` |
+| `get_generation` | Get detailed information about a specific generation run. | `generation_id` |
 
-#### `get_test_case`
+#### Cache runs
 
-Returns detailed metrics for a specific test case: reliability rate (success percentage), flakiness rate (over the last 30 days), total and failed run counts, last status, and average duration. Accepts either a `test_case_id` (UUID) or an `identifier` in `Module/Suite/TestCase` or `Module/TestCase` format together with `account_handle` and `project_handle`.
-
-#### `get_test_run`
-
-Returns detailed test run context: status, duration, CI metadata, and aggregate counts (total/failed/flaky). Use `get_test_case_run` to drill into individual failures or crashes.
-
-#### `get_test_case_run`
-
-Returns the full details of a specific test case run, including failure messages with file paths and line numbers, repetition results, git branch, commit SHA, and whether the run was on CI.
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_cache_runs` | List cache runs for a project. | `account_handle`, `project_handle` |
+| `get_cache_run` | Get detailed information about a specific cache run. | `cache_run_id` |
+| `list_xcode_module_cache_targets` | List module cache targets for a generation or cache run, showing per-target cache hit/miss status. | `run_id` |
 
 ### Prompts
 
 | Prompt | Description |
 |--------|-------------|
 | `fix_flaky_test` | Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. |
+| `compare_builds` | Guides you through comparing two build runs to identify performance regressions, cache changes, and build issues. Works with both Xcode and Gradle projects. |
+| `compare_test_runs` | Guides you through comparing two test runs to identify regressions, new failures, and flaky tests. |
+| `compare_bundles` | Guides you through comparing two bundles to identify size changes across the artifact tree. |
+| `compare_test_case` | Guides you through comparing a test case's behavior across two branches or time periods. |
+| `compare_generations` | Guides you through comparing two generation runs to identify performance regressions and module cache changes. |
+| `compare_cache_runs` | Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. |
 
-The `fix_flaky_test` prompt accepts optional arguments:
-
-- `account_handle` and `project_handle`: scope the investigation to a specific project.
-- `test_case_id`: jump directly to investigating a specific flaky test case by UUID (`list_test_cases[].id`) or identifier (`Module/Suite/TestCase` or `Module/TestCase`).
-
-When invoked without arguments, the prompt guides the agent through discovering flaky tests across all accessible projects.
+All prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name).

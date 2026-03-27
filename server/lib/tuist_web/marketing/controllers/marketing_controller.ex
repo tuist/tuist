@@ -40,7 +40,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       dgettext(
         "marketing",
-        "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+        "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
       )
     )
     |> assign(
@@ -491,7 +491,13 @@ defmodule TuistWeb.Marketing.MarketingController do
         Tuist.Environment.app_url(path: localized_path)
       end
 
-    entries = localized_entries ++ page_urls ++ post_urls ++ newsletter_issue_urls
+    docs_urls =
+      Enum.map(
+        Tuist.Docs.slugs(),
+        &Tuist.Environment.app_url(path: Tuist.Docs.Paths.public_path_from_slug(&1))
+      )
+
+    entries = localized_entries ++ page_urls ++ post_urls ++ newsletter_issue_urls ++ docs_urls
 
     conn
     |> assign(:entries, entries)
@@ -512,8 +518,6 @@ defmodule TuistWeb.Marketing.MarketingController do
     else
       related_posts = Enum.take_random(Blog.get_posts(), 3)
       author = Blog.get_authors()[post.author]
-
-      processed_content = Blog.process_content(post.body)
 
       conn
       |> assign(:head_title, post.title)
@@ -546,7 +550,6 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:post, post)
       |> assign(:author, author)
       |> assign(:related_posts, related_posts)
-      |> assign(:processed_content, processed_content)
       |> render(:blog_post, layout: false)
     end
   end

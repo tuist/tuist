@@ -5,6 +5,7 @@ import TuistCache
 import TuistConfig
 import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistGenerator
 import TuistLoader
 import TuistLogging
@@ -54,7 +55,7 @@ public struct GenerateService {
         cacheProfile: CacheProfileType?
     ) async throws {
         let timer = clock.startTimer()
-        let path = try self.path(path)
+        let path = try await self.path(path)
 
         #if canImport(TuistCacheEE)
             Task.detached(priority: .background) {
@@ -96,11 +97,7 @@ public struct GenerateService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
-        }
+    private func path(_ path: String?) async throws -> AbsolutePath {
+        try await Environment.current.pathRelativeToWorkingDirectory(path)
     }
 }

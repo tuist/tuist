@@ -9,10 +9,7 @@ defmodule Tuist.Marketing.Customers do
     as: :case_studies,
     parser: Tuist.Marketing.Customers.CaseParser,
     highlighters: [],
-    earmark_options: [
-      smartypants: false,
-      postprocessor: &Tuist.Earmark.ASTProcessor.process/1
-    ]
+    html_converter: Tuist.Marketing.MDExConverter
 
   @case_studies Enum.sort_by(@case_studies, & &1.date, {:desc, Date})
 

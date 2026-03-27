@@ -72,8 +72,14 @@ public struct FocusTargetsGraphMappers: GraphMapping {
                 guard case let .named(name) = $0 else { return nil }
                 return name
             }
-            let unavailableIncludedTargets = Set(includedTargetNames)
+            var unavailableIncludedTargets = Set(includedTargetNames)
                 .subtracting(userSpecifiedSourceTargets.map(\.target.name))
+            if let initialGraph = environment.initialGraph {
+                let initialGraphTargetNames = Set(
+                    initialGraph.projects.values.flatMap(\.targets.values).map(\.name)
+                )
+                unavailableIncludedTargets = unavailableIncludedTargets.subtracting(initialGraphTargetNames)
+            }
             if !unavailableIncludedTargets.isEmpty {
                 throw FocusTargetsGraphMappersError.targetsNotFound(Array(unavailableIncludedTargets))
             }
@@ -85,10 +91,39 @@ public struct FocusTargetsGraphMappers: GraphMapping {
             sourceTargets = userSpecifiedSourceTargets
         }
 
-        let filteredTargets = Set(try topologicalSort(
+        var filteredTargets = Set(try topologicalSort(
             Array(sourceTargets),
             successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)).map(\.graphTarget) }
         ))
+
+        let filteredTargetRefs = Set(filteredTargets.map {
+            TargetReference(projectPath: $0.path, name: $0.target.name)
+        })
+        let allSchemes = graph.projects.values.flatMap(\.schemes) + graph.workspace.schemes
+        let survivingSchemes = allSchemes.filter { scheme in
+            let schemeTargetRefs = (scheme.buildAction?.targets ?? [])
+                + (scheme.testAction?.targets.map(\.target) ?? [])
+            return schemeTargetRefs.contains(where: { filteredTargetRefs.contains($0) })
+        }
+        let executionActionTargetRefs = Set(
+            survivingSchemes.flatMap { scheme -> [TargetReference] in
+                let allActions = (scheme.buildAction?.preActions ?? [])
+                    + (scheme.buildAction?.postActions ?? [])
+                    + (scheme.testAction?.preActions ?? [])
+                    + (scheme.testAction?.postActions ?? [])
+                return allActions.compactMap(\.target)
+            }
+        )
+        let executionActionTargets = graphTraverser.allTargets().filter { graphTarget in
+            executionActionTargetRefs.contains(
+                TargetReference(projectPath: graphTarget.path, name: graphTarget.target.name)
+            )
+        }
+        let additionalTargets = try topologicalSort(
+            Array(executionActionTargets),
+            successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)).map(\.graphTarget) }
+        )
+        filteredTargets.formUnion(additionalTargets)
 
         graph.projects = graph.projects.mapValues { project in
             var project = project

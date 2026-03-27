@@ -50,6 +50,8 @@ env:
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
   TUIST_ENABLE_CACHING: "true"
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
 
 concurrency:
   group: cli-cache-ee-${{ github.head_ref }}
@@ -128,13 +130,13 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      - name: Setup Tuist cache
-        run: tuist setup cache
+      - name: Setup Tuist
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
       - name: Initialize TuistCacheEE submodule
-        run: mise run --no-prepare cli:ee
+        run: bash mise/tasks/cli/ee.sh
       - name: Run tests
         run: tuist inspect dependencies --only implicit
         env:
@@ -174,13 +176,13 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      - name: Setup Tuist cache
-        run: tuist setup cache
+      - name: Setup Tuist
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
       - name: Initialize TuistCacheEE submodule
-        run: mise run --no-prepare cli:ee
+        run: bash mise/tasks/cli/ee.sh
       - name: Run tests
         run: tuist test TuistCacheEEAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
@@ -223,13 +225,13 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      - name: Setup Tuist cache
-        run: tuist setup cache
+      - name: Setup Tuist
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
       - name: Initialize TuistCacheEE submodule
-        run: mise run --no-prepare cli:ee
+        run: bash mise/tasks/cli/ee.sh
       - name: Run tests
         run: tuist test TuistCacheEEUnitTests -- -retry-tests-on-failure -test-iterations 4
         env:

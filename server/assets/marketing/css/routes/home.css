@@ -183,7 +183,6 @@
     & [data-part="build-card"],
     & [data-part="selective-tests-card"],
     & [data-part="optimized-app-bundles-card"],
-    & [data-part="agentic-qa-card"],
     & [data-part="previews-card"],
     & [data-part="remote-binaries-card"] {
       display: flex;
@@ -199,7 +198,7 @@
       font-weight: 400;
       font-size: 17.631px;
       line-height: 23.509px;
-      font-family: "InterVariable";
+      font-family: "Inter Variable";
 
       @media (min-width: 1024px) {
         gap: var(--noora-spacing-5);
@@ -208,7 +207,7 @@
         font-size: 24px;
         line-height: 32px;
       }
-      /* We're applying the box-shadow as ::after, so the image in the agentic-qa-card is _under_ it */
+      /* We're applying the box-shadow as ::after */
       &::after {
         position: absolute;
         top: 0;
@@ -322,26 +321,6 @@
 
       @media (min-width: 1024px) {
         display: flex;
-      }
-    }
-
-    & [data-part="agentic-qa-card"] {
-      margin-left: 10px;
-      width: 305px;
-      overflow: hidden;
-
-      & > [data-part="graphic"] {
-        position: relative;
-        left: 0;
-        flex-shrink: 0;
-        width: 75.848px;
-        height: 100%;
-        & > img {
-          position: absolute;
-          top: calc(var(--noora-spacing-5) * -1);
-          width: 75.848px;
-          height: 125px;
-        }
       }
     }
 
@@ -721,14 +700,6 @@
   & > [data-part="quality-assurance"] {
     & [data-part="feature-block"] {
       &[data-variant="previews"] > [data-part="image-container"] > [data-part="illustration"] {
-        object-position: 0% center;
-
-        @media (min-width: 1180px) {
-          object-position: center;
-        }
-      }
-
-      &[data-variant="qa"] > [data-part="image-container"] > [data-part="illustration"] {
         object-position: 0% center;
 
         @media (min-width: 1180px) {

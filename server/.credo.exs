@@ -1,3 +1,4 @@
+alias Credo.Checks.DisallowDirectivesInFunction
 alias Credo.Checks.DisallowGlobalStateMutation
 alias Credo.Checks.DisallowSpec
 alias Credo.Checks.TimestampsType
@@ -15,7 +16,6 @@ alias Credo.Checks.TimestampsType
         excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
       },
       requires: [
-        "./credo/checks/**/*.ex",
         "../tuist_common/credo/checks/**/*.ex"
       ],
       checks: %{
@@ -24,6 +24,7 @@ alias Credo.Checks.TimestampsType
           {TimestampsType, files: %{included: ["priv/repo/migrations/"]}, allowed_type: :timestamptz},
           {TimestampsType, files: %{included: ["lib/"]}, allowed_type: :utc_datetime},
           {DisallowSpec, []},
+          {DisallowDirectivesInFunction, files: %{included: ["lib/"]}},
           {ExcellentMigrations.CredoCheck.MigrationsSafety, []},
           {Credo.Checks.UnusedReturnValue, files: %{excluded: ["priv/repo/migrations/"]}},
           {DisallowGlobalStateMutation, files: %{included: ["test/"]}}

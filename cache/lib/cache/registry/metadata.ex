@@ -141,7 +141,7 @@ defmodule Cache.Registry.Metadata do
     {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
     key = s3_key(scope, name)
     bucket = bucket()
-    json_body = Jason.encode!(metadata)
+    json_body = JSON.encode!(metadata)
 
     {duration, result} =
       :timer.tc(fn ->
@@ -238,7 +238,7 @@ defmodule Cache.Registry.Metadata do
       {:ok, %{body: body, headers: headers}} ->
         :telemetry.execute([:cache, :s3, :get], %{duration: duration}, %{result: :ok})
 
-        case Jason.decode(body) do
+        case JSON.decode(body) do
           {:ok, metadata} ->
             etag = S3.etag_from_headers(headers)
             Cachex.put(cache_name, cache_key, cache_value(metadata, etag), ttl: @ttl)

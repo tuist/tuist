@@ -8,12 +8,15 @@ defmodule Cache.OrphanCleanupWorkerTest do
   alias Cache.Config
   alias Cache.Disk
   alias Cache.OrphanCleanupWorker
+  alias Cache.OrphanScanCursor
   alias Cache.OrphanScanCursors
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
 
   setup do
     :ok = Sandbox.checkout(Repo)
+    Repo.delete_all(CacheArtifact)
+    Repo.delete_all(OrphanScanCursor)
 
     if pid = Process.whereis(CacheArtifactsBuffer) do
       Sandbox.allow(Repo, self(), pid)
@@ -27,7 +30,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   end
 
   test "deletes files on disk with no cache_artifacts row", %{storage_dir: storage_dir} do
-    key = "acct/proj/cas/AB/CD/file1"
+    key = "acct/proj/xcode/AB/CD/file1"
     path = write_artifact_file(storage_dir, key)
 
     set_old_mtime(path)
@@ -38,7 +41,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   end
 
   test "does NOT delete files that have a cache_artifacts row", %{storage_dir: storage_dir} do
-    key = "acct/proj/cas/EF/GH/file2"
+    key = "acct/proj/xcode/EF/GH/file2"
     path = write_artifact_file(storage_dir, key)
 
     :ok = CacheArtifacts.track_artifact_access(key)
@@ -52,7 +55,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   end
 
   test "does NOT delete files younger than 1 hour", %{storage_dir: storage_dir} do
-    key = "acct/proj/cas/IJ/KL/file3"
+    key = "acct/proj/xcode/IJ/KL/file3"
     path = write_artifact_file(storage_dir, key)
 
     stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
@@ -62,7 +65,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   end
 
   test "skips .tmp files regardless of age", %{storage_dir: storage_dir} do
-    key = "acct/proj/cas/AB/CD/.tmp.12345"
+    key = "acct/proj/xcode/AB/CD/.tmp.12345"
     path = write_artifact_file(storage_dir, key)
 
     set_old_mtime(path)
@@ -73,7 +76,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   end
 
   test "skips .cache-upload files regardless of age", %{storage_dir: storage_dir} do
-    key = "acct/proj/cas/AB/CD/.cache-upload-67890"
+    key = "acct/proj/xcode/AB/CD/.cache-upload-67890"
     path = write_artifact_file(storage_dir, key)
 
     set_old_mtime(path)
@@ -84,7 +87,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   end
 
   test "persists cursor position after processing", %{storage_dir: storage_dir} do
-    path = write_artifact_file(storage_dir, "acct/proj/cas/MM/NN/orphan")
+    path = write_artifact_file(storage_dir, "acct/proj/xcode/MM/NN/orphan")
 
     set_old_mtime(path)
     stub(Config, :orphan_scan_max_dirs, fn -> 1 end)
@@ -98,9 +101,9 @@ defmodule Cache.OrphanCleanupWorkerTest do
 
   test "resumes from cursor position on next run", %{storage_dir: storage_dir} do
     keys = [
-      "acct/proj/cas/AA/AA/file-a",
-      "acct/proj/cas/BB/BB/file-b",
-      "acct/proj/cas/CC/CC/file-c"
+      "acct/proj/xcode/AA/AA/file-a",
+      "acct/proj/xcode/BB/BB/file-b",
+      "acct/proj/xcode/CC/CC/file-c"
     ]
 
     paths =
@@ -125,7 +128,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   end
 
   test "resets cursor when full pass completes", %{storage_dir: storage_dir} do
-    path = write_artifact_file(storage_dir, "acct/proj/cas/DD/EE/file-reset")
+    path = write_artifact_file(storage_dir, "acct/proj/xcode/DD/EE/file-reset")
 
     set_old_mtime(path)
     stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
@@ -138,7 +141,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   end
 
   test "handles deleted directory gracefully", %{storage_dir: storage_dir} do
-    key = "acct/proj/cas/AA/BB/will-disappear"
+    key = "acct/proj/xcode/AA/BB/will-disappear"
     path = write_artifact_file(storage_dir, key)
     shard_dir = Path.dirname(path)
 
@@ -158,7 +161,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
     keys =
       Enum.map(1..10, fn idx ->
         shard = idx |> Integer.to_string() |> String.pad_leading(2, "0")
-        "acct/proj/cas/#{shard}/#{shard}/file-#{idx}"
+        "acct/proj/xcode/#{shard}/#{shard}/file-#{idx}"
       end)
 
     paths =
@@ -181,13 +184,13 @@ defmodule Cache.OrphanCleanupWorkerTest do
 
   test "does not modify cache_artifacts table", %{storage_dir: storage_dir} do
     orphan_keys = [
-      "acct/proj/cas/11/11/orphan-1",
-      "acct/proj/cas/22/22/orphan-2"
+      "acct/proj/xcode/11/11/orphan-1",
+      "acct/proj/xcode/22/22/orphan-2"
     ]
 
     tracked_keys = [
-      "acct/proj/cas/33/33/tracked-1",
-      "acct/proj/cas/44/44/tracked-2"
+      "acct/proj/xcode/33/33/tracked-1",
+      "acct/proj/xcode/44/44/tracked-2"
     ]
 
     orphan_paths =

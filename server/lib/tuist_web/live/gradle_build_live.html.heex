@@ -63,6 +63,12 @@
       selected={@selected_tab == "gradle-cache"}
       patch={"?#{Query.put(@uri.query, "tab", "gradle-cache")}"}
     />
+    <.tab_menu_horizontal_item
+      :if={length(@machine_metrics) > 0}
+      label={dgettext("dashboard_gradle", "Machine Metrics")}
+      selected={@selected_tab == "machine-metrics"}
+      patch={"?#{Query.put(@uri.query, "tab", "machine-metrics")}"}
+    />
   </.tab_menu_horizontal>
   <%= if @selected_tab == "overview" do %>
     <.card
@@ -80,18 +86,21 @@
                 label={dgettext("dashboard_gradle", "Success")}
                 color="success"
                 style="fill"
+                size="large"
               />
               <.badge
                 :if={@build.status == "failure"}
                 label={dgettext("dashboard_gradle", "Failure")}
                 color="destructive"
                 style="fill"
+                size="large"
               />
               <.badge
                 :if={@build.status == "cancelled"}
                 label={dgettext("dashboard_gradle", "Cancelled")}
                 color="warning"
                 style="fill"
+                size="large"
               />
             </div>
             <div data-part="metadata">
@@ -131,6 +140,12 @@
             <div :if={@build.git_commit_sha} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_gradle", "Commit")}</div>
               <span data-part="label">{String.slice(@build.git_commit_sha, 0, 8)}</span>
+            </div>
+          </div>
+          <div :if={@build.requested_tasks != []} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Requested tasks")}</div>
+              <span data-part="label">{Enum.join(@build.requested_tasks, " ")}</span>
             </div>
           </div>
         </div>
@@ -279,6 +294,9 @@
         />
       </.card_section>
     </.card>
+  <% end %>
+  <%= if @selected_tab == "machine-metrics" do %>
+    <.machine_metrics_charts metrics={@machine_metrics} />
   <% end %>
   <%= if @selected_tab == "gradle-cache" do %>
     <div data-part="cache">

@@ -1,0 +1,7 @@
+.noora-time {
+  display: inline-flex;
+
+  & [data-part="trigger"] {
+    text-decoration: underline;
+  }
+}

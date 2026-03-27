@@ -70,6 +70,11 @@ S3_BUCKET=your-cache-bucket
 S3_HOST=s3.us-east-1.amazonaws.com
 S3_REGION=us-east-1
 
+# Optional: dedicated Xcode cache bucket.
+# Useful when you want separate retention policies, storage classes,
+# or cost tracking for Xcode cache vs. module/Gradle cache artifacts.
+# S3_XCODE_CACHE_BUCKET=your-xcode-cache-bucket
+
 # S3 authentication (Option 1: static credentials)
 S3_ACCESS_KEY_ID=your-access-key
 S3_SECRET_ACCESS_KEY=your-secret-key
@@ -80,16 +85,24 @@ S3_SECRET_ACCESS_KEY=your-secret-key
 # These are typically injected automatically by EKS or similar platforms.
 
 # CAS storage (required for non-compose deployments)
-DATA_DIR=/data
+STORAGE_DIR=/storage
+
+# Optional dedicated KV SQLite database path.
+# Defaults to /data/key_value.sqlite.
+KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 ```
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `SECRET_KEY_BASE` | Yes | | Secret key used to sign and encrypt data (minimum 64 characters). |
 | `PUBLIC_HOST` | Yes | | Public hostname or IP address of your cache service. Used to generate absolute URLs. |
-| `SERVER_URL` | Yes | | URL of your Tuist server for authentication. Defaults to `https://tuist.dev` |
-| `DATA_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
-| `S3_BUCKET` | Yes | | S3 bucket name. |
+| `SERVER_URL` | No | `https://tuist.dev` | URL of your Tuist server for authentication. |
+| `STORAGE_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/storage`. |
+| `KEY_VALUE_DATABASE_PATH` | No | `/data/key_value.sqlite` | Path to the dedicated SQLite database used by the key-value store. |
+| `POOL_SIZE` | No | `2` | Connection pool size for the primary metadata SQLite database. |
+| `KEY_VALUE_POOL_SIZE` | No | `POOL_SIZE` | Connection pool size for the dedicated key-value SQLite database. |
+| `S3_BUCKET` | Yes | | S3 bucket for module and Gradle cache artifacts. Also used for Xcode cache artifacts when `S3_XCODE_CACHE_BUCKET` is unset. |
+| `S3_XCODE_CACHE_BUCKET` | No | `S3_BUCKET` | Optional dedicated bucket for Xcode cache artifacts. When set, Xcode cache reads and writes use this bucket directly. Useful when you want separate retention policies, storage classes, or cost tracking for Xcode cache artifacts. |
 | `S3_HOST` | Yes | | S3 endpoint hostname (e.g. `s3.us-east-1.amazonaws.com`). |
 | `S3_REGION` | Yes | | S3 region. Also accepted as `AWS_REGION`. |
 | `S3_ACCESS_KEY_ID` | Conditional | | S3 access key. Required when using static credentials. Also accepted as `AWS_ACCESS_KEY_ID`. See [S3 authentication](#s3-authentication). |
@@ -97,8 +110,14 @@ DATA_DIR=/data
 | `S3_ENDPOINT` | No | | Full S3 endpoint URL. When set, overrides `S3_HOST` with the parsed host and scheme. Useful for S3-compatible providers. |
 | `AWS_WEB_IDENTITY_TOKEN_FILE` | No | | Path to a web identity token file for IAM role authentication. See [S3 authentication](#s3-authentication). |
 | `AWS_ROLE_ARN` | No | | IAM role ARN to assume when using web identity token authentication. |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | No | `85` | Disk usage percentage that triggers LRU eviction. |
-| `CAS_DISK_TARGET_PERCENT` | No | `70` | Target disk usage after eviction. |
+| `DISK_HIGH_WATERMARK_PERCENT` | No | `85` | Disk usage percentage that triggers LRU eviction. |
+| `DISK_TARGET_PERCENT` | No | `70` | Target disk usage after eviction. |
+| `KEY_VALUE_MAX_DB_SIZE_BYTES` | No | `26843545600` | Maximum size of the dedicated key-value SQLite database before size-based KV eviction starts. |
+| `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` | No | `1` | Minimum age a key-value entry must reach before size-based KV eviction can remove it. |
+| `KEY_VALUE_EVICTION_MAX_DURATION_MS` | No | `300000` | Maximum runtime for a single KV eviction pass. |
+| `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES` | No | `24696061952` | Target size after KV eviction finishes, providing hysteresis so the worker does not thrash near the limit. |
+| `KEY_VALUE_READ_BUSY_TIMEOUT_MS` | No | `2000` | SQLite busy-timeout (in milliseconds) for KV read-through requests. If the database is locked longer than this, the read is treated as a cache miss and the value is fetched from S3. |
+| `KEY_VALUE_MAINTENANCE_BUSY_TIMEOUT_MS` | No | `50` | SQLite busy-timeout (in milliseconds) for background maintenance operations (PRAGMA queries, incremental vacuum). A low value prevents maintenance from blocking read traffic. |
 | `PHX_SOCKET_PATH` | No | `/run/cache/cache.sock` | Path where the service creates its Unix socket (when enabled). |
 | `PHX_SOCKET_LINK` | No | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | No | | gRPC endpoint of an OpenTelemetry Collector for distributed tracing. |
@@ -172,9 +191,19 @@ The Docker Compose configuration uses three volumes:
 
 | Volume | Purpose |
 |--------|---------|
-| `cas_data` | Binary artifact storage |
-| `sqlite_data` | Access metadata for LRU eviction |
+| `storage` | Binary artifact storage |
+| `sqlite_data` | SQLite metadata storage. By default this holds both `/data/repo.sqlite` (artifact metadata, orphan cleanup state, Oban) and `/data/key_value.sqlite` (KV metadata). |
 | `cache_socket` | Unix socket for Nginx-service communication |
+
+## Background maintenance {#background-maintenance}
+
+The cache service runs several background maintenance loops that keep disk and database usage within bounds. You can tune their behavior through the environment variables listed in the [configuration table](#environment-variables) above.
+
+- **CAS disk eviction** — When disk usage exceeds `DISK_HIGH_WATERMARK_PERCENT` (default 85%), the service removes the least-recently-used local artifacts until usage drops to `DISK_TARGET_PERCENT` (default 70%). Evicted artifacts remain in S3.
+- **KV eviction** — Entries not accessed within 30 days are always removed regardless of database size. Additionally, when the KV database exceeds `KEY_VALUE_MAX_DB_SIZE_BYTES` (default 25 GiB), the service removes entries older than `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` until the database shrinks to `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES`. Each pass is capped at `KEY_VALUE_EVICTION_MAX_DURATION_MS`.
+- **Orphan cleanup** — Scans the disk storage tree for files without a matching `cache_artifacts` row and removes them. This depends on the primary metadata database, not the KV database.
+
+For a detailed explanation of how each process works internally, see the <LocalizedLink href="/guides/cache/architecture">architecture guide</LocalizedLink>.
 
 ## Health checks {#health-checks}
 
@@ -186,6 +215,19 @@ The Docker Compose configuration uses three volumes:
 ### Prometheus metrics {#prometheus-metrics}
 
 The cache service exposes Prometheus-compatible metrics at `/metrics`.
+
+Database pool metrics exposed by the cache service include:
+
+- `cache_repo_pool_checkout_queue_length`
+- `cache_repo_pool_ready_conn_count`
+- `cache_repo_pool_size`
+- `cache_repo_pool_db_connection_connected_total`
+- `cache_repo_pool_db_connection_disconnected_total`
+
+The pool `last_value` metrics are labeled with:
+
+- `repo` — `cache` or `key_value`
+- `database` — `sqlite`
 
 If you use Grafana, you can import the [reference dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
 
@@ -204,7 +246,7 @@ docker compose pull
 docker compose up -d
 ```
 
-The service runs database migrations automatically on startup.
+The service runs database migrations automatically on startup. After upgrading, expect a brief warm-up period while the KV cache repopulates from new traffic.
 
 ## Troubleshooting {#troubleshooting}
 
@@ -215,6 +257,12 @@ If you expect caching but are seeing consistent cache misses (for example, the C
 1. Verify the custom cache endpoint is correctly configured in your organization settings.
 2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
 3. Check the cache service logs for any errors: `docker compose logs cache`.
+
+### Do I need the repo.sqlite file? {#troubleshooting-repo-sqlite}
+
+`repo.sqlite` is the primary metadata database. It stores artifact metadata, orphan cleanup state, and background job data. It is required for normal operation.
+
+If you upgraded from an older version that also stored KV metadata in `repo.sqlite`, KV data has moved to the dedicated `key_value.sqlite` file. The legacy KV tables (`key_value_entries`, `key_value_entry_hashes`) in `repo.sqlite` are no longer used and can be removed during a maintenance window to reclaim space.
 
 ### Socket path mismatch {#troubleshooting-socket}
 
