@@ -43,7 +43,7 @@ defmodule TuistWeb.Endpoint do
   plug Plug.Static,
     at: "/",
     from: :tuist,
-    gzip: Mix.env() == :prod,
+    gzip: true,
     cache_control_for_etags: "public, max-age=31536000, immutable",
     only: TuistWeb.static_paths()
 
