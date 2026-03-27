@@ -35,6 +35,7 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
         )
         db.busyTimeout = 5
         try db.execute("PRAGMA synchronous = NORMAL")
+        try db.execute("PRAGMA wal_autocheckpoint = 1")
     }
 
     public func migrate() throws {
