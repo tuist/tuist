@@ -304,8 +304,10 @@ defmodule TuistWeb.GenerateRunsLive do
     organization =
       if Accounts.organization?(project.account) do
         {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
+
         users =
-          Accounts.get_organization_members(organization)
+          organization
+          |> Accounts.get_organization_members()
           |> Enum.sort_by(fn user -> user.account.name end)
 
         [
