@@ -26,11 +26,11 @@ TimescaleDB](https://docs.timescale.com/self-hosted/latest/install/installation-
 <!-- -->
 :::
 
-## Cómo contribuir {#how-to-contribute}
+## Cómo colaborar {#how-to-contribute}
 
 Las contribuciones al servidor requieren la firma del CLA (`server/CLA.md`).
 
-### Configurar localmente {#set-up-locally}
+### Configuración local {#set-up-locally}
 
 ```bash
 cd server
