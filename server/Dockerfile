@@ -89,15 +89,7 @@ FROM deps-builder AS builder
 
 COPY server/priv priv
 COPY skills/skills priv/static/skills
-COPY docs/docs/public/images priv/static/docs/images
-COPY docs/docs/public/logo.png priv/static/docs/images/logo.png
 COPY server/assets assets
-
-# Docs markdown files needed at compile time by Tuist.Docs.Loader
-COPY docs/docs /docs/docs
-
-# Sidebar translation strings needed at compile time by Tuist.Docs.Sidebar
-COPY docs/.vitepress/strings /docs/.vitepress/strings
 
 # Xcode example READMEs needed at compile time by Tuist.Docs.Loader
 COPY examples/xcode /examples/xcode

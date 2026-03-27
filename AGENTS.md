@@ -10,7 +10,6 @@ This file provides guidance to AI agents when working with code in this reposito
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
-- `docs/` - Documentation and guides - see `docs/AGENTS.md`
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
