@@ -76,6 +76,9 @@ defmodule TuistWeb.LayoutComponents do
     <% else %>
       <meta property="og:image" content={assigns[:head_image]} />
     <% end %>
+    <meta property="og:image:width" content={assigns[:head_image_width] || "1920"} />
+    <meta property="og:image:height" content={assigns[:head_image_height] || "1080"} />
+    <meta property="og:image:type" content="image/jpeg" />
     """
   end
 
