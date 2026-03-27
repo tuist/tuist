@@ -2,9 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
-import Path
 import Testing
-import TuistCASAnalytics
 import TuistCI
 import TuistConfigLoader
 import TuistConstants
@@ -926,85 +924,4 @@ struct InspectBuildCommandServiceTests {
             .called(1)
     }
 
-    @Test(
-        .inTemporaryDirectory,
-        .withMockedEnvironment()
-    )
-    func bundleBuild_performance_with_large_cas_metadata() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-        let mockedEnvironment = try #require(Environment.mocked)
-        mockedEnvironment.workspacePath = projectPath
-        mockedEnvironment.variables["TUIST_INSPECT_BUILD_WAIT"] = "YES"
-
-        given(xcodeProjectOrWorkspacePathLocator)
-            .locate(from: .any)
-            .willReturn(projectPath)
-
-        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-        given(derivedDataLocator)
-            .locate(for: .any)
-            .willReturn(derivedDataPath)
-        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-        let activityLogPath = buildLogsPath.appending(
-            component: "D2AC85C7-4248-4BFB-BBCD-2709FE4AB7D0.xcactivitylog"
-        )
-        try await fileSystem.makeDirectory(at: buildLogsPath)
-        try await fileSystem.writeText("fake", at: activityLogPath)
-
-        given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            filter: .any
-        ).willReturn(
-            .test(
-                path: activityLogPath,
-                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
-            )
-        )
-
-        try await fileSystem.makeDirectory(at: mockedEnvironment.stateDirectory)
-        let database = try CASAnalyticsDatabase.open()
-        try database.migrate()
-        let entryCount = 200_000
-        for i in 0 ..< entryCount {
-            switch i % 3 {
-            case 0: try database.storeCASOutput(key: "key_\(i)", size: 1024, duration: 0.5, compressedSize: 512)
-            case 1: try database.storeNode(key: "key_\(i)", checksum: String(repeating: "a", count: 64))
-            default: try database.storeKeyValueMetadata(key: "key_\(i)", operationType: "read", duration: 0.3)
-            }
-        }
-
-        let subjectWithDB = InspectBuildCommandService(
-            derivedDataLocator: derivedDataLocator,
-            fileSystem: fileSystem,
-            machineEnvironment: machineEnvironment,
-            xcodeBuildController: xcodeBuildController,
-            createBuildService: createBuildService,
-            uploadBuildService: uploadBuildService,
-            configLoader: configLoader,
-            xcActivityLogController: xcActivityLogController,
-            backgroundProcessRunner: backgroundProcessRunner,
-            dateService: dateService,
-            serverEnvironmentService: serverEnvironmentService,
-            gitController: gitController,
-            ciController: ciController,
-            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
-        )
-
-        var capturedZipSize: UInt64 = 0
-        uploadBuildService.reset()
-        given(uploadBuildService)
-            .uploadBuild(buildId: .any, fullHandle: .any, serverURL: .any, filePath: .any)
-            .willProduce { _, _, _, filePath in
-                let attrs = try FileManager.default.attributesOfItem(atPath: filePath.pathString)
-                capturedZipSize = attrs[.size] as? UInt64 ?? 0
-            }
-
-        let start = ContinuousClock.now
-        try await subjectWithDB.run(path: nil)
-        let elapsed = ContinuousClock.now - start
-
-        print("⏱ bundleBuild took: \(elapsed)")
-        print("📦 Zip size: \(capturedZipSize) bytes (\(capturedZipSize / 1_048_576) MB)")
-    }
 }
