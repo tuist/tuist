@@ -155,7 +155,7 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache", icon: "xcode"},
               %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache", icon: "xcode"},
-              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache", icon: "gradle"}
+              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"}
             ]
           },
           %Item{
@@ -163,7 +163,7 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/features/build-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode", icon: "xcode"},
-              %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle", icon: "gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle"}
             ]
           }
         ]
@@ -178,7 +178,7 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/features/test-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "xcode"},
-              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle", icon: "gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle"}
             ]
           },
           %Item{
@@ -192,8 +192,7 @@ defmodule Tuist.Docs.Sidebar do
               },
               %Item{
                 label: "Gradle",
-                slug: "/en/guides/features/test-insights/flaky-tests/gradle",
-                icon: "gradle"
+                slug: "/en/guides/features/test-insights/flaky-tests/gradle"
               }
             ]
           },
@@ -207,7 +206,7 @@ defmodule Tuist.Docs.Sidebar do
                 slug: "/en/guides/features/test-sharding/generated-projects",
                 icon: "xcode"
               },
-              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle"}
             ]
           }
         ]

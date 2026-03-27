@@ -47,6 +47,7 @@ defmodule TuistWeb.DocsLive do
      socket
      |> assign(:view, :overview)
      |> assign(:videos, videos)
+     |> assign(:page_title, "Docs · Tuist")
      |> assign(:head_title, "Docs · Tuist")
      |> assign(:head_description, "Learn how to use Tuist to make mobile your competitive advantage.")}
   end
@@ -70,6 +71,7 @@ defmodule TuistWeb.DocsLive do
          |> assign(:view, :show)
          |> assign(:page, page)
          |> assign(:requested_slug, path)
+         |> assign(:page_title, head_title)
          |> assign(:head_title, head_title)
          |> assign(:head_description, page.description)}
     end
@@ -341,20 +343,6 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <div data-part="feature-card">
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.checkup_list /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Agentic QA")}</span>
-              </div>
-              <div data-part="feature-card-body">
-                <p>
-                  {dgettext(
-                    "docs",
-                    "Mention @tuist on your PR and an AI agent tests your app for you, exploring edge cases and reporting issues with screenshots and logs."
-                  )}
-                </p>
-              </div>
-            </div>
           </div>
         </section>
 

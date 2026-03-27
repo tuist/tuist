@@ -6,7 +6,7 @@
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title>
-      {assigns[:head_title] || "Tuist"}
+      {assigns[:page_title] || assigns[:head_title] || "Tuist"}
     </.live_title>
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
@@ -51,6 +51,7 @@
     />
     <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="docs" {assigns} />
+    <TuistWeb.LayoutComponents.head_plain_script current_user={assigns[:current_user]} {assigns} />
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
     <meta property="og:locale" content={@locale} />
     <link

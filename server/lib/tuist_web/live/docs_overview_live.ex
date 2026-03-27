@@ -284,17 +284,6 @@ defmodule TuistWeb.DocsOverviewLive do
                 </p>
               </div>
             </.link>
-            <div data-part="feature-card">
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.checkup_list /></span>
-                <span data-part="feature-card-title">Agentic QA</span>
-              </div>
-              <div data-part="feature-card-body">
-                <p>
-                  Mention @tuist on your PR and an AI agent tests your app for you, exploring edge cases and reporting issues with screenshots and logs.
-                </p>
-              </div>
-            </div>
           </div>
         </section>
 

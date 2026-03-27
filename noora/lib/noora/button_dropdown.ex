@@ -71,6 +71,12 @@ defmodule Noora.ButtonDropdown do
     doc: "Whether to close the dropdown when an item is selected"
   )
 
+  attr(:align, :string,
+    values: ~w(start end),
+    default: "start",
+    doc: "Alignment of the dropdown menu relative to the button"
+  )
+
   attr(:rest, :global, include: ~w(phx-click), doc: "Additional HTML attributes for the main button")
 
   slot(:icon_left, doc: "Icon displayed on the left of the label")
@@ -98,6 +104,7 @@ defmodule Noora.ButtonDropdown do
       data-on-pointer-down-outside={@on_pointer_down_outside}
       data-on-focus-outside={@on_focus_outside}
       data-on-interact-outside={@on_interact_outside}
+      data-align={@align}
     >
       <button data-part="main-button" disabled={@disabled} type="button" {@rest}>
         <div :if={has_slot_content?(@icon_left, assigns)} data-part="icon-left">
