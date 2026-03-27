@@ -3,11 +3,6 @@
 
 set -euo pipefail
 
-if ! command -v caddy >/dev/null 2>&1; then
-  echo "Error: caddy is not installed. Run 'mise install' first." >&2
-  exit 1
-fi
-
 if [[ -z "${TUIST_SERVER_HOSTNAME:-}" || -z "${TUIST_SERVER_PORT:-}" ]]; then
   echo "Error: TUIST_SERVER_HOSTNAME or TUIST_SERVER_PORT not set." >&2
   exit 1
