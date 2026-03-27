@@ -39,8 +39,7 @@ defmodule TuistWeb.Docs.Components do
   defp group_icon(label), do: Map.get(@group_icons, label, "file")
 
   @item_icon_srcs %{
-    "xcode" => "/docs/images/guides/features/xcode-icon.png",
-    "gradle" => "/docs/images/guides/features/gradle-icon.svg"
+    "xcode" => "/docs/images/guides/features/xcode-icon.png"
   }
 
   defp item_icon_src(icon), do: Map.fetch!(@item_icon_srcs, icon)
