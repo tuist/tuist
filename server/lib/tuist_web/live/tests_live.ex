@@ -288,7 +288,13 @@ defmodule TuistWeb.TestsLive do
   defp assign_recent_test_runs(%{assigns: %{selected_project: project}} = socket) do
     assign_async(
       socket,
-      [:recent_test_runs, :recent_test_runs_chart_data, :failed_test_runs_count, :passed_test_runs_count],
+      [
+        :recent_test_runs,
+        :recent_test_runs_chart_data,
+        :recent_test_runs_chart_urls,
+        :failed_test_runs_count,
+        :passed_test_runs_count
+      ],
       fn ->
         {recent_test_runs, _meta} =
           Tests.list_test_runs(%{
@@ -312,9 +318,12 @@ defmodule TuistWeb.TestsLive do
 
             value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
 
-            url = ~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{run.id}"
+            %{value: value, itemStyle: %{color: color}, date: run.ran_at}
+          end)
 
-            %{value: value, itemStyle: %{color: color}, date: run.ran_at, url: url}
+        recent_test_runs_chart_urls =
+          Enum.map(recent_test_runs, fn run ->
+            ~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{run.id}"
           end)
 
         failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "failure" end)
@@ -324,6 +333,7 @@ defmodule TuistWeb.TestsLive do
          %{
            recent_test_runs: recent_test_runs,
            recent_test_runs_chart_data: recent_test_runs_chart_data,
+           recent_test_runs_chart_urls: recent_test_runs_chart_urls,
            failed_test_runs_count: failed_test_runs_count,
            passed_test_runs_count: passed_test_runs_count
          }}

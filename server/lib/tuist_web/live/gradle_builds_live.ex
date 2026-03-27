@@ -238,16 +238,14 @@ defmodule TuistWeb.GradleBuildsLive do
   def configuration_insights_label("java-version"), do: dgettext("dashboard_gradle", "Java version")
   def configuration_insights_label(_), do: dgettext("dashboard_gradle", "Gradle version")
 
-  defp assign_recent_builds(
-         %{assigns: %{selected_project: project, selected_account: account}} = socket
-       ) do
+  defp assign_recent_builds(%{assigns: %{selected_project: project, selected_account: account}} = socket) do
     {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size})
     builds = Repo.preload(builds, :built_by_account)
 
+    reversed_builds = Enum.reverse(builds)
+
     recent_builds_chart_data =
-      builds
-      |> Enum.reverse()
-      |> Enum.map(fn build ->
+      Enum.map(reversed_builds, fn build ->
         color =
           case build.status do
             "success" -> "var:noora-chart-primary"
@@ -255,14 +253,16 @@ defmodule TuistWeb.GradleBuildsLive do
             _ -> "var:noora-chart-warning"
           end
 
-        url = ~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
-
         %{
           value: build.duration_ms,
           itemStyle: %{color: color},
-          date: build.inserted_at,
-          url: url
+          date: build.inserted_at
         }
+      end)
+
+    recent_builds_chart_urls =
+      Enum.map(reversed_builds, fn build ->
+        ~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
       end)
 
     successful_builds_count = Enum.count(builds, &(&1.status == "success"))
@@ -271,6 +271,7 @@ defmodule TuistWeb.GradleBuildsLive do
     socket
     |> assign(:builds, builds)
     |> assign(:recent_builds_chart_data, recent_builds_chart_data)
+    |> assign(:recent_builds_chart_urls, recent_builds_chart_urls)
     |> assign(:successful_builds_count, successful_builds_count)
     |> assign(:failed_builds_count, failed_builds_count)
   end

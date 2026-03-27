@@ -203,25 +203,25 @@ defmodule TuistWeb.GradleCacheLive do
   defp analytics_trend_label("custom"), do: dgettext("dashboard_gradle", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
 
-  defp assign_recent_builds(
-         %{assigns: %{selected_project: project, selected_account: account}} = socket,
-         _params
-       ) do
+  defp assign_recent_builds(%{assigns: %{selected_project: project, selected_account: account}} = socket, _params) do
     {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size})
     builds = Repo.preload(builds, :built_by_account)
 
+    reversed_builds = Enum.reverse(builds)
+
     recent_builds_chart_data =
-      builds
-      |> Enum.reverse()
-      |> Enum.map(fn build ->
+      Enum.map(reversed_builds, fn build ->
         hit_rate = Gradle.cache_hit_rate(build)
-        url = ~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
 
         %{
           value: hit_rate,
-          date: build.inserted_at,
-          url: url
+          date: build.inserted_at
         }
+      end)
+
+    recent_builds_chart_urls =
+      Enum.map(reversed_builds, fn build ->
+        ~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
       end)
 
     avg_recent_hit_rate =
@@ -239,6 +239,7 @@ defmodule TuistWeb.GradleCacheLive do
     socket
     |> assign(:builds, builds)
     |> assign(:recent_builds_chart_data, recent_builds_chart_data)
+    |> assign(:recent_builds_chart_urls, recent_builds_chart_urls)
     |> assign(:avg_recent_hit_rate, avg_recent_hit_rate)
   end
 end

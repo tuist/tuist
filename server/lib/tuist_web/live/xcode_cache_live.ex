@@ -201,18 +201,21 @@ defmodule TuistWeb.XcodeCacheLive do
 
     {builds, _} = Builds.list_build_runs(options, preload: [:ran_by_account])
 
+    reversed_builds = Enum.reverse(builds)
+
     recent_builds_chart_data =
-      builds
-      |> Enum.reverse()
-      |> Enum.map(fn build ->
+      Enum.map(reversed_builds, fn build ->
         hit_rate = cache_hit_rate(build)
-        url = ~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}"
 
         %{
           value: hit_rate,
-          date: build.inserted_at,
-          url: url
+          date: build.inserted_at
         }
+      end)
+
+    recent_builds_chart_urls =
+      Enum.map(reversed_builds, fn build ->
+        ~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}"
       end)
 
     avg_recent_hit_rate =
@@ -230,6 +233,7 @@ defmodule TuistWeb.XcodeCacheLive do
     socket
     |> assign(:builds, builds)
     |> assign(:recent_builds_chart_data, recent_builds_chart_data)
+    |> assign(:recent_builds_chart_urls, recent_builds_chart_urls)
     |> assign(:avg_recent_hit_rate, avg_recent_hit_rate)
   end
 

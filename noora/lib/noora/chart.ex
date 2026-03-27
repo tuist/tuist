@@ -269,6 +269,14 @@ defmodule Noora.Chart do
     """
   )
 
+  attr(:click_urls, :list,
+    default: [],
+    doc: """
+    A list of URLs corresponding to each data point in the first series.
+    When a data point is clicked, the browser navigates to the URL at the matching index.
+    """
+  )
+
   attr(:rest, :global, doc: "Additional HTML attributes to add to the container div")
 
   def chart(assigns) do
@@ -282,6 +290,7 @@ defmodule Noora.Chart do
       {# The actual chart is managed by ECharts, so we are ignoring any updates by LiveView. The chart should be updated by changing the component attributes. #}
       <div id={"#{@id}-chart"} data-part="chart" phx-update="ignore"></div>
       <div data-part="data" hidden>{Jason.encode!(@option)}</div>
+      <div :if={@click_urls != []} data-part="click-urls" hidden>{Jason.encode!(@click_urls)}</div>
     </div>
     """
   end

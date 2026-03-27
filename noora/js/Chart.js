@@ -114,22 +114,30 @@ export default {
     );
     this.chart.setOption(option);
 
-    this.chart.on("click", (params) => {
-      const url = params.data && params.data.url;
-      if (url) {
-        window.location.href = url;
-      }
-    });
+    const clickUrlsEl = this.el.querySelector("[data-part='click-urls']");
+    if (clickUrlsEl) {
+      let clickUrls = [];
+      try {
+        clickUrls = JSON.parse(clickUrlsEl.textContent);
+      } catch (_) {}
 
-    const chartDom = this.el.querySelector("[data-part='chart']");
-    this.chart.on("mouseover", (params) => {
-      if (params.data && params.data.url) {
-        chartDom.style.cursor = "pointer";
-      }
-    });
-    this.chart.on("mouseout", () => {
-      chartDom.style.cursor = "default";
-    });
+      this.chart.on("click", (params) => {
+        const url = clickUrls[params.dataIndex];
+        if (url) {
+          window.location.href = url;
+        }
+      });
+
+      const chartDom = this.el.querySelector("[data-part='chart']");
+      this.chart.on("mouseover", (params) => {
+        if (clickUrls[params.dataIndex]) {
+          chartDom.style.cursor = "pointer";
+        }
+      });
+      this.chart.on("mouseout", () => {
+        chartDom.style.cursor = "default";
+      });
+    }
 
     this.resizeListener = () => {
       this.chart.resize();
