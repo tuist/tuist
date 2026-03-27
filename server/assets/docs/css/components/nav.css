@@ -28,9 +28,9 @@
       }
 
       & > [data-part="logo-divider"] {
-        width: 1px;
         align-self: stretch;
         background: var(--noora-content-divider-line);
+        width: 1px;
       }
 
       & > [data-part="logo-text"] {
