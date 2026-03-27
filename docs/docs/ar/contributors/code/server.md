@@ -10,7 +10,7 @@
 المصدر:
 [github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
 
-## ما الغرض منه {#what-it-is-for}
+## ما الغرض من ذلك {#what-it-is-for}
 
 يوفر الخادم ميزات Tuist من جانب الخادم مثل المصادقة والحسابات والمشاريع وتخزين
 ذاكرة التخزين المؤقتة والرؤى والمعاينات والتسجيل والتكاملات (GitHub و Slack و
@@ -28,7 +28,7 @@ TimescaleDB](https://docs.timescale.com/self-hosted/latest/install/installation-
 
 تتطلب المساهمات في الخادم توقيع CLA (`server/CLA.md`).
 
-### قم بالإعداد محليًا {#set-up-locally}
+### الإعداد محليًا {#set-up-locally}
 
 ```bash
 cd server
