@@ -56,10 +56,7 @@ struct CASMetadataReader: @unchecked Sendable {
 
         guard let legacyCASMetadataPath else { return nil }
         let path = legacyCASMetadataPath.appending(components: "cas", "\(checksum).json")
-        guard let data = try? await fileSystem.readFile(at: path),
-              let entry = try? JSONDecoder().decode(CASOutputMetadataEntry.self, from: Data(data))
-        else { return nil }
-        return entry
+        return try? await fileSystem.readJSONFile(at: path)
     }
 
     func readKeyValueMetadata(key: String, operationType: String) async -> KeyValueMetadataEntry? {
@@ -76,10 +73,7 @@ struct CASMetadataReader: @unchecked Sendable {
         let path = legacyCASMetadataPath.appending(
             components: "keyvalue", operationType, "\(sanitizeCacheKey(key)).json"
         )
-        guard let data = try? await fileSystem.readFile(at: path),
-              let entry = try? JSONDecoder().decode(KeyValueMetadataEntry.self, from: Data(data))
-        else { return nil }
-        return entry
+        return try? await fileSystem.readJSONFile(at: path)
     }
 
     private func sanitize(_ value: String) -> String {
