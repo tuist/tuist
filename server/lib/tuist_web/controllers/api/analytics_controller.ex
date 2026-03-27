@@ -1009,7 +1009,11 @@ defmodule TuistWeb.API.AnalyticsController do
           is_ci: test_run.is_ci || false,
           git_branch: test_run.git_branch,
           git_commit_sha: test_run.git_commit_sha,
-          git_ref: test_run.git_ref
+          git_ref: test_run.git_ref,
+          macos_version: test_run.macos_version,
+          xcode_version: test_run.xcode_version,
+          model_identifier: test_run.model_identifier,
+          scheme: test_run.scheme
         }
         |> Tuist.Tests.Workers.ProcessXcresultWorker.new()
         |> Oban.insert()

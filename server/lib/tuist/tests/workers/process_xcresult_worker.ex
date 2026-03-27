@@ -99,6 +99,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       git_branch: Map.get(args, "git_branch"),
       git_commit_sha: Map.get(args, "git_commit_sha"),
       git_ref: Map.get(args, "git_ref"),
+      macos_version: Map.get(args, "macos_version"),
+      xcode_version: Map.get(args, "xcode_version"),
+      model_identifier: Map.get(args, "model_identifier"),
+      scheme: Map.get(args, "scheme"),
       ran_at: NaiveDateTime.utc_now()
     }
 
