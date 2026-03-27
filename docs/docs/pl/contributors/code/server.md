@@ -10,7 +10,7 @@
 Źródło:
 [github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
 
-## Do czego służy {#what-it-is-for}
+## Do czego to służy {#what-it-is-for}
 
 Serwer obsługuje funkcje po stronie serwera Tuist, takie jak uwierzytelnianie,
 konta i projekty, pamięć podręczna, statystyki, podglądy, rejestr i integracje
