@@ -29,15 +29,13 @@
 
       & > [data-part="logo-divider"] {
         width: 1px;
-        height: 31px;
+        align-self: stretch;
         background: var(--noora-content-divider-line);
       }
 
       & > [data-part="logo-text"] {
         color: var(--noora-surface-label-primary);
-        font-weight: 500;
-        font-size: 20px;
-        line-height: 26px;
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
         letter-spacing: -0.2px;
       }
     }
