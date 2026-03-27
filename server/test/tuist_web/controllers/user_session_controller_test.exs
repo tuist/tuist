@@ -134,6 +134,25 @@ defmodule TuistWeb.UserSessionControllerTest do
     end
   end
 
+  describe "GET /docs/login" do
+    test "redirects to login page", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login")
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "stores return_to path in session", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login?#{%{return_to: "/en/docs/guides"}}")
+      assert redirected_to(conn) == ~p"/users/log_in"
+      assert get_session(conn, :user_return_to) == "/en/docs/guides"
+    end
+
+    test "ignores non-local return_to paths", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login?#{%{return_to: "https://evil.com"}}")
+      assert redirected_to(conn) == ~p"/users/log_in"
+      refute get_session(conn, :user_return_to)
+    end
+  end
+
   describe "DELETE /users/log_out" do
     test "logs the user out", %{conn: conn, user: user} do
       conn = conn |> log_in_user(user) |> delete(~p"/users/log_out")
