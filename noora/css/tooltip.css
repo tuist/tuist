@@ -1,4 +1,13 @@
 .noora-tooltip {
+  display: inline-flex;
+  align-items: center;
+
+  & [data-part="trigger"] {
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+  }
+
   & [data-part="content"] {
     align-items: top;
     z-index: var(--noora-z-index-12);

@@ -133,20 +133,12 @@
           font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
         }
 
-        & .noora-tooltip {
-          display: inline-flex;
-          align-items: center;
+        & .noora-tooltip [data-part="trigger"] {
+          color: var(--noora-surface-label-secondary);
 
-          & [data-part="trigger"] {
-            display: inline-flex;
-            align-items: center;
-            cursor: help;
-            color: var(--noora-surface-label-secondary);
-
-            & svg {
-              width: 16px;
-              height: 16px;
-            }
+          & svg {
+            width: 16px;
+            height: 16px;
           }
         }
       }
