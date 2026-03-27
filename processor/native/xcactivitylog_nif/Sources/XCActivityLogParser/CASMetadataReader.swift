@@ -20,8 +20,8 @@ struct CASMetadataReader {
 
     init(databasePath: AbsolutePath, legacyCASMetadataPath: AbsolutePath?) {
         self.fileSystem = FileSystem()
-        if FileManager.default.fileExists(atPath: databasePath.pathString) {
-            self.db = try? Connection(databasePath.pathString, readonly: true)
+        if let db = try? Connection(databasePath.pathString, readonly: true) {
+            self.db = db
             self.legacyCASMetadataPath = nil
         } else {
             self.db = nil
