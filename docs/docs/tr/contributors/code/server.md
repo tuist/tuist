@@ -10,7 +10,7 @@
 Kaynak:
 [github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
 
-## Ne için kullanılır? {#what-it-is-for}
+## Ne için kullanılır {#what-it-is-for}
 
 Sunucu, Tuist'in kimlik doğrulama, hesaplar ve projeler, önbellek depolama,
 içgörüler, önizlemeler, Kayıt ve entegrasyonlar (GitHub, Slack ve SSO) gibi
@@ -26,11 +26,11 @@ kullanın.
 <!-- -->
 :::
 
-## Nasıl katkıda bulunabilirsiniz? {#how-to-contribute}
+## Nasıl katkıda bulunabilirsiniz {#how-to-contribute}
 
 Sunucuya katkı yapmak için CLA (`server/CLA.md`) imzalanması gerekir.
 
-### Yerel olarak ayarlayın {#set-up-locally}
+### Yerel olarak kurun {#set-up-locally}
 
 ```bash
 cd server
