@@ -61,6 +61,7 @@
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
+    gap: var(--noora-spacing-6);
     border-bottom: 1px solid var(--noora-surface-border-secondary);
     padding: var(--noora-spacing-4) 0;
 
