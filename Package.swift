@@ -1704,6 +1704,7 @@ let package = Package(
         .package(id: "dduan.TOMLDecoder", from: "0.4.1"),
         .package(id: "apple.swift-algorithms", from: "1.2.1"),
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
+        .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]
