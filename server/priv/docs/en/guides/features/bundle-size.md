@@ -2,7 +2,7 @@
 {
   "title": "Bundle insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Use Tuist Bundle Insights (bundle analysis) to keep your app's size and memory footprint under control."
+  "description": "Monitor your app's bundle size and memory footprint with Tuist Bundle Insights."
 }
 ---
 # Bundle insights {#bundle-size}

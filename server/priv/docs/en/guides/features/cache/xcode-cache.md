@@ -2,7 +2,7 @@
 {
   "title": "Xcode cache",
   "titleTemplate": ":title · Cache · Features · Guides · Tuist",
-  "description": "Enable Xcode cache (Xcode compilation cache / Xcode build cache) to improve build times locally and on CI."
+  "description": "Speed up Xcode builds locally and on CI with Tuist's Xcode cache integration."
 }
 ---
 # Xcode cache {#xcode-cache}
