@@ -795,6 +795,14 @@ defmodule Tuist.Environment do
     namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
   end
 
+  def typesense_host do
+    get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
+  end
+
+  def typesense_search_api_key do
+    get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
+  end
+
   def get(keys, secrets \\ secrets(), opts \\ []) do
     env_variable =
       "TUIST_#{keys |> Enum.map(&to_string/1) |> Enum.map_join("_", &String.upcase/1)}"

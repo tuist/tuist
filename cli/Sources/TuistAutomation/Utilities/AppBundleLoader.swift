@@ -47,7 +47,7 @@ public struct AppBundleLoader: AppBundleLoading {
     }
 
     public func load(ipa: AbsolutePath) async throws -> AppBundle {
-        let unarchivedIPA = try fileArchiverFactory.makeFileUnarchiver(for: ipa).unzip()
+        let unarchivedIPA = try await fileArchiverFactory.makeFileUnarchiver(for: ipa).unzip()
 
         guard let appBundlePath = try await fileSystem.glob(
             directory: unarchivedIPA,

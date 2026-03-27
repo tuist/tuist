@@ -279,7 +279,7 @@
           @cache_hit_rate_analytics.ok? && @cache_hit_rate_analytics.result.avg_hit_rate == 0.0
         }
         title={dgettext("dashboard_gradle", "No data yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/install-gradle-plugin"
+        get_started_href="https://tuist.dev/en/docs/guides/install-gradle-plugin"
       >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />
@@ -375,7 +375,7 @@
     <.empty_card_section
       :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_gradle", "Runs: no data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/install-gradle-plugin"
+      get_started_href="https://tuist.dev/en/docs/guides/install-gradle-plugin"
     >
       <:image>
         <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -544,7 +544,7 @@
       <.empty_card_section
         :if={@recent_build_runs.ok? && Enum.empty?(@recent_build_runs.result)}
         title={dgettext("dashboard_gradle", "No recent builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/install-gradle-plugin"
+        get_started_href="https://tuist.dev/en/docs/guides/install-gradle-plugin"
       >
         <:image>
           <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -659,7 +659,7 @@
             @builds_duration_analytics.result.total_average_duration == 0
         }
         title={dgettext("dashboard_gradle", "No builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/install-gradle-plugin"
+        get_started_href="https://tuist.dev/en/docs/guides/install-gradle-plugin"
       >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />

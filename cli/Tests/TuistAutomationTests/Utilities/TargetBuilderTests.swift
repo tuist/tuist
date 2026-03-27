@@ -202,13 +202,12 @@ final class TargetBuilderTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(buildOutputPath).sorted(),
-            [buildOutputPath.appending(component: "Debug")]
-        )
+        let contents = try await fileSystem.contentsOfDirectory(buildOutputPath).sorted()
+        XCTAssertEqual(contents, [buildOutputPath.appending(component: "Debug")])
 
+        let debugContents = try await fileSystem.contentsOfDirectory(buildOutputPath.appending(component: "Debug")).sorted()
         XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: "Debug")).sorted(),
+            debugContents,
             [
                 buildOutputPath.appending(components: "Debug", "App.app"),
                 buildOutputPath.appending(components: "Debug", "App.swiftmodule"),
@@ -275,13 +274,13 @@ final class TargetBuilderTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(buildOutputPath).sorted(),
-            [buildOutputPath.appending(component: configuration)]
-        )
+        let contents2 = try await fileSystem.contentsOfDirectory(buildOutputPath).sorted()
+        XCTAssertEqual(contents2, [buildOutputPath.appending(component: configuration)])
 
+        let configContents = try await fileSystem.contentsOfDirectory(buildOutputPath.appending(component: configuration))
+            .sorted()
         XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: configuration)).sorted(),
+            configContents,
             [
                 buildOutputPath.appending(components: configuration, "App.app"),
                 buildOutputPath.appending(components: configuration, "App.swiftmodule"),

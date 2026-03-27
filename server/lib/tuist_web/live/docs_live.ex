@@ -47,6 +47,7 @@ defmodule TuistWeb.DocsLive do
      socket
      |> assign(:view, :overview)
      |> assign(:videos, videos)
+     |> assign(:page_title, "Docs · Tuist")
      |> assign(:head_title, "Docs · Tuist")
      |> assign(:head_description, "Learn how to use Tuist to make mobile your competitive advantage.")}
   end
@@ -65,13 +66,19 @@ defmodule TuistWeb.DocsLive do
             template -> String.replace(template, ":title", page.title)
           end
 
+        og_image_filename = Tuist.Docs.OgImage.slug_to_filename(path)
+        og_image_path = "/docs/images/og/generated/#{og_image_filename}"
+
         {:noreply,
          socket
          |> assign(:view, :show)
          |> assign(:page, page)
          |> assign(:requested_slug, path)
+         |> assign(:page_title, head_title)
          |> assign(:head_title, head_title)
-         |> assign(:head_description, page.description)}
+         |> assign(:head_description, page.description)
+         |> assign(:head_image, Tuist.Environment.app_url(path: og_image_path))
+         |> assign(:head_twitter_card, "summary_large_image")}
     end
   end
 
@@ -341,20 +348,6 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <div data-part="feature-card">
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.checkup_list /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Agentic QA")}</span>
-              </div>
-              <div data-part="feature-card-body">
-                <p>
-                  {dgettext(
-                    "docs",
-                    "Mention @tuist on your PR and an AI agent tests your app for you, exploring edge cases and reporting issues with screenshots and logs."
-                  )}
-                </p>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -506,6 +499,34 @@ defmodule TuistWeb.DocsLive do
       <article id={"docs-body-#{@page.slug}"} class="tuist-docs" data-prose phx-hook="DocsContent">
         {raw(@page.body)}
       </article>
+      <footer id="docs-page-footer">
+        <div data-part="markdown-link">
+          <span>{dgettext("docs", "View")}</span>
+          <.link_button
+            label={dgettext("docs", "as Markdown")}
+            variant="primary"
+            size="large"
+            href={docs_markdown_path(@requested_slug)}
+            target="_blank"
+            rel="noopener noreferrer"
+          />
+        </div>
+        <div data-part="edit-row">
+          <.link_button
+            label={dgettext("docs", "Edit this page")}
+            variant="primary"
+            size="large"
+            href={github_edit_url(@page.source_path)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <:icon_left><.icon name="pencil" /></:icon_left>
+          </.link_button>
+          <span :if={@page.last_modified} data-part="last-updated">
+            {dgettext("docs", "Last updated on %{date}", date: format_date(@page.last_modified))}
+          </span>
+        </div>
+      </footer>
     </TuistWeb.Docs.Components.layout>
     """
   end
@@ -540,4 +561,19 @@ defmodule TuistWeb.DocsLive do
   defp build_path(_params, locale), do: Paths.slug(locale)
 
   defp docs_path(slug), do: Paths.public_path_from_slug(slug)
+
+  defp docs_markdown_path("/" <> _ = slug) do
+    case String.split(slug, "/", trim: true) do
+      [locale | path_segments] -> "/#{locale}/docs-markdown/#{Enum.join(path_segments, "/")}"
+      [] -> "/en/docs-markdown"
+    end
+  end
+
+  defp github_edit_url(source_path) do
+    "https://github.com/tuist/tuist/edit/main/server/priv/docs/#{source_path}"
+  end
+
+  defp format_date(date) do
+    Calendar.strftime(date, "%b %d, %Y")
+  end
 end

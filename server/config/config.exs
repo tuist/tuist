@@ -9,6 +9,7 @@ import Config
 
 # esbuild
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
+node_modules_path = Path.expand("../node_modules", __DIR__)
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
@@ -72,7 +73,7 @@ config :esbuild,
       "--alias:noora/noora.css=#{noora_static_path}/noora.css"
     ],
     cd: Path.expand("../assets/docs", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{node_modules_path}"}
   ],
   apidocs: [
     args: [
@@ -84,7 +85,7 @@ config :esbuild,
       "--external:/images/*"
     ],
     cd: Path.expand("../assets/apidocs", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{node_modules_path}"}
   ]
 
 config :excellent_migrations, start_after: "20240926093919"
@@ -288,15 +289,15 @@ config :tuist, :urls,
   podcast: "https://podcast.tuist.dev",
   peertube: "https://videos.tuist.dev",
   status: "https://status.tuist.dev",
-  get_started: "https://docs.tuist.dev",
+  get_started: "https://tuist.dev/en/docs",
   forum: "https://community.tuist.dev",
-  documentation: "https://docs.tuist.dev",
+  documentation: "https://tuist.dev/en/docs",
   # Import environment specific config. This must remain at the bottom
   # of this file so it overrides the configuration defined above.
-  feature_generated_projects: "https://docs.tuist.dev/en/guides/features/projects",
-  feature_cache: "https://docs.tuist.dev/en/guides/features/cache",
-  feature_previews: "https://docs.tuist.dev/en/guides/features/previews",
-  feature_insights: "https://docs.tuist.dev/en/guides/features/insights",
+  feature_generated_projects: "https://tuist.dev/en/docs/guides/features/projects",
+  feature_cache: "https://tuist.dev/en/docs/guides/features/cache",
+  feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
+  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
   shop: "https://shop.tuist.dev"
 
 config :tuist_common, finch_name: Tuist.Finch

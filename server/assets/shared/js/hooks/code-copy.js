@@ -35,6 +35,9 @@ const CodeCopy = {
   mounted() {
     setupCodeCopy(this.el);
   },
+  updated() {
+    setupCodeCopy(this.el);
+  },
 };
 
 export { CodeCopy, setupCodeCopy, flashCopyCheck };

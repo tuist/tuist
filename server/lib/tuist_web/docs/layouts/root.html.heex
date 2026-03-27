@@ -6,7 +6,7 @@
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title>
-      {assigns[:head_title] || "Tuist"}
+      {assigns[:page_title] || assigns[:head_title] || "Tuist"}
     </.live_title>
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
@@ -51,6 +51,7 @@
     />
     <!-- Analytics -->
     <TuistWeb.LayoutComponents.head_analytics_scripts page_section="docs" {assigns} />
+    <TuistWeb.LayoutComponents.head_plain_script current_user={assigns[:current_user]} {assigns} />
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
     <meta property="og:locale" content={@locale} />
     <link
@@ -73,27 +74,35 @@
       <div data-part="header">
         <.link navigate={docs_path("/#{@locale}")} data-part="logo-link">
           <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
-          <span data-part="logo-text">Tuist</span>
+          <span data-part="logo-divider"></span>
+          <span data-part="logo-text">Docs</span>
         </.link>
         <.button_group size="large" id="docs-nav-tabs">
           <.button_group_item
             label={dgettext("docs", "Guides")}
-            navigate={docs_path("/#{@locale}")}
+            href={docs_path("/#{@locale}")}
             data-tab="guides"
             data-selected={
               !String.contains?(@current_path, "/docs/references") &&
-                !String.contains?(@current_path, "/docs/contributors")
+                !String.contains?(@current_path, "/docs/contributors") &&
+                !String.contains?(@current_path, "/docs/cli")
             }
           />
           <.button_group_item
+            label={dgettext("docs", "CLI")}
+            href={docs_path("/#{@locale}/cli")}
+            data-tab="cli"
+            data-selected={String.contains?(@current_path, "/docs/cli")}
+          />
+          <.button_group_item
             label={dgettext("docs", "References")}
-            navigate={docs_path("/#{@locale}/references/tuist-toml")}
+            href={docs_path("/#{@locale}/references/tuist-toml")}
             data-tab="references"
             data-selected={String.contains?(@current_path, "/docs/references")}
           />
           <.button_group_item
             label={dgettext("docs", "Resources")}
-            navigate={docs_path("/#{@locale}/contributors/code")}
+            href={docs_path("/#{@locale}/contributors/code")}
             data-tab="resources"
             data-selected={String.contains?(@current_path, "/docs/contributors")}
           />
@@ -150,6 +159,13 @@
             <.brand_bluesky />
           </.neutral_button>
         </div>
+        <.button
+          :if={is_nil(assigns[:current_user])}
+          label={dgettext("docs", "Log in")}
+          variant="primary"
+          size="small"
+          href={~p"/docs/login?#{%{return_to: @current_path}}"}
+        />
       </div>
       <div data-part="mobile-actions">
         <.neutral_button size="large" aria-label={dgettext("docs", "Search")}>
@@ -209,6 +225,12 @@
       }
     >
     </div>
+    <TuistWeb.Docs.Components.search_modal
+      host={Tuist.Environment.typesense_host()}
+      api_key={Tuist.Environment.typesense_search_api_key()}
+      locale={@locale}
+      placeholder={dgettext("docs", "Search...")}
+    />
     {@inner_content}
   </body>
 </html>

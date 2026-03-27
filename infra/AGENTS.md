@@ -28,9 +28,12 @@ Cloudflare Worker that geo-routes requests to `registry.tuist.dev` to the neares
 - `cache-eu-central.tuist.dev`
 - `cache-eu-north.tuist.dev`
 - `cache-us-east.tuist.dev`
+- `cache-us-east-2.tuist.dev`
+- `cache-us-east-3.tuist.dev`
 - `cache-us-west.tuist.dev`
 - `cache-ap-southeast.tuist.dev`
 - `cache-sa-west.tuist.dev`
+- `cache-au-east.tuist.dev`
 
 **Health Checks:** Cron Trigger every 60s writes health state to Workers KV (TTL 120s). Missing keys are treated as healthy (fail-open).
 

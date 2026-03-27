@@ -193,7 +193,7 @@ public protocol PreviewsUploadServicing {
 
                 if let iconPath = metadata.iconPath {
                     let unarchiver = try fileArchiver.makeFileUnarchiver(for: apkPath)
-                    let unzippedPath = try unarchiver.unzip()
+                    let unzippedPath = try await unarchiver.unzip()
                     let iconAbsolutePath = unzippedPath.appending(iconPath)
                     if try await fileSystem.exists(iconAbsolutePath) {
                         try await uploadPreviewIconService.uploadPreviewIcon(
@@ -439,7 +439,7 @@ public protocol PreviewsUploadServicing {
 
             private func ipaBinaryId(at path: AbsolutePath) async throws -> String {
                 let unarchiver = try fileArchiver.makeFileUnarchiver(for: path)
-                let unzippedPath = try unarchiver.unzip()
+                let unzippedPath = try await unarchiver.unzip()
 
                 guard let appPath = try await fileSystem.glob(directory: unzippedPath, include: ["Payload/*.app"])
                     .collect()

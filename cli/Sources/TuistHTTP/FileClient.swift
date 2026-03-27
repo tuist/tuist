@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 
@@ -57,12 +58,17 @@ import Path
         // MARK: - Attributes
 
         let session: URLSession
+        private let fileSystem: FileSysteming
         private let successStatusCodeRange = 200 ..< 300
 
         // MARK: - Init
 
-        public init(session: URLSession = .tuistShared) {
+        public init(
+            session: URLSession = .tuistShared,
+            fileSystem: FileSysteming = FileSystem()
+        ) {
             self.session = session
+            self.fileSystem = fileSystem
         }
 
         // MARK: - Public
@@ -95,7 +101,10 @@ import Path
         }
 
         public func upload(file: AbsolutePath, hash _: String, to url: URL) async throws -> Bool {
-            let fileSize = try FileHandler.shared.fileSize(path: file)
+            guard let metadata = try await fileSystem.fileMetadata(at: file) else {
+                throw FileClientError.noLocalURL(URLRequest(url: url))
+            }
+            let fileSize = UInt64(metadata.size)
             let fileData = try Data(contentsOf: file.url)
             let request = uploadRequest(url: url, fileSize: fileSize, data: fileData)
             do {

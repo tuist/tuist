@@ -29,9 +29,17 @@ defmodule CacheWeb.XcodeControllerTest do
       project_handle = "test-project"
       id = "abc123"
       body = "test artifact content"
+      key = "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
+      test_pid = self()
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
+      end)
+
+      expect(S3, :exists?, fn ^key, opts ->
+        assert Keyword.get(opts, :type) == :xcode_cache
+        send(test_pid, {:s3_exists_checked, self()})
+        false
       end)
 
       Xcode.Disk
@@ -53,6 +61,11 @@ defmodule CacheWeb.XcodeControllerTest do
         assert conn.resp_body == ""
       end)
 
+      assert_receive {:s3_exists_checked, task_pid}, 1_000
+      ref = Process.monitor(task_pid)
+      assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
+      assert reason in [:normal, :noproc]
+
       :ok = S3TransfersBuffer.flush()
 
       uploads = S3Transfers.pending(:upload, 10)
@@ -62,7 +75,7 @@ defmodule CacheWeb.XcodeControllerTest do
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
       assert upload.artifact_type == :xcode_cache
-      assert upload.key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
+      assert upload.key == key
     end
 
     test "streams large artifact to temporary file", %{conn: conn} do
@@ -70,9 +83,17 @@ defmodule CacheWeb.XcodeControllerTest do
       project_handle = "test-project"
       id = "abc123"
       large_body = :binary.copy("0123456789abcdef", 150_000)
+      key = "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
+      test_pid = self()
 
       expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
         {:ok, "Bearer valid-token"}
+      end)
+
+      expect(S3, :exists?, fn ^key, opts ->
+        assert Keyword.get(opts, :type) == :xcode_cache
+        send(test_pid, {:s3_exists_checked, self()})
+        false
       end)
 
       Xcode.Disk
@@ -98,6 +119,11 @@ defmodule CacheWeb.XcodeControllerTest do
         assert conn.resp_body == ""
       end)
 
+      assert_receive {:s3_exists_checked, task_pid}, 1_000
+      ref = Process.monitor(task_pid)
+      assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
+      assert reason in [:normal, :noproc]
+
       :ok = S3TransfersBuffer.flush()
 
       uploads = S3Transfers.pending(:upload, 10)
@@ -107,7 +133,95 @@ defmodule CacheWeb.XcodeControllerTest do
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
       assert upload.artifact_type == :xcode_cache
-      assert upload.key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
+      assert upload.key == key
+    end
+
+    test "does not enqueue upload when artifact already exists in S3", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+      body = "test artifact content"
+      key = "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
+      test_pid = self()
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(S3, :exists?, fn ^key, opts ->
+        assert Keyword.get(opts, :type) == :xcode_cache
+        send(test_pid, {:s3_exists_checked, self()})
+        true
+      end)
+
+      Xcode.Disk
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
+        false
+      end)
+      |> expect(:put, fn ^account_handle, ^project_handle, ^id, ^body ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", body)
+
+      assert conn.status == 204
+      assert conn.resp_body == ""
+
+      assert_receive {:s3_exists_checked, task_pid}, 1_000
+      ref = Process.monitor(task_pid)
+      assert_receive {:DOWN, ^ref, :process, ^task_pid, reason}, 1_000
+      assert reason in [:normal, :noproc]
+
+      :ok = S3TransfersBuffer.flush()
+      assert S3Transfers.pending(:upload, 10) == []
+    end
+
+    test "returns timeout instead of acknowledging a chunked upload timeout as success", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+      chunk = String.duplicate("x", 200_000)
+      call_count = :counters.new(1, [])
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Xcode.Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+        false
+      end)
+
+      reject(Xcode.Disk, :put, 4)
+
+      expect(Plug.Conn, :read_body, 2, fn conn, _opts ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        if count == 0 do
+          {:more, chunk, conn}
+        else
+          raise Bandit.TransportError, message: "Request body read timed out", error: :timeout
+        end
+      end)
+
+      capture_log(fn ->
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> put_req_header("content-type", "application/octet-stream")
+          |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", chunk)
+
+        assert conn.status == 408
+        response = json_response(conn, 408)
+        assert response["message"] == "Request body read timed out"
+      end)
+
+      :ok = S3TransfersBuffer.flush()
+      assert S3Transfers.pending(:upload, 10) == []
     end
 
     test "skips save when artifact already exists", %{conn: conn} do
@@ -128,6 +242,33 @@ defmodule CacheWeb.XcodeControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/octet-stream")
+        |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", body)
+
+      assert conn.status == 204
+      assert conn.resp_body == ""
+    end
+
+    test "skips save for large duplicate uploads without returning 500", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+      body = :binary.copy("0123456789abcdef", 20_000)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Xcode.Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+        true
+      end)
+
+      reject(Xcode.Disk, :put, 4)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
         |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", body)
 
       assert conn.status == 204

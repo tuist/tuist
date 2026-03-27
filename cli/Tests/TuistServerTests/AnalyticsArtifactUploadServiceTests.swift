@@ -62,7 +62,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         let resultBundle = temporaryDirectory.appending(component: "artifact.bundle")
-        try FileHandler.shared.touch(resultBundle)
+        try await FileSystem().touch(resultBundle)
         let accountHandle = "account-\(UUID().uuidString)"
         let projectHandle = "project-\(UUID().uuidString)"
 
@@ -208,9 +208,9 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
         // Given
         let temporaryDirectory = try temporaryPath()
         let sessionDirectory = temporaryDirectory.appending(component: "session")
-        try FileHandler.shared.createFolder(sessionDirectory)
-        try FileHandler.shared.touch(sessionDirectory.appending(component: "logs.txt"))
-        try FileHandler.shared.touch(sessionDirectory.appending(component: "network.har"))
+        try await FileSystem().makeDirectory(at: sessionDirectory)
+        try await FileSystem().touch(sessionDirectory.appending(component: "logs.txt"))
+        try await FileSystem().touch(sessionDirectory.appending(component: "network.har"))
 
         let accountHandle = "account-\(UUID().uuidString)"
         let projectHandle = "project-\(UUID().uuidString)"

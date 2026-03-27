@@ -8,6 +8,8 @@
 @import "./css/components/toc.css";
 @import "./css/components/admonition.css";
 @import "./css/components/overview.css";
+@import "./css/components/search.css";
+@import "./css/components/page-footer.css";
 
 :root {
   color-scheme: light;

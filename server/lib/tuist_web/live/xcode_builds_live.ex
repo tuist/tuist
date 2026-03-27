@@ -294,7 +294,9 @@ defmodule TuistWeb.XcodeBuildsLive do
           )
 
         recent_builds_chart_data =
-          Enum.map(recent_builds, fn run ->
+          recent_builds
+          |> Enum.reverse()
+          |> Enum.map(fn run ->
             color =
               case run.status do
                 "success" -> "var:noora-chart-primary"

@@ -53,7 +53,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             SWIFT_VERSION=5.0
             TARGETED_DEVICE_FAMILY=1,2
             """
-            let content = try FileHandler.shared.readTextFile(xcconfigPath)
+            let content = try String(contentsOf: xcconfigPath.url, encoding: .utf8)
             XCTAssertTrue(content.contains(expected))
 
             let output = ui()
@@ -144,7 +144,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
             SWIFT_OPTIMIZATION_LEVEL[config=Release]=-O
             VALIDATE_PRODUCT[config=Release]=YES
             """
-            let content = try FileHandler.shared.readTextFile(xcconfigPath)
+            let content = try String(contentsOf: xcconfigPath.url, encoding: .utf8)
             XCTAssertTrue(content.contains(expected))
 
             let output = ui()

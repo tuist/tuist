@@ -1,8 +1,10 @@
 defmodule Tuist.Docs do
   @moduledoc """
-  Compile-time loaded documentation pages for the English docs site.
+  Compile-time loaded documentation pages for the English docs site,
+  plus runtime CLI pages fetched from the latest GitHub release.
   """
 
+  alias Tuist.Docs.CLI
   alias Tuist.Docs.Loader
 
   {pages, source_paths} = Loader.load_pages!()
@@ -15,17 +17,27 @@ defmodule Tuist.Docs do
   @pages_by_slug Map.new(@pages, &{&1.slug, &1})
   @slugs @pages_by_slug |> Map.keys() |> Enum.sort()
 
-  def pages, do: @pages
-  def slugs, do: @slugs
+  def pages, do: @pages ++ cli_pages()
+  def slugs, do: Enum.sort(@slugs ++ Enum.map(cli_pages(), & &1.slug))
 
   def get_page(path) when is_binary(path) do
     normalized = normalize_path(path)
 
     case Map.get(@pages_by_slug, normalized) do
-      nil -> fallback_to_english(normalized)
-      page -> page
+      nil ->
+        case cli_page(normalized) do
+          nil -> fallback_to_english(normalized)
+          page -> page
+        end
+
+      page ->
+        page
     end
   end
+
+  defp cli_pages, do: CLI.get_pages()
+
+  defp cli_page(slug), do: CLI.get_page(slug)
 
   defp fallback_to_english(path) do
     segments = path |> Path.split() |> Enum.reject(&(&1 == "/"))
@@ -33,7 +45,7 @@ defmodule Tuist.Docs do
     case segments do
       [locale | rest] when locale != "en" ->
         en_slug = Path.join(["/en" | rest])
-        Map.get(@pages_by_slug, en_slug)
+        Map.get(@pages_by_slug, en_slug) || cli_page(en_slug)
 
       _ ->
         nil

@@ -437,7 +437,7 @@
             @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
         }
         title={dgettext("dashboard_projects", "Binary cache and selective testing: no data yet")}
-        get_started_href="https://docs.tuist.dev/en/"
+        get_started_href="https://tuist.dev/en/docs/"
       >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />
@@ -533,7 +533,7 @@
     <.empty_card_section
       :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_projects", "Runs: no data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+      get_started_href="https://tuist.dev/en/docs/guides/features/selective-testing"
     >
       <:image>
         <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -579,7 +579,7 @@
       :if={@latest_app_previews.ok? && Enum.empty?(@latest_app_previews.result)}
       data-part="empty-previews-card-section"
       title={dgettext("dashboard_projects", "No previews yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/features/previews"
+      get_started_href="https://tuist.dev/en/docs/guides/features/previews"
     >
       <:image>
         <img src="/images/empty_previews_light.png" data-theme="light" />
@@ -910,7 +910,7 @@
       <.empty_card_section
         :if={@recent_build_runs.ok? && Enum.empty?(@recent_build_runs.result)}
         title={dgettext("dashboard_projects", "No recent builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
+        get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
       >
         <:image>
           <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -1030,7 +1030,7 @@
             @builds_duration_analytics.result.total_average_duration == 0
         }
         title={dgettext("dashboard_projects", "No builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
+        get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
       >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />

@@ -86,7 +86,7 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
         }
 
         if try await !fileSystem.exists(generatedModuleMapPath.parentDirectory) {
-            try FileHandler.shared.createFolder(generatedModuleMapPath.parentDirectory)
+            try await fileSystem.makeDirectory(at: generatedModuleMapPath.parentDirectory)
         }
 
         if try await fileSystem.exists(umbrellaHeaderPath) {
@@ -151,7 +151,7 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
         let newContentHash = try contentHasher.hash(moduleMapContent)
         let currentContentHash = try? await contentHasher.hash(path: path)
         if currentContentHash != newContentHash {
-            try FileHandler.shared.write(moduleMapContent, path: path, atomically: true)
+            try await fileSystem.writeText(moduleMapContent, at: path)
         }
     }
 
@@ -159,13 +159,13 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
         guard try await fileSystem.exists(publicHeadersPath) else { return nil }
 
         let moduleMapPath = try RelativePath(validating: ModuleMap.filename)
-        let publicHeadersFolderContent = try FileHandler.shared.contentsOfDirectory(publicHeadersPath)
+        let publicHeadersFolderContent = try await fileSystem.contentsOfDirectory(publicHeadersPath)
 
         if publicHeadersFolderContent.contains(publicHeadersPath.appending(moduleMapPath)) {
             return publicHeadersPath.appending(moduleMapPath)
         } else if publicHeadersFolderContent.count == 1,
                   let nestedHeadersPath = publicHeadersFolderContent.first,
-                  FileHandler.shared.isFolder(nestedHeadersPath),
+                  try await fileSystem.exists(nestedHeadersPath, isDirectory: true),
                   try await fileSystem.exists(nestedHeadersPath.appending(moduleMapPath))
         {
             return nestedHeadersPath.appending(moduleMapPath)

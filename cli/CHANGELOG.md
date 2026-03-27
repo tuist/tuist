@@ -1,7 +1,21 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.168.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.169.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* honor explicit run executable for extension schemes by [@pepicrft](https://github.com/pepicrft) in [#10057](https://github.com/tuist/tuist/pull/10057)
+* preserve input order in bounded concurrentMap by [@fortmarek](https://github.com/fortmarek) in [#10041](https://github.com/tuist/tuist/pull/10041)
+### 🚜 Refactor
+
+* replace FileHandler with FileSystem by [@fortmarek](https://github.com/fortmarek) in [#10040](https://github.com/tuist/tuist/pull/10040)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.0...4.169.1
+
+## What's Changed in 4.169.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -17,7 +31,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.167.0...4.168.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.167.0...4.169.0
 
 ## What's Changed in 4.167.0<!-- RELEASE NOTES START -->
 

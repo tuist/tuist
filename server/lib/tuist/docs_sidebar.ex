@@ -1,7 +1,6 @@
 defmodule Tuist.Docs.Sidebar do
   @moduledoc """
   Defines the navigation sidebar tree for the documentation pages.
-  Mirrors the structure from docs/.vitepress/bars.mjs.
   """
 
   defmodule Item do
@@ -14,7 +13,7 @@ defmodule Tuist.Docs.Sidebar do
     defstruct [:label, weight: :semibold, items: []]
   end
 
-  @strings_dir Path.expand("../../../docs/.vitepress/strings", __DIR__)
+  @strings_dir Path.expand("../../priv/docs/strings", __DIR__)
 
   extract_texts = fn extract_texts, map, prefix ->
     map
@@ -63,13 +62,14 @@ defmodule Tuist.Docs.Sidebar do
   @translations translations
 
   def tree do
-    guides_tree() ++ resources_tree() ++ references_tree()
+    guides_tree() ++ resources_tree() ++ references_tree() ++ cli_tree()
   end
 
   def tab_for_slug(slug) do
     path = Regex.replace(~r{^/[^/]+/}, slug, "/")
 
     cond do
+      String.starts_with?(path, "/cli") -> :cli
       String.starts_with?(path, "/references") -> :references
       String.starts_with?(path, "/contributors") -> :resources
       true -> :guides
@@ -80,6 +80,7 @@ defmodule Tuist.Docs.Sidebar do
   def tree_for_tab(:guides, locale), do: localize_tree(guides_tree(), locale)
   def tree_for_tab(:references, locale), do: localize_tree(references_tree(), locale)
   def tree_for_tab(:resources, locale), do: localize_tree(resources_tree(), locale)
+  def tree_for_tab(:cli, locale), do: localize_tree(cli_tree(), locale)
 
   defp localize_tree(tree, "en"), do: tree
 
@@ -153,7 +154,7 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache", icon: "xcode"},
               %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache", icon: "xcode"},
-              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache", icon: "gradle"}
+              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"}
             ]
           },
           %Item{
@@ -161,7 +162,7 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/features/build-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode", icon: "xcode"},
-              %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle", icon: "gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle"}
             ]
           }
         ]
@@ -176,7 +177,7 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/features/test-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "xcode"},
-              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle", icon: "gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle"}
             ]
           },
           %Item{
@@ -190,8 +191,7 @@ defmodule Tuist.Docs.Sidebar do
               },
               %Item{
                 label: "Gradle",
-                slug: "/en/guides/features/test-insights/flaky-tests/gradle",
-                icon: "gradle"
+                slug: "/en/guides/features/test-insights/flaky-tests/gradle"
               }
             ]
           },
@@ -205,7 +205,7 @@ defmodule Tuist.Docs.Sidebar do
                 slug: "/en/guides/features/test-sharding/generated-projects",
                 icon: "xcode"
               },
-              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle"}
             ]
           }
         ]
@@ -377,7 +377,8 @@ defmodule Tuist.Docs.Sidebar do
       %Group{
         label: nil,
         items: [
-          %Item{label: "Changelog", url: "https://github.com/tuist/tuist/releases"},
+          %Item{label: "Changelog", url: "/changelog"},
+          %Item{label: "Releases", url: "https://github.com/tuist/tuist/releases"},
           %Item{label: "API documentation", url: "https://tuist.dev/api/docs"},
           %Item{label: "Status", url: "https://status.tuist.io"},
           %Item{
@@ -447,6 +448,26 @@ defmodule Tuist.Docs.Sidebar do
               %Item{label: "From v3 to v4", slug: "/en/references/migrations/from-v3-to-v4"}
             ]
           }
+        ]
+      }
+    ]
+  end
+
+  def cli_tree do
+    case Tuist.Docs.CLI.sidebar_items() do
+      [] -> default_cli_tree()
+      items -> items
+    end
+  end
+
+  defp default_cli_tree do
+    [
+      %Group{
+        label: "CLI",
+        items: [
+          %Item{label: "Debugging", slug: "/en/cli/debugging"},
+          %Item{label: "Directories", slug: "/en/cli/directories"},
+          %Item{label: "Shell completions", slug: "/en/cli/shell-completions"}
         ]
       }
     ]

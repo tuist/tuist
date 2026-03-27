@@ -5,6 +5,7 @@ import topbar from "../app/js/vendor/topbar.js";
 import Noora from "noora";
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
+import { initDocsSearch } from "./hooks/docs-search-hook.js";
 
 import "./docs.css";
 
@@ -35,6 +36,7 @@ window.addEventListener("phx:page-loading-stop", (_info) => {
   topbar.hide();
   window.scrollTo(0, 0);
   closeMobileSidebar();
+  initDocsSearch();
 });
 
 liveSocket.connect();
@@ -46,6 +48,8 @@ window.addEventListener("phx:navigate", () => {
 });
 
 window.liveSocket = liveSocket;
+
+initDocsSearch();
 
 window.addEventListener("phx:docs:copy-to-clipboard", ({ detail }) => {
   navigator.clipboard.writeText(detail.text);

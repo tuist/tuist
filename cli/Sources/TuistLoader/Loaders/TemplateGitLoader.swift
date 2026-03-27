@@ -1,3 +1,4 @@
+import FileSystem
 import TuistCore
 import TuistGit
 import TuistSupport
@@ -13,7 +14,7 @@ public protocol TemplateGitLoading {
 
 public struct TemplateGitLoader: TemplateGitLoading {
     private let templateLoader: TemplateLoading
-    private let fileHandler: FileHandling
+    private let fileSystem: FileSysteming
     private let gitController: GitControlling
     private let templateLocationParser: TemplateLocationParsing
 
@@ -21,7 +22,7 @@ public struct TemplateGitLoader: TemplateGitLoading {
     public init() {
         self.init(
             templateLoader: TemplateLoader(),
-            fileHandler: FileHandler.shared,
+            fileSystem: FileSystem(),
             gitController: GitController(),
             templateLocationParser: TemplateLocationParser()
         )
@@ -29,12 +30,12 @@ public struct TemplateGitLoader: TemplateGitLoading {
 
     init(
         templateLoader: TemplateLoading,
-        fileHandler: FileHandling,
+        fileSystem: FileSysteming,
         gitController: GitControlling,
         templateLocationParser: TemplateLocationParsing
     ) {
         self.templateLoader = templateLoader
-        self.fileHandler = fileHandler
+        self.fileSystem = fileSystem
         self.gitController = gitController
         self.templateLocationParser = templateLocationParser
     }
@@ -46,9 +47,9 @@ public struct TemplateGitLoader: TemplateGitLoading {
         let repoURL = templateLocationParser.parseRepositoryURL(from: templateURL)
         let repoBranch = templateLocationParser.parseRepositoryBranch(from: templateURL)
 
-        try await fileHandler.inTemporaryDirectory { temporaryPath in
+        try await fileSystem.runInTemporaryDirectory(prefix: "TemplateGit") { temporaryPath in
             let templatePath = temporaryPath.appending(component: "Template")
-            try fileHandler.createFolder(templatePath)
+            try await fileSystem.makeDirectory(at: templatePath)
             try gitController.clone(url: repoURL, to: templatePath)
             if let repoBranch {
                 try gitController.checkout(id: repoBranch, in: templatePath)

@@ -30,7 +30,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
       for i <- 1..10 do
         insert_entry(
           "keyvalue:acme:ios:ROOT_#{i}",
-          Jason.encode!(%{"entries" => [%{"value" => "HASH_#{i}"}]}),
+          JSON.encode!(%{"entries" => [%{"value" => "HASH_#{i}"}]}),
           old_time
         )
       end
@@ -41,7 +41,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
       for i <- 1..10 do
         insert_entry(
           "keyvalue:acme:ios:FRESH_#{i}",
-          Jason.encode!(%{"entries" => [%{"value" => "FRESH_HASH_#{i}"}]}),
+          JSON.encode!(%{"entries" => [%{"value" => "FRESH_HASH_#{i}"}]}),
           fresh_time
         )
       end
@@ -84,7 +84,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     for i <- 1..3 do
       insert_entry(
         "keyvalue:acme:ios:TELEMETRY_OLD_#{i}",
-        Jason.encode!(%{"entries" => [%{"value" => "TELEMETRY_HASH_#{i}"}]}),
+        JSON.encode!(%{"entries" => [%{"value" => "TELEMETRY_HASH_#{i}"}]}),
         old_time
       )
     end
@@ -92,7 +92,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     for i <- 1..2 do
       insert_entry(
         "keyvalue:acme:ios:TELEMETRY_FRESH_#{i}",
-        Jason.encode!(%{"entries" => [%{"value" => "TELEMETRY_FRESH_HASH_#{i}"}]}),
+        JSON.encode!(%{"entries" => [%{"value" => "TELEMETRY_FRESH_HASH_#{i}"}]}),
         fresh_time
       )
     end

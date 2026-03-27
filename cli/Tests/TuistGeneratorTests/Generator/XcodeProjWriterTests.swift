@@ -65,8 +65,7 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let filePath = path.appending(component: "MyFile")
-        let fileHandler = FileHandler.shared
-        try fileHandler.touch(filePath)
+        try await fileSystem.touch(filePath)
 
         let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: filePath, state: .absent))
         let descriptor = ProjectDescriptor.test(

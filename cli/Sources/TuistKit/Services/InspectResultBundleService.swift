@@ -24,7 +24,7 @@ public enum UploadResultBundleServiceError: Equatable, LocalizedError {
         switch self {
         case .missingFullHandle:
             return
-                "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects"
+                "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
         }
     }
 }

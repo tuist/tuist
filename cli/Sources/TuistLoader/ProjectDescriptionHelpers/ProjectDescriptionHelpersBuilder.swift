@@ -57,7 +57,6 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
 
     /// Clock for measuring build duration.
     private let clock: Clock
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
 
     /// The name of the default project description helpers module
@@ -74,14 +73,12 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         cacheDirectory: AbsolutePath,
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
         clock: Clock = WallClock(),
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.clock = clock
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
     }
 
@@ -172,7 +169,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
                     return module
                 }
 
-                try fileHandler.createFolder(moduleCacheDirectory)
+                try await fileSystem.makeDirectory(at: moduleCacheDirectory)
 
                 let command = try await createCommand(
                     moduleName: name,

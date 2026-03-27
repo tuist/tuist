@@ -45,6 +45,20 @@ defmodule TuistWeb.RequestOriginTest do
     assert RequestOrigin.from_conn(conn) == "https://mcp.tuist.dev:9443"
   end
 
+  test "strips port 80 even when scheme is https" do
+    conn =
+      :get
+      |> conn("/")
+      |> Map.put(:scheme, :http)
+      |> Map.put(:host, "internal")
+      |> Map.put(:port, 4000)
+      |> put_req_header("x-forwarded-proto", "https")
+      |> put_req_header("x-forwarded-host", "tuist.dev")
+      |> put_req_header("x-forwarded-port", "80")
+
+    assert RequestOrigin.from_conn(conn) == "https://tuist.dev"
+  end
+
   test "uses first value when forwarded headers contain a list" do
     conn =
       :get

@@ -40,8 +40,14 @@ ensure_suffix() {
 suffix="$(ensure_suffix)"
 test_partition="${MIX_TEST_PARTITION:-}"
 
+# Derive a hostname from the project root directory basename
+project_basename="$(basename "${PROJECT_ROOT}")"
+# Sanitize: lowercase, replace non-alphanumeric with hyphens, trim leading/trailing hyphens
+project_hostname="$(printf '%s' "${project_basename}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g; s/^-*//; s/-*$//')"
+
 export TUIST_DEV_INSTANCE="${suffix}"
 export TUIST_SERVER_PORT="$((8080 + suffix))"
+export TUIST_SERVER_HOSTNAME="${project_hostname}.localhost"
 export TUIST_SERVER_URL="http://localhost:${TUIST_SERVER_PORT}"
 export TUIST_SERVER_POSTGRES_DB="tuist_development_${suffix}"
 export TUIST_SERVER_CLICKHOUSE_DB="tuist_development_${suffix}"

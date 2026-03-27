@@ -6,9 +6,7 @@ defmodule TuistWeb.RequestOrigin do
     host = forwarded_value(conn, "x-forwarded-host") || conn.host
     port = forwarded_value(conn, "x-forwarded-port") || Integer.to_string(conn.port)
 
-    default_port = if scheme == "https", do: "443", else: "80"
-
-    if String.contains?(host, ":") or port == default_port do
+    if String.contains?(host, ":") or port in ["80", "443"] do
       "#{scheme}://#{host}"
     else
       "#{scheme}://#{host}:#{port}"

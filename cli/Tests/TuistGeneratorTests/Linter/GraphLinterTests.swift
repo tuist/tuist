@@ -30,7 +30,7 @@ struct GraphLinterTests {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let frameworkAPath = temporaryPath.appending(try RelativePath(validating: "Test/Build/iOS/A.framework"))
         let frameworkBPath = temporaryPath.appending(try RelativePath(validating: "Test/Build/iOS/B.framework"))
-        try FileHandler.shared.createFolder(frameworkAPath)
+        try await FileSystem().makeDirectory(at: frameworkAPath)
         let graph = Graph.test(dependencies: [
             GraphDependency.testFramework(path: frameworkAPath): Set(),
             GraphDependency.testFramework(path: frameworkBPath): Set(),

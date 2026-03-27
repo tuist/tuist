@@ -9,6 +9,7 @@ import Config
 
 noora_source_path = Path.expand("../../noora", __DIR__)
 deps_path = Path.expand("../deps", __DIR__)
+node_modules_path = Path.expand("../node_modules", __DIR__)
 
 # Base watchers for esbuild
 base_watchers = [
@@ -102,13 +103,13 @@ config :esbuild,
       "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
     ],
     cd: Path.expand("../assets/docs", __DIR__),
-    env: %{"NODE_PATH" => deps_path}
+    env: %{"NODE_PATH" => "#{deps_path}:#{node_modules_path}"}
   ],
   apidocs: [
     args:
       ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
     cd: Path.expand("../assets/apidocs", __DIR__),
-    env: %{"NODE_PATH" => deps_path}
+    env: %{"NODE_PATH" => "#{deps_path}:#{node_modules_path}"}
   ]
 
 # Do not include metadata nor timestamps in development logs

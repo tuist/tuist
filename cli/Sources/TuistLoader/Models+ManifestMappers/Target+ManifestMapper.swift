@@ -222,8 +222,8 @@ extension XcodeGraph.Target {
         playgrounds: [AbsolutePath],
         coreDataModels: [AbsolutePath]
     ) {
-        let resourceFilter = { (path: AbsolutePath) -> Bool in
-            XcodeGraph.Target.isResource(path: path)
+        let resourceFilter = { (path: AbsolutePath) async throws -> Bool in
+            try await XcodeGraph.Target.isResource(path: path, fileSystem: fileSystem)
         }
 
         let privacyManifest: XcodeGraph.PrivacyManifest? = manifest.resources?.privacyManifest.map {

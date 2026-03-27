@@ -1,4 +1,5 @@
 #if os(macOS)
+    import FileSystem
     import Foundation
     import Path
     import TuistEnvironment
@@ -416,9 +417,10 @@
             _ expected: [String],
             file: StaticString = #file,
             line: UInt = #line
-        ) throws {
-            let directoryContent = try FileHandler.shared
-                .contentsOfDirectory(directory)
+        ) async throws {
+            let directoryContent = try await FileSystem()
+                .glob(directory: directory, include: ["*"])
+                .collect()
                 .map(\.pathString)
                 .sorted()
 

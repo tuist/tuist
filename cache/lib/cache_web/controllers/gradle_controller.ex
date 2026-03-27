@@ -162,7 +162,7 @@ defmodule CacheWeb.GradleController do
   defp handle_existing_artifact(conn) do
     :telemetry.execute([:cache, :gradle, :upload, :exists], %{count: 1}, %{})
 
-    case BodyReader.drain(conn) do
+    case BodyReader.drain(conn, max_bytes: @max_upload_bytes) do
       {:ok, conn_after} -> send_resp(conn_after, :ok, "")
       {:error, conn_after} -> send_resp(conn_after, :ok, "")
     end
@@ -209,7 +209,7 @@ defmodule CacheWeb.GradleController do
 
         key = Gradle.Disk.key(account_handle, project_handle, cache_key)
         :ok = CacheArtifacts.track_artifact_access(key)
-        S3Transfers.enqueue_gradle_upload(account_handle, project_handle, key)
+        S3Transfers.enqueue_upload_if_missing(account_handle, project_handle, :gradle, key)
         send_resp(conn, :created, "")
 
       {:error, :exists} ->

@@ -3,10 +3,23 @@ defmodule TuistWeb.DocsRedirectController do
   use TuistWeb, :controller
 
   alias Tuist.Docs.Paths
+  alias TuistWeb.Marketing.Localization
 
   def show(conn, params) do
-    locale = Map.get(params, "locale", "en")
+    raw_locale = Map.get(params, "locale")
     path_segments = Map.get(params, "path", [])
+
+    {locale, path_segments} =
+      cond do
+        is_nil(raw_locale) ->
+          {"en", path_segments}
+
+        raw_locale in Localization.all_locales() ->
+          {raw_locale, path_segments}
+
+        true ->
+          {"en", [raw_locale | path_segments]}
+      end
 
     redirect_path =
       locale

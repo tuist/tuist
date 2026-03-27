@@ -41,7 +41,8 @@ defmodule TuistWeb.Router do
       font_src:
         "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src: "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com #{s3_endpoint}"
+      connect_src:
+        "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com https://search.tuist.dev #{s3_endpoint}"
     ]
   end
 
@@ -135,6 +136,7 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :put_locale
+    plug :fetch_current_user
   end
 
   pipeline :browser_marketing_feed do
@@ -330,6 +332,7 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_docs]
 
     get "/docs", DocsRedirectController, :show, metadata: %{type: :docs}
+    get "/docs/login", UserSessionController, :new, metadata: %{type: :docs}
     get "/docs/:locale", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/docs/:locale/*path", DocsRedirectController, :show, metadata: %{type: :docs}
     get "/:locale/docs-markdown/*path", DocsMarkdownController, :show, metadata: %{type: :docs}
@@ -337,7 +340,8 @@ defmodule TuistWeb.Router do
     for locale <- ["en"] ++ Localization.additional_locales() do
       private = %{locale: locale}
 
-      live_session String.to_atom("docs_#{locale}"), on_mount: Localization do
+      live_session String.to_atom("docs_#{locale}"),
+        on_mount: [{TuistWeb.Authentication, :mount_current_user}, Localization] do
         live "/#{locale}/docs", DocsLive, :overview, metadata: %{type: :docs}, private: private
         live "/#{locale}/docs/*path", DocsLive, :show, metadata: %{type: :docs}, private: private
       end

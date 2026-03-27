@@ -586,10 +586,11 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let launchActionConstants: Constants.LaunchAction
         let launcherIdentifier: String
         let debuggerIdentifier: String
+        let hasExplicitExecutable = scheme.runAction?.executable != nil
         let isSchemeForAppExtension = isSchemeForAppExtension(
             scheme: scheme, graphTraverser: graphTraverser
         )
-        if isSchemeForAppExtension == true {
+        if isSchemeForAppExtension == true, !hasExplicitExecutable {
             launchActionConstants = .extension
             debuggerIdentifier = ""
             launcherIdentifier = launchActionConstants.launcher

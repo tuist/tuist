@@ -1530,10 +1530,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let result = try XCTUnwrap(got)
-        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
-        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
-        XCTAssertEqual(result.askForAppToLaunch, true)
-        XCTAssertEqual(result.launchAutomaticallySubstyle, "2")
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+        XCTAssertNil(result.askForAppToLaunch)
+        XCTAssertNil(result.launchAutomaticallySubstyle)
     }
 
     func test_schemeLaunchAction_for_app_extension_with_disabled_attachDebugger() throws {
@@ -1579,6 +1579,46 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
+        XCTAssertNil(result.askForAppToLaunch)
+        XCTAssertNil(result.launchAutomaticallySubstyle)
+    }
+
+    func test_schemeLaunchAction_for_app_extension_without_explicit_executable() throws {
+        // Given
+        let path = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: path, name: appExtension.name),
+        ])
+        let extensionScheme = Scheme.test(buildAction: buildAction, runAction: nil)
+        let project = Project.test(
+            path: path,
+            targets: [appExtension],
+            schemes: [
+                extensionScheme,
+            ]
+        )
+
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeLaunchAction(
+            scheme: extensionScheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
+        XCTAssertEqual(result.askForAppToLaunch, true)
+        XCTAssertEqual(result.launchAutomaticallySubstyle, "2")
     }
 
     func test_schemeLaunchAction_askForAppToLaunch() throws {

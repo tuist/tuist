@@ -42,7 +42,6 @@ final class PluginServiceTests: TuistUnitTestCase {
         subject = PluginService(
             manifestLoader: manifestLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
-            fileHandler: fileHandler,
             gitController: gitController,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             fileArchivingFactory: fileArchivingFactory,
@@ -89,7 +88,8 @@ final class PluginServiceTests: TuistUnitTestCase {
             .appending(component: pluginBFingerprint)
         let pluginCDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
             .appending(component: pluginCFingerprint)
-        try fileHandler.touch(
+        try await fileSystem.makeDirectory(at: pluginBDirectory)
+        try await fileSystem.touch(
             pluginBDirectory.appending(components: PluginServiceConstants.release)
         )
 
@@ -223,12 +223,13 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         let pluginDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
             .appending(component: pluginFingerprint)
-        try fileHandler.touch(
-            pluginDirectory
-                .appending(components: PluginServiceConstants.repository, Constants.SwiftPackageManager.packageSwiftName)
-        )
+        let repoPath = pluginDirectory
+            .appending(components: PluginServiceConstants.repository, Constants.SwiftPackageManager.packageSwiftName)
+        try await fileSystem.makeDirectory(at: repoPath.parentDirectory)
+        try await fileSystem.touch(repoPath)
         let commandPath = pluginDirectory.appending(components: PluginServiceConstants.release, "tuist-command")
-        try fileHandler.touch(commandPath)
+        try await fileSystem.makeDirectory(at: commandPath.parentDirectory)
+        try await fileSystem.touch(commandPath)
 
         // When / Then
         _ = try await subject.fetchRemotePlugins(using: generatedProjectsOptions)
@@ -254,7 +255,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let generatedProjectOptions =
             mockConfigGeneratedProjectOptions(plugins: [TuistConfig.PluginLocation.local(path: pluginPath.pathString)])
 
-        try fileHandler.createFolder(
+        try await fileSystem.makeDirectory(at:
             pluginPath.appending(component: Constants.helpersDirectoryName)
         )
 
@@ -294,7 +295,7 @@ final class PluginServiceTests: TuistUnitTestCase {
                 ProjectDescription.Plugin(name: pluginName)
             )
 
-        try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.helpersDirectoryName))
+        try await fileSystem.makeDirectory(at: cachedPluginPath.appending(component: Constants.helpersDirectoryName))
 
         let generatedProjectOptions = mockConfigGeneratedProjectOptions(plugins: [
             TuistConfig.PluginLocation.git(
