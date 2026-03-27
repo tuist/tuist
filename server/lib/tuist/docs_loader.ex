@@ -217,9 +217,9 @@ defmodule Tuist.Docs.Loader do
       ],
       syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
     )
+    |> convert_github_alerts()
     |> HTML.wrap_code_blocks()
     |> wrap_tables()
-    |> convert_github_alerts()
     |> rewrite_image_paths()
     |> replace_heading_ids(custom_ids)
     |> HTML.add_heading_anchors()
