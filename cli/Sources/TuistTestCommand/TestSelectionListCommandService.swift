@@ -6,51 +6,49 @@ import TuistEnvironment
 import TuistNooraExtension
 import TuistServer
 
-protocol TestListCommandServicing {
+protocol TestXcodeTargetListCommandServicing {
     func run(
         fullHandle: String?,
+        testRunId: String,
         path: String?,
-        gitBranch: String?,
-        status: String?,
-        scheme: String?,
+        hitStatus: SelectiveTestingHitStatus?,
         page: Int?,
         pageSize: Int?,
         json: Bool
     ) async throws
 }
 
-enum TestListCommandServiceError: Equatable, LocalizedError {
+enum TestXcodeTargetListCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
 
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
-            return "We couldn't list test runs because the full handle is missing. You can pass either its value or a path to a Tuist project."
+            return "We couldn't list selective testing targets because the full handle is missing. You can pass either its value or a path to a Tuist project."
         }
     }
 }
 
-struct TestListCommandService: TestListCommandServicing {
-    private let listTestRunsService: ListTestRunsServicing
+struct TestXcodeTargetListCommandService: TestXcodeTargetListCommandServicing {
+    private let listTestTargetsService: ListTestTargetsServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
-        listTestRunsService: ListTestRunsServicing = ListTestRunsService(),
+        listTestTargetsService: ListTestTargetsServicing = ListTestTargetsService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
-        self.listTestRunsService = listTestRunsService
+        self.listTestTargetsService = listTestTargetsService
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
     }
 
     func run(
         fullHandle: String?,
+        testRunId: String,
         path: String?,
-        gitBranch: String?,
-        status: String?,
-        scheme: String?,
+        hitStatus: SelectiveTestingHitStatus?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -59,79 +57,71 @@ struct TestListCommandService: TestListCommandServicing {
 
         let config = try await configLoader.loadConfig(path: directoryPath)
         guard let resolvedFullHandle = fullHandle ?? config.fullHandle else {
-            throw TestListCommandServiceError.missingFullHandle
+            throw TestXcodeTargetListCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let startPage = (page ?? 1) - 1
-        let resolvedPageSize = pageSize ?? 10
+        let pageSize = pageSize ?? 10
 
-        let initialPage = try await listTestRunsService.listTestRuns(
+        let hitStatusRawValue = hitStatus?.rawValue
+        let initialPage = try await listTestTargetsService.listTestTargets(
             fullHandle: resolvedFullHandle,
             serverURL: serverURL,
-            gitBranch: gitBranch,
-            status: status,
-            scheme: scheme,
+            testRunId: testRunId,
+            hitStatus: hitStatusRawValue,
             page: startPage + 1,
-            pageSize: resolvedPageSize
+            pageSize: pageSize
         )
 
-        let initialTestRuns = initialPage.test_runs
+        let targets = initialPage.targets
 
         if json {
-            try Noora.current.json(initialTestRuns)
+            try Noora.current.json(targets)
             return
         }
 
-        if initialTestRuns.isEmpty {
-            Noora.current.passthrough("No test runs found for project \(resolvedFullHandle).")
+        if targets.isEmpty {
+            Noora.current.passthrough("No selective testing targets found for test run \(testRunId).")
             return
         }
 
         let totalPages = initialPage.pagination_metadata.total_pages ?? 1
 
-        let initialRows = initialTestRuns.map { testRun in
+        let initialRows = targets.map { target in
             [
-                testRun.id,
-                testRun.status.rawValue,
-                testRun.scheme ?? "-",
-                Formatters.formatDuration(testRun.duration),
-                testRun.ran_at.map { Formatters.formatDate($0) } ?? "-",
+                target.name,
+                target.hit_status.rawValue,
+                target.hash,
             ]
         }
 
         try await Noora.current.paginatedTable(
-            headers: ["ID", "Status", "Scheme", "Duration", "Date"],
-            pageSize: resolvedPageSize,
+            headers: ["Name", "Status", "Hash"],
+            pageSize: pageSize,
             totalPages: totalPages,
             startPage: startPage,
             loadPage: { [self] pageIndex in
                 if pageIndex == startPage {
                     return initialRows
                 }
-
-                let page = try await listTestRunsService.listTestRuns(
+                let targetPage = try await listTestTargetsService.listTestTargets(
                     fullHandle: resolvedFullHandle,
                     serverURL: serverURL,
-                    gitBranch: gitBranch,
-                    status: status,
-                    scheme: scheme,
+                    testRunId: testRunId,
+                    hitStatus: hitStatusRawValue,
                     page: pageIndex + 1,
-                    pageSize: resolvedPageSize
+                    pageSize: pageSize
                 )
-
-                return page.test_runs.map { testRun in
+                return targetPage.targets.map { target in
                     [
-                        testRun.id,
-                        testRun.status.rawValue,
-                        testRun.scheme ?? "-",
-                        Formatters.formatDuration(testRun.duration),
-                        testRun.ran_at.map { Formatters.formatDate($0) } ?? "-",
+                        target.name,
+                        target.hit_status.rawValue,
+                        target.hash,
                     ]
                 }
             }
         )
     }
-
 }

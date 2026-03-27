@@ -32,6 +32,7 @@ defmodule Tuist.MCP.Server do
       Tuist.MCP.Components.Tools.ListCacheRuns,
       Tuist.MCP.Components.Tools.GetCacheRun,
       Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets,
+      Tuist.MCP.Components.Tools.ListXcodeTestTargets,
       Tuist.MCP.Components.Tools.ListProjects
     ],
     prompts: [
@@ -41,6 +42,7 @@ defmodule Tuist.MCP.Server do
       Tuist.MCP.Components.Prompts.CompareBundles,
       Tuist.MCP.Components.Prompts.CompareTestCase,
       Tuist.MCP.Components.Prompts.CompareGenerations,
-      Tuist.MCP.Components.Prompts.CompareCacheRuns
+      Tuist.MCP.Components.Prompts.CompareCacheRuns,
+      Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting
     ]
 end

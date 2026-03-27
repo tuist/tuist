@@ -11,9 +11,11 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   alias Tuist.MCP.Components.Tools.ListTestModuleRuns
   alias Tuist.MCP.Components.Tools.ListTestRuns
   alias Tuist.MCP.Components.Tools.ListTestSuiteRuns
+  alias Tuist.MCP.Components.Tools.ListXcodeTestTargets
   alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Xcode
 
   describe "list_test_runs" do
     test "returns paginated test runs with metrics" do
@@ -480,6 +482,73 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert att2["file_name"] == "screenshot.png"
       assert att2["type"] == "image"
       assert att2["download_url"] == "https://s3.example.com/presigned-url"
+    end
+  end
+
+  describe "list_xcode_test_targets" do
+    test "returns targets with selective testing status" do
+      project = %{id: 1, name: "app"}
+
+      stub(Tests, :get_test, fn "run-1" ->
+        {:ok, %{id: "run-1", project_id: 1}}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Xcode, :selective_testing_analytics, fn %{id: "run-1"}, _flop_params ->
+        {%{
+           test_modules: [
+             %{name: "AuthTests", selective_testing_hit: :miss, selective_testing_hash: "abc123"},
+             %{name: "CoreTests", selective_testing_hit: :local, selective_testing_hash: "def456"},
+             %{name: "UITests", selective_testing_hit: :remote, selective_testing_hash: "ghi789"}
+           ]
+         },
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 3,
+           total_pages: 1,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListXcodeTestTargets.call(conn, %{"test_run_id" => "run-1"})
+
+      result = JSON.decode!(text)
+      assert length(result["targets"]) == 3
+
+      auth = Enum.find(result["targets"], &(&1["name"] == "AuthTests"))
+      assert auth["hit_status"] == "miss"
+      assert auth["hash"] == "abc123"
+
+      core = Enum.find(result["targets"], &(&1["name"] == "CoreTests"))
+      assert core["hit_status"] == "local"
+
+      ui = Enum.find(result["targets"], &(&1["name"] == "UITests"))
+      assert ui["hit_status"] == "remote"
+    end
+
+    test "requires :test_read authorization" do
+      project = %{id: "project-id", name: "project-name"}
+      project_id = project.id
+      stub(Tests, :get_test, fn "run-1" -> {:ok, %{id: "run-1", project_id: project.id}} end)
+      stub(Projects, :get_project_by_id, fn ^project_id -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project ->
+        {:error, :forbidden}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListXcodeTestTargets.call(conn, %{"test_run_id" => "run-1"})
+
+      assert text =~ "You do not have access to this resource."
     end
   end
 end
