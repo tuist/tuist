@@ -29,6 +29,11 @@
             <.circle_dashed />
           </div>
         </div>
+        <div :if={@run.status == "processing"} data-part="badge-processing">
+          <div data-part="icon">
+            <.circle_dashed />
+          </div>
+        </div>
         <div :if={@run.status == "skipped"} data-part="badge-warning">
           <div data-part="icon">
             <.alert_hexagon />
