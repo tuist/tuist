@@ -4,6 +4,7 @@
     import Path
     import TuistAlert
     import TuistAutomation
+    import TuistConfig
     import TuistConfigLoader
     import TuistCore
     import TuistEnvironment
@@ -42,8 +43,10 @@
         private let xcResultService: XCResultServicing
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
         private let uploadResultBundleService: UploadResultBundleServicing
+        private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
         private let configLoader: ConfigLoading
         private let backgroundProcessRunner: BackgroundProcessRunning
+        private let serverEnvironmentService: ServerEnvironmentServicing
 
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -51,22 +54,27 @@
             xcResultService: XCResultServicing = XCResultService(),
             xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
             uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
+            analyticsArtifactUploadService: AnalyticsArtifactUploadServicing = AnalyticsArtifactUploadService(),
             configLoader: ConfigLoading = ConfigLoader(),
-            backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner()
+            backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
+            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
             self.xcResultService = xcResultService
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
             self.uploadResultBundleService = uploadResultBundleService
+            self.analyticsArtifactUploadService = analyticsArtifactUploadService
             self.configLoader = configLoader
             self.backgroundProcessRunner = backgroundProcessRunner
+            self.serverEnvironmentService = serverEnvironmentService
         }
 
         func run(
             path: String?,
             derivedDataPath: String? = nil,
-            resultBundlePath: String? = nil
+            resultBundlePath: String? = nil,
+            mode: InspectTestCommand.ProcessingMode = .local
         ) async throws {
             if Environment.current.variables["TUIST_INSPECT_TEST_WAIT"] != "YES",
                Environment.current.workspacePath != nil
@@ -94,6 +102,28 @@
             let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: path)
             let config = try await configLoader.loadConfig(path: projectPath)
 
+            switch mode {
+            case .local:
+                try await runLocal(
+                    resolvedResultBundlePath: resolvedResultBundlePath,
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    path: path,
+                    config: config
+                )
+            case .remote:
+                try await runRemote(
+                    resolvedResultBundlePath: resolvedResultBundlePath,
+                    config: config
+                )
+            }
+        }
+
+        private func runLocal(
+            resolvedResultBundlePath: AbsolutePath,
+            projectDerivedDataDirectory: AbsolutePath?,
+            path: AbsolutePath,
+            config: Tuist
+        ) async throws {
             guard let testSummary = try await xcResultService.parse(
                 path: resolvedResultBundlePath,
                 rootDirectory: path
@@ -111,6 +141,34 @@
 
             AlertController.current.success(
                 .alert("View the analyzed test at \(test.url)")
+            )
+        }
+
+        private func runRemote(
+            resolvedResultBundlePath: AbsolutePath,
+            config: Tuist
+        ) async throws {
+            guard let fullHandle = config.fullHandle else {
+                throw UploadResultBundleServiceError.missingFullHandle
+            }
+
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let components = fullHandle.components(separatedBy: "/")
+            let accountHandle = components[0]
+            let projectHandle = components[1]
+
+            let commandEventId = UUID().uuidString
+
+            try await analyticsArtifactUploadService.uploadResultBundle(
+                resolvedResultBundlePath,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                commandEventId: commandEventId,
+                serverURL: serverURL
+            )
+
+            AlertController.current.success(
+                .alert("Result bundle uploaded for server-side processing.")
             )
         }
 

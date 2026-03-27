@@ -12,6 +12,11 @@
             )
         }
 
+        enum ProcessingMode: String, ExpressibleByArgument, CaseIterable {
+            case local
+            case remote
+        }
+
         @Option(
             name: .shortAndLong,
             help: "The path to the directory that contains the project to inspect the latest test results for.",
@@ -35,6 +40,13 @@
         )
         var resultBundlePath: String?
 
+        @Option(
+            name: .long,
+            help: "Processing mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+            envKey: .inspectTestMode
+        )
+        var mode: ProcessingMode = .local
+
         var jsonThroughNoora: Bool = false
 
         func run() async throws {
@@ -42,7 +54,8 @@
                 .run(
                     path: path,
                     derivedDataPath: derivedDataPath,
-                    resultBundlePath: resultBundlePath
+                    resultBundlePath: resultBundlePath,
+                    mode: mode
                 )
         }
     }
