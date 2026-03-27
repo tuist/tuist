@@ -26,7 +26,7 @@ defmodule Processor.XCActivityLogNIF do
   ## Parameters
 
     * `xcactivitylog_path` - Path to the .xcactivitylog file
-    * `cas_metadata_path` - Path to the CAS metadata directory
+    * `cas_analytics_db_path` - Path to the CAS analytics SQLite database
     * `xcode_cache_upload_enabled` - Whether cache upload was enabled for this build
 
   ## Returns
@@ -34,8 +34,8 @@ defmodule Processor.XCActivityLogNIF do
     * `{:ok, map}` - Parsed build data as a map
     * `{:error, reason}` - If parsing fails
   """
-  def parse(xcactivitylog_path, cas_metadata_path, xcode_cache_upload_enabled) do
-    case parse_nif(xcactivitylog_path, cas_metadata_path, xcode_cache_upload_enabled) do
+  def parse(xcactivitylog_path, cas_analytics_db_path, xcode_cache_upload_enabled) do
+    case parse_nif(xcactivitylog_path, cas_analytics_db_path, xcode_cache_upload_enabled) do
       {:ok, json_binary} ->
         JSON.decode(json_binary)
 
@@ -44,7 +44,7 @@ defmodule Processor.XCActivityLogNIF do
     end
   end
 
-  defp parse_nif(_xcactivitylog_path, _cas_metadata_path, _xcode_cache_upload_enabled) do
+  defp parse_nif(_xcactivitylog_path, _cas_analytics_db_path, _xcode_cache_upload_enabled) do
     :erlang.nif_error(:nif_not_loaded)
   end
 end

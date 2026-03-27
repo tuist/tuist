@@ -16,22 +16,20 @@ struct XCActivityLogParserTests {
         return url
     }
 
-    private func emptyCASMetadataPath() async throws -> AbsolutePath {
-        let tempDir = try AbsolutePath(validating: NSTemporaryDirectory())
-            .appending(component: "cas_metadata_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(atPath: tempDir.pathString, withIntermediateDirectories: true)
-        return tempDir
+    private func emptyCASAnalyticsDbPath() throws -> AbsolutePath {
+        try AbsolutePath(validating: NSTemporaryDirectory())
+            .appending(component: "cas_analytics_\(UUID().uuidString).db")
     }
 
     // MARK: - Clean Build
 
     @Test func cleanBuild_parsesSuccessfully() async throws {
         let url = try fixtureURL("clean-build")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         #expect(result.category == "clean")
@@ -44,11 +42,11 @@ struct XCActivityLogParserTests {
 
     @Test func cleanBuild_parsesTargets() async throws {
         let url = try fixtureURL("clean-build")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         for target in result.targets {
@@ -61,11 +59,11 @@ struct XCActivityLogParserTests {
 
     @Test func cleanBuild_parsesFiles() async throws {
         let url = try fixtureURL("clean-build")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         #expect(!result.files.isEmpty)
@@ -81,11 +79,11 @@ struct XCActivityLogParserTests {
 
     @Test func incrementalBuild_detectsIncrementalCategory() async throws {
         let url = try fixtureURL("incremental-build")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         #expect(result.category == "incremental")
@@ -96,11 +94,11 @@ struct XCActivityLogParserTests {
 
     @Test func failedBuild_reportsErrors() async throws {
         let url = try fixtureURL("failed-build")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         #expect(result.status == "failure")
@@ -112,11 +110,11 @@ struct XCActivityLogParserTests {
 
     @Test func buildWithWarning_parsesWarnings() async throws {
         let url = try fixtureURL("build-with-warning")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         #expect(result.issues.contains { $0.type == "warning" })
@@ -130,11 +128,11 @@ struct XCActivityLogParserTests {
 
     @Test func xcode26CASCleanBuild_detectsCleanCategory() async throws {
         let url = try fixtureURL("xcode_26_cas_clean_build")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         #expect(result.category == "clean")
@@ -142,11 +140,11 @@ struct XCActivityLogParserTests {
 
     @Test func xcode26CASIncrementalBuild_detectsIncrementalCategory() async throws {
         let url = try fixtureURL("xcode_26_cas_incremental_build")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         #expect(result.category == "incremental")
@@ -156,11 +154,11 @@ struct XCActivityLogParserTests {
 
     @Test func buildWithCache_parsesCacheableTasks() async throws {
         let url = try fixtureURL("xcode_26_4_clean_build_with_cache")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         #expect(!result.cacheable_tasks.isEmpty)
@@ -175,11 +173,11 @@ struct XCActivityLogParserTests {
 
     @Test func buildWithUploads_parsesCASOutputs() async throws {
         let url = try fixtureURL("build-with-uploads")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         #expect(!result.cacheable_tasks.isEmpty)
@@ -189,7 +187,7 @@ struct XCActivityLogParserTests {
 
     @Test func parse_readsCASMetadata_whenFilesExist() async throws {
         let url = try fixtureURL("build-with-uploads")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let nodesDir = casPath.appending(component: "nodes")
         try FileManager.default.createDirectory(atPath: nodesDir.pathString, withIntermediateDirectories: true)
@@ -200,7 +198,7 @@ struct XCActivityLogParserTests {
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         // With empty CAS metadata dirs, CAS outputs that need metadata will be filtered out
@@ -212,11 +210,11 @@ struct XCActivityLogParserTests {
 
     @Test func parse_populatesAllFields() async throws {
         let url = try fixtureURL("clean-build")
-        let casPath = try await emptyCASMetadataPath()
+        let casDbPath = try emptyCASAnalyticsDbPath()
 
         let result = try await parser.parse(
             xcactivitylogURL: url,
-            casMetadataPath: casPath
+            casAnalyticsDatabasePath: casDbPath
         )
 
         #expect(!result.unique_identifier.isEmpty)
