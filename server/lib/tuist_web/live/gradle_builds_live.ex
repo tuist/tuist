@@ -238,7 +238,9 @@ defmodule TuistWeb.GradleBuildsLive do
   def configuration_insights_label("java-version"), do: dgettext("dashboard_gradle", "Java version")
   def configuration_insights_label(_), do: dgettext("dashboard_gradle", "Gradle version")
 
-  defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket) do
+  defp assign_recent_builds(
+         %{assigns: %{selected_project: project, selected_account: account}} = socket
+       ) do
     {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size})
     builds = Repo.preload(builds, :built_by_account)
 
@@ -253,10 +255,13 @@ defmodule TuistWeb.GradleBuildsLive do
             _ -> "var:noora-chart-warning"
           end
 
+        url = ~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
+
         %{
           value: build.duration_ms,
           itemStyle: %{color: color},
-          date: build.inserted_at
+          date: build.inserted_at,
+          url: url
         }
       end)
 

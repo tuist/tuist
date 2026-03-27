@@ -203,7 +203,10 @@ defmodule TuistWeb.GradleCacheLive do
   defp analytics_trend_label("custom"), do: dgettext("dashboard_gradle", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
 
-  defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket, _params) do
+  defp assign_recent_builds(
+         %{assigns: %{selected_project: project, selected_account: account}} = socket,
+         _params
+       ) do
     {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size})
     builds = Repo.preload(builds, :built_by_account)
 
@@ -212,10 +215,12 @@ defmodule TuistWeb.GradleCacheLive do
       |> Enum.reverse()
       |> Enum.map(fn build ->
         hit_rate = Gradle.cache_hit_rate(build)
+        url = ~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
 
         %{
           value: hit_rate,
-          date: build.inserted_at
+          date: build.inserted_at,
+          url: url
         }
       end)
 

@@ -206,10 +206,12 @@ defmodule TuistWeb.XcodeCacheLive do
       |> Enum.reverse()
       |> Enum.map(fn build ->
         hit_rate = cache_hit_rate(build)
+        url = ~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{build.id}"
 
         %{
           value: hit_rate,
-          date: build.inserted_at
+          date: build.inserted_at,
+          url: url
         }
       end)
 

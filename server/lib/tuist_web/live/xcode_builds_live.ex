@@ -305,7 +305,9 @@ defmodule TuistWeb.XcodeBuildsLive do
 
             value = run.duration
 
-            %{value: value, itemStyle: %{color: color}, date: run.inserted_at}
+            url = ~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{run.id}"
+
+            %{value: value, itemStyle: %{color: color}, date: run.inserted_at, url: url}
           end)
 
         %{successful_count: successful_builds_count, failed_count: failed_builds_count} =

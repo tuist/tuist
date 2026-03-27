@@ -312,7 +312,9 @@ defmodule TuistWeb.TestsLive do
 
             value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
 
-            %{value: value, itemStyle: %{color: color}, date: run.ran_at}
+            url = ~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{run.id}"
+
+            %{value: value, itemStyle: %{color: color}, date: run.ran_at, url: url}
           end)
 
         failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "failure" end)

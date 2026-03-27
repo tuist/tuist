@@ -203,10 +203,12 @@ defmodule TuistWeb.ModuleCacheLive do
         |> Enum.reverse()
         |> Enum.map(fn event ->
           hit_rate = cache_hit_rate(event)
+          url = ~p"/#{project.account.name}/#{project.name}/runs/#{event.id}"
 
           %{
             value: hit_rate,
-            date: event.ran_at
+            date: event.ran_at,
+            url: url
           }
         end)
 
