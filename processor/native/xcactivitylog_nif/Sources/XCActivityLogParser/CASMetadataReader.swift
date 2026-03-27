@@ -31,33 +31,26 @@ struct CASMetadataReader {
 
     func readChecksum(nodeID: String) async -> String? {
         if let db {
-            let table = Table("nodes")
-            let keyCol = SQLite.Expression<String>("key")
-            let checksumCol = SQLite.Expression<String>("checksum")
             return try? db.pluck(
-                table.select(checksumCol).filter(keyCol == nodeID)
-            )?[checksumCol]
+                NodesSchema.table.select(NodesSchema.checksum).filter(NodesSchema.key == nodeID)
+            )?[NodesSchema.checksum]
         }
 
         guard let legacyCASMetadataPath else { return nil }
-        let safeNodeID = sanitize(nodeID)
-        let path = legacyCASMetadataPath.appending(components: "nodes", safeNodeID)
+        let path = legacyCASMetadataPath.appending(components: "nodes", sanitize(nodeID))
         guard let data = try? await fileSystem.readFile(at: path) else { return nil }
         return String(data: Data(data), encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func readOutputMetadata(checksum: String) async -> CASOutputMetadataEntry? {
         if let db {
-            let table = Table("cas_outputs")
-            let keyCol = SQLite.Expression<String>("key")
-            let sizeCol = SQLite.Expression<Int>("size")
-            let durationCol = SQLite.Expression<Double>("duration")
-            let compressedSizeCol = SQLite.Expression<Int>("compressed_size")
-            guard let row = try? db.pluck(table.filter(keyCol == checksum)) else { return nil }
+            guard let row = try? db.pluck(
+                CASOutputsSchema.table.filter(CASOutputsSchema.key == checksum)
+            ) else { return nil }
             return CASOutputMetadataEntry(
-                size: row[sizeCol],
-                duration: row[durationCol],
-                compressedSize: row[compressedSizeCol]
+                size: row[CASOutputsSchema.size],
+                duration: row[CASOutputsSchema.duration],
+                compressedSize: row[CASOutputsSchema.compressedSize]
             )
         }
 
@@ -71,19 +64,18 @@ struct CASMetadataReader {
 
     func readKeyValueMetadata(key: String, operationType: String) async -> KeyValueMetadataEntry? {
         if let db {
-            let table = Table("keyvalue_metadata")
-            let keyCol = SQLite.Expression<String>("key")
-            let opCol = SQLite.Expression<String>("operation_type")
-            let durationCol = SQLite.Expression<Double>("duration")
             guard let row = try? db.pluck(
-                table.filter(keyCol == key && opCol == operationType)
+                KeyValueMetadataSchema.table.filter(
+                    KeyValueMetadataSchema.key == key && KeyValueMetadataSchema.operationType == operationType
+                )
             ) else { return nil }
-            return KeyValueMetadataEntry(duration: row[durationCol])
+            return KeyValueMetadataEntry(duration: row[KeyValueMetadataSchema.duration])
         }
 
         guard let legacyCASMetadataPath else { return nil }
-        let safeKey = sanitizeCacheKey(key)
-        let path = legacyCASMetadataPath.appending(components: "keyvalue", operationType, "\(safeKey).json")
+        let path = legacyCASMetadataPath.appending(
+            components: "keyvalue", operationType, "\(sanitizeCacheKey(key)).json"
+        )
         guard let data = try? await fileSystem.readFile(at: path),
               let entry = try? JSONDecoder().decode(KeyValueMetadataEntry.self, from: Data(data))
         else { return nil }
@@ -100,4 +92,27 @@ struct CASMetadataReader {
             .replacingOccurrences(of: ":", with: "_")
             .replacingOccurrences(of: "~", with: "_")
     }
+}
+
+// MARK: - Table Schemas
+
+private enum CASOutputsSchema {
+    static let table = Table("cas_outputs")
+    static let key = SQLite.Expression<String>("key")
+    static let size = SQLite.Expression<Int>("size")
+    static let duration = SQLite.Expression<Double>("duration")
+    static let compressedSize = SQLite.Expression<Int>("compressed_size")
+}
+
+private enum NodesSchema {
+    static let table = Table("nodes")
+    static let key = SQLite.Expression<String>("key")
+    static let checksum = SQLite.Expression<String>("checksum")
+}
+
+private enum KeyValueMetadataSchema {
+    static let table = Table("keyvalue_metadata")
+    static let key = SQLite.Expression<String>("key")
+    static let operationType = SQLite.Expression<String>("operation_type")
+    static let duration = SQLite.Expression<Double>("duration")
 }
