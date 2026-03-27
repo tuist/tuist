@@ -192,19 +192,24 @@ export default {
       e.stopPropagation();
     });
 
-    const originalOnOpenChange = this.context.onOpenChange;
-    this.context.onOpenChange = (details) => {
-      if (!details.open) {
-        searchInput.value = "";
-        const content = this.el.querySelector('[data-part="content"]');
-        if (content) {
-          for (const item of content.querySelectorAll('[data-part="item"]')) {
-            item.style.display = "";
+    const trigger = this.el.querySelector('[data-part="trigger"]');
+    if (trigger) {
+      this.searchObserver = new MutationObserver(() => {
+        if (trigger.dataset.state !== "open") {
+          searchInput.value = "";
+          const content = this.el.querySelector('[data-part="content"]');
+          if (content) {
+            for (const item of content.querySelectorAll('[data-part="item"]')) {
+              item.style.display = "";
+            }
           }
         }
-      }
-      originalOnOpenChange(details);
-    };
+      });
+      this.searchObserver.observe(trigger, {
+        attributes: true,
+        attributeFilter: ["data-state"],
+      });
+    }
   },
 
   updated() {
@@ -213,6 +218,9 @@ export default {
 
   beforeDestroy() {
     this.menu.destroy();
+    if (this.searchObserver) {
+      this.searchObserver.disconnect();
+    }
   },
 
   destroyed() {
