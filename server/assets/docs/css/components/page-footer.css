@@ -8,19 +8,19 @@
     align-items: baseline;
     gap: var(--noora-spacing-1);
     padding-top: var(--noora-spacing-10);
-    font: var(--noora-font-body-medium);
     color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
   }
 
   & [data-part="edit-row"] {
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
     padding-top: var(--noora-spacing-12);
   }
 
   & [data-part="last-updated"] {
-    font: var(--noora-font-body-medium);
     color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
   }
 }
