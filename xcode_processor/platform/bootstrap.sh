@@ -38,9 +38,20 @@ else
     echo "    User github-actions already exists, skipping."
 fi
 
+# Ensure home directory exists (sysadminctl assigns but doesn't always create it)
+sudo createhomedir -c -u github-actions 2>/dev/null || sudo mkdir -p /Users/github-actions
+sudo chown github-actions:staff /Users/github-actions
+sudo chmod 755 /Users/github-actions
+
+# macOS restricts SSH via com.apple.access_ssh group -- add the user to it
+if sudo dseditgroup -o read com.apple.access_ssh &>/dev/null; then
+    sudo dseditgroup -o edit -a github-actions -t user com.apple.access_ssh 2>/dev/null || true
+    echo "    Added github-actions to com.apple.access_ssh group."
+fi
+
 echo "==> [4/8] Setting up deploy directory structure..."
 sudo mkdir -p /Users/xcode-processor/xcode_processor/releases
-sudo chown -R xcode-processor:staff /Users/xcode-processor/xcode_processor
+sudo chown -R github-actions:staff /Users/xcode-processor/xcode_processor
 
 echo "==> [5/8] Configuring sudoers for github-actions..."
 SUDOERS_FILE="/etc/sudoers.d/xcode-processor-deploy"
