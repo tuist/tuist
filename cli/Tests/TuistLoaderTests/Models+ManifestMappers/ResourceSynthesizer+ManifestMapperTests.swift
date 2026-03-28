@@ -93,6 +93,42 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_from_when_default_strings_with_context() async throws {
+        // Given
+        let context: [String: ProjectDescription.ResourceSynthesizer.Parser.Option] = [
+            "accessModifier": "internal",
+            "myFlag": true,
+        ]
+        let manifestDirectory = try temporaryPath()
+        let rootDirectory = try temporaryPath()
+
+        // When
+        let got = try await ResourceSynthesizer.from(
+            manifest: .strings(context: context),
+            generatorPaths: GeneratorPaths(
+                manifestDirectory: manifestDirectory,
+                rootDirectory: rootDirectory
+            ),
+            plugins: .none,
+            resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
+        )
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init(
+                parser: .strings,
+                parserOptions: [:],
+                extensions: ["strings", "stringsdict"],
+                template: .defaultTemplate("Strings"),
+                context: [
+                    "accessModifier": .init(value: "internal"),
+                    "myFlag": .init(value: true),
+                ]
+            )
+        )
+    }
+
     func test_from_when_default_strings_and_custom_template_defined() async throws {
         // Given
         let manifestDirectory = try temporaryPath()
