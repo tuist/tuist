@@ -23,16 +23,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.commit_sha }}
+      - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: xcode_processor
+      - name: Load secrets from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          echo "XCODE_PROCESSOR_SSH_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
+          op read "op://cache/XCODE_PROCESSOR_SSH_PRIVATE_KEY/notesPlain" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          echo "XCODE_PROCESSOR_HOST=$(op read 'op://cache/XCODE_PROCESSOR_HOST/notesPlain')" >> $GITHUB_ENV
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
         with:
-          ssh-private-key: ${{ secrets.XCODE_PROCESSOR_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ env.XCODE_PROCESSOR_SSH_PRIVATE_KEY }}
       - name: Deploy
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          mise run deploy ${{ secrets.XCODE_PROCESSOR_HOST }} staging
+          mise run deploy ${{ env.XCODE_PROCESSOR_HOST }} staging
