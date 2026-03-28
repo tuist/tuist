@@ -31,6 +31,12 @@
             ./hosts/xcode-processor-paris-1.nix
           ];
         };
+        "xcode-processor-canary" = nix-darwin.lib.darwinSystem {
+          inherit system;
+          modules = sharedModules ++ [
+            ./hosts/xcode-processor-canary.nix
+          ];
+        };
       };
     };
 }
