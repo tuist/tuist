@@ -1194,7 +1194,7 @@ msgstr ""
 msgid "View all"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:73
+#: lib/tuist_web/marketing/controllers/marketing_html/newsletter_issue.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "View in web browser"
 msgstr ""

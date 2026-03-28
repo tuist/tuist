@@ -2,7 +2,7 @@
 {
   "title": "Module cache",
   "titleTemplate": ":title · Cache · Features · Guides · Tuist",
-  "description": "Optimize build times with Tuist Module Cache by caching compiled binaries and sharing them across environments."
+  "description": "Cache compiled binaries and share them across your team with Tuist Module Cache."
 }
 ---
 

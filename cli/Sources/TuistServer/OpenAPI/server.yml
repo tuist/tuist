@@ -1944,6 +1944,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ValidationError
       x-validate:
+    TestTargetsPageSize:
+      default: 20
+      description: The maximum number of targets to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestTargetsPageSize
+      type: integer
+      x-struct:
+      x-validate:
     RunParams:
       description: Parameters to create a single run.
       oneOf:
@@ -3626,6 +3635,14 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Error
       x-validate:
+    TestTargetsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestTargetsPage
+      type: integer
+      x-struct:
+      x-validate:
     RunsIndexPage:
       default: 1
       description: The page number to return.
@@ -5153,6 +5170,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.Test
       x-validate:
+    SelectiveTestingHitStatus:
+      enum:
+        - miss
+        - local
+        - remote
+      title: SelectiveTestingHitStatus
+      type: string
+      x-struct:
+      x-validate:
     PaginationMetadata:
       description: Pagination metadata.
       properties:
@@ -5387,7 +5413,7 @@ info:
   version: 0.1.0
   x-logo:
     altText: Tuist logo
-    url: http://localhost:8080/images/open-graph/squared.png
+    url: https://tuist.dev/images/open-graph/squared.png
 openapi: 3.0.0
 paths:
   /api/cache/multipart/complete:
@@ -7482,6 +7508,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
@@ -7494,14 +7528,6 @@ paths:
           in: query
           name: git_branch
           required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
           schema:
             type: string
             x-struct:
@@ -9668,6 +9694,136 @@ paths:
       summary: Get the artifact tree for a bundle.
       tags:
         - Bundles
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/targets:
+    get:
+      callbacks: {}
+      operationId: listTestTargets
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by selective testing hit status.
+          in: query
+          name: hit_status
+          required: false
+          schema:
+            enum:
+              - miss
+              - local
+              - remote
+            title: SelectiveTestingHitStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestTargetsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of targets to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestTargetsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  targets:
+                    items:
+                      properties:
+                        hash:
+                          description: The selective testing hash.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        hit_status:
+                          description: Selective testing hit status.
+                          enum:
+                            - miss
+                            - local
+                            - remote
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The test target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - hit_status
+                        - hash
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - targets
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test targets
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test run not found
+      summary: List targets for a test run.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}:
     get:
       callbacks: {}
@@ -18642,7 +18798,5 @@ paths:
 security:
   - authorization: []
   - cookie: []
-servers:
-  - url: http://localhost:8080
-    variables: {}
+servers: []
 tags: []

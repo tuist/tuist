@@ -2,7 +2,7 @@
 {
   "title": "Build Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Track build performance and engineering productivity with Tuist Build Insights for Xcode and Gradle projects."
+  "description": "Track build performance for Xcode and Gradle projects with Tuist Build Insights."
 }
 ---
 # Build Insights {#build-insights}

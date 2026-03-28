@@ -2,7 +2,7 @@
 {
   "title": "Hashing",
   "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn about Tuist's hashing logic upon which features like binary caching and selective testing are built."
+  "description": "How Tuist hashing powers binary caching and selective testing."
 }
 ---
 # Hashing {#hashing}

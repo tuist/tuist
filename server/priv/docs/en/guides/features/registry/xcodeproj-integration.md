@@ -2,7 +2,7 @@
 {
   "title": "Generated project with the XcodeProj-based package integration",
   "titleTemplate": ":title · Registry · Features · Guides · Tuist",
-  "description": "Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration."
+  "description": "Use the Tuist Registry with XcodeProj-based package integration in generated projects."
 }
 ---
 # Generated project with the XcodeProj-based package integration {#generated-project-with-xcodeproj-based-integration}

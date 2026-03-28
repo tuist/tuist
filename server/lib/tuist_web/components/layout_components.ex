@@ -58,7 +58,7 @@ defmodule TuistWeb.LayoutComponents do
     <%= if not is_nil(assigns[:head_keywords]) do %>
       <meta name="keywords" content={assigns[:head_keywords] |> Enum.join(", ")} />
     <% end %>
-    <meta property="og:url" content={Tuist.Environment.app_url(path: "/")} />
+    <meta property="og:url" content={Tuist.Environment.app_url(path: assigns[:current_path] || "/")} />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
     <meta property="og:description" content={assigns[:head_description] || default_description} />
@@ -76,6 +76,8 @@ defmodule TuistWeb.LayoutComponents do
     <% else %>
       <meta property="og:image" content={assigns[:head_image]} />
     <% end %>
+    <meta property="og:image:width" content="1920" />
+    <meta property="og:image:height" content="1080" />
     """
   end
 
