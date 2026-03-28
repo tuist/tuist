@@ -26,6 +26,7 @@ jobs:
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
+          install_args: "erlang elixir"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: xcode_processor
       - name: Load secrets from 1Password
