@@ -10,7 +10,7 @@
 Źródło:
 [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
-## Do czego służy {#what-it-is-for}
+## Do czego to służy {#what-it-is-for}
 
 Witryna dokumentacji zawiera dokumentację produktów i współpracowników firmy
 Tuist. Została ona stworzona przy użyciu VitePress.
