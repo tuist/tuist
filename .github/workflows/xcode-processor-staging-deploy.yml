@@ -45,5 +45,6 @@ jobs:
       - name: Deploy
         env:
           SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           mise run deploy ${{ env.XCODE_PROCESSOR_HOST }} staging
