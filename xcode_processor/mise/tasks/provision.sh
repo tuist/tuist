@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #MISE description "Provision a new Scaleway Mac mini for xcode_processor"
 #MISE raw=true
-#USAGE arg "<name>" help="Server name (e.g. xcode-processor-paris-1)"
+#USAGE arg "<name>" help="Hostname for the machine (e.g. xcode-processor-canary)"
 #USAGE option "-t --type" help="Server type" default="M2-L"
 #USAGE option "--zone" help="Scaleway zone" default="fr-par-3"
+#USAGE option "--os" help="macOS version to install (use 'scw apple-silicon os list' to see options)" default="macos_sequoia_26.0"
 #USAGE option "--ip" help="IP of an existing machine (skip creation)"
 #USAGE option "--sudo-password" help="Sudo password for existing machine"
 set -euo pipefail
@@ -13,6 +14,7 @@ cd "$(dirname "$0")/../.."
 SERVER_NAME="${usage_name?}"
 SERVER_TYPE="${usage_type:-M2-L}"
 ZONE="${usage_zone:-fr-par-3}"
+OS="${usage_os:-macos_sequoia_26.0}"
 
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/xcode-processor}"
 SSH_OPTS="-o StrictHostKeyChecking=accept-new"
@@ -26,11 +28,21 @@ if [ -n "${usage_ip:-}" ]; then
     SSH_USER="${SSH_USER:-m1}"
     echo "==> Using existing machine at ${SERVER_IP}"
 else
-    echo "==> Creating Scaleway Mac mini '${SERVER_NAME}' (${SERVER_TYPE}) in ${ZONE}..."
+    # Resolve OS ID
+    echo "==> Looking up OS ID for '${OS}'..."
+    OS_ID=$(scw apple-silicon os list zone="${ZONE}" -o json | jq -r ".[] | select(.name == \"${OS}\") | .id")
+    if [ -z "${OS_ID}" ] || [ "${OS_ID}" = "null" ]; then
+        echo "ERROR: OS '${OS}' not found. Available options:"
+        scw apple-silicon os list zone="${ZONE}" -o json | jq -r '.[].name'
+        exit 1
+    fi
+
+    echo "==> Creating Scaleway Mac mini '${SERVER_NAME}' (${SERVER_TYPE}, ${OS}) in ${ZONE}..."
     SERVER_JSON=$(scw apple-silicon server create \
         name="${SERVER_NAME}" \
         type="${SERVER_TYPE}" \
         zone="${ZONE}" \
+        os-id="${OS_ID}" \
         --wait \
         -o json)
 
@@ -93,14 +105,35 @@ echo "=================================================="
 REMOTE
 
 echo ""
+echo "==> Setting up SSH key for github-actions..."
+DEPLOY_PUB_KEY=$(op read "op://cache/XCODE_PROCESSOR_SSH_PRIVATE_KEY/notesPlain" 2>/dev/null | ssh-keygen -y -f /dev/stdin 2>/dev/null || true)
+if [ -n "${DEPLOY_PUB_KEY}" ]; then
+    ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" bash <<SSHEOF
+sudo mkdir -p /Users/github-actions/.ssh
+echo "${DEPLOY_PUB_KEY}" | sudo tee /Users/github-actions/.ssh/authorized_keys > /dev/null
+sudo chown -R github-actions:staff /Users/github-actions/.ssh 2>/dev/null || true
+sudo chmod 700 /Users/github-actions/.ssh
+sudo chmod 600 /Users/github-actions/.ssh/authorized_keys
+if sudo dseditgroup -o read com.apple.access_ssh &>/dev/null; then
+    sudo dseditgroup -o edit -a github-actions -t user com.apple.access_ssh 2>/dev/null || true
+fi
+echo "    SSH key configured for github-actions"
+SSHEOF
+else
+    echo "    WARNING: Could not read SSH key from 1Password. Set up github-actions SSH manually."
+fi
+
+echo ""
 echo "==> Provisioning complete!"
 echo "    Host: ${SERVER_IP}"
+echo "    Name: ${SERVER_NAME}"
 echo ""
 echo "Next steps:"
 echo "  1. Add the age public key (printed above) to platform/.sops.yaml"
-echo "  2. Re-encrypt secrets: cd platform && sops updatekeys secrets.yaml"
+echo "  2. Re-encrypt secrets: SOPS_AGE_KEY_FILE=<key-from-existing-machine> sops updatekeys platform/secrets.yaml"
 echo "  3. Add host config: platform/hosts/${SERVER_NAME}.nix"
-echo "  4. Add DNS record: ${SERVER_NAME}.tuist.dev -> ${SERVER_IP}"
-echo "  5. Store SSH key + host in 1Password"
-echo "  6. Apply nix-darwin: mise run darwin-apply ${SERVER_IP} ${SERVER_NAME}"
-echo "  7. Deploy: mise run deploy ${SERVER_IP} staging"
+echo "  4. Add to platform/flake.nix darwinConfigurations"
+echo "  5. Add DNS record: ${SERVER_NAME}.tuist.dev -> ${SERVER_IP}"
+echo "  6. Commit and push"
+echo "  7. Apply nix-darwin: mise run darwin-apply ${SERVER_IP} ${SERVER_NAME}"
+echo "  8. Deploy: mise run deploy ${SERVER_IP} staging"
