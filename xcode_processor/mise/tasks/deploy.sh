@@ -3,7 +3,7 @@
 #MISE raw=true
 #USAGE arg "<host>" help="Target host (IP or hostname)"
 #USAGE arg "<environment>" help="Target environment" {
-#USAGE   choices "production"
+#USAGE   choices "staging" "production"
 #USAGE }
 set -euo pipefail
 
