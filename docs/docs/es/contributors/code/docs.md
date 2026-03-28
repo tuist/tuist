@@ -15,9 +15,9 @@ Fuente:
 El sitio de documentación aloja la documentación de los productos y
 colaboradores de Tuist. Está construido con VitePress.
 
-## Cómo contribuir {#how-to-contribute}
+## Cómo colaborar {#how-to-contribute}
 
-### Configurar localmente {#set-up-locally}
+### Configuración local {#set-up-locally}
 
 ```bash
 cd docs
