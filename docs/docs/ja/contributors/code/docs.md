@@ -10,13 +10,13 @@
 Source:
 [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
-## 目的{#what-it-is-for}
+## 用途{#what-it-is-for}
 
 ドキュメントサイトはTuistの製品および貢献者向けドキュメントをホストしています。VitePressで構築されています。
 
-## 貢献方法{#how-to-contribute}
+## 投稿方法{#how-to-contribute}
 
-### ローカルに設定する{#set-up-locally}
+### ローカル環境の設定{#set-up-locally}
 
 ```bash
 cd docs
