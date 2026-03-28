@@ -49,7 +49,7 @@ tar -xzf release.tar.gz
 rm release.tar.gz
 
 # Stop the running service (try launchd first, then direct kill)
-if sudo launchctl bootout system/io.tuist.xcode-processor 2>/dev/null; then
+if sudo launchctl bootout system/dev.tuist.xcode-processor 2>/dev/null; then
     echo "==> Stopped via launchd"
 else
     pkill -f "xcode_processor.*start" 2>/dev/null && echo "==> Stopped running process" || echo "==> No running process found"
@@ -63,8 +63,8 @@ ln -sfn "\${RELEASE_PATH}" "\${CURRENT_LINK}"
 echo "${GIT_SHA}" > "\${CURRENT_LINK}/.git_sha"
 
 # Start the service
-if [ -f /Library/LaunchDaemons/io.tuist.xcode-processor.plist ]; then
-    sudo launchctl bootstrap system /Library/LaunchDaemons/io.tuist.xcode-processor.plist
+if [ -f /Library/LaunchDaemons/dev.tuist.xcode-processor.plist ]; then
+    sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.xcode-processor.plist
     echo "==> Started via launchd"
 else
     # Direct start when launchd isn't configured yet

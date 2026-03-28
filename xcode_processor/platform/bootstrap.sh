@@ -57,9 +57,9 @@ echo "==> [5/8] Configuring sudoers for github-actions..."
 SUDOERS_FILE="/etc/sudoers.d/xcode-processor-deploy"
 if [ ! -f "$SUDOERS_FILE" ]; then
     cat <<'SUDOERS' | sudo tee "$SUDOERS_FILE" > /dev/null
-github-actions ALL=(ALL) NOPASSWD: /bin/launchctl bootout system/io.tuist.xcode-processor
-github-actions ALL=(ALL) NOPASSWD: /bin/launchctl bootstrap system /Library/LaunchDaemons/io.tuist.xcode-processor.plist
-github-actions ALL=(ALL) NOPASSWD: /bin/launchctl kickstart -k system/io.tuist.xcode-processor
+github-actions ALL=(ALL) NOPASSWD: /bin/launchctl bootout system/dev.tuist.xcode-processor
+github-actions ALL=(ALL) NOPASSWD: /bin/launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.xcode-processor.plist
+github-actions ALL=(ALL) NOPASSWD: /bin/launchctl kickstart -k system/dev.tuist.xcode-processor
 SUDOERS
     sudo chmod 0440 "$SUDOERS_FILE"
     sudo visudo -cf "$SUDOERS_FILE"
@@ -87,11 +87,21 @@ else
     echo "    Public key: ${AGE_PUB}"
 fi
 
-echo "==> [7/8] Creating log directories..."
+echo "==> [7/9] Installing Homebrew and OpenSSL..."
+if ! command -v /opt/homebrew/bin/brew &> /dev/null; then
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+else
+    echo "    Homebrew already installed, skipping."
+fi
+/opt/homebrew/bin/brew install openssl@3 2>/dev/null || true
+
+echo "==> [8/9] Creating log and data directories..."
 sudo mkdir -p /var/log/xcode-processor
+sudo mkdir -p /var/log/caddy
+sudo mkdir -p /var/lib/caddy
 sudo mkdir -p /var/log/grafana-alloy
 
-echo "==> [8/8] Verifying Xcode installation..."
+echo "==> [9/9] Verifying Xcode installation..."
 if xcrun --find xcresulttool &>/dev/null; then
     echo "    xcresulttool found: $(xcrun --find xcresulttool)"
     echo "    Xcode version: $(xcodebuild -version 2>/dev/null | head -1 || echo 'unknown')"

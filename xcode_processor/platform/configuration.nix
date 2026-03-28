@@ -32,9 +32,30 @@ in
     git
     curl
     htop
+    caddy
   ];
 
-  launchd.daemons."io.tuist.xcode-processor" = {
+  launchd.daemons."dev.tuist.caddy" = {
+    serviceConfig = {
+      ProgramArguments = [
+        "${pkgs.caddy}/bin/caddy"
+        "run"
+        "--config"
+        "/etc/caddy/Caddyfile"
+      ];
+      KeepAlive = true;
+      RunAtLoad = true;
+      StandardOutPath = "/var/log/caddy/stdout.log";
+      StandardErrorPath = "/var/log/caddy/stderr.log";
+      EnvironmentVariables = {
+        HOME = "/var/lib/caddy";
+        XDG_DATA_HOME = "/var/lib/caddy/data";
+        XDG_CONFIG_HOME = "/var/lib/caddy/config";
+      };
+    };
+  };
+
+  launchd.daemons."dev.tuist.xcode-processor" = {
     serviceConfig = {
       ProgramArguments = [ "${envScript}" ];
       KeepAlive = true;
