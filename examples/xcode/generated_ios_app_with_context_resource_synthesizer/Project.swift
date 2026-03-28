@@ -13,6 +13,8 @@ let project = Project(
             resources: ["App/Resources/**"]
         ),
     ],
+    // The "accessModifier" key is available in the Stencil template as {{param.accessModifier}}.
+    // It overrides the default `publicAccess` param, so synthesized accessors use `internal` instead of `public`.
     resourceSynthesizers: [
         .files(
             extensions: ["json"],
