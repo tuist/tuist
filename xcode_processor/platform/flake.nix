@@ -25,10 +25,10 @@
     in
     {
       darwinConfigurations = {
-        "xcode-processor-paris-1" = nix-darwin.lib.darwinSystem {
+        "xcode-processor-production" = nix-darwin.lib.darwinSystem {
           inherit system;
           modules = sharedModules ++ [
-            ./hosts/xcode-processor-paris-1.nix
+            ./hosts/xcode-processor-production.nix
           ];
         };
         "xcode-processor-canary" = nix-darwin.lib.darwinSystem {
