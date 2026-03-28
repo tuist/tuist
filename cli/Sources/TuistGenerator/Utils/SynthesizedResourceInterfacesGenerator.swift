@@ -13,6 +13,7 @@ protocol SynthesizedResourceInterfacesGenerating {
         templateString: String,
         name: String,
         bundleName: String?,
+        context: [String: Any],
         paths: [AbsolutePath]
     ) throws -> String
 }
@@ -24,6 +25,7 @@ struct SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGene
         templateString: String,
         name: String,
         bundleName: String?,
+        context: [String: Any],
         paths: [AbsolutePath]
     ) throws -> String {
         let template = Template(
@@ -34,12 +36,14 @@ struct SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGene
         let parser = try self.parser(for: parser, with: parserOptions)
 
         try paths.forEach { try parser.parse(path: Path($0.pathString), relativeTo: Path("")) }
-        var context = parser.stencilContext()
-        context = try StencilContext.enrich(
-            context: context,
-            parameters: makeParams(name: name, bundleName: bundleName)
+        var stencilContext = parser.stencilContext()
+        var params = makeParams(name: name, bundleName: bundleName)
+        params.merge(context) { _, userValue in userValue }
+        stencilContext = try StencilContext.enrich(
+            context: stencilContext,
+            parameters: params
         )
-        return try template.render(context)
+        return try template.render(stencilContext)
     }
 
     // MARK: - Helpers

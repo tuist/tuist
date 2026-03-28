@@ -9,16 +9,19 @@ final class MockSynthesizedResourceInterfaceGenerator: SynthesizedResourceInterf
         String,
         String,
         String?,
+        [String: Any],
         [AbsolutePath]
     ) throws -> String)?
+
     func render(
         parser: ResourceSynthesizer.Parser,
         parserOptions: [String: ResourceSynthesizer.Parser.Option],
         templateString: String,
         name: String,
         bundleName: String?,
+        context: [String: Any],
         paths: [AbsolutePath]
     ) throws -> String {
-        try renderStub?(parser, parserOptions, templateString, name, bundleName, paths) ?? ""
+        try renderStub?(parser, parserOptions, templateString, name, bundleName, context, paths) ?? ""
     }
 }
