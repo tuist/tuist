@@ -17,8 +17,12 @@ GIT_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
 SHORT_SHA="${GIT_SHA:0:8}"
 
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/xcode-processor}"
-SSH_CMD="ssh -o IdentitiesOnly=yes -i ${SSH_KEY}"
-SCP_CMD="scp -o IdentitiesOnly=yes -i ${SSH_KEY}"
+SSH_OPTS="-o StrictHostKeyChecking=accept-new"
+if [ -f "${SSH_KEY}" ]; then
+    SSH_OPTS="${SSH_OPTS} -o IdentitiesOnly=yes -i ${SSH_KEY}"
+fi
+SSH_CMD="ssh ${SSH_OPTS}"
+SCP_CMD="scp ${SSH_OPTS}"
 
 echo "==> Building release..."
 mise run build-release
