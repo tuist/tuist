@@ -105,6 +105,14 @@ echo "=================================================="
 REMOTE
 
 echo ""
+echo "==> Storing age key in 1Password..."
+AGE_KEY=$(ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" "sudo cat /var/lib/sops-nix/key.txt")
+OP_TITLE="XCODE_PROCESSOR_AGE_KEY_${SERVER_NAME}"
+op item create --vault cache --category "Secure Note" --title "${OP_TITLE}" "notesPlain=${AGE_KEY}" > /dev/null 2>&1 \
+    && echo "    Stored as '${OP_TITLE}' in 1Password" \
+    || echo "    WARNING: Failed to store age key in 1Password. Store manually."
+
+echo ""
 echo "==> Setting up SSH key for github-actions..."
 DEPLOY_PUB_KEY=$(op read "op://cache/XCODE_PROCESSOR_SSH_PRIVATE_KEY/notesPlain" 2>/dev/null | ssh-keygen -y -f /dev/stdin 2>/dev/null || true)
 if [ -n "${DEPLOY_PUB_KEY}" ]; then
@@ -130,7 +138,10 @@ echo "    Name: ${SERVER_NAME}"
 echo ""
 echo "Next steps:"
 echo "  1. Add the age public key (printed above) to platform/.sops.yaml"
-echo "  2. Re-encrypt secrets: SOPS_AGE_KEY_FILE=<key-from-existing-machine> sops updatekeys platform/secrets.yaml"
+echo "  2. Re-encrypt secrets:"
+echo "       op read 'op://cache/XCODE_PROCESSOR_AGE_KEY_STAGING/notesPlain' > /tmp/age.key"
+echo "       SOPS_AGE_KEY_FILE=/tmp/age.key sops updatekeys platform/secrets.yaml --yes"
+echo "       rm /tmp/age.key"
 echo "  3. Add host config: platform/hosts/${SERVER_NAME}.nix"
 echo "  4. Add to platform/flake.nix darwinConfigurations"
 echo "  5. Add DNS record: ${SERVER_NAME}.tuist.dev -> ${SERVER_IP}"
