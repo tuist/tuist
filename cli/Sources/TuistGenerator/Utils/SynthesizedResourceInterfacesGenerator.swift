@@ -38,6 +38,7 @@ struct SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGene
         try paths.forEach { try parser.parse(path: Path($0.pathString), relativeTo: Path("")) }
         var stencilContext = parser.stencilContext()
         var params = makeParams(name: name, bundleName: bundleName)
+        // User-supplied context wins over Tuist defaults (publicAccess, name, bundle)
         params.merge(context) { _, userValue in userValue }
         stencilContext = try StencilContext.enrich(
             context: stencilContext,
