@@ -9,13 +9,13 @@
 
 來源：[github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
-## 用途說明{#what-it-is-for}
+## 用途{#what-it-is-for}
 
 文件網站託管 Tuist 的產品與貢獻者文件，採用 VitePress 建置。
 
 ## 如何貢獻{#how-to-contribute}
 
-### 在本地端設定{#set-up-locally}
+### 在地化設定{#set-up-locally}
 
 ```bash
 cd docs
