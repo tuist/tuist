@@ -198,7 +198,7 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
 
     /// JSON synthesizer defined in a plugin
     public static func json(plugin: String, parserOptions: [String: Parser.Option] = [:], context: [String: Parser.Option] = [:]) -> Self {
-        .coreData(templateType: .plugin(name: plugin, resourceName: "JSON"), parserOptions: parserOptions, context: context)
+        .json(templateType: .plugin(name: plugin, resourceName: "JSON"), parserOptions: parserOptions, context: context)
     }
 
     /// JSON synthesizer with a template defined in `Tuist/{ProjectName}`
@@ -239,12 +239,34 @@ public struct ResourceSynthesizer: Codable, Equatable, Sendable { // swiftlint:d
     }
 
     /// Custom synthesizer from a plugin
-    public static func custom(plugin: String, parser: Parser, parserOptions: [String: Parser.Option] = [:], extensions: Set<String>, resourceName: String, context: [String: Parser.Option] = [:]) -> Self {
+    /// - Parameters:
+    ///     - plugin: Name of a plugin where resource synthesizer template is located
+    ///     - parser: `Parser` to use for parsing the file to obtain its data
+    ///     - extensions: Set of extensions that should be parsed
+    ///     - resourceName: Name of the template file and the resulting `.swift` file
+    public static func custom(
+        plugin: String,
+        parser: Parser,
+        parserOptions: [String: Parser.Option] = [:],
+        extensions: Set<String>,
+        resourceName: String,
+        context: [String: Parser.Option] = [:]
+    ) -> Self {
         .init(templateType: .plugin(name: plugin, resourceName: resourceName), parser: parser, parserOptions: parserOptions, extensions: extensions, context: context)
     }
 
     /// Custom local synthesizer defined `Tuist/ResourceSynthesizers/{name}.stencil`
-    public static func custom(name: String, parser: Parser, parserOptions: [String: Parser.Option] = [:], extensions: Set<String>, context: [String: Parser.Option] = [:]) -> Self {
+    /// - Parameters:
+    ///     - name: Name of synthesizer
+    ///     - parser: `Parser` to use for parsing the file to obtain its data
+    ///     - extensions: Set of extensions that should be parsed
+    public static func custom(
+        name: String,
+        parser: Parser,
+        parserOptions: [String: Parser.Option] = [:],
+        extensions: Set<String>,
+        context: [String: Parser.Option] = [:]
+    ) -> Self {
         .init(templateType: .defaultTemplate(resourceName: name), parser: parser, parserOptions: parserOptions, extensions: extensions, context: context)
     }
 }
