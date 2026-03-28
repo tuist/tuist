@@ -302,6 +302,7 @@ public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swi
                         templateString: templateString,
                         name: target.productName.camelized.uppercasingFirst,
                         bundleName: project.options.disableBundleAccessors ? nil : "Bundle.module",
+                        context: resourceSynthesizer.context.mapValues(\.value),
                         paths: paths
                     )
                 ),

@@ -38,7 +38,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             // Given
             let templateStrings = ThreadSafe<[String]>([])
             let parserOptionsStrings = ThreadSafe<[ResourceSynthesizer.Parser: String]>([:])
-            synthesizedResourceInterfacesGenerator.renderStub = { parser, parserOptions, templateString, _, _, paths in
+            synthesizedResourceInterfacesGenerator.renderStub = { parser, parserOptions, templateString, _, _, _, paths in
                 templateStrings.mutate { $0.append(templateString) }
                 let optionsString = parserOptions.map { "\($0.key): \($0.value.value)" }.sorted().joined(separator: ", ")
                 parserOptionsStrings.mutate { $0[parser] = optionsString }
@@ -328,7 +328,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             // Given
             let templateStrings = ThreadSafe<[String]>([])
             let parserOptionsStrings = ThreadSafe<[ResourceSynthesizer.Parser: String]>([:])
-            synthesizedResourceInterfacesGenerator.renderStub = { parser, parserOptions, templateString, _, _, paths in
+            synthesizedResourceInterfacesGenerator.renderStub = { parser, parserOptions, templateString, _, _, _, paths in
                 templateStrings.mutate { $0.append(templateString) }
                 let optionsString = parserOptions.map { "\($0.key): \($0.value.value)" }.sorted().joined(separator: ", ")
                 parserOptionsStrings.mutate { $0[parser] = optionsString }
@@ -615,7 +615,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_whenDisableSynthesizedResourceAccessors() async throws {
         // Given
         let templateStrings = ThreadSafe<[String]>([])
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, templateString, _, _, paths in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, templateString, _, _, _, paths in
             templateStrings.mutate { $0.append(templateString) }
             let content = paths.map { $0.components.suffix(2).joined(separator: "/") }.joined(separator: ", ")
             return content
@@ -749,7 +749,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_bundleName_whenBundleAccessorsAreEnabled() async throws {
         // Given
         let bundleNames = ThreadSafe<[String?]>([])
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _, _ in
             bundleNames.mutate { $0.append(bundleName) }
             return ""
         }
@@ -788,7 +788,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_bundleName_whenBundleAccessorsAreDisabled() async throws {
         // Given
         let bundleNames = ThreadSafe<[String?]>([])
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _, _ in
             bundleNames.mutate { $0.append(bundleName) }
             return ""
         }
@@ -827,7 +827,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_whenResourceContainsBinaryPlist() async throws {
         // Given
         let plistNames = ThreadSafe<[String]>([])
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, paths in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, _, paths in
             plistNames.mutate { $0.append(contentsOf: paths.map(\.basename)) }
             return ""
         }
@@ -874,6 +874,94 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertFalse(plistNames.value.contains("Binary.plist"))
         XCTAssertTrue(plistNames.value.contains("XML.plist"))
+    }
+
+    func test_map_passesContextToRenderer() async throws {
+        try await withMockedDependencies {
+            // Given
+            let capturedContexts = ThreadSafe<[[String: Any]]>([])
+            synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, context, _ in
+                capturedContexts.mutate { $0.append(context) }
+                return ""
+            }
+
+            let projectPath = try temporaryPath()
+            let targetPath = projectPath.appending(component: "TargetA")
+            let jsonFile = targetPath.appending(component: "data.json")
+            let templatePath = projectPath.appending(component: "JSON.stencil")
+            try await fileSystem.makeDirectory(at: targetPath)
+            try await fileSystem.writeText("[]", at: jsonFile)
+            try await fileSystem.writeText("json template", at: templatePath)
+
+            let target = Target.test(
+                name: "TargetA",
+                resources: .init([.file(path: jsonFile)])
+            )
+            let project = Project.test(
+                path: projectPath,
+                targets: [target],
+                resourceSynthesizers: [
+                    .init(
+                        parser: .json,
+                        parserOptions: [:],
+                        extensions: ["json"],
+                        template: .file(templatePath),
+                        context: ["myKey": .init(value: "myValue")]
+                    ),
+                ]
+            )
+
+            // When
+            _ = try await subject.map(project: project)
+
+            // Then
+            let contexts = capturedContexts.value
+            XCTAssertEqual(contexts.count, 1)
+            XCTAssertEqual(contexts.first?["myKey"] as? String, "myValue")
+        }
+    }
+
+    func test_map_contextOverridesDefaultParams() async throws {
+        try await withMockedDependencies {
+            // Given
+            let capturedContexts = ThreadSafe<[[String: Any]]>([])
+            synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, _, context, _ in
+                capturedContexts.mutate { $0.append(context) }
+                return ""
+            }
+
+            let projectPath = try temporaryPath()
+            let targetPath = projectPath.appending(component: "TargetA")
+            let jsonFile = targetPath.appending(component: "data.json")
+            let templatePath = projectPath.appending(component: "JSON.stencil")
+            try await fileSystem.makeDirectory(at: targetPath)
+            try await fileSystem.writeText("[]", at: jsonFile)
+            try await fileSystem.writeText("json template", at: templatePath)
+
+            let target = Target.test(
+                name: "TargetA",
+                resources: .init([.file(path: jsonFile)])
+            )
+            let project = Project.test(
+                path: projectPath,
+                targets: [target],
+                resourceSynthesizers: [
+                    .init(
+                        parser: .json,
+                        parserOptions: [:],
+                        extensions: ["json"],
+                        template: .file(templatePath),
+                        context: ["publicAccess": .init(value: false)]
+                    ),
+                ]
+            )
+
+            // When
+            _ = try await subject.map(project: project)
+
+            // Then
+            XCTAssertEqual(capturedContexts.value.first?["publicAccess"] as? Bool, false)
+        }
     }
 
     // MARK: - Helpers
