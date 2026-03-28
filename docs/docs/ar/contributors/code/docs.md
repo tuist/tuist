@@ -10,13 +10,13 @@
 المصدر:
 [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
-## ما الغرض منه {#what-it-is-for}
+## ما الغرض من ذلك {#what-it-is-for}
 
 يستضيف موقع الوثائق وثائق منتجات Tuist والمساهمين. تم إنشاؤه باستخدام VitePress.
 
 ## كيفية المساهمة {#how-to-contribute}
 
-### قم بالإعداد محليًا {#set-up-locally}
+### الإعداد محليًا {#set-up-locally}
 
 ```bash
 cd docs
