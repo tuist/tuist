@@ -876,7 +876,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         XCTAssertTrue(plistNames.value.contains("XML.plist"))
     }
 
-    func test_map_passesContextToRenderer() async throws {
+    func testMap_passesContextToRenderer() async throws {
         try await withMockedDependencies {
             // Given
             let capturedContexts = ThreadSafe<[[String: Any]]>([])
@@ -921,7 +921,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         }
     }
 
-    func test_map_contextOverridesDefaultParams() async throws {
+    func testMap_forwardsPublicAccessContextToRenderer() async throws {
         try await withMockedDependencies {
             // Given
             let capturedContexts = ThreadSafe<[[String: Any]]>([])
