@@ -107,10 +107,35 @@ REMOTE
 echo ""
 echo "==> Storing age key in 1Password..."
 AGE_KEY=$(ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" "sudo cat /var/lib/sops-nix/key.txt")
+AGE_PUB=$(ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" "export PATH=/nix/var/nix/profiles/default/bin:\$PATH && sudo nix shell nixpkgs#age -c age-keygen -y /var/lib/sops-nix/key.txt 2>/dev/null")
 OP_TITLE="XCODE_PROCESSOR_AGE_KEY_${SERVER_NAME}"
 op item create --vault cache --category "Secure Note" --title "${OP_TITLE}" "notesPlain=${AGE_KEY}" > /dev/null 2>&1 \
     && echo "    Stored as '${OP_TITLE}' in 1Password" \
     || echo "    WARNING: Failed to store age key in 1Password. Store manually."
+
+echo ""
+echo "==> Updating .sops.yaml and re-encrypting secrets..."
+if grep -q "${AGE_PUB}" "platform/.sops.yaml" 2>/dev/null; then
+    echo "    Age key already in .sops.yaml"
+else
+    # Extract existing keys, add new one, rewrite .sops.yaml
+    EXISTING=$(grep -oE 'age1[a-z0-9]+' "platform/.sops.yaml" | sort -u)
+    ALL_KEYS=$(echo -e "${EXISTING}\n${AGE_PUB}" | sort -u | paste -sd ',' -)
+
+    cat > "platform/.sops.yaml" <<SOPSEOF
+creation_rules:
+  - path_regex: secrets\\.yaml\$
+    age: >-
+      ${ALL_KEYS}
+SOPSEOF
+    echo "    Added to .sops.yaml"
+fi
+
+# Re-encrypt so the new machine can decrypt
+echo "${AGE_KEY}" > /tmp/age.key
+SOPS_AGE_KEY_FILE=/tmp/age.key sops updatekeys platform/secrets.yaml --yes 2>&1 | grep -v "^$" | head -5
+rm -f /tmp/age.key
+echo "    Secrets re-encrypted for all machines"
 
 echo ""
 echo "==> Setting up SSH key for github-actions..."
@@ -137,14 +162,9 @@ echo "    Host: ${SERVER_IP}"
 echo "    Name: ${SERVER_NAME}"
 echo ""
 echo "Next steps:"
-echo "  1. Add the age public key (printed above) to platform/.sops.yaml"
-echo "  2. Re-encrypt secrets:"
-echo "       op read 'op://cache/XCODE_PROCESSOR_AGE_KEY_STAGING/notesPlain' > /tmp/age.key"
-echo "       SOPS_AGE_KEY_FILE=/tmp/age.key sops updatekeys platform/secrets.yaml --yes"
-echo "       rm /tmp/age.key"
-echo "  3. Add host config: platform/hosts/${SERVER_NAME}.nix"
-echo "  4. Add to platform/flake.nix darwinConfigurations"
-echo "  5. Add DNS record: ${SERVER_NAME}.tuist.dev -> ${SERVER_IP}"
-echo "  6. Commit and push"
-echo "  7. Apply nix-darwin: mise run darwin-apply ${SERVER_IP} ${SERVER_NAME}"
-echo "  8. Deploy: mise run deploy ${SERVER_IP} staging"
+echo "  1. Add host config: platform/hosts/${SERVER_NAME}.nix"
+echo "  2. Add to platform/flake.nix darwinConfigurations"
+echo "  3. Add DNS record: ${SERVER_NAME}.tuist.dev -> ${SERVER_IP}"
+echo "  4. Commit and push"
+echo "  5. Apply nix-darwin: mise run darwin-apply ${SERVER_IP} ${SERVER_NAME}"
+echo "  6. Deploy: mise run deploy ${SERVER_IP} staging"
