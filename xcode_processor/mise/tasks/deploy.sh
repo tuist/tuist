@@ -68,14 +68,13 @@ if [ -f /Library/LaunchDaemons/io.tuist.xcode-processor.plist ]; then
     echo "==> Started via launchd"
 else
     # Direct start when launchd isn't configured yet
-    SECRET_KEY_BASE="\${SECRET_KEY_BASE:-production-secret-key-base-that-is-at-least-64-bytes-long-for-xcode-processor}" \
-    PORT="\${PORT:-4003}" \
-    S3_ENDPOINT="\${S3_ENDPOINT:-https://s3.example.com}" \
-    S3_BUCKET="\${S3_BUCKET:-tuist}" \
-    S3_ACCESS_KEY_ID="\${S3_ACCESS_KEY_ID:-placeholder}" \
-    S3_SECRET_ACCESS_KEY="\${S3_SECRET_ACCESS_KEY:-placeholder}" \
-    WEBHOOK_SECRET="\${WEBHOOK_SECRET:-dev-webhook-secret}" \
-      "\${CURRENT_LINK}/bin/xcode_processor" daemon
+    ENV_FILE="${REMOTE_DIR}/.env"
+    if [ -f "\${ENV_FILE}" ]; then
+        set -a
+        source "\${ENV_FILE}"
+        set +a
+    fi
+    "\${CURRENT_LINK}/bin/xcode_processor" daemon
     echo "==> Started directly (no launchd plist found)"
 fi
 
