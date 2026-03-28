@@ -34,10 +34,17 @@ in
     curl
     htop
     caddy
+    openssl
   ];
 
-  # Directories created on activation
+  # Directories and symlinks created on activation
   system.activationScripts.postActivation.text = ''
+    # Erlang release is built on CI where OpenSSL is at the Homebrew path.
+    # Create a symlink so the binary finds it without needing Homebrew.
+    mkdir -p /opt/homebrew/opt/openssl@3/lib
+    ln -sf ${pkgs.openssl.out}/lib/libcrypto*.dylib /opt/homebrew/opt/openssl@3/lib/ 2>/dev/null || true
+    ln -sf ${pkgs.openssl.out}/lib/libssl*.dylib /opt/homebrew/opt/openssl@3/lib/ 2>/dev/null || true
+
     mkdir -p /var/log/xcode-processor
     mkdir -p /var/log/caddy
     mkdir -p /var/lib/caddy

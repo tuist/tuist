@@ -4,16 +4,15 @@
 # This only installs the prerequisites needed before nix-darwin can run:
 #   1. Nix (via Determinate installer)
 #   2. Age key for sops-nix secret decryption
-#   3. Homebrew + OpenSSL (needed by Erlang runtime)
 #
-# Everything else (users, directories, services, sudoers) is managed
-# declaratively by nix-darwin via `mise run darwin-apply`.
+# Everything else (users, directories, services, sudoers, OpenSSL) is
+# managed declaratively by nix-darwin via `mise run darwin-apply`.
 
 set -euo pipefail
 
 HOSTNAME="${1:-xcode-processor-paris-1}"
 
-echo "==> [1/3] Installing Nix..."
+echo "==> [1/2] Installing Nix..."
 if ! command -v nix &> /dev/null; then
     curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install --no-confirm
     . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
@@ -21,7 +20,7 @@ else
     echo "    Nix already installed, skipping."
 fi
 
-echo "==> [2/3] Setting up sops-nix age key..."
+echo "==> [2/2] Setting up sops-nix age key..."
 AGE_KEY_DIR="/var/lib/sops-nix"
 AGE_KEY_FILE="${AGE_KEY_DIR}/key.txt"
 if [ ! -f "$AGE_KEY_FILE" ]; then
@@ -40,14 +39,6 @@ else
     echo "    Age key already exists."
     echo "    Public key: ${AGE_PUB}"
 fi
-
-echo "==> [3/3] Installing Homebrew and OpenSSL..."
-if ! command -v /opt/homebrew/bin/brew &> /dev/null; then
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-else
-    echo "    Homebrew already installed, skipping."
-fi
-/opt/homebrew/bin/brew install openssl@3 2>/dev/null || true
 
 echo ""
 echo "==> Bootstrap complete!"
