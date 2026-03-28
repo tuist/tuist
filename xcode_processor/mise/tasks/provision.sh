@@ -62,14 +62,39 @@ ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" \
 echo "==> Verifying passwordless sudo..."
 ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" "sudo -n echo 'passwordless sudo works'"
 
-echo "==> Running bootstrap..."
-scp ${SSH_OPTS} platform/bootstrap.sh "${SSH_USER}@${SERVER_IP}:/tmp/bootstrap.sh"
-ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" "chmod +x /tmp/bootstrap.sh && /tmp/bootstrap.sh ${SERVER_NAME} && rm /tmp/bootstrap.sh"
+echo "==> Installing Nix and generating age key..."
+ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" bash <<'REMOTE'
+set -euo pipefail
+
+# Install Nix
+if ! command -v nix &> /dev/null; then
+    echo "==> Installing Nix..."
+    curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install --no-confirm
+    . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+else
+    echo "    Nix already installed."
+fi
+
+# Generate age key for sops-nix
+AGE_KEY_FILE="/var/lib/sops-nix/key.txt"
+if [ ! -f "$AGE_KEY_FILE" ]; then
+    echo "==> Generating age key..."
+    sudo mkdir -p /var/lib/sops-nix
+    sudo nix shell nixpkgs#age -c age-keygen -o "$AGE_KEY_FILE" 2>&1 | tee /dev/stderr
+    sudo chmod 600 "$AGE_KEY_FILE"
+fi
+
+AGE_PUB=$(sudo nix shell nixpkgs#age -c age-keygen -y "$AGE_KEY_FILE")
+echo ""
+echo "=================================================="
+echo "AGE PUBLIC KEY (add to platform/.sops.yaml):"
+echo "${AGE_PUB}"
+echo "=================================================="
+REMOTE
 
 echo ""
 echo "==> Provisioning complete!"
 echo "    Host: ${SERVER_IP}"
-echo "    SSH:  ssh ${SSH_OPTS} ${SSH_USER}@${SERVER_IP}"
 echo ""
 echo "Next steps:"
 echo "  1. Add the age public key (printed above) to platform/.sops.yaml"
