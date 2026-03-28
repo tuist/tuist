@@ -10,14 +10,14 @@
 Kaynak:
 [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
-## Ne için kullanılır? {#what-it-is-for}
+## Ne için kullanılır {#what-it-is-for}
 
 Doküman sitesi, Tuist'in ürün ve katkıcı dokümantasyonunu barındırır. VitePress
 ile oluşturulmuştur.
 
-## Nasıl katkıda bulunabilirsiniz? {#how-to-contribute}
+## Nasıl katkıda bulunabilirsiniz {#how-to-contribute}
 
-### Yerel olarak ayarlayın {#set-up-locally}
+### Yerel olarak kurun {#set-up-locally}
 
 ```bash
 cd docs
