@@ -9,13 +9,13 @@
 
 来源：[github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
-## 用途说明{#what-it-is-for}
+## 用途{#what-it-is-for}
 
 文档网站托管Tuist的产品与贡献者文档，由VitePress构建而成。
 
 ## 如何贡献{#how-to-contribute}
 
-### 本地设置{#set-up-locally}
+### 本地化设置{#set-up-locally}
 
 ```bash
 cd docs
