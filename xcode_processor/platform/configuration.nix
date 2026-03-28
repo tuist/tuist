@@ -64,14 +64,11 @@ in
   '';
 
   # Sudoers for deploy user to restart the service
-  environment.etc."sudoers.d/xcode-processor-deploy" = {
-    text = ''
-      github-actions ALL=(ALL) NOPASSWD: /bin/launchctl bootout system/dev.tuist.xcode-processor
-      github-actions ALL=(ALL) NOPASSWD: /bin/launchctl bootstrap system /Library/LaunchDaemons/*dev.tuist.xcode-processor*
-      github-actions ALL=(ALL) NOPASSWD: /bin/launchctl kickstart -k system/dev.tuist.xcode-processor
-    '';
-    mode = "0440";
-  };
+  environment.etc."sudoers.d/xcode-processor-deploy".text = ''
+    github-actions ALL=(ALL) NOPASSWD: /bin/launchctl bootout system/org.nixos.dev.tuist.xcode-processor
+    github-actions ALL=(ALL) NOPASSWD: /bin/launchctl bootstrap system /Library/LaunchDaemons/org.nixos.dev.tuist.xcode-processor.plist
+    github-actions ALL=(ALL) NOPASSWD: /bin/launchctl kickstart -k system/org.nixos.dev.tuist.xcode-processor
+  '';
 
   # Caddy reverse proxy (TLS termination)
   launchd.daemons."dev.tuist.caddy" = {

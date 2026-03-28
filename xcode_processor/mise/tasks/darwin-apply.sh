@@ -46,7 +46,12 @@ for f in /etc/caddy/Caddyfile /etc/sudoers.d/xcode-processor-deploy; do
     fi
 done
 
-sudo PATH="\$PATH" darwin-rebuild switch --flake ".#${HOSTNAME}"
+if command -v darwin-rebuild &>/dev/null; then
+    sudo PATH="\$PATH" darwin-rebuild switch --flake ".#${HOSTNAME}"
+else
+    echo "    First run -- bootstrapping nix-darwin..."
+    sudo PATH="\$PATH" nix run nix-darwin -- switch --flake ".#${HOSTNAME}"
+fi
 rm -rf /tmp/xcode-processor-platform
 echo "==> Applied successfully"
 REMOTE

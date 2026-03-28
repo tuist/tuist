@@ -3,6 +3,7 @@
 {
   sops.defaultSopsFile = ./secrets.yaml;
   sops.age.keyFile = "/var/lib/sops-nix/key.txt";
+  sops.age.sshKeyPaths = [];
 
   sops.secrets = {
     secret_key_base = {};
