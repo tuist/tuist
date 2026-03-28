@@ -66,30 +66,29 @@ let
       password = sys.env("GRAFANA_TEMPO_PASSWORD")
     }
   '';
+
+  alloyEnvScript = pkgs.writeScript "grafana-alloy-env" ''
+    #!/bin/bash
+    export GRAFANA_PROMETHEUS_REMOTE_WRITE_URL="$(cat ${config.sops.secrets.grafana_prometheus_remote_write_url.path})"
+    export GRAFANA_PROMETHEUS_REMOTE_WRITE_USERNAME="$(cat ${config.sops.secrets.grafana_prometheus_remote_write_username.path})"
+    export GRAFANA_PROMETHEUS_REMOTE_WRITE_PASSWORD="$(cat ${config.sops.secrets.grafana_prometheus_remote_write_password.path})"
+    export GRAFANA_TEMPO_URL="$(cat ${config.sops.secrets.grafana_tempo_url.path})"
+    export GRAFANA_TEMPO_USERNAME="$(cat ${config.sops.secrets.grafana_tempo_username.path})"
+    export GRAFANA_TEMPO_PASSWORD="$(cat ${config.sops.secrets.grafana_tempo_password.path})"
+    export GRAFANA_LOKI_URL="$(cat ${config.sops.secrets.grafana_loki_url.path})"
+    export GRAFANA_LOKI_USERNAME="$(cat ${config.sops.secrets.grafana_loki_username.path})"
+    export GRAFANA_LOKI_PASSWORD="$(cat ${config.sops.secrets.grafana_loki_password.path})"
+    exec ${pkgs.grafana-alloy}/bin/alloy run ${alloyConfig}
+  '';
 in
 {
   launchd.daemons."grafana-alloy" = {
     serviceConfig = {
-      ProgramArguments = [
-        "${pkgs.grafana-alloy}/bin/alloy"
-        "run"
-        "${alloyConfig}"
-      ];
+      ProgramArguments = [ "${alloyEnvScript}" ];
       KeepAlive = true;
       RunAtLoad = true;
       StandardOutPath = "/var/log/grafana-alloy/stdout.log";
       StandardErrorPath = "/var/log/grafana-alloy/stderr.log";
-      EnvironmentVariables = {
-        GRAFANA_PROMETHEUS_REMOTE_WRITE_URL = "$(cat ${config.sops.secrets.grafana_prometheus_remote_write_url.path})";
-        GRAFANA_PROMETHEUS_REMOTE_WRITE_USERNAME = "$(cat ${config.sops.secrets.grafana_prometheus_remote_write_username.path})";
-        GRAFANA_PROMETHEUS_REMOTE_WRITE_PASSWORD = "$(cat ${config.sops.secrets.grafana_prometheus_remote_write_password.path})";
-        GRAFANA_TEMPO_URL = "$(cat ${config.sops.secrets.grafana_tempo_url.path})";
-        GRAFANA_TEMPO_USERNAME = "$(cat ${config.sops.secrets.grafana_tempo_username.path})";
-        GRAFANA_TEMPO_PASSWORD = "$(cat ${config.sops.secrets.grafana_tempo_password.path})";
-        GRAFANA_LOKI_URL = "$(cat ${config.sops.secrets.grafana_loki_url.path})";
-        GRAFANA_LOKI_USERNAME = "$(cat ${config.sops.secrets.grafana_loki_username.path})";
-        GRAFANA_LOKI_PASSWORD = "$(cat ${config.sops.secrets.grafana_loki_password.path})";
-      };
     };
   };
 }
