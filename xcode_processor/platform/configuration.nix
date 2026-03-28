@@ -16,6 +16,7 @@ let
     export S3_BUCKET="$(cat ${config.sops.secrets.s3_bucket.path})"
     export S3_ACCESS_KEY_ID="$(cat ${config.sops.secrets.s3_access_key_id.path})"
     export S3_SECRET_ACCESS_KEY="$(cat ${config.sops.secrets.s3_secret_access_key.path})"
+    export S3_REGION="$(cat ${config.sops.secrets.s3_region.path})"
     export LOKI_URL="http://127.0.0.1:3100"
     export OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:4317"
     export GIT_SHA="$(cat ${currentRelease}/.git_sha 2>/dev/null || echo unknown)"

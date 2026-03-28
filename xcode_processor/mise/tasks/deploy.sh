@@ -67,7 +67,7 @@ if [ -f /Library/LaunchDaemons/dev.tuist.xcode-processor.plist ]; then
     sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.xcode-processor.plist
     echo "==> Started via launchd"
 else
-    # Direct start when launchd isn't configured yet
+    # Direct start when launchd/sops-nix isn't configured yet -- read from .env
     ENV_FILE="${REMOTE_DIR}/.env"
     if [ -f "\${ENV_FILE}" ]; then
         set -a

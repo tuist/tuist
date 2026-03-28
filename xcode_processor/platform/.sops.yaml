@@ -1,4 +1,4 @@
 creation_rules:
   - path_regex: secrets\.yaml$
     age: >-
-      <AGE_PUBLIC_KEY_FROM_BOOTSTRAP>
+      age1ul20gwh9er0unv6l6utfy703kyguy82cu366es4kpctt42k86vgs342cne
