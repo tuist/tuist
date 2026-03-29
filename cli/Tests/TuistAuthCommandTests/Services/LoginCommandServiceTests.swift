@@ -348,7 +348,8 @@ struct LoginCommandServiceTests {
             let environment = try #require(Environment.mocked)
             environment.variables["CI"] = "1"
 
-            let retryProvider = ImmediateRetryProvider()
+            let retryProvider = MockRetryProviding()
+
             let subject = LoginCommandService(
                 serverEnvironmentService: serverEnvironmentService,
                 serverSessionController: serverSessionController,
@@ -398,19 +399,19 @@ struct LoginCommandServiceTests {
                 .fetchOIDCToken()
                 .called(3)
 
-            #expect(retryProvider.callCount == 2)
+            #expect(retryProvider.runWithRetriesCallCount == 2)
         }
     #endif
 }
 
 #if os(macOS)
-    private final class ImmediateRetryProvider: RetryProviding {
-        var callCount = 0
+    private final class MockRetryProviding: RetryProviding {
+        private(set) var runWithRetriesCallCount = 0
 
         func runWithRetries<T>(
             operation: @Sendable @escaping () async throws -> T
         ) async throws -> T {
-            callCount += 1
+            runWithRetriesCallCount += 1
 
             var lastError: Error?
 
