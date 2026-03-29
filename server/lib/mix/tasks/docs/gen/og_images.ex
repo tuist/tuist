@@ -15,7 +15,7 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
     ensure_dependencies_started()
 
     output_dir =
-      :tuist |> Application.app_dir("priv") |> Path.join("static/docs/images/og/generated")
+      :tuist |> Application.app_dir("priv") |> Path.join("docs/images/og/generated")
 
     File.mkdir_p!(output_dir)
 
@@ -23,7 +23,7 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
       :tuist |> Application.app_dir("priv") |> Path.join("static/fonts")
 
     logo_path =
-      :tuist |> Application.app_dir("priv") |> Path.join("static/docs/images/logo.webp")
+      :tuist |> Application.app_dir("priv") |> Path.join("docs/images/logo.webp")
 
     pool_size = max(System.schedulers_online(), 4)
 
