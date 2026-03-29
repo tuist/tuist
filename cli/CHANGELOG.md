@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.170.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add selective testing observability via MCP, API, CLI, and skills by [@pepicrft](https://github.com/pepicrft) in [#10013](https://github.com/tuist/tuist/pull/10013)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.2...4.170.0
+
 ## What's Changed in 4.169.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
