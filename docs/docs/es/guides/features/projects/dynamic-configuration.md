@@ -7,12 +7,12 @@
 ---
 # Configuración dinámica {#dynamic-configuration}
 
-Hay ciertos casos en los que es posible que tengas que configurar dinámicamente
+Hay ciertos casos en los que es posible que necesites configurar dinámicamente
 tu proyecto en el momento de la generación. Por ejemplo, es posible que quieras
-cambiar el nombre de la aplicación, el identificador del paquete o el objetivo
-de implementación en función del entorno en el que se genera el proyecto. Tuist
-lo permite a través de variables de entorno, a las que se puede acceder desde
-los archivos de manifiesto.
+cambiar el nombre de la aplicación, el identificador del paquete o el destino de
+implementación en función del entorno en el que se genere el proyecto. Tuist lo
+permite mediante variables de entorno, a las que se puede acceder desde los
+archivos de manifiesto.
 
 ## Configuración mediante variables de entorno {#configuration-through-environment-variables}
 
@@ -23,7 +23,7 @@ se puede acceder desde los archivos de manifiesto. Por ejemplo:
 TUIST_APP_NAME=MyApp tuist generate
 ```
 
-Si desea pasar varias variables de entorno, simplemente sepárelas con un
+Si quieres pasar varias variables de entorno, simplemente sepáralas con un
 espacio. Por ejemplo:
 
 ```bash
@@ -49,18 +49,18 @@ func appName() -> String {
 }
 ```
 
-El acceso a las variables devuelve una instancia de tipo `Environment.Value?`
-que puede tomar cualquiera de los siguientes valores:
+Al acceder a las variables se devuelve una instancia de tipo
+`Environment.Value?` que puede tomar cualquiera de los siguientes valores:
 
 | Mayúsculas y minúsculas | Descripción                                          |
 | ----------------------- | ---------------------------------------------------- |
 | `.string(String)`       | Se utiliza cuando la variable representa una cadena. |
 
-También puede recuperar la cadena o el booleano `Environment` variable
-utilizando cualquiera de los métodos auxiliares definidos a continuación. Estos
-métodos requieren que se pase un valor predeterminado para garantizar que el
-usuario obtenga resultados consistentes cada vez. Esto evita la necesidad de
-definir la función appName() definida anteriormente.
+También puedes recuperar la cadena o el valor booleano de la variable de entorno
+`Environment` utilizando cualquiera de los métodos auxiliares definidos a
+continuación; estos métodos requieren que se les pase un valor predeterminado
+para garantizar que el usuario obtenga resultados coherentes en cada ocasión.
+Esto evita la necesidad de definir la función appName() definida anteriormente.
 
 ::: grupo de códigos
 
