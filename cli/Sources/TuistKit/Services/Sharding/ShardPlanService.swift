@@ -1,6 +1,8 @@
 #if os(macOS)
+    import AppleArchive
     import FileSystem
     import Foundation
+    import System
     import Mockable
     import Path
     import TuistAutomation
@@ -182,8 +184,9 @@
             return shardPlan
         }
 
-        /// Creates a compressed zip of the test products bundle, stripping files not needed for test execution
+        /// Creates a compressed archive of the test products bundle, stripping files not needed for test execution
         /// (dSYMs, .swiftmodule directories) to significantly reduce upload size.
+        /// Uses AppleArchive with LZFSE compression which is ~6x faster than deflate on Apple Silicon.
         private func stripAndCompressTestProducts(_ xctestproductsPath: AbsolutePath) async throws -> AbsolutePath {
             let strippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-stripped")
             let strippedProductsPath = strippedPath.appending(component: xctestproductsPath.basename)
@@ -199,12 +202,8 @@
                 }
             }
 
-            let archivePath = strippedPath.appending(component: "bundle.xctestproducts.zip")
-            try await fileSystem.zipFileOrDirectoryContent(
-                at: strippedProductsPath,
-                to: archivePath,
-                options: [.compressed, .keepParent]
-            )
+            let archivePath = strippedPath.appending(component: "bundle.aar")
+            try ShardArchiver.compress(directory: strippedProductsPath, to: archivePath)
 
             try? await fileSystem.remove(strippedProductsPath)
             return archivePath

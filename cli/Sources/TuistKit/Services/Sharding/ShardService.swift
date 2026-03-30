@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -53,20 +52,17 @@ public struct ShardService: ShardServicing {
     private let ciController: CIControlling
     private let fileClient: FileClienting
     private let fileSystem: FileSysteming
-    private let commandRunner: CommandRunning
 
     public init(
         getShardService: GetShardServicing = GetShardService(),
         ciController: CIControlling = CIController(),
         fileClient: FileClienting = FileClient(),
-        fileSystem: FileSysteming = FileSystem(),
-        commandRunner: CommandRunning = CommandRunner()
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.getShardService = getShardService
         self.ciController = ciController
         self.fileClient = fileClient
         self.fileSystem = fileSystem
-        self.commandRunner = commandRunner
     }
 
     public func shard(
@@ -98,16 +94,12 @@ public struct ShardService: ShardServicing {
         guard let downloadURL = URL(string: shard.download_url) else {
             throw ShardServiceError.invalidDownloadURL(shard.download_url)
         }
-        let shardZipPath = try await fileClient.download(url: downloadURL)
+        let shardArchivePath = try await fileClient.download(url: downloadURL)
         Logger.current.debug("Downloaded test products bundle.")
 
-        // ditto is used instead of FileUnarchiver (ZIPFoundation) because .xctestproducts
-        // bundles contain symlinks which ZIPFoundation cannot handle.
         let unzippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-        _ = try await commandRunner
-            .run(arguments: ["/usr/bin/ditto", "-x", "-k", shardZipPath.pathString, unzippedPath.pathString])
-            .concatenatedString()
-        try? await fileSystem.remove(shardZipPath)
+        try ShardArchiver.decompress(archive: shardArchivePath, to: unzippedPath)
+        try? await fileSystem.remove(shardArchivePath)
 
         guard let testProductsPath = try await fileSystem
             .glob(directory: unzippedPath, include: ["*.xctestproducts"])
@@ -115,7 +107,7 @@ public struct ShardService: ShardServicing {
         else {
             throw ShardServiceError.testProductsNotFound
         }
-        Logger.current.debug("Unzipped test products to \(testProductsPath.pathString)")
+        Logger.current.debug("Extracted test products to \(testProductsPath.pathString)")
 
         let xcTestRunPaths = try await fileSystem
             .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
