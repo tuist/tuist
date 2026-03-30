@@ -36,7 +36,7 @@ jobs:
           echo "XCODE_PROCESSOR_SSH_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
           op read "op://cache/XCODE_PROCESSOR_SSH_PRIVATE_KEY/notesPlain" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          echo "XCODE_PROCESSOR_HOST=$(op read 'op://cache/XCODE_PROCESSOR_HOST/notesPlain')" >> $GITHUB_ENV
+          echo "XCODE_PROCESSOR_HOST=$(op read 'op://cache/XCODE_PROCESSOR_HOST_STAGING/notesPlain')" >> $GITHUB_ENV
           echo "SLACK_WEBHOOK_URL=$(op read 'op://cache/SLACK_WEBHOOK_URL/password')" >> $GITHUB_ENV
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
