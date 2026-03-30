@@ -83,9 +83,15 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
       var startRes = http.post(
         cacheUrl('/api/cache/module/start', { hash: hash, name: name }),
         null,
-        { headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/json' }) }
+        { headers: authHeaders(token) }
       );
       check(startRes, { 'seed module start: ok': function (r) { return r.status === 200; } });
+
+      if (startRes.status !== 200) {
+        console.error('Module start failed: status=' + startRes.status + ' body=' + startRes.body?.substring(0, 200));
+        refs.push({ hash: hash, name: name });
+        continue;
+      }
 
       var uploadId = (startRes.json() as any).upload_id;
       if (!uploadId) {

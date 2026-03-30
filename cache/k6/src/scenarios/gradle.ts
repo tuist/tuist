@@ -6,7 +6,7 @@ import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
 import { payloads } from '../payloads.ts';
 
-export function gradleReadHit(data: SetupData): void {
+export function gradleRead(data: SetupData): void {
   var bucket = weightedRandom(LARGE_SIZES);
   var seeded = data.gradle[bucket.name];
   if (!seeded || seeded.keys.length === 0) return;
@@ -23,7 +23,7 @@ export function gradleReadHit(data: SetupData): void {
   );
 
   var duration = Date.now() - start;
-  record('gradle_read_hit_' + bucket.name, duration, res.status === 200);
+  record('gradle_read_' + bucket.name, duration, res.status === 200);
 }
 
 export function gradleWrite(data: SetupData): void {

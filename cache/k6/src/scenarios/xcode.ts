@@ -6,7 +6,7 @@ import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
 import { payloads } from '../payloads.ts';
 
-export function xcodeReadHit(data: SetupData): void {
+export function xcodeRead(data: SetupData): void {
   var bucket = weightedRandom(XCODE_SIZES);
   var seeded = data.xcode[bucket.name];
   if (!seeded || seeded.kvCasIds.length === 0) return;
@@ -42,7 +42,7 @@ export function xcodeReadHit(data: SetupData): void {
   }
 
   var duration = Date.now() - start;
-  record('xcode_read_hit_' + bucket.name, duration, success);
+  record('xcode_read_' + bucket.name, duration, success);
 }
 
 export function xcodeWrite(data: SetupData): void {

@@ -23,7 +23,7 @@ export function moduleExists(data: SetupData): void {
   record('module_exists_' + bucket.name, duration, res.status === 204);
 }
 
-export function moduleReadHit(data: SetupData): void {
+export function moduleRead(data: SetupData): void {
   var bucket = weightedRandom(LARGE_SIZES);
   var seeded = data.module[bucket.name];
   if (!seeded || seeded.refs.length === 0) return;
@@ -40,7 +40,7 @@ export function moduleReadHit(data: SetupData): void {
   );
 
   var duration = Date.now() - start;
-  record('module_read_hit_' + bucket.name, duration, res.status === 200);
+  record('module_read_' + bucket.name, duration, res.status === 200);
 }
 
 export function moduleWrite(data: SetupData): void {

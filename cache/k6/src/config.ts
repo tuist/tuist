@@ -35,20 +35,3 @@ export const KV_DISTRIBUTIONS = [
 ];
 
 export const MODULE_PART_SIZE = 10 * 1024 * 1024;
-
-export const MIXED_RATES: Record<string, number> = {
-  kv_get: 150,
-  kv_put: 40,
-  xcode_read_hit: 220,
-  xcode_write: 40,
-  module_exists: 40,
-  module_read_hit: 20,
-  module_write: 5,
-  gradle_read_hit: 35,
-  gradle_write: 8,
-};
-
-export const KV_SAT_RATES: Record<string, number> = {
-  kv_sat_get: 1200,
-  kv_sat_put: 300,
-};

@@ -1,5 +1,5 @@
 import { Options } from 'k6/options';
-import { MIXED_RATES, KV_SAT_RATES, REGION, COMMIT_SHA } from './config.ts';
+import { REGION, COMMIT_SHA } from './config.ts';
 import { ALL_NAMES } from './metrics.ts';
 import { payloads } from './payloads.ts';
 import { authenticate } from './lib/auth.ts';
@@ -15,10 +15,10 @@ payloads['25mb'] = open('../fixtures/25mb.bin', 'b');
 payloads['50mb'] = open('../fixtures/50mb.bin', 'b');
 
 // --- Re-export scenario functions so k6 can call them by name ---
-export { xcodeReadHit, xcodeWrite } from './scenarios/xcode.ts';
-export { moduleExists, moduleReadHit, moduleWrite } from './scenarios/module.ts';
-export { gradleReadHit, gradleWrite } from './scenarios/gradle.ts';
-export { kvGet, kvPut, kvSatGet, kvSatPut } from './scenarios/kv.ts';
+export { xcodeRead, xcodeWrite } from './scenarios/xcode.ts';
+export { moduleExists, moduleRead, moduleWrite } from './scenarios/module.ts';
+export { gradleRead, gradleWrite } from './scenarios/gradle.ts';
+export { keyValueRead, keyValueWrite } from './scenarios/kv.ts';
 
 // --- Scenario builder ---
 interface ScenarioConfig {
@@ -28,6 +28,8 @@ interface ScenarioConfig {
   preAllocatedVUs?: number;
   maxVUs?: number;
 }
+
+var SCENARIO_SECONDS = 150; // each scenario runs for 2m30s
 
 function makeScenario(cfg: ScenarioConfig): any {
   var halfRate = Math.ceil(cfg.rate * 0.5);
@@ -39,61 +41,45 @@ function makeScenario(cfg: ScenarioConfig): any {
     exec: cfg.exec,
     startRate: 0,
     timeUnit: '1s',
-    preAllocatedVUs: cfg.preAllocatedVUs || Math.max(Math.ceil(burstRate * 0.15), 10),
-    maxVUs: cfg.maxVUs || Math.max(Math.ceil(burstRate * 0.5), 20),
+    preAllocatedVUs: cfg.preAllocatedVUs || Math.max(Math.ceil(burstRate * 0.02), 5),
+    maxVUs: cfg.maxVUs || Math.max(Math.ceil(burstRate * 0.2), 10),
     startTime: cfg.startTime || '0s',
     stages: [
-      { duration: '1m', target: halfRate },
-      { duration: '1m', target: halfRate },
-      { duration: '30s', target: fullRate },
-      { duration: '9m30s', target: fullRate },
-      { duration: '30s', target: burstRate },
-      { duration: '1m30s', target: burstRate },
+      { duration: '15s', target: halfRate },
+      { duration: '30s', target: halfRate },
+      { duration: '10s', target: fullRate },
+      { duration: '1m', target: fullRate },
+      { duration: '10s', target: burstRate },
+      { duration: '25s', target: burstRate },
     ],
   };
 }
 
-// --- Build k6 options ---
+// --- Build k6 options (scenarios run sequentially) ---
 var scenarios: Record<string, any> = {};
 
-// Mixed phase scenarios (start at 0s, run for 14m)
-var mixedEntries = [
-  { key: 'kv_get', exec: 'kvGet' },
-  { key: 'kv_put', exec: 'kvPut' },
-  { key: 'xcode_read_hit', exec: 'xcodeReadHit' },
-  { key: 'xcode_write', exec: 'xcodeWrite' },
-  { key: 'module_exists', exec: 'moduleExists' },
-  { key: 'module_read_hit', exec: 'moduleReadHit' },
-  { key: 'module_write', exec: 'moduleWrite' },
-  { key: 'gradle_read_hit', exec: 'gradleReadHit' },
-  { key: 'gradle_write', exec: 'gradleWrite' },
+var allEntries = [
+  { key: 'key_value_read', exec: 'keyValueRead', rate: 150 },
+  { key: 'key_value_write', exec: 'keyValueWrite', rate: 40 },
+  { key: 'xcode_read', exec: 'xcodeRead', rate: 220 },
+  { key: 'xcode_write', exec: 'xcodeWrite', rate: 40 },
+  { key: 'module_exists', exec: 'moduleExists', rate: 40 },
+  { key: 'module_read', exec: 'moduleRead', rate: 20 },
+  { key: 'module_write', exec: 'moduleWrite', rate: 5 },
+  { key: 'gradle_read', exec: 'gradleRead', rate: 35 },
+  { key: 'gradle_write', exec: 'gradleWrite', rate: 8 },
 ];
 
-for (var i = 0; i < mixedEntries.length; i++) {
-  var entry = mixedEntries[i];
-  var rate = MIXED_RATES[entry.key];
-  if (rate) {
-    scenarios[entry.key] = makeScenario({ exec: entry.exec, rate: rate });
-  }
-}
-
-// KV saturation phase (starts after mixed at 14m)
-var kvEntries = [
-  { key: 'kv_sat_get', exec: 'kvSatGet' },
-  { key: 'kv_sat_put', exec: 'kvSatPut' },
-];
-
-for (var ki = 0; ki < kvEntries.length; ki++) {
-  var kvEntry = kvEntries[ki];
-  var kvRate = KV_SAT_RATES[kvEntry.key];
-  if (kvRate) {
-    scenarios[kvEntry.key] = makeScenario({
-      exec: kvEntry.exec,
-      rate: kvRate,
-      startTime: '14m',
-      preAllocatedVUs: Math.max(Math.ceil(kvRate * 1.5 * 0.2), 20),
-      maxVUs: Math.max(Math.ceil(kvRate * 1.5 * 0.6), 50),
+var offset = 0;
+for (var i = 0; i < allEntries.length; i++) {
+  var entry = allEntries[i];
+  if (entry.rate) {
+    scenarios[entry.key] = makeScenario({
+      exec: entry.exec,
+      rate: entry.rate,
+      startTime: offset + 's',
     });
+    offset += SCENARIO_SECONDS;
   }
 }
 

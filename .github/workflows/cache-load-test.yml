@@ -92,7 +92,7 @@ jobs:
 
   test:
     name: Test (${{ matrix.region }})
-    needs: [deploy-pr]
+    needs: [resolve, deploy-pr]
     runs-on: namespace-profile-default
     timeout-minutes: 45
     strategy:
@@ -106,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ needs.resolve.outputs.pr_sha }}
       - uses: grafana/setup-k6-action@v1
       - name: Generate fixtures
         run: |
@@ -154,7 +154,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          RUN_ID=$(gh api "/repos/${{ github.repository }}/actions/workflows/cache-load-test-baseline.yml/runs?status=success&branch=main&per_page=1"--jq '.workflow_runs[0].id // empty')
+          RUN_ID=$(gh api "/repos/${{ github.repository }}/actions/workflows/cache-load-test-baseline.yml/runs?status=success&branch=main&per_page=1" --jq '.workflow_runs[0].id // empty' 2>/dev/null || echo "")
           if [ -z "$RUN_ID" ]; then
             echo "has_baseline=false" >> "$GITHUB_OUTPUT"
             echo "No baseline found"
