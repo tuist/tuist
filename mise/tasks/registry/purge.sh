@@ -14,9 +14,15 @@ readonly LOCAL_REGISTRY_ROOT="/cas/registry/swift"
 cleanup_paths=()
 
 cleanup() {
-    for path in "${cleanup_paths[@]:-}"; do
-        [[ -n "$path" && -e "$path" ]] && rm -rf "$path"
+    local path
+
+    for path in "${cleanup_paths[@]}"; do
+        if [[ -n "$path" && -e "$path" ]]; then
+            rm -rf "$path"
+        fi
     done
+
+    return 0
 }
 
 trap cleanup EXIT
