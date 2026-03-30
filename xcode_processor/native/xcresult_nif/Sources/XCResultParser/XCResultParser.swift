@@ -1,10 +1,10 @@
 import Foundation
 
-enum XCResultParserError: LocalizedError {
+public enum XCResultParserError: LocalizedError {
     case failedToParseOutput(String)
     case xcresulttoolFailed(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .failedToParseOutput(path):
             return "Failed to parse xcresult output at \(path)"
