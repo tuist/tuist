@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * add selective testing observability via MCP, API, CLI, and skills by [@pepicrft](https://github.com/pepicrft) in [#10013](https://github.com/tuist/tuist/pull/10013)
+### 🐛 Bug Fixes
+
+* replace file-based CAS analytics with SQLite for faster inspect build by [@fortmarek](https://github.com/fortmarek) in [#10062](https://github.com/tuist/tuist/pull/10062)
 
 
 
