@@ -82,7 +82,8 @@ let
     export GRAFANA_LOKI_URL="$(cat ${config.sops.secrets.grafana_loki_url.path})"
     export GRAFANA_LOKI_USERNAME="$(cat ${config.sops.secrets.grafana_loki_username.path})"
     export GRAFANA_LOKI_PASSWORD="$(cat ${config.sops.secrets.grafana_loki_password.path})"
-    exec ${pkgs.grafana-alloy}/bin/alloy run ${alloyConfig}
+    mkdir -p /var/lib/grafana-alloy
+    exec ${pkgs.grafana-alloy}/bin/alloy run --storage.path=/var/lib/grafana-alloy ${alloyConfig}
   '';
 in
 {
