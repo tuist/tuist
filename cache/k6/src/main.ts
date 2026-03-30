@@ -1,9 +1,10 @@
+import encoding from 'k6/encoding';
 import { Options } from 'k6/options';
 import { REGION, COMMIT_SHA } from './config.ts';
 import { ALL_NAMES } from './metrics.ts';
 import { authenticate } from './lib/auth.ts';
-import { seedAll } from './lib/seed.ts';
-import { SetupData } from './types.ts';
+import { seedAll, seedDataOf, setupFromSeedData } from './lib/seed.ts';
+import { SeedData, SetupData } from './types.ts';
 
 
 
@@ -78,11 +79,18 @@ for (var i = 0; i < allEntries.length; i++) {
 
 export var options: Partial<Options> = {
   scenarios: scenarios,
-  setupTimeout: '15m',
+  setupTimeout: '30m',
   discardResponseBodies: true,
   noConnectionReuse: false,
   insecureSkipTLSVerify: false,
 };
+
+function loadSeedData(): SeedData | null {
+  var json = __ENV.SEED_DATA_JSON;
+  if (!json) return null;
+
+  return JSON.parse(json) as SeedData;
+}
 
 // --- Setup: authenticate and seed test data ---
 export function setup(): SetupData {
@@ -90,8 +98,17 @@ export function setup(): SetupData {
   var token = authenticate();
   console.log('Authentication successful.');
 
+  var existingSeedData = loadSeedData();
+  if (existingSeedData) {
+    console.log('Reusing seeded test data for region ' + REGION + '...');
+    var reusedData = setupFromSeedData(token, existingSeedData);
+    console.log('Setup complete. Starting load test.');
+    return reusedData;
+  }
+
   console.log('Seeding test data for region ' + REGION + '...');
   var data = seedAll(token);
+  console.log('SEED_DATA_B64=' + encoding.b64encode(JSON.stringify(seedDataOf(data)), 'std'));
   console.log('Setup complete. Starting load test.');
 
   return data;

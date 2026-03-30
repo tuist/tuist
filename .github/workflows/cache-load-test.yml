@@ -100,7 +100,7 @@ jobs:
     name: Baseline (${{ matrix.region }})
     needs: [resolve, deploy-main]
     runs-on: namespace-profile-default
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -128,17 +128,38 @@ jobs:
       - name: Run baseline k6
         working-directory: cache/k6
         run: |
+          set -euo pipefail
           k6 run src/main.ts \
             -e CACHE_HOST=${{ matrix.cache_host }} \
             -e SERVER_URL=https://staging.tuist.dev \
             -e REGION=${{ matrix.region }} \
             -e RUN_ID="lt-baseline-${{ github.run_id }}-${{ matrix.region }}" \
-            -e COMMIT_SHA=${{ needs.resolve.outputs.main_sha }}
+            -e COMMIT_SHA=${{ needs.resolve.outputs.main_sha }} \
+            2>&1 | tee k6-output.log
+      - name: Extract baseline seed data
+        if: success()
+        working-directory: cache/k6
+        run: |
+          set -euo pipefail
+
+          SEED_DATA_B64=$(grep -o 'SEED_DATA_B64=[A-Za-z0-9+/=]*' k6-output.log | tail -1 | cut -d= -f2-)
+          if [ -z "$SEED_DATA_B64" ]; then
+            echo "::error::Missing seed data in baseline k6 output"
+            exit 1
+          fi
+
+          printf '%s' "$SEED_DATA_B64" | base64 --decode > seed-data.json
+          if [ ! -s seed-data.json ]; then
+            echo "::error::Decoded baseline seed data is empty"
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: baseline-result-${{ matrix.region }}
-          path: cache/k6/result.json
+          path: |
+            cache/k6/result.json
+            cache/k6/seed-data.json
           retention-days: 30
 
   deploy-pr:
@@ -173,7 +194,7 @@ jobs:
     name: Test (${{ matrix.region }})
     needs: [resolve, deploy-pr]
     runs-on: namespace-profile-default
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -186,6 +207,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.pr_ref }}
+      - name: Download baseline seed data
+        uses: actions/download-artifact@v4
+        with:
+          name: baseline-result-${{ matrix.region }}
+          path: baseline-result-${{ matrix.region }}
       - uses: grafana/setup-k6-action@v1
       - name: Wait for cache service
         run: |
@@ -198,6 +224,15 @@ jobs:
             echo "Attempt $i: not ready, waiting..."
             sleep 2
           done
+      - name: Load baseline seed data
+        run: |
+          set -euo pipefail
+          SEED_DATA_JSON=$(tr -d '\n' < baseline-result-${{ matrix.region }}/seed-data.json)
+          {
+            echo 'SEED_DATA_JSON<<EOF'
+            echo "$SEED_DATA_JSON"
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
       - name: Run k6
         working-directory: cache/k6
         run: |
@@ -206,7 +241,8 @@ jobs:
             -e SERVER_URL=https://staging.tuist.dev \
             -e REGION=${{ matrix.region }} \
             -e RUN_ID="lt-pr-${{ needs.resolve.outputs.pr_number }}-${{ github.run_id }}-${{ matrix.region }}" \
-            -e COMMIT_SHA=${{ needs.resolve.outputs.pr_sha }}
+            -e COMMIT_SHA=${{ needs.resolve.outputs.pr_sha }} \
+            -e SEED_DATA_JSON="$SEED_DATA_JSON"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -217,7 +253,12 @@ jobs:
   compare:
     name: Compare
     needs: [resolve, deploy-main, baseline, deploy-pr, test]
-    if: always() && needs.deploy-main.result == 'success'
+    if: >
+      always() &&
+      needs.deploy-main.result == 'success' &&
+      needs.baseline.result == 'success' &&
+      needs.deploy-pr.result == 'success' &&
+      needs.test.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -468,12 +509,21 @@ jobs:
             gh api "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" -f body="$BODY"
           fi
 
+  finalize:
+    name: Finalize load test
+    needs: [resolve, deploy-main, baseline, deploy-pr, test, compare, restore, comment]
+    if: always() && needs.deploy-main.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
       - name: Fail on regression
         if: >
           needs.baseline.result == 'failure' ||
           needs.deploy-pr.result == 'failure' ||
           needs.test.result == 'failure' ||
           needs.compare.result == 'failure' ||
+          needs.restore.result == 'failure' ||
+          needs.comment.result == 'failure' ||
           needs.compare.outputs.verdict == 'fail'
         run: |
           echo "::error::Load test detected regressions or test failures"

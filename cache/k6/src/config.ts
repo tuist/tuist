@@ -14,7 +14,10 @@ export const AUTH_PASSWORD = 'tuistrocks';
 
 export const CACHE_BASE_URL = 'https://' + CACHE_HOST;
 
-export const SEED_COUNT = 20;
+export const XCODE_SEED_COUNT = 10;
+export const MODULE_SEED_COUNT = 4;
+export const GRADLE_SEED_COUNT = 4;
+export const KV_DIRECT_SEED_COUNT = 10;
 
 export const XCODE_SIZES: SizeBucket[] = [
   { name: '10kb', bytes: 10 * 1024, weight: 0.6 },

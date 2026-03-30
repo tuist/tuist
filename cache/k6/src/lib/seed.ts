@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { SEED_COUNT, XCODE_SIZES, LARGE_SIZES, KV_DISTRIBUTIONS, MODULE_PART_SIZE, RUN_ID } from '../config.ts';
-import { SetupData, XcodeSeeded, ModuleSeeded, GradleSeeded } from '../types.ts';
+import { XCODE_SEED_COUNT, MODULE_SEED_COUNT, GRADLE_SEED_COUNT, KV_DIRECT_SEED_COUNT, XCODE_SIZES, LARGE_SIZES, KV_DISTRIBUTIONS, MODULE_PART_SIZE, RUN_ID } from '../config.ts';
+import { SeedData, SetupData, XcodeSeeded, ModuleSeeded, GradleSeeded } from '../types.ts';
 import { getValidToken } from './auth.ts';
 import { authHeaders, cacheUrl } from './http.ts';
 import { randomId, randomString, weightedRandom } from './util.ts';
@@ -16,7 +16,7 @@ function seedXcode(token: string): Record<string, XcodeSeeded> {
     var kvCasIds: string[] = [];
     var payload = getPayload(bucket.name);
 
-    for (var i = 0; i < SEED_COUNT; i++) {
+    for (var i = 0; i < XCODE_SEED_COUNT; i++) {
       token = getValidToken(token);
       var casId = RUN_ID + '-xcode-' + bucket.name + '-' + i;
       var kvCasId = RUN_ID + '-kvxc-' + bucket.name + '-' + i;
@@ -62,7 +62,7 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
     var refs: Array<{ hash: string; name: string }> = [];
     var partCount = Math.ceil(bucket.bytes / MODULE_PART_SIZE);
 
-    for (var i = 0; i < SEED_COUNT; i++) {
+    for (var i = 0; i < MODULE_SEED_COUNT; i++) {
       token = getValidToken(token);
       var hash = RUN_ID + '-mod-' + bucket.name + '-' + i;
       var name = 'Module-' + bucket.name + '-' + i + '.xcframework.zip';
@@ -135,7 +135,7 @@ function seedGradle(token: string): Record<string, GradleSeeded> {
     var keys: string[] = [];
     var payload = getPayload(bucket.name);
 
-    for (var i = 0; i < SEED_COUNT; i++) {
+    for (var i = 0; i < GRADLE_SEED_COUNT; i++) {
       token = getValidToken(token);
       var key = RUN_ID + '-gradle-' + bucket.name + '-' + i;
 
@@ -160,7 +160,7 @@ function seedGradle(token: string): Record<string, GradleSeeded> {
 
 function seedKvDirect(token: string): string[] {
   var casIds: string[] = [];
-  for (var i = 0; i < SEED_COUNT; i++) {
+  for (var i = 0; i < KV_DIRECT_SEED_COUNT; i++) {
     token = getValidToken(token);
     var casId = RUN_ID + '-kvdirect-' + i;
     var dist = KV_DISTRIBUTIONS[i % KV_DISTRIBUTIONS.length];
@@ -181,7 +181,7 @@ function seedKvDirect(token: string): string[] {
   return casIds;
 }
 
-function warmReads(token: string, data: SetupData): void {
+export function warmReads(token: string, data: SetupData): void {
   // Warm xcode reads
   var xcodeKeys = Object.keys(data.xcode);
   for (var xi = 0; xi < xcodeKeys.length; xi++) {
@@ -226,6 +226,31 @@ function warmReads(token: string, data: SetupData): void {
   }
 }
 
+export function seedDataOf(data: SetupData): SeedData {
+  return {
+    xcode: data.xcode,
+    module: data.module,
+    gradle: data.gradle,
+    kvDirect: data.kvDirect,
+  };
+}
+
+export function setupFromSeedData(token: string, seedData: SeedData): SetupData {
+  var data: SetupData = {
+    token: token,
+    xcode: seedData.xcode,
+    module: seedData.module,
+    gradle: seedData.gradle,
+    kvDirect: seedData.kvDirect,
+  };
+
+  console.log('Warming reads...');
+  warmReads(token, data);
+
+  data.token = getValidToken(token);
+  return data;
+}
+
 export function seedAll(token: string): SetupData {
   console.log('Seeding xcode cache artifacts...');
   var xcode = seedXcode(token);
@@ -239,18 +264,14 @@ export function seedAll(token: string): SetupData {
   console.log('Seeding KV direct entries...');
   var kvDirect = seedKvDirect(token);
 
-  var data: SetupData = {
-    token: token,
+  var seedData: SeedData = {
     xcode: xcode,
     module: mod,
     gradle: gradle,
     kvDirect: kvDirect,
   };
 
-  console.log('Warming reads...');
-  warmReads(token, data);
-
-  data.token = getValidToken(token);
+  var data = setupFromSeedData(token, seedData);
 
   console.log('Seed complete.');
   return data;
