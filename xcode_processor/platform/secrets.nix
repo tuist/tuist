@@ -13,6 +13,7 @@
     s3_access_key_id = {};
     s3_secret_access_key = {};
     s3_region = {};
+    sentry_dsn = {};
     grafana_prometheus_remote_write_url = {};
     grafana_prometheus_remote_write_username = {};
     grafana_prometheus_remote_write_password = {};
