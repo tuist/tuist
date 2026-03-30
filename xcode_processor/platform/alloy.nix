@@ -21,6 +21,11 @@ let
     }
 
     prometheus.remote_write "grafana_cloud" {
+      external_labels = {
+        "hostname" = "${config.networking.hostName}",
+        "service"  = "xcode-processor",
+      }
+
       endpoint {
         url = sys.env("GRAFANA_PROMETHEUS_REMOTE_WRITE_URL")
 
