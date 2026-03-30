@@ -4,21 +4,7 @@ import { SEED_COUNT, XCODE_SIZES, LARGE_SIZES, KV_DISTRIBUTIONS, MODULE_PART_SIZ
 import { SetupData, XcodeSeeded, ModuleSeeded, GradleSeeded } from '../types.ts';
 import { authHeaders, cacheUrl } from './http.ts';
 import { randomId, randomString, weightedRandom } from './util.ts';
-import { payloads } from '../payloads.ts';
-
-function findPayload(bytes: number): ArrayBuffer {
-  var keys = Object.keys(payloads);
-  var best = keys[0];
-  var bestDiff = Math.abs(payloads[keys[0]].byteLength - bytes);
-  for (var i = 1; i < keys.length; i++) {
-    var diff = Math.abs(payloads[keys[i]].byteLength - bytes);
-    if (diff < bestDiff) {
-      best = keys[i];
-      bestDiff = diff;
-    }
-  }
-  return payloads[best];
-}
+import { getPayload } from '../payloads.ts';
 
 function seedXcode(token: string): Record<string, XcodeSeeded> {
   var result: Record<string, XcodeSeeded> = {};
@@ -27,7 +13,7 @@ function seedXcode(token: string): Record<string, XcodeSeeded> {
     var bucket = XCODE_SIZES[si];
     var casIds: string[] = [];
     var kvCasIds: string[] = [];
-    var payload = findPayload(bucket.bytes);
+    var payload = getPayload(bucket.name);
 
     for (var i = 0; i < SEED_COUNT; i++) {
       var casId = RUN_ID + '-xcode-' + bucket.name + '-' + i;
@@ -72,7 +58,7 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
   for (var si = 0; si < LARGE_SIZES.length; si++) {
     var bucket = LARGE_SIZES[si];
     var refs: Array<{ hash: string; name: string }> = [];
-    var payload = findPayload(bucket.bytes);
+    var payload = getPayload(bucket.name);
     var partCount = Math.ceil(bucket.bytes / MODULE_PART_SIZE);
 
     for (var i = 0; i < SEED_COUNT; i++) {
@@ -143,7 +129,7 @@ function seedGradle(token: string): Record<string, GradleSeeded> {
   for (var si = 0; si < LARGE_SIZES.length; si++) {
     var bucket = LARGE_SIZES[si];
     var keys: string[] = [];
-    var payload = findPayload(bucket.bytes);
+    var payload = getPayload(bucket.name);
 
     for (var i = 0; i < SEED_COUNT; i++) {
       var key = RUN_ID + '-gradle-' + bucket.name + '-' + i;

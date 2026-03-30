@@ -1,18 +1,11 @@
 import { Options } from 'k6/options';
 import { REGION, COMMIT_SHA } from './config.ts';
 import { ALL_NAMES } from './metrics.ts';
-import { payloads } from './payloads.ts';
 import { authenticate } from './lib/auth.ts';
 import { seedAll } from './lib/seed.ts';
 import { SetupData } from './types.ts';
 
-// --- Init context: load fixture payloads ---
-payloads['10kb'] = open('../fixtures/10kb.bin', 'b');
-payloads['256kb'] = open('../fixtures/256kb.bin', 'b');
-payloads['2mb'] = open('../fixtures/2mb.bin', 'b');
-payloads['10mb'] = open('../fixtures/10mb.bin', 'b');
-payloads['25mb'] = open('../fixtures/25mb.bin', 'b');
-payloads['50mb'] = open('../fixtures/50mb.bin', 'b');
+
 
 // --- Re-export scenario functions so k6 can call them by name ---
 export { xcodeRead, xcodeWrite } from './scenarios/xcode.ts';

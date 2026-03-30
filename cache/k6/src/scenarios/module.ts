@@ -4,7 +4,7 @@ import { LARGE_SIZES, MODULE_PART_SIZE, RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
 import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
-import { payloads } from '../payloads.ts';
+import { getPayload } from '../payloads.ts';
 
 export function moduleExists(data: SetupData): void {
   var bucket = weightedRandom(LARGE_SIZES);
@@ -47,8 +47,7 @@ export function moduleWrite(data: SetupData): void {
   var bucket = weightedRandom(LARGE_SIZES);
   var hash = RUN_ID + '-modw-' + randomId();
   var name = 'Module-' + randomId() + '.xcframework.zip';
-  var payload = payloads[bucket.name];
-  if (!payload) return;
+  var payload = getPayload(bucket.name);
 
   var partCount = Math.ceil(bucket.bytes / MODULE_PART_SIZE);
   var start = Date.now();

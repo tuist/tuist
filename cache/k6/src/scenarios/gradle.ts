@@ -4,7 +4,7 @@ import { LARGE_SIZES, RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
 import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
-import { payloads } from '../payloads.ts';
+import { getPayload } from '../payloads.ts';
 
 export function gradleRead(data: SetupData): void {
   var bucket = weightedRandom(LARGE_SIZES);
@@ -29,8 +29,7 @@ export function gradleRead(data: SetupData): void {
 export function gradleWrite(data: SetupData): void {
   var bucket = weightedRandom(LARGE_SIZES);
   var key = RUN_ID + '-gradlew-' + randomId();
-  var payload = payloads[bucket.name];
-  if (!payload) return;
+  var payload = getPayload(bucket.name);
 
   var start = Date.now();
 

@@ -4,7 +4,7 @@ import { XCODE_SIZES, RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
 import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
-import { payloads } from '../payloads.ts';
+import { getPayload } from '../payloads.ts';
 
 export function xcodeRead(data: SetupData): void {
   var bucket = weightedRandom(XCODE_SIZES);
@@ -49,8 +49,7 @@ export function xcodeWrite(data: SetupData): void {
   var bucket = weightedRandom(XCODE_SIZES);
   var casId = RUN_ID + '-xcw-' + randomId();
   var kvCasId = RUN_ID + '-kvxcw-' + randomId();
-  var payload = payloads[bucket.name];
-  if (!payload) return;
+  var payload = getPayload(bucket.name);
 
   var start = Date.now();
   var success = true;
