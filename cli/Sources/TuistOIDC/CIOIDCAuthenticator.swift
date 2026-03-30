@@ -22,7 +22,7 @@ enum CIOIDCAuthenticatorError: LocalizedError, Equatable {
             return "GitHub Actions OIDC token request variables not set. Ensure your workflow has 'permissions: id-token: write' set."
         case let .gitHubActionsOIDCTokenRequestFailed(statusCode, body):
             let response = body.isEmpty ? "" : " Response: \(body)"
-            return "GitHub Actions returned status code \(statusCode) while issuing an OIDC token. This usually indicates an upstream GitHub Actions OIDC outage or a transient runner networking issue.\(response)"
+            return "GitHub Actions returned status code \(statusCode) while issuing an OIDC token. This usually indicates an upstream GitHub Actions OIDC outage or a transient runner networking issue. \(response)"
         case .missingCircleCIOIDCToken:
             return "CircleCI OIDC token not found. Ensure OIDC is enabled for your CircleCI project in the project settings."
         case .missingBitriseOIDCToken:
