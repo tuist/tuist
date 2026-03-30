@@ -4,7 +4,7 @@
 #USAGE arg "<name>" help="Hostname for the machine (e.g. xcode-processor-canary)"
 #USAGE option "-t --type" help="Server type" default="M2-L"
 #USAGE option "--zone" help="Scaleway zone" default="fr-par-3"
-#USAGE option "--os" help="macOS version to install (use 'scw apple-silicon os list' to see options)" default="macos_sequoia_26.0"
+#USAGE option "--os" help="macOS version to install (use 'scw apple-silicon os list' to see options)" default="macos-tahoe-26.0"
 #USAGE option "--ip" help="IP of an existing machine (skip creation)"
 #USAGE option "--sudo-password" help="Sudo password for existing machine"
 set -euo pipefail
@@ -14,7 +14,7 @@ cd "$(dirname "$0")/../.."
 SERVER_NAME="${usage_name?}"
 SERVER_TYPE="${usage_type:-M2-L}"
 ZONE="${usage_zone:-fr-par-3}"
-OS="${usage_os:-macos_sequoia_26.0}"
+OS="${usage_os:-macos-tahoe-26.0}"
 
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/xcode-processor}"
 SSH_OPTS="-o StrictHostKeyChecking=accept-new"
@@ -133,7 +133,7 @@ fi
 
 # Re-encrypt so the new machine can decrypt
 echo "${AGE_KEY}" > /tmp/age.key
-SOPS_AGE_KEY_FILE=/tmp/age.key sops updatekeys platform/secrets.yaml --yes 2>&1 | grep -v "^$" | head -5
+(cd platform && SOPS_AGE_KEY_FILE=/tmp/age.key sops updatekeys secrets.yaml --yes 2>&1 | grep -v "^$" | head -5)
 rm -f /tmp/age.key
 echo "    Secrets re-encrypted for all machines"
 

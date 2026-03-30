@@ -37,6 +37,12 @@
             ./hosts/xcode-processor-canary.nix
           ];
         };
+        "xcode-processor-staging" = nix-darwin.lib.darwinSystem {
+          inherit system;
+          modules = sharedModules ++ [
+            ./hosts/xcode-processor-staging.nix
+          ];
+        };
       };
     };
 }

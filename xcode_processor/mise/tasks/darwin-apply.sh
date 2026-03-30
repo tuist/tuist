@@ -3,7 +3,7 @@
 #MISE raw=true
 #USAGE arg "<host>" help="Target host (IP or hostname)"
 #USAGE arg "<hostname>" help="nix-darwin hostname" {
-#USAGE   choices "xcode-processor-production" "xcode-processor-canary"
+#USAGE   choices "xcode-processor-production" "xcode-processor-canary" "xcode-processor-staging"
 #USAGE }
 set -euo pipefail
 
