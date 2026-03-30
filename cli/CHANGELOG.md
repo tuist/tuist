@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.171.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* preserve external static xcframework deps for cached dynamics by [@pepicrft](https://github.com/pepicrft) in [#10089](https://github.com/tuist/tuist/pull/10089)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.1...4.171.2
+
 ## What's Changed in 4.171.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
