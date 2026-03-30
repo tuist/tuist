@@ -93,9 +93,7 @@ defmodule TuistWeb.TestCaseLive do
     if Accounts.organization?(project.account) do
       {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
 
-      users =
-        organization
-        |> Accounts.get_organization_members()
+      users = Accounts.get_organization_members(organization)
 
       filters ++
         [
