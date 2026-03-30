@@ -1,5 +1,4 @@
 #if os(macOS)
-    import Command
     import FileSystem
     import Foundation
     import Mockable
@@ -58,7 +57,6 @@
         private let fileSystem: FileSysteming
         private let fileArchiver: FileArchivingFactorying
         private let shardMatrixOutputService: ShardMatrixOutputServicing
-        private let commandRunner: CommandRunning
 
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
@@ -72,8 +70,7 @@
             ciController: CIControlling = CIController(),
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory(),
-            shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
-            commandRunner: CommandRunning = CommandRunner()
+            shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService()
         ) {
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
@@ -85,7 +82,6 @@
             self.fileSystem = fileSystem
             self.fileArchiver = fileArchiver
             self.shardMatrixOutputService = shardMatrixOutputService
-            self.commandRunner = commandRunner
         }
 
         public func plan(
@@ -204,15 +200,11 @@
             }
 
             let archivePath = strippedPath.appending(component: "bundle.xctestproducts.zip")
-            // ditto -c -k creates a compressed zip that preserves symlinks (which .xctestproducts
-            // bundles contain). The download side uses ditto -x -k to extract.
-            _ = try await commandRunner
-                .run(arguments: [
-                    "/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent",
-                    strippedProductsPath.pathString,
-                    archivePath.pathString,
-                ])
-                .concatenatedString()
+            try await fileSystem.zipFileOrDirectoryContent(
+                at: strippedProductsPath,
+                to: archivePath,
+                options: [.compressed, .keepParent]
+            )
 
             try? await fileSystem.remove(strippedProductsPath)
             return archivePath
