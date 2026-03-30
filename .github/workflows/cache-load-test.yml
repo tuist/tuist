@@ -106,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve.outputs.main_sha }}
+          ref: ${{ needs.resolve.outputs.pr_sha }}
       - uses: grafana/setup-k6-action@v1
       - name: Wait for cache service
         run: |
