@@ -2,11 +2,13 @@ import http from 'k6/http';
 import { SetupData } from '../types.ts';
 import { XCODE_SIZES, RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
+import { getValidToken } from '../lib/auth.ts';
 import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
 import { getPayload } from '../payloads.ts';
 
 export function xcodeRead(data: SetupData): void {
+  var token = getValidToken(data.token);
   var bucket = weightedRandom(XCODE_SIZES);
   var seeded = data.xcode[bucket.name];
   if (!seeded || seeded.kvCasIds.length === 0) return;
@@ -19,7 +21,7 @@ export function xcodeRead(data: SetupData): void {
   var kvRes = http.get(
     cacheUrl('/api/cache/keyvalue/' + kvCasId),
     {
-      headers: authHeaders(data.token),
+      headers: authHeaders(token),
       responseType: 'text',
     }
   );
@@ -34,7 +36,7 @@ export function xcodeRead(data: SetupData): void {
     if (casId) {
       var casRes = http.get(
         cacheUrl('/api/cache/cas/' + casId),
-        { headers: authHeaders(data.token) }
+        { headers: authHeaders(token) }
       );
       if (casRes.status !== 200) {
         success = false;
@@ -49,6 +51,7 @@ export function xcodeRead(data: SetupData): void {
 }
 
 export function xcodeWrite(data: SetupData): void {
+  var token = getValidToken(data.token);
   var bucket = weightedRandom(XCODE_SIZES);
   var casId = RUN_ID + '-xcw-' + randomId();
   var kvCasId = RUN_ID + '-kvxcw-' + randomId();
@@ -62,7 +65,7 @@ export function xcodeWrite(data: SetupData): void {
     cacheUrl('/api/cache/cas/' + casId),
     payload,
     {
-      headers: Object.assign({}, authHeaders(data.token), { 'Content-Type': 'application/octet-stream' }),
+      headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/octet-stream' }),
       timeout: '60s',
     }
   );
@@ -74,7 +77,7 @@ export function xcodeWrite(data: SetupData): void {
   var kvRes = http.put(
     cacheUrl('/api/cache/keyvalue'),
     JSON.stringify({ cas_id: kvCasId, entries: [{ value: casId }] }),
-    { headers: Object.assign({}, authHeaders(data.token), { 'Content-Type': 'application/json' }) }
+    { headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/json' }) }
   );
   if (kvRes.status !== 204) {
     success = false;

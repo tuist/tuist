@@ -262,7 +262,7 @@ jobs:
             local region="$1" pr_file="$2" baseline_file="$3" metric="$4"
 
             local pr_p50 pr_p95 pr_p99 pr_throughput pr_error_rate
-            local base_p50 base_p95 base_p99 base_throughput
+            local base_p50 base_p95 base_p99 base_throughput base_error_rate
 
             pr_p50=$(jq -r ".metrics[\"$metric\"].p50 // 0" "$pr_file")
             pr_p95=$(jq -r ".metrics[\"$metric\"].p95 // 0" "$pr_file")
@@ -274,11 +274,14 @@ jobs:
             base_p95=$(jq -r ".metrics[\"$metric\"].p95 // 0" "$baseline_file")
             base_p99=$(jq -r ".metrics[\"$metric\"].p99 // 0" "$baseline_file")
             base_throughput=$(jq -r ".metrics[\"$metric\"].throughput // 0" "$baseline_file")
+            base_error_rate=$(jq -r ".metrics[\"$metric\"].error_rate // 0" "$baseline_file")
 
-            if [ "$(echo "$pr_error_rate > 0" | bc -l)" -eq 1 ]; then
+            if [ "$(echo "$pr_error_rate > $base_error_rate" | bc -l)" -eq 1 ]; then
               local pct
               pct=$(printf "%.2f" "$(echo "$pr_error_rate * 100" | bc -l)")
-              add_failure "$region" "$metric" "error_rate" "0%" "${pct}%" "-"
+              local base_pct
+              base_pct=$(printf "%.2f" "$(echo "$base_error_rate * 100" | bc -l)")
+              add_failure "$region" "$metric" "error_rate" "${base_pct}%" "${pct}%" "-"
             fi
 
             for pct_name in p50 p95 p99; do

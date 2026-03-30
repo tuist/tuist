@@ -2,11 +2,13 @@ import http from 'k6/http';
 import { SetupData } from '../types.ts';
 import { LARGE_SIZES, MODULE_PART_SIZE, RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
+import { getValidToken } from '../lib/auth.ts';
 import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
 import { getModulePartPayload } from '../payloads.ts';
 
 export function moduleExists(data: SetupData): void {
+  var token = getValidToken(data.token);
   var bucket = weightedRandom(LARGE_SIZES);
   var seeded = data.module[bucket.name];
   if (!seeded || seeded.refs.length === 0) return;
@@ -16,7 +18,7 @@ export function moduleExists(data: SetupData): void {
 
   var res = http.head(
     cacheUrl('/api/cache/module/' + ref.hash, { hash: ref.hash, name: ref.name }),
-    { headers: authHeaders(data.token) }
+    { headers: authHeaders(token) }
   );
 
   var duration = Date.now() - start;
@@ -24,6 +26,7 @@ export function moduleExists(data: SetupData): void {
 }
 
 export function moduleRead(data: SetupData): void {
+  var token = getValidToken(data.token);
   var bucket = weightedRandom(LARGE_SIZES);
   var seeded = data.module[bucket.name];
   if (!seeded || seeded.refs.length === 0) return;
@@ -34,7 +37,7 @@ export function moduleRead(data: SetupData): void {
   var res = http.get(
     cacheUrl('/api/cache/module/' + ref.hash, { hash: ref.hash, name: ref.name }),
     {
-      headers: authHeaders(data.token),
+      headers: authHeaders(token),
       timeout: '120s',
     }
   );
@@ -44,6 +47,7 @@ export function moduleRead(data: SetupData): void {
 }
 
 export function moduleWrite(data: SetupData): void {
+  var token = getValidToken(data.token);
   var bucket = weightedRandom(LARGE_SIZES);
   var hash = RUN_ID + '-modw-' + randomId();
   var name = 'Module-' + randomId() + '.xcframework.zip';
@@ -56,7 +60,7 @@ export function moduleWrite(data: SetupData): void {
     cacheUrl('/api/cache/module/start', { hash: hash, name: name }),
     null,
     {
-      headers: Object.assign({}, authHeaders(data.token), { 'Content-Type': 'application/json' }),
+      headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/json' }),
       responseType: 'text',
     }
   );
@@ -81,7 +85,7 @@ export function moduleWrite(data: SetupData): void {
       cacheUrl('/api/cache/module/part', { upload_id: uploadId, part_number: String(p) }),
       partData,
       {
-        headers: Object.assign({}, authHeaders(data.token), { 'Content-Type': 'application/octet-stream' }),
+        headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/octet-stream' }),
         timeout: '120s',
       }
     );
@@ -99,7 +103,7 @@ export function moduleWrite(data: SetupData): void {
     var completeRes = http.post(
       cacheUrl('/api/cache/module/complete', { upload_id: uploadId }),
       JSON.stringify({ parts: parts }),
-      { headers: Object.assign({}, authHeaders(data.token), { 'Content-Type': 'application/json' }) }
+      { headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/json' }) }
     );
     if (completeRes.status !== 204) {
       success = false;
