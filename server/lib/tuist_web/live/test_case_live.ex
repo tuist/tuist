@@ -87,6 +87,14 @@ defmodule TuistWeb.TestCaseLive do
         type: :number,
         operator: :>,
         value: ""
+      },
+      %Filter.Filter{
+        id: "git_branch",
+        field: :git_branch,
+        display_name: dgettext("dashboard_tests", "Branch"),
+        type: :text,
+        operator: :=~,
+        value: ""
       }
     ]
 
