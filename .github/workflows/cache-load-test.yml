@@ -1,8 +1,6 @@
 name: Cache Load Test
 
 on:
-  issue_comment:
-    types: [created]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -10,6 +8,9 @@ on:
         required: true
       pr_sha:
         description: PR head SHA
+        required: true
+      main_sha:
+        description: Main branch SHA at time of request
         required: true
 
 permissions:
@@ -22,93 +23,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gate:
-    name: Validate
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    if: >
-      (github.event_name == 'issue_comment' &&
-       github.event.action == 'created' &&
-       contains(github.event.comment.body, '/load-test')) ||
-      github.event_name == 'workflow_dispatch'
-    outputs:
-      pr_number: ${{ steps.resolve.outputs.pr_number }}
-      pr_sha: ${{ steps.resolve.outputs.pr_sha }}
-      main_sha: ${{ steps.resolve.outputs.main_sha }}
-    steps:
-      - name: Resolve PR details
-        id: resolve
-        env:
-          GH_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            PR_NUMBER="${{ inputs.pr_number }}"
-            PR_SHA="${{ inputs.pr_sha }}"
-          else
-            PR_NUMBER="${{ github.event.issue.number }}"
-
-            # Verify this is a PR comment, not an issue comment
-            PR_DATA=$(gh api "/repos/${{ github.repository }}/pulls/$PR_NUMBER" 2>/dev/null || echo "")
-            if [ -z "$PR_DATA" ]; then
-              echo "::error::Comment is not on a pull request"
-              exit 1
-            fi
-
-            PR_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
-            HEAD_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.full_name')
-
-            if [ "$HEAD_REPO" != "${{ github.repository }}" ]; then
-              echo "::error::Load tests only run on same-repo PRs"
-              exit 1
-            fi
-          fi
-
-          MAIN_SHA=$(gh api "/repos/${{ github.repository }}/commits/main" --jq '.sha')
-
-          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "pr_sha=$PR_SHA" >> "$GITHUB_OUTPUT"
-          echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
-
-      - name: Check team membership
-        if: github.event_name == 'issue_comment'
-        env:
-          GH_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          AUTHOR="${{ github.event.comment.user.login }}"
-          MEMBERSHIP=$(gh api "/orgs/tuist/teams/engineering/memberships/$AUTHOR" --jq '.state' 2>/dev/null || echo "not_found")
-          if [ "$MEMBERSHIP" != "active" ]; then
-            echo "::error::Only @tuist/engineering members can trigger load tests"
-            exit 1
-          fi
-
-      - name: Update PR comment - queued
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          PR_NUMBER="${{ steps.resolve.outputs.pr_number }}"
-          MARKER="<!-- cache-load-test -->"
-          BODY="${MARKER}
-          ## Cache Load Test
-
-          **Status:** ⏳ Queued
-          **PR SHA:** \`${{ steps.resolve.outputs.pr_sha }}\`
-          **Workflow:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
-
-          COMMENT_ID=$(gh api "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" --paginate --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -1)
-
-          if [ -n "$COMMENT_ID" ]; then
-            gh api "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" -X PATCH -f body="$BODY"
-          else
-            gh api "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" -f body="$BODY"
-          fi
-
   deploy-pr:
     name: Deploy PR
-    needs: gate
     runs-on: namespace-profile-default
     timeout-minutes: 30
     environment: cache-staging
@@ -118,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.gate.outputs.pr_sha }}
+          ref: ${{ inputs.pr_sha }}
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -136,7 +52,7 @@ jobs:
 
   test:
     name: Test (${{ matrix.region }})
-    needs: [gate, deploy-pr]
+    needs: [deploy-pr]
     runs-on: namespace-profile-default
     timeout-minutes: 45
     strategy:
@@ -168,8 +84,8 @@ jobs:
             -e CACHE_HOST=${{ matrix.cache_host }} \
             -e SERVER_URL=https://staging.tuist.dev \
             -e REGION=${{ matrix.region }} \
-            -e RUN_ID="lt-pr-${{ needs.gate.outputs.pr_number }}-${{ github.run_id }}-${{ matrix.region }}" \
-            -e COMMIT_SHA=${{ needs.gate.outputs.pr_sha }}
+            -e RUN_ID="lt-pr-${{ inputs.pr_number }}-${{ github.run_id }}-${{ matrix.region }}" \
+            -e COMMIT_SHA=${{ inputs.pr_sha }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -179,8 +95,8 @@ jobs:
 
   compare:
     name: Compare
-    needs: [gate, test]
-    if: always() && needs.gate.result == 'success'
+    needs: [deploy-pr, test]
+    if: always() && needs.deploy-pr.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -198,7 +114,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          RUN_ID=$(gh api "/repos/${{ github.repository }}/actions/workflows/cache-load-test-baseline.yml/runs?status=success&branch=main&per_page=1" --jq '.workflow_runs[0].id // empty')
+          RUN_ID=$(gh api "/repos/${{ github.repository }}/actions/workflows/cache-load-test-baseline.yml/runs?status=success&branch=main&per_page=1"--jq '.workflow_runs[0].id // empty')
           if [ -z "$RUN_ID" ]; then
             echo "has_baseline=false" >> "$GITHUB_OUTPUT"
             echo "No baseline found"
@@ -210,8 +126,8 @@ jobs:
       - name: Compare results
         id: compare
         env:
-          PR_SHA: ${{ needs.gate.outputs.pr_sha }}
-          MAIN_SHA: ${{ needs.gate.outputs.main_sha }}
+          PR_SHA: ${{ inputs.pr_sha }}
+          MAIN_SHA: ${{ inputs.main_sha }}
           HAS_BASELINE: ${{ steps.baseline.outputs.has_baseline }}
         run: |
           set -euo pipefail
@@ -351,8 +267,8 @@ jobs:
 
   restore:
     name: Restore main
-    needs: [gate, deploy-pr, test, compare]
-    if: always() && needs.gate.result == 'success'
+    needs: [deploy-pr, test, compare]
+    if: always() && needs.deploy-pr.result == 'success'
     runs-on: namespace-profile-default
     timeout-minutes: 30
     environment: cache-staging
@@ -362,7 +278,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.gate.outputs.main_sha }}
+          ref: ${{ inputs.main_sha }}
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -380,8 +296,8 @@ jobs:
 
   comment:
     name: Update PR comment
-    needs: [gate, deploy-pr, test, compare, restore]
-    if: always() && needs.gate.result == 'success'
+    needs: [deploy-pr, test, compare, restore]
+    if: always() && needs.deploy-pr.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -394,8 +310,8 @@ jobs:
       - name: Update PR comment
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ needs.gate.outputs.pr_number }}
-          PR_SHA: ${{ needs.gate.outputs.pr_sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_SHA: ${{ inputs.pr_sha }}
           VERDICT: ${{ needs.compare.outputs.verdict }}
           TEST_RESULT: ${{ needs.test.result }}
           COMPARE_RESULT: ${{ needs.compare.result }}
