@@ -719,6 +719,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.xcResultService.targetName),
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.machineMetrics.targetName),
                     .target(name: Module.oidc.targetName),
@@ -1032,9 +1033,8 @@ public enum Module: String, CaseIterable {
                 ]
             case .casAnalytics:
                 [
-                    .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
-                    .external(name: "FileSystem"),
+                    .external(name: "CASAnalyticsDatabase"),
                 ]
             case .launchctl:
                 [
@@ -1409,6 +1409,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.xcResultService.targetName),
                     .target(name: Module.machineMetrics.targetName),
+                    .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName),
@@ -1584,6 +1585,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.machineMetrics.targetName),
+                    .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.cas.targetName),

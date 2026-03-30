@@ -1,8 +1,8 @@
 {
-  "originHash" : "75d6d91e68aa4a763e4fdea0d33666c5bc7da391d411df28fd53ddf7bf963a8b",
+  "originHash" : "79291f123bbc59dbce1c22ef39127f2fad2460a56e2d28e33ec46788d430b491",
   "pins" : [
     {
-      "identity" : "1024jp.GzipSwift",
+      "identity" : "1024jp.gzipswift",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -194,7 +194,7 @@
       }
     },
     {
-      "identity" : "CoreOffice.XMLCoder",
+      "identity" : "coreoffice.xmlcoder",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -218,7 +218,7 @@
       }
     },
     {
-      "identity" : "DaveWoodCom.XCGLogger",
+      "identity" : "davewoodcom.xcglogger",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -267,7 +267,7 @@
       }
     },
     {
-      "identity" : "getGuaka.Colorizer",
+      "identity" : "getguaka.colorizer",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -299,7 +299,7 @@
       }
     },
     {
-      "identity" : "JohnSundell.ShellOut",
+      "identity" : "johnsundell.shellout",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -307,7 +307,7 @@
       }
     },
     {
-      "identity" : "jpsim.Yams",
+      "identity" : "jpsim.yams",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -347,7 +347,7 @@
       }
     },
     {
-      "identity" : "krzyzanowskim.CryptoSwift",
+      "identity" : "krzyzanowskim.cryptoswift",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -355,7 +355,7 @@
       }
     },
     {
-      "identity" : "kylef.PathKit",
+      "identity" : "kylef.pathkit",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -363,7 +363,7 @@
       }
     },
     {
-      "identity" : "kylef.Spectre",
+      "identity" : "kylef.spectre",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -371,7 +371,7 @@
       }
     },
     {
-      "identity" : "leif-ibsen.ASN1",
+      "identity" : "leif-ibsen.asn1",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -379,7 +379,7 @@
       }
     },
     {
-      "identity" : "leif-ibsen.BigInt",
+      "identity" : "leif-ibsen.bigint",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -387,7 +387,7 @@
       }
     },
     {
-      "identity" : "leif-ibsen.Digest",
+      "identity" : "leif-ibsen.digest",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -427,7 +427,7 @@
       }
     },
     {
-      "identity" : "onevcat.Rainbow",
+      "identity" : "onevcat.rainbow",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -483,7 +483,7 @@
       }
     },
     {
-      "identity" : "shibapm.Komondor",
+      "identity" : "shibapm.komondor",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -491,7 +491,7 @@
       }
     },
     {
-      "identity" : "shibapm.PackageConfig",
+      "identity" : "shibapm.packageconfig",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -512,6 +512,14 @@
       "location" : "",
       "state" : {
         "version" : "0.15.1"
+      }
+    },
+    {
+      "identity" : "stephencelis.SQLite_swift",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.16.0"
       }
     },
     {
@@ -579,7 +587,7 @@
       }
     },
     {
-      "identity" : "tadija.AEXML",
+      "identity" : "tadija.aexml",
       "kind" : "registry",
       "location" : "",
       "state" : {
@@ -587,7 +595,7 @@
       }
     },
     {
-      "identity" : "tid-kijyun.Kanna",
+      "identity" : "tid-kijyun.kanna",
       "kind" : "registry",
       "location" : "",
       "state" : {

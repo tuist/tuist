@@ -4,6 +4,7 @@
     import Path
     import TuistAlert
     import TuistAutomation
+    import TuistCASAnalytics
     import TuistCI
     import TuistConfigLoader
     import TuistCore
@@ -51,7 +52,6 @@
         private let gitController: GitControlling
         private let ciController: CIControlling
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
-
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
             fileSystem: FileSysteming = FileSystem(),
@@ -255,18 +255,13 @@
                 to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
             )
 
-            let stateDir = Environment.current.stateDirectory
-            let casMetadataDir = buildDirectory.appending(component: "cas_metadata")
-            try await fileSystem.makeDirectory(at: casMetadataDir)
-
-            for subdirectory in ["nodes", "cas", "keyvalue"] {
-                let sourceDir = stateDir.appending(component: subdirectory)
-                if try await fileSystem.exists(sourceDir) {
-                    try await fileSystem.copy(
-                        sourceDir,
-                        to: casMetadataDir.appending(component: subdirectory)
-                    )
-                }
+            let casAnalyticsDatabasePath = Environment.current.stateDirectory
+                .appending(component: CASAnalyticsDatabase.databaseName)
+            if try await fileSystem.exists(casAnalyticsDatabasePath) {
+                try await fileSystem.copy(
+                    casAnalyticsDatabasePath,
+                    to: buildDirectory.appending(component: "cas_analytics.db")
+                )
             }
 
             let metricsSource = MachineMetricsReader.metricsFilePath
