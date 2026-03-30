@@ -192,22 +192,20 @@
             let strippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-stripped")
             let strippedProductsPath = strippedPath.appending(component: xctestproductsPath.basename)
 
-            // rsync to copy while excluding .dSYM and .swiftmodule directories which are only
-            // needed for symbolication/compilation, not for running tests.
-            // The trailing slash on the source copies the directory contents into the destination.
-            try await fileSystem.makeDirectory(at: strippedProductsPath)
-            _ = try await commandRunner
-                .run(arguments: [
-                    "/usr/bin/rsync", "-a",
-                    "--exclude", "*.dSYM",
-                    "--exclude", "*.swiftmodule",
-                    xctestproductsPath.pathString + "/",
-                    strippedProductsPath.pathString + "/",
-                ])
-                .concatenatedString()
+            try await fileSystem.copy(xctestproductsPath, to: strippedProductsPath)
+
+            // Remove .dSYM and .swiftmodule directories which are only needed for
+            // symbolication/compilation, not for running tests.
+            let stripPatterns = ["**/*.dSYM", "**/*.swiftmodule"]
+            for pattern in stripPatterns {
+                for try await path in try fileSystem.glob(directory: strippedProductsPath, include: [pattern]) {
+                    try await fileSystem.remove(path)
+                }
+            }
 
             let archivePath = strippedPath.appending(component: "bundle.xctestproducts.zip")
-            // ditto -c -k creates a compressed zip, consistent with the download side which uses ditto -x -k.
+            // ditto -c -k creates a compressed zip that preserves symlinks (which .xctestproducts
+            // bundles contain). The download side uses ditto -x -k to extract.
             _ = try await commandRunner
                 .run(arguments: [
                     "/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent",
