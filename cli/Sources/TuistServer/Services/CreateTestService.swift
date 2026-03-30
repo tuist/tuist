@@ -191,7 +191,6 @@ import TuistHTTP
                     ),
                     body: .json(
                         .init(
-                            id: id,
                             build_run_id: buildRunId,
                             ci_host: ciHost,
                             ci_project_handle: ciProjectHandle,
@@ -202,6 +201,7 @@ import TuistHTTP
                             git_commit_sha: gitCommitSHA,
                             git_ref: gitRef,
                             git_remote_url_origin: gitRemoteURLOrigin,
+                            id: id,
                             is_ci: isCI,
                             macos_version: macOSVersion,
                             model_identifier: modelIdentifier,

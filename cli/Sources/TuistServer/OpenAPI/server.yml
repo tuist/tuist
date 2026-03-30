@@ -3725,6 +3725,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        id:
+          description: Optional client-generated UUID for the test run. If not provided, the server generates one.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         is_ci:
           description: Indicates if the run was executed on a Continuous Integration (CI) system.
           type: boolean
@@ -3762,6 +3768,7 @@ components:
             - success
             - failure
             - skipped
+            - processing
           type: string
           x-struct:
           x-validate:
@@ -3885,6 +3892,7 @@ components:
                         - success
                         - failure
                         - skipped
+                        - processing
                       type: string
                       x-struct:
                       x-validate:
@@ -3923,6 +3931,7 @@ components:
                         - success
                         - failure
                         - skipped
+                        - processing
                       type: string
                       x-struct:
                       x-validate:
@@ -7500,17 +7509,17 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the project.
+        - description: The handle of the account.
           in: path
-          name: project_handle
+          name: account_handle
           required: true
           schema:
             type: string
@@ -7524,10 +7533,10 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -18295,6 +18304,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                id:
+                  description: Optional client-generated UUID for the test run. If not provided, the server generates one.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 is_ci:
                   description: Indicates if the run was executed on a Continuous Integration (CI) system.
                   type: boolean
@@ -18332,6 +18347,7 @@ paths:
                     - success
                     - failure
                     - skipped
+                    - processing
                   type: string
                   x-struct:
                   x-validate:
@@ -18455,6 +18471,7 @@ paths:
                                 - success
                                 - failure
                                 - skipped
+                                - processing
                               type: string
                               x-struct:
                               x-validate:
@@ -18493,6 +18510,7 @@ paths:
                                 - success
                                 - failure
                                 - skipped
+                                - processing
                               type: string
                               x-struct:
                               x-validate:
