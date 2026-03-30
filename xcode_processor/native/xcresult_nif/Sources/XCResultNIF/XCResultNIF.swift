@@ -11,7 +11,9 @@ public func parseXCResult(
     let path = String(cString: pathPtr)
     let rootDir = String(cString: rootDirPtr)
 
-    nonisolated(unsafe) var result: Result<TestSummary, Error>!
+    nonisolated(unsafe) var result: Result<TestSummary, Error> = .failure(
+        XCResultParserError.xcresulttoolFailed("NIF task did not complete")
+    )
     let semaphore = DispatchSemaphore(value: 0)
 
     Task { @Sendable in
@@ -26,9 +28,13 @@ public func parseXCResult(
         }
         semaphore.signal()
     }
-    semaphore.wait()
 
-    switch result! {
+    let timeout = semaphore.wait(timeout: .now() + .seconds(600))
+    if timeout == .timedOut {
+        result = .failure(XCResultParserError.xcresulttoolFailed("NIF task timed out after 600 seconds"))
+    }
+
+    switch result {
     case let .success(parsed):
         do {
             let jsonData = try JSONEncoder().encode(parsed)

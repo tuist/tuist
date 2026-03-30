@@ -34,6 +34,11 @@
             <.circle_dashed />
           </div>
         </div>
+        <div :if={@run.status == "failed_processing"} data-part="badge-failure">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
+        </div>
         <div :if={@run.status == "skipped"} data-part="badge-warning">
           <div data-part="icon">
             <.alert_hexagon />
@@ -140,7 +145,7 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_tests",
-          "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
+          "This usually takes a few seconds. The page will update automatically when processing completes."
         )}
       </span>
     </div>

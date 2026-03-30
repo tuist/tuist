@@ -1,6 +1,6 @@
 defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   @moduledoc false
-  use Oban.Worker, queue: :default, max_attempts: 3
+  use Oban.Worker, queue: :default, max_attempts: 3, unique: [keys: [:test_run_id]]
 
   alias Tuist.Tests
 
@@ -34,6 +34,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         {:error, reason} ->
           if attempt >= max_attempts do
             Logger.error("Failed to process xcresult for test run #{test_run_id} after #{max_attempts} attempts: #{inspect(reason)}")
+            mark_failed_processing(args)
           end
 
           {:error, reason}
@@ -109,10 +110,34 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     Tests.create_test(attrs)
   end
 
+  defp mark_failed_processing(args) do
+    attrs = %{
+      id: args["test_run_id"],
+      project_id: args["project_id"],
+      account_id: args["account_id"],
+      status: "failed_processing",
+      duration: 0,
+      test_modules: [],
+      is_ci: Map.get(args, "is_ci", false),
+      git_branch: Map.get(args, "git_branch"),
+      git_commit_sha: Map.get(args, "git_commit_sha"),
+      git_ref: Map.get(args, "git_ref"),
+      macos_version: Map.get(args, "macos_version"),
+      xcode_version: Map.get(args, "xcode_version"),
+      model_identifier: Map.get(args, "model_identifier"),
+      scheme: Map.get(args, "scheme"),
+      ran_at: NaiveDateTime.utc_now()
+    }
+
+    Tests.create_test(attrs)
+  end
+
   defp normalize_status("passed"), do: "success"
   defp normalize_status("failed"), do: "failure"
   defp normalize_status("skipped"), do: "skipped"
-  defp normalize_status(other), do: other || "success"
+  defp normalize_status("success"), do: "success"
+  defp normalize_status(nil), do: "success"
+  defp normalize_status(_other), do: "failure"
 
   defp build_test_modules(parsed_data) do
     for module <- parsed_data["test_modules"] || [] do

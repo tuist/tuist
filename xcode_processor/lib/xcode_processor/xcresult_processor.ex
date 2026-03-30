@@ -25,10 +25,15 @@ defmodule XcodeProcessor.XCResultProcessor do
 
   defp process_zip(zip_path, temp_dir) do
     {:ok, _} = :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}])
-    xcresult_path = find_xcresult(temp_dir)
-    root_dir = Path.dirname(xcresult_path)
 
-    parse_xcresult(xcresult_path, root_dir)
+    case find_xcresult(temp_dir) do
+      nil ->
+        {:error, :xcresult_not_found}
+
+      xcresult_path ->
+        root_dir = Path.dirname(xcresult_path)
+        parse_xcresult(xcresult_path, root_dir)
+    end
   end
 
   defp parse_xcresult(xcresult_path, root_dir) do

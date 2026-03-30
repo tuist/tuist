@@ -321,7 +321,55 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
                )
     end
 
-    test "logs error on max attempts when processor returns non-200", %{
+    test "marks test run as failed_processing on max attempts when processor returns non-200", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 500, body: %{"error" => "internal error"}}}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.id == test_run_id
+        assert attrs.status == "failed_processing"
+        assert attrs.duration == 0
+        assert attrs.test_modules == []
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert {:error, _} =
+               ProcessXcresultWorker.perform(
+                 oban_job(job_args(test_run_id, account.id, project.id), 3, 3)
+               )
+    end
+
+    test "marks test run as failed_processing on max attempts when HTTP request fails", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Req, :post, fn _url, _opts ->
+        {:error, :closed}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.id == test_run_id
+        assert attrs.status == "failed_processing"
+        assert attrs.duration == 0
+        assert attrs.test_modules == []
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert {:error, :closed} =
+               ProcessXcresultWorker.perform(
+                 oban_job(job_args(test_run_id, account.id, project.id), 3, 3)
+               )
+    end
+
+    test "does not mark as failed_processing on non-final attempt", %{
       account: account,
       project: project
     } do
@@ -333,23 +381,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
       assert {:error, _} =
                ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id), 3, 3)
-               )
-    end
-
-    test "logs error on max attempts when HTTP request fails", %{
-      account: account,
-      project: project
-    } do
-      test_run_id = Ecto.UUID.generate()
-
-      expect(Req, :post, fn _url, _opts ->
-        {:error, :closed}
-      end)
-
-      assert {:error, :closed} =
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id), 3, 3)
+                 oban_job(job_args(test_run_id, account.id, project.id), 1, 3)
                )
     end
   end

@@ -78,10 +78,11 @@ public struct XCResultParser: Sendable {
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
         let tempFile = tempDir + "/test-results.json"
-        let command =
-            "/usr/bin/xcrun xcresulttool get test-results tests --path '\(xcresultPath)' > '\(tempFile)'"
-
-        try runShellCommand(command)
+        try runCommand(
+            "/usr/bin/xcrun",
+            arguments: ["xcresulttool", "get", "test-results", "tests", "--path", xcresultPath],
+            outputFile: tempFile
+        )
 
         let outputData = try Data(contentsOf: URL(fileURLWithPath: tempFile))
         let outputString = String(data: outputData, encoding: .utf8) ?? ""
@@ -437,10 +438,11 @@ public struct XCResultParser: Sendable {
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
         let tempFile = tempDir + "/action-log.json"
-        let command =
-            "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath)' > '\(tempFile)'"
-
-        try runShellCommand(command)
+        try runCommand(
+            "/usr/bin/xcrun",
+            arguments: ["xcresulttool", "get", "log", "--type", "action", "--compact", "--path", xcresultPath],
+            outputFile: tempFile
+        )
 
         let logData = try Data(contentsOf: URL(fileURLWithPath: tempFile))
         return try JSONDecoder().decode(ActionLogSection.self, from: logData)
@@ -490,9 +492,10 @@ public struct XCResultParser: Sendable {
                 withIntermediateDirectories: true
             )
 
-            let command =
-                "/usr/bin/xcrun xcresulttool export attachments --path '\(xcresultPath)' --output-path '\(tempDir)' 2>/dev/null"
-            try runShellCommand(command)
+            try runCommand(
+                "/usr/bin/xcrun",
+                arguments: ["xcresulttool", "export", "attachments", "--path", xcresultPath, "--output-path", tempDir]
+            )
 
             let manifestPath = tempDir + "/manifest.json"
             guard FileManager.default.fileExists(atPath: manifestPath) else {
@@ -645,14 +648,26 @@ public struct XCResultParser: Sendable {
 
     // MARK: - Shell Command Execution
 
-    private func runShellCommand(_ command: String) throws {
+    private func runCommand(
+        _ executablePath: String,
+        arguments: [String],
+        outputFile: String? = nil
+    ) throws {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", command]
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
 
         let errorPipe = Pipe()
         process.standardError = errorPipe
-        process.standardOutput = FileHandle.nullDevice
+
+        if let outputFile {
+            let fileURL = URL(fileURLWithPath: outputFile)
+            FileManager.default.createFile(atPath: outputFile, contents: nil)
+            let fileHandle = try FileHandle(forWritingTo: fileURL)
+            process.standardOutput = fileHandle
+        } else {
+            process.standardOutput = FileHandle.nullDevice
+        }
 
         try process.run()
         process.waitUntilExit()

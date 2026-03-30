@@ -14,9 +14,16 @@ defmodule XcodeProcessor.XCResultNIF do
     nif_path = ~c"#{:code.priv_dir(:xcode_processor)}/native/xcresult_nif"
 
     case :erlang.load_nif(nif_path, 0) do
-      :ok -> :ok
-      {:error, {:reload, _}} -> :ok
-      {:error, _reason} -> :ok
+      :ok ->
+        :ok
+
+      {:error, {:reload, _}} ->
+        :ok
+
+      {:error, reason} ->
+        require Logger
+        Logger.warning("Failed to load xcresult NIF from #{nif_path}: #{inspect(reason)}")
+        :ok
     end
   end
 
