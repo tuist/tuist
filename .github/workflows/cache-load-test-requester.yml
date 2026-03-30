@@ -45,6 +45,7 @@ jobs:
           fi
 
           PR_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
+          PR_REF=$(echo "$PR_DATA" | jq -r '.head.ref')
           HEAD_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.full_name')
 
           if [ "$HEAD_REPO" != "${{ github.repository }}" ]; then
@@ -55,6 +56,7 @@ jobs:
           MAIN_SHA=$(gh api "/repos/${{ github.repository }}/commits/main" --jq '.sha')
 
           echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "pr_ref=$PR_REF" >> "$GITHUB_OUTPUT"
           echo "pr_sha=$PR_SHA" >> "$GITHUB_OUTPUT"
           echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
 
@@ -86,5 +88,6 @@ jobs:
         run: |
           gh workflow run cache-load-test.yml \
             -f pr_number="${{ steps.resolve.outputs.pr_number }}" \
+            -f pr_ref="${{ steps.resolve.outputs.pr_ref }}" \
             -f pr_sha="${{ steps.resolve.outputs.pr_sha }}" \
             -f main_sha="${{ steps.resolve.outputs.main_sha }}"

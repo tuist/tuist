@@ -6,6 +6,9 @@ on:
       pr_number:
         description: PR number to test
         required: true
+      pr_ref:
+        description: PR head ref
+        required: true
       pr_sha:
         description: PR head SHA
         required: true
@@ -35,6 +38,7 @@ jobs:
       github.event_name == 'workflow_dispatch'
     outputs:
       pr_number: ${{ steps.resolve.outputs.pr_number }}
+      pr_ref: ${{ steps.resolve.outputs.pr_ref }}
       pr_sha: ${{ steps.resolve.outputs.pr_sha }}
       main_sha: ${{ steps.resolve.outputs.main_sha }}
     steps:
@@ -46,10 +50,12 @@ jobs:
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "pr_number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+            echo "pr_ref=${{ inputs.pr_ref }}" >> "$GITHUB_OUTPUT"
             echo "pr_sha=${{ inputs.pr_sha }}" >> "$GITHUB_OUTPUT"
             echo "main_sha=${{ inputs.main_sha }}" >> "$GITHUB_OUTPUT"
           else
             echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "pr_ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
             echo "pr_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
             MAIN_SHA=$(gh api "/repos/${{ github.repository }}/commits/main" --jq '.sha')
             echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
@@ -106,7 +112,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve.outputs.pr_sha }}
+          ref: ${{ needs.resolve.outputs.pr_ref }}
       - uses: grafana/setup-k6-action@v1
       - name: Wait for cache service
         run: |
@@ -147,7 +153,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve.outputs.pr_sha }}
+          ref: ${{ needs.resolve.outputs.pr_ref }}
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -179,7 +185,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve.outputs.pr_sha }}
+          ref: ${{ needs.resolve.outputs.pr_ref }}
       - uses: grafana/setup-k6-action@v1
       - name: Wait for cache service
         run: |
