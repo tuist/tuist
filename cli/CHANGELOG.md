@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.171.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* strip dSYMs and compress shard bundle before upload by [@fortmarek](https://github.com/fortmarek) in [#10112](https://github.com/tuist/tuist/pull/10112)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.0...4.171.1
+
 ## What's Changed in 4.171.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
