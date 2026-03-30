@@ -996,8 +996,6 @@ defmodule TuistWeb.API.AnalyticsController do
     {:ok, object_key}
   end
 
-
-
   defp bad_request_when_project_authenticated_from_non_ci_environment(%{body_params: body_params} = conn, _opts) do
     if is_nil(Authentication.current_project(conn)) or
          body_params.is_ci do

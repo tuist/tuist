@@ -118,18 +118,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
     test "returns error when url is nil", %{account: account, project: project} do
       assert {:error, "xcode_processor_url_not_configured"} ==
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(@test_run_id, account.id, project.id))
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(@test_run_id, account.id, project.id)))
     end
 
     test "returns error when url is empty string", %{account: account, project: project} do
       stub(Tuist.Environment, :xcode_processor_url, fn -> "" end)
 
       assert {:error, "xcode_processor_url_not_configured"} ==
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(@test_run_id, account.id, project.id))
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(@test_run_id, account.id, project.id)))
     end
   end
 
@@ -142,18 +138,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
     test "returns error when webhook_secret is nil", %{account: account, project: project} do
       assert {:error, "webhook_secret_not_configured"} =
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(@test_run_id, account.id, project.id))
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(@test_run_id, account.id, project.id)))
     end
 
     test "returns error when webhook_secret is empty string", %{account: account, project: project} do
       stub(Tuist.Environment, :xcode_processor_webhook_secret, fn -> "" end)
 
       assert {:error, "webhook_secret_not_configured"} =
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(@test_run_id, account.id, project.id))
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(@test_run_id, account.id, project.id)))
     end
   end
 
@@ -203,9 +195,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       end)
 
       assert :ok ==
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id))
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
     test "normalizes 'passed' status to 'success'", %{account: account, project: project} do
@@ -231,9 +221,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       end)
 
       assert :ok ==
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id))
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
     test "normalizes 'failed' status to 'failure'", %{account: account, project: project} do
@@ -266,9 +254,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       end)
 
       assert :ok ==
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id))
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
     test "signs webhook request with HMAC-SHA256", %{account: account, project: project} do
@@ -290,9 +276,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
 
       assert :ok ==
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id))
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
     test "returns error when processor returns non-200", %{account: account, project: project} do
@@ -303,9 +287,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       end)
 
       assert {:error, _} =
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id), 1, 3)
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
     end
 
     test "returns error when HTTP request fails", %{account: account, project: project} do
@@ -316,9 +298,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       end)
 
       assert {:error, :timeout} =
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id), 1, 3)
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
     end
 
     test "marks test run as failed_processing on max attempts when processor returns non-200", %{
@@ -340,9 +320,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       end)
 
       assert {:error, _} =
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id), 3, 3)
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 3, 3))
     end
 
     test "marks test run as failed_processing on max attempts when HTTP request fails", %{
@@ -364,9 +342,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       end)
 
       assert {:error, :closed} =
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id), 3, 3)
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 3, 3))
     end
 
     test "does not mark as failed_processing on non-final attempt", %{
@@ -380,9 +356,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       end)
 
       assert {:error, _} =
-               ProcessXcresultWorker.perform(
-                 oban_job(job_args(test_run_id, account.id, project.id), 1, 3)
-               )
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
     end
   end
 end

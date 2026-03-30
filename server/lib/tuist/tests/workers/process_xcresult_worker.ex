@@ -32,7 +32,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
         {:error, reason} ->
           if attempt >= max_attempts do
-            Logger.error("Failed to process xcresult for test run #{test_run_id} after #{max_attempts} attempts: #{inspect(reason)}")
+            Logger.error(
+              "Failed to process xcresult for test run #{test_run_id} after #{max_attempts} attempts: #{inspect(reason)}"
+            )
+
             mark_failed_processing(args)
           end
 
@@ -130,7 +133,6 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
     Tests.create_test(attrs)
   end
-
 
   defp build_test_modules(parsed_data) do
     for module <- parsed_data["test_modules"] || [] do
