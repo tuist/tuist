@@ -21,8 +21,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     xcode_processor_url = Tuist.Environment.xcode_processor_url()
 
     if is_nil(xcode_processor_url) or xcode_processor_url == "" do
-      Logger.debug("Xcode processor URL not configured, skipping xcresult processing for test run #{test_run_id}")
-      :ok
+      Logger.error("Xcode processor URL not configured, cannot process test run #{test_run_id}")
+      {:error, "xcode_processor_url_not_configured"}
     else
       result =
         send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, account_id, project_id)

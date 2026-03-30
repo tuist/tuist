@@ -116,17 +116,17 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       :ok
     end
 
-    test "returns :ok when url is nil", %{account: account, project: project} do
-      assert :ok ==
+    test "returns error when url is nil", %{account: account, project: project} do
+      assert {:error, "xcode_processor_url_not_configured"} ==
                ProcessXcresultWorker.perform(
                  oban_job(job_args(@test_run_id, account.id, project.id))
                )
     end
 
-    test "returns :ok when url is empty string", %{account: account, project: project} do
+    test "returns error when url is empty string", %{account: account, project: project} do
       stub(Tuist.Environment, :xcode_processor_url, fn -> "" end)
 
-      assert :ok ==
+      assert {:error, "xcode_processor_url_not_configured"} ==
                ProcessXcresultWorker.perform(
                  oban_job(job_args(@test_run_id, account.id, project.id))
                )
