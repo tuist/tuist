@@ -982,49 +982,11 @@
       {
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "xcode_processor-.*"
-        },
-        "hide": 0,
-        "includeAll": false,
-        "label": "Deployment",
-        "multi": false,
-        "name": "deployment",
-        "options": [
-          {
-            "selected": true,
-            "text": "All",
-            "value": "xcode_processor-.*"
-          },
-          {
-            "selected": false,
-            "text": "Production",
-            "value": "xcode_processor-[^-]+-[^-]+$"
-          },
-          {
-            "selected": false,
-            "text": "Staging",
-            "value": "xcode_processor-.*-staging.*"
-          },
-          {
-            "selected": false,
-            "text": "Canary",
-            "value": "xcode_processor-.*-canary.*"
-          }
-        ],
-        "query": "All : xcode_processor-.*, Production : xcode_processor-[^-]+-[^-]+$, Staging : xcode_processor-.*-staging.*, Canary : xcode_processor-.*-canary.*",
-        "queryValue": "",
-        "skipUrlSync": false,
-        "type": "custom"
-      },
-      {
-        "current": {
-          "selected": true,
           "text": ["All"],
           "value": ["$__all"]
         },
         "datasource": "$datasource",
-        "definition": "label_values({instance=~\"$deployment\"}, instance)",
+        "definition": "label_values({job=\"xcode-processor\"}, instance)",
         "hide": 0,
         "includeAll": true,
         "label": "Instance",
@@ -1033,11 +995,11 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values({instance=~\"$deployment\"}, instance)",
+          "query": "label_values({job=\"xcode-processor\"}, instance)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
-        "regex": "/xcode_processor-.*/",
+        "regex": "",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
