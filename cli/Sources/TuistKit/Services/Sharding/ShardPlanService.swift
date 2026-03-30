@@ -189,7 +189,6 @@
 
         /// Creates a compressed archive of the test products bundle, stripping files not needed for test execution
         /// (dSYMs, .swiftmodule directories) to significantly reduce upload size.
-        /// Uses AppleArchive with LZFSE compression which is ~6x faster than deflate on Apple Silicon.
         private func stripAndCompressTestProducts(_ xctestproductsPath: AbsolutePath) async throws -> AbsolutePath {
             let strippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-stripped")
             let strippedProductsPath = strippedPath.appending(component: xctestproductsPath.basename)
