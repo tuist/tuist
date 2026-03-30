@@ -10,19 +10,23 @@ public protocol CIOIDCAuthenticating {
 enum CIOIDCAuthenticatorError: LocalizedError, Equatable {
     case unsupportedCIEnvironment
     case missingGitHubActionsOIDCPermissions
+    case gitHubActionsOIDCTokenRequestFailed(statusCode: Int, body: String)
     case missingCircleCIOIDCToken
     case missingBitriseOIDCToken
 
     var errorDescription: String? {
         switch self {
         case .unsupportedCIEnvironment:
-            "OIDC authentication is not supported in this environment. OIDC authentication is supported in the following CI providers: GitHub Actions, CircleCI, Bitrise."
+            return "OIDC authentication is not supported in this environment. OIDC authentication is supported in the following CI providers: GitHub Actions, CircleCI, Bitrise."
         case .missingGitHubActionsOIDCPermissions:
-            "GitHub Actions OIDC token request variables not set. Ensure your workflow has 'permissions: id-token: write' set."
+            return "GitHub Actions OIDC token request variables not set. Ensure your workflow has 'permissions: id-token: write' set."
+        case let .gitHubActionsOIDCTokenRequestFailed(statusCode, body):
+            let response = body.isEmpty ? "" : " Response: \(body)"
+            return "GitHub Actions returned status code \(statusCode) while issuing an OIDC token. This usually indicates an upstream GitHub Actions OIDC outage or a transient runner networking issue. \(response)"
         case .missingCircleCIOIDCToken:
-            "CircleCI OIDC token not found. Ensure OIDC is enabled for your CircleCI project in the project settings."
+            return "CircleCI OIDC token not found. Ensure OIDC is enabled for your CircleCI project in the project settings."
         case .missingBitriseOIDCToken:
-            "Bitrise OIDC token not found. Ensure you have added the 'Get OIDC Identity Token' step before this step in your workflow."
+            return "Bitrise OIDC token not found. Ensure you have added the 'Get OIDC Identity Token' step before this step in your workflow."
         }
     }
 }
@@ -67,11 +71,23 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
             throw CIOIDCAuthenticatorError.missingGitHubActionsOIDCPermissions
         }
 
-        return try await oidcTokenFetcher.fetchToken(
-            requestURL: requestURL,
-            requestToken: requestToken,
-            audience: "tuist"
-        )
+        do {
+            return try await oidcTokenFetcher.fetchToken(
+                requestURL: requestURL,
+                requestToken: requestToken,
+                audience: "tuist"
+            )
+        } catch let error as OIDCTokenFetcherError {
+            switch error {
+            case let .tokenRequestFailed(statusCode, body):
+                throw CIOIDCAuthenticatorError.gitHubActionsOIDCTokenRequestFailed(
+                    statusCode: statusCode,
+                    body: body
+                )
+            case .invalidTokenRequestURL:
+                throw error
+            }
+        }
     }
 
     // MARK: - CircleCI

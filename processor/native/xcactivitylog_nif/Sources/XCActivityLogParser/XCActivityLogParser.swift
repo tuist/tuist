@@ -1,4 +1,3 @@
-import FileSystem
 import Foundation
 import Path
 import XCLogParser
@@ -8,7 +7,8 @@ public struct XCActivityLogParser: Sendable {
 
     public func parse(
         xcactivitylogURL: URL,
-        casMetadataPath: AbsolutePath
+        casAnalyticsDatabasePath: AbsolutePath,
+        legacyCASMetadataPath: AbsolutePath? = nil
     ) async throws -> BuildData {
         let activityLog = try ActivityParser().parseActivityLogInURL(
             xcactivitylogURL,
@@ -46,7 +46,10 @@ public struct XCActivityLogParser: Sendable {
         let issues = extractIssues(from: steps)
         let files = extractFiles(from: steps)
 
-        let casReader = CASMetadataReader(casMetadataPath: casMetadataPath)
+        let casReader = CASMetadataReader(
+            databasePath: casAnalyticsDatabasePath,
+            legacyCASMetadataPath: legacyCASMetadataPath
+        )
 
         let cacheableTasks = try await analyzeCacheableTasks(
             buildSteps: steps,

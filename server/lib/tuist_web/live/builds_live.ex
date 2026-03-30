@@ -25,10 +25,6 @@ defmodule TuistWeb.BuildsLive do
         TuistWeb.XcodeBuildsLive.assign_mount(socket, params)
       end
 
-    if connected?(socket) do
-      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
-    end
-
     {:ok, socket}
   end
 
@@ -44,14 +40,6 @@ defmodule TuistWeb.BuildsLive do
     else
       {:noreply, TuistWeb.XcodeBuildsLive.assign_handle_params(socket, params)}
     end
-  end
-
-  def handle_info({:xcode_build_created, _build}, socket) do
-    TuistWeb.XcodeBuildsLive.handle_info({:xcode_build_created, nil}, socket)
-  end
-
-  def handle_info({:gradle_build_created, _build}, socket) do
-    TuistWeb.GradleBuildsLive.handle_info({:gradle_build_created, nil}, socket)
   end
 
   def handle_info(_event, socket) do

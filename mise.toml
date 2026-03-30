@@ -1,5 +1,5 @@
 [tools]
-    tuist = "4.170.0"
+    tuist = "4.171.0"
     swiftlint = "0.59.1"
     "elixir" = "1.19.1"
     "erlang" = "28.1"
@@ -10,6 +10,9 @@
     protoc = "32.1"
     "1password-cli" = "2.32.0"
     bats = "1.11.1"
+    rclone = "1.73.3"
+    jq = "1.8.1"
+    yq = "4.52.5"
     java = "21"
     gradle = "8.12"
     caddy = "2.11.2"

@@ -420,7 +420,7 @@ tuistInspectCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistCore", "TuistLoader", "TuistAutomation",
     "TuistXCActivityLog", "TuistXcodeProjectOrWorkspacePathLocator",
     "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig",
-    "TuistRootDirectoryLocator", "TuistMachineMetrics",
+    "TuistRootDirectoryLocator", "TuistMachineMetrics", "TuistCASAnalytics",
     xcodeGraphDependency,
     commandDependency,
 ])
@@ -1158,6 +1158,7 @@ targets.append(contentsOf: [
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             "TuistCAS",
+            "TuistCASAnalytics",
             "TuistProcess",
             "TuistCore",
             "TuistSupport",
@@ -1518,10 +1519,10 @@ targets.append(contentsOf: [
     .target(
         name: "TuistCASAnalytics",
         dependencies: [
-            "TuistSupport",
-            fileSystemDependency,
+            "TuistEnvironment",
             pathDependency,
             mockableDependency,
+            .product(name: "CASAnalyticsDatabase", package: "xcactivitylog_nif"),
         ],
         path: "cli/Sources/TuistCASAnalytics",
         exclude: ["AGENTS.md"],
@@ -1725,6 +1726,7 @@ let package = Package(
         .package(id: "dduan.TOMLDecoder", from: "0.4.1"),
         .package(id: "apple.swift-algorithms", from: "1.2.1"),
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
+        .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

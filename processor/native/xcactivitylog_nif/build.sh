@@ -35,6 +35,10 @@ cc -shared -undefined dynamic_lookup \
 
 cp "$SWIFT_BUILD_DIR/$DYLIB_NAME" "$PRIV_DIR/$DYLIB_NAME"
 
+echo "==> Signing NIF binaries..."
+codesign -s - -f "$PRIV_DIR/xcactivitylog_nif.so"
+codesign -s - -f "$PRIV_DIR/$DYLIB_NAME"
+
 echo "==> NIF built successfully!"
 echo "    NIF: $PRIV_DIR/xcactivitylog_nif.so"
 echo "    Lib: $PRIV_DIR/$DYLIB_NAME"

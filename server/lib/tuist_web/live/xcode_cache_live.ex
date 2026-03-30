@@ -25,10 +25,6 @@ defmodule TuistWeb.XcodeCacheLive do
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Xcode Cache")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("xcode-cache"))
 
-    if connected?(socket) do
-      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
-    end
-
     {:ok, socket}
   end
 
@@ -101,18 +97,6 @@ defmodule TuistWeb.XcodeCacheLive do
       end
 
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/xcode-cache?#{query_params}")}
-  end
-
-  def handle_info({:xcode_build_created, _build}, socket) do
-    # Only update when pagination is inactive
-    if Query.has_pagination_params?(socket.assigns.uri.query) do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> assign_analytics(socket.assigns.current_params)
-       |> assign_recent_builds(socket.assigns.current_params)}
-    end
   end
 
   def handle_info(_event, socket) do
