@@ -88,14 +88,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   end
 
   defp replace_test_run(parsed_data, args) do
-    parsed = deep_atomize_keys(parsed_data)
-
     attrs =
       Map.merge(base_attrs(args), %{
-        test_plan_name: parsed[:test_plan_name],
-        status: parsed[:status] || "success",
-        duration: parsed[:duration] || 0,
-        test_modules: parsed[:test_modules] || []
+        test_plan_name: parsed_data["test_plan_name"],
+        status: parsed_data["status"] || "success",
+        duration: parsed_data["duration"] || 0,
+        test_modules: parsed_data["test_modules"] || []
       })
 
     Tests.create_test(attrs)
@@ -128,14 +126,4 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       ran_at: NaiveDateTime.utc_now()
     }
   end
-
-  defp deep_atomize_keys(map) when is_map(map) do
-    Map.new(map, fn
-      {k, v} when is_binary(k) -> {String.to_atom(k), deep_atomize_keys(v)}
-      {k, v} -> {k, deep_atomize_keys(v)}
-    end)
-  end
-
-  defp deep_atomize_keys(list) when is_list(list), do: Enum.map(list, &deep_atomize_keys/1)
-  defp deep_atomize_keys(value), do: value
 end
