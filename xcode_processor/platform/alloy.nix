@@ -46,6 +46,10 @@ let
       grpc {
         endpoint = "127.0.0.1:4317"
       }
+
+      output {
+        traces = [otelcol.processor.batch.default.input]
+      }
     }
 
     otelcol.processor.batch "default" {
