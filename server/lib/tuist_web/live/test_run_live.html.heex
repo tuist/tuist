@@ -144,6 +144,10 @@
   </div>
 
   <div :if={@run.status == "processing"} data-part="processing-state">
+    <div data-part="image">
+      <img src="/images/processing_build_light.png" data-theme="light" />
+      <img src="/images/processing_build_dark.png" data-theme="dark" />
+    </div>
     <div data-part="labels">
       <span data-part="title">
         {dgettext("dashboard_tests", "Your test results are being processed")}
