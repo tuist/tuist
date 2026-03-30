@@ -154,7 +154,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum(increase(xcode_xcode_processor_xcresult_total{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\", status=\"ok\"}[$__rate_interval]))",
+          "expr": "sum(increase(xcode_processor_xcresult_total{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\", status=\"ok\"}[$__rate_interval]))",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -198,7 +198,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum(increase(xcode_xcode_processor_xcresult_total{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\", status!=\"ok\"}[$__rate_interval])) or vector(0)",
+          "expr": "sum(increase(xcode_processor_xcresult_total{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\", status!=\"ok\"}[$__rate_interval])) or vector(0)",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -243,7 +243,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(xcode_xcode_processor_xcresult_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(xcode_processor_xcresult_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -349,7 +349,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum by (status) (increase(xcode_xcode_processor_xcresult_total{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum by (status) (increase(xcode_processor_xcresult_total{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "{{status}}",
           "range": true,
           "refId": "A"
@@ -410,7 +410,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(xcode_xcode_processor_xcresult_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(xcode_processor_xcresult_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "XCResult p50",
           "range": true,
           "refId": "A"
@@ -418,7 +418,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(xcode_xcode_processor_xcresult_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(xcode_processor_xcresult_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "XCResult p95",
           "range": true,
           "refId": "B"
@@ -426,7 +426,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(xcode_xcode_processor_xcresult_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(xcode_processor_xcresult_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "XCResult p99",
           "range": true,
           "refId": "C"
@@ -564,7 +564,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(xcode_xcode_processor_xcresult_parse_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(xcode_processor_xcresult_parse_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "Parse p50",
           "range": true,
           "refId": "A"
@@ -572,7 +572,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(xcode_xcode_processor_xcresult_parse_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(xcode_processor_xcresult_parse_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "Parse p95",
           "range": true,
           "refId": "B"
@@ -580,7 +580,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(xcode_xcode_processor_xcresult_parse_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(xcode_processor_xcresult_parse_duration_milliseconds_bucket{job=\"xcode-processor\", hostname=~\"$hostname\", instance=~\"$instance\"}[$__rate_interval])))",
           "legendFormat": "Parse p99",
           "range": true,
           "refId": "C"
