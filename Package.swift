@@ -1084,6 +1084,27 @@ targets.append(contentsOf: [
             .define("MOCKING", .when(configuration: .debug))
         ]
     ),
+    .target(
+        name: "TuistAppleArchiver",
+        dependencies: [
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistAppleArchiver",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .testTarget(
+        name: "TuistAppleArchiverTests",
+        dependencies: [
+            "TuistAppleArchiver",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            pathDependency,
+        ],
+        path: "cli/Tests/TuistAppleArchiverTests"
+    ),
     .executableTarget(
         name: "tuistbenchmark",
         dependencies: [
@@ -1169,6 +1190,7 @@ targets.append(contentsOf: [
             "TuistXcodeProjectOrWorkspacePathLocator",
             "TuistXCResultService",
             "TuistCI",
+            .target(name: "TuistAppleArchiver", condition: .when(platforms: [.macOS])),
             "TuistLaunchctl",
             "TuistMachineMetrics",
             "ProjectDescription",

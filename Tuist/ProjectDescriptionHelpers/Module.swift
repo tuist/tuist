@@ -73,6 +73,7 @@ public enum Module: String, CaseIterable {
     case inspectCommand = "TuistInspectCommand"
     case android = "TuistAndroid"
     case machineMetrics = "TuistMachineMetrics"
+    case appleArchiver = "TuistAppleArchiver"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -465,7 +466,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
-            .http, .har, .configLoader, .machineMetrics:
+            .http, .har, .configLoader, .machineMetrics, .appleArchiver:
             moduleTags.append("domain:infrastructure")
         case .cacheCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
@@ -719,6 +720,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.xcResultService.targetName),
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.machineMetrics.targetName),
@@ -1338,6 +1340,11 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "TSCBasic"),
                 ]
+            case .appleArchiver:
+                [
+                    .external(name: "Path"),
+                    .external(name: "Mockable"),
+                ]
             case .shareCommand:
                 [
                     .target(name: Module.server.targetName),
@@ -1446,6 +1453,11 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .appleArchiver:
+                [
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
