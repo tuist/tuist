@@ -1,7 +1,7 @@
 import Foundation
 
 public enum TestStatus: String, Encodable, Sendable {
-    case passed
-    case failed
+    case passed = "success"
+    case failed = "failure"
     case skipped
 }

@@ -92,7 +92,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       project_id: args["project_id"],
       account_id: args["account_id"],
       test_plan_name: parsed_data["test_plan_name"],
-      status: normalize_status(parsed_data["status"]),
+      status: parsed_data["status"] || "success",
       duration: parsed_data["duration"] || 0,
       test_modules: test_modules,
       is_ci: Map.get(args, "is_ci", false),
@@ -131,24 +131,18 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     Tests.create_test(attrs)
   end
 
-  defp normalize_status("passed"), do: "success"
-  defp normalize_status("failed"), do: "failure"
-  defp normalize_status("skipped"), do: "skipped"
-  defp normalize_status("success"), do: "success"
-  defp normalize_status(nil), do: "success"
-  defp normalize_status(_other), do: "failure"
 
   defp build_test_modules(parsed_data) do
     for module <- parsed_data["test_modules"] || [] do
       %{
         name: module["name"],
-        status: normalize_status(module["status"]),
+        status: module["status"],
         duration: module["duration"] || 0,
         test_suites:
           for suite <- module["test_suites"] || [] do
             %{
               name: suite["name"],
-              status: normalize_status(suite["status"]),
+              status: suite["status"],
               duration: suite["duration"] || 0
             }
           end,
@@ -157,7 +151,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
             %{
               name: test_case["name"],
               test_suite: test_case["test_suite"],
-              status: normalize_status(test_case["status"]),
+              status: test_case["status"],
               duration: test_case["duration"] || 0,
               failures:
                 for failure <- test_case["failures"] || [] do
@@ -173,7 +167,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
                   %{
                     repetition_number: rep["repetition_number"],
                     name: rep["name"],
-                    status: normalize_status(rep["status"]),
+                    status: rep["status"],
                     duration: rep["duration"] || 0,
                     failures:
                       for failure <- rep["failures"] || [] do

@@ -42,17 +42,17 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   defp parsed_data do
     %{
       "test_plan_name" => "AppTests",
-      "status" => "passed",
+      "status" => "success",
       "duration" => 45.2,
       "test_modules" => [
         %{
           "name" => "AppModuleTests",
-          "status" => "passed",
+          "status" => "success",
           "duration" => 30.0,
           "test_suites" => [
             %{
               "name" => "AppSuite",
-              "status" => "passed",
+              "status" => "success",
               "duration" => 30.0
             }
           ],
@@ -60,7 +60,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
             %{
               "name" => "test_example",
               "test_suite" => "AppSuite",
-              "status" => "passed",
+              "status" => "success",
               "duration" => 10.0,
               "failures" => [],
               "repetitions" => []
@@ -74,17 +74,17 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   defp parsed_data_with_failure do
     %{
       "test_plan_name" => "AppTests",
-      "status" => "failed",
+      "status" => "failure",
       "duration" => 45.2,
       "test_modules" => [
         %{
           "name" => "AppModuleTests",
-          "status" => "failed",
+          "status" => "failure",
           "duration" => 30.0,
           "test_suites" => [
             %{
               "name" => "AppSuite",
-              "status" => "failed",
+              "status" => "failure",
               "duration" => 30.0
             }
           ],
@@ -92,7 +92,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
             %{
               "name" => "test_failing",
               "test_suite" => "AppSuite",
-              "status" => "failed",
+              "status" => "failure",
               "duration" => 5.0,
               "failures" => [
                 %{
