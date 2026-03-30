@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.170.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.171.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add retries for OIDC token failures by [@cschmatzler](https://github.com/cschmatzler) in [#10085](https://github.com/tuist/tuist/pull/10085)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.170.1...4.171.0
+
+## What's Changed in 4.170.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -12,7 +22,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.2...4.170.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.2...4.170.1
 
 ## What's Changed in 4.169.2<!-- RELEASE NOTES START -->
 

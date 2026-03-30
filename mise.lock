@@ -77,35 +77,13 @@ backend = "core:java"
 [[tools.jq]]
 version = "1.8.1"
 backend = "aqua:jqlang/jq"
-
-[tools.jq."platforms.linux-arm64"]
-checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
-url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
-
-[tools.jq."platforms.linux-arm64-musl"]
-checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
-url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
-
-[tools.jq."platforms.linux-x64"]
-checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
-url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
-provenance = "github-attestations"
-
-[tools.jq."platforms.linux-x64-musl"]
-checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
-url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
-
-[tools.jq."platforms.macos-arm64"]
-checksum = "sha256:a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603"
-url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-arm64"
-
-[tools.jq."platforms.macos-x64"]
-checksum = "sha256:e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f"
-url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"
-
-[tools.jq."platforms.windows-x64"]
-checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334"
-url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
+"platforms.linux-arm64" = { checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"}
+"platforms.linux-x64" = { checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"}
+"platforms.linux-x64-musl" = { checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"}
+"platforms.macos-arm64" = { checksum = "sha256:a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-arm64"}
+"platforms.macos-x64" = { checksum = "sha256:e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"}
+"platforms.windows-x64" = { checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"}
 
 [[tools.protoc]]
 version = "32.1"
@@ -121,73 +99,24 @@ backend = "aqua:protocolbuffers/protobuf/protoc"
 [[tools.rclone]]
 version = "1.73.3"
 backend = "aqua:rclone/rclone"
-
-[tools.rclone."platforms.linux-arm64"]
-checksum = "sha256:ed2a638b4cb15abe4f01d6d9c015f3a1cb41aa7a17c96db2725542c61f353b8e"
-url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-arm64.zip"
-
-[tools.rclone."platforms.linux-arm64-musl"]
-checksum = "sha256:ed2a638b4cb15abe4f01d6d9c015f3a1cb41aa7a17c96db2725542c61f353b8e"
-url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-arm64.zip"
-
-[tools.rclone."platforms.linux-x64"]
-checksum = "sha256:70278c22b98c7d02aed01828b70053904dbce4c8a1a15d7781d836c6fdb036ea"
-url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-amd64.zip"
-
-[tools.rclone."platforms.linux-x64-musl"]
-checksum = "sha256:70278c22b98c7d02aed01828b70053904dbce4c8a1a15d7781d836c6fdb036ea"
-url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-amd64.zip"
-
-[tools.rclone."platforms.macos-arm64"]
-checksum = "sha256:ef046e9facd10d1fb39d0ef865d7fab9b5c6ca1597ac7c9167f3aa0c7747393f"
-url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-osx-arm64.zip"
-
-[tools.rclone."platforms.macos-x64"]
-checksum = "sha256:aaf209187baf40a4f6b732104121f81eedc0264aaa91186952ec3e78b82025b1"
-url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-osx-amd64.zip"
-
-[tools.rclone."platforms.windows-x64"]
-checksum = "sha256:1c51142576194d124ffa9654f45bab972530da22a3a339509bf9bed399f9dea3"
-url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-windows-amd64.zip"
+"platforms.linux-arm64" = { checksum = "sha256:ed2a638b4cb15abe4f01d6d9c015f3a1cb41aa7a17c96db2725542c61f353b8e", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-arm64.zip"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:ed2a638b4cb15abe4f01d6d9c015f3a1cb41aa7a17c96db2725542c61f353b8e", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-arm64.zip"}
+"platforms.linux-x64" = { checksum = "sha256:70278c22b98c7d02aed01828b70053904dbce4c8a1a15d7781d836c6fdb036ea", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-amd64.zip"}
+"platforms.linux-x64-musl" = { checksum = "sha256:70278c22b98c7d02aed01828b70053904dbce4c8a1a15d7781d836c6fdb036ea", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-amd64.zip"}
+"platforms.macos-arm64" = { checksum = "sha256:ef046e9facd10d1fb39d0ef865d7fab9b5c6ca1597ac7c9167f3aa0c7747393f", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-osx-arm64.zip"}
+"platforms.macos-x64" = { checksum = "sha256:aaf209187baf40a4f6b732104121f81eedc0264aaa91186952ec3e78b82025b1", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-osx-amd64.zip"}
+"platforms.windows-x64" = { checksum = "sha256:1c51142576194d124ffa9654f45bab972530da22a3a339509bf9bed399f9dea3", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-windows-amd64.zip"}
 
 [[tools.sops]]
 version = "3.9.3"
 backend = "aqua:getsops/sops"
-
-[tools.sops."platforms.linux-arm64"]
-checksum = "sha256:49515aba9264e507eab884ebf902098046b8922d32f588f9a2beecb4a601d2ef"
-url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.arm64"
-provenance = "slsa"
-
-[tools.sops."platforms.linux-arm64-musl"]
-checksum = "sha256:49515aba9264e507eab884ebf902098046b8922d32f588f9a2beecb4a601d2ef"
-url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.arm64"
-provenance = "slsa"
-
-[tools.sops."platforms.linux-x64"]
-checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa"
-url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.amd64"
-provenance = "slsa"
-
-[tools.sops."platforms.linux-x64-musl"]
-checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa"
-url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.amd64"
-provenance = "slsa"
-
-[tools.sops."platforms.macos-arm64"]
-checksum = "sha256:a087bd505b23dceb7debf60e02f4520c16fe32b02c0253c4e52821575f5d5027"
-url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.arm64"
-provenance = "slsa"
-
-[tools.sops."platforms.macos-x64"]
-checksum = "sha256:995a4571357b02fbbbba1f4ab1298b97eb5d976b02dc6f678edd6a3f7c7a952f"
-url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.amd64"
-provenance = "slsa"
-
-[tools.sops."platforms.windows-x64"]
-checksum = "sha256:df9372dd551a872918d70fcc4394e58a498d4f16bae414b1995555059ba8d4f6"
-url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.exe"
-provenance = "slsa"
+"platforms.linux-arm64" = { checksum = "sha256:49515aba9264e507eab884ebf902098046b8922d32f588f9a2beecb4a601d2ef", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.arm64"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:49515aba9264e507eab884ebf902098046b8922d32f588f9a2beecb4a601d2ef", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.arm64"}
+"platforms.linux-x64" = { checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.amd64"}
+"platforms.linux-x64-musl" = { checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.amd64"}
+"platforms.macos-arm64" = { checksum = "sha256:a087bd505b23dceb7debf60e02f4520c16fe32b02c0253c4e52821575f5d5027", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.arm64"}
+"platforms.macos-x64" = { checksum = "sha256:995a4571357b02fbbbba1f4ab1298b97eb5d976b02dc6f678edd6a3f7c7a952f", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.amd64"}
+"platforms.windows-x64" = { checksum = "sha256:df9372dd551a872918d70fcc4394e58a498d4f16bae414b1995555059ba8d4f6", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.exe"}
 
 [[tools.swiftformat]]
 version = "0.58.7"
@@ -209,40 +138,22 @@ backend = "aqua:realm/SwiftLint"
 "platforms.macos-x64" = { url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"}
 
 [[tools.tuist]]
-version = "4.170.1"
+version = "4.171.0"
 backend = "aqua:tuist/tuist"
-"platforms.linux-x64" = { checksum = "sha256:e57b1eacdfe46840c68905bd3399a6e3a690491061466e9726b47af12af1642f", url = "https://github.com/tuist/tuist/releases/download/4.170.1/tuist-linux-x86_64.tar.gz"}
-"platforms.macos-arm64" = { checksum = "sha256:e9f295adf05744d5a6387b6cd016efc4bc1bdc818943e4ef9ff212db41084483", url = "https://github.com/tuist/tuist/releases/download/4.170.1/tuist.zip"}
-"platforms.macos-x64" = { checksum = "sha256:e9f295adf05744d5a6387b6cd016efc4bc1bdc818943e4ef9ff212db41084483", url = "https://github.com/tuist/tuist/releases/download/4.170.1/tuist.zip"}
+"platforms.linux-arm64" = { checksum = "sha256:dbe075cbdb422ee24e20d58d33f57afa9e98011d419d5dcf0ebbae888e5f0a12", url = "https://github.com/tuist/tuist/releases/download/4.171.0/tuist-linux-aarch64.tar.gz"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:dbe075cbdb422ee24e20d58d33f57afa9e98011d419d5dcf0ebbae888e5f0a12", url = "https://github.com/tuist/tuist/releases/download/4.171.0/tuist-linux-aarch64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:30f20ad9844a0ed7dd21e50a1280a2b47498d2c21a4f1d621a6f90e5ae8dccc9", url = "https://github.com/tuist/tuist/releases/download/4.171.0/tuist-linux-x86_64.tar.gz"}
+"platforms.linux-x64-musl" = { checksum = "sha256:30f20ad9844a0ed7dd21e50a1280a2b47498d2c21a4f1d621a6f90e5ae8dccc9", url = "https://github.com/tuist/tuist/releases/download/4.171.0/tuist-linux-x86_64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:0109d364c68f73cc0e48921ba72ada6038e4e593ee93f86e52d6e0a5243ac25c", url = "https://github.com/tuist/tuist/releases/download/4.171.0/tuist.zip"}
+"platforms.macos-x64" = { checksum = "sha256:0109d364c68f73cc0e48921ba72ada6038e4e593ee93f86e52d6e0a5243ac25c", url = "https://github.com/tuist/tuist/releases/download/4.171.0/tuist.zip"}
 
 [[tools.yq]]
 version = "4.52.5"
 backend = "aqua:mikefarah/yq"
-
-[tools.yq."platforms.linux-arm64"]
-checksum = "sha256:90fa510c50ee8ca75544dbfffed10c88ed59b36834df35916520cddc623d9aaa"
-url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_arm64"
-
-[tools.yq."platforms.linux-arm64-musl"]
-checksum = "sha256:90fa510c50ee8ca75544dbfffed10c88ed59b36834df35916520cddc623d9aaa"
-url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_arm64"
-
-[tools.yq."platforms.linux-x64"]
-checksum = "sha256:75d893a0d5940d1019cb7cdc60001d9e876623852c31cfc6267047bc31149fa9"
-url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64"
-
-[tools.yq."platforms.linux-x64-musl"]
-checksum = "sha256:75d893a0d5940d1019cb7cdc60001d9e876623852c31cfc6267047bc31149fa9"
-url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64"
-
-[tools.yq."platforms.macos-arm64"]
-checksum = "sha256:45a12e64d4bd8a31c72ee1b889e81f1b1110e801baad3d6f030c111db0068de0"
-url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_darwin_arm64"
-
-[tools.yq."platforms.macos-x64"]
-checksum = "sha256:6e399d1eb466860c3202d231727197fdce055888c5c7bec6964156983dd1559d"
-url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_darwin_amd64"
-
-[tools.yq."platforms.windows-x64"]
-checksum = "sha256:47594981f3848a4b4447494adeca9555f908f7cf0a89c4da3fd0243a4631da1c"
-url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_windows_amd64.exe"
+"platforms.linux-arm64" = { checksum = "sha256:90fa510c50ee8ca75544dbfffed10c88ed59b36834df35916520cddc623d9aaa", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_arm64"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:90fa510c50ee8ca75544dbfffed10c88ed59b36834df35916520cddc623d9aaa", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_arm64"}
+"platforms.linux-x64" = { checksum = "sha256:75d893a0d5940d1019cb7cdc60001d9e876623852c31cfc6267047bc31149fa9", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64"}
+"platforms.linux-x64-musl" = { checksum = "sha256:75d893a0d5940d1019cb7cdc60001d9e876623852c31cfc6267047bc31149fa9", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64"}
+"platforms.macos-arm64" = { checksum = "sha256:45a12e64d4bd8a31c72ee1b889e81f1b1110e801baad3d6f030c111db0068de0", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_darwin_arm64"}
+"platforms.macos-x64" = { checksum = "sha256:6e399d1eb466860c3202d231727197fdce055888c5c7bec6964156983dd1559d", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_darwin_amd64"}
+"platforms.windows-x64" = { checksum = "sha256:47594981f3848a4b4447494adeca9555f908f7cf0a89c4da3fd0243a4631da1c", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_windows_amd64.exe"}
