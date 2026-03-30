@@ -156,7 +156,9 @@
             )
 
             Logger.current.debug("Uploading test products bundle...")
-            let archivePath = try await stripAndCompressTestProducts(xctestproductsPath)
+            let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
+            let archivePath = archiveDirectory.appending(component: "bundle.aar")
+            try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                 artifactPath: archivePath,
                 generateUploadURL: { part in
@@ -189,10 +191,7 @@
 
         /// Creates a compressed archive of the test products bundle, stripping files not needed for test execution
         /// (dSYMs, .swiftmodule directories) to significantly reduce upload size.
-        private func stripAndCompressTestProducts(_ xctestproductsPath: AbsolutePath) async throws -> AbsolutePath {
-            let outputDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
-            let archivePath = outputDirectory.appending(component: "bundle.aar")
-
+        private func archiveXCTestProducts(_ xctestproductsPath: AbsolutePath, to archivePath: AbsolutePath) async throws {
             try await fileSystem.runInTemporaryDirectory(prefix: "tuist-shard-stripped") { strippedPath in
                 let strippedProductsPath = strippedPath.appending(component: xctestproductsPath.basename)
                 try await fileSystem.copy(xctestproductsPath, to: strippedProductsPath)
@@ -208,8 +207,6 @@
 
                 try await appleArchiver.compress(directory: strippedProductsPath, to: archivePath)
             }
-
-            return archivePath
         }
     }
 #endif
