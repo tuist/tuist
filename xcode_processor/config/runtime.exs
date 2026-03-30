@@ -33,7 +33,9 @@ if config_env() == :prod do
     [
       scheme: s3_scheme,
       host: s3_host,
-      region: System.get_env("S3_REGION") || "auto"
+      region: System.get_env("S3_REGION") || "auto",
+      virtual_host: true,
+      bucket_as_host: true
     ]
 
   s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
