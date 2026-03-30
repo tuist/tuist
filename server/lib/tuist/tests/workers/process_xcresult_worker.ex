@@ -55,7 +55,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         project_id: project_id
       }
 
-      json_body = Jason.encode!(payload)
+      json_body = JSON.encode!(payload)
 
       signature =
         :hmac
