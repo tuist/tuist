@@ -5,7 +5,7 @@ import { SERVER_URL, AUTH_EMAIL, AUTH_PASSWORD } from '../config.ts';
 
 var cachedToken: string | null = null;
 var cachedTokenExpiresAt = 0;
-var TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
+var TOKEN_REFRESH_BUFFER_MS = 10 * 1000;
 
 export function authenticate(): string {
   var res = http.post(
