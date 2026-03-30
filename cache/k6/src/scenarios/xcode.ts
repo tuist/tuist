@@ -2,13 +2,12 @@ import http from 'k6/http';
 import { SetupData } from '../types.ts';
 import { XCODE_SIZES, RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
-import { getValidToken } from '../lib/auth.ts';
 import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
 import { getPayload } from '../payloads.ts';
 
 export function xcodeRead(data: SetupData): void {
-  var token = getValidToken(data.token);
+  var token = data.token;
   var bucket = weightedRandom(XCODE_SIZES);
   var seeded = data.xcode[bucket.name];
   if (!seeded || seeded.kvCasIds.length === 0) return;
@@ -51,7 +50,7 @@ export function xcodeRead(data: SetupData): void {
 }
 
 export function xcodeWrite(data: SetupData): void {
-  var token = getValidToken(data.token);
+  var token = data.token;
   var bucket = weightedRandom(XCODE_SIZES);
   var casId = RUN_ID + '-xcw-' + randomId();
   var kvCasId = RUN_ID + '-kvxcw-' + randomId();

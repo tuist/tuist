@@ -2,13 +2,12 @@ import http from 'k6/http';
 import { SetupData } from '../types.ts';
 import { LARGE_SIZES, MODULE_PART_SIZE, RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
-import { getValidToken } from '../lib/auth.ts';
 import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
 import { getModulePartPayload } from '../payloads.ts';
 
 export function moduleExists(data: SetupData): void {
-  var token = getValidToken(data.token);
+  var token = data.token;
   var bucket = weightedRandom(LARGE_SIZES);
   var seeded = data.module[bucket.name];
   if (!seeded || seeded.refs.length === 0) return;
@@ -26,7 +25,7 @@ export function moduleExists(data: SetupData): void {
 }
 
 export function moduleRead(data: SetupData): void {
-  var token = getValidToken(data.token);
+  var token = data.token;
   var bucket = weightedRandom(LARGE_SIZES);
   var seeded = data.module[bucket.name];
   if (!seeded || seeded.refs.length === 0) return;
@@ -47,7 +46,7 @@ export function moduleRead(data: SetupData): void {
 }
 
 export function moduleWrite(data: SetupData): void {
-  var token = getValidToken(data.token);
+  var token = data.token;
   var bucket = weightedRandom(LARGE_SIZES);
   var hash = RUN_ID + '-modw-' + randomId();
   var name = 'Module-' + randomId() + '.xcframework.zip';

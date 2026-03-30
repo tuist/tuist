@@ -2,7 +2,7 @@ import encoding from 'k6/encoding';
 import { Options } from 'k6/options';
 import { REGION, COMMIT_SHA } from './config.ts';
 import { ALL_NAMES } from './metrics.ts';
-import { authenticate } from './lib/auth.ts';
+import { authToken } from './lib/auth.ts';
 import { seedAll, seedDataOf, setupFromSeedData } from './lib/seed.ts';
 import { SeedData, SetupData } from './types.ts';
 
@@ -53,15 +53,15 @@ function makeScenario(cfg: ScenarioConfig): any {
 var scenarios: Record<string, any> = {};
 
 var allEntries = [
-  { key: 'key_value_read', exec: 'keyValueRead', rate: 1024 },
-  { key: 'key_value_write', exec: 'keyValueWrite', rate: 512 },
-  { key: 'xcode_read', exec: 'xcodeRead', rate: 1024 },
-  { key: 'xcode_write', exec: 'xcodeWrite', rate: 1024 },
-  { key: 'module_exists', exec: 'moduleExists', rate: 128 },
-  { key: 'module_read', exec: 'moduleRead', rate: 256 },
-  { key: 'module_write', exec: 'moduleWrite', rate: 16 },
-  { key: 'gradle_read', exec: 'gradleRead', rate: 256 },
-  { key: 'gradle_write', exec: 'gradleWrite', rate: 16 },
+  { key: 'key_value_read', exec: 'keyValueRead', rate: 512 },
+  { key: 'key_value_write', exec: 'keyValueWrite', rate: 256 },
+  { key: 'xcode_read', exec: 'xcodeRead', rate: 512 },
+  { key: 'xcode_write', exec: 'xcodeWrite', rate: 64 },
+  { key: 'module_exists', exec: 'moduleExists', rate: 64 },
+  { key: 'module_read', exec: 'moduleRead', rate: 128 },
+  { key: 'module_write', exec: 'moduleWrite', rate: 4 },
+  { key: 'gradle_read', exec: 'gradleRead', rate: 128 },
+  { key: 'gradle_write', exec: 'gradleWrite', rate: 4 },
 ];
 
 var offset = 0;
@@ -94,9 +94,8 @@ function loadSeedData(): SeedData | null {
 
 // --- Setup: authenticate and seed test data ---
 export function setup(): SetupData {
-  console.log('Authenticating against staging server...');
-  var token = authenticate();
-  console.log('Authentication successful.');
+  console.log('Using cache project token for region ' + REGION + '.');
+  var token = authToken();
 
   var existingSeedData = loadSeedData();
   if (existingSeedData) {

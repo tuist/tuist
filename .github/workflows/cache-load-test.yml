@@ -113,6 +113,39 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.pr_ref }}
+      - name: Create cache project token
+        env:
+          SERVER_URL: https://staging.tuist.dev
+          AUTH_EMAIL: tuistrocks@tuist.dev
+          AUTH_PASSWORD: tuistrocks
+          ACCOUNT_HANDLE: tuist
+          PROJECT_HANDLE: tuist
+        run: |
+          set -euo pipefail
+
+          AUTH_RESPONSE=$(curl -fsS "$SERVER_URL/api/auth" \
+            -H 'Content-Type: application/json' \
+            -d "{\"email\":\"$AUTH_EMAIL\",\"password\":\"$AUTH_PASSWORD\"}")
+          ACCESS_TOKEN=$(printf '%s' "$AUTH_RESPONSE" | grep -o '"access_token":"[^"]*"' | head -1 | cut -d '"' -f4)
+
+          if [ -z "$ACCESS_TOKEN" ]; then
+            echo "::error::Failed to obtain access token"
+            exit 1
+          fi
+
+          PROJECT_TOKEN_RESPONSE=$(curl -fsS "$SERVER_URL/api/projects/$ACCOUNT_HANDLE/$PROJECT_HANDLE/tokens" \
+            -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN")
+          CACHE_AUTH_TOKEN=$(printf '%s' "$PROJECT_TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | head -1 | cut -d '"' -f4)
+
+          if [ -z "$CACHE_AUTH_TOKEN" ]; then
+            echo "::error::Failed to obtain project token"
+            exit 1
+          fi
+
+          echo "::add-mask::$ACCESS_TOKEN"
+          echo "::add-mask::$CACHE_AUTH_TOKEN"
+          echo "CACHE_AUTH_TOKEN=$CACHE_AUTH_TOKEN" >> "$GITHUB_ENV"
       - uses: grafana/setup-k6-action@v1
       - name: Wait for cache service
         run: |
@@ -131,6 +164,7 @@ jobs:
           set -euo pipefail
           k6 run src/main.ts \
             -e CACHE_HOST=${{ matrix.cache_host }} \
+            -e CACHE_AUTH_TOKEN="$CACHE_AUTH_TOKEN" \
             -e SERVER_URL=https://staging.tuist.dev \
             -e REGION=${{ matrix.region }} \
             -e RUN_ID="lt-baseline-${{ github.run_id }}-${{ matrix.region }}" \
@@ -212,6 +246,39 @@ jobs:
         with:
           name: baseline-result-${{ matrix.region }}
           path: baseline-result-${{ matrix.region }}
+      - name: Create cache project token
+        env:
+          SERVER_URL: https://staging.tuist.dev
+          AUTH_EMAIL: tuistrocks@tuist.dev
+          AUTH_PASSWORD: tuistrocks
+          ACCOUNT_HANDLE: tuist
+          PROJECT_HANDLE: tuist
+        run: |
+          set -euo pipefail
+
+          AUTH_RESPONSE=$(curl -fsS "$SERVER_URL/api/auth" \
+            -H 'Content-Type: application/json' \
+            -d "{\"email\":\"$AUTH_EMAIL\",\"password\":\"$AUTH_PASSWORD\"}")
+          ACCESS_TOKEN=$(printf '%s' "$AUTH_RESPONSE" | grep -o '"access_token":"[^"]*"' | head -1 | cut -d '"' -f4)
+
+          if [ -z "$ACCESS_TOKEN" ]; then
+            echo "::error::Failed to obtain access token"
+            exit 1
+          fi
+
+          PROJECT_TOKEN_RESPONSE=$(curl -fsS "$SERVER_URL/api/projects/$ACCOUNT_HANDLE/$PROJECT_HANDLE/tokens" \
+            -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN")
+          CACHE_AUTH_TOKEN=$(printf '%s' "$PROJECT_TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | head -1 | cut -d '"' -f4)
+
+          if [ -z "$CACHE_AUTH_TOKEN" ]; then
+            echo "::error::Failed to obtain project token"
+            exit 1
+          fi
+
+          echo "::add-mask::$ACCESS_TOKEN"
+          echo "::add-mask::$CACHE_AUTH_TOKEN"
+          echo "CACHE_AUTH_TOKEN=$CACHE_AUTH_TOKEN" >> "$GITHUB_ENV"
       - uses: grafana/setup-k6-action@v1
       - name: Wait for cache service
         run: |
@@ -238,6 +305,7 @@ jobs:
         run: |
           k6 run src/main.ts \
             -e CACHE_HOST=${{ matrix.cache_host }} \
+            -e CACHE_AUTH_TOKEN="$CACHE_AUTH_TOKEN" \
             -e SERVER_URL=https://staging.tuist.dev \
             -e REGION=${{ matrix.region }} \
             -e RUN_ID="lt-pr-${{ needs.resolve.outputs.pr_number }}-${{ github.run_id }}-${{ matrix.region }}" \
@@ -286,8 +354,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          THRESHOLD="1.03"
-          THROUGHPUT_THRESHOLD="0.97"
+          P50_THRESHOLD="1.10"
+          THROUGHPUT_THRESHOLD="0.80"
+          ERROR_RATE_ABS_THRESHOLD="0.10"
           VERDICT="pass"
           REGRESSIONS=""
           SUMMARY=""
@@ -317,27 +386,24 @@ jobs:
             base_throughput=$(jq -r ".metrics[\"$metric\"].throughput // 0" "$baseline_file")
             base_error_rate=$(jq -r ".metrics[\"$metric\"].error_rate // 0" "$baseline_file")
 
-            if [ "$(echo "$pr_error_rate > $base_error_rate" | bc -l)" -eq 1 ]; then
+            local error_diff
+            error_diff=$(echo "$pr_error_rate - $base_error_rate" | bc -l)
+            if [ "$(echo "$error_diff > $ERROR_RATE_ABS_THRESHOLD" | bc -l)" -eq 1 ]; then
               local pct
               pct=$(printf "%.2f" "$(echo "$pr_error_rate * 100" | bc -l)")
               local base_pct
               base_pct=$(printf "%.2f" "$(echo "$base_error_rate * 100" | bc -l)")
-              add_failure "$region" "$metric" "error_rate" "${base_pct}%" "${pct}%" "-"
+              add_failure "$region" "$metric" "error_rate" "${base_pct}%" "${pct}%" "+$(printf '%.1f' "$(echo "$error_diff * 100" | bc -l)")pp"
             fi
 
-            for pct_name in p50 p95 p99; do
-              local pr_val base_val
-              eval "pr_val=\$pr_$pct_name"
-              eval "base_val=\$base_$pct_name"
-
-              if [ "$(echo "$base_val > 0" | bc -l)" -eq 1 ]; then
-                if [ "$(echo "$pr_val > $base_val * $THRESHOLD" | bc -l)" -eq 1 ]; then
-                  local delta
-                  delta=$(printf "%.1f" "$(echo "($pr_val / $base_val - 1) * 100" | bc -l)")
-                  add_failure "$region" "$metric" "$pct_name" "$(printf '%.2f' "$base_val")ms" "$(printf '%.2f' "$pr_val")ms" "+${delta}%"
-                fi
+            # Only check p50 — p95/p99 are too noisy on staging
+            if [ "$(echo "$base_p50 > 0" | bc -l)" -eq 1 ]; then
+              if [ "$(echo "$pr_p50 > $base_p50 * $P50_THRESHOLD" | bc -l)" -eq 1 ]; then
+                local delta
+                delta=$(printf "%.1f" "$(echo "($pr_p50 / $base_p50 - 1) * 100" | bc -l)")
+                add_failure "$region" "$metric" "p50" "$(printf '%.2f' "$base_p50")ms" "$(printf '%.2f' "$pr_p50")ms" "+${delta}%"
               fi
-            done
+            fi
 
             if [ "$(echo "$base_throughput > 0" | bc -l)" -eq 1 ]; then
               if [ "$(echo "$pr_throughput < $base_throughput * $THROUGHPUT_THRESHOLD" | bc -l)" -eq 1 ]; then

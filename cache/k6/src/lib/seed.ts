@@ -2,7 +2,6 @@ import http from 'k6/http';
 import { check } from 'k6';
 import { XCODE_SEED_COUNT, MODULE_SEED_COUNT, GRADLE_SEED_COUNT, KV_DIRECT_SEED_COUNT, XCODE_SIZES, LARGE_SIZES, KV_DISTRIBUTIONS, MODULE_PART_SIZE, RUN_ID } from '../config.ts';
 import { SeedData, SetupData, XcodeSeeded, ModuleSeeded, GradleSeeded } from '../types.ts';
-import { getValidToken } from './auth.ts';
 import { authHeaders, cacheUrl } from './http.ts';
 import { randomId, randomString, weightedRandom } from './util.ts';
 import { getPayload, getModulePartPayload } from '../payloads.ts';
@@ -17,7 +16,6 @@ function seedXcode(token: string): Record<string, XcodeSeeded> {
     var payload = getPayload(bucket.name);
 
     for (var i = 0; i < XCODE_SEED_COUNT; i++) {
-      token = getValidToken(token);
       var casId = RUN_ID + '-xcode-' + bucket.name + '-' + i;
       var kvCasId = RUN_ID + '-kvxc-' + bucket.name + '-' + i;
 
@@ -63,7 +61,6 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
     var partCount = Math.ceil(bucket.bytes / MODULE_PART_SIZE);
 
     for (var i = 0; i < MODULE_SEED_COUNT; i++) {
-      token = getValidToken(token);
       var hash = RUN_ID + '-mod-' + bucket.name + '-' + i;
       var name = 'Module-' + bucket.name + '-' + i + '.xcframework.zip';
 
@@ -93,7 +90,6 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
 
       // Upload parts
       for (var p = 1; p <= partCount; p++) {
-        token = getValidToken(token);
         var partData = getModulePartPayload(bucket.bytes, p, MODULE_PART_SIZE);
 
         var partRes = http.post(
@@ -136,7 +132,6 @@ function seedGradle(token: string): Record<string, GradleSeeded> {
     var payload = getPayload(bucket.name);
 
     for (var i = 0; i < GRADLE_SEED_COUNT; i++) {
-      token = getValidToken(token);
       var key = RUN_ID + '-gradle-' + bucket.name + '-' + i;
 
       var res = http.put(
@@ -161,7 +156,6 @@ function seedGradle(token: string): Record<string, GradleSeeded> {
 function seedKvDirect(token: string): string[] {
   var casIds: string[] = [];
   for (var i = 0; i < KV_DIRECT_SEED_COUNT; i++) {
-    token = getValidToken(token);
     var casId = RUN_ID + '-kvdirect-' + i;
     var dist = KV_DISTRIBUTIONS[i % KV_DISTRIBUTIONS.length];
     var entries: Array<{ value: string }> = [];
@@ -185,7 +179,6 @@ export function warmReads(token: string, data: SetupData): void {
   // Warm xcode reads
   var xcodeKeys = Object.keys(data.xcode);
   for (var xi = 0; xi < xcodeKeys.length; xi++) {
-    token = getValidToken(token);
     var seeded = data.xcode[xcodeKeys[xi]];
     if (seeded.kvCasIds.length > 0) {
       http.get(cacheUrl('/api/cache/keyvalue/' + seeded.kvCasIds[0]), { headers: authHeaders(token) });
@@ -198,7 +191,6 @@ export function warmReads(token: string, data: SetupData): void {
   // Warm module reads
   var modKeys = Object.keys(data.module);
   for (var mi = 0; mi < modKeys.length; mi++) {
-    token = getValidToken(token);
     var modSeeded = data.module[modKeys[mi]];
     if (modSeeded.refs.length > 0) {
       var ref = modSeeded.refs[0];
@@ -212,7 +204,6 @@ export function warmReads(token: string, data: SetupData): void {
   // Warm gradle reads
   var gradleKeys = Object.keys(data.gradle);
   for (var gi = 0; gi < gradleKeys.length; gi++) {
-    token = getValidToken(token);
     var gradleSeeded = data.gradle[gradleKeys[gi]];
     if (gradleSeeded.keys.length > 0) {
       http.get(cacheUrl('/api/cache/gradle/' + gradleSeeded.keys[0]), { headers: authHeaders(token) });
@@ -221,7 +212,6 @@ export function warmReads(token: string, data: SetupData): void {
 
   // Warm KV direct reads
   for (var ki = 0; ki < Math.min(3, data.kvDirect.length); ki++) {
-    token = getValidToken(token);
     http.get(cacheUrl('/api/cache/keyvalue/' + data.kvDirect[ki]), { headers: authHeaders(token) });
   }
 }
@@ -247,7 +237,7 @@ export function setupFromSeedData(token: string, seedData: SeedData): SetupData 
   console.log('Warming reads...');
   warmReads(token, data);
 
-  data.token = getValidToken(token);
+  data.token = token;
   return data;
 }
 

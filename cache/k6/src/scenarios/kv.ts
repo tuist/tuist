@@ -2,12 +2,11 @@ import http from 'k6/http';
 import { SetupData } from '../types.ts';
 import { KV_DISTRIBUTIONS, RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
-import { getValidToken } from '../lib/auth.ts';
 import { randomItem, randomString } from '../lib/util.ts';
 import { record } from '../metrics.ts';
 
 export function keyValueRead(data: SetupData): void {
-  var token = getValidToken(data.token);
+  var token = data.token;
   var casId = randomItem(data.kvDirect);
   var start = Date.now();
   var res = http.get(cacheUrl('/api/cache/keyvalue/' + casId), { headers: authHeaders(token) });
@@ -16,7 +15,7 @@ export function keyValueRead(data: SetupData): void {
 }
 
 export function keyValueWrite(data: SetupData): void {
-  var token = getValidToken(data.token);
+  var token = data.token;
   var casId = RUN_ID + '-kv-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
   var dist = KV_DISTRIBUTIONS[Math.floor(Math.random() * KV_DISTRIBUTIONS.length)];
   var entries: Array<{ value: string }> = [];

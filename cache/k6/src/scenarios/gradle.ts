@@ -2,13 +2,12 @@ import http from 'k6/http';
 import { SetupData } from '../types.ts';
 import { LARGE_SIZES, RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
-import { getValidToken } from '../lib/auth.ts';
 import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
 import { getPayload } from '../payloads.ts';
 
 export function gradleRead(data: SetupData): void {
-  var token = getValidToken(data.token);
+  var token = data.token;
   var bucket = weightedRandom(LARGE_SIZES);
   var seeded = data.gradle[bucket.name];
   if (!seeded || seeded.keys.length === 0) return;
@@ -29,7 +28,7 @@ export function gradleRead(data: SetupData): void {
 }
 
 export function gradleWrite(data: SetupData): void {
-  var token = getValidToken(data.token);
+  var token = data.token;
   var bucket = weightedRandom(LARGE_SIZES);
   var key = RUN_ID + '-gradlew-' + randomId();
   var payload = getPayload(bucket.name);
