@@ -190,24 +190,25 @@
         /// Creates a compressed archive of the test products bundle, stripping files not needed for test execution
         /// (dSYMs, .swiftmodule directories) to significantly reduce upload size.
         private func stripAndCompressTestProducts(_ xctestproductsPath: AbsolutePath) async throws -> AbsolutePath {
-            let strippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-stripped")
-            let strippedProductsPath = strippedPath.appending(component: xctestproductsPath.basename)
+            let outputDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
+            let archivePath = outputDirectory.appending(component: "bundle.aar")
 
-            try await fileSystem.copy(xctestproductsPath, to: strippedProductsPath)
+            try await fileSystem.runInTemporaryDirectory(prefix: "tuist-shard-stripped") { strippedPath in
+                let strippedProductsPath = strippedPath.appending(component: xctestproductsPath.basename)
+                try await fileSystem.copy(xctestproductsPath, to: strippedProductsPath)
 
-            // Remove .dSYM and .swiftmodule directories which are only needed for
-            // symbolication/compilation, not for running tests.
-            let stripPatterns = ["**/*.dSYM", "**/*.swiftmodule"]
-            for pattern in stripPatterns {
-                for try await path in try fileSystem.glob(directory: strippedProductsPath, include: [pattern]) {
-                    try await fileSystem.remove(path)
+                // Remove .dSYM and .swiftmodule directories which are only needed for
+                // symbolication/compilation, not for running tests.
+                let stripPatterns = ["**/*.dSYM", "**/*.swiftmodule"]
+                for pattern in stripPatterns {
+                    for try await path in try fileSystem.glob(directory: strippedProductsPath, include: [pattern]) {
+                        try await fileSystem.remove(path)
+                    }
                 }
+
+                try await appleArchiver.compress(directory: strippedProductsPath, to: archivePath)
             }
 
-            let archivePath = strippedPath.appending(component: "bundle.aar")
-            try await appleArchiver.compress(directory: strippedProductsPath, to: archivePath)
-
-            try? await fileSystem.remove(strippedProductsPath)
             return archivePath
         }
     }
