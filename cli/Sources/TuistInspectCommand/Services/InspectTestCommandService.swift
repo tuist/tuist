@@ -214,7 +214,7 @@
                 shardIndex: nil
             )
 
-            try await analyticsArtifactUploadService.uploadResultBundleOnly(
+            try await analyticsArtifactUploadService.uploadResultBundle(
                 resolvedResultBundlePath,
                 fullHandle: fullHandle,
                 commandEventId: test.id,

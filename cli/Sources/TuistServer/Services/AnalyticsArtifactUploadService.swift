@@ -9,7 +9,7 @@
 
     @Mockable
     public protocol AnalyticsArtifactUploadServicing {
-        func uploadResultBundle(
+        func uploadAndAnalyzeResultBundle(
             _ resultBundle: AbsolutePath,
             accountHandle: String,
             projectHandle: String,
@@ -17,7 +17,7 @@
             serverURL: URL
         ) async throws
 
-        func uploadResultBundleOnly(
+        func uploadResultBundle(
             _ resultBundle: AbsolutePath,
             fullHandle: String,
             commandEventId: String,
@@ -87,7 +87,7 @@
             self.completeAnalyticsArtifactsUploadsService = completeAnalyticsArtifactsUploadsService
         }
 
-        public func uploadResultBundle(
+        public func uploadAndAnalyzeResultBundle(
             _ resultBundle: AbsolutePath,
             accountHandle: String,
             projectHandle: String,
@@ -160,7 +160,7 @@
             }
         }
 
-        public func uploadResultBundleOnly(
+        public func uploadResultBundle(
             _ resultBundle: AbsolutePath,
             fullHandle: String,
             commandEventId: String,

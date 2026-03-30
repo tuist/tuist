@@ -61,7 +61,7 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
         let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
 
         if try await fileSystem.exists(resultBundlePath) {
-            try await analyticsArtifactUploadService.uploadResultBundle(
+            try await analyticsArtifactUploadService.uploadAndAnalyzeResultBundle(
                 resultBundlePath,
                 accountHandle: accountHandle,
                 projectHandle: projectHandle,

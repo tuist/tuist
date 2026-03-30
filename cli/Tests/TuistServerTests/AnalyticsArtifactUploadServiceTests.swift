@@ -192,7 +192,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             .willReturn(uploadPartURL)
 
         // When / Then
-        try await subject.uploadResultBundle(
+        try await subject.uploadAndAnalyzeResultBundle(
             resultBundle,
             accountHandle: accountHandle,
             projectHandle: projectHandle,
