@@ -48919,6 +48919,10 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Optional client-generated UUID for the test run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/id`.
+                    public var id: Swift.String?
                     /// The UUID of an associated build run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_run_id`.
@@ -49352,6 +49356,7 @@ public enum Operations {
                     ///   - test_modules: The test modules associated with the test run.
                     ///   - xcode_version: The version of Xcode used during the run.
                     public init(
+                        id: Swift.String? = nil,
                         build_run_id: Swift.String? = nil,
                         build_system: Operations.createTest.Input.Body.jsonPayload.build_systemPayload? = nil,
                         ci_host: Swift.String? = nil,
@@ -49374,6 +49379,7 @@ public enum Operations {
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
                         xcode_version: Swift.String? = nil
                     ) {
+                        self.id = id
                         self.build_run_id = build_run_id
                         self.build_system = build_system
                         self.ci_host = ci_host

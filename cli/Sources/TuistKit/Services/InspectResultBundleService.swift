@@ -113,6 +113,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
+            id: nil,
             testSummary: testSummary,
             buildRunId: buildRunId,
             gitBranch: gitInfo.branch,

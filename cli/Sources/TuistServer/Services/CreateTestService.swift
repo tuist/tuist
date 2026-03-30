@@ -12,6 +12,7 @@ import TuistHTTP
         func createTest(
             fullHandle: String,
             serverURL: URL,
+            id: String?,
             testSummary: TestSummary,
             buildRunId: String?,
             gitBranch: String?,
@@ -63,6 +64,7 @@ import TuistHTTP
         public func createTest(
             fullHandle: String,
             serverURL: URL,
+            id: String? = nil,
             testSummary: TestSummary,
             buildRunId: String?,
             gitBranch: String?,
@@ -189,6 +191,7 @@ import TuistHTTP
                     ),
                     body: .json(
                         .init(
+                            id: id,
                             build_run_id: buildRunId,
                             ci_host: ciHost,
                             ci_project_handle: ciProjectHandle,

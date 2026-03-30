@@ -186,6 +186,15 @@
             let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
             let ciInfo = ciController.ciInfo()
 
+            let testRunId = UUID().uuidString.lowercased()
+
+            try await analyticsArtifactUploadService.uploadResultBundle(
+                resolvedResultBundlePath,
+                fullHandle: fullHandle,
+                commandEventId: testRunId,
+                serverURL: serverURL
+            )
+
             let testSummary = TestSummary(
                 testPlanName: nil,
                 status: .processing,
@@ -196,6 +205,7 @@
             let test = try await createTestService.createTest(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
+                id: testRunId,
                 testSummary: testSummary,
                 buildRunId: nil,
                 gitBranch: gitInfo.branch,
@@ -212,13 +222,6 @@
                 ciProvider: ciInfo?.provider,
                 shardPlanId: nil,
                 shardIndex: nil
-            )
-
-            try await analyticsArtifactUploadService.uploadResultBundle(
-                resolvedResultBundlePath,
-                fullHandle: fullHandle,
-                commandEventId: test.id,
-                serverURL: serverURL
             )
 
             AlertController.current.success(

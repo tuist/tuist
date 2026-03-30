@@ -1499,6 +1499,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
+            id: nil,
             testSummary: testSummary,
             buildRunId: nil,
             gitBranch: gitInfo.branch,
