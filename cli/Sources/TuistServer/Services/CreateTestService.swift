@@ -28,7 +28,7 @@ import TuistHTTP
             ciProvider: CIProvider?,
             shardPlanId: String?,
             shardIndex: Int?,
-            status: String?
+            status: TestRunStatus?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -51,9 +51,7 @@ import TuistHTTP
         }
     }
 
-    public enum ServerTestRunStatus {
-        case success, failure, skipped
-    }
+    public typealias TestRunStatus = Operations.createTest.Input.Body.jsonPayload.statusPayload
 
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
@@ -84,14 +82,14 @@ import TuistHTTP
             ciProvider: CIProvider?,
             shardPlanId: String?,
             shardIndex: Int?,
-            status statusOverride: String? = nil
+            status: TestRunStatus? = nil
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 
-            let status: Operations.createTest.Input.Body.jsonPayload.statusPayload? =
-                if let statusOverride {
-                    Operations.createTest.Input.Body.jsonPayload.statusPayload(rawValue: statusOverride)
+            let resolvedStatus: Operations.createTest.Input.Body.jsonPayload.statusPayload? =
+                if let status {
+                    status
                 } else {
                     switch testSummary.status {
                     case .passed:
@@ -213,7 +211,7 @@ import TuistHTTP
                             scheme: testSummary.testPlanName,
                             shard_index: shardIndex,
                             shard_plan_id: shardPlanId,
-                            status: status,
+                            status: resolvedStatus,
                             test_modules: testModules,
                             xcode_version: xcodeVersion
                         )

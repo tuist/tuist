@@ -212,7 +212,7 @@
                 ciProvider: ciInfo?.provider,
                 shardPlanId: nil,
                 shardIndex: nil,
-                status: "processing"
+                status: .processing
             )
 
             try await analyticsArtifactUploadService.uploadResultBundleOnly(
