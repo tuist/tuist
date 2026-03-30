@@ -276,7 +276,6 @@ defmodule TuistWeb.GradleBuildRunsLive do
         users =
           organization
           |> Accounts.get_organization_members()
-          |> Enum.sort_by(fn user -> user.account.name end)
 
         [
           %Filter.Filter{
