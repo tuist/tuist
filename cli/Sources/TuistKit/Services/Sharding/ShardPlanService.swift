@@ -59,6 +59,7 @@
         private let fileSystem: FileSysteming
         private let fileArchiver: FileArchivingFactorying
         private let shardMatrixOutputService: ShardMatrixOutputServicing
+        private let appleArchiver: AppleArchiving
 
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
@@ -72,7 +73,8 @@
             ciController: CIControlling = CIController(),
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory(),
-            shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService()
+            shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
+            appleArchiver: AppleArchiving = AppleArchiver()
         ) {
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
@@ -84,6 +86,7 @@
             self.fileSystem = fileSystem
             self.fileArchiver = fileArchiver
             self.shardMatrixOutputService = shardMatrixOutputService
+            self.appleArchiver = appleArchiver
         }
 
         public func plan(
@@ -203,7 +206,7 @@
             }
 
             let archivePath = strippedPath.appending(component: "bundle.aar")
-            try ShardArchiver.compress(directory: strippedProductsPath, to: archivePath)
+            try await appleArchiver.compress(directory: strippedProductsPath, to: archivePath)
 
             try? await fileSystem.remove(strippedProductsPath)
             return archivePath

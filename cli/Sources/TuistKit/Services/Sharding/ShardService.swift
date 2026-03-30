@@ -52,17 +52,20 @@ public struct ShardService: ShardServicing {
     private let ciController: CIControlling
     private let fileClient: FileClienting
     private let fileSystem: FileSysteming
+    private let appleArchiver: AppleArchiving
 
     public init(
         getShardService: GetShardServicing = GetShardService(),
         ciController: CIControlling = CIController(),
         fileClient: FileClienting = FileClient(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        appleArchiver: AppleArchiving = AppleArchiver()
     ) {
         self.getShardService = getShardService
         self.ciController = ciController
         self.fileClient = fileClient
         self.fileSystem = fileSystem
+        self.appleArchiver = appleArchiver
     }
 
     public func shard(
@@ -98,7 +101,7 @@ public struct ShardService: ShardServicing {
         Logger.current.debug("Downloaded test products bundle.")
 
         let unzippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-        try ShardArchiver.decompress(archive: shardArchivePath, to: unzippedPath)
+        try await appleArchiver.decompress(archive: shardArchivePath, to: unzippedPath)
         try? await fileSystem.remove(shardArchivePath)
 
         guard let testProductsPath = try await fileSystem
