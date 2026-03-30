@@ -88,38 +88,35 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   end
 
   defp replace_test_run(parsed_data, args) do
-    test_modules = build_test_modules(parsed_data)
+    parsed = deep_atomize_keys(parsed_data)
 
-    attrs = %{
-      id: args["test_run_id"],
-      project_id: args["project_id"],
-      account_id: args["account_id"],
-      test_plan_name: parsed_data["test_plan_name"],
-      status: parsed_data["status"] || "success",
-      duration: parsed_data["duration"] || 0,
-      test_modules: test_modules,
-      is_ci: Map.get(args, "is_ci", false),
-      git_branch: Map.get(args, "git_branch"),
-      git_commit_sha: Map.get(args, "git_commit_sha"),
-      git_ref: Map.get(args, "git_ref"),
-      macos_version: Map.get(args, "macos_version"),
-      xcode_version: Map.get(args, "xcode_version"),
-      model_identifier: Map.get(args, "model_identifier"),
-      scheme: Map.get(args, "scheme"),
-      ran_at: NaiveDateTime.utc_now()
-    }
+    attrs =
+      Map.merge(base_attrs(args), %{
+        test_plan_name: parsed[:test_plan_name],
+        status: parsed[:status] || "success",
+        duration: parsed[:duration] || 0,
+        test_modules: parsed[:test_modules] || []
+      })
 
     Tests.create_test(attrs)
   end
 
   defp mark_failed_processing(args) do
-    attrs = %{
+    attrs =
+      Map.merge(base_attrs(args), %{
+        status: "failed_processing",
+        duration: 0,
+        test_modules: []
+      })
+
+    Tests.create_test(attrs)
+  end
+
+  defp base_attrs(args) do
+    %{
       id: args["test_run_id"],
       project_id: args["project_id"],
       account_id: args["account_id"],
-      status: "failed_processing",
-      duration: 0,
-      test_modules: [],
       is_ci: Map.get(args, "is_ci", false),
       git_branch: Map.get(args, "git_branch"),
       git_commit_sha: Map.get(args, "git_commit_sha"),
@@ -130,61 +127,15 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       scheme: Map.get(args, "scheme"),
       ran_at: NaiveDateTime.utc_now()
     }
-
-    Tests.create_test(attrs)
   end
 
-  defp build_test_modules(parsed_data) do
-    for module <- parsed_data["test_modules"] || [] do
-      %{
-        name: module["name"],
-        status: module["status"],
-        duration: module["duration"] || 0,
-        test_suites:
-          for suite <- module["test_suites"] || [] do
-            %{
-              name: suite["name"],
-              status: suite["status"],
-              duration: suite["duration"] || 0
-            }
-          end,
-        test_cases:
-          for test_case <- module["test_cases"] || [] do
-            %{
-              name: test_case["name"],
-              test_suite: test_case["test_suite"],
-              status: test_case["status"],
-              duration: test_case["duration"] || 0,
-              failures:
-                for failure <- test_case["failures"] || [] do
-                  %{
-                    message: failure["message"],
-                    file: failure["path"],
-                    line_number: failure["line_number"],
-                    issue_type: failure["issue_type"]
-                  }
-                end,
-              repetitions:
-                for rep <- test_case["repetitions"] || [] do
-                  %{
-                    repetition_number: rep["repetition_number"],
-                    name: rep["name"],
-                    status: rep["status"],
-                    duration: rep["duration"] || 0,
-                    failures:
-                      for failure <- rep["failures"] || [] do
-                        %{
-                          message: failure["message"],
-                          file: failure["path"],
-                          line_number: failure["line_number"],
-                          issue_type: failure["issue_type"]
-                        }
-                      end
-                  }
-                end
-            }
-          end
-      }
-    end
+  defp deep_atomize_keys(map) when is_map(map) do
+    Map.new(map, fn
+      {k, v} when is_binary(k) -> {String.to_atom(k), deep_atomize_keys(v)}
+      {k, v} -> {k, deep_atomize_keys(v)}
+    end)
   end
+
+  defp deep_atomize_keys(list) when is_list(list), do: Enum.map(list, &deep_atomize_keys/1)
+  defp deep_atomize_keys(value), do: value
 end
