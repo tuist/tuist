@@ -120,7 +120,9 @@ defmodule Tuist.Accounts do
         on: ur.user_id == u.id,
         join: r in Role,
         on: ur.role_id == r.id,
-        where: r.resource_type == "Organization" and r.resource_id == ^organization_id
+        join: a in assoc(u, :account),
+        where: r.resource_type == "Organization" and r.resource_id == ^organization_id,
+        order_by: a.name
       )
     )
   end
