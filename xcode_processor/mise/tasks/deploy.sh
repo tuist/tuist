@@ -53,13 +53,8 @@ cd "\${RELEASE_PATH}"
 tar -xzf release.tar.gz
 rm release.tar.gz
 
-# Stop the running service (try launchd first, then direct kill)
-if sudo launchctl bootout system/org.nixos.dev.tuist.xcode-processor 2>/dev/null; then
-    echo "==> Stopped via launchd"
-else
-    pkill -f "xcode_processor.*start" 2>/dev/null && echo "==> Stopped running process" || echo "==> No running process found"
-fi
-sleep 2
+sudo launchctl bootout system/org.nixos.dev.tuist.xcode-processor 2>/dev/null || true
+echo "==> Stopped"
 
 # Swap the symlink atomically
 ln -sfn "\${RELEASE_PATH}" "\${CURRENT_LINK}"
@@ -67,34 +62,8 @@ ln -sfn "\${RELEASE_PATH}" "\${CURRENT_LINK}"
 # Write version metadata
 echo "${GIT_SHA}" > "\${CURRENT_LINK}/.git_sha"
 
-start_service() {
-    if [ -f /Library/LaunchDaemons/org.nixos.dev.tuist.xcode-processor.plist ]; then
-        sudo launchctl bootstrap system /Library/LaunchDaemons/org.nixos.dev.tuist.xcode-processor.plist
-        echo "==> Started via launchd"
-    else
-        # Direct start when launchd/sops-nix isn't configured yet -- read from .env
-        ENV_FILE="${REMOTE_DIR}/.env"
-        if [ -f "\${ENV_FILE}" ]; then
-            set -a
-            source "\${ENV_FILE}"
-            set +a
-        fi
-        "\${CURRENT_LINK}/bin/xcode_processor" daemon
-        echo "==> Started directly (no launchd plist found)"
-    fi
-}
-
-stop_service() {
-    if sudo launchctl bootout system/org.nixos.dev.tuist.xcode-processor 2>/dev/null; then
-        echo "==> Stopped via launchd"
-    else
-        pkill -f "xcode_processor.*start" 2>/dev/null || true
-    fi
-    sleep 2
-}
-
-# Start the service
-start_service
+sudo launchctl bootstrap system /Library/LaunchDaemons/org.nixos.dev.tuist.xcode-processor.plist
+echo "==> Started"
 
 echo "==> Waiting for health check..."
 HEALTHY=false
@@ -116,9 +85,9 @@ echo "ERROR: Health check failed after 60s"
 # Rollback to previous release if available
 if [ -n "\${PREVIOUS_RELEASE}" ] && [ -d "\${PREVIOUS_RELEASE}" ]; then
     echo "==> Rolling back to \${PREVIOUS_RELEASE}..."
-    stop_service
+    sudo launchctl bootout system/org.nixos.dev.tuist.xcode-processor 2>/dev/null || true
     ln -sfn "\${PREVIOUS_RELEASE}" "\${CURRENT_LINK}"
-    start_service
+    sudo launchctl bootstrap system /Library/LaunchDaemons/org.nixos.dev.tuist.xcode-processor.plist
 
     echo "==> Waiting for rollback health check..."
     for i in \$(seq 1 15); do
