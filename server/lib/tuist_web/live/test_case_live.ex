@@ -92,6 +92,7 @@ defmodule TuistWeb.TestCaseLive do
 
     if Accounts.organization?(project.account) do
       {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
+
       users = Accounts.get_organization_members(organization)
 
       filters ++
@@ -101,6 +102,7 @@ defmodule TuistWeb.TestCaseLive do
             field: :ran_by,
             display_name: dgettext("dashboard_tests", "Ran by"),
             type: :option,
+            searchable: true,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:
               Map.merge(

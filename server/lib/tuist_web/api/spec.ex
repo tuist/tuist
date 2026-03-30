@@ -9,20 +9,18 @@ defmodule TuistWeb.API.Spec do
   alias OpenApiSpex.OpenApi
   alias OpenApiSpex.Paths
   alias OpenApiSpex.SecurityScheme
-  alias OpenApiSpex.Server
-  alias TuistWeb.Endpoint
   alias TuistWeb.Router
 
   @impl OpenApi
   def spec do
     OpenApiSpex.resolve_schema_modules(%OpenApi{
-      servers: [Server.from_endpoint(Endpoint)],
+      servers: [],
       info: %Info{
         title: "Tuist",
         version: "0.1.0",
         extensions: %{
           "x-logo" => %{
-            "url" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png"),
+            "url" => "https://tuist.dev/images/open-graph/squared.png",
             "altText" => "Tuist logo"
           }
         }

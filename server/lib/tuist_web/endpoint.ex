@@ -30,7 +30,7 @@ defmodule TuistWeb.Endpoint do
   # when deploying your static files in production.
   plug Plug.Static,
     at: "/docs/images",
-    from: {:tuist, "priv/static/docs/images"},
+    from: {:tuist, "priv/docs/images"},
     gzip: false
 
   plug Plug.Static,

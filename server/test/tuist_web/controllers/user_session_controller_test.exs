@@ -151,6 +151,12 @@ defmodule TuistWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/users/log_in"
       refute get_session(conn, :user_return_to)
     end
+
+    test "ignores protocol-relative return_to paths", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login?#{%{return_to: "//evil.example"}}")
+      assert redirected_to(conn) == ~p"/users/log_in"
+      refute get_session(conn, :user_return_to)
+    end
   end
 
   describe "DELETE /users/log_out" do

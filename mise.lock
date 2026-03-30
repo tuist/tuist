@@ -76,6 +76,38 @@ url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
 [tools.bats."platforms.macos-x64"]
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.11.1.tar.gz"
 
+[[tools.caddy]]
+version = "2.11.2"
+backend = "aqua:caddyserver/caddy"
+
+[tools.caddy."platforms.linux-arm64"]
+checksum = "sha256:b9d88bec4254d0a98bd415ad60f97f37e4222dec96235c00b442437f5e303a32"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_arm64.tar.gz"
+
+[tools.caddy."platforms.linux-arm64-musl"]
+checksum = "sha256:b9d88bec4254d0a98bd415ad60f97f37e4222dec96235c00b442437f5e303a32"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_arm64.tar.gz"
+
+[tools.caddy."platforms.linux-x64"]
+checksum = "sha256:94391dfefe1f278ac8f387ab86162f0e88d87ff97df367f360e51e3cda3df56f"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_amd64.tar.gz"
+
+[tools.caddy."platforms.linux-x64-musl"]
+checksum = "sha256:94391dfefe1f278ac8f387ab86162f0e88d87ff97df367f360e51e3cda3df56f"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_linux_amd64.tar.gz"
+
+[tools.caddy."platforms.macos-arm64"]
+checksum = "sha256:7ab765777e953574d5713a69cab3f5a2f643a5c1cc264d4239a60ff845b465d8"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_mac_arm64.tar.gz"
+
+[tools.caddy."platforms.macos-x64"]
+checksum = "sha256:dc44b5b27d306098e79e50d002cbc14349d5b6c298913dffca1f84318cd4c4c3"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_mac_amd64.tar.gz"
+
+[tools.caddy."platforms.windows-x64"]
+checksum = "sha256:2902d2a278597e4983d70ed6d694fcab36b29b0b7d109771c59d7da7147afad8"
+url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_windows_amd64.zip"
+
 [[tools.elixir]]
 version = "1.19.1"
 backend = "core:elixir"
@@ -193,9 +225,6 @@ url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linu
 checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.amd64"
 
-[tools.sops."platforms.linux-x64".provenance.slsa]
-url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
-
 [tools.sops."platforms.linux-x64-musl"]
 checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.amd64"
@@ -270,29 +299,29 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.169.1"
+version = "4.170.0"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:7f497da8aa61e4ab93d925c7566380530da854a72f6dccb93988cc8686f2c0dd"
-url = "https://github.com/tuist/tuist/releases/download/4.169.1/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:3aa1660d1e6ae1120cedd8b3919eb5f1d1e4daaf496ff60eae01604e2566743d"
+url = "https://github.com/tuist/tuist/releases/download/4.170.0/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:7f497da8aa61e4ab93d925c7566380530da854a72f6dccb93988cc8686f2c0dd"
-url = "https://github.com/tuist/tuist/releases/download/4.169.1/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:3aa1660d1e6ae1120cedd8b3919eb5f1d1e4daaf496ff60eae01604e2566743d"
+url = "https://github.com/tuist/tuist/releases/download/4.170.0/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:1fa709986875cdb0d77666d0938e3d8b7b0bcb14d5c389c7208261502bf4a05b"
-url = "https://github.com/tuist/tuist/releases/download/4.169.1/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:4589d01976cca2fe6273731704381334f852d8dcb0ea5165be6a31467c930d26"
+url = "https://github.com/tuist/tuist/releases/download/4.170.0/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:1fa709986875cdb0d77666d0938e3d8b7b0bcb14d5c389c7208261502bf4a05b"
-url = "https://github.com/tuist/tuist/releases/download/4.169.1/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:4589d01976cca2fe6273731704381334f852d8dcb0ea5165be6a31467c930d26"
+url = "https://github.com/tuist/tuist/releases/download/4.170.0/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:7768150839834b68eedd50a6f2c2a9a96820b9bdc9eed07cef52a91e7733eda3"
-url = "https://github.com/tuist/tuist/releases/download/4.169.1/tuist.zip"
+checksum = "sha256:8caacab26d8eac8e0858801db3a4736b31016bd2e8d8af71e111c3c57d3ef318"
+url = "https://github.com/tuist/tuist/releases/download/4.170.0/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:7768150839834b68eedd50a6f2c2a9a96820b9bdc9eed07cef52a91e7733eda3"
-url = "https://github.com/tuist/tuist/releases/download/4.169.1/tuist.zip"
+checksum = "sha256:8caacab26d8eac8e0858801db3a4736b31016bd2e8d8af71e111c3c57d3ef318"
+url = "https://github.com/tuist/tuist/releases/download/4.170.0/tuist.zip"
