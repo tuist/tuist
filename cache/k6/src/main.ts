@@ -78,7 +78,8 @@ for (var i = 0; i < allEntries.length; i++) {
 
 export var options: Partial<Options> = {
   scenarios: scenarios,
-  setupTimeout: '120s',
+  setupTimeout: '15m',
+  discardResponseBodies: true,
   noConnectionReuse: false,
   insecureSkipTLSVerify: false,
 };

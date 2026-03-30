@@ -6,17 +6,23 @@ export function authenticate(): string {
   var res = http.post(
     SERVER_URL + '/api/auth',
     JSON.stringify({ email: AUTH_EMAIL, password: AUTH_PASSWORD }),
-    { headers: { 'Content-Type': 'application/json' } }
+    {
+      headers: { 'Content-Type': 'application/json' },
+      responseType: 'text',
+    }
   );
+
+  var body = res.status === 200 ? (res.json() as any) : null;
+  var accessToken = body ? body.access_token : null;
 
   var ok = check(res, {
     'auth: status 200': function (r) { return r.status === 200; },
-    'auth: has access_token': function (r) { return !!(r.json() as any).access_token; },
+    'auth: has access_token': function () { return !!accessToken; },
   });
 
   if (!ok) {
     throw new Error('Authentication failed: ' + res.status + ' ' + res.body);
   }
 
-  return (res.json() as any).access_token as string;
+  return accessToken as string;
 }

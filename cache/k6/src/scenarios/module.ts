@@ -4,7 +4,7 @@ import { LARGE_SIZES, MODULE_PART_SIZE, RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
 import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
-import { getPayload } from '../payloads.ts';
+import { getModulePartPayload } from '../payloads.ts';
 
 export function moduleExists(data: SetupData): void {
   var bucket = weightedRandom(LARGE_SIZES);
@@ -47,8 +47,6 @@ export function moduleWrite(data: SetupData): void {
   var bucket = weightedRandom(LARGE_SIZES);
   var hash = RUN_ID + '-modw-' + randomId();
   var name = 'Module-' + randomId() + '.xcframework.zip';
-  var payload = getPayload(bucket.name);
-
   var partCount = Math.ceil(bucket.bytes / MODULE_PART_SIZE);
   var start = Date.now();
   var success = true;
@@ -57,7 +55,10 @@ export function moduleWrite(data: SetupData): void {
   var startRes = http.post(
     cacheUrl('/api/cache/module/start', { hash: hash, name: name }),
     null,
-    { headers: Object.assign({}, authHeaders(data.token), { 'Content-Type': 'application/json' }) }
+    {
+      headers: Object.assign({}, authHeaders(data.token), { 'Content-Type': 'application/json' }),
+      responseType: 'text',
+    }
   );
 
   if (startRes.status !== 200) {
@@ -74,9 +75,7 @@ export function moduleWrite(data: SetupData): void {
 
   // Step 2: Upload parts
   for (var p = 1; p <= partCount; p++) {
-    var partStart = (p - 1) * MODULE_PART_SIZE;
-    var partEnd = Math.min(p * MODULE_PART_SIZE, payload.byteLength);
-    var partData = payload.slice(partStart, partEnd);
+    var partData = getModulePartPayload(bucket.bytes, p, MODULE_PART_SIZE);
 
     var partRes = http.post(
       cacheUrl('/api/cache/module/part', { upload_id: uploadId, part_number: String(p) }),

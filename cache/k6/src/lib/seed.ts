@@ -4,7 +4,7 @@ import { SEED_COUNT, XCODE_SIZES, LARGE_SIZES, KV_DISTRIBUTIONS, MODULE_PART_SIZ
 import { SetupData, XcodeSeeded, ModuleSeeded, GradleSeeded } from '../types.ts';
 import { authHeaders, cacheUrl } from './http.ts';
 import { randomId, randomString, weightedRandom } from './util.ts';
-import { getPayload } from '../payloads.ts';
+import { getPayload, getModulePartPayload } from '../payloads.ts';
 
 function seedXcode(token: string): Record<string, XcodeSeeded> {
   var result: Record<string, XcodeSeeded> = {};
@@ -58,7 +58,6 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
   for (var si = 0; si < LARGE_SIZES.length; si++) {
     var bucket = LARGE_SIZES[si];
     var refs: Array<{ hash: string; name: string }> = [];
-    var payload = getPayload(bucket.name);
     var partCount = Math.ceil(bucket.bytes / MODULE_PART_SIZE);
 
     for (var i = 0; i < SEED_COUNT; i++) {
@@ -69,7 +68,10 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
       var startRes = http.post(
         cacheUrl('/api/cache/module/start', { hash: hash, name: name }),
         null,
-        { headers: authHeaders(token) }
+        {
+          headers: authHeaders(token),
+          responseType: 'text',
+        }
       );
       check(startRes, { 'seed module start: ok': function (r) { return r.status === 200; } });
 
@@ -88,9 +90,7 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
 
       // Upload parts
       for (var p = 1; p <= partCount; p++) {
-        var partStart = (p - 1) * MODULE_PART_SIZE;
-        var partEnd = Math.min(p * MODULE_PART_SIZE, payload.byteLength);
-        var partData = payload.slice(partStart, partEnd);
+        var partData = getModulePartPayload(bucket.bytes, p, MODULE_PART_SIZE);
 
         var partRes = http.post(
           cacheUrl('/api/cache/module/part', { upload_id: uploadId, part_number: String(p) }),

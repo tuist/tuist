@@ -18,7 +18,10 @@ export function xcodeRead(data: SetupData): void {
   // Step 1: GET KV to resolve CAS artifact ID
   var kvRes = http.get(
     cacheUrl('/api/cache/keyvalue/' + kvCasId),
-    { headers: authHeaders(data.token) }
+    {
+      headers: authHeaders(data.token),
+      responseType: 'text',
+    }
   );
 
   if (kvRes.status !== 200) {
