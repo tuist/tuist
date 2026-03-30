@@ -3,8 +3,6 @@
 #MISE raw=true
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
-
 echo "==> Building Swift NIF..."
 bash native/xcresult_nif/build.sh
 

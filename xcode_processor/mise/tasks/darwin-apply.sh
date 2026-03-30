@@ -9,8 +9,7 @@ set -euo pipefail
 
 HOST="${usage_host?}"
 HOSTNAME="${usage_hostname?}"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLATFORM_DIR="${SCRIPT_DIR}/../../platform"
+PLATFORM_DIR="platform"
 
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/xcode-processor}"
 SSH_OPTS="-o StrictHostKeyChecking=accept-new"

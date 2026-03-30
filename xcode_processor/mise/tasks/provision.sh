@@ -9,8 +9,6 @@
 #USAGE option "--sudo-password" help="Sudo password for existing machine"
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
-
 SERVER_NAME="${usage_name?}"
 SERVER_TYPE="${usage_type:-M2-L}"
 ZONE="${usage_zone:-fr-par-3}"

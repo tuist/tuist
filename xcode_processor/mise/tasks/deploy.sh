@@ -7,8 +7,6 @@
 #USAGE }
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
-
 HOST="${usage_host?}"
 ENVIRONMENT="${usage_environment?}"
 DEPLOY_USER="github-actions"
