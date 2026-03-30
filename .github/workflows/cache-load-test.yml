@@ -12,6 +12,9 @@ on:
       main_sha:
         description: Main branch SHA at time of request
         required: true
+  pull_request:
+    types: [labeled]
+    branches: ['main']
 
 permissions:
   contents: read
@@ -23,8 +26,45 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    name: Resolve inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: >
+      (github.event_name == 'pull_request' && github.event.label.name == 'load-test') ||
+      github.event_name == 'workflow_dispatch'
+    outputs:
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      pr_sha: ${{ steps.resolve.outputs.pr_sha }}
+      main_sha: ${{ steps.resolve.outputs.main_sha }}
+    steps:
+      - name: Resolve inputs
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "pr_number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+            echo "pr_sha=${{ inputs.pr_sha }}" >> "$GITHUB_OUTPUT"
+            echo "main_sha=${{ inputs.main_sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "pr_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+            MAIN_SHA=$(gh api "/repos/${{ github.repository }}/commits/main" --jq '.sha')
+            echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Remove label
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels/load-test" -X DELETE || true
+
   deploy-pr:
     name: Deploy PR
+    needs: resolve
     runs-on: namespace-profile-default
     timeout-minutes: 30
     environment: cache-staging
@@ -34,7 +74,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.pr_sha }}
+          ref: ${{ needs.resolve.outputs.pr_sha }}
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -84,8 +124,8 @@ jobs:
             -e CACHE_HOST=${{ matrix.cache_host }} \
             -e SERVER_URL=https://staging.tuist.dev \
             -e REGION=${{ matrix.region }} \
-            -e RUN_ID="lt-pr-${{ inputs.pr_number }}-${{ github.run_id }}-${{ matrix.region }}" \
-            -e COMMIT_SHA=${{ inputs.pr_sha }}
+            -e RUN_ID="lt-pr-${{ needs.resolve.outputs.pr_number }}-${{ github.run_id }}-${{ matrix.region }}" \
+            -e COMMIT_SHA=${{ needs.resolve.outputs.pr_sha }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -95,7 +135,7 @@ jobs:
 
   compare:
     name: Compare
-    needs: [deploy-pr, test]
+    needs: [resolve, deploy-pr, test]
     if: always() && needs.deploy-pr.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -126,8 +166,8 @@ jobs:
       - name: Compare results
         id: compare
         env:
-          PR_SHA: ${{ inputs.pr_sha }}
-          MAIN_SHA: ${{ inputs.main_sha }}
+          PR_SHA: ${{ needs.resolve.outputs.pr_sha }}
+          MAIN_SHA: ${{ needs.resolve.outputs.main_sha }}
           HAS_BASELINE: ${{ steps.baseline.outputs.has_baseline }}
         run: |
           set -euo pipefail
@@ -267,7 +307,7 @@ jobs:
 
   restore:
     name: Restore main
-    needs: [deploy-pr, test, compare]
+    needs: [resolve, deploy-pr, test, compare]
     if: always() && needs.deploy-pr.result == 'success'
     runs-on: namespace-profile-default
     timeout-minutes: 30
@@ -278,7 +318,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.main_sha }}
+          ref: ${{ needs.resolve.outputs.main_sha }}
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -296,7 +336,7 @@ jobs:
 
   comment:
     name: Update PR comment
-    needs: [deploy-pr, test, compare, restore]
+    needs: [resolve, deploy-pr, test, compare, restore]
     if: always() && needs.deploy-pr.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -310,8 +350,8 @@ jobs:
       - name: Update PR comment
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
-          PR_SHA: ${{ inputs.pr_sha }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          PR_SHA: ${{ needs.resolve.outputs.pr_sha }}
           VERDICT: ${{ needs.compare.outputs.verdict }}
           TEST_RESULT: ${{ needs.test.result }}
           COMPARE_RESULT: ${{ needs.compare.result }}
