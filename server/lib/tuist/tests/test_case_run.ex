@@ -24,6 +24,7 @@ defmodule Tuist.Tests.TestCaseRun do
       :is_ci,
       :account_id,
       :scheme,
+      :git_branch,
       :shard_id,
       :shard_index
     ],
