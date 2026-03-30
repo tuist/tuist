@@ -979,4 +979,28 @@
       }
     }
   }
+
+  & > [data-part="processing-state"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+
+    & > [data-part="labels"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+  }
 }
