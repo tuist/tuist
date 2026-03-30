@@ -475,6 +475,7 @@ defmodule TuistWeb.API.TestsController do
           }
           |> Tuist.Tests.Workers.ProcessXcresultWorker.new()
           |> Oban.insert()
+          |> then(fn {:ok, _job} -> :ok end)
         else
           Tuist.VCS.enqueue_vcs_pull_request_comment(%{
             git_commit_sha: Map.get(body_params, :git_commit_sha),
