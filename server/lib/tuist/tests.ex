@@ -251,8 +251,6 @@ defmodule Tuist.Tests do
       {k, v} when is_binary(k) -> {String.to_existing_atom(k), normalize_string_keys(v)}
       {k, v} -> {k, normalize_string_keys(v)}
     end)
-  rescue
-    ArgumentError -> map
   end
 
   defp normalize_string_keys(list) when is_list(list), do: Enum.map(list, &normalize_string_keys/1)
