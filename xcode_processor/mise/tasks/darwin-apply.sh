@@ -38,13 +38,6 @@ set -euo pipefail
 export PATH="/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin:\$PATH"
 cd /tmp/xcode-processor-platform
 
-# Rename any conflicting /etc files from manual setup
-for f in /etc/caddy/Caddyfile /etc/sudoers.d/xcode-processor-deploy; do
-    if [ -f "\$f" ] && ! readlink "\$f" | grep -q nix; then
-        sudo mv "\$f" "\$f.before-nix-darwin" 2>/dev/null || true
-    fi
-done
-
 if command -v darwin-rebuild &>/dev/null; then
     sudo PATH="\$PATH" darwin-rebuild switch --flake ".#${HOSTNAME}"
 else
