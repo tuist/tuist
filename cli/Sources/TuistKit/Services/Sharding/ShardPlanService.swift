@@ -1,10 +1,9 @@
 #if os(macOS)
-    import AppleArchive
     import FileSystem
     import Foundation
-    import System
     import Mockable
     import Path
+    import TuistAppleArchiver
     import TuistAutomation
     import TuistCI
     import TuistCore

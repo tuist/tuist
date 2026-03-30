@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistAppleArchiver
 import TuistCI
 import TuistCore
 import TuistHTTP
