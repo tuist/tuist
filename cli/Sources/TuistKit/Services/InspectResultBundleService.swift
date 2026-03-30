@@ -128,8 +128,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             shardPlanId: shardPlanId,
-            shardIndex: shardIndex,
-            status: nil
+            shardIndex: shardIndex
         )
 
         let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)

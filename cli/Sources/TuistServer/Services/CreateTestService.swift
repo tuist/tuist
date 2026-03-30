@@ -27,8 +27,7 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             shardPlanId: String?,
-            shardIndex: Int?,
-            status: TestRunStatus?
+            shardIndex: Int?
         ) async throws -> Components.Schemas.RunsTest
     }
 
@@ -50,8 +49,6 @@ import TuistHTTP
             }
         }
     }
-
-    public typealias TestRunStatus = Operations.createTest.Input.Body.jsonPayload.statusPayload
 
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
@@ -81,24 +78,21 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             shardPlanId: String?,
-            shardIndex: Int?,
-            status: TestRunStatus? = nil
+            shardIndex: Int?
         ) async throws -> Components.Schemas.RunsTest {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 
-            let resolvedStatus: Operations.createTest.Input.Body.jsonPayload.statusPayload? =
-                if let status {
-                    status
-                } else {
-                    switch testSummary.status {
-                    case .passed:
-                        .success
-                    case .failed:
-                        .failure
-                    case .skipped:
-                        .skipped
-                    }
+            let status: Operations.createTest.Input.Body.jsonPayload.statusPayload? =
+                switch testSummary.status {
+                case .passed:
+                    .success
+                case .failed:
+                    .failure
+                case .skipped:
+                    .skipped
+                case .processing:
+                    .processing
                 }
 
             let testModules = testSummary.testModules.map { module in
@@ -211,7 +205,7 @@ import TuistHTTP
                             scheme: testSummary.testPlanName,
                             shard_index: shardIndex,
                             shard_plan_id: shardPlanId,
-                            status: resolvedStatus,
+                            status: status,
                             test_modules: testModules,
                             xcode_version: xcodeVersion
                         )
@@ -255,7 +249,7 @@ import TuistHTTP
             .test_modulesPayload.Element.test_casesPayloadPayload.statusPayload
         {
             switch status {
-            case .passed:
+            case .passed, .processing:
                 return .success
             case .failed:
                 return .failure
@@ -269,7 +263,7 @@ import TuistHTTP
             .test_modulesPayloadPayload.statusPayload
         {
             switch status {
-            case .passed, .skipped:
+            case .passed, .skipped, .processing:
                 return .success
             case .failed:
                 return .failure
@@ -281,7 +275,7 @@ import TuistHTTP
             .test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
         {
             switch status {
-            case .passed, .skipped:
+            case .passed, .skipped, .processing:
                 return .success
             case .failed:
                 return .failure
@@ -310,7 +304,7 @@ import TuistHTTP
             .statusPayload
         {
             switch status {
-            case .passed, .skipped:
+            case .passed, .skipped, .processing:
                 return .success
             case .failed:
                 return .failure

@@ -1514,8 +1514,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             shardPlanId: nil,
-            shardIndex: nil,
-            status: nil
+            shardIndex: nil
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)

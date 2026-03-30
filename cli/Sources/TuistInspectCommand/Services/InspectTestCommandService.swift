@@ -188,7 +188,7 @@
 
             let testSummary = TestSummary(
                 testPlanName: nil,
-                status: .passed,
+                status: .processing,
                 duration: 0,
                 testModules: []
             )
@@ -211,8 +211,7 @@
                 ciHost: ciInfo?.host,
                 ciProvider: ciInfo?.provider,
                 shardPlanId: nil,
-                shardIndex: nil,
-                status: .processing
+                shardIndex: nil
             )
 
             try await analyticsArtifactUploadService.uploadResultBundleOnly(
