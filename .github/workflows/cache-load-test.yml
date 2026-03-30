@@ -62,9 +62,82 @@ jobs:
         run: |
           gh api "/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels/load-test" -X DELETE || true
 
+  deploy-main:
+    name: Deploy main
+    needs: resolve
+    runs-on: namespace-profile-default
+    timeout-minutes: 30
+    environment: cache-staging
+    defaults:
+      run:
+        working-directory: cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.main_sha }}
+      - uses: 1password/install-cli-action@v2
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cache
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
+      - name: Deploy main with Kamal
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+          SECRETS: ${{ secrets.CACHE_KAMAL_SECRETS }}
+        run: mise run deploy "staging"
+
+  baseline:
+    name: Baseline (${{ matrix.region }})
+    needs: [resolve, deploy-main]
+    runs-on: namespace-profile-default
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - region: eu-central
+            cache_host: cache-eu-central-staging.tuist.dev
+          - region: us-east
+            cache_host: cache-us-east-staging.tuist.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.main_sha }}
+      - uses: grafana/setup-k6-action@v1
+      - name: Wait for cache service
+        run: |
+          echo "Waiting for cache service at ${{ matrix.cache_host }}..."
+          for i in $(seq 1 30); do
+            if curl -sf "https://${{ matrix.cache_host }}/up" > /dev/null 2>&1; then
+              echo "Cache service ready after ${i}s"
+              break
+            fi
+            echo "Attempt $i: not ready, waiting..."
+            sleep 2
+          done
+      - name: Run baseline k6
+        working-directory: cache/k6
+        run: |
+          k6 run src/main.ts \
+            -e CACHE_HOST=${{ matrix.cache_host }} \
+            -e SERVER_URL=https://staging.tuist.dev \
+            -e REGION=${{ matrix.region }} \
+            -e RUN_ID="lt-baseline-${{ github.run_id }}-${{ matrix.region }}" \
+            -e COMMIT_SHA=${{ needs.resolve.outputs.main_sha }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: baseline-result-${{ matrix.region }}
+          path: cache/k6/result.json
+          retention-days: 30
+
   deploy-pr:
     name: Deploy PR
-    needs: resolve
+    needs: [resolve, baseline]
     runs-on: namespace-profile-default
     timeout-minutes: 30
     environment: cache-staging
@@ -137,40 +210,32 @@ jobs:
 
   compare:
     name: Compare
-    needs: [resolve, deploy-pr, test]
-    if: always() && needs.deploy-pr.result == 'success'
+    needs: [resolve, deploy-main, baseline, deploy-pr, test]
+    if: always() && needs.deploy-main.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       verdict: ${{ steps.compare.outputs.verdict }}
     steps:
+      - name: Download baseline results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: baseline-result-*
+          merge-multiple: false
+
       - name: Download PR results
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           pattern: k6-result-*
           merge-multiple: false
-
-      - name: Download baseline
-        id: baseline
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          RUN_ID=$(gh api "/repos/${{ github.repository }}/actions/workflows/cache-load-test-baseline.yml/runs?status=success&branch=main&per_page=1" --jq '.workflow_runs[0].id // empty' 2>/dev/null || echo "")
-          if [ -z "$RUN_ID" ]; then
-            echo "has_baseline=false" >> "$GITHUB_OUTPUT"
-            echo "No baseline found"
-            exit 0
-          fi
-          gh run download "$RUN_ID" -n cache-load-test-baseline -D baseline -R ${{ github.repository }}
-          echo "has_baseline=true" >> "$GITHUB_OUTPUT"
 
       - name: Compare results
         id: compare
         env:
           PR_SHA: ${{ needs.resolve.outputs.pr_sha }}
           MAIN_SHA: ${{ needs.resolve.outputs.main_sha }}
-          HAS_BASELINE: ${{ steps.baseline.outputs.has_baseline }}
         run: |
           set -euo pipefail
 
@@ -179,6 +244,13 @@ jobs:
           VERDICT="pass"
           REGRESSIONS=""
           SUMMARY=""
+
+          add_failure() {
+            local region="$1" metric="$2" check_name="$3" baseline="$4" pr="$5" delta="$6"
+            REGRESSIONS="${REGRESSIONS}| ${region} | ${metric} | ${check_name} | ${baseline} | ${pr} | ${delta} | ❌ |
+          "
+            VERDICT="fail"
+          }
 
           compare_metric() {
             local region="$1" pr_file="$2" baseline_file="$3" metric="$4"
@@ -192,27 +264,17 @@ jobs:
             pr_throughput=$(jq -r ".metrics[\"$metric\"].throughput // 0" "$pr_file")
             pr_error_rate=$(jq -r ".metrics[\"$metric\"].error_rate // 0" "$pr_file")
 
-            # Error rate: any > 0 is a fail
-            if [ "$(echo "$pr_error_rate > 0" | bc -l)" -eq 1 ]; then
-              local pct
-              pct=$(printf "%.2f" "$(echo "$pr_error_rate * 100" | bc -l)")
-              REGRESSIONS="${REGRESSIONS}| ${region} | ${metric} | error_rate | 0% | ${pct}% | - | ❌ |
-          "
-              VERDICT="fail"
-            fi
-
-            if [ "$HAS_BASELINE" != "true" ]; then
-              SUMMARY="${SUMMARY}| ${region} | ${metric} | $(printf '%.2f' "$pr_p50") | $(printf '%.2f' "$pr_p95") | $(printf '%.2f' "$pr_p99") | $(printf '%.1f' "$pr_throughput") | $(printf '%.2f' "$(echo "$pr_error_rate * 100" | bc -l)")% |
-          "
-              return
-            fi
-
             base_p50=$(jq -r ".metrics[\"$metric\"].p50 // 0" "$baseline_file")
             base_p95=$(jq -r ".metrics[\"$metric\"].p95 // 0" "$baseline_file")
             base_p99=$(jq -r ".metrics[\"$metric\"].p99 // 0" "$baseline_file")
             base_throughput=$(jq -r ".metrics[\"$metric\"].throughput // 0" "$baseline_file")
 
-            # Latency checks: p50, p95, p99
+            if [ "$(echo "$pr_error_rate > 0" | bc -l)" -eq 1 ]; then
+              local pct
+              pct=$(printf "%.2f" "$(echo "$pr_error_rate * 100" | bc -l)")
+              add_failure "$region" "$metric" "error_rate" "0%" "${pct}%" "-"
+            fi
+
             for pct_name in p50 p95 p99; do
               local pr_val base_val
               eval "pr_val=\$pr_$pct_name"
@@ -222,21 +284,16 @@ jobs:
                 if [ "$(echo "$pr_val > $base_val * $THRESHOLD" | bc -l)" -eq 1 ]; then
                   local delta
                   delta=$(printf "%.1f" "$(echo "($pr_val / $base_val - 1) * 100" | bc -l)")
-                  REGRESSIONS="${REGRESSIONS}| ${region} | ${metric} | ${pct_name} | $(printf '%.2f' "$base_val")ms | $(printf '%.2f' "$pr_val")ms | +${delta}% | ❌ |
-          "
-                  VERDICT="fail"
+                  add_failure "$region" "$metric" "$pct_name" "$(printf '%.2f' "$base_val")ms" "$(printf '%.2f' "$pr_val")ms" "+${delta}%"
                 fi
               fi
             done
 
-            # Throughput check
             if [ "$(echo "$base_throughput > 0" | bc -l)" -eq 1 ]; then
               if [ "$(echo "$pr_throughput < $base_throughput * $THROUGHPUT_THRESHOLD" | bc -l)" -eq 1 ]; then
                 local delta
                 delta=$(printf "%.1f" "$(echo "(1 - $pr_throughput / $base_throughput) * 100" | bc -l)")
-                REGRESSIONS="${REGRESSIONS}| ${region} | ${metric} | throughput | $(printf '%.1f' "$base_throughput")/s | $(printf '%.1f' "$pr_throughput")/s | -${delta}% | ❌ |
-          "
-                VERDICT="fail"
+                add_failure "$region" "$metric" "throughput" "$(printf '%.1f' "$base_throughput")/s" "$(printf '%.1f' "$pr_throughput")/s" "-${delta}%"
               fi
             fi
 
@@ -244,14 +301,17 @@ jobs:
           "
           }
 
-          # Compare each region
           for region in eu-central us-east; do
             PR_FILE="k6-result-${region}/result.json"
-            BASELINE_FILE="baseline/${region}.json"
+            BASELINE_FILE="baseline-result-${region}/result.json"
+
+            if [ ! -f "$BASELINE_FILE" ]; then
+              add_failure "$region" "workflow" "baseline" "present" "missing" "-"
+              continue
+            fi
 
             if [ ! -f "$PR_FILE" ]; then
-              echo "Warning: no result for region $region"
-              VERDICT="fail"
+              add_failure "$region" "workflow" "pr_result" "present" "missing" "-"
               continue
             fi
 
@@ -261,7 +321,6 @@ jobs:
             done
           done
 
-          # Build report
           REPORT="<!-- cache-load-test -->
           ## Cache Load Test
           "
@@ -288,16 +347,15 @@ jobs:
           ${REGRESSIONS}"
           fi
 
-          REPORT="${REPORT}
+          if [ -n "$SUMMARY" ]; then
+            REPORT="${REPORT}
           ### Summary
           | Region | Metric | p50 (ms) | p95 (ms) | p99 (ms) | Throughput | Error Rate |
           |---|---|---:|---:|---:|---:|---:|
           ${SUMMARY}"
+          fi
 
-          # Save outputs
           echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
-
-          # Save report for comment job (use a file to handle multiline)
           echo "$REPORT" > report.md
 
       - uses: actions/upload-artifact@v4
@@ -309,8 +367,8 @@ jobs:
 
   restore:
     name: Restore main
-    needs: [resolve, deploy-pr, test, compare]
-    if: always() && needs.deploy-pr.result == 'success'
+    needs: [resolve, deploy-main, baseline, deploy-pr, test, compare]
+    if: always() && needs.deploy-main.result == 'success'
     runs-on: namespace-profile-default
     timeout-minutes: 30
     environment: cache-staging
@@ -338,8 +396,8 @@ jobs:
 
   comment:
     name: Update PR comment
-    needs: [resolve, deploy-pr, test, compare, restore]
-    if: always() && needs.deploy-pr.result == 'success'
+    needs: [resolve, deploy-main, baseline, deploy-pr, test, compare, restore]
+    if: always() && needs.deploy-main.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -355,6 +413,8 @@ jobs:
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
           PR_SHA: ${{ needs.resolve.outputs.pr_sha }}
           VERDICT: ${{ needs.compare.outputs.verdict }}
+          BASELINE_RESULT: ${{ needs.baseline.result }}
+          DEPLOY_PR_RESULT: ${{ needs.deploy-pr.result }}
           TEST_RESULT: ${{ needs.test.result }}
           COMPARE_RESULT: ${{ needs.compare.result }}
           RESTORE_RESULT: ${{ needs.restore.result }}
@@ -365,8 +425,11 @@ jobs:
           if [ -f report.md ]; then
             BODY=$(cat report.md)
           else
-            # Fallback if report wasn't generated
-            if [ "$TEST_RESULT" = "failure" ]; then
+            if [ "$BASELINE_RESULT" = "failure" ]; then
+              STATUS="❌ Baseline execution failed"
+            elif [ "$DEPLOY_PR_RESULT" = "failure" ]; then
+              STATUS="❌ PR deployment failed"
+            elif [ "$TEST_RESULT" = "failure" ]; then
               STATUS="❌ Test execution failed"
             elif [ "$COMPARE_RESULT" = "failure" ]; then
               STATUS="❌ Comparison failed"
@@ -397,7 +460,12 @@ jobs:
           fi
 
       - name: Fail on regression
-        if: needs.compare.outputs.verdict == 'fail' || needs.test.result == 'failure'
+        if: >
+          needs.baseline.result == 'failure' ||
+          needs.deploy-pr.result == 'failure' ||
+          needs.test.result == 'failure' ||
+          needs.compare.result == 'failure' ||
+          needs.compare.outputs.verdict == 'fail'
         run: |
           echo "::error::Load test detected regressions or test failures"
           exit 1
