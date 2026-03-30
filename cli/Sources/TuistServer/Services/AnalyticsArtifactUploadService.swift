@@ -4,6 +4,7 @@
     import Mockable
     import Path
     import TuistCore
+    import TuistHTTP
     import TuistSupport
 
     @Mockable
@@ -18,8 +19,7 @@
 
         func uploadResultBundleOnly(
             _ resultBundle: AbsolutePath,
-            accountHandle: String,
-            projectHandle: String,
+            fullHandle: String,
             commandEventId: String,
             serverURL: URL
         ) async throws
@@ -38,6 +38,7 @@
         private let xcresultToolController: XCResultToolControlling
         private let fileArchiver: FileArchivingFactorying
         private let retryProvider: RetryProviding
+        private let fullHandleService: FullHandleServicing
         private let multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing
         private let multipartUploadGenerateURLAnalyticsService:
             MultipartUploadGenerateURLAnalyticsServicing
@@ -51,6 +52,7 @@
                 xcresultToolController: XCResultToolController(),
                 fileArchiver: FileArchivingFactory(),
                 retryProvider: RetryProvider(),
+                fullHandleService: FullHandleService(),
                 multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsService(),
                 multipartUploadGenerateURLAnalyticsService:
                 MultipartUploadGenerateURLAnalyticsService(),
@@ -66,6 +68,7 @@
             xcresultToolController: XCResultToolControlling,
             fileArchiver: FileArchivingFactorying,
             retryProvider: RetryProviding,
+            fullHandleService: FullHandleServicing,
             multipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing,
             multipartUploadGenerateURLAnalyticsService: MultipartUploadGenerateURLAnalyticsServicing,
             multipartUploadArtifactService: MultipartUploadArtifactServicing,
@@ -76,6 +79,7 @@
             self.xcresultToolController = xcresultToolController
             self.fileArchiver = fileArchiver
             self.retryProvider = retryProvider
+            self.fullHandleService = fullHandleService
             self.multipartUploadStartAnalyticsService = multipartUploadStartAnalyticsService
             self.multipartUploadGenerateURLAnalyticsService = multipartUploadGenerateURLAnalyticsService
             self.multipartUploadArtifactService = multipartUploadArtifactService
@@ -158,18 +162,18 @@
 
         public func uploadResultBundleOnly(
             _ resultBundle: AbsolutePath,
-            accountHandle: String,
-            projectHandle: String,
+            fullHandle: String,
             commandEventId: String,
             serverURL: URL
         ) async throws {
+            let handles = try fullHandleService.parse(fullHandle)
             try await uploadAnalyticsArtifact(
                 ServerCommandEvent.Artifact(
                     type: .resultBundle
                 ),
                 artifactPath: resultBundle,
-                accountHandle: accountHandle,
-                projectHandle: projectHandle,
+                accountHandle: handles.accountHandle,
+                projectHandle: handles.projectHandle,
                 commandEventId: commandEventId,
                 serverURL: serverURL
             )

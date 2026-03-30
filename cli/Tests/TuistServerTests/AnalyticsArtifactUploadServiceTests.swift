@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import TuistCore
+import TuistHTTP
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -39,6 +40,7 @@ final class AnalyticsArtifactUploadServiceTests: TuistTestCase {
             xcresultToolController: xcresultToolController,
             fileArchiver: fileArchiverFactory,
             retryProvider: RetryProvider(),
+            fullHandleService: FullHandleService(),
             multipartUploadStartAnalyticsService: multipartUploadStartAnalyticsService,
             multipartUploadGenerateURLAnalyticsService: multipartUploadGenerateURLAnalyticsService,
             multipartUploadArtifactService: multipartUploadArtifactService,

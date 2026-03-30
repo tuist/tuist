@@ -215,14 +215,9 @@
                 status: "processing"
             )
 
-            let components = fullHandle.components(separatedBy: "/")
-            let accountHandle = components[0]
-            let projectHandle = components[1]
-
             try await analyticsArtifactUploadService.uploadResultBundleOnly(
                 resolvedResultBundlePath,
-                accountHandle: accountHandle,
-                projectHandle: projectHandle,
+                fullHandle: fullHandle,
                 commandEventId: test.id,
                 serverURL: serverURL
             )
