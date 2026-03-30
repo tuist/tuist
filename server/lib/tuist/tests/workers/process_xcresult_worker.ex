@@ -28,7 +28,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
       case result do
         {:ok, parsed_data} ->
-          create_test_from_parsed_data(parsed_data, args)
+          replace_test_run(parsed_data, args)
 
         {:error, reason} ->
           if attempt >= max_attempts do
@@ -84,7 +84,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     end
   end
 
-  defp create_test_from_parsed_data(parsed_data, args) do
+  defp replace_test_run(parsed_data, args) do
     test_modules = build_test_modules(parsed_data)
 
     attrs = %{
