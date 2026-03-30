@@ -27,10 +27,6 @@ defmodule TuistWeb.TestRunsLive do
       |> assign(OpenGraph.og_image_assigns("test-runs"))
       |> assign(:available_filters, define_filters(project))
 
-    if connected?(socket) do
-      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
-    end
-
     {:ok, socket}
   end
 
@@ -237,18 +233,6 @@ defmodule TuistWeb.TestRunsLive do
       )
 
     {:noreply, socket}
-  end
-
-  def handle_info({:test_created, %{name: "test"}}, socket) do
-    # Only update when pagination is inactive
-    if Query.has_pagination_params?(socket.assigns.uri.query) do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> assign_analytics(socket.assigns.current_params)
-       |> assign_test_runs(socket.assigns.current_params)}
-    end
   end
 
   def handle_info(_event, socket) do
