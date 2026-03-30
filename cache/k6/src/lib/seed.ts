@@ -88,7 +88,8 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
       check(startRes, { 'seed module start: ok': function (r) { return r.status === 200; } });
 
       if (startRes.status !== 200) {
-        console.error('Module start failed: status=' + startRes.status + ' body=' + startRes.body?.substring(0, 200));
+        var bodySnippet = typeof startRes.body === 'string' ? startRes.body.substring(0, 200) : '';
+        console.error('Module start failed: status=' + startRes.status + ' body=' + bodySnippet);
         refs.push({ hash: hash, name: name });
         continue;
       }

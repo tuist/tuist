@@ -117,6 +117,17 @@ jobs:
           dd if=/dev/urandom of=cache/k6/fixtures/10mb.bin bs=$((1024*1024)) count=10 2>/dev/null
           dd if=/dev/urandom of=cache/k6/fixtures/25mb.bin bs=$((1024*1024)) count=25 2>/dev/null
           dd if=/dev/urandom of=cache/k6/fixtures/50mb.bin bs=$((1024*1024)) count=50 2>/dev/null
+      - name: Wait for cache service
+        run: |
+          echo "Waiting for cache service at ${{ matrix.cache_host }}..."
+          for i in $(seq 1 30); do
+            if curl -sf "https://${{ matrix.cache_host }}/up" > /dev/null 2>&1; then
+              echo "Cache service ready after ${i}s"
+              break
+            fi
+            echo "Attempt $i: not ready, waiting..."
+            sleep 2
+          done
       - name: Run k6
         working-directory: cache/k6
         run: |
@@ -160,7 +171,7 @@ jobs:
             echo "No baseline found"
             exit 0
           fi
-          gh run download "$RUN_ID" -n cache-load-test-baseline -D baseline
+          gh run download "$RUN_ID" -n cache-load-test-baseline -D baseline -R ${{ github.repository }}
           echo "has_baseline=true" >> "$GITHUB_OUTPUT"
 
       - name: Compare results

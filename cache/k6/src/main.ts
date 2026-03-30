@@ -59,15 +59,15 @@ function makeScenario(cfg: ScenarioConfig): any {
 var scenarios: Record<string, any> = {};
 
 var allEntries = [
-  { key: 'key_value_read', exec: 'keyValueRead', rate: 150 },
-  { key: 'key_value_write', exec: 'keyValueWrite', rate: 40 },
-  { key: 'xcode_read', exec: 'xcodeRead', rate: 220 },
-  { key: 'xcode_write', exec: 'xcodeWrite', rate: 40 },
-  { key: 'module_exists', exec: 'moduleExists', rate: 40 },
-  { key: 'module_read', exec: 'moduleRead', rate: 20 },
-  { key: 'module_write', exec: 'moduleWrite', rate: 5 },
-  { key: 'gradle_read', exec: 'gradleRead', rate: 35 },
-  { key: 'gradle_write', exec: 'gradleWrite', rate: 8 },
+  { key: 'key_value_read', exec: 'keyValueRead', rate: 1024 },
+  { key: 'key_value_write', exec: 'keyValueWrite', rate: 512 },
+  { key: 'xcode_read', exec: 'xcodeRead', rate: 1024 },
+  { key: 'xcode_write', exec: 'xcodeWrite', rate: 1024 },
+  { key: 'module_exists', exec: 'moduleExists', rate: 128 },
+  { key: 'module_read', exec: 'moduleRead', rate: 256 },
+  { key: 'module_write', exec: 'moduleWrite', rate: 16 },
+  { key: 'gradle_read', exec: 'gradleRead', rate: 256 },
+  { key: 'gradle_write', exec: 'gradleWrite', rate: 16 },
 ];
 
 var offset = 0;
@@ -85,6 +85,7 @@ for (var i = 0; i < allEntries.length; i++) {
 
 export var options: Partial<Options> = {
   scenarios: scenarios,
+  setupTimeout: '120s',
   noConnectionReuse: false,
   insecureSkipTLSVerify: false,
 };
