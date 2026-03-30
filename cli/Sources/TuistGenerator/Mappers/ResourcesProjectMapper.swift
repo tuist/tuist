@@ -265,11 +265,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         case .local:
             (
                 """
-                #if hasFeature(InternalImportsByDefault)
                 public import Foundation
-                #else
-                import Foundation
-                #endif
                 """,
                 publicBundleAccessorString(for: target)
             )
