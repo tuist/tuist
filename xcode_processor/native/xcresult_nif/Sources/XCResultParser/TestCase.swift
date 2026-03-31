@@ -14,7 +14,7 @@ public struct TestCase: Encodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case name, module, duration, status, failures, repetitions, attachments
-        case testSuite = "test_suite"
+        case testSuite = "test_suite_name"
         case crashReport = "crash_report"
         case isQuarantined = "is_quarantined"
     }

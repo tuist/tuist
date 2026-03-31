@@ -3,9 +3,9 @@ import Path
 
 public struct TestCaseFailure: Encodable, Sendable {
     public enum IssueType: String, Encodable, Sendable {
-        case errorThrown = "Thrown Error"
-        case assertionFailure = "Assertion Failure"
-        case issueRecorded = "Issue Recorded"
+        case errorThrown = "error_thrown"
+        case assertionFailure = "assertion_failure"
+        case issueRecorded = "issue_recorded"
     }
 
     public let message: String?

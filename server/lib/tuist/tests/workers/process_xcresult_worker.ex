@@ -129,6 +129,9 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       xcode_version: Map.get(args, "xcode_version"),
       model_identifier: Map.get(args, "model_identifier"),
       scheme: Map.get(args, "scheme"),
+      ci_run_id: Map.get(args, "ci_run_id"),
+      ci_host: Map.get(args, "ci_host"),
+      ci_provider: Map.get(args, "ci_provider"),
       ran_at: NaiveDateTime.utc_now()
     }
   end

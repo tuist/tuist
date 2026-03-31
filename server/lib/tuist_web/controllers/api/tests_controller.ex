@@ -243,7 +243,7 @@ defmodule TuistWeb.API.TestsController do
            status: %Schema{
              type: :string,
              description: "The status of the test run.",
-             enum: ["success", "failure", "skipped", "processing"]
+             enum: ["success", "failure", "skipped", "processing", "failed_processing"]
            },
            git_commit_sha: %Schema{
              type: :string,
@@ -328,7 +328,7 @@ defmodule TuistWeb.API.TestsController do
                        status: %Schema{
                          type: :string,
                          description: "The status of the test suite.",
-                         enum: ["success", "failure", "skipped", "processing"]
+                         enum: ["success", "failure", "skipped", "processing", "failed_processing"]
                        },
                        duration: %Schema{
                          type: :integer,
@@ -355,7 +355,7 @@ defmodule TuistWeb.API.TestsController do
                        status: %Schema{
                          type: :string,
                          description: "The status of the test case.",
-                         enum: ["success", "failure", "skipped", "processing"]
+                         enum: ["success", "failure", "skipped", "processing", "failed_processing"]
                        },
                        duration: %Schema{
                          type: :integer,
@@ -471,7 +471,10 @@ defmodule TuistWeb.API.TestsController do
             macos_version: test_run.macos_version,
             xcode_version: test_run.xcode_version,
             model_identifier: test_run.model_identifier,
-            scheme: test_run.scheme
+            scheme: test_run.scheme,
+            ci_run_id: test_run.ci_run_id,
+            ci_host: test_run.ci_host,
+            ci_provider: test_run.ci_provider
           }
           |> Tuist.Tests.Workers.ProcessXcresultWorker.new()
           |> Oban.insert()

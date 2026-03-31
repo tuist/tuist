@@ -59,7 +59,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
           "test_cases" => [
             %{
               "name" => "test_example",
-              "test_suite" => "AppSuite",
+              "test_suite_name" => "AppSuite",
               "status" => "success",
               "duration" => 10.0,
               "failures" => [],
@@ -91,7 +91,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
           "test_cases" => [
             %{
               "name" => "test_failing",
-              "test_suite" => "AppSuite",
+              "test_suite_name" => "AppSuite",
               "status" => "failure",
               "duration" => 5.0,
               "failures" => [
@@ -99,7 +99,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
                   "message" => "XCTAssertTrue failed",
                   "path" => "AppTests/AppTests.swift",
                   "line_number" => 42,
-                  "issue_type" => "assertionFailure"
+                  "issue_type" => "assertion_failure"
                 }
               ],
               "repetitions" => []
@@ -248,7 +248,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         assert failure["message"] == "XCTAssertTrue failed"
         assert failure["path"] == "AppTests/AppTests.swift"
         assert failure["line_number"] == 42
-        assert failure["issue_type"] == "assertionFailure"
+        assert failure["issue_type"] == "assertion_failure"
 
         {:ok, %{id: test_run_id}}
       end)

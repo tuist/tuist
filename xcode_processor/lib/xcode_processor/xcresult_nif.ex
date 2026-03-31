@@ -23,8 +23,8 @@ defmodule XcodeProcessor.XCResultNIF do
         :ok
 
       {:error, reason} ->
-        Logger.warning("Failed to load xcresult NIF from #{nif_path}: #{inspect(reason)}")
-        :ok
+        Logger.error("Failed to load xcresult NIF from #{nif_path}: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
