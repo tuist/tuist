@@ -113,25 +113,6 @@ defmodule Tuist.LicenseTest do
     end
   end
 
-  describe "get_license/1" do
-    test "returns a synthetic valid license in self-hosting development mode" do
-      stub(Tuist.Environment, :self_hosting_development_mode?, fn -> true end)
-
-      assert {:ok, license} = License.get_license(ttl: 0)
-      assert license.valid == true
-      assert license.id == "self-hosting-development-mode"
-      assert is_nil(license.signing_key)
-    end
-
-    test "does not hit the key-value store in self-hosting development mode" do
-      stub(Tuist.Environment, :self_hosting_development_mode?, fn -> true end)
-
-      reject(Tuist.KeyValueStore, :get_or_update, 3)
-
-      assert {:ok, %{valid: true}} = License.get_license(ttl: 0)
-    end
-  end
-
   describe "resolve_certificate/2" do
     test "returns valid license when certificate is valid with real signed data" do
       {public_key, private_key} = :crypto.generate_key(:eddsa, :ed25519)

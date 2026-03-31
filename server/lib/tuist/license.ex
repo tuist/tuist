@@ -17,7 +17,7 @@ defmodule Tuist.License do
   end
 
   def sign(value) when is_binary(value) do
-    if skip_license_checks?() do
+    if Tuist.Environment.dev?() or Tuist.Environment.test?() do
       nil
     else
       {:ok, %{signing_key: key_base64}} = get_license()
@@ -30,15 +30,11 @@ defmodule Tuist.License do
   def get_license(opts \\ []) do
     ttl = Keyword.get(opts, :ttl, to_timeout(day: 1))
 
-    if Tuist.Environment.self_hosting_development_mode?() do
-      {:ok, development_license()}
-    else
-      KeyValueStore.get_or_update(
-        [__MODULE__, "license"],
-        [ttl: ttl],
-        fn -> fetch_license() end
-      )
-    end
+    KeyValueStore.get_or_update(
+      [__MODULE__, "license"],
+      [ttl: ttl],
+      fn -> fetch_license() end
+    )
   end
 
   defp fetch_license do
@@ -161,7 +157,7 @@ defmodule Tuist.License do
   def assert_valid!(opts \\ []) do
     Logger.info("Validating the license...")
 
-    if skip_license_checks?() do
+    if Tuist.Environment.dev?() or Tuist.Environment.test?() do
       :ok
     else
       case get_license(opts) do
@@ -218,21 +214,5 @@ defmodule Tuist.License do
       {:error, error} ->
         {:error, inspect(error)}
     end
-  end
-
-  defp skip_license_checks? do
-    Tuist.Environment.dev?() or
-      Tuist.Environment.test?() or
-      Tuist.Environment.self_hosting_development_mode?()
-  end
-
-  defp development_license do
-    %__MODULE__{
-      id: "self-hosting-development-mode",
-      valid: true,
-      features: [],
-      expiration_date: DateTime.add(DateTime.utc_now(), 365 * 24 * 60 * 60, :second),
-      signing_key: nil
-    }
   end
 end
