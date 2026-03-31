@@ -8,17 +8,17 @@
     gap: var(--noora-spacing-11);
   }
 
-  & > [data-part="header"]:not(#marketing-navbar) {
+  & > [data-part="header"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-7);
+    box-sizing: border-box;
     margin-right: auto;
     margin-left: auto;
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
     width: 100%;
     max-width: 769px;
-    box-sizing: border-box;
 
     @media (min-width: 1024px) {
       padding-top: var(--noora-spacing-12);
@@ -68,13 +68,13 @@
   }
 
   & > [data-part="body"] {
+    box-sizing: border-box;
     margin-right: auto;
     margin-left: auto;
     padding-right: var(--noora-spacing-6);
     padding-left: var(--noora-spacing-6);
     width: 100%;
     max-width: 769px;
-    box-sizing: border-box;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
 

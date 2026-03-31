@@ -19,17 +19,11 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
       raise NotFoundError
     end
 
-    description =
-      entry.body
-      |> HtmlSanitizeEx.strip_tags()
-      |> String.trim()
-      |> String.slice(0, 160)
-
     {:noreply,
      socket
      |> assign(:entry, entry)
      |> assign(:head_title, entry.title)
-     |> assign(:head_description, description)
+     |> assign(:head_description, entry.description)
      |> assign(
        :head_image,
        Tuist.Environment.app_url(path: "/marketing/images/og/generated/changelog/#{entry.id}.jpg")
