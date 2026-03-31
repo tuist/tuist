@@ -117,15 +117,10 @@ end
 
 defmodule L10n.Translator do
   @plural_forms %{
-    "ar" => "nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5;",
     "es" => "nplurals=2; plural=n != 1;",
     "ja" => "nplurals=1; plural=0;",
     "ko" => "nplurals=1; plural=0;",
-    "pl" => "nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",
-    "pt" => "nplurals=2; plural=n > 1;",
     "ru" => "nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",
-    "tr" => "nplurals=2; plural=n != 1;",
-    "yue_Hant" => "nplurals=1; plural=0;",
     "zh_Hans" => "nplurals=1; plural=0;",
     "zh_Hant" => "nplurals=1; plural=0;"
   }
@@ -291,7 +286,12 @@ defmodule L10n.CLI do
 
     model = Keyword.get(opts, :model) || Map.get(frontmatter, "model", "anthropic:claude-sonnet-4-6")
     sources = Map.get(frontmatter, "sources", [])
-    all_targets = Map.get(frontmatter, "targets", [])
+    target_path_template = Map.get(frontmatter, "target_path", "priv/gettext/{locale}/LC_MESSAGES")
+    raw_targets = Map.get(frontmatter, "targets", %{})
+
+    all_targets =
+      raw_targets
+      |> normalize_targets(target_path_template)
 
     targets =
       case Keyword.get(opts, :locale) do
@@ -335,6 +335,15 @@ defmodule L10n.CLI do
       end)
     end
   end
+
+  defp normalize_targets(targets, path_template) when is_map(targets) do
+    Enum.map(targets, fn {locale, language} ->
+      path = String.replace(path_template, "{locale}", locale)
+      %{"locale" => locale, "language" => language, "path" => path}
+    end)
+  end
+
+  defp normalize_targets(targets, _path_template) when is_list(targets), do: targets
 
   defp parse_args(argv) do
     {opts, rest, _} =

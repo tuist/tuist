@@ -97,10 +97,6 @@
     echo "2. Push your changes to complete the CLA signing process"
     '''
 
-[tasks.translate]
-    description = "Run LLM-based translations for .po files"
-    run = "elixir translate.exs"
-
 [settings]
     jobs = 6
     http_timeout = "60"
