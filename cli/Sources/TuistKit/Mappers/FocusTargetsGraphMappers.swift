@@ -31,6 +31,8 @@ public enum FocusTargetsGraphMappersError: FatalError, Equatable {
 public struct FocusTargetsGraphMappers: GraphMapping {
     /// When specified, if includedTargets is empty it will automatically include all targets in the test plan.
     public let testPlan: String?
+    /// When specified and no explicit filters are provided, only test targets from this scheme are included.
+    public let schemeName: String?
     /// The targets to be kept as non prunable with their respective dependencies and tests targets.
     public let includedTargets: Set<TargetQuery>
     public let excludedTargets: Set<TargetQuery>
@@ -40,11 +42,13 @@ public struct FocusTargetsGraphMappers: GraphMapping {
 
     public init(
         testPlan: String? = nil,
+        schemeName: String? = nil,
         includedTargets: Set<TargetQuery>,
         excludedTargets: Set<TargetQuery> = [],
         includedProducts: Set<Product> = []
     ) {
         self.testPlan = testPlan
+        self.schemeName = schemeName
         self.includedTargets = includedTargets
         self.excludedTargets = excludedTargets
         self.includedProducts = includedProducts
@@ -57,7 +61,16 @@ public struct FocusTargetsGraphMappers: GraphMapping {
         let hasExplicitFilters = !includedTargets.isEmpty || !excludedTargets.isEmpty || testPlan != nil
         let sourceTargets: Set<GraphTarget>
 
-        if !includedProducts.isEmpty, !hasExplicitFilters {
+        if let schemeName, !hasExplicitFilters {
+            let schemeTestTargets = graphTraverser.testTargets(for: schemeName)
+            if !schemeTestTargets.isEmpty {
+                sourceTargets = schemeTestTargets
+            } else if !includedProducts.isEmpty {
+                sourceTargets = graphTraverser.allTargets().filter { includedProducts.contains($0.target.product) }
+            } else {
+                sourceTargets = graphTraverser.allTargets()
+            }
+        } else if !includedProducts.isEmpty, !hasExplicitFilters {
             sourceTargets = graphTraverser.allTargets().filter { includedProducts.contains($0.target.product) }
         } else {
             let userSpecifiedSourceTargets = graphTraverser.filterIncludedTargets(

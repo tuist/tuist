@@ -500,7 +500,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .value(.test(device: .test(name: "Test iPhone")))
+                destination: .value(.test(device: .test(name: "Test iPhone"))),
+                schemeName: .any
             )
             .called(1)
         verify(xcodebuildController)
@@ -1583,7 +1584,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .willReturn(generator)
         given(buildGraphInspector)
@@ -1644,7 +1646,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .willReturn(generator)
         given(generator)
@@ -3107,7 +3110,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .willReturn(generator)
     }
@@ -3155,7 +3159,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .called(0)
 
@@ -3208,7 +3213,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .called(1)
     }

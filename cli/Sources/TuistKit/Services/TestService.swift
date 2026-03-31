@@ -296,7 +296,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ignoreBinaryCache: ignoreBinaryCache,
             ignoreSelectiveTesting: ignoreSelectiveTesting,
             cacheStorage: cacheStorage,
-            destination: destination
+            destination: destination,
+            schemeName: schemeName
         )
 
         Logger.current.notice("Generating project for testing", metadata: .section)
