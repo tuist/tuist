@@ -45,6 +45,10 @@ if [ -z "$CACHE_AUTH_TOKEN" ]; then
   exit 1
 fi
 
-echo "::add-mask::$ACCESS_TOKEN"
-echo "::add-mask::$CACHE_AUTH_TOKEN"
-echo "CACHE_AUTH_TOKEN=$CACHE_AUTH_TOKEN" >> "$GITHUB_ENV"
+export CACHE_AUTH_TOKEN
+
+if [ -n "${GITHUB_ENV:-}" ]; then
+  echo "::add-mask::$ACCESS_TOKEN"
+  echo "::add-mask::$CACHE_AUTH_TOKEN"
+  echo "CACHE_AUTH_TOKEN=$CACHE_AUTH_TOKEN" >> "$GITHUB_ENV"
+fi

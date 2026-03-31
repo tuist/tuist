@@ -3,7 +3,11 @@
 #MISE raw=true
 set -euo pipefail
 
-: "${CACHE_AUTH_TOKEN:?CACHE_AUTH_TOKEN must be set}"
+if [ -z "${CACHE_AUTH_TOKEN:-}" ]; then
+  echo "CACHE_AUTH_TOKEN not set, creating token..."
+  # shellcheck source=../../ci/create-cache-token.sh
+  source "${MISE_PROJECT_ROOT}/ci/create-cache-token.sh"
+fi
 : "${CACHE_HOST:=cache-eu-central-staging.tuist.dev}"
 : "${REGION:=eu-central}"
 SERVER_URL="${SERVER_URL:-https://staging.tuist.dev}"
