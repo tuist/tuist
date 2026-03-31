@@ -497,7 +497,7 @@ defmodule TuistWeb.DocsLive do
       locale={@locale}
     >
       <article id={"docs-body-#{@page.slug}"} class="tuist-docs" data-prose phx-hook="DocsContent">
-        {raw(@page.body)}
+        {render_doc_body(@page, assigns)}
       </article>
       <footer id="docs-page-footer">
         <div data-part="markdown-link">
@@ -556,6 +556,17 @@ defmodule TuistWeb.DocsLive do
         []
     end
   end
+
+  defp render_doc_body(%{live: true, body_template: template, code_blocks: code_blocks}, assigns) do
+    merged_assigns = Map.put(assigns, :_doc_code_blocks, code_blocks || [])
+
+    {rendered, _} =
+      Code.eval_quoted(template, [assigns: merged_assigns], Macro.Env.prune_compile_info(__ENV__))
+
+    rendered
+  end
+
+  defp render_doc_body(%{body: body}, _assigns), do: raw(body)
 
   defp build_path(%{"path" => path_parts}, locale), do: Paths.slug(locale, path_parts)
   defp build_path(_params, locale), do: Paths.slug(locale)

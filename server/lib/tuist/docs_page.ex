@@ -10,9 +10,12 @@ defmodule Tuist.Docs.Page do
     :title_template,
     :description,
     :body,
+    :body_template,
     :source_path,
     :markdown,
     :last_modified,
-    headings: []
+    live: false,
+    headings: [],
+    code_blocks: []
   ]
 end

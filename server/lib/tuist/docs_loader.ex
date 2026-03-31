@@ -1,20 +1,28 @@
 defmodule Tuist.Docs.Loader do
   @moduledoc false
 
+  use Noora
+  # Ensures MarkdownComponents is compiled before this module, since
+  # live doc pages reference it from HEEx templates at compile time.
+  alias Phoenix.HTML.Safe
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
   alias Tuist.Docs.Paths
   alias Tuist.Locale
+
+  require TuistWeb.Docs.MarkdownComponents
 
   # Paths
   @docs_root Path.expand("../../priv/docs", __DIR__)
   @locales Locale.supported_locales()
   @examples_root Path.expand("../../../examples/xcode", __DIR__)
 
-  # Icons
-  @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
-  @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
-  @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
+  # Icons (rendered from Noora components at compile time)
+  @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
+  @copy_check_icon %{__changed__: nil}
+                   |> Noora.Icon.copy_check()
+                   |> Safe.to_iodata()
+                   |> IO.iodata_to_binary()
   @alert_circle_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>)
   @circle_check_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 12l2 2l4 -4" /></svg>)
   @alert_triangle_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>)
@@ -52,6 +60,22 @@ defmodule Tuist.Docs.Loader do
   </div>\
   """
 
+  @mdex_options [
+    extension: [
+      header_ids: "",
+      autolink: true,
+      table: true,
+      strikethrough: true,
+      tasklist: true,
+      alerts: true,
+      phoenix_heex: true
+    ],
+    render: [unsafe: true],
+    syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
+  ]
+
+  @code_content_regex ~r/(<code[^>]*>)(.*?)(<\/code>)/s
+
   def load_pages! do
     source_paths =
       @locales
@@ -83,7 +107,8 @@ defmodule Tuist.Docs.Loader do
 
     {attrs, markdown} = parse_frontmatter(contents)
     headings = extract_headings(markdown)
-    html = render_markdown(markdown, locale)
+    live? = attrs["live"] || false
+    {html, template, code_blocks} = render_markdown(markdown, source_path, locale, live?)
 
     last_modified = file_last_modified(source_path)
 
@@ -93,6 +118,9 @@ defmodule Tuist.Docs.Loader do
       title_template: attrs["titleTemplate"],
       description: attrs["description"],
       body: html,
+      body_template: template,
+      live: live?,
+      code_blocks: code_blocks,
       markdown: markdown,
       source_path: relative_path,
       headings: headings,
@@ -123,7 +151,7 @@ defmodule Tuist.Docs.Loader do
 
     markdown_with_link = markdown <> "\n\n[Check out example](#{github_url})\n"
     headings = extract_headings(markdown_with_link)
-    html = render_markdown(markdown_with_link)
+    {html, _template, _code_blocks} = render_markdown(markdown_with_link, readme_path, "en", false)
 
     %Page{
       slug: slug,
@@ -193,37 +221,89 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
-  defp render_markdown(markdown, locale \\ "en") do
+  defp render_markdown(markdown, source_path, locale, live?) do
     custom_ids = extract_custom_heading_ids(markdown)
 
     processed_markdown =
       markdown
       |> String.replace(@script_setup_regex, "")
       |> localize_link_components(locale)
-      |> convert_home_cards(locale)
+      |> then(fn md -> if live?, do: md, else: convert_home_cards(md, locale) end)
       |> strip_custom_heading_ids()
       |> convert_code_groups()
 
-    [markdown: processed_markdown]
-    |> MDEx.new()
-    |> MDExMermaid.attach(mermaid_init: "")
-    |> MDEx.to_html!(
-      extension: [
-        header_ids: "",
-        autolink: true,
-        table: true,
-        strikethrough: true,
-        tasklist: true,
-        alerts: true
-      ],
-      syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
+    html =
+      [markdown: processed_markdown]
+      |> MDEx.new()
+      |> MDExMermaid.attach(mermaid_init: "")
+      |> MDEx.Document.put_options(@mdex_options)
+      |> MDEx.to_html!()
+      |> convert_github_alerts()
+      |> HTML.wrap_code_blocks()
+      |> wrap_tables()
+      |> rewrite_image_paths()
+      |> replace_heading_ids(custom_ids)
+      |> HTML.add_heading_anchors()
+
+    if live? do
+      {safe_html, code_blocks} = extract_code_contents(html)
+      safe_html = escape_heex_expressions(safe_html)
+      template = compile_heex_template(safe_html, source_path)
+      {html, template, code_blocks}
+    else
+      {html, nil, []}
+    end
+  end
+
+  defp compile_heex_template(html, path) do
+    env = __ENV__
+
+    EEx.compile_string(
+      html,
+      engine: Phoenix.LiveView.TagEngine,
+      file: path,
+      line: 1,
+      caller: env,
+      indentation: 0,
+      source: html,
+      tag_handler: Phoenix.LiveView.HTMLEngine
     )
-    |> convert_github_alerts()
-    |> HTML.wrap_code_blocks()
-    |> wrap_tables()
-    |> rewrite_image_paths()
-    |> replace_heading_ids(custom_ids)
-    |> HTML.add_heading_anchors()
+  end
+
+  defp extract_code_contents(html) do
+    blocks = @code_content_regex |> Regex.scan(html) |> Enum.map(fn [_, _, content, _] -> content end)
+
+    {safe_html, _} =
+      @code_content_regex
+      |> Regex.scan(html, return: :index)
+      |> Enum.with_index()
+      |> Enum.reverse()
+      |> Enum.reduce({html, nil}, fn {[_full_idx, _open_idx, content_idx, _close_idx], idx}, {acc, _} ->
+        {content_start, content_len} = content_idx
+        placeholder = "<%= raw(Enum.at(@_doc_code_blocks, #{idx})) %>"
+        acc = binary_replace_range(acc, content_start, content_len, placeholder)
+        {acc, nil}
+      end)
+
+    {safe_html, blocks}
+  end
+
+  defp binary_replace_range(binary, start, len, replacement) do
+    before = binary_part(binary, 0, start)
+    after_part = binary_part(binary, start + len, byte_size(binary) - start - len)
+    before <> replacement <> after_part
+  end
+
+  defp escape_heex_expressions(html) do
+    parts = Regex.split(~r/(<%.*?%>)/s, html, include_captures: true)
+
+    Enum.map_join(parts, fn part ->
+      if String.starts_with?(part, "<%") do
+        part
+      else
+        String.replace(part, "{", "&#123;")
+      end
+    end)
   end
 
   defp convert_github_alerts(html) do
