@@ -5,7 +5,6 @@ defmodule TuistWeb.DocsLive do
 
   alias Tuist.Docs
   alias Tuist.Docs.Paths
-  alias TuistWeb.AccountProjectBreadcrumbs
   alias TuistWeb.Errors.NotFoundError
 
   @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
@@ -21,12 +20,10 @@ defmodule TuistWeb.DocsLive do
 
   def mount(_params, _session, socket) do
     locale = Gettext.get_locale()
-    current_user = socket.assigns[:current_user]
 
     socket =
       socket
       |> assign(:locale, locale)
-      |> init_selector(current_user)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
         current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
@@ -36,44 +33,11 @@ defmodule TuistWeb.DocsLive do
     {:ok, socket}
   end
 
-  defp init_selector(socket, nil) do
-    socket
-    |> assign(:breadcrumbs, [])
-    |> assign(:user_accounts, [])
-    |> assign(:selected_account, nil)
-    |> assign(:selected_project, nil)
-    |> assign(:account_projects, [])
-  end
-
-  defp init_selector(socket, current_user) do
-    accounts = AccountProjectBreadcrumbs.get_user_accounts(current_user)
-    selected_account = current_user.account
-    projects = AccountProjectBreadcrumbs.get_account_projects(selected_account, current_user)
-    selected_project = List.first(projects)
-
-    socket
-    |> assign(:user_accounts, accounts)
-    |> assign(:selected_account, selected_account)
-    |> assign(:account_projects, projects)
-    |> assign(:selected_project, selected_project)
-    |> build_breadcrumbs(selected_account, accounts, selected_project, projects)
-  end
-
   def handle_params(params, _url, socket) do
     case socket.assigns.live_action do
       :overview -> handle_overview(socket)
       :show -> handle_show(params, socket)
     end
-  end
-
-  defp build_breadcrumbs(socket, selected_account, accounts, selected_project, projects) do
-    account_breadcrumb =
-      AccountProjectBreadcrumbs.account_breadcrumb(selected_account, accounts, stateful: true)
-
-    project_breadcrumb =
-      AccountProjectBreadcrumbs.project_breadcrumb(selected_project, selected_account, projects, stateful: true)
-
-    assign(socket, :breadcrumbs, [account_breadcrumb, project_breadcrumb])
   end
 
   defp handle_overview(socket) do
@@ -573,43 +537,6 @@ defmodule TuistWeb.DocsLive do
 
   def handle_event("copy-page-markdown", _params, socket) do
     {:noreply, socket}
-  end
-
-  def handle_event("select-account", %{"value" => account_id}, socket) do
-    case Enum.find(socket.assigns.user_accounts, &(&1.id == account_id)) do
-      nil ->
-        {:noreply, socket}
-
-      account ->
-        current_user = socket.assigns[:current_user]
-        projects = AccountProjectBreadcrumbs.get_account_projects(account, current_user)
-        selected_project = List.first(projects)
-
-        {:noreply,
-         socket
-         |> assign(:selected_account, account)
-         |> assign(:account_projects, projects)
-         |> assign(:selected_project, selected_project)
-         |> build_breadcrumbs(account, socket.assigns.user_accounts, selected_project, projects)}
-    end
-  end
-
-  def handle_event("select-project", %{"value" => project_id}, socket) do
-    case Enum.find(socket.assigns.account_projects, &(&1.id == project_id)) do
-      nil ->
-        {:noreply, socket}
-
-      project ->
-        {:noreply,
-         socket
-         |> assign(:selected_project, project)
-         |> build_breadcrumbs(
-           socket.assigns.selected_account,
-           socket.assigns.user_accounts,
-           project,
-           socket.assigns.account_projects
-         )}
-    end
   end
 
   defp fetch_latest_videos do
