@@ -4,7 +4,7 @@ This node covers Helm assets under `infra/helm/`.
 
 ## Scope
 - Umbrella and component charts for deploying Tuist services on Kubernetes
-- Values and profiles for embedded vs external infrastructure dependencies
+- Values for embedded vs external infrastructure dependencies
 - Kubernetes manifests and helper templates for app services, data services, and observability
 
 ## Conventions

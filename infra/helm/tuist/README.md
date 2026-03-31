@@ -2,43 +2,26 @@
 
 This chart deploys the Tuist server, cache service, and processor, with support for either embedded or external infrastructure dependencies.
 
-## Supported installation profiles
-
-- `distributed`: application workloads are deployed by the chart and infrastructure dependencies are expected to be provided externally.
-- `compact`: application workloads are deployed by the chart and infrastructure dependencies can be embedded in the same Helm release.
-
-## Dependency capabilities
+## Infrastructure dependencies
 
 - `postgresql`
 - `clickhouse`
 - `objectStorage`
 - `observability`
 
-Each dependency can be configured independently as either `embedded` or `external` where applicable.
+Each dependency defaults to `embedded` (deployed within the chart). To use an external provider instead, set its `mode` to `external` and configure the connection details under the corresponding section in `values.yaml`.
 
 ## Local validation
 
 Render manifests:
 
 ```bash
-mise exec helm -- helm template tuist infra/helm/tuist -f infra/helm/tuist/values-compact.yaml
+helm template tuist infra/helm/tuist
 ```
 
 Install into a local kind cluster:
 
 ```bash
-mise exec kind -- kind create cluster --name tuist
-mise exec helm -- helm install tuist infra/helm/tuist -f infra/helm/tuist/values-compact.yaml
+kind create cluster --name tuist
+helm install tuist infra/helm/tuist
 ```
-
-## Local server validation without a production license
-
-For local evaluation only, the chart can start the server in a self-hosting development mode:
-
-```bash
-mise exec helm -- helm install tuist infra/helm/tuist \
-  -f infra/helm/tuist/values-compact.yaml \
-  --set server.license.selfHostingDevelopmentMode=true
-```
-
-This bypass is disabled by default and must not be enabled for real self-hosted production deployments.

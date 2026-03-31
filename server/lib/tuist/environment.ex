@@ -94,7 +94,6 @@ defmodule Tuist.Environment do
       get([:license, :certificate, :base64], secrets)
   end
 
-
   def use_ipv6?(secrets \\ secrets()) do
     get([:use_ipv6], secrets)
   end

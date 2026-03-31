@@ -1,8 +1,6 @@
 nameOverride: ""
 fullnameOverride: ""
 
-profile: distributed
-
 global:
   imagePullSecrets: []
   commonLabels: {}
@@ -109,7 +107,7 @@ processor:
     bucketAsHost: false
 
 postgresql:
-  mode: external
+  mode: embedded
   external:
     host: ""
     port: 5432
@@ -132,7 +130,7 @@ postgresql:
     resources: {}
 
 clickhouse:
-  mode: external
+  mode: embedded
   external:
     url: ""
   embedded:
@@ -151,7 +149,7 @@ clickhouse:
     resources: {}
 
 objectStorage:
-  mode: external
+  mode: embedded
   external:
     endpoint: ""
     accessKey: ""
