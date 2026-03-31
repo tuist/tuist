@@ -104,13 +104,19 @@ func schemes() -> [Scheme] {
                 postActions: [
                     inspectBuildPostAction(target: "TuistKitAcceptanceTests"),
                 ],
-                runPostActionsOnFailure: true,
-                findImplicitDependencies: false
+                runPostActionsOnFailure: true
             ),
             testAction: .targets(
                 Module.allCases.flatMap(\.acceptanceTestTargets).map {
                     .testableTarget(target: .target($0.name))
                 } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))] : []),
+                arguments: .arguments(
+                    environmentVariables: [
+                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
+                        "TUIST_AUTH_EMAIL": "tuistrocks@tuist.dev",
+                        "TUIST_AUTH_PASSWORD": "tuistrocks",
+                    ]
+                ),
                 postActions: [
                     inspectTestPostAction(target: "TuistKitAcceptanceTests"),
                 ]
