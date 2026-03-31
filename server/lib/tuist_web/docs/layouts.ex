@@ -3,6 +3,9 @@ defmodule TuistWeb.Docs.Layouts do
   use TuistWeb, :html
   use Noora
 
+  import TuistWeb.AccountDropdown
+  import TuistWeb.AppLayoutComponents, only: [headerbar_breadcrumbs: 1]
+
   alias Tuist.Docs.Paths
 
   embed_templates "layouts/*"

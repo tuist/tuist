@@ -159,13 +159,24 @@
             <.brand_bluesky />
           </.neutral_button>
         </div>
-        <.button
-          :if={is_nil(assigns[:current_user])}
-          label={dgettext("docs", "Log in")}
-          variant="primary"
-          size="small"
-          href={~p"/docs/login?#{%{return_to: @current_path}}"}
-        />
+        <%= if is_nil(assigns[:current_user]) do %>
+          <.button
+            label={dgettext("docs", "Log in")}
+            variant="primary"
+            size="small"
+            href={~p"/docs/login?#{%{return_to: @current_path}}"}
+          />
+        <% else %>
+          <.headerbar_breadcrumbs
+            breadcrumbs={assigns[:breadcrumbs] || []}
+            id="docs-headerbar-breadcrumbs"
+          />
+          <.account_dropdown
+            id="docs-account-dropdown"
+            latest_app_release={%{ok?: false, result: nil}}
+            current_user={@current_user}
+          />
+        <% end %>
       </div>
       <div data-part="mobile-actions">
         <.neutral_button size="large" aria-label={dgettext("docs", "Search")}>

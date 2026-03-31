@@ -5,6 +5,7 @@ defmodule TuistWeb.DocsLive do
 
   alias Tuist.Docs
   alias Tuist.Docs.Paths
+  alias TuistWeb.AccountProjectBreadcrumbs
   alias TuistWeb.Errors.NotFoundError
 
   @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
@@ -20,10 +21,12 @@ defmodule TuistWeb.DocsLive do
 
   def mount(_params, _session, socket) do
     locale = Gettext.get_locale()
+    current_user = socket.assigns[:current_user]
 
     socket =
       socket
       |> assign(:locale, locale)
+      |> assign_breadcrumbs(current_user)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
         current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
@@ -31,6 +34,30 @@ defmodule TuistWeb.DocsLive do
       end)
 
     {:ok, socket}
+  end
+
+  defp assign_breadcrumbs(socket, nil) do
+    assign(socket, :breadcrumbs, [])
+  end
+
+  defp assign_breadcrumbs(socket, current_user) do
+    accounts = AccountProjectBreadcrumbs.get_user_accounts(current_user)
+    selected_account = current_user.account
+    projects = AccountProjectBreadcrumbs.get_account_projects(selected_account, current_user)
+
+    breadcrumbs = [AccountProjectBreadcrumbs.account_breadcrumb(selected_account, accounts)]
+
+    breadcrumbs =
+      case projects do
+        [first_project | _] ->
+          breadcrumbs ++
+            [AccountProjectBreadcrumbs.project_breadcrumb(first_project, selected_account, projects)]
+
+        [] ->
+          breadcrumbs
+      end
+
+    assign(socket, :breadcrumbs, breadcrumbs)
   end
 
   def handle_params(params, _url, socket) do

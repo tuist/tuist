@@ -13,6 +13,7 @@ defmodule TuistWeb.LayoutLive do
   alias Tuist.CommandEvents
   alias Tuist.GitHub.Releases
   alias Tuist.Projects
+  alias TuistWeb.AccountProjectBreadcrumbs
   alias TuistWeb.Errors.NotFoundError
 
   def on_mount(
@@ -63,67 +64,16 @@ defmodule TuistWeb.LayoutLive do
 
     %{account: selected_account} = selected_project
 
-    selected_projects = get_projects(selected_account, current_user)
-
-    current_user_accounts =
-      if is_nil(current_user) do
-        []
-      else
-        get_user_organization_accounts(current_user) ++ [current_user.account]
-      end
+    selected_projects = AccountProjectBreadcrumbs.get_account_projects(selected_account, current_user)
+    current_user_accounts = AccountProjectBreadcrumbs.get_user_accounts(current_user)
 
     {:cont,
      socket
      |> assign_current_path()
-     |> append_breadcrumb(%{
-       label: selected_account.name,
-       icon: "smart_home",
-       show_avatar: true,
-       avatar_color: Accounts.avatar_color(selected_account),
-       items:
-         Enum.map(current_user_accounts, fn account ->
-           %{
-             label: account.name,
-             value: account.id,
-             selected: account.id == selected_account.id,
-             href: ~p"/#{account.name}/projects",
-             show_avatar: true,
-             avatar_color: Accounts.avatar_color(account)
-           }
-         end) ++
-           [
-             %{
-               label: dgettext("dashboard", "Create organization"),
-               value: "create-organization",
-               href: ~p"/organizations/new",
-               icon: "building_plus",
-               selected: false
-             }
-           ]
-     })
-     |> append_breadcrumb(%{
-       label: selected_project.name,
-       badge: build_system_badge(selected_project.build_system),
-       items:
-         Enum.map(selected_projects, fn project ->
-           %{
-             label: project.name,
-             value: project.id,
-             selected: selected_project.id == project.id,
-             href: ~p"/#{account_handle}/#{project.name}",
-             badge: build_system_badge(project.build_system)
-           }
-         end) ++
-           [
-             %{
-               label: dgettext("dashboard", "Create project"),
-               value: "create-project",
-               href: ~p"/projects/new?account_id=#{selected_account.id}",
-               icon: "circle_plus",
-               selected: false
-             }
-           ]
-     })
+     |> append_breadcrumb(AccountProjectBreadcrumbs.account_breadcrumb(selected_account, current_user_accounts))
+     |> append_breadcrumb(
+       AccountProjectBreadcrumbs.project_breadcrumb(selected_project, selected_account, selected_projects)
+     )
      |> assign_latest_app_release()
      |> assign_latest_cli_release()
      |> assign(:selected_account, selected_account)
@@ -139,8 +89,7 @@ defmodule TuistWeb.LayoutLive do
   def on_mount(:account, params, session, socket) do
     current_user = get_current_user(session)
 
-    current_user_accounts =
-      get_user_organization_accounts(current_user) ++ [current_user.account]
+    current_user_accounts = AccountProjectBreadcrumbs.get_user_accounts(current_user)
 
     selected_account =
       case Map.get(params, "account_handle") do
@@ -156,31 +105,7 @@ defmodule TuistWeb.LayoutLive do
     {:cont,
      socket
      |> assign_current_path()
-     |> append_breadcrumb(%{
-       label: selected_account.name,
-       show_avatar: true,
-       avatar_color: Accounts.avatar_color(selected_account),
-       items:
-         Enum.map(current_user_accounts, fn account ->
-           %{
-             label: account.name,
-             value: account.id,
-             href: ~p"/#{account.name}/projects",
-             selected: account.id == selected_account.id,
-             show_avatar: true,
-             avatar_color: Accounts.avatar_color(account)
-           }
-         end) ++
-           [
-             %{
-               label: dgettext("dashboard", "Create organization"),
-               value: "create-organization",
-               href: ~p"/organizations/new",
-               icon: "building_plus",
-               selected: false
-             }
-           ]
-     })
+     |> append_breadcrumb(AccountProjectBreadcrumbs.account_breadcrumb(selected_account, current_user_accounts))
      |> assign(
        :can_read_billing,
        Authorization.authorize(:billing_read, current_user, selected_account) == :ok
@@ -203,28 +128,11 @@ defmodule TuistWeb.LayoutLive do
      |> assign(:current_user, current_user)}
   end
 
-  defp get_user_organization_accounts(user) do
-    if is_nil(user) do
-      []
-    else
-      user |> Accounts.get_user_organization_accounts() |> Enum.map(& &1.account)
-    end
-  end
-
   defp assign_current_path(socket) do
     attach_hook(socket, :assign_current_path, :handle_params, fn _params, url, socket ->
       %{path: current_path} = URI.parse(url)
       {:cont, assign(socket, :current_path, current_path)}
     end)
-  end
-
-  defp get_projects(account, current_user) do
-    account
-    |> Projects.get_all_project_accounts()
-    |> Enum.filter(fn %{account: account, project: project} ->
-      Authorization.authorize(:project_url_access, current_user, %{project | account: account}) == :ok
-    end)
-    |> Enum.map(&%{&1.project | account: &1.account})
   end
 
   defp get_current_user(session) do
@@ -289,8 +197,4 @@ defmodule TuistWeb.LayoutLive do
 
     {:ok, %{latest_cli_release: latest_cli_release}}
   end
-
-  defp build_system_badge(:xcode), do: %{label: "Xcode", color: "focus"}
-  defp build_system_badge(:gradle), do: %{label: "Gradle", color: "success"}
-  defp build_system_badge(_), do: nil
 end
