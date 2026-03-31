@@ -34,8 +34,8 @@ jobs:
           cache: "false"
       - name: Run translations
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: elixir translate.exs
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: elixir translate.exs --model "openai:gpt-4.1-mini"
       - name: Check for changes
         id: changes
         run: |

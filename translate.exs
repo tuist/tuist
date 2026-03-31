@@ -224,13 +224,44 @@ defmodule L10n.Lock do
         "locale_override_files" => attrs.locale_override_files
       }
 
-    File.write!(lock_path, JSON.encode!(data))
+    File.write!(lock_path, pretty_json(data))
   end
 
   defp read(path) do
     case File.read(path) do
       {:ok, content} -> JSON.decode(content)
       {:error, _} -> {:error, :not_found}
+    end
+  end
+
+  defp pretty_json(value, indent \\ 0) do
+    pad = String.duplicate("  ", indent)
+    inner_pad = String.duplicate("  ", indent + 1)
+
+    case value do
+      map when is_map(map) ->
+        entries =
+          map
+          |> Enum.sort_by(&elem(&1, 0))
+          |> Enum.map(fn {k, v} -> "#{inner_pad}#{JSON.encode!(k)}: #{pretty_json(v, indent + 1)}" end)
+          |> Enum.join(",\n")
+
+        "{\n#{entries}\n#{pad}}"
+
+      list when is_list(list) ->
+        if list == [] do
+          "[]"
+        else
+          entries =
+            list
+            |> Enum.map(fn v -> "#{inner_pad}#{pretty_json(v, indent + 1)}" end)
+            |> Enum.join(",\n")
+
+          "[\n#{entries}\n#{pad}]"
+        end
+
+      other ->
+        JSON.encode!(other)
     end
   end
 end
@@ -245,10 +276,14 @@ defmodule L10n.Translator do
   """
 
   @plural_forms %{
+    "ar" => "nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5;",
     "es" => "nplurals=2; plural=n != 1;",
     "ja" => "nplurals=1; plural=0;",
     "ko" => "nplurals=1; plural=0;",
+    "pl" => "nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",
+    "pt" => "nplurals=2; plural=n > 1;",
     "ru" => "nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",
+    "yue_Hant" => "nplurals=1; plural=0;",
     "zh_Hans" => "nplurals=1; plural=0;",
     "zh_Hant" => "nplurals=1; plural=0;"
   }
@@ -405,7 +440,7 @@ defmodule L10n.Translator do
         end
       end,
       max_concurrency: Keyword.get(opts, :max_concurrency, 4),
-      timeout: Keyword.get(opts, :timeout, 300_000)
+      timeout: :infinity
     )
     |> Enum.map(fn {:ok, result} -> result end)
   end
@@ -532,7 +567,7 @@ defmodule L10n.CLI do
           )
         end,
         max_concurrency: Keyword.get(opts, :concurrency, 4),
-        timeout: Keyword.get(opts, :timeout, 300_000) * 2
+        timeout: :infinity
       )
       |> Enum.flat_map(fn {:ok, results} -> results end)
     end

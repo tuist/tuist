@@ -20,7 +20,8 @@ defmodule TuistWeb.Marketing.Localization do
     %{code: "pt", label: "Portuguese", native: "Português"},
     %{code: "ru", label: "Russian", native: "Русский"},
     %{code: "yue_Hant", label: "Cantonese", native: "廣東話"},
-    %{code: "zh_Hans", label: "Chinese", native: "中文"}
+    %{code: "zh_Hans", label: "Chinese (Simplified)", native: "简体中文"},
+    %{code: "zh_Hant", label: "Chinese (Traditional)", native: "繁體中文"}
   ]
 
   @additional_locales @languages

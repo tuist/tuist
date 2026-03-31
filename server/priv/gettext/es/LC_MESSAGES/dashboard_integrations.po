@@ -34,7 +34,7 @@ msgstr "Elegir repositorio para conectar"
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
-msgstr "Conecta cualquiera de tus repositorios de GitHub a un proyecto"
+msgstr "Conectar cualquiera de tus repositorios de GitHub a un proyecto"
 
 #: lib/tuist_web/live/integrations_live.ex:163
 #, elixir-autogen, elixir-format
@@ -49,7 +49,7 @@ msgstr "Conectado hace %{time_ago} por %{name}"
 #: lib/tuist_web/live/integrations_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
-msgstr "Crear Conexión"
+msgstr "Crear conexión"
 
 #: lib/tuist_web/live/integrations_live.html.heex:6
 #, elixir-autogen, elixir-format
@@ -70,12 +70,12 @@ msgstr "Integraciones"
 #: lib/tuist_web/live/integrations_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Manage"
-msgstr "Administrar"
+msgstr "Gestionar"
 
 #: lib/tuist_web/live/integrations_live.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Manage integration"
-msgstr "Administrar integración"
+msgstr "Gestionar integración"
 
 #: lib/tuist_web/live/integrations_live.html.heex:162
 #, elixir-autogen, elixir-format

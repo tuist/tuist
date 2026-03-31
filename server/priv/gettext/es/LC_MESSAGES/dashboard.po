@@ -62,7 +62,7 @@ msgstr "Facturación"
 #: lib/tuist_web/components/app_layout_components.ex:223
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "Ejecuciones de build"
+msgstr "Ejecuciones de Build"
 
 #: lib/tuist_web/components/app_layout_components.ex:31
 #: lib/tuist_web/components/app_layout_components.ex:206
@@ -86,7 +86,7 @@ msgstr "CI"
 #: lib/tuist_web/components/app_layout_components.ex:168
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
-msgstr "Ejecuciones de caché"
+msgstr "Ejecuciones de Caché"
 
 #: lib/tuist_web/live/layout_live.ex:96
 #: lib/tuist_web/live/layout_live.ex:176
@@ -102,7 +102,7 @@ msgstr "Descargar app para macOS"
 #: lib/tuist_web/components/layouts/ops.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Emails"
-msgstr "Correos electrónicos"
+msgstr "Emails"
 
 #: lib/tuist_web/controllers/error_html.ex:133
 #, elixir-autogen, elixir-format
@@ -117,7 +117,7 @@ msgstr "Errores"
 #: lib/tuist_web/components/layouts/ops.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "Flags"
-msgstr "Indicadores"
+msgstr "Flags"
 
 #: lib/tuist_web/components/empty_card_section.ex:29
 #: lib/tuist_web/components/public_project_cta_banner.ex:40
@@ -179,7 +179,7 @@ msgstr "Miembros"
 #: lib/tuist_web/components/app_layout_components.ex:145
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
-msgstr "Caché de módulos"
+msgstr "Caché de Módulos"
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:117
 #, elixir-autogen, elixir-format
@@ -194,7 +194,7 @@ msgstr "Siguiente"
 #: lib/tuist_web/components/widget.ex:146
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "Aún no hay datos"
+msgstr "Sin datos aún"
 
 #: lib/tuist_web/controllers/error_html.ex:64
 #, elixir-autogen, elixir-format
@@ -210,12 +210,12 @@ msgstr "Solo los roles de operaciones pueden acceder a esta página."
 #: lib/tuist_web/controllers/error_html.ex:98
 #, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
-msgstr "¡Ups! Algo salió mal"
+msgstr "¡Vaya! Algo salió mal"
 
 #: lib/tuist_web/controllers/error_html.ex:65
 #, elixir-autogen, elixir-format
 msgid "Oops, we couldn't find that page"
-msgstr "Ups, no pudimos encontrar esa página"
+msgstr "Vaya, no pudimos encontrar esa página"
 
 #: lib/tuist_web/components/account_dropdown.ex:68
 #: lib/tuist_web/components/layouts/ops.html.heex:11
@@ -231,7 +231,7 @@ msgstr "Resumen"
 #: lib/tuist_web/controllers/error_html.ex:44
 #, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
-msgstr "Por favor, asegúrate de acceder al recurso correcto y de tener los permisos para acceder a él."
+msgstr "Por favor, asegúrate de que estás accediendo al recurso correcto y que tienes permisos para acceder."
 
 #: lib/tuist_web/components/app_components.ex:51
 #, elixir-autogen, elixir-format
@@ -272,7 +272,7 @@ msgstr "Lo sentimos, la página que buscas no existe o ha sido movida."
 #: lib/tuist_web/controllers/error_html.ex:79
 #, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
-msgstr "Lo sentimos, hiciste demasiadas solicitudes. Por favor, inténtalo de nuevo más tarde."
+msgstr "Lo sentimos, realizaste demasiadas solicitudes. Por favor, inténtalo más tarde."
 
 #: lib/tuist_web/components/layouts/ops.html.heex:44
 #, elixir-autogen, elixir-format
@@ -282,25 +282,25 @@ msgstr "Almacenamiento"
 #: lib/tuist_web/components/account_dropdown.ex:84
 #, elixir-autogen, elixir-format
 msgid "Switch to your preferred theme"
-msgstr "Cambia a tu tema preferido"
+msgstr "Cambiar a tu tema preferido"
 
 #: lib/tuist_web/components/app_layout_components.ex:94
 #: lib/tuist_web/components/app_layout_components.ex:269
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
-msgstr "Casos de prueba"
+msgstr "Casos de tests"
 
 #: lib/tuist_web/components/app_layout_components.ex:79
 #: lib/tuist_web/components/app_layout_components.ex:254
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
-msgstr "Ejecuciones de pruebas"
+msgstr "Ejecuciones de tests"
 
 #: lib/tuist_web/components/app_layout_components.ex:62
 #: lib/tuist_web/components/app_layout_components.ex:237
 #, elixir-autogen, elixir-format
 msgid "Tests"
-msgstr "Pruebas"
+msgstr "Tests"
 
 #: lib/tuist_web/plugs/loader_plug.ex:53
 #, elixir-autogen, elixir-format
@@ -315,7 +315,7 @@ msgstr "La cuenta que buscas no existe o ha sido movida."
 #: lib/tuist_web/controllers/auth_controller.ex:25
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
-msgstr "La URL de autenticación no es compatible"
+msgstr "La URL de autenticación no es soportada"
 
 #: lib/tuist_web/authorization.ex:63
 #: lib/tuist_web/authorization.ex:79
@@ -326,7 +326,7 @@ msgstr "La página que buscas no existe o ha sido movida."
 #: lib/tuist_web/controllers/preview_controller.ex:133
 #, elixir-autogen, elixir-format
 msgid "The preview ipa doesn't exist or has expired."
-msgstr "El IPA de preview no existe o ha expirado."
+msgstr "El ipa de preview no existe o ha expirado."
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
 #: lib/tuist_web/plugs/loader_plug.ex:116
@@ -374,7 +374,7 @@ msgstr "Icono de Tuist"
 #: lib/tuist_web/components/layout_components.ex:56
 #, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
-msgstr "Tuist extiende las herramientas de Apple, ayudándote a enviar aplicaciones que se destacan."
+msgstr "Tuist extiende las herramientas de Apple, ayudándote a lanzar apps que se destacan."
 
 #: lib/tuist_web/controllers/error_html.ex:40
 #, elixir-autogen, elixir-format
@@ -409,7 +409,7 @@ msgstr "Necesitas estar autenticado para acceder a esta página."
 #: lib/tuist_web/controllers/user_session_controller.ex:28
 #, elixir-autogen, elixir-format
 msgid "You've exceeded the rate limit. Try again later."
-msgstr "Has excedido el límite de solicitudes. Inténtalo de nuevo más tarde."
+msgstr "Has excedido el límite de solicitudes. Intenta más tarde."
 
 #: lib/tuist_web/components/terminal.ex:10
 #, elixir-autogen, elixir-format
@@ -435,12 +435,12 @@ msgstr "p99"
 #: lib/tuist_web/components/app_layout_components.ex:284
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
-msgstr "Pruebas intermitentes"
+msgstr "Tests inestables"
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:33
 #, elixir-autogen, elixir-format
 msgid "Ready to speed up your builds and unlock insights for your app?"
-msgstr "¿Listo para acelerar tus builds y desbloquear información valiosa para tu app?"
+msgstr "¿Listo para acelerar tus builds y desbloquear insights para tu app?"
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:47
 #, elixir-autogen, elixir-format
@@ -456,7 +456,7 @@ msgstr "Este es un dashboard público para el proyecto %{account_name}/%{project
 #: lib/tuist_web/components/app_layout_components.ex:295
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
-msgstr "Pruebas en cuarentena"
+msgstr "Tests en cuarentena"
 
 #: lib/tuist_web/components/app_layout_components.ex:180
 #, elixir-autogen, elixir-format
@@ -496,7 +496,7 @@ msgstr "Métricas"
 #: lib/tuist_web/controllers/auth_controller.ex:289
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate."
-msgstr "Error en la autenticación."
+msgstr "Fallo al autenticar."
 
 #: lib/tuist_web/controllers/auth_controller.ex:65
 #: lib/tuist_web/controllers/auth_controller.ex:75
@@ -506,7 +506,7 @@ msgstr "Error en la autenticación."
 #: lib/tuist_web/controllers/auth_controller.ex:224
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with Okta."
-msgstr "Error al autenticar con Okta."
+msgstr "Fallo al autenticar con Okta."
 
 #: lib/tuist_web/controllers/error_html.ex:28
 #, elixir-autogen, elixir-format
@@ -516,10 +516,10 @@ msgstr "Autenticación fallida"
 #: lib/tuist_web/controllers/auth_controller.ex:280
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
-msgstr "Tu proveedor de identidad denegó el acceso. Por favor, pide al administrador de tu organización que te asigne a la aplicación Tuist."
+msgstr "Tu proveedor de identidad negó el acceso. Por favor, pide al administrador de tu organización que te asigne a la aplicación Tuist."
 
 #: lib/tuist_web/components/app_layout_components.ex:131
 #: lib/tuist_web/components/app_layout_components.ex:306
 #, elixir-autogen, elixir-format
 msgid "Shards"
-msgstr "Fragmentos"
+msgstr "Shards"

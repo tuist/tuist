@@ -14,7 +14,7 @@ msgstr "¡Cuenta confirmada!"
 #: lib/tuist_web/live/user_registration_live.ex:294
 #, elixir-autogen, elixir-format
 msgid "Account created successfully! Please log in."
-msgstr "¡Cuenta creada con éxito! Por favor, inicie sesión."
+msgstr "¡Cuenta creada con éxito! Por favor, inicia sesión."
 
 #: lib/tuist_web/live/user_registration_live.ex:306
 #, elixir-autogen, elixir-format
@@ -120,7 +120,7 @@ msgstr "Dashboard"
 #: lib/tuist_web/live/user_registration_live.ex:30
 #, elixir-autogen, elixir-format
 msgid "Discover how selective testing is reducing your test time."
-msgstr "Descubre cómo el selective testing está reduciendo el tiempo de tus pruebas."
+msgstr "Descubre cómo el selective testing está reduciendo tu tiempo de tests."
 
 #: lib/tuist_web/live/user_login_live.ex:200
 #, elixir-autogen, elixir-format
@@ -144,12 +144,12 @@ msgstr "El correo electrónico ya está en uso"
 #: lib/tuist_web/live/connect_live.ex:75
 #, elixir-autogen, elixir-format
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "Explora las funciones de Tuist como binary caching y selective testing para acelerar tu desarrollo."
+msgstr "Explora funcionalidades de Tuist como binary caching y selective testing para acelerar tu desarrollo."
 
 #: lib/tuist_web/live/user_registration_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Explore how binary caching is enhancing your build times."
-msgstr "Descubre cómo binary caching está mejorando los tiempos de compilación."
+msgstr "Explora cómo el binary caching está mejorando tus tiempos de build."
 
 #: lib/tuist_web/live/user_login_live.ex:169
 #, elixir-autogen, elixir-format
@@ -164,7 +164,7 @@ msgstr "¿Olvidaste tu contraseña?"
 #: lib/tuist_web/live/user_forgot_password_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "Si tu correo existe en nuestros registros, recibirás instrucciones para restablecerla en breve."
+msgstr "Si tu correo existe en nuestros registros, recibirás instrucciones para restablecerla pronto."
 
 #: lib/tuist_web/live/connect_live.ex:41
 #, elixir-autogen, elixir-format
@@ -174,7 +174,7 @@ msgstr "Instala Tuist CLI"
 #: lib/tuist_web/live/user_registration_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Instantly share your app using a URL."
-msgstr "Comparte tu aplicación al instante usando una URL."
+msgstr "Comparte tu app al instante usando una URL."
 
 #: lib/tuist_web/live/sso_login_live.ex:83
 #: lib/tuist_web/live/user_okta_login_live.ex:86
@@ -185,7 +185,7 @@ msgstr "¿Interesado en SSO?"
 #: lib/tuist_web/live/user_login_live.ex:162
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
-msgstr "Mantener la sesión iniciada"
+msgstr "Mantener sesión iniciada"
 
 #: lib/tuist_web/live/sso_login_live.ex:79
 #: lib/tuist_web/live/user_login_live.ex:17
@@ -212,7 +212,7 @@ msgstr "Inicia sesión en tu cuenta empresarial vía Okta"
 #: lib/tuist_web/live/user_okta_login_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "Logging in via Okta failed"
-msgstr "Falló el inicio de sesión vía Okta"
+msgstr "Error al iniciar sesión vía Okta"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:44
 #, elixir-autogen, elixir-format
@@ -222,7 +222,7 @@ msgstr "Nueva contraseña"
 #: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format
 msgid "Next steps"
-msgstr "Siguientes pasos"
+msgstr "Próximos pasos"
 
 #: lib/tuist_web/live/sso_login_live.ex:34
 #, elixir-autogen, elixir-format
@@ -237,7 +237,7 @@ msgstr "O"
 #: lib/tuist_web/live/user_okta_login_live.ex:17
 #, elixir-autogen, elixir-format
 msgid "Okta log in"
-msgstr "Inicio de sesión Okta"
+msgstr "Inicio de sesión con Okta"
 
 #: lib/tuist_web/live/user_login_live.ex:149
 #: lib/tuist_web/live/user_registration_live.ex:158
@@ -274,7 +274,7 @@ msgstr "Ejecuta el siguiente comando para instalar Tuist CLI."
 #: lib/tuist_web/live/connect_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "Run this command to link your project to the dashboard."
-msgstr "Ejecuta este comando para vincular tu proyecto al dashboard."
+msgstr "Ejecuta este comando para enlazar tu proyecto al dashboard."
 
 #: lib/tuist_web/live/user_registration_live.ex:27
 #, elixir-autogen, elixir-format
@@ -286,7 +286,7 @@ msgstr "Selective testing"
 #: lib/tuist_web/live/user_registration_live.ex:264
 #, elixir-autogen, elixir-format
 msgid "Sign up"
-msgstr "Regístrate"
+msgstr "Crear cuenta"
 
 #: lib/tuist_web/live/user_registration_live.ex:75
 #, elixir-autogen, elixir-format
@@ -340,7 +340,7 @@ msgstr "¡Tuist está conectado!"
 #: lib/tuist_web/live/user_confirmation_live.ex:57
 #, elixir-autogen, elixir-format
 msgid "User confirmation link is invalid or it has expired."
-msgstr "El enlace de confirmación del usuario no es válido o ha expirado."
+msgstr "El enlace de confirmación de usuario no es válido o ha expirado."
 
 #: lib/tuist_web/live/choose_username_live.ex:65
 #: lib/tuist_web/live/user_registration_live.ex:169
@@ -362,7 +362,7 @@ msgstr "Esperando conexión"
 #: lib/tuist_web/live/user_forgot_password_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "We'll send a password reset link to your inbox"
-msgstr "Te enviaremos un enlace para restablecer la contraseña a tu bandeja de entrada"
+msgstr "Enviaremos un enlace para restablecer tu contraseña a tu bandeja de entrada"
 
 #: lib/tuist_web/live/user_login_live.ex:50
 #, elixir-autogen, elixir-format
@@ -387,7 +387,7 @@ msgstr "Puedes cerrar la pestaña y continuar en la app"
 #: lib/tuist_web/live/device_codes_success_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
-msgstr "Puedes cerrar la pestaña y continuar en el terminal"
+msgstr "Puedes cerrar la pestaña y continuar en la terminal"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:48
 #, elixir-autogen, elixir-format
@@ -407,7 +407,7 @@ msgstr "Tu cuenta ha sido confirmada. Serás redirigido en breve..."
 #: lib/tuist_web/live/user_reset_password_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Your new password must be different to previously used passwords."
-msgstr "Tu nueva contraseña debe ser diferente a las contraseñas usadas anteriormente."
+msgstr "Tu nueva contraseña debe ser distinta a las contraseñas usadas anteriormente."
 
 #: lib/tuist_web/live/connect_live.ex:49
 #: lib/tuist_web/live/connect_live.ex:67
@@ -429,7 +429,7 @@ msgstr "usando CLI"
 #: lib/tuist_web/components/app_auth_components.ex:13
 #, elixir-autogen, elixir-format
 msgid "By continuing, you agree to Tuist's"
-msgstr "Al continuar, aceptas los"
+msgstr "Al continuar, aceptas la"
 
 #: lib/tuist_web/components/app_auth_components.ex:19
 #, elixir-autogen, elixir-format
@@ -449,4 +449,4 @@ msgstr "y"
 #: lib/tuist_web/live/user_login_live.ex:195
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
-msgstr "Iniciar sesión como usuario de prueba"
+msgstr "Inicia sesión como usuario de prueba"
