@@ -96,7 +96,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         test_modules: parsed_data["test_modules"] || []
       })
 
-    Tests.create_test(attrs)
+    case Tests.create_test(attrs) do
+      {:ok, _} -> :ok
+      error -> error
+    end
   end
 
   defp mark_failed_processing(args) do
@@ -107,7 +110,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         test_modules: []
       })
 
-    Tests.create_test(attrs)
+    case Tests.create_test(attrs) do
+      {:ok, _} -> :ok
+      error -> error
+    end
   end
 
   defp base_attrs(args) do

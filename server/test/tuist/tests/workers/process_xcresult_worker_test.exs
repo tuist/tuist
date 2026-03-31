@@ -189,8 +189,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         assert length(attrs.test_modules) == 1
 
         [module] = attrs.test_modules
-        assert module.name == "AppModuleTests"
-        assert module.status == "success"
+        assert module["name"] == "AppModuleTests"
+        assert module["status"] == "success"
         {:ok, %{id: test_run_id}}
       end)
 
@@ -209,13 +209,13 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         assert attrs.status == "success"
 
         [module] = attrs.test_modules
-        assert module.status == "success"
+        assert module["status"] == "success"
 
-        [suite] = module.test_suites
-        assert suite.status == "success"
+        [suite] = module["test_suites"]
+        assert suite["status"] == "success"
 
-        [test_case] = module.test_cases
-        assert test_case.status == "success"
+        [test_case] = module["test_cases"]
+        assert test_case["status"] == "success"
 
         {:ok, %{id: test_run_id}}
       end)
@@ -235,20 +235,20 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         assert attrs.status == "failure"
 
         [module] = attrs.test_modules
-        assert module.status == "failure"
+        assert module["status"] == "failure"
 
-        [suite] = module.test_suites
-        assert suite.status == "failure"
+        [suite] = module["test_suites"]
+        assert suite["status"] == "failure"
 
-        [test_case] = module.test_cases
-        assert test_case.status == "failure"
-        assert length(test_case.failures) == 1
+        [test_case] = module["test_cases"]
+        assert test_case["status"] == "failure"
+        assert length(test_case["failures"]) == 1
 
-        [failure] = test_case.failures
-        assert failure.message == "XCTAssertTrue failed"
-        assert failure.file == "AppTests/AppTests.swift"
-        assert failure.line_number == 42
-        assert failure.issue_type == "assertionFailure"
+        [failure] = test_case["failures"]
+        assert failure["message"] == "XCTAssertTrue failed"
+        assert failure["path"] == "AppTests/AppTests.swift"
+        assert failure["line_number"] == 42
+        assert failure["issue_type"] == "assertionFailure"
 
         {:ok, %{id: test_run_id}}
       end)
