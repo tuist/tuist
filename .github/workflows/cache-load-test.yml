@@ -1,20 +1,6 @@
 name: Cache Load Test
 
 on:
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: PR number to test
-        required: true
-      pr_ref:
-        description: PR head ref
-        required: true
-      pr_sha:
-        description: PR head SHA
-        required: true
-      main_sha:
-        description: Main branch SHA at time of request
-        required: true
   pull_request:
     types: [labeled]
     branches: ['main']
@@ -34,8 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: >
-      (github.event_name == 'pull_request' && github.event.label.name == 'load-test') ||
-      github.event_name == 'workflow_dispatch'
+      github.event.label.name == 'load-test' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     outputs:
       pr_number: ${{ steps.resolve.outputs.pr_number }}
       pr_ref: ${{ steps.resolve.outputs.pr_ref }}
@@ -48,21 +34,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "pr_number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
-            echo "pr_ref=${{ inputs.pr_ref }}" >> "$GITHUB_OUTPUT"
-            echo "pr_sha=${{ inputs.pr_sha }}" >> "$GITHUB_OUTPUT"
-            echo "main_sha=${{ inputs.main_sha }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-            echo "pr_ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
-            echo "pr_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
-            MAIN_SHA=$(gh api "/repos/${{ github.repository }}/commits/main" --jq '.sha')
-            echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
-          fi
+          echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          echo "pr_ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
+          echo "pr_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          MAIN_SHA=$(gh api "/repos/${{ github.repository }}/commits/main" --jq '.sha')
+          echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Remove label
-        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
