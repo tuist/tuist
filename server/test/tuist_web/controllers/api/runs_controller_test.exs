@@ -13,6 +13,7 @@ defmodule TuistWeb.API.RunsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Utilities
   alias TuistWeb.Authentication
 
   defp get_builds_for_project(project_id, opts \\ []) do
@@ -26,7 +27,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
   setup do
     stub(VCS, :enqueue_vcs_pull_request_comment, fn _args -> {:ok, %{}} end)
-    TuistTestSupport.Utilities.truncate_clickhouse_tables()
+    Utilities.truncate_clickhouse_tables()
     :ok
   end
 
@@ -1348,6 +1349,8 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert test_run.status == "success"
 
       # Verify test cases were stored with correct statuses
+      Utilities.flush_test_buffers()
+
       {test_cases, _meta} =
         Tests.list_test_case_runs(%{
           filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
@@ -1455,6 +1458,8 @@ defmodule TuistWeb.API.RunsControllerTest do
       {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.status == "success"
+
+      Utilities.flush_test_buffers()
 
       {test_cases, _meta} =
         Tests.list_test_case_runs(%{

@@ -11,6 +11,11 @@ defmodule TuistTestSupport.Utilities do
   """
   def with_flushed_ingestion_buffers(fun) when is_function(fun, 0) do
     result = fun.()
+    flush_ingestion_buffers()
+    result
+  end
+
+  def flush_ingestion_buffers do
     Tuist.CommandEvents.Event.Buffer.flush()
     Tuist.Gradle.Build.Buffer.flush()
     Tuist.Gradle.Task.Buffer.flush()
@@ -18,7 +23,17 @@ defmodule TuistTestSupport.Utilities do
     Tuist.Xcode.XcodeProject.Buffer.flush()
     Tuist.Xcode.XcodeTarget.Buffer.flush()
     Tuist.Builds.Build.Buffer.flush()
-    result
+    flush_test_buffers()
+  end
+
+  def flush_test_buffers do
+    Tuist.Tests.TestCase.Buffer.flush()
+    Tuist.Tests.TestCaseRun.Buffer.flush()
+    Tuist.Tests.TestModuleRun.Buffer.flush()
+    Tuist.Tests.TestSuiteRun.Buffer.flush()
+    Tuist.Tests.TestCaseFailure.Buffer.flush()
+    Tuist.Tests.TestCaseRunRepetition.Buffer.flush()
+    Tuist.Tests.TestCaseEvent.Buffer.flush()
   end
 
   def truncate_clickhouse_tables do
