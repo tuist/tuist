@@ -23,7 +23,7 @@ interface ScenarioConfig {
   maxVUs?: number;
 }
 
-var SCENARIO_SECONDS = 150; // each scenario runs for 2m30s
+var SCENARIO_SECONDS = 300; // each scenario runs for 5m
 
 function makeScenario(cfg: ScenarioConfig): any {
   var halfRate = Math.ceil(cfg.rate * 0.5);
@@ -39,12 +39,12 @@ function makeScenario(cfg: ScenarioConfig): any {
     maxVUs: cfg.maxVUs || Math.max(Math.ceil(burstRate * 0.2), 10),
     startTime: cfg.startTime || '0s',
     stages: [
-      { duration: '15s', target: halfRate },
       { duration: '30s', target: halfRate },
-      { duration: '10s', target: fullRate },
-      { duration: '1m', target: fullRate },
-      { duration: '10s', target: burstRate },
-      { duration: '25s', target: burstRate },
+      { duration: '1m', target: halfRate },
+      { duration: '15s', target: fullRate },
+      { duration: '2m', target: fullRate },
+      { duration: '15s', target: burstRate },
+      { duration: '1m', target: burstRate },
     ],
   };
 }
@@ -56,12 +56,12 @@ var allEntries = [
   { key: 'key_value_read', exec: 'keyValueRead', rate: 512 },
   { key: 'key_value_write', exec: 'keyValueWrite', rate: 256 },
   { key: 'xcode_read', exec: 'xcodeRead', rate: 512 },
-  { key: 'xcode_write', exec: 'xcodeWrite', rate: 64 },
+  { key: 'xcode_write', exec: 'xcodeWrite', rate: 256 },
   { key: 'module_exists', exec: 'moduleExists', rate: 64 },
   { key: 'module_read', exec: 'moduleRead', rate: 128 },
-  { key: 'module_write', exec: 'moduleWrite', rate: 4 },
+  { key: 'module_write', exec: 'moduleWrite', rate: 32 },
   { key: 'gradle_read', exec: 'gradleRead', rate: 128 },
-  { key: 'gradle_write', exec: 'gradleWrite', rate: 4 },
+  { key: 'gradle_write', exec: 'gradleWrite', rate: 32 },
 ];
 
 var offset = 0;

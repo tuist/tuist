@@ -333,8 +333,10 @@ jobs:
           set -euo pipefail
 
           P50_THRESHOLD="1.10"
-          THROUGHPUT_THRESHOLD="0.80"
-          ERROR_RATE_ABS_THRESHOLD="0.10"
+          P50_ABS_MIN="50"
+          P50_ABS_THRESHOLD="10"
+          THROUGHPUT_THRESHOLD="0.97"
+          ERROR_RATE_THRESHOLD="0"
           VERDICT="pass"
           REGRESSIONS=""
           SUMMARY=""
@@ -364,26 +366,40 @@ jobs:
             base_throughput=$(jq -r ".metrics[\"$metric\"].throughput // 0" "$baseline_file")
             base_error_rate=$(jq -r ".metrics[\"$metric\"].error_rate // 0" "$baseline_file")
 
-            local error_diff
-            error_diff=$(echo "$pr_error_rate - $base_error_rate" | bc -l)
-            if [ "$(echo "$error_diff > $ERROR_RATE_ABS_THRESHOLD" | bc -l)" -eq 1 ]; then
+            if [ "$(echo "$pr_error_rate > $ERROR_RATE_THRESHOLD" | bc -l)" -eq 1 ]; then
               local pct
               pct=$(printf "%.2f" "$(echo "$pr_error_rate * 100" | bc -l)")
-              local base_pct
-              base_pct=$(printf "%.2f" "$(echo "$base_error_rate * 100" | bc -l)")
-              add_failure "$region" "$metric" "error_rate" "${base_pct}%" "${pct}%" "+$(printf '%.1f' "$(echo "$error_diff * 100" | bc -l)")pp"
+              add_failure "$region" "$metric" "error_rate" "0%" "${pct}%" "-"
             fi
 
             # Only check p50 — p95/p99 are too noisy on staging
             if [ "$(echo "$base_p50 > 0" | bc -l)" -eq 1 ]; then
-              if [ "$(echo "$pr_p50 > $base_p50 * $P50_THRESHOLD" | bc -l)" -eq 1 ]; then
+              local p50_diff
+              p50_diff=$(echo "$pr_p50 - $base_p50" | bc -l)
+              local p50_regression=0
+
+              if [ "$(echo "$base_p50 < $P50_ABS_MIN" | bc -l)" -eq 1 ]; then
+                # Low-latency metric: use absolute threshold only
+                if [ "$(echo "$p50_diff > $P50_ABS_THRESHOLD" | bc -l)" -eq 1 ]; then
+                  p50_regression=1
+                fi
+              else
+                # High-latency metric: use percentage threshold
+                if [ "$(echo "$pr_p50 > $base_p50 * $P50_THRESHOLD" | bc -l)" -eq 1 ]; then
+                  p50_regression=1
+                fi
+              fi
+
+              if [ "$p50_regression" -eq 1 ]; then
                 local delta
                 delta=$(printf "%.1f" "$(echo "($pr_p50 / $base_p50 - 1) * 100" | bc -l)")
                 add_failure "$region" "$metric" "p50" "$(printf '%.2f' "$base_p50")ms" "$(printf '%.2f' "$pr_p50")ms" "+${delta}%"
               fi
             fi
 
-            if [ "$(echo "$base_throughput > 0" | bc -l)" -eq 1 ]; then
+            local pr_iters
+            pr_iters=$(jq -r ".metrics[\"$metric\"].iterations // 0" "$pr_file")
+            if [ "$(echo "$base_throughput > 0" | bc -l)" -eq 1 ] && [ "$(echo "$pr_iters >= 20" | bc -l)" -eq 1 ]; then
               if [ "$(echo "$pr_throughput < $base_throughput * $THROUGHPUT_THRESHOLD" | bc -l)" -eq 1 ]; then
                 local delta
                 delta=$(printf "%.1f" "$(echo "(1 - $pr_throughput / $base_throughput) * 100" | bc -l)")
