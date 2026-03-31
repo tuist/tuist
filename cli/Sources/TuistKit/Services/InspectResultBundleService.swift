@@ -131,16 +131,14 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             shardIndex: shardIndex
         )
 
-        let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)
-        let argumentIdsByRunAndName = argumentIdsByRunAndName(testCaseRuns: test.test_case_runs)
+        let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
 
         await testSummary.testCases.forEach(context: .concurrent) { testCase in
             await uploadAttachments(
                 for: testCase,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                testCaseRunIdsByIdentity: testCaseRunIdsByIdentity,
-                argumentIdsByRunAndName: argumentIdsByRunAndName
+                testCaseRunsByIdentity: testCaseRunsByIdentity
             )
         }
 
@@ -153,8 +151,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         for testCase: TestCase,
         fullHandle: String,
         serverURL: URL,
-        testCaseRunIdsByIdentity: [String: String],
-        argumentIdsByRunAndName: [String: String]
+        testCaseRunsByIdentity: [String: TestCaseRunInfo]
     ) async {
         guard !testCase.attachments.isEmpty else { return }
 
@@ -163,17 +160,17 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             suiteName: testCase.testSuite ?? "",
             name: testCase.name
         )
-        guard let testCaseRunId = testCaseRunIdsByIdentity[identityKey] else { return }
+        guard let runInfo = testCaseRunsByIdentity[identityKey] else { return }
 
         await testCase.attachments.forEach(context: .concurrent) { attachment in
             do {
                 let argumentId: String? = attachment.argumentName.flatMap { argName in
-                    argumentIdsByRunAndName["\(testCaseRunId)/\(argName)"]
+                    runInfo.argumentIdsByName[argName]
                 }
                 let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    testCaseRunId: testCaseRunId,
+                    testCaseRunId: runInfo.id,
                     fileName: attachment.fileName,
                     filePath: attachment.filePath,
                     repetitionNumber: attachment.repetitionNumber,
@@ -186,7 +183,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         crashReport: crashReport,
-                        testCaseRunId: testCaseRunId,
+                        testCaseRunId: runInfo.id,
                         testCaseRunAttachmentId: testCaseRunAttachmentId
                     )
                 }
@@ -198,22 +195,20 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
     }
 
-    private func testCaseRunIdsByIdentity(
-        testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
-    ) -> [String: String] {
-        testCaseRuns.reduce(into: [:]) { result, run in
-            let key = testCaseRunIdentityKey(moduleName: run.module_name, suiteName: run.suite_name, name: run.name)
-            result[key] = run.id
-        }
+    private struct TestCaseRunInfo {
+        let id: String
+        let argumentIdsByName: [String: String]
     }
 
-    private func argumentIdsByRunAndName(
+    private func testCaseRunsByIdentity(
         testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
-    ) -> [String: String] {
+    ) -> [String: TestCaseRunInfo] {
         testCaseRuns.reduce(into: [:]) { result, run in
-            for argument in run.arguments ?? [] {
-                result["\(run.id)/\(argument.name)"] = argument.id
+            let key = testCaseRunIdentityKey(moduleName: run.module_name, suiteName: run.suite_name, name: run.name)
+            let argumentIdsByName = (run.arguments ?? []).reduce(into: [String: String]()) { args, arg in
+                args[arg.name] = arg.id
             }
+            result[key] = TestCaseRunInfo(id: run.id, argumentIdsByName: argumentIdsByName)
         }
     }
 
