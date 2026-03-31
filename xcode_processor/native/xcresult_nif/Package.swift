@@ -41,5 +41,10 @@ let package = Package(
                 .product(name: "Path", package: "tuist.Path"),
             ]
         ),
+        .testTarget(
+            name: "XCResultParserTests",
+            dependencies: ["XCResultParser"],
+            resources: [.copy("../Fixtures")]
+        ),
     ]
 )

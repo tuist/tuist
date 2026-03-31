@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import TuistXCResultService
 @testable import XCResultParser
 
 struct IPSCrashReportParserTests {
