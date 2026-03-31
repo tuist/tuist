@@ -227,7 +227,7 @@ jobs:
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Build tests
         id: shard
-        run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
+        run: tuist test --build-only --no-binary-cache --shard-total 2 --shard-granularity suite TuistAcceptanceTests
 
   cli-acceptance-tests:
     name: Acceptance Tests
@@ -276,9 +276,7 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Run shard ${{ matrix.shard }}
-        run: |
-          TUIST_DIR=$(dirname "$(which tuist)")
-          TUIST_FRAMEWORK_SEARCH_PATHS="$TUIST_DIR" tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
 
