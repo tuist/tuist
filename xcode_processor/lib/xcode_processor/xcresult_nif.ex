@@ -12,20 +12,29 @@ defmodule XcodeProcessor.XCResultNIF do
 
   @on_load :load_nif
 
+  @nif_loaded :nif_load_status
+
   def load_nif do
     nif_path = ~c"#{:code.priv_dir(:xcode_processor)}/native/xcresult_nif"
 
     case :erlang.load_nif(nif_path, 0) do
       :ok ->
+        :persistent_term.put(@nif_loaded, true)
         :ok
 
       {:error, {:reload, _}} ->
+        :persistent_term.put(@nif_loaded, true)
         :ok
 
       {:error, reason} ->
+        :persistent_term.put(@nif_loaded, false)
         Logger.error("Failed to load xcresult NIF from #{nif_path}: #{inspect(reason)}")
-        {:error, reason}
+        :ok
     end
+  end
+
+  def nif_loaded? do
+    :persistent_term.get(@nif_loaded, false)
   end
 
   @doc """
