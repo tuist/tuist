@@ -1,4 +1,5 @@
 import Foundation
+import Path
 
 struct XCResultTestOutput: Codable, Sendable {
     let devices: [Device]?
@@ -34,6 +35,6 @@ struct TestPlanConfiguration: Codable, Sendable {
 
 struct TestFailure: Sendable {
     let message: String
-    let filePath: String?
+    let filePath: RelativePath?
     let lineNumber: Int
 }

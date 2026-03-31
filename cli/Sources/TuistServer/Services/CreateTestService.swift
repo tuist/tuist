@@ -6,6 +6,7 @@ import TuistHTTP
 #if canImport(TuistXCResultService)
     import TuistCI
     import TuistXCResultService
+    import XCResultParser
 
     @Mockable
     public protocol CreateTestServicing {

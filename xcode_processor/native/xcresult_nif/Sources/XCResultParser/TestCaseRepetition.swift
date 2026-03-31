@@ -8,11 +8,8 @@ public struct TestCaseRepetition: Encodable, Sendable {
     public let failures: [TestCaseFailure]
 
     enum CodingKeys: String, CodingKey {
+        case name, status, duration, failures
         case repetitionNumber = "repetition_number"
-        case name
-        case status
-        case duration
-        case failures
     }
 
     public init(

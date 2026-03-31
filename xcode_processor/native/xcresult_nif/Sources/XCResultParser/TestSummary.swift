@@ -8,9 +8,12 @@ public struct TestSummary: Encodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case testPlanName = "test_plan_name"
-        case status
-        case duration
+        case status, duration
         case testModules = "test_modules"
+    }
+
+    public var testCases: [TestCase] {
+        testModules.flatMap(\.testCases)
     }
 
     public init(

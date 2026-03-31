@@ -16,6 +16,7 @@ import TuistSupport
 import TuistXCActivityLog
 import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
+import XCResultParser
 
 public enum UploadResultBundleServiceError: Equatable, LocalizedError {
     case missingFullHandle

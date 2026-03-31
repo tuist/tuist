@@ -11,16 +11,16 @@ public struct TestAttachment: Encodable, Sendable {
         case repetitionNumber = "repetition_number"
     }
 
+    public init(filePath: AbsolutePath, fileName: String, repetitionNumber: Int? = nil) {
+        self.filePath = filePath
+        self.fileName = fileName
+        self.repetitionNumber = repetitionNumber
+    }
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(filePath.pathString, forKey: .filePath)
         try container.encode(fileName, forKey: .fileName)
         try container.encodeIfPresent(repetitionNumber, forKey: .repetitionNumber)
-    }
-
-    public init(filePath: AbsolutePath, fileName: String, repetitionNumber: Int? = nil) {
-        self.filePath = filePath
-        self.fileName = fileName
-        self.repetitionNumber = repetitionNumber
     }
 }

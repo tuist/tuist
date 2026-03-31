@@ -1,6 +1,7 @@
 import Foundation
+import Mockable
 
-enum IPSCrashReportParserError: LocalizedError, Sendable {
+enum IPSCrashReportParserError: LocalizedError {
     case invalidFormat
 
     var errorDescription: String? {
@@ -11,18 +12,25 @@ enum IPSCrashReportParserError: LocalizedError, Sendable {
     }
 }
 
-struct IPSCrashReport: Sendable {
-    let exceptionType: String?
-    let signal: String?
-    let exceptionSubtype: String?
-    let triggeredThreadFrames: String?
+public struct IPSCrashReport {
+    public let exceptionType: String?
+    public let signal: String?
+    public let exceptionSubtype: String?
+    public let triggeredThreadFrames: String?
 }
 
-struct IPSCrashReportParser: Sendable {
-    func parse(_ content: String) throws -> IPSCrashReport {
+@Mockable
+public protocol IPSCrashReportParsing: Sendable {
+    func parse(_ content: String) throws -> IPSCrashReport
+}
+
+public struct IPSCrashReportParser: IPSCrashReportParsing {
+    public init() {}
+
+    public func parse(_ content: String) throws -> IPSCrashReport {
         let lines = content.components(separatedBy: .newlines)
         guard lines.count >= 2,
-            let payloadData = lines[1].data(using: .utf8)
+              let payloadData = lines[1].data(using: .utf8)
         else { throw IPSCrashReportParserError.invalidFormat }
 
         let payload = try JSONDecoder().decode(IPSPayload.self, from: payloadData)
@@ -53,12 +61,8 @@ struct IPSCrashReportParser: Sendable {
         let maxImageWidth = parsed.map(\.imageName.count).max() ?? 0
 
         return parsed.map { frame in
-            let indexStr = String(frame.index).padding(
-                toLength: maxIndexWidth, withPad: " ", startingAt: 0
-            )
-            let imageStr = frame.imageName.padding(
-                toLength: maxImageWidth, withPad: " ", startingAt: 0
-            )
+            let indexStr = String(frame.index).padding(toLength: maxIndexWidth, withPad: " ", startingAt: 0)
+            let imageStr = frame.imageName.padding(toLength: maxImageWidth, withPad: " ", startingAt: 0)
             return "\(indexStr)  \(imageStr)  \(frame.symbol)"
         }.joined(separator: "\n")
     }
@@ -76,29 +80,29 @@ struct IPSCrashReportParser: Sendable {
     }
 }
 
-private struct IPSPayload: Decodable, Sendable {
+private struct IPSPayload: Decodable {
     let usedImages: [IPSImage]
     let threads: [IPSThread]
     let exception: IPSException?
 }
 
-private struct IPSException: Decodable, Sendable {
+private struct IPSException: Decodable {
     let type: String?
     let signal: String?
     let subtype: String?
 }
 
-private struct IPSImage: Decodable, Sendable {
+private struct IPSImage: Decodable {
     let name: String?
     let path: String?
 }
 
-private struct IPSThread: Decodable, Sendable {
+private struct IPSThread: Decodable {
     let triggered: Bool?
     let frames: [IPSFrame]?
 }
 
-private struct IPSFrame: Decodable, Sendable {
+private struct IPSFrame: Decodable {
     let imageIndex: Int?
     let symbol: String?
     let imageOffset: Int?

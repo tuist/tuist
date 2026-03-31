@@ -14,6 +14,7 @@ import TuistTesting
 import TuistXCActivityLog
 import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
+import XCResultParser
 
 @testable import TuistInspectCommand
 @testable import TuistKit

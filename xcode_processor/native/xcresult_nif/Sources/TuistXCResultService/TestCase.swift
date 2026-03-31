@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TestCase {
+public struct TestCase: Encodable, Sendable {
     public let name: String
     public let testSuite: String?
     public let module: String?
@@ -11,6 +11,19 @@ public struct TestCase {
     public var crashReport: CrashReport?
     public var attachments: [TestAttachment]
     public var isQuarantined: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case testSuite = "test_suite"
+        case module
+        case duration
+        case status
+        case failures
+        case repetitions
+        case crashReport = "crash_report"
+        case attachments
+        case isQuarantined = "is_quarantined"
+    }
 
     public init(
         name: String,

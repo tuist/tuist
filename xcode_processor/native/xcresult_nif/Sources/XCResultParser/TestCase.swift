@@ -10,17 +10,13 @@ public struct TestCase: Encodable, Sendable {
     public let repetitions: [TestCaseRepetition]
     public var crashReport: CrashReport?
     public var attachments: [TestAttachment]
+    public var isQuarantined: Bool
 
     enum CodingKeys: String, CodingKey {
-        case name
+        case name, module, duration, status, failures, repetitions, attachments
         case testSuite = "test_suite"
-        case module
-        case duration
-        case status
-        case failures
-        case repetitions
         case crashReport = "crash_report"
-        case attachments
+        case isQuarantined = "is_quarantined"
     }
 
     public init(
@@ -32,7 +28,8 @@ public struct TestCase: Encodable, Sendable {
         failures: [TestCaseFailure],
         repetitions: [TestCaseRepetition] = [],
         crashReport: CrashReport? = nil,
-        attachments: [TestAttachment] = []
+        attachments: [TestAttachment] = [],
+        isQuarantined: Bool = false
     ) {
         self.name = name
         self.testSuite = testSuite
@@ -43,5 +40,6 @@ public struct TestCase: Encodable, Sendable {
         self.repetitions = repetitions
         self.crashReport = crashReport
         self.attachments = attachments
+        self.isQuarantined = isQuarantined
     }
 }

@@ -17,6 +17,7 @@ import TuistSupport
 import TuistTesting
 import TuistXCActivityLog
 import TuistXCResultService
+import XCResultParser
 import XcodeGraph
 
 @testable import TuistKit

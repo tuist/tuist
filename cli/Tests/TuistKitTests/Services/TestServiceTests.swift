@@ -15,6 +15,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistXCResultService
+import XCResultParser
 import XcodeGraph
 import XCTest
 

@@ -12,7 +12,7 @@ enum IPSCrashReportParserError: LocalizedError {
     }
 }
 
-public struct IPSCrashReport {
+public struct IPSCrashReport: Sendable {
     public let exceptionType: String?
     public let signal: String?
     public let exceptionSubtype: String?

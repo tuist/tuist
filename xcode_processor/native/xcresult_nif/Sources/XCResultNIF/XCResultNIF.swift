@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import XCResultParser
 
 @_cdecl("parse_xcresult")
@@ -12,16 +13,22 @@ public func parseXCResult(
     let rootDir = String(cString: rootDirPtr)
 
     nonisolated(unsafe) var result: Result<TestSummary, Error> = .failure(
-        XCResultParserError.xcresulttoolFailed("NIF task did not complete")
+        XCResultParserError.failedToParseOutput(try! AbsolutePath(validating: path))
     )
     let semaphore = DispatchSemaphore(value: 0)
 
     Task { @Sendable in
         do {
-            let parsed = try await XCResultParser().parse(
-                xcresultPath: path,
-                rootDirectory: rootDir
-            )
+            let xcresultPath = try AbsolutePath(validating: path)
+            let rootDirectory = try AbsolutePath(validating: rootDir)
+            guard let parsed = try await XCResultParser().parse(
+                path: xcresultPath,
+                rootDirectory: rootDirectory
+            ) else {
+                result = .failure(XCResultParserError.failedToParseOutput(xcresultPath))
+                semaphore.signal()
+                return
+            }
             result = .success(parsed)
         } catch {
             result = .failure(error)
@@ -31,7 +38,7 @@ public func parseXCResult(
 
     let timeout = semaphore.wait(timeout: .now() + .seconds(600))
     if timeout == .timedOut {
-        result = .failure(XCResultParserError.xcresulttoolFailed("NIF task timed out after 600 seconds"))
+        result = .failure(XCResultParserError.failedToParseOutput(try! AbsolutePath(validating: path)))
     }
 
     switch result {

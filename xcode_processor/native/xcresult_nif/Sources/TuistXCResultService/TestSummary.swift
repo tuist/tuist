@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TestSummary {
+public struct TestSummary: Encodable, Sendable {
     public let testPlanName: String?
     public var status: TestStatus
     public let duration: Int?
@@ -8,6 +8,12 @@ public struct TestSummary {
 
     public var testCases: [TestCase] {
         testModules.flatMap(\.testCases)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case testPlanName = "test_plan_name"
+        case status, duration
+        case testModules = "test_modules"
     }
 
     public init(

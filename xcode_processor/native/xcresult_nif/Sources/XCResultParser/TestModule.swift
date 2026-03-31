@@ -8,17 +8,12 @@ public struct TestModule: Encodable, Sendable {
     public var testCases: [TestCase]
 
     enum CodingKeys: String, CodingKey {
-        case name
-        case status
-        case duration
+        case name, status, duration
         case testSuites = "test_suites"
         case testCases = "test_cases"
     }
 
-    public init(
-        name: String, status: TestStatus, duration: Int, testSuites: [TestSuite],
-        testCases: [TestCase]
-    ) {
+    public init(name: String, status: TestStatus, duration: Int, testSuites: [TestSuite], testCases: [TestCase]) {
         self.name = name
         self.status = status
         self.duration = duration

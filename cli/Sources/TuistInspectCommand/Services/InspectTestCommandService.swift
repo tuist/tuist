@@ -20,6 +20,7 @@
     import TuistXCActivityLog
     import TuistXcodeProjectOrWorkspacePathLocator
     import TuistXCResultService
+import XCResultParser
 
     enum InspectTestCommandServiceError: Equatable, LocalizedError {
         case executablePathMissing

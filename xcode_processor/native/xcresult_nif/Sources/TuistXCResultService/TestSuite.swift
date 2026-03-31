@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TestSuite {
+public struct TestSuite: Encodable, Sendable {
     public let name: String
     public let status: TestStatus
     public let duration: Int

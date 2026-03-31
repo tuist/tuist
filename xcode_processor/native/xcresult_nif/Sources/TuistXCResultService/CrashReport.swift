@@ -9,20 +9,11 @@ public struct CrashReport: Encodable, Sendable {
     public let triggeredThreadFrames: String?
 
     enum CodingKeys: String, CodingKey {
-        case signal
         case exceptionType = "exception_type"
+        case signal
         case exceptionSubtype = "exception_subtype"
         case filePath = "file_path"
         case triggeredThreadFrames = "triggered_thread_frames"
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(exceptionType, forKey: .exceptionType)
-        try container.encodeIfPresent(signal, forKey: .signal)
-        try container.encodeIfPresent(exceptionSubtype, forKey: .exceptionSubtype)
-        try container.encode(filePath.pathString, forKey: .filePath)
-        try container.encodeIfPresent(triggeredThreadFrames, forKey: .triggeredThreadFrames)
     }
 
     public init(
@@ -37,5 +28,14 @@ public struct CrashReport: Encodable, Sendable {
         self.exceptionSubtype = exceptionSubtype
         self.filePath = filePath
         self.triggeredThreadFrames = triggeredThreadFrames
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(exceptionType, forKey: .exceptionType)
+        try container.encodeIfPresent(signal, forKey: .signal)
+        try container.encodeIfPresent(exceptionSubtype, forKey: .exceptionSubtype)
+        try container.encode(filePath.pathString, forKey: .filePath)
+        try container.encodeIfPresent(triggeredThreadFrames, forKey: .triggeredThreadFrames)
     }
 }

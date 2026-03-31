@@ -1,24 +1,32 @@
+import Command
+import FileSystem
 import Foundation
+import Path
 
-public enum XCResultParserError: LocalizedError {
-    case failedToParseOutput(String)
-    case xcresulttoolFailed(String)
+public enum XCResultParserError: LocalizedError, Equatable {
+    case failedToParseOutput(AbsolutePath)
 
     public var errorDescription: String? {
         switch self {
         case let .failedToParseOutput(path):
-            return "Failed to parse xcresult output at \(path)"
-        case let .xcresulttoolFailed(message):
-            return "xcresulttool failed: \(message)"
+            return "Failed to parse xcresult output at \(path.pathString)"
         }
     }
 }
 
 public struct XCResultParser: Sendable {
-    private let ipsCrashReportParser: IPSCrashReportParser
+    private let fileSystem: FileSysteming
+    private let commandRunner: CommandRunning
+    private let ipsCrashReportParser: IPSCrashReportParsing
 
-    public init() {
-        self.ipsCrashReportParser = IPSCrashReportParser()
+    public init(
+        fileSystem: FileSysteming = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner(),
+        ipsCrashReportParser: IPSCrashReportParsing = IPSCrashReportParser()
+    ) {
+        self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
+        self.ipsCrashReportParser = ipsCrashReportParser
     }
 
     private func secondsToMilliseconds(_ seconds: Double) -> Int {
@@ -60,55 +68,44 @@ public struct XCResultParser: Sendable {
         return nil
     }
 
-    public func parse(xcresultPath: String, rootDirectory: String) async throws -> TestSummary {
-        let testOutput = try await parseTestResults(xcresultPath: xcresultPath)
-        return try await parseTestOutput(
-            testOutput,
-            rootDirectory: rootDirectory,
-            xcresultPath: xcresultPath
-        )
-    }
+    public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
+        let testOutput: XCResultTestOutput = try await fileSystem
+            .runInTemporaryDirectory(prefix: "xcresult-test-results") { temporaryDirectory in
+                let tempFile = temporaryDirectory.appending(component: "test-results.json")
 
-    private func parseTestResults(xcresultPath: String) async throws -> XCResultTestOutput {
-        let tempDir = NSTemporaryDirectory() + "xcresult-test-results-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(
-            atPath: tempDir,
-            withIntermediateDirectories: true
-        )
-        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+                _ = try await commandRunner.run(
+                    arguments: [
+                        "/bin/sh", "-c",
+                        "/usr/bin/xcrun xcresulttool get test-results tests --path '\(path.pathString)' > '\(tempFile.pathString)'",
+                    ]
+                ).concatenatedString()
 
-        let tempFile = tempDir + "/test-results.json"
-        try runCommand(
-            "/usr/bin/xcrun",
-            arguments: ["xcresulttool", "get", "test-results", "tests", "--path", xcresultPath],
-            outputFile: tempFile
-        )
+                let outputString = try await fileSystem.readTextFile(at: tempFile)
+                let jsonString = extractJSON(from: outputString)
+                guard let jsonData = jsonString.data(using: .utf8) else {
+                    throw XCResultParserError.failedToParseOutput(path)
+                }
+                return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
+            }
 
-        let outputData = try Data(contentsOf: URL(fileURLWithPath: tempFile))
-        let outputString = String(data: outputData, encoding: .utf8) ?? ""
-        let jsonString = extractJSON(from: outputString)
-
-        guard let jsonData = jsonString.data(using: .utf8) else {
-            throw XCResultParserError.failedToParseOutput(xcresultPath)
-        }
-        return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
+        return try await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
     }
 
     private func extractJSON(from output: String) -> String {
         guard let jsonStartIndex = output.firstIndex(of: "{"),
-            let jsonEndIndex = output.lastIndex(of: "}")
+              let jsonEndIndex = output.lastIndex(of: "}")
         else {
             return output
         }
-        return String(output[jsonStartIndex...jsonEndIndex])
+        return String(output[jsonStartIndex ... jsonEndIndex])
     }
 
     private func parseTestOutput(
         _ output: XCResultTestOutput,
-        rootDirectory: String,
-        xcresultPath: String
+        rootDirectory: AbsolutePath?,
+        xcresultPath: AbsolutePath
     ) async throws -> TestSummary {
-        let actionLog = try await fetchActionLog(from: xcresultPath)
+        let actionLog = try await actionLog(from: xcresultPath)
         let failuresFromActionLog = actionLog.extractTestFailures(rootDirectory: rootDirectory)
 
         var allTestCases: [TestCase] = []
@@ -127,8 +124,7 @@ public struct XCResultParser: Sendable {
             )
         }
 
-        let (updatedTestCases, swiftTestingSuiteDurations, swiftTestingModuleDurations,
-            overallDuration) =
+        let (updatedTestCases, swiftTestingSuiteDurations, swiftTestingModuleDurations, overallDuration) =
             updateWithSwiftTestingDurations(testCases: allTestCases, actionLog: actionLog)
 
         allTestCases = updatedTestCases
@@ -148,15 +144,10 @@ public struct XCResultParser: Sendable {
         }
 
         let overallStatus = overallStatus(from: allTestCases)
-        let testModules = testModules(
-            from: allTestCases,
-            suiteDurations: suiteDurations,
-            moduleDurations: moduleDurations
-        )
+        let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
 
         return TestSummary(
-            testPlanName: output.testNodes.first?.name
-                ?? actionLog.title?.components(separatedBy: .whitespacesAndNewlines).last,
+            testPlanName: output.testNodes.first?.name ?? actionLog.title?.components(separatedBy: .whitespacesAndNewlines).last,
             status: overallStatus,
             duration: overallDuration,
             testModules: testModules
@@ -179,7 +170,7 @@ public struct XCResultParser: Sendable {
         into testCases: inout [TestCase],
         suiteDurations: inout [String: Int],
         moduleDurations: inout [String: Int],
-        rootDirectory: String,
+        rootDirectory: AbsolutePath?,
         actionLogFailures: [String: [TestFailure]]
     ) {
         let currentModule = node.nodeType == "Unit test bundle" ? node.name : module
@@ -208,12 +199,10 @@ public struct XCResultParser: Sendable {
         }
     }
 
-    private func captureSuiteDuration(
-        from node: TestNode, into suiteDurations: inout [String: Int]
-    ) {
+    private func captureSuiteDuration(from node: TestNode, into suiteDurations: inout [String: Int]) {
         guard node.nodeType == "Test Suite",
-            let suiteName = node.name,
-            let durationInSeconds = node.durationInSeconds
+              let suiteName = node.name,
+              let durationInSeconds = node.durationInSeconds
         else { return }
 
         suiteDurations[suiteName] = secondsToMilliseconds(durationInSeconds)
@@ -222,7 +211,7 @@ public struct XCResultParser: Sendable {
     private func testCase(
         from node: TestNode,
         module: String?,
-        rootDirectory: String,
+        rootDirectory: AbsolutePath?,
         actionLogFailures: [String: [TestFailure]]
     ) -> TestCase? {
         guard node.nodeType == "Test Case", let name = node.name else { return nil }
@@ -231,8 +220,7 @@ public struct XCResultParser: Sendable {
 
         let repetitionNodes = (node.children ?? []).filter { $0.nodeType == "Repetition" }
 
-        let repetitions: [TestCaseRepetition] = repetitionNodes.enumerated().compactMap {
-            index, repNode in
+        let repetitions: [TestCaseRepetition] = repetitionNodes.enumerated().compactMap { index, repNode in
             guard let repName = repNode.name, let repResult = repNode.result else { return nil }
 
             let repStatus = testStatus(from: repResult)
@@ -277,7 +265,7 @@ public struct XCResultParser: Sendable {
         testName: String,
         suiteName: String?,
         node: TestNode,
-        rootDirectory: String,
+        rootDirectory: AbsolutePath?,
         actionLogFailures: [String: [TestFailure]]
     ) -> [TestCaseFailure] {
         let testIdentifier = suiteName.map { "\($0)/\(testName)" } ?? testName
@@ -314,32 +302,24 @@ public struct XCResultParser: Sendable {
         }
     }
 
-    private func extractFailures(
-        from node: TestNode, rootDirectory: String
-    ) -> [TestCaseFailure] {
+    private func extractFailures(from node: TestNode, rootDirectory: AbsolutePath?) -> [TestCaseFailure] {
         (node.children ?? [])
             .filter { $0.nodeType == "Failure Message" }
             .compactMap(\.name)
             .map { failure(from: $0, rootDirectory: rootDirectory) }
     }
 
-    private func failure(from message: String, rootDirectory: String) -> TestCaseFailure {
+    private func failure(from message: String, rootDirectory: AbsolutePath?) -> TestCaseFailure {
         guard let location = parseFileLocation(from: message) else {
             let (issueType, cleanedMessage) = parseFailureMessage(message)
-            return TestCaseFailure(
-                message: cleanedMessage, path: nil, lineNumber: 0, issueType: issueType
-            )
+            return TestCaseFailure(message: cleanedMessage, path: nil, lineNumber: 0, issueType: issueType)
         }
 
-        let relativePath = makeRelativePath(location.filePath, relativeTo: rootDirectory)
+        let relativePath = (try? AbsolutePath(validating: location.filePath))
+            .map { $0.relative(to: rootDirectory ?? .root) }
         let (issueType, cleanedMessage) = parseFailureMessage(location.errorMessage)
 
-        return TestCaseFailure(
-            message: cleanedMessage,
-            path: relativePath,
-            lineNumber: location.lineNumber,
-            issueType: issueType
-        )
+        return TestCaseFailure(message: cleanedMessage, path: relativePath, lineNumber: location.lineNumber, issueType: issueType)
     }
 
     private func parseFileLocation(from message: String) -> FileLocation? {
@@ -354,9 +334,7 @@ public struct XCResultParser: Sendable {
         let lineNumber = Int(fileComponents[1]) ?? 0
         let errorMessage = components.dropFirst().joined(separator: ": ")
 
-        return FileLocation(
-            filePath: filePath, lineNumber: lineNumber, errorMessage: errorMessage
-        )
+        return FileLocation(filePath: filePath, lineNumber: lineNumber, errorMessage: errorMessage)
     }
 
     private func testModules(
@@ -385,23 +363,15 @@ public struct XCResultParser: Sendable {
         let duration = moduleDurations[name] ?? testCases.compactMap(\.duration).reduce(0, +)
         let suites = testSuites(from: testCases, suiteDurations: suiteDurations)
 
-        return TestModule(
-            name: name, status: status, duration: duration, testSuites: suites,
-            testCases: testCases
-        )
+        return TestModule(name: name, status: status, duration: duration, testSuites: suites, testCases: testCases)
     }
 
-    private func testSuites(
-        from testCases: [TestCase], suiteDurations: [String: Int]
-    ) -> [TestSuite] {
+    private func testSuites(from testCases: [TestCase], suiteDurations: [String: Int]) -> [TestSuite] {
         Dictionary(grouping: testCases) { $0.testSuite }
             .compactMap { suiteName, suiteTestCases in
                 guard let suiteName else { return nil }
-                let status: TestStatus =
-                    suiteTestCases.contains { $0.status == .failed } ? .failed : .passed
-                let duration =
-                    suiteDurations[suiteName]
-                    ?? suiteTestCases.compactMap(\.duration).reduce(0, +)
+                let status: TestStatus = suiteTestCases.contains { $0.status == .failed } ? .failed : .passed
+                let duration = suiteDurations[suiteName] ?? suiteTestCases.compactMap(\.duration).reduce(0, +)
                 return TestSuite(name: suiteName, status: status, duration: duration)
             }
     }
@@ -415,50 +385,40 @@ public struct XCResultParser: Sendable {
     private func updateWithSwiftTestingDurations(
         testCases: [TestCase],
         actionLog: ActionLogSection
-    ) -> ([TestCase], [String: Int], [String: Int], Int?) {
+    ) -> ([TestCase], [String: Int], [String: Int], Int?) { // swiftlint:disable:this large_tuple
         let emittedOutputs = actionLog.collectEmittedOutputs()
         let (testDurations, suiteDurations) = swiftTestingDurations(from: emittedOutputs)
 
         let actionLogDurations = actionLog.extractTestDurations()
-        let overall =
-            actionLogDurations.overallDuration
-            ?? actionLog.duration.map { secondsToMilliseconds($0) }
+        let overall = actionLogDurations.overallDuration ?? actionLog.duration.map { secondsToMilliseconds($0) }
         let modules = actionLogDurations.moduleDurations
         let updatedTestCases = testCasesWithDurations(testCases, testDurations: testDurations)
 
         return (updatedTestCases, suiteDurations, modules, overall)
     }
 
-    private func fetchActionLog(from xcresultPath: String) async throws -> ActionLogSection {
-        let tempDir = NSTemporaryDirectory() + "xcresult-action-log-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(
-            atPath: tempDir,
-            withIntermediateDirectories: true
-        )
-        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+    private func actionLog(from xcresultPath: AbsolutePath) async throws -> ActionLogSection {
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-action-log") { temporaryDirectory in
+            let tempFile = temporaryDirectory.appending(component: "action-log.json")
 
-        let tempFile = tempDir + "/action-log.json"
-        try runCommand(
-            "/usr/bin/xcrun",
-            arguments: ["xcresulttool", "get", "log", "--type", "action", "--compact", "--path", xcresultPath],
-            outputFile: tempFile
-        )
+            _ = try await commandRunner.run(
+                arguments: [
+                    "/bin/sh", "-c",
+                    "/usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
+                ]
+            ).concatenatedString()
 
-        let logData = try Data(contentsOf: URL(fileURLWithPath: tempFile))
-        return try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            let logData = try await fileSystem.readFile(at: tempFile)
+            return try JSONDecoder().decode(ActionLogSection.self, from: logData)
+        }
     }
 
-    private func testCasesWithDurations(
-        _ testCases: [TestCase], testDurations: [String: Int]
-    ) -> [TestCase] {
+    private func testCasesWithDurations(_ testCases: [TestCase], testDurations: [String: Int]) -> [TestCase] {
         testCases.map { testCase in
             guard testCase.duration == nil || testCase.duration == 0 else { return testCase }
 
             let testNameWithoutParens = testCase.name.replacingOccurrences(of: "()", with: "")
-            guard
-                let duration = testDurations[testNameWithoutParens]
-                    ?? testDurations[testCase.name]
-            else {
+            guard let duration = testDurations[testNameWithoutParens] ?? testDurations[testCase.name] else {
                 return testCase
             }
 
@@ -483,64 +443,57 @@ public struct XCResultParser: Sendable {
     }
 
     private func attachmentsByTestIdentifiers(
-        from xcresultPath: String
+        from xcresultPath: AbsolutePath
     ) async -> (crashReports: [String: CrashReport], attachments: [String: [TestAttachment]]) {
         do {
-            let tempDir = NSTemporaryDirectory() + "xcresult-attachments-\(UUID().uuidString)"
-            try FileManager.default.createDirectory(
-                atPath: tempDir,
-                withIntermediateDirectories: true
-            )
+            let temporaryDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "xcresult-attachments")
 
-            try runCommand(
-                "/usr/bin/xcrun",
-                arguments: ["xcresulttool", "export", "attachments", "--path", xcresultPath, "--output-path", tempDir]
-            )
+            _ = try await commandRunner.run(
+                arguments: [
+                    "/bin/sh", "-c",
+                    "/usr/bin/xcrun xcresulttool export attachments --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
+                ]
+            ).concatenatedString()
 
-            let manifestPath = tempDir + "/manifest.json"
-            guard FileManager.default.fileExists(atPath: manifestPath) else {
+            let manifestPath = temporaryDirectory.appending(component: "manifest.json")
+            guard try await fileSystem.exists(manifestPath) else {
                 return ([:], [:])
             }
 
-            let manifestData = try Data(contentsOf: URL(fileURLWithPath: manifestPath))
-            let manifestEntries = try JSONDecoder().decode(
-                [AttachmentManifest].self, from: manifestData
-            )
+            let manifestData = try await fileSystem.readFile(at: manifestPath)
+            let manifestEntries = try JSONDecoder().decode([AttachmentManifest].self, from: manifestData)
 
             var crashReportsByTestIdentifier: [String: CrashReport] = [:]
             var attachmentsByTestIdentifier: [String: [TestAttachment]] = [:]
 
-            convertCgBIPNGs(in: tempDir, manifestEntries: manifestEntries)
+            await convertCgBIPNGs(in: temporaryDirectory, manifestEntries: manifestEntries)
 
             for entry in manifestEntries {
                 guard let testIdentifier = entry.testIdentifier else { continue }
                 let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
 
                 for attachment in entry.attachments {
-                    let filePath = tempDir + "/" + attachment.exportedFileName
-                    guard FileManager.default.fileExists(atPath: filePath) else { continue }
+                    let filePath = temporaryDirectory.appending(component: attachment.exportedFileName)
+                    guard try await fileSystem.exists(filePath) else { continue }
 
                     let testAttachment = TestAttachment(
                         filePath: filePath,
-                        fileName: attachment.suggestedHumanReadableName
-                            ?? attachment.exportedFileName,
+                        fileName: attachment.suggestedHumanReadableName ?? attachment.exportedFileName,
                         repetitionNumber: attachment.repetitionNumber
                     )
-                    attachmentsByTestIdentifier[normalizedIdentifier, default: []].append(
-                        testAttachment
-                    )
+                    attachmentsByTestIdentifier[normalizedIdentifier, default: []].append(testAttachment)
 
                     if attachment.exportedFileName.hasSuffix(".ips"),
-                        attachment.isAssociatedWithFailure == true
+                       attachment.isAssociatedWithFailure == true
                     {
-                        let content = try String(contentsOfFile: filePath, encoding: .utf8)
-                        let crashReportData = try ipsCrashReportParser.parse(content)
+                        let content = try await fileSystem.readTextFile(at: filePath)
+                        let crashReport = try ipsCrashReportParser.parse(content)
                         crashReportsByTestIdentifier[normalizedIdentifier] = CrashReport(
-                            exceptionType: crashReportData.exceptionType,
-                            signal: crashReportData.signal,
-                            exceptionSubtype: crashReportData.exceptionSubtype,
+                            exceptionType: crashReport.exceptionType,
+                            signal: crashReport.signal,
+                            exceptionSubtype: crashReport.exceptionSubtype,
                             filePath: filePath,
-                            triggeredThreadFrames: crashReportData.triggeredThreadFrames
+                            triggeredThreadFrames: crashReport.triggeredThreadFrames
                         )
                     }
                 }
@@ -552,21 +505,21 @@ public struct XCResultParser: Sendable {
         }
     }
 
-    private func convertCgBIPNGs(in directory: String, manifestEntries: [AttachmentManifest]) {
+    private func convertCgBIPNGs(in directory: AbsolutePath, manifestEntries: [AttachmentManifest]) async {
         let pngFileNames = manifestEntries
             .flatMap(\.attachments)
             .map(\.exportedFileName)
             .filter { $0.lowercased().hasSuffix(".png") }
 
         for fileName in pngFileNames {
-            let filePath = directory + "/" + fileName
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/sips")
-            process.arguments = ["-s", "format", "png", filePath, "--out", filePath]
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            try? process.run()
-            process.waitUntilExit()
+            let filePath = directory.appending(component: fileName)
+            do {
+                _ = try await commandRunner.run(
+                    arguments: ["/usr/bin/sips", "-s", "format", "png", filePath.pathString, "--out", filePath.pathString]
+                ).concatenatedString()
+            } catch {
+                // Silently skip PNG conversion failures
+            }
         }
     }
 
@@ -599,9 +552,7 @@ public struct XCResultParser: Sendable {
         #"✘ Suite (\w+) failed after ([\d.]+) seconds"#,
     ].compactMap { try? NSRegularExpression(pattern: $0, options: []) }
 
-    private func swiftTestingDurations(from emittedOutputs: [String]) -> (
-        tests: [String: Int], suites: [String: Int]
-    ) {
+    private func swiftTestingDurations(from emittedOutputs: [String]) -> (tests: [String: Int], suites: [String: Int]) {
         var testDurations: [String: Int] = [:]
         var suiteDurations: [String: Int] = [:]
 
@@ -609,18 +560,10 @@ public struct XCResultParser: Sendable {
             .filter { $0.contains("seconds") }
 
         for line in lines {
-            if line.contains("Test"),
-                let (name, duration) = extractDuration(
-                    from: line, using: Self.testDurationPatterns
-                )
-            {
+            if line.contains("Test"), let (name, duration) = extractDuration(from: line, using: Self.testDurationPatterns) {
                 testDurations[name] = testDurations[name] ?? duration
             }
-            if line.contains("Suite"),
-                let (name, duration) = extractDuration(
-                    from: line, using: Self.suiteDurationPatterns
-                )
-            {
+            if line.contains("Suite"), let (name, duration) = extractDuration(from: line, using: Self.suiteDurationPatterns) {
                 suiteDurations[name] = suiteDurations[name] ?? duration
             }
         }
@@ -628,64 +571,20 @@ public struct XCResultParser: Sendable {
         return (testDurations, suiteDurations)
     }
 
-    private func extractDuration(
-        from line: String, using patterns: [NSRegularExpression]
-    ) -> (name: String, duration: Int)? {
-        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+    private func extractDuration(from line: String, using patterns: [NSRegularExpression]) -> (name: String, duration: Int)? {
+        let range = NSRange(line.startIndex ..< line.endIndex, in: line)
 
         for regex in patterns {
             guard let match = regex.firstMatch(in: line, options: [], range: range),
-                let nameRange = Range(match.range(at: 1), in: line),
-                let durationRange = Range(match.range(at: 2), in: line),
-                let durationSeconds = Double(String(line[durationRange]))
+                  let nameRange = Range(match.range(at: 1), in: line),
+                  let durationRange = Range(match.range(at: 2), in: line),
+                  let durationSeconds = Double(String(line[durationRange]))
             else { continue }
 
             return (String(line[nameRange]), secondsToMilliseconds(durationSeconds))
         }
 
         return nil
-    }
-
-    // MARK: - Shell Command Execution
-
-    private func runCommand(
-        _ executablePath: String,
-        arguments: [String],
-        outputFile: String? = nil
-    ) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
-
-        let errorPipe = Pipe()
-        process.standardError = errorPipe
-
-        if let outputFile {
-            let fileURL = URL(fileURLWithPath: outputFile)
-            FileManager.default.createFile(atPath: outputFile, contents: nil)
-            let fileHandle = try FileHandle(forWritingTo: fileURL)
-            process.standardOutput = fileHandle
-        } else {
-            process.standardOutput = FileHandle.nullDevice
-        }
-
-        try process.run()
-        process.waitUntilExit()
-
-        if process.terminationStatus != 0 {
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-            throw XCResultParserError.xcresulttoolFailed(errorMessage)
-        }
-    }
-
-    private func makeRelativePath(_ path: String, relativeTo root: String) -> String? {
-        guard path.hasPrefix("/") else { return path }
-        let rootWithSlash = root.hasSuffix("/") ? root : root + "/"
-        if path.hasPrefix(rootWithSlash) {
-            return String(path.dropFirst(rootWithSlash.count))
-        }
-        return path
     }
 }
 

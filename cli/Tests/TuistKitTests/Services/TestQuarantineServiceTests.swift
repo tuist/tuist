@@ -8,6 +8,7 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistXCResultService
+import XCResultParser
 
 @testable import TuistKit
 
