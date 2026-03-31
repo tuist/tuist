@@ -6,7 +6,7 @@ defmodule XcodeProcessorWeb.Plugs.WebhookAuthPlug do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    secret = Application.get_env(:xcode_processor, :webhook_secret)
+    secret = XcodeProcessor.Environment.webhook_secret()
 
     if is_nil(secret) or secret == "" do
       conn

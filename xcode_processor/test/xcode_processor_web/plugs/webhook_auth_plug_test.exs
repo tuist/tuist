@@ -1,9 +1,12 @@
 defmodule XcodeProcessorWeb.Plugs.WebhookAuthPlugTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
+  use Mimic
 
   alias XcodeProcessorWeb.Plugs.WebhookAuthPlug
 
   @webhook_secret "test-webhook-secret"
+
+  setup :verify_on_exit!
 
   defp build_conn(body, headers \\ []) do
     conn =
@@ -54,12 +57,7 @@ defmodule XcodeProcessorWeb.Plugs.WebhookAuthPlugTest do
     end
 
     test "rejects with 500 when webhook secret is nil" do
-      original_secret = Application.get_env(:xcode_processor, :webhook_secret)
-      Application.put_env(:xcode_processor, :webhook_secret, nil)
-
-      on_exit(fn ->
-        Application.put_env(:xcode_processor, :webhook_secret, original_secret)
-      end)
+      stub(XcodeProcessor.Environment, :webhook_secret, fn -> nil end)
 
       body = ~s({"test": "data"})
       conn = build_conn(body, [{"x-webhook-signature", "some-sig"}])
@@ -72,12 +70,7 @@ defmodule XcodeProcessorWeb.Plugs.WebhookAuthPlugTest do
     end
 
     test "rejects with 500 when webhook secret is empty string" do
-      original_secret = Application.get_env(:xcode_processor, :webhook_secret)
-      Application.put_env(:xcode_processor, :webhook_secret, "")
-
-      on_exit(fn ->
-        Application.put_env(:xcode_processor, :webhook_secret, original_secret)
-      end)
+      stub(XcodeProcessor.Environment, :webhook_secret, fn -> "" end)
 
       body = ~s({"test": "data"})
       conn = build_conn(body, [{"x-webhook-signature", "some-sig"}])

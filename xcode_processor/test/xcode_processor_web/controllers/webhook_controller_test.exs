@@ -74,12 +74,7 @@ defmodule XcodeProcessorWeb.WebhookControllerTest do
     end
 
     test "returns 500 when webhook secret is not configured", %{conn: conn} do
-      original_secret = Application.get_env(:xcode_processor, :webhook_secret)
-      Application.put_env(:xcode_processor, :webhook_secret, nil)
-
-      on_exit(fn ->
-        Application.put_env(:xcode_processor, :webhook_secret, original_secret)
-      end)
+      stub(XcodeProcessor.Environment, :webhook_secret, fn -> nil end)
 
       body =
         JSON.encode!(%{

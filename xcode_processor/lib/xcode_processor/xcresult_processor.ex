@@ -2,7 +2,7 @@ defmodule XcodeProcessor.XCResultProcessor do
   @moduledoc false
 
   def process(storage_key) do
-    bucket = Application.get_env(:xcode_processor, :s3_bucket, "tuist")
+    bucket = XcodeProcessor.Environment.s3_bucket()
     temp_dir = make_temp_dir()
     zip_path = Path.join(temp_dir, "xcresult.zip")
 

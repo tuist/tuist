@@ -246,6 +246,8 @@ defmodule Tuist.Tests do
     end
   end
 
+  defp normalize_string_keys(%_{} = struct), do: struct
+
   defp normalize_string_keys(map) when is_map(map) do
     Map.new(map, fn
       {k, v} when is_binary(k) -> {String.to_existing_atom(k), normalize_string_keys(v)}

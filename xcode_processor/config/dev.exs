@@ -17,7 +17,10 @@ config :ex_aws,
 config :ex_aws, :s3,
   scheme: System.get_env("S3_SCHEME", "http://"),
   host: System.get_env("S3_HOST", "localhost"),
-  port: String.to_integer(System.get_env("S3_PORT") || System.get_env("TUIST_MINIO_API_PORT") || "9095"),
+  port:
+    String.to_integer(
+      System.get_env("S3_PORT") || System.get_env("TUIST_MINIO_API_PORT") || "9095"
+    ),
   region: System.get_env("S3_REGION", "us-east-1")
 
 config :xcode_processor,
