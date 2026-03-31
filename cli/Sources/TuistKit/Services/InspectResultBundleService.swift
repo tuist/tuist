@@ -151,7 +151,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         for testCase: TestCase,
         fullHandle: String,
         serverURL: URL,
-        testCaseRunsByIdentity: [String: TestCaseRunInfo]
+        testCaseRunsByIdentity: [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload]
     ) async {
         guard !testCase.attachments.isEmpty else { return }
 
@@ -160,17 +160,17 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             suiteName: testCase.testSuite ?? "",
             name: testCase.name
         )
-        guard let runInfo = testCaseRunsByIdentity[identityKey] else { return }
+        guard let run = testCaseRunsByIdentity[identityKey] else { return }
 
         await testCase.attachments.forEach(context: .concurrent) { attachment in
             do {
                 let argumentId: String? = attachment.argumentName.flatMap { argName in
-                    runInfo.argumentIdsByName[argName]
+                    run.arguments?.first(where: { $0.name == argName })?.id
                 }
                 let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    testCaseRunId: runInfo.id,
+                    testCaseRunId: run.id,
                     fileName: attachment.fileName,
                     filePath: attachment.filePath,
                     repetitionNumber: attachment.repetitionNumber,
@@ -183,7 +183,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         crashReport: crashReport,
-                        testCaseRunId: runInfo.id,
+                        testCaseRunId: run.id,
                         testCaseRunAttachmentId: testCaseRunAttachmentId
                     )
                 }
@@ -195,20 +195,12 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
     }
 
-    private struct TestCaseRunInfo {
-        let id: String
-        let argumentIdsByName: [String: String]
-    }
-
     private func testCaseRunsByIdentity(
         testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
-    ) -> [String: TestCaseRunInfo] {
+    ) -> [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload] {
         testCaseRuns.reduce(into: [:]) { result, run in
             let key = testCaseRunIdentityKey(moduleName: run.module_name, suiteName: run.suite_name, name: run.name)
-            let argumentIdsByName = (run.arguments ?? []).reduce(into: [String: String]()) { args, arg in
-                args[arg.name] = arg.id
-            }
-            result[key] = TestCaseRunInfo(id: run.id, argumentIdsByName: argumentIdsByName)
+            result[key] = run
         }
     }
 
