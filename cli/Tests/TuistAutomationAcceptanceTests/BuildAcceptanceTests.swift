@@ -453,7 +453,11 @@ struct BuildAcceptanceTestMultiplatformAppWithSDK {
 }
 
 struct BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencies {
-    @Test(.disabled(), .withFixture("generated_multiplatform_µFeature_unit_tests_with_explicit_dependencies"), .inTemporaryDirectory)
+    @Test(
+        .disabled(),
+        .withFixture("generated_multiplatform_µFeature_unit_tests_with_explicit_dependencies"),
+        .inTemporaryDirectory
+    )
     func test() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -487,7 +491,11 @@ struct BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencie
 }
 
 struct BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp {
-    @Test(.disabled(), .withFixture("generated_multiplatform_app_with_macros_and_embedded_watchos_app"), .inTemporaryDirectory)
+    @Test(
+        .disabled(),
+        .withFixture("generated_multiplatform_app_with_macros_and_embedded_watchos_app"),
+        .inTemporaryDirectory
+    )
     func test() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)

@@ -7,7 +7,11 @@ import TuistTesting
 @testable import TuistKit
 
 struct ListTargetsAcceptanceTests {
-    @Test(.disabled(), .withFixture("generated_ios_workspace_with_microfeature_architecture"), .withMockedDependencies())
+    @Test(
+        .disabled(),
+        .withFixture("generated_ios_workspace_with_microfeature_architecture"),
+        .withMockedDependencies()
+    )
     func ios_workspace_with_microfeature_architecture() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])

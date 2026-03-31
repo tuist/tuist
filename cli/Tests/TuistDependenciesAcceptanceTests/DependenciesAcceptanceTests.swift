@@ -251,7 +251,11 @@ struct DependenciesAcceptanceTestAppAlamofire {
 }
 
 struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_static_frameworks_with_resources"), .inTemporaryDirectory)
+    @Test(
+        .disabled(),
+        .withFixture("generated_ios_app_with_static_frameworks_with_resources"),
+        .inTemporaryDirectory
+    )
     func app_with_objc_static_framework_with_resources() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -315,7 +319,11 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
     }
 
     #if canImport(TuistCacheEE)
-        @Test(.disabled(), .withFixture("generated_ios_app_with_static_frameworks_with_resources"), .inTemporaryDirectory)
+        @Test(
+        .disabled(),
+        .withFixture("generated_ios_app_with_static_frameworks_with_resources"),
+        .inTemporaryDirectory
+    )
         func app_with_objc_static_framework_with_resources_from_cache() async throws {
             let fileSystem = FileSystem()
             let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -464,7 +472,11 @@ struct DependenciesAcceptanceTestIosAppWithSPMDependencies {
 }
 
 struct DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVersions {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_spm_dependencies_forced_resolved_versions"), .inTemporaryDirectory)
+    @Test(
+        .disabled(),
+        .withFixture("generated_ios_app_with_spm_dependencies_forced_resolved_versions"),
+        .inTemporaryDirectory
+    )
     func ios_app_spm_dependencies_force_resolved_versions() async throws {
         let fileSystem = FileSystem()
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
