@@ -47,12 +47,12 @@ Tuist에 기여하기 위한 최소 요구사항:
 **생성된 프로젝트는 자동으로 열립니다**. 생성하지 않고 다시 열고 싶으면 `open Tuist.xcworkspace` 를 실행하거나
 Finder를 사용하세요.
 
-::: XED 관련 .
-<!-- -->
-`xed .`를 사용한 프로젝트를 열려고 하면, Tuist로 생성된 프로젝트가 아니라 패키지를 열 겁니다. Tuist를 직접 사용해보려면
-Tuist로 만든 프로젝트를 권장 합니다.
-<!-- -->
-:::
+> [!NOTE]
+> **관련 .**
+>
+> `xed .`를 사용한 프로젝트를 열려고 하면, Tuist로 생성된 프로젝트가 아니라 패키지를 열 겁니다. Tuist를 직접 사용해보려면
+> Tuist로 만든 프로젝트를 권장 합니다.
+
 
 ## 프로젝트 편집 {#edit-the-project}
 
@@ -76,13 +76,13 @@ Tuist로 만든 프로젝트를 권장 합니다.
 
 ![Tuist를 실행하기 위한 작업 폴더 설정 예 ](/images/contributors/scheme-working-directory.png)
 
-::: 경고 PROJECTDESCRIPTION 컴파일
-<!-- -->
-`tuist` CLI는 만들어진 products 폴더에 있는 `ProjectDescription` framework에 의존 합니다.
-`ProjectDescription` framework가 없다고 `tuist`가 실행되지 않는다면, `Tuist-Workspace`
-scheme을 먼저 빌드하세요.
-<!-- -->
-:::
+> [!WARNING]
+> **Projectdescription 컴파일**
+>
+> `tuist` CLI는 만들어진 products 폴더에 있는 `ProjectDescription` framework에 의존 합니다.
+> `ProjectDescription` framework가 없다고 `tuist`가 실행되지 않는다면, `Tuist-Workspace`
+> scheme을 먼저 빌드하세요.
+
 
 ### 터미널에서 {#from-the-terminal}
 

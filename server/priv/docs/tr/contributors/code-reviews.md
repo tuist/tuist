@@ -28,14 +28,14 @@ Büyük talepleri incelemek zordur ve ayrıntıları gözden kaçırmak daha kol
 Bir çekme isteği çok büyük ve yönetilemez hale gelirse, yazara onu parçalamasını
 önerin.
 
-::: info EXCEPTIONS
-<!-- -->
-Değişikliklerin birbirine sıkı sıkıya bağlı olduğu ve bölünemediği durumlar
-gibi, çekme isteğini bölmenin mümkün olmadığı birkaç senaryo vardır. Bu
-durumlarda, yazar değişikliklerin ve arkasındaki gerekçelerin net bir
-açıklamasını sunmalıdır.
-<!-- -->
-:::
+> [!NOTE]
+> **Exceptions**
+>
+> Değişikliklerin birbirine sıkı sıkıya bağlı olduğu ve bölünemediği durumlar
+> gibi, çekme isteğini bölmenin mümkün olmadığı birkaç senaryo vardır. Bu
+> durumlarda, yazar değişikliklerin ve arkasındaki gerekçelerin net bir
+> açıklamasını sunmalıdır.
+
 
 ## Tutarlılık {#consistency}
 

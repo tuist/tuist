@@ -24,13 +24,13 @@ desteklenmektedir:
 - İspanyolca
 - Portekizce
 
-::: tip REQUEST A NEW LANGUAGE
-<!-- -->
-Tuist'in yeni bir dili desteklemesinin faydalı olacağını düşünüyorsanız, lütfen
-toplulukla tartışmak için yeni bir [topluluk forumunda
-konu](https://community.tuist.io/c/general/4) oluşturun.
-<!-- -->
-:::
+> [!TIP]
+> **Request A New Language**
+>
+> Tuist'in yeni bir dili desteklemesinin faydalı olacağını düşünüyorsanız, lütfen
+> toplulukla tartışmak için yeni bir [topluluk forumunda
+> konu](https://community.tuist.io/c/general/4) oluşturun.
+
 
 ## Nasıl tercüme edilir {#how-to-translate}
 
@@ -42,13 +42,13 @@ oluşturabilir ve çeviriye başlayabilirsiniz.
 Çeviriler, bakımcıların gözden geçireceği ve birleştireceği GitHub çekme
 istekleri kullanılarak kaynak deposuna geri senkronize edilir.
 
-::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
-<!-- -->
-Weblate, kaynak ve hedef dilleri bağlamak için dosyaları bölümlere ayırır.
-Kaynak dili değiştirirseniz, bağlamayı bozarsınız ve uzlaştırma beklenmedik
-sonuçlar verebilir.
-<!-- -->
-:::
+> [!WARNING]
+> **Don't Modify The Resources In The Target Language**
+>
+> Weblate, kaynak ve hedef dilleri bağlamak için dosyaları bölümlere ayırır.
+> Kaynak dili değiştirirseniz, bağlamayı bozarsınız ve uzlaştırma beklenmedik
+> sonuçlar verebilir.
+
 
 ## Kılavuz İlkeler {#guidelines}
 
@@ -61,11 +61,11 @@ custom containers](https://vitepress.dev/guide/markdown#custom-containers)
 
 ```markdown
 <!-- -->
-::: warning 루트 변수
-<!-- -->
-매니페스트의 루트에 있어야 하는 변수는...
-<!-- -->
-:::
+> [!WARNING]
+> **루트 변수**
+>
+> 매니페스트의 루트에 있어야 하는 변수는...
+
 ```
 
 ### Başlık başlıkları {#heading-titles}

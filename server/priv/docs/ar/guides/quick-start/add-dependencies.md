@@ -86,13 +86,13 @@ let project = Project(
 ثم قم بتشغيل `tuist install` لحل وسحب التبعيات باستخدام [Swift Package Manager]
 (https://www.swift.org/documentation/package-manager/).
 
-::: info SPM AS A DEPENDENCY RESOLVER
-<!-- -->
-النهج الموصى به من تويست للتبعيات يستخدم مدير حزم سويفت (SPM) فقط لحل التبعيات.
-ثم يقوم تويست بتحويلها إلى مشاريع وأهداف Xcode لتحقيق أقصى قدر من التهيئة
-والتحكم.
-<!-- -->
-:::
+> [!NOTE]
+> **Spm As A Dependency Resolver**
+>
+> النهج الموصى به من تويست للتبعيات يستخدم مدير حزم سويفت (SPM) فقط لحل التبعيات.
+> ثم يقوم تويست بتحويلها إلى مشاريع وأهداف Xcode لتحقيق أقصى قدر من التهيئة
+> والتحكم.
+
 
 ## تصور المشروع {#visualize-the-project}
 

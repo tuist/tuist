@@ -218,17 +218,26 @@ defmodule Tuist.Projects do
     |> maybe_filter_recent(opts)
   end
 
-  def list_accessible_projects(%AuthenticatedAccount{account: %{user_id: user_id} = account, all_projects: true}, opts)
-      when not is_nil(user_id) do
-    case Accounts.get_user_by_id(user_id) do
-      nil -> list_accessible_projects(account, opts)
-      user -> list_accessible_projects(user, opts)
-    end
-  end
-
-  def list_accessible_projects(%AuthenticatedAccount{account: account}, opts) do
+  def list_accessible_projects(%AuthenticatedAccount{account: account, all_projects: true}, opts) do
     list_accessible_projects(account, opts)
   end
+
+  def list_accessible_projects(
+        %AuthenticatedAccount{account: %Account{id: account_id}, all_projects: false, project_ids: project_ids},
+        opts
+      )
+      when is_list(project_ids) do
+    preload = Keyword.get(opts, :preload, [:account])
+
+    from(p in Project,
+      where: p.account_id == ^account_id and p.id in ^project_ids,
+      preload: ^preload
+    )
+    |> Repo.all()
+    |> maybe_filter_recent(opts)
+  end
+
+  def list_accessible_projects(%AuthenticatedAccount{all_projects: false}, _opts), do: []
 
   def list_accessible_projects(%Project{} = project, opts) do
     project = Repo.preload(project, Keyword.get(opts, :preload, [:account]))

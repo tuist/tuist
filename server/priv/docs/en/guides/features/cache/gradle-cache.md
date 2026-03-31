@@ -9,11 +9,11 @@
 
 Tuist provides a Gradle plugin that integrates with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely. When a task's outputs are already cached, Gradle skips execution and pulls the result from Tuist's remote cache, saving build time across your team and CI environments.
 
-::: warning REQUIREMENTS
-<!-- -->
-- The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
+
 
 Once the <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> is installed, you also need to enable Gradle's build cache in your `gradle.properties` file:
 

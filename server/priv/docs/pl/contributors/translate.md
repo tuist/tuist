@@ -23,13 +23,13 @@ obsługiwane są następujące języki:
 - Hiszpański
 - Portugalski
 
-::: tip ZAPYTAJ O NOWY JĘZYK
-<!-- -->
-Jeśli uważasz, że Tuist skorzystałby na wsparciu nowego języka, utwórz nowy
-[temat na forum społeczności](https://community.tuist.io/c/general/4), aby
-omówić go ze społecznością.
-<!-- -->
-:::
+> [!TIP]
+> **Zapytaj O Nowy Język**
+>
+> Jeśli uważasz, że Tuist skorzystałby na wsparciu nowego języka, utwórz nowy
+> [temat na forum społeczności](https://community.tuist.io/c/general/4), aby
+> omówić go ze społecznością.
+
 
 ## Jak przetłumaczyć {#how-to-translate}
 
@@ -41,13 +41,13 @@ rozpocząć tłumaczenie.
 Tłumaczenia są synchronizowane z powrotem do repozytorium źródłowego za pomocą
 żądań ściągnięcia GitHub, które opiekunowie sprawdzają i scalają.
 
-::: ostrzeżenie NIE MODYFIKUJ ZASOBÓW W JĘZYKU DOCELOWYM
-<!-- -->
-Weblate segmentuje pliki w celu powiązania języka źródłowego i docelowego. Jeśli
-zmodyfikujesz język źródłowy, przerwiesz powiązanie, a uzgodnienie może
-przynieść nieoczekiwane rezultaty.
-<!-- -->
-:::
+> [!WARNING]
+> **Nie Modyfikuj Zasobów W Języku Docelowym**
+>
+> Weblate segmentuje pliki w celu powiązania języka źródłowego i docelowego. Jeśli
+> zmodyfikujesz język źródłowy, przerwiesz powiązanie, a uzgodnienie może
+> przynieść nieoczekiwane rezultaty.
+
 
 ## Wytyczne {#guidelines}
 
@@ -61,11 +61,11 @@ jest tylko tytuł i treść **, ale nie typ alertu**.
 
 ```markdown
 <!-- -->
-::: warning 루트 변수
-<!-- -->
-매니페스트의 루트에 있어야 하는 변수는...
-<!-- -->
-:::
+> [!WARNING]
+> **루트 변수**
+>
+> 매니페스트의 루트에 있어야 하는 변수는...
+
 ```
 
 ### Tytuły nagłówków {#heading-titles}

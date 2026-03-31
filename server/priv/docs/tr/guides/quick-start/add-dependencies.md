@@ -89,14 +89,14 @@ Ardından [Swift paketi Paket
 Yöneticisi](https://www.swift.org/documentation/package-manager/) kullanarak
 bağımlılıkları çözmek ve çekmek için `tuist install` adresini çalıştırın.
 
-::: info SPM AS A DEPENDENCY RESOLVER
-<!-- -->
-Tuist'in bağımlılıklar için önerdiği yaklaşım, bağımlılıkları çözmek için
-yalnızca Swift paketi Paket Yöneticisini (SPM) kullanır. Tuist daha sonra
-bunları maksimum yapılandırılabilirlik ve kontrol için Xcode projelerine ve
-hedeflerine dönüştürür.
-<!-- -->
-:::
+> [!NOTE]
+> **Spm As A Dependency Resolver**
+>
+> Tuist'in bağımlılıklar için önerdiği yaklaşım, bağımlılıkları çözmek için
+> yalnızca Swift paketi Paket Yöneticisini (SPM) kullanır. Tuist daha sonra
+> bunları maksimum yapılandırılabilirlik ve kontrol için Xcode projelerine ve
+> hedeflerine dönüştürür.
+
 
 ## Projeyi görselleştirin {#visualize-the-project}
 

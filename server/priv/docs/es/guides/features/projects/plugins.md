@@ -106,13 +106,13 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### Plugin de tareas <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-::: warning DEPRECATED
-<!-- -->
-Los plugins de tareas están obsoletos. Echa un vistazo a [esta entrada del
-blog](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) si estás
-buscando una solución de automatización para tu proyecto.
-<!-- -->
-:::
+> [!WARNING]
+> **Deprecated**
+>
+> Los plugins de tareas están obsoletos. Echa un vistazo a [esta entrada del
+> blog](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) si estás
+> buscando una solución de automatización para tu proyecto.
+
 
 Las tareas son `$PATH`-ejecutables expuestos que son invocables a través del
 comando `tuist` si siguen la convención de nomenclatura `tuist-<task-name>`. En
@@ -139,15 +139,15 @@ construyas tu
   ejecutando `mise install`, pueden ejecutarla invocándola directamente o a
   través de `tuist xxx`.
 
-::: info THE FUTURE OF PROJECTAUTOMATION
-<!-- -->
-Planeamos consolidar los modelos de `ProjectAutomation` y `XcodeGraph` en un
-único framework compatible con versiones anteriores que exponga la totalidad del
-grafo del proyecto al usuario. Además, extraeremos la lógica de generación en
-una nueva capa, `XcodeGraph` que también podrás utilizar desde tu propia CLI.
-Piensa en ello como construir tu propio Tuist.
-<!-- -->
-:::
+> [!NOTE]
+> **The Future Of Projectautomation**
+>
+> Planeamos consolidar los modelos de `ProjectAutomation` y `XcodeGraph` en un
+> único framework compatible con versiones anteriores que exponga la totalidad del
+> grafo del proyecto al usuario. Además, extraeremos la lógica de generación en
+> una nueva capa, `XcodeGraph` que también podrás utilizar desde tu propia CLI.
+> Piensa en ello como construir tu propio Tuist.
+
 
 ## Uso de plugins {#using-plugins}
 
@@ -185,21 +185,21 @@ let tuist = Tuist(
 Después de añadir los plugins, `tuist install` buscará los plugins en un
 directorio de caché global.
 
-::: info NO VERSION RESOLUTION
-<!-- -->
-Como habrás observado, no ofrecemos resolución de versiones para los plugins.
-Recomendamos utilizar etiquetas Git o SHA para garantizar la reproducibilidad.
-<!-- -->
-:::
+> [!NOTE]
+> **No Version Resolution**
+>
+> Como habrás observado, no ofrecemos resolución de versiones para los plugins.
+> Recomendamos utilizar etiquetas Git o SHA para garantizar la reproducibilidad.
 
-::: tip PROJECT DESCRIPTION HELPERS PLUGINS
-<!-- -->
-Cuando se utiliza un plugin de ayuda para la descripción del proyecto, el nombre
-del módulo que contiene la ayuda es el nombre del plugin.
-```swift
-import ProjectDescription
-import MyTuistPlugin
-let project = Project.app(name: "MyCoolApp", platform: .iOS)
-```
-<!-- -->
-:::
+
+> [!TIP]
+> **Project Description Helpers Plugins**
+>
+> Cuando se utiliza un plugin de ayuda para la descripción del proyecto, el nombre
+> del módulo que contiene la ayuda es el nombre del plugin.
+> ```swift
+> import ProjectDescription
+> import MyTuistPlugin
+> let project = Project.app(name: "MyCoolApp", platform: .iOS)
+> ```
+

@@ -68,14 +68,14 @@ A los tokens OIDC se les concede el grupo de alcance `ci`, que proporciona
 acceso a todos los proyectos conectados al repositorio. Ver [Grupos de
 ámbito](#scope-groups) para más detalles sobre lo que incluye el ámbito `ci`.
 
-::: tip PRESTACIONES DE SEGURIDAD
-<!-- -->
-La autenticación OIDC es más segura que los tokens de larga duración porque:
-- No hay secretos que rotar o gestionar
-- Los tokens son efímeros y se limitan a flujos de trabajo individuales.
-- La autenticación está vinculada a su identidad de repositorio
-<!-- -->
-:::
+> [!TIP]
+> **Prestaciones De Seguridad**
+>
+> La autenticación OIDC es más segura que los tokens de larga duración porque:
+> - No hay secretos que rotar o gestionar
+> - Los tokens son efímeros y se limitan a flujos de trabajo individuales.
+> - La autenticación está vinculada a su identidad de repositorio
+
 
 ## Fichas de cuenta {#fichas-de-cuenta}
 
@@ -173,12 +173,12 @@ Se espera que los tokens de cuenta se definan como la variable de entorno
 export TUIST_TOKEN=your-account-token
 ```
 
-::: consejo CUÁNDO UTILIZAR LOS TOKENS DE CUENTA
-<!-- -->
-Utiliza las fichas de cuenta cuando lo necesites:
-- Autenticación en entornos CI que no admiten OIDC
-- Control detallado de las operaciones que puede realizar el token
-- Un token que puede acceder a varios proyectos dentro de una cuenta
-- Fichas de duración limitada que caducan automáticamente
-<!-- -->
-:::
+> [!TIP]
+> **Cuándo Utilizar Los Tokens De Cuenta**
+>
+> Utiliza las fichas de cuenta cuando lo necesites:
+> - Autenticación en entornos CI que no admiten OIDC
+> - Control detallado de las operaciones que puede realizar el token
+> - Un token que puede acceder a varios proyectos dentro de una cuenta
+> - Fichas de duración limitada que caducan automáticamente
+

@@ -13,11 +13,11 @@ Tuist 提供的範本。這些是腳手架可能有用的一些情況：
 - 建立遵循給定架構的新功能：`tuist scaffold viper --name MyFeature` 。
 - 建立新專案：`tuist scaffold feature-project --name Home`
 
-::: info NON-OPINIONATED
-<!-- -->
-Tuist 對於您的範本內容以及您使用範本的目的不持任何意見。它們只被要求在特定目錄中。
-<!-- -->
-:::
+> [!NOTE]
+> **Non-opinionated**
+>
+> Tuist 對於您的範本內容以及您使用範本的目的不持任何意見。它們只被要求在特定目錄中。
+
 
 ## 定義範本{#defining-a-template}
 
@@ -63,11 +63,9 @@ let template = Template(
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: info
-<!-- -->
-由於 platform 是可選的參數，我們也可以在不使用`--platform macos` 參數的情況下呼叫指令。
-<!-- -->
-:::
+> [!NOTE]
+> 由於 platform 是可選的參數，我們也可以在不使用`--platform macos` 參數的情況下呼叫指令。
+
 
 如果`.string` 和`.files` 不能提供足夠的靈活性，您可以透過`.file` 的情況，利用
 [Stencil](https://stencil.fuller.li/en/latest/) 模板語言。除此之外，您也可以使用在此定義的其他篩選器。
@@ -78,8 +76,8 @@ name 屬性的小寫值。
 
 您也可以使用`.directory` ，它提供了複製整個資料夾到指定路徑的可能性。
 
-::: tip PROJECT DESCRIPTION HELPERS
-<!-- -->
-模板支援使用 <LocalizedLink href="/guides/features/projects/code-sharing">專案描述輔助程式</LocalizedLink> 來跨模板重複使用程式碼。
-<!-- -->
-:::
+> [!TIP]
+> **Project Description Helpers**
+>
+> 模板支援使用 <LocalizedLink href="/guides/features/projects/code-sharing">專案描述輔助程式</LocalizedLink> 來跨模板重複使用程式碼。
+

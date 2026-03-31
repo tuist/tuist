@@ -27,18 +27,18 @@ Hedefler ve ikili dosyalar arasındaki Swift sürüm uyuşmazlıklarından kayna
 derleme hatalarını önlemek için `/usr/bin/xcrun swift --version` komutunu
 çalıştırarak elde edilen Swift sürümünü hash ediyoruz.
 
-::: info MODULE STABILITY
-<!-- -->
-İkili önbelleğe almanın önceki sürümleri, [modül
-kararlılığını](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-etkinleştirmek ve herhangi bir derleyici sürümüyle ikili dosyaları kullanmayı
-sağlamak için `BUILD_LIBRARY_FOR_DISTRIBUTION` derleme ayarına dayanıyordu.
-Ancak, modül kararlılığını desteklemeyen hedeflere sahip projelerde derleme
-sorunlarına neden oldu. Oluşturulan ikili dosyalar, onları derlemek için
-kullanılan Swift sürümüne bağlıdır ve Swift sürümü, projeyi derlemek için
-kullanılan sürümle eşleşmelidir.
-<!-- -->
-:::
+> [!NOTE]
+> **Module Stability**
+>
+> İkili önbelleğe almanın önceki sürümleri, [modül
+> kararlılığını](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
+> etkinleştirmek ve herhangi bir derleyici sürümüyle ikili dosyaları kullanmayı
+> sağlamak için `BUILD_LIBRARY_FOR_DISTRIBUTION` derleme ayarına dayanıyordu.
+> Ancak, modül kararlılığını desteklemeyen hedeflere sahip projelerde derleme
+> sorunlarına neden oldu. Oluşturulan ikili dosyalar, onları derlemek için
+> kullanılan Swift sürümüne bağlıdır ve Swift sürümü, projeyi derlemek için
+> kullanılan sürümle eşleşmelidir.
+
 
 #### Konfigürasyon {#configuration}
 
@@ -73,11 +73,11 @@ Hash'ler hala deterministik değilse, bize bildirin ve hata ayıklama konusunda
 yardımcı olabiliriz.
 
 
-::: info BETTER DEBUGGING EXPERIENCE PLANNED
-<!-- -->
-Hata ayıklama deneyimimizi iyileştirmek yol haritamızda yer alıyor. Farkları
-anlamak için bağlamdan yoksun olan print-hashes komutu, hash'ler arasındaki
-farkları göstermek için ağaç benzeri bir yapı kullanan daha kullanıcı dostu bir
-komutla değiştirilecektir.
-<!-- -->
-:::
+> [!NOTE]
+> **Better Debugging Experience Planned**
+>
+> Hata ayıklama deneyimimizi iyileştirmek yol haritamızda yer alıyor. Farkları
+> anlamak için bağlamdan yoksun olan print-hashes komutu, hash'ler arasındaki
+> farkları göstermek için ağaç benzeri bir yapı kullanan daha kullanıcı dostu bir
+> komutla değiştirilecektir.
+

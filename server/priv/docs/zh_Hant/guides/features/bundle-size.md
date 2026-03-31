@@ -7,11 +7,11 @@
 ---
 # 捆綁式洞察力{#bundle-size}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
+
 
 當您在應用程式中加入更多功能時，您的應用程式 bundle 大小也會不斷增加。當您發送更多的程式碼和資產時，有些 bundle
 大小的成長是不可避免的，但有許多方法可以將成長減至最低，例如確保您的資產不會在您的 bundle 中重複，或剝除未使用的二進位符號。Tuist
@@ -63,11 +63,11 @@ jobs:
 
 ## 拉取/合併請求註解{#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-若要取得自動的 pull/merge 請求註解，請將您的 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>整合。
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> 若要取得自動的 pull/merge 請求註解，請將您的 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>整合。
+
 
 一旦您的 Tuist 專案與 [GitHub](https://github.com) 等 Git 平台連線，每當您執行 `tuist inspect bundle` 時，Tuist 會直接在您的 pull/merge request 中發佈註解：
 

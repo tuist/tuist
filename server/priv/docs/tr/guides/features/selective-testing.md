@@ -27,37 +27,36 @@ talimatları izleyin:
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Oluşturulmuş proje</LocalizedLink>
 
-::: warning MODULE VS FILE-LEVEL GRANULARITY
-<!-- -->
-Testler ve kaynaklar arasındaki kod içi bağımlılıkları tespit etmenin
-imkansızlığı nedeniyle, seçmeli testin maksimum ayrıntı düzeyi hedef
-düzeyindedir. Bu nedenle, seçmeli testin faydalarını en üst düzeye çıkarmak için
-hedeflerinizi küçük ve odaklanmış tutmanızı öneririz.
-<!-- -->
-:::
+> [!WARNING]
+> **Module Vs File-level Granularity**
+>
+> Testler ve kaynaklar arasındaki kod içi bağımlılıkları tespit etmenin
+> imkansızlığı nedeniyle, seçmeli testin maksimum ayrıntı düzeyi hedef
+> düzeyindedir. Bu nedenle, seçmeli testin faydalarını en üst düzeye çıkarmak için
+> hedeflerinizi küçük ve odaklanmış tutmanızı öneririz.
 
-::: warning TEST COVERAGE
-<!-- -->
-Test kapsama araçları, tüm test paketinin bir kerede çalıştığını varsayar, bu da
-onları seçici test çalıştırmalarıyla uyumsuz hale getirir - bu, test seçimi
-kullanılırken kapsama verilerinin gerçeği yansıtmayabileceği anlamına gelir. Bu
-bilinen bir sınırlamadır ve yanlış bir şey yaptığınız anlamına gelmez. Ekipleri,
-kapsamın bu bağlamda hala anlamlı bilgiler sağlayıp sağlamadığı konusunda
-düşünmeye teşvik ediyoruz ve eğer öyleyse, kapsamın gelecekte seçici
-çalıştırmalarla nasıl düzgün çalışacağını düşündüğümüzden emin olabilirsiniz.
-<!-- -->
-:::
+
+> [!WARNING]
+> **Test Coverage**
+>
+> Test kapsama araçları, tüm test paketinin bir kerede çalıştığını varsayar, bu da
+> onları seçici test çalıştırmalarıyla uyumsuz hale getirir - bu, test seçimi
+> kullanılırken kapsama verilerinin gerçeği yansıtmayabileceği anlamına gelir. Bu
+> bilinen bir sınırlamadır ve yanlış bir şey yaptığınız anlamına gelmez. Ekipleri,
+> kapsamın bu bağlamda hala anlamlı bilgiler sağlayıp sağlamadığı konusunda
+> düşünmeye teşvik ediyoruz ve eğer öyleyse, kapsamın gelecekte seçici
+> çalıştırmalarla nasıl düzgün çalışacağını düşündüğümüzden emin olabilirsiniz.
 
 
 ## Çekme/birleştirme isteği yorumları {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-Otomatik çekme/birleştirme isteği yorumları almak için
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist projenizi</LocalizedLink> bir
-<LocalizedLink href="/guides/server/authentication">Git platformuyla</LocalizedLink> entegre edin.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> Otomatik çekme/birleştirme isteği yorumları almak için
+> <LocalizedLink href="/guides/server/accounts-and-projects">Tuist projenizi</LocalizedLink> bir
+> <LocalizedLink href="/guides/server/authentication">Git platformuyla</LocalizedLink> entegre edin.
+
 
 Tuist projeniz [GitHub](https://github.com) gibi Git platformunuza bağlandığında
 ve CI wortkflow'unuzun bir parçası olarak `tuist xcodebuild test` veya `tuist

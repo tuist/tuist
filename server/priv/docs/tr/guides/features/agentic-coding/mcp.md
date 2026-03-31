@@ -24,12 +24,10 @@ projelerinizle etkileşim kurmak için dili kullanabilirsiniz.
 
 Bu sayfada nasıl kurulacağını ve yeteneklerini öğreneceksiniz.
 
-::: info
-<!-- -->
-Tuist MCP sunucusu, etkileşim kurmak istediğiniz projeler için Xcode'un en son
-projelerini doğruluk kaynağı olarak kullanır.
-<!-- -->
-:::
+> [!NOTE]
+> Tuist MCP sunucusu, etkileşim kurmak istediğiniz projeler için Xcode'un en son
+> projelerini doğruluk kaynağı olarak kullanır.
+
 
 ## Kurun
 

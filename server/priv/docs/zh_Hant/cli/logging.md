@@ -18,19 +18,15 @@ CLI 會在內部記錄訊息，以協助您診斷問題。
 的值為`~/.local/state` ，如果沒有設定環境變數的話。您也可以使用`$TUIST_XDG_STATE_HOME` 來設定 Tuist
 特有的狀態目錄，它優先於`$XDG_STATE_HOME` 。
 
-::: tip
-<!-- -->
-瞭解更多關於 Tuist 目錄組織的資訊，以及如何在 <LocalizedLink href="/cli/directories">Directories 文件</LocalizedLink>中設定自訂目錄。
-<!-- -->
-:::
+> [!TIP]
+> 瞭解更多關於 Tuist 目錄組織的資訊，以及如何在 <LocalizedLink href="/cli/directories">Directories 文件</LocalizedLink>中設定自訂目錄。
+
 
 預設情況下，當執行意外退出時，CLI 會輸出記錄路徑。如果沒有，您可以在上述路徑中找到記錄 (即最近的記錄檔)。
 
-::: warning
-<!-- -->
-敏感資訊不會被刪除，因此分享日誌時要謹慎。
-<!-- -->
-:::
+> [!WARNING]
+> 敏感資訊不會被刪除，因此分享日誌時要謹慎。
+
 
 ### 持續整合{#diagnose-issues-using-logs-ci}
 

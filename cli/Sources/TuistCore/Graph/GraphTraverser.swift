@@ -114,6 +114,18 @@ public class GraphTraverser: GraphTraversing {
         projects.values.flatMap(\.schemes) + graph.workspace.schemes
     }
 
+    public func testTargets(for schemeName: String) -> Set<GraphTarget> {
+        guard let scheme = schemes().first(where: { $0.name == schemeName }),
+              let testTargetRefs = scheme.testAction?.targets.map(\.target)
+        else { return Set() }
+        let testTargetRefSet = Set(testTargetRefs)
+        return allTargets().filter { graphTarget in
+            testTargetRefSet.contains(
+                TargetReference(projectPath: graphTarget.path, name: graphTarget.target.name)
+            )
+        }
+    }
+
     public func precompiledFrameworksPaths() -> Set<Path.AbsolutePath> {
         let dependencies = graph.dependencies.reduce(into: Set<GraphDependency>()) { acc, next in
             acc.formUnion([next.key])

@@ -19,15 +19,15 @@ tuist inspect implicit-imports
 
 如果指令偵測到任何隱含的匯入，它會以 0 以外的退出代碼退出。
 
-::: tip VALIDATE IN CI
-<!-- -->
-我們強烈建議每次有新程式碼推送到上游時，就執行這個指令，作為
-<LocalizedLink href="/guides/integrations/continuous-integration">continuous integration</LocalizedLink> 指令的一部分。
-<!-- -->
-:::
+> [!TIP]
+> **Validate In Ci**
+>
+> 我們強烈建議每次有新程式碼推送到上游時，就執行這個指令，作為
+> <LocalizedLink href="/guides/integrations/continuous-integration">continuous integration</LocalizedLink> 指令的一部分。
 
-::: warning NOT ALL IMPLICIT CASES ARE DETECTED
-<!-- -->
-由於 Tuist 依賴靜態程式碼分析來偵測隱含的依賴關係，因此可能無法偵測到所有的情況。例如，Tuist 無法理解程式碼中透過編譯器指令的條件匯入。
-<!-- -->
-:::
+
+> [!WARNING]
+> **Not All Implicit Cases Are Detected**
+>
+> 由於 Tuist 依賴靜態程式碼分析來偵測隱含的依賴關係，因此可能無法偵測到所有的情況。例如，Tuist 無法理解程式碼中透過編譯器指令的條件匯入。
+

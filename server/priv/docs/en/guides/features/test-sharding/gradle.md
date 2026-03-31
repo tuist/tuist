@@ -7,11 +7,11 @@
 ---
 # Gradle test sharding {#gradle-test-sharding}
 
-::: warning REQUIREMENTS
-<!-- -->
-- The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
+
 
 The Tuist Gradle plugin includes built-in support for test sharding. It discovers test suites by scanning compiled test class files and uses the Tuist server to create balanced shard plans based on historical timing data.
 
@@ -374,8 +374,6 @@ workflows:
       - TUIST_SHARD_INDEX: 4
 ```
 
-::: tip
-<!-- -->
-Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
-<!-- -->
-:::
+> [!TIP]
+> Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
+

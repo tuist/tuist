@@ -7,11 +7,11 @@
 ---
 # Paket içgörüleri {#bundle-size}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+
 
 Uygulamanıza daha fazla özellik ekledikçe, uygulama paketinizin boyutu da
 büyümeye devam eder. Daha fazla kod ve varlık gönderdikçe paket boyutundaki
@@ -74,13 +74,13 @@ grafiği](/images/guides/features/bundle-size/bundle-size-graph.png)
 
 ## Çekme/birleştirme isteği yorumları {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-Otomatik çekme/birleştirme isteği yorumları almak için
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist projenizi</LocalizedLink> bir
-<LocalizedLink href="/guides/server/authentication">Git platformuyla</LocalizedLink> entegre edin.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> Otomatik çekme/birleştirme isteği yorumları almak için
+> <LocalizedLink href="/guides/server/accounts-and-projects">Tuist projenizi</LocalizedLink> bir
+> <LocalizedLink href="/guides/server/authentication">Git platformuyla</LocalizedLink> entegre edin.
+
 
 Tuist projeniz [GitHub](https://github.com) gibi Git platformunuza bağlandıktan
 sonra, `tuist inspect bundle` çalıştırdığınızda Tuist doğrudan çekme/birleştirme

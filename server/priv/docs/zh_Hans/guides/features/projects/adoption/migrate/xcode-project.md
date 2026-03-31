@@ -71,11 +71,11 @@ let package = Package(
 `Project.swift` 是定义项目的清单文件，而`Package.swift` 则是定义依赖项的清单文件。`Tuist.swift`
 文件是为项目定义项目范围 Tuist 设置的文件。
 
-::: tip PROJECT NAME WITH -TUIST SUFFIX
-<!-- -->
-为防止与现有 Xcode 项目发生冲突，我们建议在项目名称中添加`-Tuist` 后缀。当您将项目完全迁移到 Tuist 后，就可以去掉后缀。
-<!-- -->
-:::
+> [!TIP]
+> **Project Name With -tuist Suffix**
+>
+> 为防止与现有 Xcode 项目发生冲突，我们建议在项目名称中添加`-Tuist` 后缀。当您将项目完全迁移到 Tuist 后，就可以去掉后缀。
+
 
 ## 在 CI 中构建和测试 Tuist 项目{#build-and-test-the-tuist-project-in-ci}
 
@@ -150,12 +150,11 @@ let package = Package(
 )
 ```
 
-::: tip PRODUCT TYPES
-<!-- -->
-您可以将特定软件包的产品类型添加到`PackageSettings` struct 中的`productTypes`
-字典，从而覆盖该类型。默认情况下，Tuist 假定所有软件包都是静态框架。
-<!-- -->
-:::
+> [!TIP]
+> **Product Types**
+>
+> 您可以将特定软件包的产品类型添加到`PackageSettings` struct 中的`productTypes`
+> 字典，从而覆盖该类型。默认情况下，Tuist 假定所有软件包都是静态框架。
 
 
 ## 确定迁移顺序{#determine-the-migration-order}
@@ -216,11 +215,11 @@ let project = Project(
 )
 ```
 
-::: info TEST TARGETS
-<!-- -->
-如果目标有关联的测试目标，则应在`Project.swift` 文件中定义该目标，并重复相同的步骤。
-<!-- -->
-:::
+> [!NOTE]
+> **Test Targets**
+>
+> 如果目标有关联的测试目标，则应在`Project.swift` 文件中定义该目标，并重复相同的步骤。
+
 
 ### 验证目标迁移{#validate-the-target-migration}
 

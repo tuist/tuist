@@ -11,13 +11,13 @@ Tuist **global olarak** yüklediyseniz (örneğin Homebrew aracılığıyla), ko
 ve seçenekleri otomatik olarak tamamlamak için Bash ve Zsh için kabuk
 tamamlayıcıları yükleyebilirsiniz.
 
-::: warning WHAT IS A GLOBAL INSTALLATION
-<!-- -->
-Genel kurulum, kabuğunuzun `$PATH` ortam değişkeninde bulunan bir kurulumdur.
-Bu, terminalinizdeki herhangi bir dizinden `tuist` çalıştırabileceğiniz anlamına
-gelir. Bu Homebrew için varsayılan kurulum yöntemidir.
-<!-- -->
-:::
+> [!WARNING]
+> **What Is A Global Installation**
+>
+> Genel kurulum, kabuğunuzun `$PATH` ortam değişkeninde bulunan bir kurulumdur.
+> Bu, terminalinizdeki herhangi bir dizinden `tuist` çalıştırabileceğiniz anlamına
+> gelir. Bu Homebrew için varsayılan kurulum yöntemidir.
+
 
 #### Zsh {#zsh}
 

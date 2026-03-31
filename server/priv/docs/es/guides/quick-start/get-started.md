@@ -30,12 +30,12 @@ acceso a funciones como
 <LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, y el
 <LocalizedLink href="/guides/features/registry">registro</LocalizedLink>.
 
-::: info MIGRATE AN EXISTING PROJECT
-<!-- -->
-Si desea migrar un proyecto existente a proyectos generados para mejorar la
-experiencia del desarrollador y aprovechar nuestra
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, consulte
-nuestra
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">guía de migración</LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> **Migrate An Existing Project**
+>
+> Si desea migrar un proyecto existente a proyectos generados para mejorar la
+> experiencia del desarrollador y aprovechar nuestra
+> <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, consulte
+> nuestra
+> <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">guía de migración</LocalizedLink>.
+

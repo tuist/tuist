@@ -16,6 +16,7 @@ import TuistSupport
 import TuistXCActivityLog
 import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
+import XCResultParser
 
 public enum UploadResultBundleServiceError: Equatable, LocalizedError {
     case missingFullHandle
@@ -113,6 +114,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
+            id: nil,
             testSummary: testSummary,
             buildRunId: buildRunId,
             gitBranch: gitInfo.branch,

@@ -35,13 +35,13 @@ görüntülemelerini ve kullanıcı yolculuklarını otomatik olarak izleyecekti
 | `TUIST_POSTHOG_API_KEY` | PostHog projesi API anahtarınız | Hayır   |            | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `TUIST_POSTHOG_URL`     | PostHog API uç noktası URL'si   | Hayır   |            | `https://eu.i.posthog.com`                        |
 
-::: info ANALYTICS ENABLEMENT
-<!-- -->
-Analitik yalnızca `TUIST_POSTHOG_API_KEY` ve `TUIST_POSTHOG_URL` değişkenlerinin
-her ikisi de yapılandırıldığında etkinleştirilir. Değişkenlerden biri eksikse,
-hiçbir analiz olayı gönderilmeyecektir.
-<!-- -->
-:::
+> [!NOTE]
+> **Analytics Enablement**
+>
+> Analitik yalnızca `TUIST_POSTHOG_API_KEY` ve `TUIST_POSTHOG_URL` değişkenlerinin
+> her ikisi de yapılandırıldığında etkinleştirilir. Değişkenlerden biri eksikse,
+> hiçbir analiz olayı gönderilmeyecektir.
+
 
 ### Özellikler {#posthog-features}
 
@@ -171,12 +171,10 @@ Yüklenen toplam önizleme sayısı.
 Eserlerin uzak bir depolama alanında (örn. s3) depolanmasıyla ilgili bir dizi
 metrik.
 
-::: tip
-<!-- -->
-Bu metrikler, depolama işlemlerinin performansını anlamak ve olası darboğazları
-belirlemek için kullanışlıdır.
-<!-- -->
-:::
+> [!TIP]
+> Bu metrikler, depolama işlemlerinin performansını anlamak ve olası darboğazları
+> belirlemek için kullanışlıdır.
+
 
 ### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}
 

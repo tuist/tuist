@@ -6,12 +6,14 @@ import TuistHTTP
 #if canImport(TuistXCResultService)
     import TuistCI
     import TuistXCResultService
+    import XCResultParser
 
     @Mockable
     public protocol CreateTestServicing {
         func createTest(
             fullHandle: String,
             serverURL: URL,
+            id: String?,
             testSummary: TestSummary,
             buildRunId: String?,
             gitBranch: String?,
@@ -50,10 +52,6 @@ import TuistHTTP
         }
     }
 
-    public enum ServerTestRunStatus {
-        case success, failure, skipped
-    }
-
     public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
 
@@ -67,6 +65,7 @@ import TuistHTTP
         public func createTest(
             fullHandle: String,
             serverURL: URL,
+            id: String? = nil,
             testSummary: TestSummary,
             buildRunId: String?,
             gitBranch: String?,
@@ -95,6 +94,8 @@ import TuistHTTP
                     .failure
                 case .skipped:
                     .skipped
+                case .processing:
+                    .processing
                 }
 
             let testModules = testSummary.testModules.map { module in
@@ -236,6 +237,7 @@ import TuistHTTP
                             git_commit_sha: gitCommitSHA,
                             git_ref: gitRef,
                             git_remote_url_origin: gitRemoteURLOrigin,
+                            id: id,
                             is_ci: isCI,
                             macos_version: macOSVersion,
                             model_identifier: modelIdentifier,
@@ -286,7 +288,7 @@ import TuistHTTP
             .test_modulesPayload.Element.test_casesPayloadPayload.statusPayload
         {
             switch status {
-            case .passed:
+            case .passed, .processing:
                 return .success
             case .failed:
                 return .failure
@@ -300,7 +302,7 @@ import TuistHTTP
             .test_modulesPayloadPayload.statusPayload
         {
             switch status {
-            case .passed, .skipped:
+            case .passed, .skipped, .processing:
                 return .success
             case .failed:
                 return .failure
@@ -312,7 +314,7 @@ import TuistHTTP
             .test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
         {
             switch status {
-            case .passed, .skipped:
+            case .passed, .skipped, .processing:
                 return .success
             case .failed:
                 return .failure
@@ -341,7 +343,7 @@ import TuistHTTP
             .statusPayload
         {
             switch status {
-            case .passed, .skipped:
+            case .passed, .skipped, .processing:
                 return .success
             case .failed:
                 return .failure

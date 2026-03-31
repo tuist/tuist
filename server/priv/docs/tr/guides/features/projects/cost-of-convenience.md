@@ -39,15 +39,15 @@ yöneticisinin miras aldığı bir ilke olan kolaylığı sağlamak için geçer
 tasarım seçimi olarak örtüklüğü benimsediğinden, Xcode kullanmanın zorlukları
 Swift paketi yöneticisinde de mevcuttur.
 
-::: info THE ROLE OF TUIST
-<!-- -->
-Tuist'in rolünü, örtük olarak tanımlanmış projeleri önleyen ve daha iyi bir
-geliştirici deneyimi (örn. doğrulamalar, optimizasyonlar) sağlamak için
-açıklıktan yararlanan bir araç olarak özetleyebiliriz.
-Bazel](https://bazel.build) gibi araçlar bunu derleme sistemi seviyesine
-indirerek daha da ileri götürmektedir.
-<!-- -->
-:::
+> [!NOTE]
+> **The Role Of Tuist**
+>
+> Tuist'in rolünü, örtük olarak tanımlanmış projeleri önleyen ve daha iyi bir
+> geliştirici deneyimi (örn. doğrulamalar, optimizasyonlar) sağlamak için
+> açıklıktan yararlanan bir araç olarak özetleyebiliriz.
+> Bazel](https://bazel.build) gibi araçlar bunu derleme sistemi seviyesine
+> indirerek daha da ileri götürmektedir.
+
 
 Bu, toplulukta çok az tartışılan bir konudur, ancak önemli bir konudur. Tuist
 üzerinde çalışırken, birçok kuruluşun ve geliştiricinin karşılaştıkları mevcut
@@ -78,14 +78,14 @@ proje büyüdüğünde hata ayıklaması zor olan başarısız derlemeler olarak
 Bu tasarım kararının sonucu, birçok projenin tesadüfen iyi tanımlanmamış bir
 grafikle derlenmesidir.
 
-::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
-<!-- -->
-Tuist, örtük bağımlılıkları tespit etmek için bir
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">komut</LocalizedLink>
-sağlar. CI'da tüm bağımlılıklarınızın açık olduğunu doğrulamak için bu komutu
-kullanabilirsiniz.
-<!-- -->
-:::
+> [!TIP]
+> **Tuist Detection Of Implicit Dependencies**
+>
+> Tuist, örtük bağımlılıkları tespit etmek için bir
+> <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">komut</LocalizedLink>
+> sağlar. CI'da tüm bağımlılıklarınızın açık olduğunu doğrulamak için bu komutu
+> kullanabilirsiniz.
+
 
 ### Şemalardaki örtük bağımlılıkları bulun {#find-implicit-dependencies-in-schemes}
 
@@ -106,12 +106,10 @@ sonuçlanabilirsiniz. Örneğin, bir derleme,
 türetme verilerindeki bazı durumlar nedeniyle yerel olarak geçebilir, ancak daha
 sonra durum farklı olduğu için CI'da derlenemeyebilir.
 
-::: tip
-<!-- -->
-Proje şemalarınızda bunu devre dışı bırakmanızı ve bağımlılık grafiğinin
-yönetimini kolaylaştıran Tuist gibi kullanmanızı öneririz.
-<!-- -->
-:::
+> [!TIP]
+> Proje şemalarınızda bunu devre dışı bırakmanızı ve bağımlılık grafiğinin
+> yönetimini kolaylaştıran Tuist gibi kullanmanızı öneririz.
+
 
 ### SwiftUI Önizlemeleri ve statik kütüphaneler/çerçeveler {#swiftui-previews-and-static-librariesframeworks}
 

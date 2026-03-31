@@ -19,27 +19,26 @@
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
 
-::: warning MODULE VS FILE-LEVEL GRANULARITY
-<!-- -->
-由于无法检测测试与源代码之间的代码内依赖关系，选择性测试的最大粒度是目标级别。因此，我们建议将目标保持在较小的范围内，并突出重点，以最大限度地发挥选择性测试的优势。
-<!-- -->
-:::
+> [!WARNING]
+> **Module Vs File-level Granularity**
+>
+> 由于无法检测测试与源代码之间的代码内依赖关系，选择性测试的最大粒度是目标级别。因此，我们建议将目标保持在较小的范围内，并突出重点，以最大限度地发挥选择性测试的优势。
 
-::: warning TEST COVERAGE
-<!-- -->
-测试覆盖率工具假定整个测试套件一次性运行，这使得它们与选择性测试运行不兼容--这意味着在使用测试选择时，覆盖率数据可能无法反映实际情况。这是众所周知的局限性，但这并不意味着你做错了什么。我们鼓励团队反思覆盖率在这种情况下是否仍能带来有意义的见解，如果是，请放心，我们已经在考虑如何让覆盖率在未来与选择性运行正常配合。
-<!-- -->
-:::
+
+> [!WARNING]
+> **Test Coverage**
+>
+> 测试覆盖率工具假定整个测试套件一次性运行，这使得它们与选择性测试运行不兼容--这意味着在使用测试选择时，覆盖率数据可能无法反映实际情况。这是众所周知的局限性，但这并不意味着你做错了什么。我们鼓励团队反思覆盖率在这种情况下是否仍能带来有意义的见解，如果是，请放心，我们已经在考虑如何让覆盖率在未来与选择性运行正常配合。
 
 
 ## 拉取/合并请求注释{#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
-平台</LocalizedLink>集成。
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> 要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
+> 平台</LocalizedLink>集成。
+
 
 一旦您的 Tuist 项目与 [GitHub](https://github.com) 等 Git 平台连接，并且您开始使用`tuist xcodebuild
 test` 或`tuist test` 作为 CI 流程的一部分，Tuist 将直接在您的拉取/合并请求中发布注释，包括哪些测试已运行，哪些测试被跳过：

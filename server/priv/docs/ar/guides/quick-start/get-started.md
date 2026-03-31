@@ -31,11 +31,11 @@ tuist init
 والمراجعات</LocalizedLink>، و <LocalizedLink href="/guides/features/registry">
 السجل</LocalizedLink>.
 
-::: info MIGRATE AN EXISTING PROJECT
-<!-- -->
-إذا كنت ترغب في ترحيل مشروع قائم إلى المشاريع التي تم إنشاؤها لتحسين تجربة
-المطور والاستفادة من <LocalizedLink href="/guides/features/cache">ذاكرة التخزين
-المؤقت</LocalizedLink>، راجع دليل
-الترحيل<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project"></LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> **Migrate An Existing Project**
+>
+> إذا كنت ترغب في ترحيل مشروع قائم إلى المشاريع التي تم إنشاؤها لتحسين تجربة
+> المطور والاستفادة من <LocalizedLink href="/guides/features/cache">ذاكرة التخزين
+> المؤقت</LocalizedLink>، راجع دليل
+> الترحيل<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project"></LocalizedLink>.
+

@@ -18,14 +18,14 @@ tuist inspect implicit-imports
 
 コマンドが暗黙のインポートを検出した場合、0以外の終了コードで終了する。
 
-::: tip VALIDATE IN CI
-<!-- -->
-新しいコードがアップストリームにプッシュされるたびに、<LocalizedLink href="/guides/integrations/continuous-integration">継続的インテグレーション</LocalizedLink>コマンドの一部としてこのコマンドを実行することを強く推奨する。
-<!-- -->
-:::
+> [!TIP]
+> **Validate In Ci**
+>
+> 新しいコードがアップストリームにプッシュされるたびに、<LocalizedLink href="/guides/integrations/continuous-integration">継続的インテグレーション</LocalizedLink>コマンドの一部としてこのコマンドを実行することを強く推奨する。
 
-::: warning NOT ALL IMPLICIT CASES ARE DETECTED
-<!-- -->
-Tuistは暗黙の依存関係を検出するために静的コード解析に依存しているため、すべてのケースを検出できるわけではない。例えば、Tuistはコード中のコンパイラ指令による条件付きインポートを理解することができない。
-<!-- -->
-:::
+
+> [!WARNING]
+> **Not All Implicit Cases Are Detected**
+>
+> Tuistは暗黙の依存関係を検出するために静的コード解析に依存しているため、すべてのケースを検出できるわけではない。例えば、Tuistはコード中のコンパイラ指令による条件付きインポートを理解することができない。
+

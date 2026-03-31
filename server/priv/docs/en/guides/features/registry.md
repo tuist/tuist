@@ -31,23 +31,21 @@ let tuist = Tuist(
 
 With this option, `tuist generate` will automatically create the registry configuration file in your workspace. This eliminates the need to run `tuist registry setup` separately.
 
-::: tip
-<!-- -->
-If you want to integrate dependencies through Xcode's default Swift Package Manager integration (rather than Tuist's XcodeProj-based integration), enabling `registryEnabled` in your generated projects will configure them to use the registry automatically:
+> [!TIP]
+> If you want to integrate dependencies through Xcode's default Swift Package Manager integration (rather than Tuist's XcodeProj-based integration), enabling `registryEnabled` in your generated projects will configure them to use the registry automatically:
+>
+> ```swift
+> import ProjectDescription
+>
+> let tuist = Tuist(
+>     project: .tuist(
+>         generationOptions: .options(
+>             registryEnabled: true
+>         )
+>     )
+> )
+> ```
 
-```swift
-import ProjectDescription
-
-let tuist = Tuist(
-    project: .tuist(
-        generationOptions: .options(
-            registryEnabled: true
-        )
-    )
-)
-```
-<!-- -->
-:::
 
 ### Option 2: Manual setup {#manual-setup}
 
@@ -67,11 +65,9 @@ Authentication is **optional**. Without authentication, you can use the registry
 tuist registry login
 ```
 
-::: info
-<!-- -->
-Authentication requires a <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> Authentication requires a <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>.
+
 
 ### Resolving dependencies {#resolving-dependencies}
 
@@ -87,9 +83,7 @@ To set up the registry on the CI, follow this guide: <LocalizedLink href="/guide
 
 When you use package registry identifiers in a `Package.swift` or `Project.swift` file, you need to convert the URL of the package to the registry convention. The registry identifier is always in the form of `{organization}.{repository}`. For example, to use the registry for the `https://github.com/pointfreeco/swift-composable-architecture` package, the package registry identifier would be `pointfreeco.swift-composable-architecture`.
 
-::: info
-<!-- -->
-The identifier can't contain more than one dot. If the repository name contains a dot, it's replaced with an underscore.
-For example, the `https://github.com/groue/GRDB.swift` package would have the registry identifier `groue.GRDB_swift`.
-<!-- -->
-:::
+> [!NOTE]
+> The identifier can't contain more than one dot. If the repository name contains a dot, it's replaced with an underscore.
+> For example, the `https://github.com/groue/GRDB.swift` package would have the registry identifier `groue.GRDB_swift`.
+

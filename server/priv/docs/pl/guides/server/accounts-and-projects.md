@@ -27,13 +27,13 @@ do ich, gdzie możesz mieć konta osobiste i organizacyjne, a są one
 identyfikowane przez uchwyt ** , który jest używany podczas konstruowania
 adresów URL.
 
-::: info CLI-FIRST
-<!-- -->
-Większość operacji związanych z zarządzaniem kontami i projektami odbywa się za
-pośrednictwem interfejsu CLI. Pracujemy nad interfejsem webowym, który ułatwi
-zarządzanie kontami i projektami.
-<!-- -->
-:::
+> [!NOTE]
+> **Cli-first**
+>
+> Większość operacji związanych z zarządzaniem kontami i projektami odbywa się za
+> pośrednictwem interfejsu CLI. Pracujemy nad interfejsem webowym, który ułatwi
+> zarządzanie kontami i projektami.
+
 
 Organizacją można zarządzać za pomocą poleceń podrzędnych w sekcji
 <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>.
@@ -61,14 +61,14 @@ następującą treść:
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: warning TUIST PROJECT-ONLY FEATURES
-<!-- -->
-Należy pamiętać, że niektóre funkcje, takie jak
-<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>,
-wymagają posiadania projektu Tuist. Jeśli korzystasz z nieprzetworzonych
-projektów Xcode, nie będziesz mógł korzystać z tych funkcji.
-<!-- -->
-:::
+> [!WARNING]
+> **Tuist Project-only Features**
+>
+> Należy pamiętać, że niektóre funkcje, takie jak
+> <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>,
+> wymagają posiadania projektu Tuist. Jeśli korzystasz z nieprzetworzonych
+> projektów Xcode, nie będziesz mógł korzystać z tych funkcji.
+
 
 Adres URL projektu jest tworzony przy użyciu pełnego uchwytu. Na przykład pulpit
 nawigacyjny Tuist, który jest publiczny, jest dostępny pod adresem

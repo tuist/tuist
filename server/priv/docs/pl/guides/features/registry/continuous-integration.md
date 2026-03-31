@@ -10,12 +10,12 @@
 Aby korzystać z rejestru w CI, należy upewnić się, że zalogowano się do
 rejestru, uruchamiając `tuist registry login` jako część przepływu pracy.
 
-::: info ONLY XCODE INTEGRATION
-<!-- -->
-Utworzenie nowego wstępnie odblokowanego pęku kluczy jest wymagane tylko w
-przypadku korzystania z integracji pakietów w Xcode.
-<!-- -->
-:::
+> [!NOTE]
+> **Only Xcode Integration**
+>
+> Utworzenie nowego wstępnie odblokowanego pęku kluczy jest wymagane tylko w
+> przypadku korzystania z integracji pakietów w Xcode.
+
 
 Ponieważ dane uwierzytelniające rejestru są przechowywane w pęku kluczy, należy
 zapewnić dostęp do pęku kluczy w środowisku CI. Niektórzy dostawcy CI lub

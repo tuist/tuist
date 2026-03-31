@@ -169,9 +169,6 @@ defmodule Tuist.Authorization do
 
   object :account_token do
     action :create do
-      desc("Allows users of an account to create an account token.")
-      allow([:authenticated_as_user, user_role: :user])
-
       desc("Allows the admin of an account to create an account token.")
       allow([:authenticated_as_user, user_role: :admin])
     end

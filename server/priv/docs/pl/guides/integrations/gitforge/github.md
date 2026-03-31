@@ -35,23 +35,23 @@ lub
 ![Obrazek przedstawiający komentarz do pull
 requesta](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: info REQUIREMENTS
-<!-- -->
-Komentarz jest publikowany tylko wtedy, gdy uruchomienia CI są
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">uwierzytelnione</LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> **Requirements**
+>
+> Komentarz jest publikowany tylko wtedy, gdy uruchomienia CI są
+> <LocalizedLink href="/guides/integrations/continuous-integration#authentication">uwierzytelnione</LocalizedLink>.
 
-::: info GITHUB_REF
-<!-- -->
-Jeśli masz niestandardowy przepływ pracy, który nie jest wyzwalany przez
-zatwierdzenie PR, ale na przykład komentarz GitHub, może być konieczne
-upewnienie się, że zmienna `GITHUB_REF` jest ustawiona na
-`refs/pull/<pr_number>/merge` lub
-`refs/pull/<pr_number>/head`.</pr_number></pr_number>
 
-Możesz uruchomić odpowiednie polecenie, takie jak `tuist share`, z prefiksem
-`GITHUB_REF` zmienna środowiskowa: <code v-pre>GITHUB_REF="refs/pull/${{
-github.event.issue.number }}/head" tuist share</code>
-<!-- -->
-:::
+> [!NOTE]
+> **Github_ref**
+>
+> Jeśli masz niestandardowy przepływ pracy, który nie jest wyzwalany przez
+> zatwierdzenie PR, ale na przykład komentarz GitHub, może być konieczne
+> upewnienie się, że zmienna `GITHUB_REF` jest ustawiona na
+> `refs/pull/<pr_number>/merge` lub
+> `refs/pull/<pr_number>/head`.</pr_number></pr_number>
+>
+> Możesz uruchomić odpowiednie polecenie, takie jak `tuist share`, z prefiksem
+> `GITHUB_REF` zmienna środowiskowa: <code v-pre>GITHUB_REF="refs/pull/${{
+> github.event.issue.number }}/head" tuist share</code>
+

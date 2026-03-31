@@ -27,12 +27,12 @@ PostHog 整合是可選的，可透過設定適當的環境變數來啟用。設
 | `tuist_posthog_api_key` | 您的 PostHog 專案 API 金鑰 | 沒有  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `tuist_posthog_url`     | PostHog API 端點 URL   | 沒有  |     | `https://eu.i.posthog.com`                        |
 
-::: info ANALYTICS ENABLEMENT
-<!-- -->
-只有同時設定`TUIST_POSTHOG_API_KEY` 和`TUIST_POSTHOG_URL`
-時，才會啟用分析功能。如果缺少其中一個變數，就不會傳送分析事件。
-<!-- -->
-:::
+> [!NOTE]
+> **Analytics Enablement**
+>
+> 只有同時設定`TUIST_POSTHOG_API_KEY` 和`TUIST_POSTHOG_URL`
+> 時，才會啟用分析功能。如果缺少其中一個變數，就不會傳送分析事件。
+
 
 ### 特點{#posthog-features}
 
@@ -147,11 +147,9 @@ Tuist Runs 的總數。
 
 一套與遠端儲存（例如 s3）中工件儲存相關的指標。
 
-::: tip
-<!-- -->
-這些指標有助於瞭解儲存作業的效能，並找出潛在的瓶頸。
-<!-- -->
-:::
+> [!TIP]
+> 這些指標有助於瞭解儲存作業的效能，並找出潛在的瓶頸。
+
 
 ### `tuist_storage_get_object_size_size_bytes` (histogram){#tuist_storage_get_object_size_size_bytes-histogram}
 

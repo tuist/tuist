@@ -16,12 +16,10 @@ do Twojej organizacji Tuist, możesz to skonfigurować za pomocą:
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-::: warning
-<!-- -->
-Musisz być uwierzytelniony w Google przy użyciu adresu e-mail powiązanego z
-organizacją, której domenę konfigurujesz.
-<!-- -->
-:::
+> [!WARNING]
+> Musisz być uwierzytelniony w Google przy użyciu adresu e-mail powiązanego z
+> organizacją, której domenę konfigurujesz.
+
 
 ## Okta {#okta}
 
@@ -64,12 +62,10 @@ Po pierwsze, należy utworzyć aplikację Okta i skonfigurować ją do pracy z T
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-::: warning
-<!-- -->
-Użytkownicy muszą początkowo zalogować się za pośrednictwem pulpitu
-nawigacyjnego Okta, ponieważ Tuist obecnie nie obsługuje automatycznego
-przydzielania i usuwania użytkowników z organizacji Okta. Po zalogowaniu się za
-pośrednictwem pulpitu nawigacyjnego Okta zostaną oni automatycznie dodani do
-organizacji Tuist.
-<!-- -->
-:::
+> [!WARNING]
+> Użytkownicy muszą początkowo zalogować się za pośrednictwem pulpitu
+> nawigacyjnego Okta, ponieważ Tuist obecnie nie obsługuje automatycznego
+> przydzielania i usuwania użytkowników z organizacji Okta. Po zalogowaniu się za
+> pośrednictwem pulpitu nawigacyjnego Okta zostaną oni automatycznie dodani do
+> organizacji Tuist.
+

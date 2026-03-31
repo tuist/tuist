@@ -148,6 +148,35 @@ defmodule CacheWeb.XcodeModuleControllerTest do
         assert conn.status == 404
       end)
     end
+
+    test "returns 422 when artifact path params contain traversal", %{conn: conn} do
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get(
+          "/api/cache/module/some-artifact-id?account_handle=test-account&project_handle=test-project&hash=abc123&name=../escaped.zip"
+        )
+
+      assert conn.status == 422
+
+      response = json_response(conn, 422)
+
+      assert %{
+               "errors" => [
+                 %{
+                   "title" => "Invalid value",
+                   "source" => %{"pointer" => "/name"},
+                   "detail" => detail
+                 }
+               ]
+             } = response
+
+      assert is_binary(detail)
+    end
   end
 
   describe "HEAD /api/cache/module/:id (exists)" do
@@ -315,6 +344,35 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       assert conn.status == 200
       response = json_response(conn, 200)
       assert is_binary(response["upload_id"])
+    end
+
+    test "returns 422 when artifact path params contain traversal", %{conn: conn} do
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post(
+          "/api/cache/module/start?account_handle=test-account&project_handle=test-project&hash=abc123&name=../escaped.zip"
+        )
+
+      assert conn.status == 422
+
+      response = json_response(conn, 422)
+
+      assert %{
+               "errors" => [
+                 %{
+                   "title" => "Invalid value",
+                   "source" => %{"pointer" => "/name"},
+                   "detail" => detail
+                 }
+               ]
+             } = response
+
+      assert is_binary(detail)
     end
   end
 

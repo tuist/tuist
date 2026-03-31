@@ -9,11 +9,11 @@
 
 若要在 CI 上使用註冊表，您需要在工作流程中執行`tuist registry login` ，以確保已登入註冊表。
 
-::: info ONLY XCODE INTEGRATION
-<!-- -->
-只有當您使用 Xcode 整合套件時，才需要建立新的預先解鎖鑰匙鏈。
-<!-- -->
-:::
+> [!NOTE]
+> **Only Xcode Integration**
+>
+> 只有當您使用 Xcode 整合套件時，才需要建立新的預先解鎖鑰匙鏈。
+
 
 由於註冊表憑證儲存在鑰匙鏈中，因此您需要確保在 CI 環境中可以存取鑰匙鏈。請注意，有些 CI 提供者或自動化工具（例如
 [Fastlane](https://fastlane.tools/)）已經建立臨時的 keychain，或提供內建的方式來建立

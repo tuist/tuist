@@ -18,11 +18,9 @@ CLI 会在内部记录信息，以帮助您诊断问题。
 的值为`~/.local/state` （如果未设置环境变量）。也可以使用`$TUIST_XDG_STATE_HOME` 设置 Tuist
 特有的状态目录，其优先级高于`$XDG_STATE_HOME` 。
 
-::: tip
-<!-- -->
-有关 Tuist 目录组织以及如何配置自定义目录的更多信息，请参阅 <LocalizedLink href="/cli/directories"> 目录文档</LocalizedLink>。
-<!-- -->
-:::
+> [!TIP]
+> 有关 Tuist 目录组织以及如何配置自定义目录的更多信息，请参阅 <LocalizedLink href="/cli/directories"> 目录文档</LocalizedLink>。
+
 
 默认情况下，CLI 会在执行意外退出时输出日志路径。如果没有，则可在上述路径（即最近的日志文件）中找到日志。
 

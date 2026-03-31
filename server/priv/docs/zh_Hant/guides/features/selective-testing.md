@@ -18,27 +18,26 @@
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">專案生成</LocalizedLink>
 
-::: warning MODULE VS FILE-LEVEL GRANULARITY
-<!-- -->
-由於無法偵測測試與來源之間的程式碼內依賴關係，選擇性測試的最大粒度是在目標層級。因此，我們建議將您的目標保持在較小且集中的層級，以發揮選擇性測試的最大效益。
-<!-- -->
-:::
+> [!WARNING]
+> **Module Vs File-level Granularity**
+>
+> 由於無法偵測測試與來源之間的程式碼內依賴關係，選擇性測試的最大粒度是在目標層級。因此，我們建議將您的目標保持在較小且集中的層級，以發揮選擇性測試的最大效益。
 
-::: warning TEST COVERAGE
-<!-- -->
-測試覆蓋率工具假設整個測試套件一次執行，這使得它們與選擇性測試執行不相容 -
-這表示使用測試選擇時，覆蓋率資料可能無法反映現實。這是已知的限制，但這並不表示您做錯了什麼。我們鼓勵團隊反思在此情境下，覆蓋率是否仍能帶來有意義的洞察力，如果是的話，請放心，我們已經在思考未來如何讓覆蓋率與選擇性執行正常運作。
-<!-- -->
-:::
+
+> [!WARNING]
+> **Test Coverage**
+>
+> 測試覆蓋率工具假設整個測試套件一次執行，這使得它們與選擇性測試執行不相容 -
+> 這表示使用測試選擇時，覆蓋率資料可能無法反映現實。這是已知的限制，但這並不表示您做錯了什麼。我們鼓勵團隊反思在此情境下，覆蓋率是否仍能帶來有意義的洞察力，如果是的話，請放心，我們已經在思考未來如何讓覆蓋率與選擇性執行正常運作。
 
 
 ## 拉取/合併請求註解{#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-若要取得自動的 pull/merge 請求註解，請將您的 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>整合。
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> 若要取得自動的 pull/merge 請求註解，請將您的 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>整合。
+
 
 一旦您的 Tuist 專案與 Git 平台 (例如 [GitHub](https://github.com)) 連線，並開始使用 `tuist xcodebuild test` 或 `tuist test` 作為 CI 流程的一部分，Tuist 會直接在您的 pull/merge 請求中張貼註解，包括哪些測試已執行，哪些跳過：
 

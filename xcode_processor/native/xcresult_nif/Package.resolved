@@ -1,0 +1,103 @@
+{
+  "originHash" : "d581886d1c209353909e911a2c05dac5ec6ffd0e34e2c40448e4924709631a6e",
+  "pins" : [
+    {
+      "identity" : "apple.swift-atomics",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.3.0"
+      }
+    },
+    {
+      "identity" : "apple.swift-collections",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.4.1"
+      }
+    },
+    {
+      "identity" : "apple.swift-log",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.10.1"
+      }
+    },
+    {
+      "identity" : "apple.swift-nio",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "2.97.1"
+      }
+    },
+    {
+      "identity" : "apple.swift-system",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.6.4"
+      }
+    },
+    {
+      "identity" : "kolos65.Mockable",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.6.2"
+      }
+    },
+    {
+      "identity" : "swiftlang.swift-syntax",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "602.0.0"
+      }
+    },
+    {
+      "identity" : "tuist.Command",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.14.0"
+      }
+    },
+    {
+      "identity" : "tuist.FileSystem",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.15.12"
+      }
+    },
+    {
+      "identity" : "tuist.Path",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.3.8"
+      }
+    },
+    {
+      "identity" : "tuist.zipfoundation",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.9.20"
+      }
+    },
+    {
+      "identity" : "xctest-dynamic-overlay",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state" : {
+        "revision" : "dfd70507def84cb5fb821278448a262c6ff2bbad",
+        "version" : "1.9.0"
+      }
+    }
+  ],
+  "version" : 3
+}

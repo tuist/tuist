@@ -23,7 +23,8 @@ protocol GraphMapperFactorying {
         testPlan: String?,
         includedTargets: Set<TargetQuery>,
         excludedTargets: Set<TargetQuery>,
-        includedProducts: Set<Product>
+        includedProducts: Set<Product>,
+        schemeName: String?
     ) -> [GraphMapping]
 
     /// Returns the default graph mapper that should be used from all the commands that require loading and processing the graph.
@@ -41,12 +42,14 @@ public struct GraphMapperFactory: GraphMapperFactorying {
         testPlan: String?,
         includedTargets: Set<TargetQuery>,
         excludedTargets: Set<TargetQuery>,
-        includedProducts: Set<Product> = []
+        includedProducts: Set<Product> = [],
+        schemeName: String? = nil
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(
             FocusTargetsGraphMappers(
                 testPlan: testPlan,
+                schemeName: schemeName,
                 includedTargets: includedTargets,
                 excludedTargets: excludedTargets,
                 includedProducts: includedProducts
@@ -118,7 +121,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             excludedTargets: Set<TargetQuery>,
             configuration: String?,
             cacheStorage: CacheStoring,
-            destination: SimulatorDeviceAndRuntime?
+            destination: SimulatorDeviceAndRuntime?,
+            schemeName: String? = nil
         ) -> [GraphMapping] {
             var mappers: [GraphMapping] = []
 
@@ -159,6 +163,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             mappers.append(
                 FocusTargetsGraphMappers(
                     testPlan: testPlan,
+                    schemeName: schemeName,
                     includedTargets: includedTargets,
                     excludedTargets: excludedTargets,
                     includedProducts: [.unitTests, .uiTests]

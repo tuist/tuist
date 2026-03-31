@@ -20,14 +20,14 @@ farklı manifesto dosyalarında kodu yeniden kullanmak için derleyiciden ve
 sözdizimi vurgulama, otomatik tamamlama ve doğrulama sayesinde birinci sınıf bir
 düzenleme deneyimi sağlamak için Xcode'dan yararlanabiliyoruz.
 
-::: info CACHING
-<!-- -->
-Manifest dosyaları derlenmesi gereken Swift dosyaları olduğundan, Tuist
-ayrıştırma işlemini hızlandırmak için derleme sonuçlarını önbelleğe alır. Bu
-nedenle, Tuist'i ilk kez çalıştırdığınızda, projeyi oluşturmanın biraz daha uzun
-sürebileceğini fark edeceksiniz. Sonraki çalıştırmalar daha hızlı olacaktır.
-<!-- -->
-:::
+> [!NOTE]
+> **Caching**
+>
+> Manifest dosyaları derlenmesi gereken Swift dosyaları olduğundan, Tuist
+> ayrıştırma işlemini hızlandırmak için derleme sonuçlarını önbelleğe alır. Bu
+> nedenle, Tuist'i ilk kez çalıştırdığınızda, projeyi oluşturmanın biraz daha uzun
+> sürebileceğini fark edeceksiniz. Sonraki çalıştırmalar daha hızlı olacaktır.
+
 
 ## Proje.swift {#projectswift}
 
@@ -46,13 +46,13 @@ let project = Project(
 ```
 
 
-::: warning ROOT VARIABLES
-<!-- -->
-Manifestonun kökünde olması gereken tek değişken `let project = Project(...)`.
-Manifestonun çeşitli bölümlerinde kodu yeniden kullanmanız gerekiyorsa Swift
-fonksiyonlarını kullanabilirsiniz.
-<!-- -->
-:::
+> [!WARNING]
+> **Root Variables**
+>
+> Manifestonun kökünde olması gereken tek değişken `let project = Project(...)`.
+> Manifestonun çeşitli bölümlerinde kodu yeniden kullanmanız gerekiyorsa Swift
+> fonksiyonlarını kullanabilirsiniz.
+
 
 ## Çalışma Alanı.swift {#workspaceswift}
 
@@ -76,13 +76,11 @@ let workspace = Workspace(
 )
 ```
 
-::: info
-<!-- -->
-Tuist bağımlılık grafiğini çözecek ve bağımlılıkların projelerini çalışma
-alanına dahil edecektir. Bunları manuel olarak eklemenize gerek yoktur. Bu,
-derleme sisteminin bağımlılıkları doğru şekilde çözümlemesi için gereklidir.
-<!-- -->
-:::
+> [!NOTE]
+> Tuist bağımlılık grafiğini çözecek ve bağımlılıkların projelerini çalışma
+> alanına dahil edecektir. Bunları manuel olarak eklemenize gerek yoktur. Bu,
+> derleme sisteminin bağımlılıkları doğru şekilde çözümlemesi için gereklidir.
+
 
 ### Çoklu veya tekli proje {#multi-or-monoproject}
 

@@ -33,14 +33,14 @@ El comando crea un proyecto Xcode en un directorio global y lo abre en Xcode. El
 proyecto incluye un directorio `Manifests` que puedes construir para asegurarte
 de que todos tus manifiestos son válidos.
 
-::: info GLOB-RESOLVED MANIFESTS
-<!-- -->
-`tuist edit` resuelve los manifiestos a incluir utilizando el glob
-`**/{Manifest}.swift` del directorio raíz del proyecto (el que contiene el
-archivo `Tuist.swift` ). Asegúrate de que hay un `Tuist.swift` válido en la raíz
-del proyecto.
-<!-- -->
-:::
+> [!NOTE]
+> **Glob-resolved Manifests**
+>
+> `tuist edit` resuelve los manifiestos a incluir utilizando el glob
+> `**/{Manifest}.swift` del directorio raíz del proyecto (el que contiene el
+> archivo `Tuist.swift` ). Asegúrate de que hay un `Tuist.swift` válido en la raíz
+> del proyecto.
+
 
 ### Ignorar los archivos de manifiesto {#ignoring-manifest-files}
 

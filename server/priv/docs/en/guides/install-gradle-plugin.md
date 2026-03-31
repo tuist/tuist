@@ -9,12 +9,12 @@
 
 Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <LocalizedLink href="/guides/features/cache/gradle-cache">remote build caching</LocalizedLink> and <LocalizedLink href="/guides/features/build-insights/gradle">build insights</LocalizedLink>. This guide walks you through installing and configuring the plugin.
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/install-tuist">Tuist CLI</LocalizedLink> 4.138.1 or later
-- A Gradle project
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/install-tuist">Tuist CLI</LocalizedLink> 4.138.1 or later
+> - A Gradle project
+
 
 ## 1. Initialize Tuist {#initialize-tuist}
 
@@ -67,11 +67,11 @@ The following options are available in the `tuist` extension block in `settings.
 | `url` | `String?` | `null` | The base URL of the Tuist server. If not set, it defaults to `"https://tuist.dev"` or the value defined in `tuist.toml`. |
 | `uploadInBackground` | `Boolean?` | `null` | Whether to upload build and test insights in the background. When `null` (default), uploads run in the background for local builds and in the foreground on CI. |
 
-::: info TUIST.TOML
-<!-- -->
-The recommended way to configure `project` (and optionally `url`) is through a `tuist.toml` file in your project root. This way the configuration is shared between the Tuist CLI and the Gradle plugin. You can still override these values in `settings.gradle.kts` if needed.
-<!-- -->
-:::
+> [!NOTE]
+> **Tuist.toml**
+>
+> The recommended way to configure `project` (and optionally `url`) is through a `tuist.toml` file in your project root. This way the configuration is shared between the Tuist CLI and the Gradle plugin. You can still override these values in `settings.gradle.kts` if needed.
+
 
 ## Next steps {#next-steps}
 

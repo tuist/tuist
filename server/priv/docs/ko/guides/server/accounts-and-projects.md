@@ -22,12 +22,12 @@
 깃허브](https://github.com)에 익숙하다면, 개인 계정과 조직 계정을 가질 수 있고 URL을 구성할 때 사용되는 *핸들* 로
 식별되는 개념이 비슷하다는 것을 알 수 있습니다.
 
-::: info CLI-FIRST
-<!-- -->
-계정과 프로젝트를 관리하는 대부분의 작업은 CLI를 통해 이루어집니다. 저희는 계정과 프로젝트를 더 쉽게 관리할 수 있는 웹 인터페이스를 개발
-중입니다.
-<!-- -->
-:::
+> [!NOTE]
+> **Cli-first**
+>
+> 계정과 프로젝트를 관리하는 대부분의 작업은 CLI를 통해 이루어집니다. 저희는 계정과 프로젝트를 더 쉽게 관리할 수 있는 웹 인터페이스를 개발
+> 중입니다.
+
 
 <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> 아래의 하위 명령을 통해 조직을 관리할 수 있습니다. 새 조직 계정을
 생성하려면 실행합니다:
@@ -51,12 +51,12 @@ Tuist의 프로젝트든 원시 Xcode의 프로젝트든 원격 프로젝트를 
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: 경고 튜이스트 프로젝트 전용 기능
-<!-- -->
-<LocalizedLink href="/guides/features/cache">바이너리 캐싱</LocalizedLink>과 같은 일부 기능에는 Tuist 프로젝트가 있어야 한다는 점에 유의하세요. 원시 Xcode
-프로젝트를 사용하는 경우 이러한 기능을 사용할 수 없습니다.
-<!-- -->
-:::
+> [!WARNING]
+> **튜이스트 프로젝트 전용 기능**
+>
+> <LocalizedLink href="/guides/features/cache">바이너리 캐싱</LocalizedLink>과 같은 일부 기능에는 Tuist 프로젝트가 있어야 한다는 점에 유의하세요. 원시 Xcode
+> 프로젝트를 사용하는 경우 이러한 기능을 사용할 수 없습니다.
+
 
 프로젝트의 URL은 전체 핸들을 사용하여 구성됩니다. 예를 들어, 공개 대시보드인 Tuist의 대시보드는
 [tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist)에서 액세스할 수 있으며, 여기서

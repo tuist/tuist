@@ -62,11 +62,11 @@ jobs:
 
 ## プル/マージリクエストのコメント{#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">Tuistプロジェクト</LocalizedLink>を<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と統合してください。
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">Tuistプロジェクト</LocalizedLink>を<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と統合してください。
+
 
 Tuistプロジェクトが[GitHub](https://github.com)のようなGitプラットフォームと接続されると、`tuist inspect
 bundle`: ![GitHub app comment with inspected

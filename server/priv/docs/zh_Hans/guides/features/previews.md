@@ -19,11 +19,11 @@
 
 为了简化这一过程，Tuist 提供了一种生成并与任何人共享应用程序预览的方法。
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
-<!-- -->
-目前，在为设备构建应用程序时，您有责任确保应用程序已正确签名。我们计划在未来简化这项工作。
-<!-- -->
-:::
+> [!WARNING]
+> **Device Builds Need To Be Signed**
+>
+> 目前，在为设备构建应用程序时，您有责任确保应用程序已正确签名。我们计划在未来简化这项工作。
+
 
 代码组
 ```bash [Tuist Project]
@@ -59,14 +59,14 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning UNIQUE BUILD NUMBERS IN CI
-<!-- -->
-利用大多数 CI 提供商公开的 CI 运行编号，确保`CFBundleVersion` （构建版本）是唯一的。例如，在 GitHub Actions
-中，可以将`CFBundleVersion` 设置为 <code v-pre>${{ github.run_number }}</code> 变量。
+> [!WARNING]
+> **Unique Build Numbers In Ci**
+>
+> 利用大多数 CI 提供商公开的 CI 运行编号，确保`CFBundleVersion` （构建版本）是唯一的。例如，在 GitHub Actions
+> 中，可以将`CFBundleVersion` 设置为 <code v-pre>${{ github.run_number }}</code> 变量。
+>
+> 上传具有相同二进制文件（构建）和相同`CFBundleVersion` 的预览将失败。
 
-上传具有相同二进制文件（构建）和相同`CFBundleVersion` 的预览将失败。
-<!-- -->
-:::
 
 ## 轨道{#tracks}
 
@@ -85,11 +85,11 @@ tuist share App --track nightly
 - **应用内更新** ：Tuist SDK 使用轨迹来决定通知用户哪些更新
 - **过滤** ：在 Tuist 面板中按曲目轻松查找和管理预览
 
-::: warning PREVIEWS' VISIBILITY
-<!-- -->
-只有拥有项目所属组织权限的人才能访问预览。我们计划添加对过期链接的支持。
-<!-- -->
-:::
+> [!WARNING]
+> **Previews' Visibility**
+>
+> 只有拥有项目所属组织权限的人才能访问预览。我们计划添加对过期链接的支持。
+
 
 ## Tuist macOS 应用程序{#tuist-macos-app}
 
@@ -127,12 +127,12 @@ install --cask tuist/tuist/tuist` 来安装该应用。
 
 ## 拉取/合并请求注释{#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
-平台</LocalizedLink>集成。
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> 要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
+> 平台</LocalizedLink>集成。
+
 
 测试新功能应该是代码审查的一部分。但必须在本地构建应用程序会增加不必要的麻烦，这往往会导致开发人员根本不在自己的设备上测试功能。但是，*，如果每个拉取请求都包含一个指向构建的链接，可以在
 Tuist macOS 应用程序中选择的设备上自动运行应用程序呢？*

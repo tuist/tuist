@@ -19,14 +19,14 @@ ponownego wykorzystania kodu w różnych plikach manifestu, a Xcode do zapewnien
 pierwszorzędnego doświadczenia edycyjnego dzięki podświetlaniu składni,
 automatycznemu uzupełnianiu i sprawdzaniu poprawności.
 
-::: info CACHING
-<!-- -->
-Ponieważ pliki manifestu są plikami Swift, które muszą zostać skompilowane,
-Tuist buforuje wyniki kompilacji, aby przyspieszyć proces analizowania. Dlatego
-też przy pierwszym uruchomieniu Tuist wygenerowanie projektu może potrwać nieco
-dłużej. Kolejne uruchomienia będą szybsze.
-<!-- -->
-:::
+> [!NOTE]
+> **Caching**
+>
+> Ponieważ pliki manifestu są plikami Swift, które muszą zostać skompilowane,
+> Tuist buforuje wyniki kompilacji, aby przyspieszyć proces analizowania. Dlatego
+> też przy pierwszym uruchomieniu Tuist wygenerowanie projektu może potrwać nieco
+> dłużej. Kolejne uruchomienia będą szybsze.
+
 
 ## Project.swift {#projectswift}
 
@@ -46,13 +46,13 @@ let project = Project(
 ```
 
 
-::: ostrzeżenie ROOT VARIABLES
-<!-- -->
-Jedyną zmienną, która powinna znajdować się w katalogu głównym manifestu jest
-`let project = Project(...)`. Jeśli chcesz ponownie użyć kodu w różnych
-częściach manifestu, możesz użyć funkcji Swift.
-<!-- -->
-:::
+> [!WARNING]
+> **Root Variables**
+>
+> Jedyną zmienną, która powinna znajdować się w katalogu głównym manifestu jest
+> `let project = Project(...)`. Jeśli chcesz ponownie użyć kodu w różnych
+> częściach manifestu, możesz użyć funkcji Swift.
+
 
 ## Workspace.swift {#workspaceswift}
 

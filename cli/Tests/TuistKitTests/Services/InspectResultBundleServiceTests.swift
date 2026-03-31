@@ -18,6 +18,7 @@ import TuistTesting
 import TuistXCActivityLog
 import TuistXCResultService
 import XcodeGraph
+import XCResultParser
 
 @testable import TuistKit
 
@@ -88,6 +89,7 @@ struct UploadResultBundleServiceTests {
             .createTest(
                 fullHandle: .any,
                 serverURL: .any,
+                id: .any,
                 testSummary: .any,
                 buildRunId: .any,
                 gitBranch: .any,
@@ -166,6 +168,7 @@ struct UploadResultBundleServiceTests {
             .createTest(
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                id: .any,
                 testSummary: .any,
                 buildRunId: .value(nil),
                 gitBranch: .value("main"),
@@ -298,6 +301,7 @@ struct UploadResultBundleServiceTests {
             .createTest(
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
+                id: .any,
                 testSummary: .any,
                 buildRunId: .value("build-123"),
                 gitBranch: .any,
@@ -372,6 +376,7 @@ struct UploadResultBundleServiceTests {
             .createTest(
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                id: .any,
                 testSummary: .any,
                 buildRunId: .any,
                 gitBranch: .value("main"),
@@ -432,6 +437,7 @@ struct UploadResultBundleServiceTests {
             .createTest(
                 fullHandle: .any,
                 serverURL: .any,
+                id: .any,
                 testSummary: .any,
                 buildRunId: .any,
                 gitBranch: .any,
@@ -516,6 +522,7 @@ struct UploadResultBundleServiceTests {
             .createTest(
                 fullHandle: .any,
                 serverURL: .any,
+                id: .any,
                 testSummary: .any,
                 buildRunId: .any,
                 gitBranch: .any,
@@ -652,6 +659,7 @@ struct UploadResultBundleServiceTests {
             .createTest(
                 fullHandle: .any,
                 serverURL: .any,
+                id: .any,
                 testSummary: .any,
                 buildRunId: .any,
                 gitBranch: .any,

@@ -92,11 +92,11 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### タスクプラグイン <Badge type="warning" text="deprecated" />{#task-plugin-badge-typewarning-textdeprecated-}
 
-::: warning DEPRECATED
-<!-- -->
-タスク・プラグインは非推奨です。プロジェクトの自動化ソリューションをお探しなら、[このブログ記事](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)をチェックしてください。
-<!-- -->
-:::
+> [!WARNING]
+> **Deprecated**
+>
+> タスク・プラグインは非推奨です。プロジェクトの自動化ソリューションをお探しなら、[このブログ記事](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)をチェックしてください。
+
 
 タスクは`$PATH`-公開された実行可能ファイルであり、命名規則`tuist-<task-name>` に従っていれば`tuist`
 コマンドを通して呼び出すことができる。以前のバージョンでは、Tuistは`build`,`run`,`test` and`archive` tasks
@@ -113,13 +113,13 @@ represented by executables in Swift Packagesのために、`tuist plugin`
 - ツールの名前を`tuist-{xxx}` とし、ユーザが`mise install`
   を実行することでインストールできるようにした場合、ユーザはそれを直接呼び出すか、`tuist xxx` を通して実行することができます。
 
-::: info THE FUTURE OF PROJECTAUTOMATION
-<!-- -->
-私たちは、`ProjectAutomation` と`XcodeGraph`
-のモデルを、プロジェクトグラフの全体をユーザに公開する単一の下位互換性のあるフレームワークに統合する予定です。さらに、生成ロジックを新しいレイヤー、`XcodeGraph`
-に抽出し、独自のCLIからも使用できるようにします。これは、あなた自身のTuistを構築するようなものだと考えてください。
-<!-- -->
-:::
+> [!NOTE]
+> **The Future Of Projectautomation**
+>
+> 私たちは、`ProjectAutomation` と`XcodeGraph`
+> のモデルを、プロジェクトグラフの全体をユーザに公開する単一の下位互換性のあるフレームワークに統合する予定です。さらに、生成ロジックを新しいレイヤー、`XcodeGraph`
+> に抽出し、独自のCLIからも使用できるようにします。これは、あなた自身のTuistを構築するようなものだと考えてください。
+
 
 ## プラグインの使用{#using-plugins}
 
@@ -155,19 +155,19 @@ let tuist = Tuist(
 
 プラグインを追加した後、`tuist install` 、グローバル・キャッシュ・ディレクトリにあるプラグインを取得する。
 
-::: info NO VERSION RESOLUTION
-<!-- -->
-お気づきかもしれませんが、私たちはプラグインのバージョン解決を提供していません。再現性を確保するために、GitタグやSHAを使うことをお勧めします。
-<!-- -->
-:::
+> [!NOTE]
+> **No Version Resolution**
+>
+> お気づきかもしれませんが、私たちはプラグインのバージョン解決を提供していません。再現性を確保するために、GitタグやSHAを使うことをお勧めします。
 
-::: tip PROJECT DESCRIPTION HELPERS PLUGINS
-<!-- -->
-プロジェクト記述ヘルパーのプラグインを使うとき、ヘルパーを含むモジュールの名前がプラグインの名前になる
-```swift
-import ProjectDescription
-import MyTuistPlugin
-let project = Project.app(name: "MyCoolApp", platform: .iOS)
-```
-<!-- -->
-:::
+
+> [!TIP]
+> **Project Description Helpers Plugins**
+>
+> プロジェクト記述ヘルパーのプラグインを使うとき、ヘルパーを含むモジュールの名前がプラグインの名前になる
+> ```swift
+> import ProjectDescription
+> import MyTuistPlugin
+> let project = Project.app(name: "MyCoolApp", platform: .iOS)
+> ```
+

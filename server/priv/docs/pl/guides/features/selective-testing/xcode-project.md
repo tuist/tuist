@@ -7,11 +7,11 @@
 ---
 # Projekt Xcode {#xcode-project}
 
-::: ostrzeżenie WYMAGANIA
-<!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Wymagania**
+>
+> - Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+
 
 Testy projektów Xcode można uruchamiać selektywnie z poziomu wiersza poleceń. W
 tym celu można poprzedzić polecenie `xcodebuild` poleceniem `tuist` - na

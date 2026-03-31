@@ -37,13 +37,13 @@ los usuarios.
 | `TUIST_POSTHOG_API_KEY` | Su clave API del proyecto PostHog     | No        |             | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `TUIST_POSTHOG_URL`     | URL del punto final de la API PostHog | No        |             | `https://eu.i.posthog.com`                        |
 
-::: info ANALYTICS ENABLEMENT
-<!-- -->
-Los análisis sólo se activan cuando se configuran tanto `TUIST_POSTHOG_API_KEY`
-como `TUIST_POSTHOG_URL`. Si falta alguna de las dos variables, no se enviarán
-eventos de análisis.
-<!-- -->
-:::
+> [!NOTE]
+> **Analytics Enablement**
+>
+> Los análisis sólo se activan cuando se configuran tanto `TUIST_POSTHOG_API_KEY`
+> como `TUIST_POSTHOG_URL`. Si falta alguna de las dos variables, no se enviarán
+> eventos de análisis.
+
 
 ### Características {#posthog-features}
 
@@ -173,12 +173,10 @@ El número total de previsualizaciones descargadas.
 Conjunto de métricas relacionadas con el almacenamiento de artefactos en un
 almacenamiento remoto (por ejemplo, s3).
 
-::: consejo
-<!-- -->
-Estas métricas son útiles para comprender el rendimiento de las operaciones de
-almacenamiento e identificar posibles cuellos de botella.
-<!-- -->
-:::
+> [!TIP]
+> Estas métricas son útiles para comprender el rendimiento de las operaciones de
+> almacenamiento e identificar posibles cuellos de botella.
+
 
 ### `tuist_storage_get_object_size_size_bytes` (histograma) {#tuist_storage_get_object_size_size_bytes-histogram}
 

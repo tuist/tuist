@@ -23,14 +23,14 @@ ayrıldıktan sonra Bazel'i bırakmak zorunda kalan kuruluşlar gördük. Apple'
 Xcode ve yapı sistemi arasındaki güçlü bağlantı konusundaki tutumu da Bazel
 projelerinin zaman içinde sürdürülmesini zorlaştıran bir başka faktördür.
 
-::: tip TUIST UNIQUENESS LIES IN ITS FINESSE
-<!-- -->
-Tuist, Xcode ve Xcode projeleriyle savaşmak yerine onları kucaklıyor. Aynı
-kavramlar (örn. hedefler, şemalar, derleme ayarları), tanıdık bir dil (örn.
-Swift) ve projeleri sürdürmeyi ve ölçeklendirmeyi yalnızca iOS platform ekibinin
-değil herkesin işi haline getiren basit ve keyifli bir deneyim.
-<!-- -->
-:::
+> [!TIP]
+> **Tuist Uniqueness Lies In Its Finesse**
+>
+> Tuist, Xcode ve Xcode projeleriyle savaşmak yerine onları kucaklıyor. Aynı
+> kavramlar (örn. hedefler, şemalar, derleme ayarları), tanıdık bir dil (örn.
+> Swift) ve projeleri sürdürmeyi ve ölçeklendirmeyi yalnızca iOS platform ekibinin
+> değil herkesin işi haline getiren basit ve keyifli bir deneyim.
+
 
 ## Kurallar {#rules}
 

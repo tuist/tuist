@@ -17,13 +17,11 @@ cualquier lugar utilizando:
 Logger.current
 ```
 
-::: info
-<!-- -->
-Las tareas locales no propagan el valor cuando se utiliza `Dispatch` o tareas
-separadas, por lo que si las utiliza, tendrá que obtenerlo y pasarlo a la
-operación asíncrona.
-<!-- -->
-:::
+> [!NOTE]
+> Las tareas locales no propagan el valor cuando se utiliza `Dispatch` o tareas
+> separadas, por lo que si las utiliza, tendrá que obtenerlo y pasarlo a la
+> operación asíncrona.
+
 
 ## Qué registrar {#what-to-log}
 

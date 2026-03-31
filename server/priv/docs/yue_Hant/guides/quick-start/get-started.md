@@ -29,12 +29,12 @@ like <LocalizedLink href="/guides/features/selective-testing">selective testing<
 <LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and
 the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
 
-::: info MIGRATE AN EXISTING PROJECT
-<!-- -->
-If you want to migrate an existing project to generated projects to improve the
-developer experience and take advantage of our
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out
-our
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> **Migrate An Existing Project**
+>
+> If you want to migrate an existing project to generated projects to improve the
+> developer experience and take advantage of our
+> <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out
+> our
+> <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
+

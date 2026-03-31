@@ -8,6 +8,7 @@ defmodule Processor.Application do
     start_sentry_logger()
     start_loki_logger()
     start_opentelemetry()
+    cleanup_stale_temp_dirs()
 
     children = [
       {Phoenix.PubSub, name: Processor.PubSub},
@@ -57,6 +58,22 @@ defmodule Processor.Application do
       OpentelemetryBandit.setup()
       OpentelemetryPhoenix.setup(adapter: :bandit)
       OpentelemetryFinch.setup()
+    end
+  end
+
+  defp cleanup_stale_temp_dirs do
+    tmp_dir = System.tmp_dir!()
+
+    case File.ls(tmp_dir) do
+      {:ok, entries} ->
+        entries
+        |> Enum.filter(&String.starts_with?(&1, "processor_"))
+        |> Enum.each(fn entry ->
+          File.rm_rf(Path.join(tmp_dir, entry))
+        end)
+
+      _ ->
+        :ok
     end
   end
 

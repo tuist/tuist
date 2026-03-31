@@ -13,12 +13,12 @@ Tuist обеспечивает поддержку кэша компиляции 
 
 ## Настройка {#setup}
 
-::: предупреждение РЕКВИЗИТЫ
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
-- Xcode 26.0 или более поздняя версия
-<!-- -->
-:::
+> [!WARNING]
+> **Реквизиты**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
+> - Xcode 26.0 или более поздняя версия
+
 
 Если у вас еще нет учетной записи Tuist и проекта, вы можете создать их,
 выполнив команду:
@@ -60,12 +60,12 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 настройки сборки**, поскольку они не отображаются непосредственно в
 пользовательском интерфейсе настроек сборки Xcode:
 
-::: info SOCKET PATH
-<!-- -->
-Путь к сокету будет отображаться при запуске `tuist setup cache`. Он основан на
-полном дескрипторе вашего проекта с заменой косых черт на подчеркивания.
-<!-- -->
-:::
+> [!NOTE]
+> **Socket Path**
+>
+> Путь к сокету будет отображаться при запуске `tuist setup cache`. Он основан на
+> полном дескрипторе вашего проекта с заменой косых черт на подчеркивания.
+
 
 Вы также можете указать эти настройки при запуске `xcodebuild`, добавив
 следующие флаги, например:
@@ -78,25 +78,25 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-::: info GENERATED PROJECTS
-<!-- -->
-Задавать настройки вручную не нужно, если ваш проект сгенерирован Tuist.
+> [!NOTE]
+> **Generated Projects**
+>
+> Задавать настройки вручную не нужно, если ваш проект сгенерирован Tuist.
+>
+> В этом случае достаточно добавить `enableCaching: true` в файл `Tuist.swift`:
+> ```swift
+> import ProjectDescription
+>
+> let tuist = Tuist(
+>     fullHandle: "your-org/your-project",
+>     project: .tuist(
+>         generationOptions: .options(
+>             enableCaching: true
+>         )
+>     )
+> )
+> ```
 
-В этом случае достаточно добавить `enableCaching: true` в файл `Tuist.swift`:
-```swift
-import ProjectDescription
-
-let tuist = Tuist(
-    fullHandle: "your-org/your-project",
-    project: .tuist(
-        generationOptions: .options(
-            enableCaching: true
-        )
-    )
-)
-```
-<!-- -->
-:::
 
 ### Непрерывная интеграция {#continuous-integration}
 

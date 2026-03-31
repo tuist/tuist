@@ -7,11 +7,11 @@
 ---
 # Önizlemeler {#previews}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+
 
 Bir uygulama geliştirirken, geri bildirim almak için başkalarıyla paylaşmak
 isteyebilirsiniz. Geleneksel olarak bu, ekiplerin uygulamalarını oluşturarak,
@@ -23,12 +23,12 @@ almak istediğinizde zahmetli ve yavaş olabilir.
 Bu süreci daha kolay hale getirmek için Tuist, uygulamalarınızın önizlemelerini
 oluşturmanın ve herkesle paylaşmanın bir yolunu sunuyor.
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
-<!-- -->
-Cihaz için oluştururken, uygulamanın doğru şekilde imzalandığından emin olmak şu
-anda sizin sorumluluğunuzdadır. Gelecekte bunu kolaylaştırmayı planlıyoruz.
-<!-- -->
-:::
+> [!WARNING]
+> **Device Builds Need To Be Signed**
+>
+> Cihaz için oluştururken, uygulamanın doğru şekilde imzalandığından emin olmak şu
+> anda sizin sorumluluğunuzdadır. Gelecekte bunu kolaylaştırmayı planlıyoruz.
+
 
 ::: code-group
 ```bash [Tuist Project]
@@ -70,17 +70,17 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning UNIQUE BUILD NUMBERS IN CI
-<!-- -->
-Çoğu CI sağlayıcısının ortaya çıkardığı bir CI çalışma numarasından yararlanarak
-`CFBundleVersion` (derleme sürümü) öğesinin benzersiz olduğundan emin olun.
-Örneğin, GitHub Actions'ta `CFBundleVersion` adresini <code v-pre>${{
-github.run_number }}</code> değişkenine ayarlayabilirsiniz.
+> [!WARNING]
+> **Unique Build Numbers In Ci**
+>
+> Çoğu CI sağlayıcısının ortaya çıkardığı bir CI çalışma numarasından yararlanarak
+> `CFBundleVersion` (derleme sürümü) öğesinin benzersiz olduğundan emin olun.
+> Örneğin, GitHub Actions'ta `CFBundleVersion` adresini <code v-pre>${{
+> github.run_number }}</code> değişkenine ayarlayabilirsiniz.
+>
+> Aynı ikili dosyaya (derleme) ve aynı `CFBundleVersion` adresine sahip bir
+> önizleme yüklemek başarısız olacaktır.
 
-Aynı ikili dosyaya (derleme) ve aynı `CFBundleVersion` adresine sahip bir
-önizleme yüklemek başarısız olacaktır.
-<!-- -->
-:::
 
 ## Parçalar {#tracks}
 
@@ -105,12 +105,12 @@ Bu şunlar için yararlıdır:
 - **Filtreleme**: Tuist kontrol panelinde parçaya göre önizlemeleri kolayca
   bulun ve yönetin
 
-::: warning PREVIEWS' VISIBILITY
-<!-- -->
-Önizlemelere yalnızca projenin ait olduğu kuruluşa erişimi olan kişiler
-erişebilir. Süresi dolan bağlantılar için destek eklemeyi planlıyoruz.
-<!-- -->
-:::
+> [!WARNING]
+> **Previews' Visibility**
+>
+> Önizlemelere yalnızca projenin ait olduğu kuruluşa erişimi olan kişiler
+> erişebilir. Süresi dolan bağlantılar için destek eklemeyi planlıyoruz.
+
 
 ## Tuist macOS uygulaması {#tuist-macos-app}
 
@@ -130,12 +130,12 @@ tuist/tuist/tuist` çalıştırarak da yükleyebilirsiniz.
 Şimdi Önizleme sayfasında "Çalıştır "a tıkladığınızda, macOS uygulaması otomatik
 olarak o anda seçili cihazınızda başlatılacaktır.
 
-::: warning REQUIREMENTS
-<!-- -->
-Xcode'un yerel olarak yüklü olması ve macOS 14 veya sonraki bir sürümü
-kullanıyor olmanız gerekir.
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> Xcode'un yerel olarak yüklü olması ve macOS 14 veya sonraki bir sürümü
+> kullanıyor olmanız gerekir.
+
 
 ## Tuist iOS uygulaması {#tuist-ios-app}
 
@@ -153,13 +153,13 @@ erişmeyi ve çalıştırmayı kolaylaştırıyor.
 
 ## Çekme/birleştirme isteği yorumları {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-Otomatik çekme/birleştirme isteği yorumları almak için
-<LocalizedLink href="/guides/server/accounts-and-projects">uzak projenizi</LocalizedLink> bir
-<LocalizedLink href="/guides/server/authentication">Git platformu</LocalizedLink> ile entegre edin.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> Otomatik çekme/birleştirme isteği yorumları almak için
+> <LocalizedLink href="/guides/server/accounts-and-projects">uzak projenizi</LocalizedLink> bir
+> <LocalizedLink href="/guides/server/authentication">Git platformu</LocalizedLink> ile entegre edin.
+
 
 Yeni işlevlerin test edilmesi, her kod incelemesinin bir parçası olmalıdır.
 Ancak bir uygulamayı yerel olarak derlemek zorunda kalmak gereksiz sürtüşmeler
@@ -246,12 +246,10 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: info
-<!-- -->
-Güncelleme denetimi simülatörlerde ve App Store yapılarında otomatik olarak
-devre dışı bırakılır.
-<!-- -->
-:::
+> [!NOTE]
+> Güncelleme denetimi simülatörlerde ve App Store yapılarında otomatik olarak
+> devre dışı bırakılır.
+
 
 ## README rozeti {#readme-badge}
 

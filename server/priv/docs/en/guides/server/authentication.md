@@ -43,14 +43,14 @@ See the <LocalizedLink href="/guides/integrations/continuous-integration">Contin
 
 OIDC tokens are granted the `ci` scope group, which provides access to all projects connected to the repository. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
 
-::: tip SECURITY BENEFITS
-<!-- -->
-OIDC authentication is more secure than long-lived tokens because:
-- No secrets to rotate or manage
-- Tokens are short-lived and scoped to individual workflow runs
-- Authentication is tied to your repository identity
-<!-- -->
-:::
+> [!TIP]
+> **Security Benefits**
+>
+> OIDC authentication is more secure than long-lived tokens because:
+> - No secrets to rotate or manage
+> - Tokens are short-lived and scoped to individual workflow runs
+> - Authentication is tied to your repository identity
+
 
 ## Gradle plugin authentication {#gradle-plugin-authentication}
 
@@ -159,12 +159,12 @@ Account tokens are expected to be defined as the environment variable `TUIST_TOK
 export TUIST_TOKEN=your-account-token
 ```
 
-::: tip WHEN TO USE ACCOUNT TOKENS
-<!-- -->
-Use account tokens when you need:
-- Authentication in CI environments that don't support OIDC
-- Fine-grained control over which operations the token can perform
-- A token that can access multiple projects within an account
-- Time-limited tokens that automatically expire
-<!-- -->
-:::
+> [!TIP]
+> **When To Use Account Tokens**
+>
+> Use account tokens when you need:
+> - Authentication in CI environments that don't support OIDC
+> - Fine-grained control over which operations the token can perform
+> - A token that can access multiple projects within an account
+> - Time-limited tokens that automatically expire
+

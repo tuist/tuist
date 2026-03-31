@@ -59,13 +59,13 @@ Proje üzerinde çalışmaya başlamak için aşağıdaki adımları takip edebi
 **Oluşturulmuş projele otomatik olarak açılır**. Oluşturmadan tekrar açmanız
 gerekirse, `çalıştırın Tuist.xcworkspace` açın (veya Finder'ı kullanın).
 
-::: info XED .
-<!-- -->
-Projeyi `xed .` adresini kullanarak açmaya çalışırsanız, Tuist tarafından
-oluşturulan projeyi değil, paketi açacaktır. Aracı beslemek için Tuist
-tarafından oluşturulan projeyi kullanmanızı öneririz.
-<!-- -->
-:::
+> [!NOTE]
+> **Xed .**
+>
+> Projeyi `xed .` adresini kullanarak açmaya çalışırsanız, Tuist tarafından
+> oluşturulan projeyi değil, paketi açacaktır. Aracı beslemek için Tuist
+> tarafından oluşturulan projeyi kullanmanızı öneririz.
+
 
 ## Projeyi düzenleyin {#edit-the-project}
 
@@ -94,13 +94,13 @@ yapabilirsiniz:
 ![Tuist'i çalıştırmak için çalışma dizininin nasıl ayarlanacağına dair bir
 örnek](/images/contributors/scheme-working-directory.png)
 
-::: warning PROJECTDESCRIPTION COMPILATION
-<!-- -->
-`tuist` CLI, `ProjectDescription` çerçevesinin yerleşik ürünler dizininde
-bulunmasına bağlıdır. ` tuist`, `ProjectDescription` çerçevesini bulamadığı için
-çalışmazsa, önce `Tuist-Workspace` şemasını oluşturun.
-<!-- -->
-:::
+> [!WARNING]
+> **Projectdescription Compilation**
+>
+> `tuist` CLI, `ProjectDescription` çerçevesinin yerleşik ürünler dizininde
+> bulunmasına bağlıdır. ` tuist`, `ProjectDescription` çerçevesini bulamadığı için
+> çalışmazsa, önce `Tuist-Workspace` şemasını oluşturun.
+
 
 ### Terminalden {#from-the-terminal}
 

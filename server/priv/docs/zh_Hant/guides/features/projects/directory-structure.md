@@ -47,12 +47,10 @@ Workspace.swift
 與上述專案互動時，指令希望在工作目錄或透過`--path` 旗標指示的目錄中找到`Workspace.swift` 或`Project.swift`
 檔案。manifest應該在包含`Tuist` 目錄的目錄或子目錄中，該目錄代表專案的根目錄。
 
-::: tip
-<!-- -->
-Xcode 工作區允許將專案分割成多個 Xcode 專案，以減少合併衝突的可能性。如果這就是您使用工作區的目的，您在 Tuist 中就不需要它們了。Tuist
-自動產生一個工作區，包含一個專案及其依賴的專案。
-<!-- -->
-:::
+> [!TIP]
+> Xcode 工作區允許將專案分割成多個 Xcode 專案，以減少合併衝突的可能性。如果這就是您使用工作區的目的，您在 Tuist 中就不需要它們了。Tuist
+> 自動產生一個工作區，包含一個專案及其依賴的專案。
+
 
 ## Swift 套件 <Badge type="warning" text="beta" />{#swift-package-badge-typewarning-textbeta-}
 
