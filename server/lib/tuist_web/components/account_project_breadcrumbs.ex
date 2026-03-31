@@ -5,7 +5,7 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
   """
   use TuistWeb, :verified_routes
 
-  import TuistWeb.Gettext
+  use Gettext, backend: TuistWeb.Gettext
 
   alias Tuist.Accounts
   alias Tuist.Authorization
