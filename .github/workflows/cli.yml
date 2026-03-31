@@ -227,7 +227,7 @@ jobs:
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Build tests
         id: shard
-        run: tuist test --build-only --no-binary-cache --shard-total 2 --shard-granularity suite TuistAcceptanceTests
+        run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
 
   cli-acceptance-tests:
     name: Acceptance Tests

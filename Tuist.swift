@@ -12,6 +12,12 @@ let tuist = Tuist(
             passthroughSwiftPackageManagerArguments: [
                 "--replace-scm-with-registry",
             ]
+        ),
+        cacheOptions: .options(
+            profiles: .profiles(
+                ["default": .profile(.onlyExternal, except: ["ProjectDescription"])],
+                default: .custom("default")
+            )
         )
     )
 )
