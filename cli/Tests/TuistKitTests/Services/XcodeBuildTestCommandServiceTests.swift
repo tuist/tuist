@@ -17,6 +17,7 @@ import TuistXCActivityLog
 import TuistXCResultService
 import XcodeGraph
 import protocol XcodeGraphMapper.XcodeGraphMapping
+import XCResultParser
 
 @testable import TuistKit
 

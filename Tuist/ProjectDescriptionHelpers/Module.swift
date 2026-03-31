@@ -86,7 +86,46 @@ public enum Module: String, CaseIterable {
     public static func allTargets() -> [Target] {
         var targets = Module.allCases.flatMap(\.targets)
         targets.append(contentsOf: cacheEETargets())
+        targets.append(contentsOf: xcResultParserTargets())
         return targets
+    }
+
+    public static func xcResultParserTargets() -> [Target] {
+        [
+            .target(
+                name: "XCResultParser",
+                destinations: [.mac],
+                product: .staticFramework,
+                bundleId: "dev.tuist.XCResultParser",
+                deploymentTargets: .macOS("15.0"),
+                infoPlist: .default,
+                buildableFolders: ["xcode_processor/native/xcresult_nif/Sources/XCResultParser/"],
+                dependencies: [
+                    .external(name: "Path"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Command"),
+                    .external(name: "Mockable"),
+                ],
+                settings: .settings(
+                    base: ["MACOSX_DEPLOYMENT_TARGET": "15.0"],
+                    configurations: [
+                        .debug(
+                            name: "Debug",
+                            settings: [
+                                "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
+                            ],
+                            xcconfig: nil
+                        ),
+                        .release(
+                            name: "Release",
+                            settings: [:],
+                            xcconfig: nil
+                        ),
+                    ]
+                ),
+                metadata: .metadata(tags: ["domain:testing", "layer:support"])
+            ),
+        ]
     }
 
     public static func cacheEETargets() -> [Target] {
@@ -719,6 +758,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: "XCResultParser"),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.casAnalytics.targetName),
@@ -898,6 +938,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.uniqueIDGenerator.targetName),
                     .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
                     .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
+                    .target(name: "XCResultParser", condition: .when([.macos])),
                     .target(name: Module.machineMetrics.targetName, condition: .when([.macos])),
                     .target(name: Module.simulator.targetName),
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
@@ -1009,9 +1050,8 @@ public enum Module: String, CaseIterable {
             case .xcResultService:
                 [
                     .target(name: Module.support.targetName),
-                    .target(name: Module.xcActivityLog.targetName),
                     .target(name: Module.logging.targetName),
-                    .external(name: "Command"),
+                    .target(name: "XCResultParser"),
                     .external(name: "FileSystem"),
                     .external(name: "Logging"),
                 ]
@@ -1415,6 +1455,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcActivityLog.targetName),
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: "XCResultParser"),
                     .target(name: Module.machineMetrics.targetName),
                     .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
@@ -1594,6 +1635,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: "XCResultParser"),
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.machineMetrics.targetName),

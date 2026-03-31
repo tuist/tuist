@@ -211,6 +211,11 @@ defmodule TuistWeb.API.TestsController do
          description: "Parameters to create a single test run.",
          type: :object,
          properties: %{
+           id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "Optional client-generated UUID for the test run. If not provided, the server generates one."
+           },
            duration: %Schema{
              description: "Duration of the run in milliseconds.",
              type: :integer
@@ -238,7 +243,7 @@ defmodule TuistWeb.API.TestsController do
            status: %Schema{
              type: :string,
              description: "The status of the test run.",
-             enum: ["success", "failure", "skipped"]
+             enum: ["success", "failure", "skipped", "processing", "failed_processing"]
            },
            git_commit_sha: %Schema{
              type: :string,
@@ -323,7 +328,7 @@ defmodule TuistWeb.API.TestsController do
                        status: %Schema{
                          type: :string,
                          description: "The status of the test suite.",
-                         enum: ["success", "failure", "skipped"]
+                         enum: ["success", "failure", "skipped", "processing", "failed_processing"]
                        },
                        duration: %Schema{
                          type: :integer,
@@ -350,7 +355,7 @@ defmodule TuistWeb.API.TestsController do
                        status: %Schema{
                          type: :string,
                          description: "The status of the test case.",
-                         enum: ["success", "failure", "skipped"]
+                         enum: ["success", "failure", "skipped", "processing", "failed_processing"]
                        },
                        duration: %Schema{
                          type: :integer,
@@ -450,18 +455,44 @@ defmodule TuistWeb.API.TestsController do
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
-        Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-          git_commit_sha: Map.get(body_params, :git_commit_sha),
-          git_ref: Map.get(body_params, :git_ref),
-          git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-          project_id: selected_project.id,
-          preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-          preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-          command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-          test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-          bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-          build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
-        })
+        if test_run.status == "processing" do
+          storage_key =
+            "#{selected_project.account.name}/#{selected_project.name}/runs/#{test_run.id}/result_bundle.zip"
+
+          %{
+            test_run_id: test_run.id,
+            storage_key: storage_key,
+            account_id: selected_project.account_id,
+            project_id: selected_project.id,
+            is_ci: test_run.is_ci || false,
+            git_branch: test_run.git_branch,
+            git_commit_sha: test_run.git_commit_sha,
+            git_ref: test_run.git_ref,
+            macos_version: test_run.macos_version,
+            xcode_version: test_run.xcode_version,
+            model_identifier: test_run.model_identifier,
+            scheme: test_run.scheme,
+            ci_run_id: test_run.ci_run_id,
+            ci_host: test_run.ci_host,
+            ci_provider: test_run.ci_provider
+          }
+          |> Tuist.Tests.Workers.ProcessXcresultWorker.new()
+          |> Oban.insert()
+          |> then(fn {:ok, _job} -> :ok end)
+        else
+          Tuist.VCS.enqueue_vcs_pull_request_comment(%{
+            git_commit_sha: Map.get(body_params, :git_commit_sha),
+            git_ref: Map.get(body_params, :git_ref),
+            git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
+            project_id: selected_project.id,
+            preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+            preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+            command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+            test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
+            bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+            build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+          })
+        end
 
         conn
         |> put_status(:ok)
@@ -472,7 +503,7 @@ defmodule TuistWeb.API.TestsController do
           project_id: test_run.project_id,
           url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
           test_case_runs:
-            Enum.map(test_run.test_case_runs, fn run ->
+            Enum.map(test_run.test_case_runs || [], fn run ->
               %{
                 id: run.id,
                 name: run.name,

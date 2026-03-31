@@ -3718,6 +3718,12 @@ components:
           type: string
           x-struct:
           x-validate:
+        id:
+          description: Optional client-generated UUID for the test run. If not provided, the server generates one.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         is_ci:
           description: Indicates if the run was executed on a Continuous Integration (CI) system.
           type: boolean
@@ -3755,6 +3761,7 @@ components:
             - success
             - failure
             - skipped
+            - processing
           type: string
           x-struct:
           x-validate:
@@ -3878,6 +3885,7 @@ components:
                         - success
                         - failure
                         - skipped
+                        - processing
                       type: string
                       x-struct:
                       x-validate:
@@ -3916,6 +3924,7 @@ components:
                         - success
                         - failure
                         - skipped
+                        - processing
                       type: string
                       x-struct:
                       x-validate:
@@ -18288,6 +18297,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                id:
+                  description: Optional client-generated UUID for the test run. If not provided, the server generates one.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 is_ci:
                   description: Indicates if the run was executed on a Continuous Integration (CI) system.
                   type: boolean
@@ -18325,6 +18340,7 @@ paths:
                     - success
                     - failure
                     - skipped
+                    - processing
                   type: string
                   x-struct:
                   x-validate:
@@ -18448,6 +18464,7 @@ paths:
                                 - success
                                 - failure
                                 - skipped
+                                - processing
                               type: string
                               x-struct:
                               x-validate:
@@ -18486,6 +18503,7 @@ paths:
                                 - success
                                 - failure
                                 - skipped
+                                - processing
                               type: string
                               x-struct:
                               x-validate:

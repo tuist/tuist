@@ -4,18 +4,23 @@
     import Path
     import TuistAlert
     import TuistAutomation
+    import TuistCI
+    import TuistConfig
     import TuistConfigLoader
     import TuistCore
     import TuistEnvironment
+    import TuistGit
     import TuistKit
     import TuistLoader
     import TuistLogging
     import TuistProcess
+    import TuistRootDirectoryLocator
     import TuistServer
     import TuistSupport
     import TuistXCActivityLog
     import TuistXcodeProjectOrWorkspacePathLocator
     import TuistXCResultService
+    import XCResultParser
 
     enum InspectTestCommandServiceError: Equatable, LocalizedError {
         case executablePathMissing
@@ -42,8 +47,16 @@
         private let xcResultService: XCResultServicing
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
         private let uploadResultBundleService: UploadResultBundleServicing
+        private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
+        private let createTestService: CreateTestServicing
         private let configLoader: ConfigLoading
         private let backgroundProcessRunner: BackgroundProcessRunning
+        private let serverEnvironmentService: ServerEnvironmentServicing
+        private let gitController: GitControlling
+        private let ciController: CIControlling
+        private let machineEnvironment: MachineEnvironmentRetrieving
+        private let xcodeBuildController: XcodeBuildControlling
+        private let rootDirectoryLocator: RootDirectoryLocating
 
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -51,22 +64,39 @@
             xcResultService: XCResultServicing = XCResultService(),
             xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
             uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
+            analyticsArtifactUploadService: AnalyticsArtifactUploadServicing = AnalyticsArtifactUploadService(),
+            createTestService: CreateTestServicing = CreateTestService(),
             configLoader: ConfigLoading = ConfigLoader(),
-            backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner()
+            backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
+            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+            gitController: GitControlling = GitController(),
+            ciController: CIControlling = CIController(),
+            machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
+            xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
+            rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
             self.xcResultService = xcResultService
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
             self.uploadResultBundleService = uploadResultBundleService
+            self.analyticsArtifactUploadService = analyticsArtifactUploadService
+            self.createTestService = createTestService
             self.configLoader = configLoader
             self.backgroundProcessRunner = backgroundProcessRunner
+            self.serverEnvironmentService = serverEnvironmentService
+            self.gitController = gitController
+            self.ciController = ciController
+            self.machineEnvironment = machineEnvironment
+            self.xcodeBuildController = xcodeBuildController
+            self.rootDirectoryLocator = rootDirectoryLocator
         }
 
         func run(
             path: String?,
             derivedDataPath: String? = nil,
-            resultBundlePath: String? = nil
+            resultBundlePath: String? = nil,
+            mode: InspectTestCommand.ProcessingMode = .local
         ) async throws {
             if Environment.current.variables["TUIST_INSPECT_TEST_WAIT"] != "YES",
                Environment.current.workspacePath != nil
@@ -94,6 +124,28 @@
             let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: path)
             let config = try await configLoader.loadConfig(path: projectPath)
 
+            switch mode {
+            case .local:
+                try await runLocal(
+                    resolvedResultBundlePath: resolvedResultBundlePath,
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    path: path,
+                    config: config
+                )
+            case .remote:
+                try await runRemote(
+                    resolvedResultBundlePath: resolvedResultBundlePath,
+                    config: config
+                )
+            }
+        }
+
+        private func runLocal(
+            resolvedResultBundlePath: AbsolutePath,
+            projectDerivedDataDirectory: AbsolutePath?,
+            path: AbsolutePath,
+            config: Tuist
+        ) async throws {
             guard let testSummary = try await xcResultService.parse(
                 path: resolvedResultBundlePath,
                 rootDirectory: path
@@ -111,6 +163,70 @@
 
             AlertController.current.success(
                 .alert("View the analyzed test at \(test.url)")
+            )
+        }
+
+        private func runRemote(
+            resolvedResultBundlePath: AbsolutePath,
+            config: Tuist
+        ) async throws {
+            guard let fullHandle = config.fullHandle else {
+                throw UploadResultBundleServiceError.missingFullHandle
+            }
+
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+            let rootDirectory: AbsolutePath? = if gitController.isInGitRepository(workingDirectory: workingDirectory) {
+                try gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
+            } else {
+                try await rootDirectoryLocator.locate(from: workingDirectory)
+            }
+            let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
+            let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+            let ciInfo = ciController.ciInfo()
+
+            let testRunId = UUID().uuidString.lowercased()
+
+            try await analyticsArtifactUploadService.uploadResultBundle(
+                resolvedResultBundlePath,
+                fullHandle: fullHandle,
+                commandEventId: testRunId,
+                serverURL: serverURL
+            )
+
+            let testSummary = TestSummary(
+                testPlanName: nil,
+                status: .processing,
+                duration: 0,
+                testModules: []
+            )
+
+            let test = try await createTestService.createTest(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                id: testRunId,
+                testSummary: testSummary,
+                buildRunId: nil,
+                gitBranch: gitInfo.branch,
+                gitCommitSHA: gitInfo.sha,
+                gitRef: gitInfo.ref,
+                gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+                isCI: Environment.current.isCI,
+                modelIdentifier: machineEnvironment.modelIdentifier(),
+                macOSVersion: machineEnvironment.macOSVersion,
+                xcodeVersion: try await xcodeBuildController.version()?.description,
+                ciRunId: ciInfo?.runId,
+                ciProjectHandle: ciInfo?.projectHandle,
+                ciHost: ciInfo?.host,
+                ciProvider: ciInfo?.provider,
+                shardPlanId: nil,
+                shardIndex: nil
+            )
+
+            AlertController.current.success(
+                .alert("Result bundle uploaded for processing. View at \(test.url)")
             )
         }
 

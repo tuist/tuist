@@ -7470,6 +7470,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/gradle_build_id`.
             public var gradle_build_id: Swift.String?
+            /// Optional client-generated UUID for the test run. If not provided, the server generates one.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/id`.
+            public var id: Swift.String?
             /// Indicates if the run was executed on a Continuous Integration (CI) system.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/is_ci`.
@@ -7501,6 +7505,7 @@ public enum Components {
                 case success = "success"
                 case failure = "failure"
                 case skipped = "skipped"
+                case processing = "processing"
             }
             /// The status of the test run.
             ///
@@ -7665,6 +7670,7 @@ public enum Components {
                         case success = "success"
                         case failure = "failure"
                         case skipped = "skipped"
+                        case processing = "processing"
                     }
                     /// The status of the test case.
                     ///
@@ -7736,6 +7742,7 @@ public enum Components {
                         case success = "success"
                         case failure = "failure"
                         case skipped = "skipped"
+                        case processing = "processing"
                     }
                     /// The status of the test suite.
                     ///
@@ -7826,6 +7833,7 @@ public enum Components {
             ///   - git_ref: The git reference.
             ///   - git_remote_url_origin: The git remote URL origin.
             ///   - gradle_build_id: The UUID of an associated Gradle build.
+            ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
             ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
             ///   - macos_version: The version of macOS used during the run.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
@@ -7848,6 +7856,7 @@ public enum Components {
                 git_ref: Swift.String? = nil,
                 git_remote_url_origin: Swift.String? = nil,
                 gradle_build_id: Swift.String? = nil,
+                id: Swift.String? = nil,
                 is_ci: Swift.Bool,
                 macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
@@ -7870,6 +7879,7 @@ public enum Components {
                 self.git_ref = git_ref
                 self.git_remote_url_origin = git_remote_url_origin
                 self.gradle_build_id = gradle_build_id
+                self.id = id
                 self.is_ci = is_ci
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
@@ -7893,6 +7903,7 @@ public enum Components {
                 case git_ref
                 case git_remote_url_origin
                 case gradle_build_id
+                case id
                 case is_ci
                 case macos_version
                 case model_identifier
@@ -48976,6 +48987,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/gradle_build_id`.
                     public var gradle_build_id: Swift.String?
+                    /// Optional client-generated UUID for the test run. If not provided, the server generates one.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/id`.
+                    public var id: Swift.String?
                     /// Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/is_ci`.
@@ -49007,6 +49022,7 @@ public enum Operations {
                         case success = "success"
                         case failure = "failure"
                         case skipped = "skipped"
+                        case processing = "processing"
                     }
                     /// The status of the test run.
                     ///
@@ -49171,6 +49187,7 @@ public enum Operations {
                                 case success = "success"
                                 case failure = "failure"
                                 case skipped = "skipped"
+                                case processing = "processing"
                             }
                             /// The status of the test case.
                             ///
@@ -49242,6 +49259,7 @@ public enum Operations {
                                 case success = "success"
                                 case failure = "failure"
                                 case skipped = "skipped"
+                                case processing = "processing"
                             }
                             /// The status of the test suite.
                             ///
@@ -49332,6 +49350,7 @@ public enum Operations {
                     ///   - git_ref: The git reference.
                     ///   - git_remote_url_origin: The git remote URL origin.
                     ///   - gradle_build_id: The UUID of an associated Gradle build.
+                    ///   - id: Optional client-generated UUID for the test run. If not provided, the server generates one.
                     ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
@@ -49354,6 +49373,7 @@ public enum Operations {
                         git_ref: Swift.String? = nil,
                         git_remote_url_origin: Swift.String? = nil,
                         gradle_build_id: Swift.String? = nil,
+                        id: Swift.String? = nil,
                         is_ci: Swift.Bool,
                         macos_version: Swift.String? = nil,
                         model_identifier: Swift.String? = nil,
@@ -49376,6 +49396,7 @@ public enum Operations {
                         self.git_ref = git_ref
                         self.git_remote_url_origin = git_remote_url_origin
                         self.gradle_build_id = gradle_build_id
+                        self.id = id
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.model_identifier = model_identifier
@@ -49399,6 +49420,7 @@ public enum Operations {
                         case git_ref
                         case git_remote_url_origin
                         case gradle_build_id
+                        case id
                         case is_ci
                         case macos_version
                         case model_identifier
