@@ -45,6 +45,5 @@ jobs:
       - name: Deploy
         env:
           SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }}
-          MISE_IGNORED_CONFIG_PATHS: ${{ github.workspace }}/mise.toml
         run: |
           mise run deploy ${{ env.XCODE_PROCESSOR_HOST }} staging
