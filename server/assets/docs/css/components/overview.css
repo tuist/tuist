@@ -555,9 +555,9 @@
 
     & p {
       display: -webkit-box;
+      -webkit-line-clamp: 2;
       color: var(--noora-text-heading);
       font: var(--noora-font-body-medium);
-      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
