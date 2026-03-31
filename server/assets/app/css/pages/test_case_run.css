@@ -657,6 +657,18 @@
         box-shadow: var(--noora-light-border-default);
         border-radius: var(--noora-radius-large);
         padding: var(--noora-spacing-5);
+
+        & > [data-part="repetition-attachment-header"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-3);
+
+          & [data-part="repetition-attachment-label"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+        }
       }
 
       & [data-part="repetition-attachment-group"] {
