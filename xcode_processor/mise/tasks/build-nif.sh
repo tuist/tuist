@@ -1,15 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#MISE description "Build the Swift NIF library and C bridge"
+#MISE raw=true
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PRIV_DIR="${SCRIPT_DIR}/../../priv/native"
-
-cd "$SCRIPT_DIR"
+NIF_DIR="native/xcresult_nif"
+PRIV_DIR="priv/native"
 
 echo "==> Building Swift NIF library..."
-swift build -c release --replace-scm-with-registry 2>&1
+(cd "$NIF_DIR" && swift build -c release --replace-scm-with-registry 2>&1)
 
-SWIFT_BUILD_DIR=".build/release"
+SWIFT_BUILD_DIR="$NIF_DIR/.build/release"
 DYLIB_NAME="libXCResultNIF.dylib"
 
 if [ ! -f "$SWIFT_BUILD_DIR/$DYLIB_NAME" ]; then
@@ -29,7 +29,7 @@ mkdir -p "$PRIV_DIR"
 
 cc -shared -undefined dynamic_lookup \
     -o "$PRIV_DIR/xcresult_nif.so" \
-    nif_bridge.c \
+    "$NIF_DIR/nif_bridge.c" \
     -I"$ERL_INCLUDE" \
     -L"$SWIFT_BUILD_DIR" \
     -lXCResultNIF \
@@ -38,5 +38,3 @@ cc -shared -undefined dynamic_lookup \
 cp "$SWIFT_BUILD_DIR/$DYLIB_NAME" "$PRIV_DIR/$DYLIB_NAME"
 
 echo "==> NIF built successfully!"
-echo "    NIF: $PRIV_DIR/xcresult_nif.so"
-echo "    Lib: $PRIV_DIR/$DYLIB_NAME"
