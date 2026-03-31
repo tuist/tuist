@@ -60,28 +60,18 @@ defmodule TuistWeb.DocsLive do
   end
 
   defp build_breadcrumbs(socket, selected_account, accounts, selected_project, projects) do
-    breadcrumbs = [
+    account_breadcrumb =
       AccountProjectBreadcrumbs.account_breadcrumb(selected_account, accounts, stateful: true)
-    ]
 
-    breadcrumbs =
-      case selected_project do
-        nil ->
-          breadcrumbs
+    project_breadcrumb =
+      AccountProjectBreadcrumbs.project_breadcrumb(
+        selected_project,
+        selected_account,
+        projects,
+        stateful: true
+      )
 
-        project ->
-          breadcrumbs ++
-            [
-              AccountProjectBreadcrumbs.project_breadcrumb(
-                project,
-                selected_account,
-                projects,
-                stateful: true
-              )
-            ]
-      end
-
-    assign(socket, :breadcrumbs, breadcrumbs)
+    assign(socket, :breadcrumbs, [account_breadcrumb, project_breadcrumb])
   end
 
   def handle_params(params, _url, socket) do

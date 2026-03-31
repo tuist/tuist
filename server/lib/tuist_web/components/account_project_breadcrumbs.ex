@@ -45,16 +45,24 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
   def project_breadcrumb(selected_project, selected_account, projects, opts \\ []) do
     stateful? = Keyword.get(opts, :stateful, false)
 
+    label =
+      if is_nil(selected_project),
+        do: dgettext("dashboard", "Select project"),
+        else: selected_project.name
+
+    badge =
+      if is_nil(selected_project), do: nil, else: build_system_badge(selected_project.build_system)
+
     %{
-      label: selected_project.name,
-      badge: build_system_badge(selected_project.build_system),
+      label: label,
+      badge: badge,
       on_select: if(stateful?, do: "select-project"),
       items:
         Enum.map(projects, fn project ->
           %{
             label: project.name,
             value: project.id,
-            selected: selected_project.id == project.id,
+            selected: not is_nil(selected_project) and selected_project.id == project.id,
             href: if(!stateful?, do: ~p"/#{selected_account.name}/#{project.name}"),
             badge: build_system_badge(project.build_system)
           }
