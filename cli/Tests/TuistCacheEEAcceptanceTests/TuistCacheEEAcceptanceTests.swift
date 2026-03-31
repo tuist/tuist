@@ -237,6 +237,49 @@ struct TuistCacheEEAcceptanceTests {
 
     @Test(
         .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_appintents_framework")
+    ) func ios_app_with_appintents_framework_caches_metadata() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        // When: Cache the binaries
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        // Then: The cached xcframework should contain Metadata.appintents in its framework slices
+        let metadataFiles = try await fileSystem.glob(
+            directory: mockedEnvironment.cacheDirectory,
+            include: ["**/*.xcframework/**/*.framework/Metadata.appintents"]
+        ).collect()
+        #expect(!metadataFiles.isEmpty, "Metadata.appintents should be embedded in the cached xcframework slices")
+
+        // When: Generate with the cached binary
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString, "App"])
+
+        // Then: Build the app to verify AppIntentsSSUTraining passes
+        let xcworkspacePath = fixtureDirectory.appending(component: "AppIntentsApp.xcworkspace")
+        let arguments = [
+            "-workspace", xcworkspacePath.pathString,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS Simulator",
+            "-derivedDataPath", temporaryDirectory.pathString,
+            "CODE_SIGN_IDENTITY=",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGNING_ALLOWED=NO",
+        ]
+        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH", "JAVA_HOME", "GRADLE_HOME"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
