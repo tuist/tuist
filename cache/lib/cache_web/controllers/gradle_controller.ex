@@ -18,6 +18,7 @@ defmodule CacheWeb.GradleController do
   alias Cache.S3
   alias Cache.S3Transfers
   alias CacheWeb.API.Schemas.Error
+  alias CacheWeb.API.Schemas.SafePathComponent
 
   require Logger
 
@@ -34,19 +35,19 @@ defmodule CacheWeb.GradleController do
     parameters: [
       cache_key: [
         in: :path,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The Gradle build cache key (hash)"
       ],
       account_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the account"
       ],
       project_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
       ]
@@ -54,9 +55,9 @@ defmodule CacheWeb.GradleController do
     responses: %{
       ok: {"Artifact content", "application/octet-stream", nil},
       not_found: {"Artifact not found", "application/json", Error},
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error},
-      bad_request: {"Bad request", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error}
     }
   )
 
@@ -121,19 +122,19 @@ defmodule CacheWeb.GradleController do
     parameters: [
       cache_key: [
         in: :path,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The Gradle build cache key (hash)"
       ],
       account_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the account"
       ],
       project_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
       ]
@@ -145,9 +146,9 @@ defmodule CacheWeb.GradleController do
       request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
       request_timeout: {"Request body read timed out", "application/json", Error},
       internal_server_error: {"Failed to persist artifact", "application/json", Error},
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
-      forbidden: {"Forbidden", "application/json", Error},
-      bad_request: {"Bad request", "application/json", Error}
+      forbidden: {"Forbidden", "application/json", Error}
     }
   )
 

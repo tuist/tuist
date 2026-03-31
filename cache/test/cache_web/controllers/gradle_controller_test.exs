@@ -421,5 +421,36 @@ defmodule CacheWeb.GradleControllerTest do
       response = json_response(conn, 404)
       assert response["message"] == "Unauthorized or not found"
     end
+
+    test "returns 422 when path params contain traversal", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put("/api/cache/gradle/..?account_handle=#{account_handle}&project_handle=#{project_handle}", "body")
+
+      assert conn.status == 422
+
+      response = json_response(conn, 422)
+
+      assert %{
+               "errors" => [
+                 %{
+                   "title" => "Invalid value",
+                   "source" => %{"pointer" => "/cache_key"},
+                   "detail" => detail
+                 }
+               ]
+             } = response
+
+      assert is_binary(detail)
+    end
   end
 end

@@ -3824,11 +3824,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Project/repository_url`.
             public var repository_url: Swift.String?
-            /// The token that should be used to authenticate the project. For CI only.
-            ///
-            /// - Remark: Generated from `#/components/schemas/Project/token`.
-            @available(*, deprecated)
-            public var token: Swift.String
             /// The visibility of the project
             ///
             /// - Remark: Generated from `#/components/schemas/Project/visibility`.
@@ -3848,7 +3843,6 @@ public enum Components {
             ///   - full_name: The full name of the project (e.g. tuist/tuist)
             ///   - id: ID of the project
             ///   - repository_url: The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git
-            ///   - token: The token that should be used to authenticate the project. For CI only.
             ///   - visibility: The visibility of the project
             public init(
                 build_system: Components.Schemas.Project.build_systemPayload? = nil,
@@ -3856,7 +3850,6 @@ public enum Components {
                 full_name: Swift.String,
                 id: Swift.Double,
                 repository_url: Swift.String? = nil,
-                token: Swift.String,
                 visibility: Components.Schemas.Project.visibilityPayload
             ) {
                 self.build_system = build_system
@@ -3864,7 +3857,6 @@ public enum Components {
                 self.full_name = full_name
                 self.id = id
                 self.repository_url = repository_url
-                self.token = token
                 self.visibility = visibility
             }
             public enum CodingKeys: String, CodingKey {
@@ -3873,7 +3865,6 @@ public enum Components {
                 case full_name
                 case id
                 case repository_url
-                case token
                 case visibility
             }
         }
@@ -15581,28 +15572,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
