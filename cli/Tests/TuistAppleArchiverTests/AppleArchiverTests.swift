@@ -1,5 +1,6 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Path
 import Testing
 import TuistAppleArchiver
@@ -16,7 +17,7 @@ struct AppleArchiverTests {
         try await fileSystem.writeText("hello world", at: sourceDir.appending(component: "file.txt"))
 
         let archivePath = temporaryDirectory.appending(component: "archive.aar")
-        try await subject.compress(directory: sourceDir, to: archivePath)
+        try await subject.compress(directory: sourceDir, to: archivePath, excludePatterns: [])
 
         let exists = try await fileSystem.exists(archivePath)
         #expect(exists)
@@ -42,7 +43,7 @@ struct AppleArchiverTests {
         )
 
         let archivePath = temporaryDirectory.appending(component: "archive.aar")
-        try await subject.compress(directory: sourceDir, to: archivePath)
+        try await subject.compress(directory: sourceDir, to: archivePath, excludePatterns: [])
 
         let extractDir = temporaryDirectory.appending(component: "extracted")
         try await fileSystem.makeDirectory(at: extractDir)
@@ -66,7 +67,7 @@ struct AppleArchiverTests {
         try await fileSystem.writeText("root", at: sourceDir.appending(component: "root.txt"))
 
         let archivePath = temporaryDirectory.appending(component: "archive.aar")
-        try await subject.compress(directory: sourceDir, to: archivePath)
+        try await subject.compress(directory: sourceDir, to: archivePath, excludePatterns: [])
 
         let extractDir = temporaryDirectory.appending(component: "extracted")
         try await fileSystem.makeDirectory(at: extractDir)
@@ -79,5 +80,65 @@ struct AppleArchiverTests {
             at: extractDir.appending(components: ["a", "b", "c", "deep.txt"])
         )
         #expect(deepContent == "deep")
+    }
+
+    @Test(.inTemporaryDirectory) func compress_excludes_matching_patterns() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let sourceDir = temporaryDirectory.appending(component: "source")
+        try await fileSystem.makeDirectory(at: sourceDir)
+        try await fileSystem.writeText("keep", at: sourceDir.appending(component: "file.txt"))
+        let dsymDir = sourceDir.appending(components: ["Module.framework.dSYM", "Contents", "Resources"])
+        try await fileSystem.makeDirectory(at: dsymDir)
+        try await fileSystem.writeText("debug", at: dsymDir.appending(component: "DWARF"))
+        let swiftmoduleDir = sourceDir.appending(component: "Module.swiftmodule")
+        try await fileSystem.makeDirectory(at: swiftmoduleDir)
+        try await fileSystem.writeText("module", at: swiftmoduleDir.appending(component: "arm64.swiftmodule"))
+
+        let archivePath = temporaryDirectory.appending(component: "archive.aar")
+        try await subject.compress(
+            directory: sourceDir,
+            to: archivePath,
+            excludePatterns: [".dSYM", ".swiftmodule"]
+        )
+
+        let extractDir = temporaryDirectory.appending(component: "extracted")
+        try await fileSystem.makeDirectory(at: extractDir)
+        try await subject.decompress(archive: archivePath, to: extractDir)
+
+        let fileExists = try await fileSystem.exists(extractDir.appending(component: "file.txt"))
+        #expect(fileExists)
+        let dsymExists = try await fileSystem.exists(extractDir.appending(component: "Module.framework.dSYM"))
+        #expect(!dsymExists)
+        let swiftmoduleExists = try await fileSystem.exists(extractDir.appending(component: "Module.swiftmodule"))
+        #expect(!swiftmoduleExists)
+    }
+
+    @Test(.inTemporaryDirectory) func compress_handles_broken_symlinks() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let sourceDir = temporaryDirectory.appending(component: "source")
+        try await fileSystem.makeDirectory(at: sourceDir)
+        try await fileSystem.writeText("keep", at: sourceDir.appending(component: "file.txt"))
+        try FileManager.default.createSymbolicLink(
+            atPath: sourceDir.appending(component: "broken_link").pathString,
+            withDestinationPath: "/nonexistent/target"
+        )
+
+        let archivePath = temporaryDirectory.appending(component: "archive.aar")
+        try await subject.compress(directory: sourceDir, to: archivePath, excludePatterns: [])
+
+        let extractDir = temporaryDirectory.appending(component: "extracted")
+        try await fileSystem.makeDirectory(at: extractDir)
+        try await subject.decompress(archive: archivePath, to: extractDir)
+
+        let fileContent = try await fileSystem.readTextFile(at: extractDir.appending(component: "file.txt"))
+        #expect(fileContent == "keep")
+        let linkDest = try FileManager.default.destinationOfSymbolicLink(
+            atPath: extractDir.appending(component: "broken_link").pathString
+        )
+        #expect(linkDest == "/nonexistent/target")
     }
 }
