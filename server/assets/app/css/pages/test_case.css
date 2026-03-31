@@ -19,11 +19,12 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-4);
+      min-width: 0;
 
       & > [data-part="title"] {
         display: flex;
         flex-direction: row;
-        align-items: center;
+        align-items: flex-start;
         gap: var(--noora-spacing-4);
 
         & > [data-part="badge-success"] {
@@ -73,6 +74,7 @@
           margin: var(--noora-spacing-0);
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+          word-break: break-word;
         }
       }
 
@@ -85,6 +87,7 @@
 
     & > [data-part="actions"] {
       display: flex;
+      flex-shrink: 0;
       flex-direction: row;
       gap: var(--noora-spacing-4);
     }
