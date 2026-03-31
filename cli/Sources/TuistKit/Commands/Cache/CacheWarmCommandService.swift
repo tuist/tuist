@@ -503,7 +503,12 @@ import XcodeGraph
                 // as a sibling to the .framework in the build products directory. We copy the
                 // Metadata.appintents directory into each framework slice of the xcframework so
                 // the app target's AppIntentsSSUTraining phase can discover it.
-                let appIntentsBundleName = "\(cacheableTarget.0.target.productName).appintents"
+                // We derive the .appintents name from productNameWithExtension (which respects
+                // PRODUCT_NAME build setting overrides) to stay consistent with how the framework
+                // artifact itself is resolved.
+                let resolvedProductName = cacheableTarget.0.target.productNameWithExtension
+                    .replacingOccurrences(of: ".framework", with: "")
+                let appIntentsBundleName = "\(resolvedProductName).appintents"
                 for artifactDir in Set(platformBinaryArtifacts) {
                     let metadataSource = artifactDir.appending(
                         components: [appIntentsBundleName, "Metadata.appintents"]
