@@ -1,11 +1,10 @@
-import encoding from 'k6/encoding';
 import { Options } from 'k6/options';
 import { REGION, COMMIT_SHA } from './config.ts';
 import { ALL_NAMES } from './metrics.ts';
 import { authToken } from './lib/auth.ts';
-import { seedAll, seedDataOf, setupFromSeedData } from './lib/seed.ts';
+import { seedAll } from './lib/seed.ts';
 import { SCENARIO_PLANS, SCENARIO_PLAN_BY_KEY } from './scenario-plan.ts';
-import { SeedData, SetupData } from './types.ts';
+import { SetupData } from './types.ts';
 
 export {
   xcodeRead10kb,
@@ -96,27 +95,12 @@ export const options: Partial<Options> = {
 
 // --- Setup: authenticate and seed test data ---
 
-function loadSeedData(): SeedData | null {
-  const json = __ENV.SEED_DATA_JSON;
-  if (!json) return null;
-  return JSON.parse(json) as SeedData;
-}
-
 export function setup(): SetupData {
   console.log(`Using cache project token for region ${REGION}.`);
   const token = authToken();
 
-  const existingSeedData = loadSeedData();
-  if (existingSeedData) {
-    console.log(`Reusing seeded test data for region ${REGION}...`);
-    const data = setupFromSeedData(token, existingSeedData);
-    console.log('Setup complete. Starting load test.');
-    return data;
-  }
-
   console.log(`Seeding test data for region ${REGION}...`);
   const data = seedAll(token);
-  console.log(`SEED_DATA_B64=${encoding.b64encode(JSON.stringify(seedDataOf(data)), 'std')}`);
   console.log('Setup complete. Starting load test.');
   return data;
 }
