@@ -9,7 +9,6 @@ let
     export PORT="4003"
     export MIX_ENV="prod"
     export RELEASE_NAME="xcode_processor"
-    export PHX_HOST="xcode-processor-paris-1.tuist.dev"
     export SECRET_KEY_BASE="$(cat ${config.sops.secrets.secret_key_base.path})"
     export WEBHOOK_SECRET="$(cat ${config.sops.secrets.webhook_secret.path})"
     export S3_ENDPOINT="$(cat ${config.sops.secrets.s3_endpoint.path})"
@@ -28,51 +27,27 @@ in
 {
   services.openssh.enable = true;
 
-  security.pam.services.sudo_local.touchIdAuth = true;
-
   environment.systemPackages = with pkgs; [
-    vim
-    git
     curl
-    htop
-    caddy
+    git
     openssl
   ];
 
-  # Directories and symlinks created on activation
   system.activationScripts.postActivation.text = ''
-    # Erlang release is built on CI where OpenSSL is at the Homebrew path.
-    # Create a symlink so the binary finds it without needing Homebrew.
     mkdir -p /opt/homebrew/opt/openssl@3/lib
     ln -sf ${pkgs.openssl.out}/lib/libcrypto*.dylib /opt/homebrew/opt/openssl@3/lib/ 2>/dev/null || true
     ln -sf ${pkgs.openssl.out}/lib/libssl*.dylib /opt/homebrew/opt/openssl@3/lib/ 2>/dev/null || true
-
-    mkdir -p /var/log/xcode-processor
-    mkdir -p /var/log/caddy
-    mkdir -p /var/lib/caddy
-    mkdir -p /var/log/grafana-alloy
+    mkdir -p /var/log/xcode-processor /var/log/caddy /var/lib/caddy /var/log/grafana-alloy
     mkdir -p ${deployDir}/releases
     chown -R github-actions:staff ${deployDir}
-
-    # Ensure github-actions has a home directory and SSH access
-    createhomedir -c -u github-actions 2>/dev/null || mkdir -p /Users/github-actions
-    chown github-actions:staff /Users/github-actions
-    chmod 755 /Users/github-actions
-
-    # Add github-actions to SSH access group if it exists
-    if dseditgroup -o read com.apple.access_ssh &>/dev/null; then
-      dseditgroup -o edit -a github-actions -t user com.apple.access_ssh 2>/dev/null || true
-    fi
   '';
 
-  # Sudoers for deploy user to restart the service
   environment.etc."sudoers.d/xcode-processor-deploy".text = ''
     github-actions ALL=(ALL) NOPASSWD: /bin/launchctl bootout system/org.nixos.dev.tuist.xcode-processor
     github-actions ALL=(ALL) NOPASSWD: /bin/launchctl bootstrap system /Library/LaunchDaemons/org.nixos.dev.tuist.xcode-processor.plist
     github-actions ALL=(ALL) NOPASSWD: /bin/launchctl kickstart -k system/org.nixos.dev.tuist.xcode-processor
   '';
 
-  # Caddy reverse proxy (TLS termination)
   launchd.daemons."dev.tuist.caddy" = {
     serviceConfig = {
       ProgramArguments = [
@@ -93,7 +68,6 @@ in
     };
   };
 
-  # Xcode processor service
   launchd.daemons."dev.tuist.xcode-processor" = {
     serviceConfig = {
       ProgramArguments = [ "${envScript}" ];
@@ -103,21 +77,6 @@ in
       StandardErrorPath = "/var/log/xcode-processor/stderr.log";
       WorkingDirectory = deployDir;
     };
-  };
-
-  # Users
-  users.users.xcode-processor = {
-    home = "/Users/xcode-processor";
-    shell = pkgs.zsh;
-    isHidden = true;
-  };
-
-  users.users.github-actions = {
-    home = "/Users/github-actions";
-    shell = pkgs.bash;
-    openssh.authorizedKeys.keys = [
-      # Populated via GitHub environment secrets or 1Password
-    ];
   };
 
   nix.enable = false;
