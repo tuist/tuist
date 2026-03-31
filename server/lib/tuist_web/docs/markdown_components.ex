@@ -21,6 +21,63 @@ defmodule TuistWeb.Docs.MarkdownComponents do
     """
   end
 
+  @doc """
+  An alert component for documentation that supports rich HTML content.
+
+  Uses the same Noora alert CSS structure but renders the inner block
+  as the description, allowing paragraphs, links, code, and other HTML
+  from markdown.
+  """
+  attr :status, :string,
+    values: ~w(information warning error success),
+    required: true
+
+  attr :title, :string, required: true
+  slot :inner_block, required: true
+
+  def doc_alert(assigns) do
+    ~H"""
+    <div
+      class="noora-alert tuist-admonition"
+      data-type="secondary"
+      data-status={@status}
+      data-size="large"
+    >
+      <div data-part="icon">
+        <.alert_icon status={@status} />
+      </div>
+      <div data-part="column">
+        <span data-part="title">{@title}</span>
+        <div data-part="description">
+          {render_slot(@inner_block)}
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp alert_icon(%{status: status} = assigns) when status in ["error", "information"] do
+    ~H"<Noora.Icon.alert_circle />"
+  end
+
+  defp alert_icon(%{status: "success"} = assigns) do
+    ~H"<Noora.Icon.circle_check />"
+  end
+
+  defp alert_icon(%{status: "warning"} = assigns) do
+    ~H"<Noora.Icon.alert_triangle />"
+  end
+
+  slot :inner_block, required: true
+
+  def doc_table(assigns) do
+    ~H"""
+    <div class="noora-table">
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
   attr :title, :string, required: true
   attr :details, :string, required: true
   attr :link, :string, required: true

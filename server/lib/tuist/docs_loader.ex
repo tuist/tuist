@@ -238,9 +238,9 @@ defmodule Tuist.Docs.Loader do
       |> MDExMermaid.attach(mermaid_init: "")
       |> MDEx.Document.put_options(@mdex_options)
       |> MDEx.to_html!()
-      |> convert_github_alerts()
+      |> then(fn h -> if live?, do: convert_github_alerts_to_components(h), else: convert_github_alerts(h) end)
       |> HTML.wrap_code_blocks()
-      |> wrap_tables()
+      |> then(fn h -> if live?, do: wrap_tables_with_component(h), else: wrap_tables(h) end)
       |> rewrite_image_paths()
       |> replace_heading_ids(custom_ids)
       |> HTML.add_heading_anchors()
@@ -362,6 +362,30 @@ defmodule Tuist.Docs.Loader do
     |> String.replace("<table>", ~s(<div class="noora-table"><table>))
     |> String.replace("</table>", "</table></div>")
   end
+
+  @mc "TuistWeb.Docs.MarkdownComponents"
+
+  defp convert_github_alerts_to_components(html) do
+    Regex.replace(@github_alert_regex, html, fn _, type, default_title, content ->
+      status = Map.get(@github_alert_type_to_status, type, "information")
+
+      {title, content} =
+        case Regex.run(@bold_title_regex, content) do
+          [full_match, bold_title] -> {bold_title, String.replace_prefix(content, full_match, "")}
+          _ -> {default_title, content}
+        end
+
+      ~s(<#{@mc}.doc_alert status="#{status}" title="#{escape_attr(title)}">#{content}</#{@mc}.doc_alert>)
+    end)
+  end
+
+  defp wrap_tables_with_component(html) do
+    html
+    |> String.replace("<table>", ~s(<#{@mc}.doc_table><table>))
+    |> String.replace("</table>", ~s(</table></#{@mc}.doc_table>))
+  end
+
+  defp escape_attr(str), do: str |> String.replace("\"", "&quot;") |> String.replace("<", "&lt;")
 
   defp localize_link_components(markdown, locale) do
     Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
