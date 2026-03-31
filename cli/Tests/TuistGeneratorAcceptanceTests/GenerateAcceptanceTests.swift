@@ -18,7 +18,8 @@ import TuistTestCommand
 @testable import TuistKit
 
 struct GeneratorAcceptanceTests {
-    @Test(.disabled(), .withFixture("generated_app_with_framework_and_tests")) func app_with_framework_and_tests() async throws {
+    @Test(.disabled(), .withFixture("generated_app_with_framework_and_tests"))
+    func app_with_framework_and_tests() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
@@ -30,7 +31,8 @@ struct GeneratorAcceptanceTests {
         try TuistTest.expectFrameworkNotEmbedded("Framework", by: "AppExtension", inXcodeProj: xcodeprojPath)
     }
 
-    @Test(.disabled(), .withFixture("generated_app_with_exponea_sdk"), .withMockedLogger()) func app_with_exponea_sdk() async throws {
+    @Test(.disabled(), .withFixture("generated_app_with_exponea_sdk"), .withMockedLogger())
+    func app_with_exponea_sdk() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
 
@@ -274,7 +276,11 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
 }
 
 struct GenerateAcceptanceTestiOSAppWithFrameworkXcassetsAndDefaultIntenalImports {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_framework_xcassets_and_default_internal_imports"), .inTemporaryDirectory)
+    @Test(
+        .disabled(),
+        .withFixture("generated_ios_app_with_framework_xcassets_and_default_internal_imports"),
+        .inTemporaryDirectory
+    )
     func ios_app_with_framework_xcassets_and_default_internal_imports() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -1355,7 +1361,11 @@ struct GenerateAcceptanceTestAppWithSPMModuleAliases {
 }
 
 struct GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies {
-    @Test(.disabled(), .withFixture("generated_app_with_local_spm_module_with_remote_dependencies"), .inTemporaryDirectory)
+    @Test(
+        .disabled(),
+        .withFixture("generated_app_with_local_spm_module_with_remote_dependencies"),
+        .inTemporaryDirectory
+    )
     func app_with_local_spm_module_with_remote_dependencies() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(InstallCommand.self)
@@ -1532,11 +1542,11 @@ struct GenerateAcceptanceTestAppWithMacBundle {
         @preconcurrency import PackageDescription
 
         #if TUIST
-            import struct ProjectDescription.PackageSettings
+        import struct ProjectDescription.PackageSettings
 
-            let packageSettings = PackageSettings(
-                productTypes: ["ResourcesFramework": .framework]
-            )
+        let packageSettings = PackageSettings(
+            productTypes: ["ResourcesFramework": .framework]
+        )
         #endif
 
         let package = Package(
@@ -1608,7 +1618,11 @@ struct GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies {
         try await run(GenerateCommand.self)
     }
 
-    @Test(.disabled(), .withFixture("generated_app_with_signed_xcframework_dependencies_mismatching_signature"), .withMockedDependencies())
+    @Test(
+        .disabled(),
+        .withFixture("generated_app_with_signed_xcframework_dependencies_mismatching_signature"),
+        .withMockedDependencies()
+    )
     func app_with_mismatching_signed_xcframework_dependencies() async throws {
         do {
             try await run(GenerateCommand.self)
