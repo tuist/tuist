@@ -70,8 +70,11 @@ class Menu extends Component {
         return;
       }
 
-      // Skip spreading props if item is inside breadcrumbs as that leads to issues on LiveView >= 1.1 due to conflicting state management between LiveView and JS layers.
-      if (item.closest(".noora-breadcrumbs")) {
+      // Skip spreading props for link items inside breadcrumbs as that leads to
+      // issues on LiveView >= 1.1 due to conflicting state management between
+      // LiveView and JS layers. Non-link items (spans) still need Zag props for
+      // click handling in stateful selector mode.
+      if (item.closest(".noora-breadcrumbs") && item.tagName === "A") {
         continue;
       }
 
