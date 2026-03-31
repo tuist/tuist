@@ -9,42 +9,33 @@ export interface FlowMetrics {
 
 function create(name: string): FlowMetrics {
   return {
-    duration: new Trend(name + '_duration', true),
-    errors: new Rate(name + '_errors'),
-    iters: new Counter(name + '_iters'),
+    duration: new Trend(`${name}_duration`, true),
+    errors: new Rate(`${name}_errors`),
+    iters: new Counter(`${name}_iters`),
   };
 }
 
-const xcodeSizeNames = XCODE_SIZES.map(function (s) { return s.name; });
-const largeSizeNames = LARGE_SIZES.map(function (s) { return s.name; });
-
-const ALL_NAMES: string[] = ([] as string[]).concat(
-  ['key_value_read', 'key_value_write'],
-  xcodeSizeNames.reduce(function (acc: string[], s: string) {
-    acc.push('xcode_read_' + s, 'xcode_write_' + s);
-    return acc;
-  }, []),
-  largeSizeNames.reduce(function (acc: string[], s: string) {
-    acc.push('module_exists_' + s, 'module_read_' + s, 'module_write_' + s);
-    return acc;
-  }, []),
-  largeSizeNames.reduce(function (acc: string[], s: string) {
-    acc.push('gradle_read_' + s, 'gradle_write_' + s);
-    return acc;
-  }, [])
-);
+export const ALL_NAMES: string[] = [
+  'key_value_read',
+  'key_value_write',
+  ...XCODE_SIZES.flatMap((s) => [`xcode_read_${s.name}`, `xcode_write_${s.name}`]),
+  ...LARGE_SIZES.flatMap((s) => [
+    `module_exists_${s.name}`,
+    `module_read_${s.name}`,
+    `module_write_${s.name}`,
+  ]),
+  ...LARGE_SIZES.flatMap((s) => [`gradle_read_${s.name}`, `gradle_write_${s.name}`]),
+];
 
 export const metrics: Record<string, FlowMetrics> = {};
-for (var i = 0; i < ALL_NAMES.length; i++) {
-  metrics[ALL_NAMES[i]] = create(ALL_NAMES[i]);
+for (const name of ALL_NAMES) {
+  metrics[name] = create(name);
 }
 
 export function record(name: string, duration: number, success: boolean): void {
-  var m = metrics[name];
+  const m = metrics[name];
   if (!m) return;
   m.duration.add(duration);
   m.errors.add(success ? 0 : 1);
   m.iters.add(1);
 }
-
-export { ALL_NAMES };

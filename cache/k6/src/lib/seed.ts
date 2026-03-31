@@ -1,218 +1,194 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { XCODE_SEED_COUNT, MODULE_SEED_COUNT, GRADLE_SEED_COUNT, KV_DIRECT_SEED_COUNT, XCODE_SIZES, LARGE_SIZES, KV_DISTRIBUTIONS, MODULE_PART_SIZE, RUN_ID } from '../config.ts';
+import {
+  XCODE_SEED_COUNT, MODULE_SEED_COUNT, GRADLE_SEED_COUNT, KV_DIRECT_SEED_COUNT,
+  XCODE_SIZES, LARGE_SIZES, KV_DISTRIBUTIONS, MODULE_PART_SIZE, RUN_ID,
+} from '../config.ts';
 import { SeedData, SetupData, XcodeSeeded, ModuleSeeded, GradleSeeded } from '../types.ts';
 import { authHeaders, cacheUrl } from './http.ts';
-import { randomId, randomString, weightedRandom } from './util.ts';
+import { randomString } from './util.ts';
 import { getPayload, getModulePartPayload } from '../payloads.ts';
 
 function seedXcode(token: string): Record<string, XcodeSeeded> {
-  var result: Record<string, XcodeSeeded> = {};
+  const result: Record<string, XcodeSeeded> = {};
 
-  for (var si = 0; si < XCODE_SIZES.length; si++) {
-    var bucket = XCODE_SIZES[si];
-    var casIds: string[] = [];
-    var kvCasIds: string[] = [];
-    var payload = getPayload(bucket.name);
+  for (const bucket of XCODE_SIZES) {
+    const casIds: string[] = [];
+    const kvCasIds: string[] = [];
+    const payload = getPayload(bucket.name);
 
-    for (var i = 0; i < XCODE_SEED_COUNT; i++) {
-      var casId = RUN_ID + '-xcode-' + bucket.name + '-' + i;
-      var kvCasId = RUN_ID + '-kvxc-' + bucket.name + '-' + i;
+    for (let i = 0; i < XCODE_SEED_COUNT; i++) {
+      const casId = `${RUN_ID}-xcode-${bucket.name}-${i}`;
+      const kvCasId = `${RUN_ID}-kvxc-${bucket.name}-${i}`;
 
-      // Upload CAS artifact
-      var casRes = http.post(
-        cacheUrl('/api/cache/cas/' + casId),
+      const casRes = http.post(
+        cacheUrl(`/api/cache/cas/${casId}`),
         payload,
         {
-          headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/octet-stream' }),
+          headers: { ...authHeaders(token), 'Content-Type': 'application/octet-stream' },
           timeout: '120s',
-        }
+        },
       );
-      check(casRes, { 'seed xcode cas: ok': function (r) { return r.status === 204 || r.status === 200; } });
+      check(casRes, { 'seed xcode cas: ok': (r) => r.status === 204 || r.status === 200 });
 
-      // Create matching KV entry
-      var kvBody = JSON.stringify({
-        cas_id: kvCasId,
-        entries: [{ value: casId }],
-      });
-      var kvRes = http.put(
+      const kvRes = http.put(
         cacheUrl('/api/cache/keyvalue'),
-        kvBody,
-        { headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/json' }) }
+        JSON.stringify({ cas_id: kvCasId, entries: [{ value: casId }] }),
+        { headers: { ...authHeaders(token), 'Content-Type': 'application/json' } },
       );
-      check(kvRes, { 'seed xcode kv: ok': function (r) { return r.status === 204; } });
+      check(kvRes, { 'seed xcode kv: ok': (r) => r.status === 204 });
 
       casIds.push(casId);
       kvCasIds.push(kvCasId);
     }
 
-    result[bucket.name] = { casIds: casIds, kvCasIds: kvCasIds };
+    result[bucket.name] = { casIds, kvCasIds };
   }
 
   return result;
 }
 
 function seedModule(token: string): Record<string, ModuleSeeded> {
-  var result: Record<string, ModuleSeeded> = {};
+  const result: Record<string, ModuleSeeded> = {};
 
-  for (var si = 0; si < LARGE_SIZES.length; si++) {
-    var bucket = LARGE_SIZES[si];
-    var refs: Array<{ hash: string; name: string }> = [];
-    var partCount = Math.ceil(bucket.bytes / MODULE_PART_SIZE);
+  for (const bucket of LARGE_SIZES) {
+    const refs: Array<{ hash: string; name: string }> = [];
+    const partCount = Math.ceil(bucket.bytes / MODULE_PART_SIZE);
 
-    for (var i = 0; i < MODULE_SEED_COUNT; i++) {
-      var hash = RUN_ID + '-mod-' + bucket.name + '-' + i;
-      var name = 'Module-' + bucket.name + '-' + i + '.xcframework.zip';
+    for (let i = 0; i < MODULE_SEED_COUNT; i++) {
+      const hash = `${RUN_ID}-mod-${bucket.name}-${i}`;
+      const name = `Module-${bucket.name}-${i}.xcframework.zip`;
 
-      // Start multipart upload
-      var startRes = http.post(
-        cacheUrl('/api/cache/module/start', { hash: hash, name: name }),
+      const startRes = http.post(
+        cacheUrl('/api/cache/module/start', { hash, name }),
         null,
-        {
-          headers: authHeaders(token),
-          responseType: 'text',
-        }
+        { headers: authHeaders(token), responseType: 'text' },
       );
-      check(startRes, { 'seed module start: ok': function (r) { return r.status === 200; } });
+      check(startRes, { 'seed module start: ok': (r) => r.status === 200 });
 
       if (startRes.status !== 200) {
-        var bodySnippet = typeof startRes.body === 'string' ? startRes.body.substring(0, 200) : '';
-        console.error('Module start failed: status=' + startRes.status + ' body=' + bodySnippet);
-        refs.push({ hash: hash, name: name });
+        const body = typeof startRes.body === 'string' ? startRes.body.substring(0, 200) : '';
+        console.error(`Module start failed: status=${startRes.status} body=${body}`);
+        refs.push({ hash, name });
         continue;
       }
 
-      var uploadId = (startRes.json() as any).upload_id;
+      const uploadId = (startRes.json() as any).upload_id;
       if (!uploadId) {
-        refs.push({ hash: hash, name: name });
+        refs.push({ hash, name });
         continue;
       }
 
-      // Upload parts
-      for (var p = 1; p <= partCount; p++) {
-        var partData = getModulePartPayload(bucket.bytes, p, MODULE_PART_SIZE);
-
-        var partRes = http.post(
+      for (let p = 1; p <= partCount; p++) {
+        const partData = getModulePartPayload(bucket.bytes, p, MODULE_PART_SIZE);
+        const partRes = http.post(
           cacheUrl('/api/cache/module/part', { upload_id: uploadId, part_number: String(p) }),
           partData,
           {
-            headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/octet-stream' }),
+            headers: { ...authHeaders(token), 'Content-Type': 'application/octet-stream' },
             timeout: '120s',
-          }
+          },
         );
-        check(partRes, { 'seed module part: ok': function (r) { return r.status === 204; } });
+        check(partRes, { 'seed module part: ok': (r) => r.status === 204 });
       }
 
-      // Complete upload
-      var parts: number[] = [];
-      for (var pi = 1; pi <= partCount; pi++) parts.push(pi);
-
-      var completeRes = http.post(
+      const parts = Array.from({ length: partCount }, (_, i) => i + 1);
+      const completeRes = http.post(
         cacheUrl('/api/cache/module/complete', { upload_id: uploadId }),
-        JSON.stringify({ parts: parts }),
-        { headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/json' }) }
+        JSON.stringify({ parts }),
+        { headers: { ...authHeaders(token), 'Content-Type': 'application/json' } },
       );
-      check(completeRes, { 'seed module complete: ok': function (r) { return r.status === 204; } });
+      check(completeRes, { 'seed module complete: ok': (r) => r.status === 204 });
 
-      refs.push({ hash: hash, name: name });
+      refs.push({ hash, name });
     }
 
-    result[bucket.name] = { refs: refs };
+    result[bucket.name] = { refs };
   }
 
   return result;
 }
 
 function seedGradle(token: string): Record<string, GradleSeeded> {
-  var result: Record<string, GradleSeeded> = {};
+  const result: Record<string, GradleSeeded> = {};
 
-  for (var si = 0; si < LARGE_SIZES.length; si++) {
-    var bucket = LARGE_SIZES[si];
-    var keys: string[] = [];
-    var payload = getPayload(bucket.name);
+  for (const bucket of LARGE_SIZES) {
+    const keys: string[] = [];
+    const payload = getPayload(bucket.name);
 
-    for (var i = 0; i < GRADLE_SEED_COUNT; i++) {
-      var key = RUN_ID + '-gradle-' + bucket.name + '-' + i;
+    for (let i = 0; i < GRADLE_SEED_COUNT; i++) {
+      const key = `${RUN_ID}-gradle-${bucket.name}-${i}`;
 
-      var res = http.put(
-        cacheUrl('/api/cache/gradle/' + key),
+      const res = http.put(
+        cacheUrl(`/api/cache/gradle/${key}`),
         payload,
         {
-          headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/octet-stream' }),
+          headers: { ...authHeaders(token), 'Content-Type': 'application/octet-stream' },
           timeout: '120s',
-        }
+        },
       );
-      check(res, { 'seed gradle: ok': function (r) { return r.status === 200 || r.status === 201; } });
+      check(res, { 'seed gradle: ok': (r) => r.status === 200 || r.status === 201 });
 
       keys.push(key);
     }
 
-    result[bucket.name] = { keys: keys };
+    result[bucket.name] = { keys };
   }
 
   return result;
 }
 
 function seedKvDirect(token: string): string[] {
-  var casIds: string[] = [];
-  for (var i = 0; i < KV_DIRECT_SEED_COUNT; i++) {
-    var casId = RUN_ID + '-kvdirect-' + i;
-    var dist = KV_DISTRIBUTIONS[i % KV_DISTRIBUTIONS.length];
-    var entries: Array<{ value: string }> = [];
-    for (var e = 0; e < dist.entries; e++) {
-      entries.push({ value: randomString(dist.valueSize) });
-    }
+  const casIds: string[] = [];
 
-    var res = http.put(
+  for (let i = 0; i < KV_DIRECT_SEED_COUNT; i++) {
+    const casId = `${RUN_ID}-kvdirect-${i}`;
+    const dist = KV_DISTRIBUTIONS[i % KV_DISTRIBUTIONS.length];
+    const entries = Array.from({ length: dist.entries }, () => ({
+      value: randomString(dist.valueSize),
+    }));
+
+    const res = http.put(
       cacheUrl('/api/cache/keyvalue'),
-      JSON.stringify({ cas_id: casId, entries: entries }),
-      { headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/json' }) }
+      JSON.stringify({ cas_id: casId, entries }),
+      { headers: { ...authHeaders(token), 'Content-Type': 'application/json' } },
     );
-    check(res, { 'seed kv direct: ok': function (r) { return r.status === 204; } });
+    check(res, { 'seed kv direct: ok': (r) => r.status === 204 });
 
     casIds.push(casId);
   }
+
   return casIds;
 }
 
-export function warmReads(token: string, data: SetupData): void {
-  // Warm xcode reads
-  var xcodeKeys = Object.keys(data.xcode);
-  for (var xi = 0; xi < xcodeKeys.length; xi++) {
-    var seeded = data.xcode[xcodeKeys[xi]];
+function warmReads(token: string, data: SetupData): void {
+  for (const seeded of Object.values(data.xcode)) {
     if (seeded.kvCasIds.length > 0) {
-      http.get(cacheUrl('/api/cache/keyvalue/' + seeded.kvCasIds[0]), { headers: authHeaders(token) });
+      http.get(cacheUrl(`/api/cache/keyvalue/${seeded.kvCasIds[0]}`), { headers: authHeaders(token) });
     }
     if (seeded.casIds.length > 0) {
-      http.get(cacheUrl('/api/cache/cas/' + seeded.casIds[0]), { headers: authHeaders(token) });
+      http.get(cacheUrl(`/api/cache/cas/${seeded.casIds[0]}`), { headers: authHeaders(token) });
     }
   }
 
-  // Warm module reads
-  var modKeys = Object.keys(data.module);
-  for (var mi = 0; mi < modKeys.length; mi++) {
-    var modSeeded = data.module[modKeys[mi]];
-    if (modSeeded.refs.length > 0) {
-      var ref = modSeeded.refs[0];
+  for (const seeded of Object.values(data.module)) {
+    if (seeded.refs.length > 0) {
+      const ref = seeded.refs[0];
       http.get(
-        cacheUrl('/api/cache/module/' + ref.hash, { hash: ref.hash, name: ref.name }),
-        { headers: authHeaders(token) }
+        cacheUrl(`/api/cache/module/${ref.hash}`, { hash: ref.hash, name: ref.name }),
+        { headers: authHeaders(token) },
       );
     }
   }
 
-  // Warm gradle reads
-  var gradleKeys = Object.keys(data.gradle);
-  for (var gi = 0; gi < gradleKeys.length; gi++) {
-    var gradleSeeded = data.gradle[gradleKeys[gi]];
-    if (gradleSeeded.keys.length > 0) {
-      http.get(cacheUrl('/api/cache/gradle/' + gradleSeeded.keys[0]), { headers: authHeaders(token) });
+  for (const seeded of Object.values(data.gradle)) {
+    if (seeded.keys.length > 0) {
+      http.get(cacheUrl(`/api/cache/gradle/${seeded.keys[0]}`), { headers: authHeaders(token) });
     }
   }
 
-  // Warm KV direct reads
-  for (var ki = 0; ki < Math.min(3, data.kvDirect.length); ki++) {
-    http.get(cacheUrl('/api/cache/keyvalue/' + data.kvDirect[ki]), { headers: authHeaders(token) });
+  for (const casId of data.kvDirect.slice(0, 3)) {
+    http.get(cacheUrl(`/api/cache/keyvalue/${casId}`), { headers: authHeaders(token) });
   }
 }
 
@@ -226,42 +202,28 @@ export function seedDataOf(data: SetupData): SeedData {
 }
 
 export function setupFromSeedData(token: string, seedData: SeedData): SetupData {
-  var data: SetupData = {
-    token: token,
-    xcode: seedData.xcode,
-    module: seedData.module,
-    gradle: seedData.gradle,
-    kvDirect: seedData.kvDirect,
-  };
+  const data: SetupData = { token, ...seedData };
 
   console.log('Warming reads...');
   warmReads(token, data);
 
-  data.token = token;
   return data;
 }
 
 export function seedAll(token: string): SetupData {
   console.log('Seeding xcode cache artifacts...');
-  var xcode = seedXcode(token);
+  const xcode = seedXcode(token);
 
   console.log('Seeding module cache artifacts...');
-  var mod = seedModule(token);
+  const module = seedModule(token);
 
   console.log('Seeding gradle cache artifacts...');
-  var gradle = seedGradle(token);
+  const gradle = seedGradle(token);
 
   console.log('Seeding KV direct entries...');
-  var kvDirect = seedKvDirect(token);
+  const kvDirect = seedKvDirect(token);
 
-  var seedData: SeedData = {
-    xcode: xcode,
-    module: mod,
-    gradle: gradle,
-    kvDirect: kvDirect,
-  };
-
-  var data = setupFromSeedData(token, seedData);
+  const data = setupFromSeedData(token, { xcode, module, gradle, kvDirect });
 
   console.log('Seed complete.');
   return data;

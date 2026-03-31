@@ -6,29 +6,28 @@ import { randomItem, randomString } from '../lib/util.ts';
 import { record } from '../metrics.ts';
 
 export function keyValueRead(data: SetupData): void {
-  var token = data.token;
-  var casId = randomItem(data.kvDirect);
-  var start = Date.now();
-  var res = http.get(cacheUrl('/api/cache/keyvalue/' + casId), { headers: authHeaders(token) });
-  var duration = Date.now() - start;
-  record('key_value_read', duration, res.status === 200);
+  const token = data.token;
+  const casId = randomItem(data.kvDirect);
+  const start = Date.now();
+  const res = http.get(cacheUrl(`/api/cache/keyvalue/${casId}`), { headers: authHeaders(token) });
+
+  record('key_value_read', Date.now() - start, res.status === 200);
 }
 
 export function keyValueWrite(data: SetupData): void {
-  var token = data.token;
-  var casId = RUN_ID + '-kv-' + Date.now() + '-' + Math.floor(Math.random() * 100000);
-  var dist = KV_DISTRIBUTIONS[Math.floor(Math.random() * KV_DISTRIBUTIONS.length)];
-  var entries: Array<{ value: string }> = [];
-  for (var i = 0; i < dist.entries; i++) {
-    entries.push({ value: randomString(dist.valueSize) });
-  }
+  const token = data.token;
+  const casId = `${RUN_ID}-kv-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const dist = KV_DISTRIBUTIONS[Math.floor(Math.random() * KV_DISTRIBUTIONS.length)];
+  const entries = Array.from({ length: dist.entries }, () => ({
+    value: randomString(dist.valueSize),
+  }));
 
-  var start = Date.now();
-  var res = http.put(
+  const start = Date.now();
+  const res = http.put(
     cacheUrl('/api/cache/keyvalue'),
-    JSON.stringify({ cas_id: casId, entries: entries }),
-    { headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/json' }) }
+    JSON.stringify({ cas_id: casId, entries }),
+    { headers: { ...authHeaders(token), 'Content-Type': 'application/json' } },
   );
-  var duration = Date.now() - start;
-  record('key_value_write', duration, res.status === 204);
+
+  record('key_value_write', Date.now() - start, res.status === 204);
 }

@@ -3,14 +3,14 @@ import { SizeBucket } from './types.ts';
 export const CACHE_HOST = __ENV.CACHE_HOST || 'cache-eu-central-staging.tuist.dev';
 export const SERVER_URL = __ENV.SERVER_URL || 'https://staging.tuist.dev';
 export const REGION = __ENV.REGION || 'eu-central';
-export const RUN_ID = __ENV.RUN_ID || 'lt-local-' + Date.now();
+export const RUN_ID = __ENV.RUN_ID || `lt-local-${Date.now()}`;
 export const COMMIT_SHA = __ENV.COMMIT_SHA || 'unknown';
 export const CACHE_AUTH_TOKEN = __ENV.CACHE_AUTH_TOKEN || '';
 
 export const ACCOUNT_HANDLE = 'tuist';
 export const PROJECT_HANDLE = 'tuist';
 
-export const CACHE_BASE_URL = 'https://' + CACHE_HOST;
+export const CACHE_BASE_URL = `https://${CACHE_HOST}`;
 
 export const XCODE_SEED_COUNT = 10;
 export const MODULE_SEED_COUNT = 4;

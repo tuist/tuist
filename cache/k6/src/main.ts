@@ -6,15 +6,13 @@ import { authToken } from './lib/auth.ts';
 import { seedAll, seedDataOf, setupFromSeedData } from './lib/seed.ts';
 import { SeedData, SetupData } from './types.ts';
 
-
-
-// --- Re-export scenario functions so k6 can call them by name ---
 export { xcodeRead, xcodeWrite } from './scenarios/xcode.ts';
 export { moduleExists, moduleRead, moduleWrite } from './scenarios/module.ts';
 export { gradleRead, gradleWrite } from './scenarios/gradle.ts';
 export { keyValueRead, keyValueWrite } from './scenarios/kv.ts';
 
 // --- Scenario builder ---
+
 interface ScenarioConfig {
   exec: string;
   rate: number;
@@ -23,26 +21,25 @@ interface ScenarioConfig {
   maxVUs?: number;
 }
 
-var SCENARIO_SECONDS = 300; // each scenario runs for 5m
+const SCENARIO_DURATION_SECONDS = 300;
 
 function makeScenario(cfg: ScenarioConfig): any {
-  var halfRate = Math.ceil(cfg.rate * 0.5);
-  var fullRate = cfg.rate;
-  var burstRate = Math.ceil(cfg.rate * 1.5);
+  const halfRate = Math.ceil(cfg.rate * 0.5);
+  const burstRate = Math.ceil(cfg.rate * 1.5);
 
   return {
     executor: 'ramping-arrival-rate',
     exec: cfg.exec,
     startRate: 0,
     timeUnit: '1s',
-    preAllocatedVUs: cfg.preAllocatedVUs || Math.max(Math.ceil(burstRate * 0.02), 5),
-    maxVUs: cfg.maxVUs || Math.max(Math.ceil(burstRate * 0.2), 10),
-    startTime: cfg.startTime || '0s',
+    preAllocatedVUs: cfg.preAllocatedVUs ?? Math.max(Math.ceil(burstRate * 0.02), 5),
+    maxVUs: cfg.maxVUs ?? Math.max(Math.ceil(burstRate * 0.2), 10),
+    startTime: cfg.startTime ?? '0s',
     stages: [
       { duration: '30s', target: halfRate },
       { duration: '1m', target: halfRate },
-      { duration: '15s', target: fullRate },
-      { duration: '2m', target: fullRate },
+      { duration: '15s', target: cfg.rate },
+      { duration: '2m', target: cfg.rate },
       { duration: '15s', target: burstRate },
       { duration: '1m', target: burstRate },
     ],
@@ -50,9 +47,8 @@ function makeScenario(cfg: ScenarioConfig): any {
 }
 
 // --- Build k6 options (scenarios run sequentially) ---
-var scenarios: Record<string, any> = {};
 
-var allEntries = [
+const SCENARIO_ENTRIES = [
   { key: 'key_value_read', exec: 'keyValueRead', rate: 512 },
   { key: 'key_value_write', exec: 'keyValueWrite', rate: 256 },
   { key: 'xcode_read', exec: 'xcodeRead', rate: 512 },
@@ -64,90 +60,81 @@ var allEntries = [
   { key: 'gradle_write', exec: 'gradleWrite', rate: 32 },
 ];
 
-var offset = 0;
-for (var i = 0; i < allEntries.length; i++) {
-  var entry = allEntries[i];
-  if (entry.rate) {
-    scenarios[entry.key] = makeScenario({
-      exec: entry.exec,
-      rate: entry.rate,
-      startTime: offset + 's',
-    });
-    offset += SCENARIO_SECONDS;
-  }
+const scenarios: Record<string, any> = {};
+let offset = 0;
+for (const entry of SCENARIO_ENTRIES) {
+  scenarios[entry.key] = makeScenario({
+    exec: entry.exec,
+    rate: entry.rate,
+    startTime: `${offset}s`,
+  });
+  offset += SCENARIO_DURATION_SECONDS;
 }
 
-export var options: Partial<Options> = {
-  scenarios: scenarios,
+export const options: Partial<Options> = {
+  scenarios,
   setupTimeout: '30m',
   discardResponseBodies: true,
   noConnectionReuse: false,
   insecureSkipTLSVerify: false,
 };
 
-function loadSeedData(): SeedData | null {
-  var json = __ENV.SEED_DATA_JSON;
-  if (!json) return null;
+// --- Setup: authenticate and seed test data ---
 
+function loadSeedData(): SeedData | null {
+  const json = __ENV.SEED_DATA_JSON;
+  if (!json) return null;
   return JSON.parse(json) as SeedData;
 }
 
-// --- Setup: authenticate and seed test data ---
 export function setup(): SetupData {
-  console.log('Using cache project token for region ' + REGION + '.');
-  var token = authToken();
+  console.log(`Using cache project token for region ${REGION}.`);
+  const token = authToken();
 
-  var existingSeedData = loadSeedData();
+  const existingSeedData = loadSeedData();
   if (existingSeedData) {
-    console.log('Reusing seeded test data for region ' + REGION + '...');
-    var reusedData = setupFromSeedData(token, existingSeedData);
+    console.log(`Reusing seeded test data for region ${REGION}...`);
+    const data = setupFromSeedData(token, existingSeedData);
     console.log('Setup complete. Starting load test.');
-    return reusedData;
+    return data;
   }
 
-  console.log('Seeding test data for region ' + REGION + '...');
-  var data = seedAll(token);
-  console.log('SEED_DATA_B64=' + encoding.b64encode(JSON.stringify(seedDataOf(data)), 'std'));
+  console.log(`Seeding test data for region ${REGION}...`);
+  const data = seedAll(token);
+  console.log(`SEED_DATA_B64=${encoding.b64encode(JSON.stringify(seedDataOf(data)), 'std')}`);
   console.log('Setup complete. Starting load test.');
-
   return data;
 }
 
 // --- Summary handler: output structured JSON for comparison ---
+
 export function handleSummary(data: any): Record<string, string> {
-  var result: any = {
+  const result: any = {
     region: REGION,
     commit: COMMIT_SHA,
     timestamp: new Date().toISOString(),
     metrics: {},
   };
 
-  for (var ni = 0; ni < ALL_NAMES.length; ni++) {
-    var name = ALL_NAMES[ni];
-    var durKey = name + '_duration';
-    var errKey = name + '_errors';
-    var itrKey = name + '_iters';
-
-    var dur = data.metrics[durKey];
-    var err = data.metrics[errKey];
-    var itr = data.metrics[itrKey];
+  for (const name of ALL_NAMES) {
+    const dur = data.metrics[`${name}_duration`];
+    const err = data.metrics[`${name}_errors`];
+    const itr = data.metrics[`${name}_iters`];
 
     if (dur && itr && itr.values.count > 0) {
       result.metrics[name] = {
-        p50: dur.values.med || 0,
-        p95: dur.values['p(95)'] || 0,
-        p99: dur.values['p(99)'] || 0,
-        avg: dur.values.avg || 0,
-        min: dur.values.min || 0,
-        max: dur.values.max || 0,
-        throughput: itr.values.rate || 0,
-        iterations: itr.values.count || 0,
-        error_rate: err ? (err.values.rate || 0) : 0,
+        p50: dur.values.med ?? 0,
+        p95: dur.values['p(95)'] ?? 0,
+        p99: dur.values['p(99)'] ?? 0,
+        avg: dur.values.avg ?? 0,
+        min: dur.values.min ?? 0,
+        max: dur.values.max ?? 0,
+        throughput: itr.values.rate ?? 0,
+        iterations: itr.values.count ?? 0,
+        error_rate: err ? (err.values.rate ?? 0) : 0,
       };
     }
   }
 
-  return {
-    'result.json': JSON.stringify(result, null, 2),
-  };
+  return { 'result.json': JSON.stringify(result, null, 2) };
 }

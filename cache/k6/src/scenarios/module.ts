@@ -7,86 +7,75 @@ import { record } from '../metrics.ts';
 import { getModulePartPayload } from '../payloads.ts';
 
 export function moduleExists(data: SetupData): void {
-  var token = data.token;
-  var bucket = weightedRandom(LARGE_SIZES);
-  var seeded = data.module[bucket.name];
+  const token = data.token;
+  const bucket = weightedRandom(LARGE_SIZES);
+  const seeded = data.module[bucket.name];
   if (!seeded || seeded.refs.length === 0) return;
 
-  var ref = randomItem(seeded.refs);
-  var start = Date.now();
-
-  var res = http.head(
-    cacheUrl('/api/cache/module/' + ref.hash, { hash: ref.hash, name: ref.name }),
-    { headers: authHeaders(token) }
+  const ref = randomItem(seeded.refs);
+  const start = Date.now();
+  const res = http.head(
+    cacheUrl(`/api/cache/module/${ref.hash}`, { hash: ref.hash, name: ref.name }),
+    { headers: authHeaders(token) },
   );
 
-  var duration = Date.now() - start;
-  record('module_exists_' + bucket.name, duration, res.status === 204);
+  record(`module_exists_${bucket.name}`, Date.now() - start, res.status === 204);
 }
 
 export function moduleRead(data: SetupData): void {
-  var token = data.token;
-  var bucket = weightedRandom(LARGE_SIZES);
-  var seeded = data.module[bucket.name];
+  const token = data.token;
+  const bucket = weightedRandom(LARGE_SIZES);
+  const seeded = data.module[bucket.name];
   if (!seeded || seeded.refs.length === 0) return;
 
-  var ref = randomItem(seeded.refs);
-  var start = Date.now();
-
-  var res = http.get(
-    cacheUrl('/api/cache/module/' + ref.hash, { hash: ref.hash, name: ref.name }),
-    {
-      headers: authHeaders(token),
-      timeout: '120s',
-    }
+  const ref = randomItem(seeded.refs);
+  const start = Date.now();
+  const res = http.get(
+    cacheUrl(`/api/cache/module/${ref.hash}`, { hash: ref.hash, name: ref.name }),
+    { headers: authHeaders(token), timeout: '120s' },
   );
 
-  var duration = Date.now() - start;
-  record('module_read_' + bucket.name, duration, res.status === 200);
+  record(`module_read_${bucket.name}`, Date.now() - start, res.status === 200);
 }
 
 export function moduleWrite(data: SetupData): void {
-  var token = data.token;
-  var bucket = weightedRandom(LARGE_SIZES);
-  var hash = RUN_ID + '-modw-' + randomId();
-  var name = 'Module-' + randomId() + '.xcframework.zip';
-  var partCount = Math.ceil(bucket.bytes / MODULE_PART_SIZE);
-  var start = Date.now();
-  var success = true;
+  const token = data.token;
+  const bucket = weightedRandom(LARGE_SIZES);
+  const hash = `${RUN_ID}-modw-${randomId()}`;
+  const name = `Module-${randomId()}.xcframework.zip`;
+  const partCount = Math.ceil(bucket.bytes / MODULE_PART_SIZE);
+  const start = Date.now();
+  let success = true;
 
-  // Step 1: Start multipart upload
-  var startRes = http.post(
-    cacheUrl('/api/cache/module/start', { hash: hash, name: name }),
+  const startRes = http.post(
+    cacheUrl('/api/cache/module/start', { hash, name }),
     null,
     {
-      headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/json' }),
+      headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
       responseType: 'text',
-    }
+    },
   );
 
   if (startRes.status !== 200) {
-    record('module_write_' + bucket.name, Date.now() - start, false);
+    record(`module_write_${bucket.name}`, Date.now() - start, false);
     return;
   }
 
-  var uploadId = (startRes.json() as any).upload_id;
+  const uploadId = (startRes.json() as any).upload_id;
   if (!uploadId) {
-    // Artifact already exists
-    record('module_write_' + bucket.name, Date.now() - start, true);
+    record(`module_write_${bucket.name}`, Date.now() - start, true);
     return;
   }
 
-  // Step 2: Upload parts
-  for (var p = 1; p <= partCount; p++) {
-    var partData = getModulePartPayload(bucket.bytes, p, MODULE_PART_SIZE);
-
-    var partRes = http.post(
+  for (let p = 1; p <= partCount; p++) {
+    const partData = getModulePartPayload(bucket.bytes, p, MODULE_PART_SIZE);
+    const partRes = http.post(
       cacheUrl('/api/cache/module/part', { upload_id: uploadId, part_number: String(p) }),
       partData,
       {
-        headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/octet-stream' }),
+        headers: { ...authHeaders(token), 'Content-Type': 'application/octet-stream' },
         timeout: '120s',
-      }
+      },
     );
     if (partRes.status !== 204) {
       success = false;
@@ -94,21 +83,15 @@ export function moduleWrite(data: SetupData): void {
     }
   }
 
-  // Step 3: Complete upload
   if (success) {
-    var parts: number[] = [];
-    for (var pi = 1; pi <= partCount; pi++) parts.push(pi);
-
-    var completeRes = http.post(
+    const parts = Array.from({ length: partCount }, (_, i) => i + 1);
+    const completeRes = http.post(
       cacheUrl('/api/cache/module/complete', { upload_id: uploadId }),
-      JSON.stringify({ parts: parts }),
-      { headers: Object.assign({}, authHeaders(token), { 'Content-Type': 'application/json' }) }
+      JSON.stringify({ parts }),
+      { headers: { ...authHeaders(token), 'Content-Type': 'application/json' } },
     );
-    if (completeRes.status !== 204) {
-      success = false;
-    }
+    if (completeRes.status !== 204) success = false;
   }
 
-  var duration = Date.now() - start;
-  record('module_write_' + bucket.name, duration, success);
+  record(`module_write_${bucket.name}`, Date.now() - start, success);
 }
