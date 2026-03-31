@@ -5674,8 +5674,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )
         )
         let graph = Graph.test(
-            projects: [project.path: project],
-            workspace: .test(schemes: [scheme])
+            workspace: .test(schemes: [scheme]),
+            projects: [project.path: project]
         )
         let subject = GraphTraverser(graph: graph)
 
@@ -5704,8 +5704,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(targets: [target])
         let scheme = Scheme.test(name: "App", testAction: nil)
         let graph = Graph.test(
-            projects: [project.path: project],
-            workspace: .test(schemes: [scheme])
+            workspace: .test(schemes: [scheme]),
+            projects: [project.path: project]
         )
         let subject = GraphTraverser(graph: graph)
 
