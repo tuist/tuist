@@ -518,6 +518,59 @@
     >
       <.card_section data-part="attachments-card-section">
         <%= if Enum.any?(@test_case_run.arguments, fn arg -> Enum.any?(arg.attachments) end) do %>
+          <div data-part="failures-list">
+            <div
+              id="test-attachments-overview"
+              phx-hook="NooraCollapsible"
+              data-part="collapsible"
+              data-state="open"
+              data-open="true"
+              class="test-failure-card"
+            >
+              <div data-part="root">
+                <div data-part="trigger">
+                  <div data-part="header">
+                    <div data-part="icon">
+                      <.alert_circle />
+                    </div>
+                    <div data-part="title-and-subtitle">
+                      <h3 data-part="title">
+                        {@test_case_run.name}
+                      </h3>
+                      <span
+                        :if={@test_case_run.module_name != "" and @test_case_run.suite_name != ""}
+                        data-part="subtitle"
+                      >
+                        {@test_case_run.module_name} • {@test_case_run.suite_name}
+                      </span>
+                    </div>
+                    <.badge
+                      label={
+                        Enum.sum(Enum.map(@test_case_run.arguments, fn arg ->
+                          Enum.count(arg.attachments, fn att -> attachment_type(att.file_name) != :ips end)
+                        end))
+                      }
+                      color="neutral"
+                      style="light-fill"
+                      size="small"
+                    />
+                  </div>
+                  <.neutral_button
+                    data-part="closed-collapsible-button"
+                    variant="secondary"
+                    size="medium"
+                  >
+                    <.chevron_down />
+                  </.neutral_button>
+                  <.neutral_button
+                    data-part="open-collapsible-button"
+                    variant="secondary"
+                    size="medium"
+                  >
+                    <.chevron_up />
+                  </.neutral_button>
+                </div>
+                <div data-part="content">
           <div
             :for={argument <- @test_case_run.arguments}
             :if={Enum.any?(argument.attachments, fn att -> attachment_type(att.file_name) != :ips end)}
@@ -605,6 +658,10 @@
                   text_attachment_urls={@text_attachment_urls}
                 />
               <% end %>
+            </div>
+          </div>
+                </div>
+              </div>
             </div>
           </div>
         <% else %>
