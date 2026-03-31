@@ -9,8 +9,8 @@ server:
   enabled: true
   replicaCount: 1
   image:
-    repository: tuist-server
-    tag: latest
+    repository: ghcr.io/tuist/tuist
+    tag: ""
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -42,8 +42,8 @@ cache:
   enabled: true
   replicaCount: 1
   image:
-    repository: tuist-cache
-    tag: latest
+    repository: ghcr.io/tuist/cache
+    tag: ""
     pullPolicy: IfNotPresent
   nginx:
     enabled: true
@@ -86,25 +86,6 @@ cache:
     bucket: tuist-cache
     xcodeCacheBucket: tuist-xcode-cache
     registryBucket: tuist-registry
-
-processor:
-  enabled: true
-  replicaCount: 1
-  image:
-    repository: tuist-processor
-    tag: latest
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 4002
-    targetPort: 4002
-  resources: {}
-  extraEnv: []
-  s3:
-    region: auto
-    bucket: tuist
-    virtualHost: false
-    bucketAsHost: false
 
 postgresql:
   mode: embedded
@@ -187,7 +168,6 @@ objectStorage:
 
 observability:
   enabled: false
-  mode: embedded
   collector:
     image:
       repository: otel/opentelemetry-collector-contrib
@@ -240,9 +220,3 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
-  external:
-    otlpEndpoint: ""
-    prometheusUrl: ""
-    lokiUrl: ""
-    tempoUrl: ""
-    grafanaUrl: ""

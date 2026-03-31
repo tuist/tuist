@@ -154,14 +154,8 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse")
 {{- end -}}
 {{- end -}}
 
-{{- define "tuist.processorUrl" -}}
-{{- printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "processor")) (.Values.processor.service.port) -}}
-{{- end -}}
-
 {{- define "tuist.observabilityOtlpEndpoint" -}}
-{{- if and .Values.observability.enabled (eq .Values.observability.mode "embedded") -}}
+{{- if .Values.observability.enabled -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collector") }}:4317
-{{- else -}}
-{{- .Values.observability.external.otlpEndpoint -}}
 {{- end -}}
 {{- end -}}

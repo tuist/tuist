@@ -16,7 +16,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-dependencies
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
             - /bin/sh
@@ -41,7 +41,7 @@ spec:
               value: {{ include "tuist.clickhouseReadyUrl" . | quote }}
       containers:
         - name: migrate
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
             - /app/bin/tuist

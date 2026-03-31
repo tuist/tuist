@@ -25,7 +25,7 @@ spec:
       {{- end }}
       containers:
         - name: server
-          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
             - /app/bin/tuist
@@ -71,13 +71,6 @@ spec:
                   name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
                   key: server-license-certificate-base64
             {{- end }}
-            - name: TUIST_PROCESSOR_URL
-              value: {{ include "tuist.processorUrl" . | quote }}
-            - name: TUIST_PROCESSOR_WEBHOOK_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-                  key: processor-webhook-secret
             - name: TUIST_S3_BUCKET_NAME
               value: {{ .Values.server.s3.bucketName | quote }}
             - name: TUIST_S3_ENDPOINT

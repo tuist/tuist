@@ -1,4 +1,4 @@
-{{- if and .Values.observability.enabled (eq .Values.observability.mode "embedded") }}
+{{- if .Values.observability.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -115,10 +115,6 @@ data:
         metrics_path: /metrics
         static_configs:
           - targets: ['{{ include "tuist.componentName" (dict "root" . "component" "cache") }}:{{ .Values.cache.service.port }}']
-      - job_name: tuist-processor
-        metrics_path: /metrics
-        static_configs:
-          - targets: ['{{ include "tuist.componentName" (dict "root" . "component" "processor") }}:{{ .Values.processor.service.port }}']
 ---
 apiVersion: v1
 kind: Service

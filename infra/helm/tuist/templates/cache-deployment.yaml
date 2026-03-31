@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: cache
-          image: "{{ .Values.cache.image.repository }}:{{ .Values.cache.image.tag }}"
+          image: "{{ .Values.cache.image.repository }}:{{ .Values.cache.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.cache.image.pullPolicy }}
           command:
             - /app/bin/cache
