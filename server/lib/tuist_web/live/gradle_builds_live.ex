@@ -267,7 +267,6 @@ defmodule TuistWeb.GradleBuildsLive do
     socket
     |> assign(:builds, builds)
     |> assign(:recent_builds_chart_data, recent_builds_chart_data)
-
     |> assign(:successful_builds_count, successful_builds_count)
     |> assign(:failed_builds_count, failed_builds_count)
   end

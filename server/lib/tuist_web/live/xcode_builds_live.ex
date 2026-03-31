@@ -323,7 +323,6 @@ defmodule TuistWeb.XcodeBuildsLive do
          %{
            recent_builds: recent_builds,
            recent_builds_chart_data: recent_builds_chart_data,
-
            successful_builds_count: successful_builds_count,
            failed_builds_count: failed_builds_count
          }}

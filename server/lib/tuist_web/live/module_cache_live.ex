@@ -227,7 +227,6 @@ defmodule TuistWeb.ModuleCacheLive do
        %{
          runs: events,
          recent_runs_chart_data: recent_runs_chart_data,
-
          avg_recent_hit_rate: avg_recent_hit_rate
        }}
     end)

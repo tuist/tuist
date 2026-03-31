@@ -332,7 +332,6 @@ defmodule TuistWeb.TestsLive do
          %{
            recent_test_runs: recent_test_runs,
            recent_test_runs_chart_data: recent_test_runs_chart_data,
-
            failed_test_runs_count: failed_test_runs_count,
            passed_test_runs_count: passed_test_runs_count
          }}

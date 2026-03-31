@@ -229,7 +229,6 @@ defmodule TuistWeb.XcodeCacheLive do
     socket
     |> assign(:builds, builds)
     |> assign(:recent_builds_chart_data, recent_builds_chart_data)
-
     |> assign(:avg_recent_hit_rate, avg_recent_hit_rate)
   end
 
