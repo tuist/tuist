@@ -77,16 +77,11 @@
           <span data-part="logo-divider"></span>
           <span data-part="logo-text">Docs</span>
         </.link>
-        <div
+        <.headerbar_breadcrumbs
           :if={not is_nil(assigns[:current_user]) and (assigns[:breadcrumbs] || []) != []}
-          id="docs-selector"
-          phx-hook="DocsSelector"
-        >
-          <.headerbar_breadcrumbs
-            breadcrumbs={assigns[:breadcrumbs] || []}
-            id="docs-context-breadcrumbs"
-          />
-        </div>
+          breadcrumbs={assigns[:breadcrumbs] || []}
+          id="docs-context-breadcrumbs"
+        />
         <.button_group size="large" id="docs-nav-tabs">
           <.button_group_item
             label={dgettext("docs", "Guides")}

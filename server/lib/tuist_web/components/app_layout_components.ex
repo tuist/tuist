@@ -453,7 +453,6 @@ defmodule TuistWeb.AppLayoutComponents do
           badge_label={breadcrumb[:badge] && breadcrumb.badge.label}
           badge_color={breadcrumb[:badge] && breadcrumb.badge.color}
           on_select={breadcrumb[:on_select]}
-          data-selector-event={breadcrumb[:selector_event]}
         >
           <:icon :if={Map.get(breadcrumb, :icon)}><.icon name={Map.get(breadcrumb, :icon)} /></:icon>
           <.breadcrumb_item

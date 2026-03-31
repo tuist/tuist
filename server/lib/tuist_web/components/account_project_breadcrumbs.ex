@@ -18,7 +18,7 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
       icon: "smart_home",
       show_avatar: true,
       avatar_color: Accounts.avatar_color(selected_account),
-      selector_event: if(stateful?, do: "select-account"),
+      on_select: if(stateful?, do: "select-account"),
       items:
         Enum.map(current_user_accounts, fn account ->
           %{
@@ -58,7 +58,7 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
     %{
       label: label,
       badge: badge,
-      selector_event: if(stateful?, do: "select-project"),
+      on_select: if(stateful?, do: "select-project"),
       items:
         Enum.map(projects, fn project ->
           %{
