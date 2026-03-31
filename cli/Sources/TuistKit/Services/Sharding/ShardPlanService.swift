@@ -188,24 +188,14 @@
             return shardPlan
         }
 
-        /// Creates a compressed archive of the test products bundle, stripping files not needed for test execution
+        /// Creates a compressed archive of the test products bundle, excluding files not needed for test execution
         /// (dSYMs, .swiftmodule directories) to significantly reduce upload size.
         private func archiveXCTestProducts(_ xctestproductsPath: AbsolutePath, to archivePath: AbsolutePath) async throws {
-            try await fileSystem.runInTemporaryDirectory(prefix: "tuist-shard-stripped") { strippedPath in
-                let strippedProductsPath = strippedPath.appending(component: xctestproductsPath.basename)
-                try await fileSystem.copy(xctestproductsPath, to: strippedProductsPath)
-
-                // Remove .dSYM and .swiftmodule directories which are only needed for
-                // symbolication/compilation, not for running tests.
-                let stripPatterns = ["**/*.dSYM", "**/*.swiftmodule"]
-                for pattern in stripPatterns {
-                    for try await path in try fileSystem.glob(directory: strippedProductsPath, include: [pattern]) {
-                        try await fileSystem.remove(path)
-                    }
-                }
-
-                try await appleArchiver.compress(directory: strippedProductsPath, to: archivePath)
-            }
+            try await appleArchiver.compress(
+                directory: xctestproductsPath,
+                to: archivePath,
+                excludePatterns: [".dSYM", ".swiftmodule"]
+            )
         }
     }
 #endif
