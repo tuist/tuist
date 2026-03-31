@@ -104,6 +104,7 @@ func schemes() -> [Scheme] {
                 postActions: [
                     inspectBuildPostAction(target: "TuistKitAcceptanceTests"),
                 ],
+                findImplicitDependencies: false,
                 runPostActionsOnFailure: true
             ),
             testAction: .targets(
