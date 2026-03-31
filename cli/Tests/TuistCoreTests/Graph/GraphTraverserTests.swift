@@ -5661,6 +5661,61 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEmpty(got)
     }
 
+    func test_testTargets_when_scheme_has_test_targets() {
+        // Given
+        let appTarget = Target.test(name: "App", product: .app)
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let otherTests = Target.test(name: "OtherTests", product: .unitTests)
+        let project = Project.test(targets: [appTarget, appTests, otherTests])
+        let scheme = Scheme.test(
+            name: "AppTests",
+            testAction: .test(
+                targets: [.test(target: TargetReference(projectPath: project.path, name: "AppTests"))]
+            )
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            workspace: .test(schemes: [scheme])
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.testTargets(for: "AppTests")
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), ["AppTests"])
+    }
+
+    func test_testTargets_when_scheme_not_found() {
+        // Given
+        let graph = Graph.test(projects: [:])
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.testTargets(for: "NonExistent")
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_testTargets_when_scheme_has_no_test_action() {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let project = Project.test(targets: [target])
+        let scheme = Scheme.test(name: "App", testAction: nil)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            workspace: .test(schemes: [scheme])
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.testTargets(for: "App")
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
     func test_schemeRunnableTarget_when_no_executable_nor_build_targets() {
         // Given
         let scheme = Scheme.test(buildAction: .test(targets: []), runAction: .test(executable: nil))
