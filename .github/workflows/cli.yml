@@ -276,28 +276,27 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Run shard ${{ matrix.shard }}
-        run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: |
+          # Monitor shard directory in background to capture contents before cleanup
+          (while true; do
+            SHARD_DIR=$(find /var/folders -name "tuist-shard-unzip-*" -type d 2>/dev/null | head -1)
+            if [ -n "$SHARD_DIR" ] && [ -d "$SHARD_DIR/Binaries/0/Debug" ]; then
+              echo "=== SHARD DEBUG: $SHARD_DIR ==="
+              diskutil info / | grep -i 'case' || true
+              echo "=== Tuist-related ==="
+              ls "$SHARD_DIR/Binaries/0/Debug/" | grep -i '^tuist' 2>/dev/null
+              echo "=== Case test ==="
+              ls -1d "$SHARD_DIR/Binaries/0/Debug/tuist.swiftmodule" 2>/dev/null && echo "lowercase exists"
+              ls -1d "$SHARD_DIR/Binaries/0/Debug/Tuist.swiftmodule" 2>/dev/null && echo "UPPERCASE exists" || echo "No uppercase Tuist.swiftmodule"
+              echo "=== ProjectDescription ==="
+              ls "$SHARD_DIR/Binaries/0/Debug/ProjectDescription.framework/Modules/ProjectDescription.swiftmodule/" 2>/dev/null
+              break
+            fi
+            sleep 1
+          done) &
+          tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
-      - name: Debug shard contents
-        if: failure()
-        run: |
-          diskutil info / | grep -i 'case' || true
-          SHARD_DIR=$(find /var/folders -name "tuist-shard-unzip-*" -type d 2>/dev/null | head -1)
-          if [ -n "$SHARD_DIR" ]; then
-            echo "=== Shard dir: $SHARD_DIR ==="
-            echo "=== Tuist-related files ==="
-            ls "$SHARD_DIR/Binaries/0/Debug/" | grep -i '^tuist' | head -20
-            echo "=== All .swiftmodule ==="
-            find "$SHARD_DIR/Binaries/0/Debug/" -maxdepth 1 -name "*.swiftmodule" -type d | xargs -I {} basename {} | sort | grep -i tuist
-            echo "=== Tuist.app? ==="
-            ls -d "$SHARD_DIR/Binaries/0/Debug/Tuist.app" 2>/dev/null || echo "No Tuist.app"
-            echo "=== Case test ==="
-            ls "$SHARD_DIR/Binaries/0/Debug/tuist.swiftmodule" 2>/dev/null && echo "lowercase exists"
-            ls "$SHARD_DIR/Binaries/0/Debug/Tuist.swiftmodule" 2>/dev/null && echo "UPPERCASE exists" || echo "No uppercase Tuist.swiftmodule"
-          else
-            echo "Shard dir already cleaned up"
-          fi
 
   cli-linux-build:
     name: Linux Build
