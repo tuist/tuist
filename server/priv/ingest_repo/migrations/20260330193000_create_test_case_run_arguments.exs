@@ -15,10 +15,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunArguments do
       add :duration, :Int32, null: false, default: 0
       add :inserted_at, :"DateTime64(6)", default: fragment("now()")
     end
-
-    execute(
-      "ALTER TABLE test_case_run_arguments ADD INDEX idx_test_case_run_id (test_case_run_id) TYPE bloom_filter GRANULARITY 4"
-    )
   end
 
   def down do
