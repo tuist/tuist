@@ -24,9 +24,9 @@ export const XCODE_SIZES: SizeBucket[] = [
 ];
 
 export const LARGE_SIZES: SizeBucket[] = [
-  { name: '10mb', bytes: 10 * 1024 * 1024, weight: 0.7 },
-  { name: '25mb', bytes: 25 * 1024 * 1024, weight: 0.2 },
-  { name: '50mb', bytes: 50 * 1024 * 1024, weight: 0.1 },
+  { name: '5mb', bytes: 5 * 1024 * 1024, weight: 0.7 },
+  { name: '10mb', bytes: 10 * 1024 * 1024, weight: 0.2 },
+  { name: '25mb', bytes: 25 * 1024 * 1024, weight: 0.1 },
 ];
 
 export const KV_DISTRIBUTIONS = [

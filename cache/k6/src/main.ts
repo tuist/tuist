@@ -12,20 +12,25 @@ export { gradleRead, gradleWrite } from './scenarios/gradle.ts';
 export { keyValueRead, keyValueWrite } from './scenarios/kv.ts';
 
 // --- Scenario builder ---
+//
+// Durations are tuned per scenario based on observed iteration latencies.
+// Fast scenarios (sub-second p50) need only 30s for thousands of samples.
+// Medium scenarios (~1-7s p50) need 60s for hundreds of samples.
+// Slow scenarios (10-45s p50 on US-East) need 180s to collect enough data.
 
 interface ScenarioConfig {
   exec: string;
   rate: number;
-  startTime?: string;
+  duration: number;
+  startTime: string;
   preAllocatedVUs?: number;
   maxVUs?: number;
 }
 
-const SCENARIO_DURATION_SECONDS = 300;
-
 function makeScenario(cfg: ScenarioConfig): any {
   const halfRate = Math.ceil(cfg.rate * 0.5);
   const burstRate = Math.ceil(cfg.rate * 1.5);
+  const d = cfg.duration;
 
   return {
     executor: 'ramping-arrival-rate',
@@ -34,14 +39,14 @@ function makeScenario(cfg: ScenarioConfig): any {
     timeUnit: '1s',
     preAllocatedVUs: cfg.preAllocatedVUs ?? Math.max(Math.ceil(burstRate * 0.02), 5),
     maxVUs: cfg.maxVUs ?? Math.max(Math.ceil(burstRate * 0.2), 10),
-    startTime: cfg.startTime ?? '0s',
+    startTime: cfg.startTime,
     stages: [
-      { duration: '30s', target: halfRate },
-      { duration: '1m', target: halfRate },
-      { duration: '15s', target: cfg.rate },
-      { duration: '2m', target: cfg.rate },
-      { duration: '15s', target: burstRate },
-      { duration: '1m', target: burstRate },
+      { duration: `${Math.ceil(d * 0.10)}s`, target: halfRate },
+      { duration: `${Math.ceil(d * 0.20)}s`, target: halfRate },
+      { duration: `${Math.ceil(d * 0.10)}s`, target: cfg.rate },
+      { duration: `${Math.ceil(d * 0.30)}s`, target: cfg.rate },
+      { duration: `${Math.ceil(d * 0.10)}s`, target: burstRate },
+      { duration: `${Math.ceil(d * 0.20)}s`, target: burstRate },
     ],
   };
 }
@@ -49,15 +54,15 @@ function makeScenario(cfg: ScenarioConfig): any {
 // --- Build k6 options (scenarios run sequentially) ---
 
 const SCENARIO_ENTRIES = [
-  { key: 'key_value_read', exec: 'keyValueRead', rate: 512 },
-  { key: 'key_value_write', exec: 'keyValueWrite', rate: 256 },
-  { key: 'xcode_read', exec: 'xcodeRead', rate: 512 },
-  { key: 'xcode_write', exec: 'xcodeWrite', rate: 256 },
-  { key: 'module_exists', exec: 'moduleExists', rate: 64 },
-  { key: 'module_read', exec: 'moduleRead', rate: 128 },
-  { key: 'module_write', exec: 'moduleWrite', rate: 32 },
-  { key: 'gradle_read', exec: 'gradleRead', rate: 128 },
-  { key: 'gradle_write', exec: 'gradleWrite', rate: 32 },
+  { key: 'key_value_read', exec: 'keyValueRead', rate: 512, duration: 30 },
+  { key: 'key_value_write', exec: 'keyValueWrite', rate: 256, duration: 30 },
+  { key: 'xcode_read', exec: 'xcodeRead', rate: 512, duration: 30 },
+  { key: 'xcode_write', exec: 'xcodeWrite', rate: 256, duration: 30 },
+  { key: 'module_exists', exec: 'moduleExists', rate: 64, duration: 30 },
+  { key: 'module_read', exec: 'moduleRead', rate: 128, duration: 60 },
+  { key: 'module_write', exec: 'moduleWrite', rate: 32, duration: 180 },
+  { key: 'gradle_read', exec: 'gradleRead', rate: 128, duration: 60 },
+  { key: 'gradle_write', exec: 'gradleWrite', rate: 32, duration: 180 },
 ];
 
 const scenarios: Record<string, any> = {};
@@ -66,14 +71,15 @@ for (const entry of SCENARIO_ENTRIES) {
   scenarios[entry.key] = makeScenario({
     exec: entry.exec,
     rate: entry.rate,
+    duration: entry.duration,
     startTime: `${offset}s`,
   });
-  offset += SCENARIO_DURATION_SECONDS;
+  offset += entry.duration;
 }
 
 export const options: Partial<Options> = {
   scenarios,
-  setupTimeout: '30m',
+  setupTimeout: '10m',
   discardResponseBodies: true,
   noConnectionReuse: false,
   insecureSkipTLSVerify: false,

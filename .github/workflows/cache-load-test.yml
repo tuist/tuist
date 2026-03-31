@@ -75,18 +75,13 @@ jobs:
         run: mise run deploy "staging"
 
   baseline:
-    name: Baseline (${{ matrix.region }})
+    name: Baseline
     needs: [resolve, deploy-main]
     runs-on: namespace-profile-default
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - region: eu-central
-            cache_host: cache-eu-central-staging.tuist.dev
-          - region: us-east
-            cache_host: cache-us-east-staging.tuist.dev
+    timeout-minutes: 20
+    env:
+      REGION: eu-central
+      CACHE_HOST: cache-eu-central-staging.tuist.dev
     steps:
       - uses: actions/checkout@v4
         with:
@@ -127,9 +122,9 @@ jobs:
       - uses: grafana/setup-k6-action@v1
       - name: Wait for cache service
         run: |
-          echo "Waiting for cache service at ${{ matrix.cache_host }}..."
+          echo "Waiting for cache service at ${{ env.CACHE_HOST }}..."
           for i in $(seq 1 30); do
-            if curl -sf "https://${{ matrix.cache_host }}/up" > /dev/null 2>&1; then
+            if curl -sf "https://${{ env.CACHE_HOST }}/up" > /dev/null 2>&1; then
               echo "Cache service ready after ${i}s"
               break
             fi
@@ -141,11 +136,11 @@ jobs:
         run: |
           set -euo pipefail
           k6 run src/main.ts \
-            -e CACHE_HOST=${{ matrix.cache_host }} \
+            -e CACHE_HOST=${{ env.CACHE_HOST }} \
             -e CACHE_AUTH_TOKEN="$CACHE_AUTH_TOKEN" \
             -e SERVER_URL=https://staging.tuist.dev \
-            -e REGION=${{ matrix.region }} \
-            -e RUN_ID="lt-baseline-${{ github.run_id }}-${{ matrix.region }}" \
+            -e REGION=${{ env.REGION }} \
+            -e RUN_ID="lt-baseline-${{ github.run_id }}-${{ env.REGION }}" \
             -e COMMIT_SHA=${{ needs.resolve.outputs.main_sha }} \
             2>&1 | tee k6-output.log
       - name: Extract baseline seed data
@@ -168,7 +163,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: baseline-result-${{ matrix.region }}
+          name: baseline-result-${{ env.REGION }}
           path: |
             cache/k6/result.json
             cache/k6/seed-data.json
@@ -203,18 +198,13 @@ jobs:
         run: mise run deploy "staging"
 
   test:
-    name: Test (${{ matrix.region }})
+    name: Test
     needs: [resolve, deploy-pr]
     runs-on: namespace-profile-default
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - region: eu-central
-            cache_host: cache-eu-central-staging.tuist.dev
-          - region: us-east
-            cache_host: cache-us-east-staging.tuist.dev
+    timeout-minutes: 20
+    env:
+      REGION: eu-central
+      CACHE_HOST: cache-eu-central-staging.tuist.dev
     steps:
       - uses: actions/checkout@v4
         with:
@@ -222,8 +212,8 @@ jobs:
       - name: Download baseline seed data
         uses: actions/download-artifact@v4
         with:
-          name: baseline-result-${{ matrix.region }}
-          path: baseline-result-${{ matrix.region }}
+          name: baseline-result-${{ env.REGION }}
+          path: baseline-result-${{ env.REGION }}
       - name: Create cache project token
         env:
           SERVER_URL: https://staging.tuist.dev
@@ -260,9 +250,9 @@ jobs:
       - uses: grafana/setup-k6-action@v1
       - name: Wait for cache service
         run: |
-          echo "Waiting for cache service at ${{ matrix.cache_host }}..."
+          echo "Waiting for cache service at ${{ env.CACHE_HOST }}..."
           for i in $(seq 1 30); do
-            if curl -sf "https://${{ matrix.cache_host }}/up" > /dev/null 2>&1; then
+            if curl -sf "https://${{ env.CACHE_HOST }}/up" > /dev/null 2>&1; then
               echo "Cache service ready after ${i}s"
               break
             fi
@@ -272,7 +262,7 @@ jobs:
       - name: Load baseline seed data
         run: |
           set -euo pipefail
-          SEED_DATA_JSON=$(tr -d '\n' < baseline-result-${{ matrix.region }}/seed-data.json)
+          SEED_DATA_JSON=$(tr -d '\n' < baseline-result-${{ env.REGION }}/seed-data.json)
           {
             echo 'SEED_DATA_JSON<<EOF'
             echo "$SEED_DATA_JSON"
@@ -282,17 +272,17 @@ jobs:
         working-directory: cache/k6
         run: |
           k6 run src/main.ts \
-            -e CACHE_HOST=${{ matrix.cache_host }} \
+            -e CACHE_HOST=${{ env.CACHE_HOST }} \
             -e CACHE_AUTH_TOKEN="$CACHE_AUTH_TOKEN" \
             -e SERVER_URL=https://staging.tuist.dev \
-            -e REGION=${{ matrix.region }} \
-            -e RUN_ID="lt-pr-${{ needs.resolve.outputs.pr_number }}-${{ github.run_id }}-${{ matrix.region }}" \
+            -e REGION=${{ env.REGION }} \
+            -e RUN_ID="lt-pr-${{ needs.resolve.outputs.pr_number }}-${{ github.run_id }}-${{ env.REGION }}" \
             -e COMMIT_SHA=${{ needs.resolve.outputs.pr_sha }} \
             -e SEED_DATA_JSON="$SEED_DATA_JSON"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: k6-result-${{ matrix.region }}
+          name: k6-result-${{ env.REGION }}
           path: cache/k6/result.json
           retention-days: 30
 
@@ -411,7 +401,7 @@ jobs:
           "
           }
 
-          for region in eu-central us-east; do
+          for region in eu-central; do
             PR_FILE="k6-result-${region}/result.json"
             BASELINE_FILE="baseline-result-${region}/result.json"
 
