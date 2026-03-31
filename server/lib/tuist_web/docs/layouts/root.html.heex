@@ -77,6 +77,11 @@
           <span data-part="logo-divider"></span>
           <span data-part="logo-text">Docs</span>
         </.link>
+        <.headerbar_breadcrumbs
+          :if={not is_nil(assigns[:current_user]) and (assigns[:breadcrumbs] || []) != []}
+          breadcrumbs={assigns[:breadcrumbs] || []}
+          id="docs-context-breadcrumbs"
+        />
         <.button_group size="large" id="docs-nav-tabs">
           <.button_group_item
             label={dgettext("docs", "Guides")}
@@ -188,16 +193,6 @@
         </.neutral_button>
       </div>
     </nav>
-    <div
-      :if={not is_nil(assigns[:current_user]) and (assigns[:breadcrumbs] || []) != []}
-      id="docs-context-bar"
-      data-part="context-bar"
-    >
-      <.headerbar_breadcrumbs
-        breadcrumbs={assigns[:breadcrumbs] || []}
-        id="docs-context-breadcrumbs"
-      />
-    </div>
     <div id="docs-mobile-menu-bar" role="toolbar" aria-label={dgettext("docs", "Page navigation")}>
       <button
         type="button"
