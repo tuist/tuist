@@ -52,11 +52,11 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 请注意，`COMPILATION_CACHE_REMOTE_SERVICE_PATH` 和`COMPILATION_CACHE_ENABLE_PLUGIN`
 需要添加为**用户自定义的构建设置** ，因为它们没有直接暴露在 Xcode 的构建设置 UI 中：
 
-::: info SOCKET PATH
-<!-- -->
-运行`tuist setup cache` 时将显示套接字路径。它基于项目的完整句柄，下划线替换了斜线。
-<!-- -->
-:::
+> [!NOTE]
+> **Socket Path**
+>
+> 运行`tuist setup cache` 时将显示套接字路径。它基于项目的完整句柄，下划线替换了斜线。
+
 
 您也可以在运行`xcodebuild` 时指定这些设置，方法是添加以下标志，如
 
@@ -68,25 +68,25 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-::: info GENERATED PROJECTS
-<!-- -->
-如果项目由 Tuist 生成，则无需手动设置。
+> [!NOTE]
+> **Generated Projects**
+>
+> 如果项目由 Tuist 生成，则无需手动设置。
+>
+> 在这种情况下，只需在`Tuist.swift` 文件中添加`enableCaching: true` 即可：
+> ```swift
+> import ProjectDescription
+>
+> let tuist = Tuist(
+>     fullHandle: "your-org/your-project",
+>     project: .tuist(
+>         generationOptions: .options(
+>             enableCaching: true
+>         )
+>     )
+> )
+> ```
 
-在这种情况下，只需在`Tuist.swift` 文件中添加`enableCaching: true` 即可：
-```swift
-import ProjectDescription
-
-let tuist = Tuist(
-    fullHandle: "your-org/your-project",
-    project: .tuist(
-        generationOptions: .options(
-            enableCaching: true
-        )
-    )
-)
-```
-<!-- -->
-:::
 
 ### 持续集成 #{continuous-integration}
 

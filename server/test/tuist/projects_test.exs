@@ -218,7 +218,12 @@ defmodule Tuist.ProjectsTest do
       project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
       project_two = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
 
-      got = Projects.get_all_project_accounts(%AuthenticatedAccount{account: account, scopes: []})
+      got =
+        Projects.get_all_project_accounts(%AuthenticatedAccount{
+          account: account,
+          scopes: [],
+          all_projects: true
+        })
 
       assert Enum.sort_by(got, & &1.handle) ==
                Enum.sort_by(
@@ -238,7 +243,7 @@ defmodule Tuist.ProjectsTest do
                )
     end
 
-    test "get all project accounts for an authenticated account with all_projects includes org projects" do
+    test "get all project accounts for an authenticated account with all_projects only includes projects under the token account" do
       user = AccountsFixtures.user_fixture()
       user_account = Accounts.get_account_from_user(user)
 
@@ -261,11 +266,30 @@ defmodule Tuist.ProjectsTest do
 
       got_handles = got |> Enum.map(& &1.handle) |> Enum.sort()
 
-      assert got_handles ==
-               Enum.sort([
-                 "#{user_account.name}/#{personal_project.name}",
-                 "#{org_account.name}/#{org_project.name}"
-               ])
+      assert got_handles == ["#{user_account.name}/#{personal_project.name}"]
+      refute "#{org_account.name}/#{org_project.name}" in got_handles
+    end
+
+    test "get all project accounts for an authenticated account with project_ids only includes the permitted projects" do
+      account = AccountsFixtures.account_fixture()
+      allowed_project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+      ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+
+      got =
+        Projects.get_all_project_accounts(%AuthenticatedAccount{
+          account: account,
+          scopes: [],
+          all_projects: false,
+          project_ids: [allowed_project.id]
+        })
+
+      assert got == [
+               %ProjectAccount{
+                 handle: "#{account.name}/#{allowed_project.name}",
+                 account: account,
+                 project: allowed_project
+               }
+             ]
     end
 
     test "get all project accounts for a project subject" do

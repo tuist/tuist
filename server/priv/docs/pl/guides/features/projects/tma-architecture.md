@@ -17,13 +17,13 @@ Niniejsze wytyczne wprowadzają zasady architektury, pomagając zidentyfikować 
 zorganizować funkcje aplikacji w różnych warstwach. Przedstawia również
 wskazówki, narzędzia i porady, jeśli zdecydujesz się użyć tej architektury.
 
-::: info µFEATURES
-<!-- -->
-Architektura ta była wcześniej znana jako µFeatures. Zmieniliśmy jej nazwę na
-The Modular Architecture (TMA), aby lepiej odzwierciedlić jej cel i zasady,
-które za nią stoją.
-<!-- -->
-:::
+> [!NOTE]
+> **Μfeatures**
+>
+> Architektura ta była wcześniej znana jako µFeatures. Zmieniliśmy jej nazwę na
+> The Modular Architecture (TMA), aby lepiej odzwierciedlić jej cel i zasady,
+> które za nią stoją.
+
 
 ## Podstawowa zasada {#core-principle}
 
@@ -60,21 +60,21 @@ wymusić w swoim projekcie dzięki DSL Tuist.
 | `FeatureTesting`   | `FeatureInterface`          | Testowanie danych i makiet       |
 | `FeatureExample`   | `FeatureTesting`, `Feature` | Przykładowa aplikacja            |
 
-::: tip UI Previews
-<!-- -->
-`Funkcja` może korzystać z `FeatureTesting` jako zasobu deweloperskiego, aby
-umożliwić podgląd interfejsu użytkownika.
-<!-- -->
-:::
+> [!TIP]
+> **Ui Previews**
+>
+> `Funkcja` może korzystać z `FeatureTesting` jako zasobu deweloperskiego, aby
+> umożliwić podgląd interfejsu użytkownika.
 
-::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
-<!-- -->
-Alternatywnie można użyć dyrektyw kompilatora, aby dołączyć dane testowe i
-makiety do celów `Feature` lub `FeatureInterface` podczas kompilacji dla
-`Debug`. Uprościsz wykres, ale ostatecznie skompilujesz kod, który nie będzie
-potrzebny do uruchomienia aplikacji.
-<!-- -->
-:::
+
+> [!WARNING]
+> **Compiler Directives Instead Of Testing Targets**
+>
+> Alternatywnie można użyć dyrektyw kompilatora, aby dołączyć dane testowe i
+> makiety do celów `Feature` lub `FeatureInterface` podczas kompilacji dla
+> `Debug`. Uprościsz wykres, ale ostatecznie skompilujesz kod, który nie będzie
+> potrzebny do uruchomienia aplikacji.
+
 
 ## Dlaczego moduł {#why-a-module}
 
@@ -164,16 +164,16 @@ func productType() -> Product {
 ```
 
 
-::: warning MERGEABLE LIBRARIES
-<!-- -->
-Apple próbowało złagodzić uciążliwość przełączania się między bibliotekami
-statycznymi i dynamicznymi, wprowadzając [mergeable
-libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
-Wprowadza to jednak niedeterminizm w czasie kompilacji, który sprawia, że
-kompilacja nie jest odtwarzalna i trudniejsza do optymalizacji, więc nie
-zalecamy jej używania.
-<!-- -->
-:::
+> [!WARNING]
+> **Mergeable Libraries**
+>
+> Apple próbowało złagodzić uciążliwość przełączania się między bibliotekami
+> statycznymi i dynamicznymi, wprowadzając [mergeable
+> libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
+> Wprowadza to jednak niedeterminizm w czasie kompilacji, który sprawia, że
+> kompilacja nie jest odtwarzalna i trudniejsza do optymalizacji, więc nie
+> zalecamy jej używania.
+
 
 ## Kod {#code}
 

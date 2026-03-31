@@ -7,12 +7,12 @@
 ---
 # 生成されたプロジェクト{#generated-project}
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/features/projects">生成プロジェクト</LocalizedLink>
-- <LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/features/projects">生成プロジェクト</LocalizedLink>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
+
 
 生成されたプロジェクトでテストを選択的に実行するには、`tuist test`
 コマンドを使用します。このコマンドは、<LocalizedLink href="/guides/features/cache#cache-warming">キャッシュを温める</LocalizedLink>のと同じように、あなたの

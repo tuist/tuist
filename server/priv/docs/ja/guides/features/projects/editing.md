@@ -26,13 +26,13 @@ tuist edit
 コマンドは、グローバルディレクトリに Xcode プロジェクトを作成し、Xcode
 で開きます。プロジェクトには、すべてのマニフェストが有効であることを確認するためにビルドできる`Manifests` ディレクトリが含まれています。
 
-::: info GLOB-RESOLVED MANIFESTS
-<!-- -->
-`tuist edit` は、プロジェクトのルート・ディレクトリ（`Tuist.swift`
-ファイルを含むディレクトリ）から`**/{Manifest}.swift`
-というグロブを使用して、インクルードするマニフェストを解決します。プロジェクトのルートに有効な`Tuist.swift` があることを確認してください。
-<!-- -->
-:::
+> [!NOTE]
+> **Glob-resolved Manifests**
+>
+> `tuist edit` は、プロジェクトのルート・ディレクトリ（`Tuist.swift`
+> ファイルを含むディレクトリ）から`**/{Manifest}.swift`
+> というグロブを使用して、インクルードするマニフェストを解決します。プロジェクトのルートに有効な`Tuist.swift` があることを確認してください。
+
 
 ### マニフェストファイルの無視{#ignoring-manifest-files}
 

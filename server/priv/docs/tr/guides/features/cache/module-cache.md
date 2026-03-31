@@ -8,12 +8,12 @@
 
 # Modül önbelleği {#module-cache}
 
-::: warning REQUIREMENTS
-<!-- -->
--  tarafından oluşturulan bir projele
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> -  tarafından oluşturulan bir projele
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+
 
 Tuist Modül önbelleği, modüllerinizi ikili dosyalar (`.xcframework`s) olarak
 önbelleğe alarak ve bunları farklı ortamlarda paylaşarak derleme sürelerinizi
@@ -63,14 +63,12 @@ tuist test
 <!-- -->
 :::
 
-::: warning
-<!-- -->
-İkili önbelleğe alma, uygulamayı bir simülatörde veya cihazda çalıştırmak ya da
-testler yapmak gibi geliştirme iş akışları için tasarlanmış bir özelliktir.
-Sürüm derlemeleri için tasarlanmamıştır. Uygulamayı arşivlerken,
-`--no-binary-cache` bayrağını kullanarak kaynakları içeren bir proje oluşturun.
-<!-- -->
-:::
+> [!WARNING]
+> İkili önbelleğe alma, uygulamayı bir simülatörde veya cihazda çalıştırmak ya da
+> testler yapmak gibi geliştirme iş akışları için tasarlanmış bir özelliktir.
+> Sürüm derlemeleri için tasarlanmamıştır. Uygulamayı arşivlerken,
+> `--no-binary-cache` bayrağını kullanarak kaynakları içeren bir proje oluşturun.
+
 
 ## Önbellek profilleri {#cache-profiles}
 
@@ -123,13 +121,13 @@ Sadece aşağıdaki hedef ürünler Tuist tarafından önbelleğe alınabilir:
 
 XCTest'e bağlı olan kütüphaneleri ve hedefleri desteklemek için çalışıyoruz.
 
-::: info UPSTREAM DEPENDENCIES
-<!-- -->
-Bir hedef önbelleklenemez olduğunda, yukarı akış hedefleri de önbelleklenemez
-hale gelir. Örneğin, A'nın B'ye bağlı olduğu `A &gt; B` bağımlılık grafiğine
-sahipseniz, B önbelleğe alınamazsa, A da önbelleğe alınamaz olacaktır.
-<!-- -->
-:::
+> [!NOTE]
+> **Upstream Dependencies**
+>
+> Bir hedef önbelleklenemez olduğunda, yukarı akış hedefleri de önbelleklenemez
+> hale gelir. Örneğin, A'nın B'ye bağlı olduğu `A &gt; B` bağımlılık grafiğine
+> sahipseniz, B önbelleğe alınamazsa, A da önbelleğe alınamaz olacaktır.
+
 
 ## Verimlilik {#efficiency}
 
@@ -155,11 +153,11 @@ olmanızı öneririz. Bu, önbelleğin her zaman `ana` 'daki değişiklikler iç
 dosyalar içermesini sağlayacaktır, böylece yerel ve CI şubesi bunlar üzerinde
 artımlı olarak derlenir.
 
-::: tip CACHE WARMING USES BINARIES
-<!-- -->
-`tuist cache` komutu da ısınmayı hızlandırmak için ikili önbellekten yararlanır.
-<!-- -->
-:::
+> [!TIP]
+> **Cache Warming Uses Binaries**
+>
+> `tuist cache` komutu da ısınmayı hızlandırmak için ikili önbellekten yararlanır.
+
 
 Aşağıda yaygın iş akışlarına bazı örnekler verilmiştir:
 

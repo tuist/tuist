@@ -15,10 +15,8 @@ defterinde mevcutsa, sağ üstte `tuist.dev` kayıt defterini göreceksiniz:
 ![Paket bağımlılıkları
 ekleniyor](/images/guides/features/build/registry/registry-add-package.png)
 
-::: info
-<!-- -->
-Xcode şu anda kaynak kontrol paketlerini kayıt defteri eşdeğerleriyle otomatik
-olarak değiştirmeyi desteklemiyor. Çözümü hızlandırmak için kaynak kontrol
-paketini manuel olarak kaldırmanız ve kayıt paketini eklemeniz gerekecektir.
-<!-- -->
-:::
+> [!NOTE]
+> Xcode şu anda kaynak kontrol paketlerini kayıt defteri eşdeğerleriyle otomatik
+> olarak değiştirmeyi desteklemiyor. Çözümü hızlandırmak için kaynak kontrol
+> paketini manuel olarak kaldırmanız ve kayıt paketini eklemeniz gerekecektir.
+

@@ -7,12 +7,12 @@
 ---
 # المشروع المُنشأ {#generated-project}
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/features/projects">مشروع تم إنشاؤه</LocalizedLink>
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/features/projects">مشروع تم إنشاؤه</LocalizedLink>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
+
 
 لتشغيل الاختبارات بشكل انتقائي مع مشروعك الذي تم إنشاؤه، استخدم الأمر `tuist test`. يقوم الأمر <LocalizedLink href="/guides/features/projects/hashing">بتجزئة</LocalizedLink> مشروع Xcode الخاص بك بنفس الطريقة التي يقوم بها <LocalizedLink href="/guides/features/cache#cache-warming">لتسخين ذاكرة التخزين المؤقت</LocalizedLink>، وعند النجاح، فإنه يستمر في التجزئة لتحديد ما تغير في عمليات التشغيل المستقبلية.
 

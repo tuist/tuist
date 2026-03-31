@@ -24,20 +24,20 @@ GitHubアプリは、最新の<LocalizedLink href="/guides/features/previews#pul
 
 プルリクエストのコメントを表示する画像](/images/guides/integrations/gitforge/github/pull-request-comment.png)。
 
-::: info REQUIREMENTS
-<!-- -->
-コメントが投稿されるのは、CIの実行が<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証</LocalizedLink>された場合のみです。
-<!-- -->
-:::
+> [!NOTE]
+> **Requirements**
+>
+> コメントが投稿されるのは、CIの実行が<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証</LocalizedLink>された場合のみです。
 
-::: info GITHUB_REF
-<!-- -->
-PR のコミットではなく GitHub のコメントなどをトリガーとするカスタムワークフローの場合は、`GITHUB_REF`
-変数に`refs/pull/<pr_number>/merge` または`refs/pull/<pr_number>/head`
-のいずれかを設定する必要があります。</pr_number></pr_number>
 
-`tuist share` のように、`GITHUB_REF`
-環境変数を前に付けて、関連するコマンドを実行できます：<code v-pre>GITHUB_REF="refs/pull/${{
-github.event.issue.number }}/head" tuist share</code>
-<!-- -->
-:::
+> [!NOTE]
+> **Github_ref**
+>
+> PR のコミットではなく GitHub のコメントなどをトリガーとするカスタムワークフローの場合は、`GITHUB_REF`
+> 変数に`refs/pull/<pr_number>/merge` または`refs/pull/<pr_number>/head`
+> のいずれかを設定する必要があります。</pr_number></pr_number>
+>
+> `tuist share` のように、`GITHUB_REF`
+> 環境変数を前に付けて、関連するコマンドを実行できます：<code v-pre>GITHUB_REF="refs/pull/${{
+> github.event.issue.number }}/head" tuist share</code>
+

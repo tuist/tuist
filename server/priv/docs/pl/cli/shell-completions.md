@@ -11,13 +11,13 @@ Jeśli masz globalnie zainstalowany Tuist **** (np. przez Homebrew), możesz
 zainstalować uzupełnienia powłoki dla Bash i Zsh, aby automatycznie uzupełniać
 polecenia i opcje.
 
-::: warning WHAT IS A GLOBAL INSTALLATION
-<!-- -->
-Instalacja globalna to instalacja, która jest dostępna w zmiennej środowiskowej
-powłoki `$PATH`. Oznacza to, że można uruchomić `tuist` z dowolnego katalogu w
-terminalu. Jest to domyślna metoda instalacji Homebrew.
-<!-- -->
-:::
+> [!WARNING]
+> **What Is A Global Installation**
+>
+> Instalacja globalna to instalacja, która jest dostępna w zmiennej środowiskowej
+> powłoki `$PATH`. Oznacza to, że można uruchomić `tuist` z dowolnego katalogu w
+> terminalu. Jest to domyślna metoda instalacji Homebrew.
+
 
 #### Zsh {#zsh}
 

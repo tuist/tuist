@@ -71,15 +71,13 @@ Yukarıdaki proje ile etkileşime girerken, komutlar çalışma dizininde veya
 `Project.swift` dosyası bulmayı bekler. Bildirim, projenin kökünü temsil eden
 bir `Tuist` dizini içeren bir dizinde veya dizinin alt dizininde olmalıdır.
 
-::: tip
-<!-- -->
-Xcode çalışma alanları, birleştirme çakışması olasılığını azaltmak için
-projeleri birden fazla Xcode projesine bölmeye izin veriyordu. Eğer çalışma
-alanlarını bunun için kullanıyorsanız, Tuist'te bunlara ihtiyacınız yok. Tuist,
-bir projeyi ve bağımlılıklarının projelerini içeren bir çalışma alanını otomatik
-olarak oluşturur.
-<!-- -->
-:::
+> [!TIP]
+> Xcode çalışma alanları, birleştirme çakışması olasılığını azaltmak için
+> projeleri birden fazla Xcode projesine bölmeye izin veriyordu. Eğer çalışma
+> alanlarını bunun için kullanıyorsanız, Tuist'te bunlara ihtiyacınız yok. Tuist,
+> bir projeyi ve bağımlılıklarının projelerini içeren bir çalışma alanını otomatik
+> olarak oluşturur.
+
 
 ## Swift paketi <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 

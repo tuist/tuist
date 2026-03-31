@@ -35,6 +35,9 @@ public protocol GraphTraversing {
     /// - Returns: All the schemes of the graph
     func schemes() -> [Scheme]
 
+    /// Returns the test targets referenced by a scheme's test action.
+    func testTargets(for schemeName: String) -> Set<GraphTarget>
+
     /// Returns the targets from the project that lives in the directory from which the graph has been loaded.
     func rootTargets() -> Set<GraphTarget>
 

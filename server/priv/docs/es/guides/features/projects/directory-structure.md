@@ -72,15 +72,13 @@ directorio indicado mediante la bandera `--path`. El manifiesto debe estar en un
 directorio o subdirectorio de un directorio que contenga un directorio `Tuist`,
 que representa la raíz del proyecto.
 
-::: consejo
-<!-- -->
-Los espacios de trabajo de Xcode permitían dividir proyectos en varios proyectos
-de Xcode para reducir la probabilidad de conflictos de fusión. Si usabas
-espacios de trabajo para eso, no los necesitas en Tuist. Tuist genera
-automáticamente un espacio de trabajo que contiene un proyecto y los proyectos
-de sus dependencias.
-<!-- -->
-:::
+> [!TIP]
+> Los espacios de trabajo de Xcode permitían dividir proyectos en varios proyectos
+> de Xcode para reducir la probabilidad de conflictos de fusión. Si usabas
+> espacios de trabajo para eso, no los necesitas en Tuist. Tuist genera
+> automáticamente un espacio de trabajo que contiene un proyecto y los proyectos
+> de sus dependencias.
+
 
 ## Paquete Swift <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 

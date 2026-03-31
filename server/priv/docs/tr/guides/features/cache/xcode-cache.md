@@ -13,12 +13,12 @@ destek sağlar.
 
 ## Kurulum {#setup}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
-- Xcode 26.0 veya üstü
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+> - Xcode 26.0 veya üstü
+
 
 Henüz bir Tuist hesabınız ve projeniz yoksa, çalıştırarak bir tane
 oluşturabilirsiniz:
@@ -61,13 +61,13 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 gösterilmedikleri için **kullanıcı tanımlı derleme ayarları** olarak eklenmesi
 gerektiğini unutmayın:
 
-::: info SOCKET PATH
-<!-- -->
-Soket yolu `tuist setup cache` adresini çalıştırdığınızda görüntülenecektir.
-Projenizin tam tanıtıcısına dayanır ve eğik çizgiler alt çizgilerle
-değiştirilir.
-<!-- -->
-:::
+> [!NOTE]
+> **Socket Path**
+>
+> Soket yolu `tuist setup cache` adresini çalıştırdığınızda görüntülenecektir.
+> Projenizin tam tanıtıcısına dayanır ve eğik çizgiler alt çizgilerle
+> değiştirilir.
+
 
 Bu ayarları `xcodebuild` adresini çalıştırırken aşağıdaki gibi bayraklar
 ekleyerek de belirtebilirsiniz:
@@ -80,27 +80,27 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-::: info GENERATED PROJECTS
-<!-- -->
-Projeniz Tuist tarafından oluşturulduysa ayarların manuel olarak yapılması
-gerekmez.
+> [!NOTE]
+> **Generated Projects**
+>
+> Projeniz Tuist tarafından oluşturulduysa ayarların manuel olarak yapılması
+> gerekmez.
+>
+> Bu durumda tek yapmanız gereken `enableCaching: true` ifadesini `Tuist.swift`
+> dosyanıza eklemektir:
+> ```swift
+> import ProjectDescription
+>
+> let tuist = Tuist(
+>     fullHandle: "your-org/your-project",
+>     project: .tuist(
+>         generationOptions: .options(
+>             enableCaching: true
+>         )
+>     )
+> )
+> ```
 
-Bu durumda tek yapmanız gereken `enableCaching: true` ifadesini `Tuist.swift`
-dosyanıza eklemektir:
-```swift
-import ProjectDescription
-
-let tuist = Tuist(
-    fullHandle: "your-org/your-project",
-    project: .tuist(
-        generationOptions: .options(
-            enableCaching: true
-        )
-    )
-)
-```
-<!-- -->
-:::
 
 ### Sürekli entegrasyon #{continuous-integration}
 

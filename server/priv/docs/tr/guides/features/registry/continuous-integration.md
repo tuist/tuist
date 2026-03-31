@@ -11,12 +11,12 @@ CI'nızda kayıt defterini kullanmak için, iş akışınızın bir parçası ol
 registry login` adresini çalıştırarak kayıt defterinde oturum açtığınızdan emin
 olmanız gerekir.
 
-::: info ONLY XCODE INTEGRATION
-<!-- -->
-Önceden kilidi açılmış yeni bir anahtar zinciri oluşturmak yalnızca paketlerin
-Xcode entegrasyonunu kullanıyorsanız gereklidir.
-<!-- -->
-:::
+> [!NOTE]
+> **Only Xcode Integration**
+>
+> Önceden kilidi açılmış yeni bir anahtar zinciri oluşturmak yalnızca paketlerin
+> Xcode entegrasyonunu kullanıyorsanız gereklidir.
+
 
 Kayıt kimlik bilgileri bir anahtar zincirinde saklandığından, anahtar zincirine
 CI ortamında erişilebildiğinden emin olmanız gerekir.

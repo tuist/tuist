@@ -31,22 +31,22 @@ GitHub 앱은 최신
 ![풀 리퀘스트 댓글을 표시하는
 이미지](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: info REQUIREMENTS
-<!-- -->
-댓글은 CI 실행이
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">인증</LocalizedLink>된
-경우에만 게시됩니다.
-<!-- -->
-:::
+> [!NOTE]
+> **Requirements**
+>
+> 댓글은 CI 실행이
+> <LocalizedLink href="/guides/integrations/continuous-integration#authentication">인증</LocalizedLink>된
+> 경우에만 게시됩니다.
 
-::: info GITHUB_REF
-<!-- -->
-PR 커밋에서 트리거되지 않는 사용자 지정 워크플로우(예: GitHub 댓글)가 있는 경우 `GITHUB_REF` 변수가
-`refs/pull/<pr_number>/merge` 또는 `refs/pull/<pr_number>/head` 로 설정되어 있는지 확인해야 할
-수 있습니다.</pr_number></pr_number>
 
-`tuist share` 와 같이 관련 명령을 실행하고 `GITHUB_REF` 환경 변수를 접두사로 붙일 수 있습니다:
-<code v-pre>GITHUB_REF="refs/pull/${{ github.event.issue.number }}/head" tuist
-share</code>
-<!-- -->
-:::
+> [!NOTE]
+> **Github_ref**
+>
+> PR 커밋에서 트리거되지 않는 사용자 지정 워크플로우(예: GitHub 댓글)가 있는 경우 `GITHUB_REF` 변수가
+> `refs/pull/<pr_number>/merge` 또는 `refs/pull/<pr_number>/head` 로 설정되어 있는지 확인해야 할
+> 수 있습니다.</pr_number></pr_number>
+>
+> `tuist share` 와 같이 관련 명령을 실행하고 `GITHUB_REF` 환경 변수를 접두사로 붙일 수 있습니다:
+> <code v-pre>GITHUB_REF="refs/pull/${{ github.event.issue.number }}/head" tuist
+> share</code>
+

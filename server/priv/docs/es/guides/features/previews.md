@@ -7,11 +7,11 @@
 ---
 # Vista previa {#previews}
 
-::: advertencia REQUISITOS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requisitos**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+
 
 Cuando creas una aplicación, es posible que quieras compartirla con otros para
 obtener comentarios. Tradicionalmente, esto es algo que los equipos hacen
@@ -23,13 +23,13 @@ opinión rápida de un colega o un amigo.
 Para agilizar este proceso, Tuist ofrece una forma de generar y compartir vistas
 previas de tus aplicaciones con cualquiera.
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
-<!-- -->
-Actualmente, cuando se crea para un dispositivo, es responsabilidad del usuario
-asegurarse de que la aplicación está firmada correctamente. Tenemos previsto
-simplificarlo en el futuro.
-<!-- -->
-:::
+> [!WARNING]
+> **Device Builds Need To Be Signed**
+>
+> Actualmente, cuando se crea para un dispositivo, es responsabilidad del usuario
+> asegurarse de que la aplicación está firmada correctamente. Tenemos previsto
+> simplificarlo en el futuro.
+
 
 ::: grupo de códigos
 ```bash [Tuist Project]
@@ -72,17 +72,17 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning UNIQUE BUILD NUMBERS IN CI
-<!-- -->
-Asegúrate de que la `CFBundleVersion` (versión de compilación) es única
-aprovechando un número de ejecución de CI que la mayoría de los proveedores de
-CI exponen. Por ejemplo, en GitHub Actions, puede establecer `CFBundleVersion`
-en la variable <code v-pre>${{ github.run_number }}</code>.
+> [!WARNING]
+> **Unique Build Numbers In Ci**
+>
+> Asegúrate de que la `CFBundleVersion` (versión de compilación) es única
+> aprovechando un número de ejecución de CI que la mayoría de los proveedores de
+> CI exponen. Por ejemplo, en GitHub Actions, puede establecer `CFBundleVersion`
+> en la variable <code v-pre>${{ github.run_number }}</code>.
+>
+> Subir una vista previa con el mismo binario (build) y el mismo `CFBundleVersion`
+> fallará.
 
-Subir una vista previa con el mismo binario (build) y el mismo `CFBundleVersion`
-fallará.
-<!-- -->
-:::
 
 ## Pistas {#tracks}
 
@@ -108,13 +108,13 @@ Esto es útil para:
 - **Filtrar**: Encuentra y gestiona fácilmente previsualizaciones por pista en
   el panel de control de Tuist.
 
-::: warning PREVIEWS' VISIBILITY
-<!-- -->
-Sólo las personas con acceso a la organización a la que pertenece el proyecto
-pueden acceder a las vistas previas. Tenemos previsto añadir soporte para
-enlaces que caducan.
-<!-- -->
-:::
+> [!WARNING]
+> **Previews' Visibility**
+>
+> Sólo las personas con acceso a la organización a la que pertenece el proyecto
+> pueden acceder a las vistas previas. Tenemos previsto añadir soporte para
+> enlaces que caducan.
+
 
 ## Aplicación Tuist para macOS {#tuist-macos-app}
 
@@ -134,11 +134,11 @@ instalar la aplicación ejecutando `brew install --cask tuist/tuist/tuist`.
 Al hacer clic en "Ejecutar" en la página de vista previa, la aplicación macOS se
 iniciará automáticamente en el dispositivo seleccionado.
 
-::: advertencia REQUISITOS
-<!-- -->
-Necesitas tener Xcode instalado localmente y estar en macOS 14 o posterior.
-<!-- -->
-:::
+> [!WARNING]
+> **Requisitos**
+>
+> Necesitas tener Xcode instalado localmente y estar en macOS 14 o posterior.
+
 
 ## Aplicación Tuist para iOS {#tuist-ios-app}
 
@@ -156,13 +156,13 @@ agilizan el acceso y la ejecución de tus previsualizaciones.
 
 ## Comentarios a las solicitudes de extracción/fusión {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-Para obtener comentarios automáticos de pull/merge request, integra tu
-<LocalizedLink href="/guides/server/accounts-and-projects">proyecto remoto</LocalizedLink> con una
-<LocalizedLink href="/guides/server/authentication">plataforma Git</LocalizedLink>.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> Para obtener comentarios automáticos de pull/merge request, integra tu
+> <LocalizedLink href="/guides/server/accounts-and-projects">proyecto remoto</LocalizedLink> con una
+> <LocalizedLink href="/guides/server/authentication">plataforma Git</LocalizedLink>.
+
 
 Probar nuevas funcionalidades debería formar parte de cualquier revisión de
 código. Pero tener que compilar una aplicación localmente añade una fricción
@@ -251,12 +251,10 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: info
-<!-- -->
-La comprobación de actualizaciones se desactiva automáticamente en los
-simuladores y en las versiones del App Store.
-<!-- -->
-:::
+> [!NOTE]
+> La comprobación de actualizaciones se desactiva automáticamente en los
+> simuladores y en las versiones del App Store.
+
 
 ## Insignia README {#readme-badge}
 

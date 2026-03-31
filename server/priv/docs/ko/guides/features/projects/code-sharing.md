@@ -17,15 +17,15 @@
 
 Tuist에서는 **project description helpers** 덕분에 Manifest들에 코드를 공유하는 것이 가능합니다.
 
-::: tip Tuist 고유 ASSET
-<!-- -->
-많은 회사들은 Project Description Helpers가 플랫폼 팀들이 자신들의 규칙을 코드화하고 자신들의 언어로 프로젝트를 설명하게
-해주는 플랫폼이라고 생각해서 Tuist를 좋아합니다. because they see in project description helpers a
-platform for platform teams to codify their own conventions and come up with
-their own language for describing their projects. 예를 들어서, YAML 기반 프로젝트 생성기는 그들만의
-YAML 기반 템플릿 솔루션을 생각해야 하거나, 그들의 빌드 도구를 사용하도록 강제 합니다.
-<!-- -->
-:::
+> [!TIP]
+> **Tuist 고유 Asset**
+>
+> 많은 회사들은 Project Description Helpers가 플랫폼 팀들이 자신들의 규칙을 코드화하고 자신들의 언어로 프로젝트를 설명하게
+> 해주는 플랫폼이라고 생각해서 Tuist를 좋아합니다. because they see in project description helpers a
+> platform for platform teams to codify their own conventions and come up with
+> their own language for describing their projects. 예를 들어서, YAML 기반 프로젝트 생성기는 그들만의
+> YAML 기반 템플릿 솔루션을 생각해야 하거나, 그들의 빌드 도구를 사용하도록 강제 합니다.
+
 
 ## 프로젝트 설명 Helper {#project-description-helpers}
 
@@ -95,8 +95,8 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip A 규칙 체결을 위한 도구
-<!-- -->
-우리가 함수를 통해서 Target 이름, Bundle Identifier, 폴더 구조에 대한 규칙을 정의하고 있는 방법에 대해 알아두세요.
-<!-- -->
-:::
+> [!TIP]
+> **A 규칙 체결을 위한 도구**
+>
+> 우리가 함수를 통해서 Target 이름, Bundle Identifier, 폴더 구조에 대한 규칙을 정의하고 있는 방법에 대해 알아두세요.
+

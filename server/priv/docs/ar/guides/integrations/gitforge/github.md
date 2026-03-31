@@ -35,23 +35,23 @@
 ![صورة تُظهر تعليق طلب
 السحب](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: info REQUIREMENTS
-<!-- -->
-لا يتم نشر التعليق إلا عندما تكون عمليات تشغيل CI الخاصة بك
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
-مصادق عليها</LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> **Requirements**
+>
+> لا يتم نشر التعليق إلا عندما تكون عمليات تشغيل CI الخاصة بك
+> <LocalizedLink href="/guides/integrations/continuous-integration#authentication">
+> مصادق عليها</LocalizedLink>.
 
-::: info GITHUB_REF
-<!-- -->
-إذا كان لديك سير عمل مخصص لا يتم تشغيله على التزام PR، ولكن على سبيل المثال،
-تعليق GitHub، فقد تحتاج إلى التأكد من تعيين المتغير `GITHUB_REF` إما إلى
-`refs/pull/<pr_number>/merge` أو
-`refs/pull/<pr_number>/head`.</pr_number></pr_number>
 
-يمكنك تشغيل الأمر ذي الصلة، مثل `tuist share` ، مع متغير البيئة `GITHUB_REF`
-المسبوق GITHUB_REF : <code v-pre>GITHUB_REF="refs/pull/${{{{
-github.event.issue.number }}}}/head" مشاركة tuist</code>
-<!-- -->
-:::
+> [!NOTE]
+> **Github_ref**
+>
+> إذا كان لديك سير عمل مخصص لا يتم تشغيله على التزام PR، ولكن على سبيل المثال،
+> تعليق GitHub، فقد تحتاج إلى التأكد من تعيين المتغير `GITHUB_REF` إما إلى
+> `refs/pull/<pr_number>/merge` أو
+> `refs/pull/<pr_number>/head`.</pr_number></pr_number>
+>
+> يمكنك تشغيل الأمر ذي الصلة، مثل `tuist share` ، مع متغير البيئة `GITHUB_REF`
+> المسبوق GITHUB_REF : <code v-pre>GITHUB_REF="refs/pull/${{{{
+> github.event.issue.number }}}}/head" مشاركة tuist</code>
+

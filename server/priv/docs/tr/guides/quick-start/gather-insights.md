@@ -45,13 +45,10 @@ let tuist = Tuist(fullHandle: "my-handle/MyApp")
 Sonuçları sunucuya bildiren testleri çalıştırmak için `tuist test` adresini
 çalıştırın.
 
-::: info
-<!-- -->
-Tuist sonuçları yerel olarak sıraya koyar ve komutu engellemeden göndermeye
-çalışır. Bu nedenle, komut bittikten hemen sonra gönderilmeyebilirler. CI'da
-sonuçlar hemen gönderilir.
-<!-- -->
-:::
+> [!NOTE]
+> Tuist sonuçları yerel olarak sıraya koyar ve komutu engellemeden göndermeye
+> çalışır. Bu nedenle, komut bittikten hemen sonra gönderilmeyebilirler. CI'da
+> sonuçlar hemen gönderilir.
 
 
 ![Sunucudaki çalıştırmaların listesini gösteren bir

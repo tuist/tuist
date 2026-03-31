@@ -59,13 +59,13 @@ Aby rozpocząć pracę nad projektem, możemy wykonać poniższe kroki:
 **Wygenerowany projekt otworzy się automatycznie**. Jeśli chcesz otworzyć go
 ponownie bez generowania, uruchom `open Tuist.xcworkspace` (lub użyj Findera).
 
-::: info XED .
-<!-- -->
-Próba otwarcia projektu za pomocą `xed .` spowoduje otwarcie pakietu, a nie
-projektu wygenerowanego przez Tuist. Zalecamy korzystanie z projektu
-wygenerowanego przez Tuist w celu przetestowania narzędzia.
-<!-- -->
-:::
+> [!NOTE]
+> **Xed .**
+>
+> Próba otwarcia projektu za pomocą `xed .` spowoduje otwarcie pakietu, a nie
+> projektu wygenerowanego przez Tuist. Zalecamy korzystanie z projektu
+> wygenerowanego przez Tuist w celu przetestowania narzędzia.
+
 
 ## Edycja projektu {#edit-the-project}
 
@@ -94,14 +94,14 @@ poniżej:
 ![Przykład ustawienia katalogu roboczego do uruchomienia
 Tuist](/images/contributors/scheme-working-directory.png)
 
-::: warning PROJECTDESCRIPTION COMPILATION
-<!-- -->
-Interfejs CLI `tuist` zależy od obecności frameworka `ProjectDescription` w
-katalogu zbudowanych produktów. Jeśli `tuist` nie uruchomi się, ponieważ nie
-może znaleźć `ProjectDescription` framework, najpierw zbuduj `Tuist-Workspace`
-scheme.
-<!-- -->
-:::
+> [!WARNING]
+> **Projectdescription Compilation**
+>
+> Interfejs CLI `tuist` zależy od obecności frameworka `ProjectDescription` w
+> katalogu zbudowanych produktów. Jeśli `tuist` nie uruchomi się, ponieważ nie
+> może znaleźć `ProjectDescription` framework, najpierw zbuduj `Tuist-Workspace`
+> scheme.
+
 
 ### Z terminala {#from-the-terminal}
 

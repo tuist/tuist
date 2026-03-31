@@ -14,11 +14,11 @@ scaffold`
 - `tuist scaffold viper --name MyFeature`.
 - 新規プロジェクトの作成:`tuist scaffold feature-project --name Home`
 
-::: info NON-OPINIONATED
-<!-- -->
-Tuistはテンプレートの内容や使用目的については一切関知しません。特定のディレクトリにあることが要求されるだけです。
-<!-- -->
-:::
+> [!NOTE]
+> **Non-opinionated**
+>
+> Tuistはテンプレートの内容や使用目的については一切関知しません。特定のディレクトリにあることが要求されるだけです。
+
 
 ## テンプレートの定義{#defining-a-template}
 
@@ -65,11 +65,9 @@ let template = Template(
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: info
-<!-- -->
-プラットフォームはオプションの引数なので、`--platform macos` 引数なしでコマンドを呼び出すこともできる。
-<!-- -->
-:::
+> [!NOTE]
+> プラットフォームはオプションの引数なので、`--platform macos` 引数なしでコマンドを呼び出すこともできる。
+
 
 `.string` や`.files` では柔軟性が足りない場合は、`.file` のケースで
 [Stencil](https://stencil.fuller.li/en/latest/)
@@ -82,8 +80,8 @@ tuist scaffold name_of_template --name Name --platform macos
 
 また、`.directory` を使えば、指定したパスにフォルダ全体をコピーすることもできる。
 
-::: tip PROJECT DESCRIPTION HELPERS
-<!-- -->
-テンプレートは<LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</LocalizedLink>の使用をサポートし、テンプレート間でコードを再利用します。
-<!-- -->
-:::
+> [!TIP]
+> **Project Description Helpers**
+>
+> テンプレートは<LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</LocalizedLink>の使用をサポートし、テンプレート間でコードを再利用します。
+

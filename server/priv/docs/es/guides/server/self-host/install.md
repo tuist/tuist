@@ -12,14 +12,14 @@ requieren un mayor control sobre su infraestructura. Esta versión te permite
 alojar Tuist en tu propia infraestructura, garantizando que tus datos
 permanezcan seguros y privados.
 
-::: aviso SE REQUIERE LICENCIA
-<!-- -->
-El autoalojamiento de Tuist requiere una licencia de pago legalmente válida. La
-versión local de Tuist sólo está disponible para organizaciones con el plan
-Enterprise. Si estás interesado en esta versión, ponte en contacto con
-[contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
+> [!WARNING]
+> **Se Requiere Licencia**
+>
+> El autoalojamiento de Tuist requiere una licencia de pago legalmente válida. La
+> versión local de Tuist sólo está disponible para organizaciones con el plan
+> Enterprise. Si estás interesado en esta versión, ponte en contacto con
+> [contact@tuist.dev](mailto:contact@tuist.dev).
+
 
 ## Liberar cadencia {#release-cadence}
 
@@ -77,16 +77,16 @@ mínimas:
 | TimescaleDB | 2.16.1         | Extensión PostgreSQL necesaria (obsoleta) |
 | ClickHouse  | 25             | Necesario para el análisis                |
 
-::: advertencia DEPRECACIÓN TIMESCALEDB
-<!-- -->
-TimescaleDB es actualmente una extensión PostgreSQL necesaria para el servidor
-Tuist, utilizada para el almacenamiento y consulta de datos de series
-temporales. Sin embargo, **TimescaleDB está obsoleto** y se eliminará como
-dependencia necesaria en un futuro próximo a medida que migremos toda la
-funcionalidad de series temporales a ClickHouse. Por ahora, asegúrese de que su
-instancia PostgreSQL tiene TimescaleDB instalado y habilitado.
-<!-- -->
-:::
+> [!WARNING]
+> **Deprecación Timescaledb**
+>
+> TimescaleDB es actualmente una extensión PostgreSQL necesaria para el servidor
+> Tuist, utilizada para el almacenamiento y consulta de datos de series
+> temporales. Sin embargo, **TimescaleDB está obsoleto** y se eliminará como
+> dependencia necesaria en un futuro próximo a medida que migremos toda la
+> funcionalidad de series temporales a ClickHouse. Por ahora, asegúrese de que su
+> instancia PostgreSQL tiene TimescaleDB instalado y habilitado.
+
 
 ### Ejecutar imágenes virtualizadas con Docker {#running-dockervirtualized-images}
 
@@ -115,14 +115,14 @@ temporales. Esta extensión se utiliza para eventos de comandos, análisis y otr
 funciones basadas en el tiempo. Asegúrate de que tu instancia PostgreSQL tiene
 TimescaleDB instalado y habilitado antes de ejecutar Tuist.
 
-::: info MIGRACIONES
-<!-- -->
-El punto de entrada de la imagen Docker ejecuta automáticamente cualquier
-migración de esquema pendiente antes de iniciar el servicio. Si las migraciones
-fallan debido a que falta una extensión de TimescaleDB, tendrás que instalarla
-primero en tu base de datos.
-<!-- -->
-:::
+> [!NOTE]
+> **Migraciones**
+>
+> El punto de entrada de la imagen Docker ejecuta automáticamente cualquier
+> migración de esquema pendiente antes de iniciar el servicio. Si las migraciones
+> fallan debido a que falta una extensión de TimescaleDB, tendrás que instalarla
+> primero en tu base de datos.
+
 
 ### Base de datos ClickHouse {#clickhouse-database}
 
@@ -132,12 +132,12 @@ funciones como build insights y será la principal base de datos de series
 temporales a medida que vayamos eliminando TimescaleDB. Puedes elegir entre
 alojar ClickHouse tú mismo o utilizar su servicio alojado.
 
-::: info MIGRACIONES
-<!-- -->
-El punto de entrada de la imagen Docker ejecuta automáticamente cualquier
-migración de esquema ClickHouse pendiente antes de iniciar el servicio.
-<!-- -->
-:::
+> [!NOTE]
+> **Migraciones**
+>
+> El punto de entrada de la imagen Docker ejecuta automáticamente cualquier
+> migración de esquema ClickHouse pendiente antes de iniciar el servicio.
+
 
 ### Almacenamiento {#storage}
 
@@ -153,12 +153,12 @@ aconsejamos encriptarlas y almacenarlas en soluciones seguras de gestión de
 contraseñas. Ten por seguro que Tuist maneja estas variables con sumo cuidado,
 asegurándose de que nunca se muestren en los registros.
 
-::: info COMPROBACIONES DE LANZAMIENTO
-<!-- -->
-Las variables necesarias se verifican al inicio. Si falta alguna, el lanzamiento
-fallará y el mensaje de error detallará las variables ausentes.
-<!-- -->
-:::
+> [!NOTE]
+> **Comprobaciones De Lanzamiento**
+>
+> Las variables necesarias se verifican al inicio. Si falta alguna, el lanzamiento
+> fallará y el mensaje de error detallará las variables ausentes.
+
 
 ### Configuración de la licencia {#license-configuration}
 
@@ -174,14 +174,14 @@ que el servicio se ejecuta dentro de los términos del acuerdo.
 \* Se debe proporcionar `TUIST_LICENSE` o `TUIST_LICENSE_CERTIFICATE_BASE64`,
 pero no ambos. Utilice `TUIST_LICENSE` para implementaciones estándar.
 
-::: advertencia FECHA DE CADUCIDAD
-<!-- -->
-Las licencias tienen fecha de caducidad. Los usuarios recibirán un aviso al
-utilizar los comandos de Tuist que interactúan con el servidor si la licencia
-caduca en menos de 30 días. Si estás interesado en renovar tu licencia, ponte en
-contacto con [contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
+> [!WARNING]
+> **Fecha De Caducidad**
+>
+> Las licencias tienen fecha de caducidad. Los usuarios recibirán un aviso al
+> utilizar los comandos de Tuist que interactúan con el servidor si la licencia
+> caduca en menos de 30 días. Si estás interesado en renovar tu licencia, ponte en
+> contacto con [contact@tuist.dev](mailto:contact@tuist.dev).
+
 
 ### Configuración del entorno base {#base-environment-configuration}
 
@@ -272,13 +272,13 @@ ejecuta tu servicio alojado. Una vez creada la aplicación, copia el ID y el
 secreto del cliente y establécelos como variables de entorno `GOOGLE_CLIENT_ID`
 y `GOOGLE_CLIENT_SECRET` respectivamente.
 
-::: info ESCUADRAS DE CONSENTIMIENTO
-<!-- -->
-Puede que necesites crear una pantalla de consentimiento. Cuando lo hagas,
-asegúrate de añadir los ámbitos `userinfo.email` y `openid` y marca la
-aplicación como interna.
-<!-- -->
-:::
+> [!NOTE]
+> **Escuadras De Consentimiento**
+>
+> Puede que necesites crear una pantalla de consentimiento. Cuando lo hagas,
+> asegúrate de añadir los ámbitos `userinfo.email` y `openid` y marca la
+> aplicación como interna.
+
 
 #### Okta {#okta}
 
@@ -327,14 +327,14 @@ autenticar y configurar la integración con el proveedor de almacenamiento:
 | `TUIST_S3_PROTOCOLO`                                   | El protocolo a utilizar cuando se conecta al proveedor de almacenamiento (`http1` o `http2`)                                                                                    | No        | `http1`                             | `http1`                                                       |
 | `TUIST_S3_VIRTUAL_HOST`                                | Si la URL debe construirse con el nombre del cubo como subdominio (host virtual).                                                                                               | No        | `falso`                             | `1`                                                           |
 
-::: info autenticación AWS con Web Identity Token desde variables de entorno
-<!-- -->
-Si tu proveedor de almacenamiento es AWS y quieres autenticarte usando un token
-de identidad web, puedes establecer la variable de entorno
-`TUIST_S3_AUTHENTICATION_METHOD` a `aws_web_identity_token_from_env_vars`, y
-Tuist usará ese método usando las variables de entorno convencionales de AWS.
-<!-- -->
-:::
+> [!NOTE]
+> **Autenticación Aws Con Web Identity Token Desde Variables De Entorno**
+>
+> Si tu proveedor de almacenamiento es AWS y quieres autenticarte usando un token
+> de identidad web, puedes establecer la variable de entorno
+> `TUIST_S3_AUTHENTICATION_METHOD` a `aws_web_identity_token_from_env_vars`, y
+> Tuist usará ese método usando las variables de entorno convencionales de AWS.
+
 
 #### Almacenamiento en la nube de Google {#google-cloud-storage}
 Para Google Cloud Storage, siga [estos
@@ -363,25 +363,25 @@ como proveedor de correo electrónico.
 desea enviar correos electrónicos. Si no se configuran, la confirmación por
 correo electrónico se omite automáticamente
 
-::: info SOPORTE SMTP
-<!-- -->
-El soporte SMTP genérico no está disponible actualmente. Si necesita soporte
-SMTP para su implantación local, póngase en contacto con
-[contact@tuist.dev](mailto:contact@tuist.dev) para hablar de sus necesidades.
-<!-- -->
-:::
+> [!NOTE]
+> **Soporte Smtp**
+>
+> El soporte SMTP genérico no está disponible actualmente. Si necesita soporte
+> SMTP para su implantación local, póngase en contacto con
+> [contact@tuist.dev](mailto:contact@tuist.dev) para hablar de sus necesidades.
 
-::: info DESPLAZAMIENTOS AÉREOS
-<!-- -->
-En las instalaciones locales sin acceso a Internet ni configuración del
-proveedor de correo electrónico, la confirmación por correo electrónico se omite
-automáticamente por defecto. Los usuarios pueden iniciar sesión inmediatamente
-después de registrarse. Si tiene configurado el correo electrónico pero desea
-omitir la confirmación, configure `TUIST_SKIP_EMAIL_CONFIRMATION=true`. Para
-requerir confirmación por email cuando el email está configurado, establece
-`TUIST_SKIP_EMAIL_CONFIRMATION=false`.
-<!-- -->
-:::
+
+> [!NOTE]
+> **Desplazamientos Aéreos**
+>
+> En las instalaciones locales sin acceso a Internet ni configuración del
+> proveedor de correo electrónico, la confirmación por correo electrónico se omite
+> automáticamente por defecto. Los usuarios pueden iniciar sesión inmediatamente
+> después de registrarse. Si tiene configurado el correo electrónico pero desea
+> omitir la confirmación, configure `TUIST_SKIP_EMAIL_CONFIRMATION=true`. Para
+> requerir confirmación por email cuando el email está configurado, establece
+> `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
+
 
 ### Configuración de la plataforma Git {#git-platform-configuration}
 
@@ -417,14 +417,14 @@ antes de desplegarlo en su infraestructura:
 - Redis para el almacenamiento persistente de KV entre despliegues (opcional)
 - pgweb para la administración de bases de datos
 
-::: peligro se requiere licencia
-<!-- -->
-Una variable de entorno `TUIST_LICENSE` válida es legalmente necesaria para
-ejecutar el servidor Tuist, incluyendo las instancias de desarrollo local. Si
-necesitas una licencia, ponte en contacto con
-[contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
+> [!CAUTION]
+> **Se Requiere Licencia**
+>
+> Una variable de entorno `TUIST_LICENSE` válida es legalmente necesaria para
+> ejecutar el servidor Tuist, incluyendo las instancias de desarrollo local. Si
+> necesitas una licencia, ponte en contacto con
+> [contact@tuist.dev](mailto:contact@tuist.dev).
+
 
 **Inicio rápido:**
 
@@ -522,13 +522,11 @@ la mayoría de las soluciones y herramientas en la nube, como
 fundamentales, los ejemplos de esta sección deberían ajustarse bien a su
 configuración actual.
 
-::: advertencia
-<!-- -->
-Si su proceso de despliegue necesita validar que el servidor está en
-funcionamiento, puede enviar una solicitud HTTP `GET` a `/ready` y confirmar un
-código de estado `200` en la respuesta.
-<!-- -->
-:::
+> [!WARNING]
+> Si su proceso de despliegue necesita validar que el servidor está en
+> funcionamiento, puede enviar una solicitud HTTP `GET` a `/ready` y confirmar un
+> código de estado `200` en la respuesta.
+
 
 #### Fly {#fly}
 
@@ -668,12 +666,12 @@ Además de las métricas de Finch, Tuist expone métricas para:
 Tuist proporciona un conjunto de utilidades en `/ops/` que puedes utilizar para
 gestionar tu instancia.
 
-::: advertencia Autorización
-<!-- -->
-Sólo las personas cuyos handles aparecen en la lista de la variable de entorno
-`TUIST_OPS_USER_HANDLES` pueden acceder a los endpoints `/ops/`.
-<!-- -->
-:::
+> [!WARNING]
+> **Autorización**
+>
+> Sólo las personas cuyos handles aparecen en la lista de la variable de entorno
+> `TUIST_OPS_USER_HANDLES` pueden acceder a los endpoints `/ops/`.
+
 
 - **Errores (`/ops/errors`):** Puedes ver errores inesperados que ocurrieron en
   la aplicación. Esto es útil para depurar y entender lo que salió mal y

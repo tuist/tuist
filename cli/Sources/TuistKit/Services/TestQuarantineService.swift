@@ -5,6 +5,7 @@ import TuistCore
 import TuistLogging
 import TuistServer
 import TuistXCResultService
+import XCResultParser
 
 @Mockable
 protocol TestQuarantineServicing {

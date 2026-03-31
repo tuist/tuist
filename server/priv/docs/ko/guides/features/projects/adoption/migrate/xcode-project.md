@@ -72,12 +72,12 @@ let package = Package(
 `Project.swift`는 프로젝트를 정의하는 매니페스트 파일이며 `Package.swift`는 의존성을 정의하는 매니페스트 파일입니다.
 `Tuist.swift`는 프로젝트 범위에서 Tuist 설정을 정의할 수 있는 파일입니다.
 
-::: tip 프로젝트 이름에 접미사 TUIST
-<!-- -->
-기존 Xcode 프로젝트에서 충돌을 방지하기 위해 프로젝트 이름 뒤에 `-Tuist` 접미사를 붙이길 권장합니다. 프로젝트를 Tuist로 완전히
-마이그레이션한 후에 이를 제거할 수 있습니다.
-<!-- -->
-:::
+> [!TIP]
+> **프로젝트 이름에 접미사 Tuist**
+>
+> 기존 Xcode 프로젝트에서 충돌을 방지하기 위해 프로젝트 이름 뒤에 `-Tuist` 접미사를 붙이길 권장합니다. 프로젝트를 Tuist로 완전히
+> 마이그레이션한 후에 이를 제거할 수 있습니다.
+
 
 ## CI에서 Tuist 프로젝트 빌드와 테스트 {#build-and-test-the-tuist-project-in-ci}
 
@@ -154,12 +154,11 @@ let package = Package(
 )
 ```
 
-::: tip PRODUCT TYPES
-<!-- -->
-특정 패키지의 타입을 재정의하려면 `PackageSettings` 구조체의 `productTypes` 딕셔너리에 해당 패키지를 추가합니다.
-기본적으로 Tuist는 모든 패키지가 정적 프레임워크라고 가정합니다.
-<!-- -->
-:::
+> [!TIP]
+> **Product Types**
+>
+> 특정 패키지의 타입을 재정의하려면 `PackageSettings` 구조체의 `productTypes` 딕셔너리에 해당 패키지를 추가합니다.
+> 기본적으로 Tuist는 모든 패키지가 정적 프레임워크라고 가정합니다.
 
 
 ## 마이그레이션 순서 결정 {#determine-the-migration-order}
@@ -221,11 +220,11 @@ let project = Project(
 )
 ```
 
-::: info TEST TARGETS
-<!-- -->
-타겟의 테스트 타겟을 가지고 있다면 동일하게 `Project.swift` 파일에 정의합니다.
-<!-- -->
-:::
+> [!NOTE]
+> **Test Targets**
+>
+> 타겟의 테스트 타겟을 가지고 있다면 동일하게 `Project.swift` 파일에 정의합니다.
+
 
 ### 타겟 마이그레이션 검증 {#validate-the-target-migration}
 

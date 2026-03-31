@@ -20,14 +20,14 @@ generowania projektów Xcode, a nie menedżer projektów. Jeśli potrzebujesz
 narzędzia, które pomoże Ci poza generowaniem projektów Xcode, możesz rozważyć
 Tuist.
 
-::: tip SWIFT OVER YAML
-<!-- -->
-Wiele organizacji preferuje Tuist jako narzędzie do generowania projektów,
-ponieważ wykorzystuje on Swift jako format konfiguracji. Swift to język
-programowania, z którym programiści są zaznajomieni i który zapewnia im wygodę
-korzystania z funkcji autouzupełniania, sprawdzania typów i walidacji Xcode.
-<!-- -->
-:::
+> [!TIP]
+> **Swift Over Yaml**
+>
+> Wiele organizacji preferuje Tuist jako narzędzie do generowania projektów,
+> ponieważ wykorzystuje on Swift jako format konfiguracji. Swift to język
+> programowania, z którym programiści są zaznajomieni i który zapewnia im wygodę
+> korzystania z funkcji autouzupełniania, sprawdzania typów i walidacji Xcode.
+
 
 Poniżej znajduje się kilka uwag i wskazówek, które pomogą w migracji projektów z
 XcodeGen do Tuist.
@@ -79,13 +79,13 @@ projekty.
 <!-- -->
 :::
 
-::: tip XCODE'S LANGUAGE
-<!-- -->
-Zarówno XcodeGen, jak i Tuist wykorzystują język i koncepcje Xcode. Jednak
-konfiguracja Tuist oparta na języku Swift zapewnia wygodę korzystania z funkcji
-autouzupełniania, sprawdzania typu i walidacji Xcode.
-<!-- -->
-:::
+> [!TIP]
+> **Xcode's Language**
+>
+> Zarówno XcodeGen, jak i Tuist wykorzystują język i koncepcje Xcode. Jednak
+> konfiguracja Tuist oparta na języku Swift zapewnia wygodę korzystania z funkcji
+> autouzupełniania, sprawdzania typu i walidacji Xcode.
+
 
 ## Szablony specyfikacji {#spec-templates}
 

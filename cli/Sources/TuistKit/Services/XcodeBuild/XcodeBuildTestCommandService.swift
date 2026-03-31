@@ -16,6 +16,7 @@ import TuistSupport
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
 import TuistXCResultService
+import XCResultParser
 
 struct XcodeBuildTestCommandService {
     private let fileSystem: FileSysteming

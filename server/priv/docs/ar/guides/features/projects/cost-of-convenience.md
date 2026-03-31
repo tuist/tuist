@@ -33,12 +33,14 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 تصميم صالح لتحقيق الراحة، وهو مبدأ ورثه مدير حزم Swift، فإن صعوبات استخدام Xcode
 موجودة أيضًا في مدير حزم Swift.
 
-::: info THE ROLE OF TUIST
-يمكن أن نلخص دور تويست كأداة تمنع المشاريع المحددة ضمنيًا وتستفيد من الصراحة
-لتوفير تجربة أفضل للمطورين (مثل عمليات التحقق من الصحة والتحسينات). أدوات مثل
-[Bazel] (https://bazel.build) تأخذها إلى أبعد من ذلك من خلال نقلها إلى مستوى
-نظام البناء.
-:::
+> [!NOTE]
+> **The Role Of Tuist**
+>
+> يمكن أن نلخص دور تويست كأداة تمنع المشاريع المحددة ضمنيًا وتستفيد من الصراحة
+> لتوفير تجربة أفضل للمطورين (مثل عمليات التحقق من الصحة والتحسينات). أدوات مثل
+> [Bazel] (https://bazel.build) تأخذها إلى أبعد من ذلك من خلال نقلها إلى مستوى
+> نظام البناء.
+
 
 هذه مشكلة بالكاد نوقشت في المجتمع، لكنها مشكلة كبيرة. أثناء عملنا على تويست،
 لاحظنا أن العديد من المؤسسات والمطورين يعتقدون أن التحديات الحالية التي
@@ -66,9 +68,11 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 تتمثل نتيجة قرار التصميم هذا في أن العديد من المشاريع يتم تجميعها بشكل عرضي برسم
 بياني غير محدد بشكل جيد.
 
-::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
-يوفر تويست أمرًا <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">أمرًا</LocalizedLink> للكشف عن التبعيات الضمنية. يمكنك استخدام هذا الأمر للتحقق في CI من أن جميع التبعيات صريحة في CI.
-:::
+> [!TIP]
+> **Tuist Detection Of Implicit Dependencies**
+>
+> يوفر تويست أمرًا <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">أمرًا</LocalizedLink> للكشف عن التبعيات الضمنية. يمكنك استخدام هذا الأمر للتحقق في CI من أن جميع التبعيات صريحة في CI.
+
 
 ### البحث عن التبعيات الضمنية في المخططات {#find-implicit-dependencies-in-schemes}
 
@@ -86,10 +90,10 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 (https://en.wikipedia.org/wiki/Singleton_pattern)، ولكن قد تفشل بعد ذلك في
 التحويل البرمجي على CI لأن الحالة مختلفة.
 
-::: tip
-نوصي بتعطيل ذلك في مخططات مشروعك، واستخدام مثل Tuist الذي يسهل إدارة الرسم
-البياني للتبعية.
-:::
+> [!TIP]
+> نوصي بتعطيل ذلك في مخططات مشروعك، واستخدام مثل Tuist الذي يسهل إدارة الرسم
+> البياني للتبعية.
+
 
 ### معاينات SwiftUI والمكتبات/الأطر الثابتة {#swiftui-previews-and-static-librariesframeworks}
 

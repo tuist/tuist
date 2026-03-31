@@ -13,12 +13,12 @@ buforowania systemu kompilacji.
 
 ## Konfiguracja {#setup}
 
-::: ostrzeżenie WYMAGANIA
-<!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
-- Xcode 26.0 lub nowszy
-<!-- -->
-:::
+> [!WARNING]
+> **Wymagania**
+>
+> - Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+> - Xcode 26.0 lub nowszy
+
 
 Jeśli nie masz jeszcze konta i projektu Tuist, możesz je utworzyć, uruchamiając
 aplikację:
@@ -60,12 +60,12 @@ Należy pamiętać, że `COMPILATION_CACHE_REMOTE_SERVICE_PATH` i
 użytkownika ustawienia kompilacji**, ponieważ nie są one bezpośrednio dostępne w
 interfejsie ustawień kompilacji Xcode:
 
-::: info SOCKET PATH
-<!-- -->
-Ścieżka gniazda zostanie wyświetlona po uruchomieniu `tuist setup cache`. Jest
-ona oparta na pełnej nazwie projektu z ukośnikami zastąpionymi podkreślnikami.
-<!-- -->
-:::
+> [!NOTE]
+> **Socket Path**
+>
+> Ścieżka gniazda zostanie wyświetlona po uruchomieniu `tuist setup cache`. Jest
+> ona oparta na pełnej nazwie projektu z ukośnikami zastąpionymi podkreślnikami.
+
 
 Ustawienia te można również określić podczas uruchamiania `xcodebuild`, dodając
 następujące flagi, takie jak
@@ -78,26 +78,26 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-::: info GENERATED PROJECTS
-<!-- -->
-Ręczne konfigurowanie ustawień nie jest konieczne, jeśli projekt został
-wygenerowany przez Tuist.
+> [!NOTE]
+> **Generated Projects**
+>
+> Ręczne konfigurowanie ustawień nie jest konieczne, jeśli projekt został
+> wygenerowany przez Tuist.
+>
+> W takim przypadku wystarczy dodać `enableCaching: true` do pliku `Tuist.swift`:
+> ```swift
+> import ProjectDescription
+>
+> let tuist = Tuist(
+>     fullHandle: "your-org/your-project",
+>     project: .tuist(
+>         generationOptions: .options(
+>             enableCaching: true
+>         )
+>     )
+> )
+> ```
 
-W takim przypadku wystarczy dodać `enableCaching: true` do pliku `Tuist.swift`:
-```swift
-import ProjectDescription
-
-let tuist = Tuist(
-    fullHandle: "your-org/your-project",
-    project: .tuist(
-        generationOptions: .options(
-            enableCaching: true
-        )
-    )
-)
-```
-<!-- -->
-:::
 
 ### Ciągła integracja #{ciągła-integracja}
 

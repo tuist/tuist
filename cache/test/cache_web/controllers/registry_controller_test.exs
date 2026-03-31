@@ -196,6 +196,17 @@ defmodule CacheWeb.RegistryControllerTest do
       response = json_response(conn, :service_unavailable)
       assert response["message"] == "Registry is temporarily unavailable. Please try again later."
     end
+
+    test "returns 400 when normalized path params are invalid", %{conn: conn} do
+      conn =
+        conn
+        |> registry_json_conn()
+        |> get("/api/registry/swift/%2E%2E/swift-argument-parser")
+
+      assert conn.status == 400
+      response = json_response(conn, :bad_request)
+      assert response["message"] == "Invalid path parameters."
+    end
   end
 
   describe "GET /api/registry/swift/:scope/:name/:version (show_release)" do
@@ -422,6 +433,17 @@ defmodule CacheWeb.RegistryControllerTest do
   end
 
   describe "GET /api/registry/swift/:scope/:name/:version/Package.swift (show_manifest)" do
+    test "returns 400 when normalized version is invalid", %{conn: conn} do
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> get("/api/registry/swift/apple/swift-argument-parser/%2E%2E/Package.swift")
+
+      assert conn.status == 400
+      response = json_response(conn, :bad_request)
+      assert response["message"] == "Invalid path parameters."
+    end
+
     test "serves manifest from disk when file exists", %{conn: conn} do
       scope = "apple"
       name = "swift-argument-parser"

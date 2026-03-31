@@ -23,15 +23,15 @@ kullanabilmek aşağıdaki nedenlerden dolayı yararlıdır:
 Tuist'te **proje açıklama yardımcıları** kavramı sayesinde manifesto dosyaları
 arasında kodun yeniden kullanılması mümkündür.
 
-::: tip A TUIST UNIQUE ASSET
-<!-- -->
-Birçok kuruluş Tuist'i seviyor çünkü proje tanımlama yardımcılarında, platform
-ekiplerinin kendi kurallarını kodlamaları ve projelerini tanımlamak için kendi
-dillerini bulmaları için bir platform görüyorlar. Örneğin, YAML tabanlı proje
-oluşturucuların kendi YAML tabanlı özel şablonlama çözümlerini bulmaları ya da
-kuruluşları araçlarını bunun üzerine inşa etmeye zorlamaları gerekiyor.
-<!-- -->
-:::
+> [!TIP]
+> **A Tuist Unique Asset**
+>
+> Birçok kuruluş Tuist'i seviyor çünkü proje tanımlama yardımcılarında, platform
+> ekiplerinin kendi kurallarını kodlamaları ve projelerini tanımlamak için kendi
+> dillerini bulmaları için bir platform görüyorlar. Örneğin, YAML tabanlı proje
+> oluşturucuların kendi YAML tabanlı özel şablonlama çözümlerini bulmaları ya da
+> kuruluşları araçlarını bunun üzerine inşa etmeye zorlamaları gerekiyor.
+
 
 ## Proje açıklama yardımcıları {#project-description-helpers}
 
@@ -104,9 +104,9 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip A TOOL TO ESTABLISH CONVENTIONS
-<!-- -->
-İşlev aracılığıyla hedeflerin adı, paket tanımlayıcısı ve klasör yapısı hakkında
-nasıl kurallar tanımladığımıza dikkat edin.
-<!-- -->
-:::
+> [!TIP]
+> **A Tool To Establish Conventions**
+>
+> İşlev aracılığıyla hedeflerin adı, paket tanımlayıcısı ve klasör yapısı hakkında
+> nasıl kurallar tanımladığımıza dikkat edin.
+

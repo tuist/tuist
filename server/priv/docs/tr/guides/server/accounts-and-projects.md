@@ -26,13 +26,13 @@ GitHub](https://github.com)'a aşinaysanız, konsept onlarınkine benzer; kişis
 ve kurumsal hesaplarınız olabilir ve bunlar URL'ler oluşturulurken kullanılan
 bir *tanıtıcısı* ile tanımlanır.
 
-::: info CLI-FIRST
-<!-- -->
-Hesapları ve projeleri yönetmek için çoğu işlem CLI aracılığıyla yapılır.
-Hesapları ve projeleri yönetmeyi kolaylaştıracak bir web arayüzü üzerinde
-çalışıyoruz.
-<!-- -->
-:::
+> [!NOTE]
+> **Cli-first**
+>
+> Hesapları ve projeleri yönetmek için çoğu işlem CLI aracılığıyla yapılır.
+> Hesapları ve projeleri yönetmeyi kolaylaştıracak bir web arayüzü üzerinde
+> çalışıyoruz.
+
 
 Organizasyonu <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> altındaki alt komutlar aracılığıyla
 yönetebilirsiniz. Yeni bir organizasyon hesabı oluşturmak için çalıştırın:
@@ -62,14 +62,14 @@ ekleyin:
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: warning TUIST PROJECT-ONLY FEATURES
-<!-- -->
-Tuist projesine sahip olmanızı gerektiren
-<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> gibi
-bazı özellikler olduğunu unutmayın. Ham Xcode projeleri kullanıyorsanız, bu
-özellikleri kullanamazsınız.
-<!-- -->
-:::
+> [!WARNING]
+> **Tuist Project-only Features**
+>
+> Tuist projesine sahip olmanızı gerektiren
+> <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> gibi
+> bazı özellikler olduğunu unutmayın. Ham Xcode projeleri kullanıyorsanız, bu
+> özellikleri kullanamazsınız.
+
 
 Projenizin URL'si tam tanıtıcı kullanılarak oluşturulur. Örneğin, Tuist'in
 herkese açık olan kontrol paneline

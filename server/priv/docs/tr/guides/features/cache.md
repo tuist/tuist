@@ -41,15 +41,15 @@ iki önbellekleme çözümünü de birleştirebilirsiniz.
 
 ## Xcode önbelleği {#xcode-cache}
 
-::: warning STATE OF CACHE IN XCODE
-<!-- -->
-Xcode önbelleği şu anda yerel artımlı derlemeler için optimize edilmiştir ve
-derleme görevlerinin tamamı henüz yoldan bağımsız değildir. Yine de Tuist'in
-uzak önbelleğini takarak avantajlar elde edebilirsiniz ve derleme sisteminin
-kapasitesi gelişmeye devam ettikçe derleme sürelerinin de zaman içinde
-iyileşmesini bekliyoruz.
-<!-- -->
-:::
+> [!WARNING]
+> **State Of Cache In Xcode**
+>
+> Xcode önbelleği şu anda yerel artımlı derlemeler için optimize edilmiştir ve
+> derleme görevlerinin tamamı henüz yoldan bağımsız değildir. Yine de Tuist'in
+> uzak önbelleğini takarak avantajlar elde edebilirsiniz ve derleme sisteminin
+> kapasitesi gelişmeye devam ettikçe derleme sürelerinin de zaman içinde
+> iyileşmesini bekliyoruz.
+
 
 Apple, Bazel ve Buck gibi diğer derleme sistemlerine benzer şekilde derleme
 düzeyinde yeni bir önbellekleme çözümü üzerinde çalışıyor. Yeni önbellekleme

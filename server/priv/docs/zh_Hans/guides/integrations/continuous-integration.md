@@ -113,20 +113,18 @@ jobs:
 <!-- -->
 :::
 
-::: info OIDC SETUP
-<!-- -->
-在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。要使用 OIDC，需要`permissions: id-token:
-write` 。或者，你也可以使用带有`TUIST_TOKEN` secret 的
-<LocalizedLink href="/guides/server/authentication#project-tokens">项目令牌</LocalizedLink>。
-<!-- -->
-:::
+> [!NOTE]
+> **Oidc Setup**
+>
+> 在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。要使用 OIDC，需要`permissions: id-token:
+> write` 。或者，你也可以使用带有`TUIST_TOKEN` secret 的
+> <LocalizedLink href="/guides/server/authentication#project-tokens">项目令牌</LocalizedLink>。
 
-::: tip
-<!-- -->
-我们建议在 Tuist 项目中使用`mise use --pin` 来固定跨环境的 Tuist 版本。该命令将创建一个`.tool-versions`
-文件，其中包含 Tuist 的版本。
-<!-- -->
-:::
+
+> [!TIP]
+> 我们建议在 Tuist 项目中使用`mise use --pin` 来固定跨环境的 Tuist 版本。该命令将创建一个`.tool-versions`
+> 文件，其中包含 Tuist 的版本。
+
 
 ### Xcode 云{#xcode-cloud}
 
@@ -159,12 +157,12 @@ tuist generate
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-通过在 Xcode Cloud 工作流设置中设置`TUIST_TOKEN` 环境变量，使用
-<LocalizedLink href="/guides/server/authentication#project-tokens"> 项目令牌</LocalizedLink>。
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> 通过在 Xcode Cloud 工作流设置中设置`TUIST_TOKEN` 环境变量，使用
+> <LocalizedLink href="/guides/server/authentication#project-tokens"> 项目令牌</LocalizedLink>。
+
 
 ### CircleCI{#circleci}
 
@@ -220,13 +218,13 @@ jobs:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。CircleCI OIDC 令牌包含已连接的 GitHub 仓库，Tuist
-会使用它来授权对项目的访问。或者，你也可以使用`TUIST_TOKEN` 环境变量来获取
-<LocalizedLink href="/guides/server/authentication#project-tokens">项目令牌</LocalizedLink>。
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> 在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。CircleCI OIDC 令牌包含已连接的 GitHub 仓库，Tuist
+> 会使用它来授权对项目的访问。或者，你也可以使用`TUIST_TOKEN` 环境变量来获取
+> <LocalizedLink href="/guides/server/authentication#project-tokens">项目令牌</LocalizedLink>。
+
 
 ### Bitrise{#bitrise}
 
@@ -284,13 +282,13 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。Bitrise OIDC 令牌包含已连接的 GitHub 仓库，Tuist
-会使用它来授权对项目的访问。或者，你也可以使用`TUIST_TOKEN` 环境变量来获取
-<LocalizedLink href="/guides/server/authentication#project-tokens">项目令牌</LocalizedLink>。
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> 在使用 OIDC 身份验证之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 将 GitHub 仓库</LocalizedLink>连接到 Tuist 项目。Bitrise OIDC 令牌包含已连接的 GitHub 仓库，Tuist
+> 会使用它来授权对项目的访问。或者，你也可以使用`TUIST_TOKEN` 环境变量来获取
+> <LocalizedLink href="/guides/server/authentication#project-tokens">项目令牌</LocalizedLink>。
+
 
 ### Codemagic{#codemagic}
 
@@ -333,8 +331,8 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-创建 <LocalizedLink href="/guides/server/authentication#project-tokens"> 项目令牌</LocalizedLink>，并将其添加为秘密环境变量，命名为`TUIST_TOKEN` 。
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> 创建 <LocalizedLink href="/guides/server/authentication#project-tokens"> 项目令牌</LocalizedLink>，并将其添加为秘密环境变量，命名为`TUIST_TOKEN` 。
+

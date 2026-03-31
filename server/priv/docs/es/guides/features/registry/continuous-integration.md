@@ -10,12 +10,12 @@
 Para utilizar el registro en su CI, debe asegurarse de que ha iniciado sesión en
 el registro ejecutando `tuist registry login` como parte de su flujo de trabajo.
 
-::: info ONLY XCODE INTEGRATION
-<!-- -->
-La creación de un nuevo llavero predesbloqueado sólo es necesaria si se utiliza
-la integración de paquetes en Xcode.
-<!-- -->
-:::
+> [!NOTE]
+> **Only Xcode Integration**
+>
+> La creación de un nuevo llavero predesbloqueado sólo es necesaria si se utiliza
+> la integración de paquetes en Xcode.
+
 
 Dado que las credenciales de registro se almacenan en un llavero, es necesario
 asegurarse de que el llavero se puede acceder en el entorno de CI. Tenga en

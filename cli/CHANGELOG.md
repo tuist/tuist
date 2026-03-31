@@ -1,16 +1,30 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.171.4<!-- RELEASE NOTES START -->
+## What's Changed in 4.172.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add remote processing mode for tuist inspect test by [@fortmarek](https://github.com/fortmarek) in [#10094](https://github.com/tuist/tuist/pull/10094)
+### 🐛 Bug Fixes
+
+* focus to scope to scheme test targets by [@fortmarek](https://github.com/fortmarek) in [#10131](https://github.com/tuist/tuist/pull/10131)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.5...4.172.0
+
+## What's Changed in 4.171.5<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* fix xctestproducts lookup after AppleArchive extraction by [@fortmarek](https://github.com/fortmarek) in [#10126](https://github.com/tuist/tuist/pull/10126)
 * resolve incorrect storeKitConfigurationPath and GPX paths in generated xcschemes by [@fortmarek](https://github.com/fortmarek) in [#10122](https://github.com/tuist/tuist/pull/10122)
 * embed App Intents metadata in cached xcframeworks by [@fortmarek](https://github.com/fortmarek) in [#10120](https://github.com/tuist/tuist/pull/10120)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.3...4.171.4
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.3...4.171.5
 
 ## What's Changed in 4.171.3<!-- RELEASE NOTES START -->
 

@@ -236,6 +236,7 @@ defmodule Tuist.Tests do
   defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
 
   def create_test(attrs) do
+    attrs = normalize_string_keys(attrs)
     shard_plan_id = Map.get(attrs, :shard_plan_id)
 
     if is_nil(shard_plan_id) do
@@ -244,6 +245,18 @@ defmodule Tuist.Tests do
       create_or_update_sharded_test(attrs)
     end
   end
+
+  defp normalize_string_keys(%_{} = struct), do: struct
+
+  defp normalize_string_keys(map) when is_map(map) do
+    Map.new(map, fn
+      {k, v} when is_binary(k) -> {String.to_existing_atom(k), normalize_string_keys(v)}
+      {k, v} -> {k, normalize_string_keys(v)}
+    end)
+  end
+
+  defp normalize_string_keys(list) when is_list(list), do: Enum.map(list, &normalize_string_keys/1)
+  defp normalize_string_keys(value), do: value
 
   defp create_new_test(attrs, shard_index \\ nil, shard_plan \\ nil) do
     test_modules = Map.get(attrs, :test_modules, [])

@@ -20,24 +20,34 @@ MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</Loc
 
 Add `https://tuist.dev/mcp` as a remote MCP server in your client. Authentication happens through OAuth automatically. The MCP endpoint uses the `mcp` scope group, which grants read-only access to all your projects. See the <LocalizedLink href="/guides/server/authentication#scope-groups">scope groups documentation</LocalizedLink> for details.
 
-::: details Claude Code
+<details>
+<summary>Claude Code</summary>
+
 Run:
 
 ```bash
 claude mcp add --transport http tuist https://tuist.dev/mcp
 ```
-:::
 
-::: details Claude Desktop
+</details>
+
+
+<details>
+<summary>Claude Desktop</summary>
+
 Open **Settings → Connectors → Add custom connector**, then set:
 
 - **Name:** `tuist`
 - **URL:** `https://tuist.dev/mcp`
 
 Complete OAuth in the browser when prompted.
-:::
 
-::: details OpenCode
+</details>
+
+
+<details>
+<summary>OpenCode</summary>
+
 Add the Tuist MCP server to `opencode.json`:
 
 ```json
@@ -57,28 +67,42 @@ Then authenticate the server:
 ```bash
 opencode mcp auth tuist
 ```
-:::
 
-::: details Cursor
+</details>
+
+
+<details>
+<summary>Cursor</summary>
+
 Open **Cursor Settings → Tools & Integrations → MCP Tools** and add:
 
 - **Name:** `tuist`
 - **URL:** `https://tuist.dev/mcp`
-:::
 
-::: details VS Code
+</details>
+
+
+<details>
+<summary>VS Code</summary>
+
 Use **Command Palette → MCP: Add Server**, then configure an HTTP server with:
 
 - **Name:** `tuist`
 - **URL:** `https://tuist.dev/mcp`
-:::
 
-::: details Zed
+</details>
+
+
+<details>
+<summary>Zed</summary>
+
 Open **Agent panel → Settings → Add Custom Server**, then set:
 
 - **Name:** `tuist`
 - **URL:** `https://tuist.dev/mcp`
-:::
+
+</details>
+
 
 ## Capabilities
 

@@ -36,11 +36,11 @@ tuist registry setup
 tuist registry login
 ```
 
-::: info Mise란?
-<!-- -->
-인증하려면 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>가 필요합니다.
-<!-- -->
-:::
+> [!NOTE]
+> **Mise란?**
+>
+> 인증하려면 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>가 필요합니다.
+
 
 ### 종속성 해결 {#resolving-dependencies}
 
@@ -60,9 +60,9 @@ CI에서 레지스트리를 설정하려면 이 가이드를 따르세요:
 `https://github.com/pointfreeco/swift-composable-architecture` 패키지에 대한 레지스트리를
 사용하려면 패키지 레지스트리 식별자는 `pointfreeco.swift-composable-architecture` 입니다.
 
-::: info Mise란?
-<!-- -->
-식별자는 점을 두 개 이상 포함할 수 없습니다. 리포지토리 이름에 점이 포함되어 있으면 밑줄로 대체됩니다. 예를 들어
-`https://github.com/groue/GRDB.swift` 패키지는 레지스트리 식별자 `groue.GRDB_swift` 를 갖습니다.
-<!-- -->
-:::
+> [!NOTE]
+> **Mise란?**
+>
+> 식별자는 점을 두 개 이상 포함할 수 없습니다. 리포지토리 이름에 점이 포함되어 있으면 밑줄로 대체됩니다. 예를 들어
+> `https://github.com/groue/GRDB.swift` 패키지는 레지스트리 식별자 `groue.GRDB_swift` 를 갖습니다.
+

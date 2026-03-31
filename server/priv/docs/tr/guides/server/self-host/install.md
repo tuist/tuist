@@ -12,14 +12,14 @@ sunucusunun kendi kendine barındırılan bir sürümünü sunuyoruz. Bu sürüm
 kendi altyapınızda barındırmanıza olanak tanıyarak verilerinizin güvenli ve
 gizli kalmasını sağlar.
 
-::: warning LICENSE REQUIRED
-<!-- -->
-Tuist'in kendi kendine barındırılması yasal olarak geçerli ücretli bir lisans
-gerektirir. Tuist'in şirket içi sürümü yalnızca Kurumsal plandaki kuruluşlar
-için mevcuttur. Bu sürümle ilgileniyorsanız, lütfen
-[contact@tuist.dev](mailto:contact@tuist.dev) adresine ulaşın.
-<!-- -->
-:::
+> [!WARNING]
+> **License Required**
+>
+> Tuist'in kendi kendine barındırılması yasal olarak geçerli ücretli bir lisans
+> gerektirir. Tuist'in şirket içi sürümü yalnızca Kurumsal plandaki kuruluşlar
+> için mevcuttur. Bu sürümle ilgileniyorsanız, lütfen
+> [contact@tuist.dev](mailto:contact@tuist.dev) adresine ulaşın.
+
 
 ## Serbest bırakma temposu {#release-cadence}
 
@@ -74,16 +74,16 @@ Tuist sunucusu test edilmiştir ve aşağıdaki minimum sürümlerle uyumludur:
 | TimescaleDB | 2.16.1        | Gerekli PostgreSQL uzantısı (kullanımdan kaldırılmıştır) |
 | ClickHouse  | 25            | Analitik için gerekli                                    |
 
-::: warning TIMESCALEDB DEPRECATION
-<!-- -->
-TimescaleDB şu anda Tuist sunucusu için gerekli bir PostgreSQL uzantısıdır ve
-zaman serisi veri depolama ve sorgulama için kullanılmaktadır. Ancak,
-**TimescaleDB kullanımdan kaldırılmıştır** ve tüm zaman serisi işlevlerini
-ClickHouse'a taşıdığımız için yakın gelecekte gerekli bir bağımlılık olmaktan
-çıkarılacaktır. Şimdilik, PostgreSQL örneğinizde TimescaleDB'nin yüklü ve etkin
-olduğundan emin olun.
-<!-- -->
-:::
+> [!WARNING]
+> **Timescaledb Deprecation**
+>
+> TimescaleDB şu anda Tuist sunucusu için gerekli bir PostgreSQL uzantısıdır ve
+> zaman serisi veri depolama ve sorgulama için kullanılmaktadır. Ancak,
+> **TimescaleDB kullanımdan kaldırılmıştır** ve tüm zaman serisi işlevlerini
+> ClickHouse'a taşıdığımız için yakın gelecekte gerekli bir bağımlılık olmaktan
+> çıkarılacaktır. Şimdilik, PostgreSQL örneğinizde TimescaleDB'nin yüklü ve etkin
+> olduğundan emin olun.
+
 
 ### Docker sanallaştırılmış görüntüleri çalıştırma {#running-dockervirtualized-images}
 
@@ -111,13 +111,13 @@ analizler ve diğer zamana dayalı özellikler için kullanılır. Tuist'i
 çalıştırmadan önce PostgreSQL örneğinizde TimescaleDB'nin yüklü ve etkin
 olduğundan emin olun.
 
-::: info MIGRATIONS
-<!-- -->
-Docker görüntüsünün giriş noktası, hizmeti başlatmadan önce bekleyen tüm şema
-geçişlerini otomatik olarak çalıştırır. Geçişler eksik bir TimescaleDB uzantısı
-nedeniyle başarısız olursa, önce bunu veritabanınıza yüklemeniz gerekir.
-<!-- -->
-:::
+> [!NOTE]
+> **Migrations**
+>
+> Docker görüntüsünün giriş noktası, hizmeti başlatmadan önce bekleyen tüm şema
+> geçişlerini otomatik olarak çalıştırır. Geçişler eksik bir TimescaleDB uzantısı
+> nedeniyle başarısız olursa, önce bunu veritabanınıza yüklemeniz gerekir.
+
 
 ### ClickHouse veritabanı {#clickhouse-database}
 
@@ -127,12 +127,12 @@ gibi özellikler için **gerekli** ve TimescaleDB'yi aşamalı olarak
 kaldırdığımızda birincil zaman serisi veritabanı olacak. ClickHouse'u kendiniz
 barındırmayı ya da barındırılan hizmeti kullanmayı seçebilirsiniz.
 
-::: info MIGRATIONS
-<!-- -->
-Docker görüntüsünün giriş noktası, hizmeti başlatmadan önce bekleyen tüm
-ClickHouse şema geçişlerini otomatik olarak çalıştırır.
-<!-- -->
-:::
+> [!NOTE]
+> **Migrations**
+>
+> Docker görüntüsünün giriş noktası, hizmeti başlatmadan önce bekleyen tüm
+> ClickHouse şema geçişlerini otomatik olarak çalıştırır.
+
 
 ### Depolama {#storage}
 
@@ -148,12 +148,12 @@ ve güvenli parola yönetimi çözümlerinde saklanmalarını tavsiye ederiz. İ
 rahat olsun, Tuist bu değişkenleri son derece dikkatli bir şekilde ele alır ve
 asla günlüklerde görüntülenmemelerini sağlar.
 
-::: info LAUNCH CHECKS
-<!-- -->
-Gerekli değişkenler başlangıçta doğrulanır. Herhangi biri eksikse, başlatma
-başarısız olur ve hata mesajı eksik değişkenleri detaylandırır.
-<!-- -->
-:::
+> [!NOTE]
+> **Launch Checks**
+>
+> Gerekli değişkenler başlangıçta doğrulanır. Herhangi biri eksikse, başlatma
+> başarısız olur ve hata mesajı eksik değişkenleri detaylandırır.
+
 
 ### Lisans yapılandırması {#license-configuration}
 
@@ -170,15 +170,15 @@ sözleşme şartları dahilinde çalıştığından emin olmak için kullanılı
 ancak ikisi birden sağlanmamalıdır. Standart dağıtımlar için `TUIST_LICENSE`
 kullanın.
 
-::: warning EXPIRATION DATE
-<!-- -->
-Lisansların bir son kullanma tarihi vardır. Kullanıcılar, sunucu ile etkileşime
-giren Tuist komutlarını kullanırken, lisansın süresinin 30 günden daha kısa bir
-süre içinde dolması durumunda bir uyarı alacaklardır. Lisansınızı yenilemekle
-ilgileniyorsanız, lütfen [contact@tuist.dev](mailto:contact@tuist.dev) adresine
-ulaşın.
-<!-- -->
-:::
+> [!WARNING]
+> **Expiration Date**
+>
+> Lisansların bir son kullanma tarihi vardır. Kullanıcılar, sunucu ile etkileşime
+> giren Tuist komutlarını kullanırken, lisansın süresinin 30 günden daha kısa bir
+> süre içinde dolması durumunda bir uyarı alacaklardır. Lisansınızı yenilemekle
+> ilgileniyorsanız, lütfen [contact@tuist.dev](mailto:contact@tuist.dev) adresine
+> ulaşın.
+
 
 ### Temel ortam yapılandırması {#base-environment-configuration}
 
@@ -268,13 +268,13 @@ Uygulamayı oluşturduktan sonra, istemci kimliğini ve gizliliğini kopyalayın
 bunları sırasıyla `GOOGLE_CLIENT_ID` ve `GOOGLE_CLIENT_SECRET` ortam
 değişkenleri olarak ayarlayın.
 
-::: info CONSENT SCREEN SCOPES
-<!-- -->
-Bir onay ekranı oluşturmanız gerekebilir. Bunu yaptığınızda, `userinfo.email` ve
-`openid` kapsamlarını eklediğinizden ve uygulamayı dahili olarak
-işaretlediğinizden emin olun.
-<!-- -->
-:::
+> [!NOTE]
+> **Consent Screen Scopes**
+>
+> Bir onay ekranı oluşturmanız gerekebilir. Bunu yaptığınızda, `userinfo.email` ve
+> `openid` kapsamlarını eklediğinizden ve uygulamayı dahili olarak
+> işaretlediğinizden emin olun.
+
 
 #### Okta {#okta}
 
@@ -324,14 +324,14 @@ yapılandırmak için aşağıdaki ortam değişkenleri gereklidir:
 | `TUIST_S3_PROTOKOLÜ`                                      | Depolama sağlayıcısına bağlanırken kullanılacak protokol (`http1` veya `http2`)                                                                                                       | Hayır   | `http1`                          | `http1`                                                       |
 | `TUIST_S3_VIRTUAL_HOST`                                   | URL'nin bir alt alan adı (sanal ana bilgisayar) olarak kova adıyla oluşturulup oluşturulmayacağı                                                                                      | Hayır   | `Yanlış`                         | `1`                                                           |
 
-::: info AWS authentication with Web Identity Token from environment variables
-<!-- -->
-Depolama sağlayıcınız AWS ise ve bir web kimlik belirteci kullanarak kimlik
-doğrulaması yapmak istiyorsanız, `TUIST_S3_AUTHENTICATION_METHOD` ortam
-değişkenini `aws_web_identity_token_from_env_vars` olarak ayarlayabilirsiniz ve
-Tuist geleneksel AWS ortam değişkenlerini kullanarak bu yöntemi kullanacaktır.
-<!-- -->
-:::
+> [!NOTE]
+> **Aws Authentication With Web Identity Token From Environment Variables**
+>
+> Depolama sağlayıcınız AWS ise ve bir web kimlik belirteci kullanarak kimlik
+> doğrulaması yapmak istiyorsanız, `TUIST_S3_AUTHENTICATION_METHOD` ortam
+> değişkenini `aws_web_identity_token_from_env_vars` olarak ayarlayabilirsiniz ve
+> Tuist geleneksel AWS ortam değişkenlerini kullanarak bu yöntemi kullanacaktır.
+
 
 #### Google Bulut Depolama {#google-cloud-storage}
 Google Cloud Storage için, `AWS_ACCESS_KEY_ID` ve `AWS_SECRET_ACCESS_KEY`
@@ -358,24 +358,24 @@ anda, **e-posta sağlayıcısı olarak yalnızca Mailgun** desteklenmektedir.
 \* E-posta yapılandırma değişkenleri yalnızca e-posta göndermek istiyorsanız
 gereklidir. Yapılandırılmazsa, e-posta onayı otomatik olarak atlanır
 
-::: info SMTP SUPPORT
-<!-- -->
-Genel SMTP desteği şu anda mevcut değildir. Şirket içi dağıtımınız için SMTP
-desteğine ihtiyacınız varsa, gereksinimlerinizi görüşmek için lütfen
-[contact@tuist.dev](mailto:contact@tuist.dev) adresine ulaşın.
-<!-- -->
-:::
+> [!NOTE]
+> **Smtp Support**
+>
+> Genel SMTP desteği şu anda mevcut değildir. Şirket içi dağıtımınız için SMTP
+> desteğine ihtiyacınız varsa, gereksinimlerinizi görüşmek için lütfen
+> [contact@tuist.dev](mailto:contact@tuist.dev) adresine ulaşın.
 
-::: info AIR-GAPPED DEPLOYMENTS
-<!-- -->
-İnternet erişimi veya e-posta sağlayıcısı yapılandırması olmayan şirket içi
-kurulumlar için e-posta onayı varsayılan olarak otomatik olarak atlanır.
-Kullanıcılar kayıttan hemen sonra oturum açabilir. E-posta yapılandırmanız varsa
-ancak yine de onayı atlamak istiyorsanız `TUIST_SKIP_EMAIL_CONFIRMATION=true`
-ayarını yapın. E-posta yapılandırıldığında e-posta onayı gerektirmek için
-`TUIST_SKIP_EMAIL_CONFIRMATION=false` ayarını yapın.
-<!-- -->
-:::
+
+> [!NOTE]
+> **Air-gapped Deployments**
+>
+> İnternet erişimi veya e-posta sağlayıcısı yapılandırması olmayan şirket içi
+> kurulumlar için e-posta onayı varsayılan olarak otomatik olarak atlanır.
+> Kullanıcılar kayıttan hemen sonra oturum açabilir. E-posta yapılandırmanız varsa
+> ancak yine de onayı atlamak istiyorsanız `TUIST_SKIP_EMAIL_CONFIRMATION=true`
+> ayarını yapın. E-posta yapılandırıldığında e-posta onayı gerektirmek için
+> `TUIST_SKIP_EMAIL_CONFIRMATION=false` ayarını yapın.
+
 
 ### Git platform yapılandırması {#git-platform-configuration}
 
@@ -411,14 +411,14 @@ sağlıyoruz:
 - Dağıtımlar arasında kalıcı KV depolaması için Redis (isteğe bağlı)
 - veritabanı yönetimi için pgweb
 
-::: danger LICENSE REQUIRED
-<!-- -->
-Yerel geliştirme örnekleri de dahil olmak üzere Tuist sunucusunu çalıştırmak
-için geçerli bir `TUIST_LICENSE` ortam değişkeni yasal olarak gereklidir. Bir
-lisansa ihtiyacınız varsa, lütfen [contact@tuist.dev](mailto:contact@tuist.dev)
-adresine ulaşın.
-<!-- -->
-:::
+> [!CAUTION]
+> **License Required**
+>
+> Yerel geliştirme örnekleri de dahil olmak üzere Tuist sunucusunu çalıştırmak
+> için geçerli bir `TUIST_LICENSE` ortam değişkeni yasal olarak gereklidir. Bir
+> lisansa ihtiyacınız varsa, lütfen [contact@tuist.dev](mailto:contact@tuist.dev)
+> adresine ulaşın.
+
 
 **Hızlı Başlangıç:**
 
@@ -515,13 +515,11 @@ Kubernetes](https://kubernetes.io/) gibi çoğu bulut çözümü ve aracı Docke
 görüntülerini temel birimler olarak kullandığından, bu bölümdeki örnekler mevcut
 kurulumunuzla uyumlu olmalıdır.
 
-::: warning
-<!-- -->
-Dağıtım işlem hattınızın sunucunun çalışır durumda olduğunu doğrulaması
-gerekiyorsa, `/ready` adresine bir `GET` HTTP isteği gönderebilir ve yanıtta bir
-`200` durum kodu belirtebilirsiniz.
-<!-- -->
-:::
+> [!WARNING]
+> Dağıtım işlem hattınızın sunucunun çalışır durumda olduğunu doğrulaması
+> gerekiyorsa, `/ready` adresine bir `GET` HTTP isteği gönderebilir ve yanıtta bir
+> `200` durum kodu belirtebilirsiniz.
+
 
 #### Uçmak {#fly}
 
@@ -659,12 +657,12 @@ Finch metriklerine ek olarak, Tuist aşağıdakiler için metrikler sunar:
 Tuist, `/ops/` altında örneğinizi yönetmek için kullanabileceğiniz bir dizi
 yardımcı program sağlar.
 
-::: warning Authorization
-<!-- -->
-Yalnızca `TUIST_OPS_USER_HANDLES` ortam değişkeninde tanıtıcıları listelenen
-kişiler `/ops/` uç noktalarına erişebilir.
-<!-- -->
-:::
+> [!WARNING]
+> **Authorization**
+>
+> Yalnızca `TUIST_OPS_USER_HANDLES` ortam değişkeninde tanıtıcıları listelenen
+> kişiler `/ops/` uç noktalarına erişebilir.
+
 
 - **Hatalar (`/ops/errors`):** Uygulamada meydana gelen beklenmedik hataları
   görüntüleyebilirsiniz. Bu, hata ayıklama ve neyin yanlış gittiğini anlamak

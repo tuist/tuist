@@ -23,23 +23,19 @@ dosyası oluşturur; burada `$XDG_STATE_HOME`, ortam değişkeni ayarlanmamışs
 `$TUIST_XDG_STATE_HOME` adresini de kullanabilirsiniz; bu, `$XDG_STATE_HOME`
 adresinden önceliklidir.
 
-::: tip
-<!-- -->
-Tuist'in dizin organizasyonu ve özel dizinlerin nasıl yapılandırılacağı hakkında
-daha fazla bilgiyi <LocalizedLink href="/cli/directories">Directories belgesinde</LocalizedLink> bulabilirsiniz.
-<!-- -->
-:::
+> [!TIP]
+> Tuist'in dizin organizasyonu ve özel dizinlerin nasıl yapılandırılacağı hakkında
+> daha fazla bilgiyi <LocalizedLink href="/cli/directories">Directories belgesinde</LocalizedLink> bulabilirsiniz.
+
 
 Varsayılan olarak CLI, yürütme beklenmedik bir şekilde sona erdiğinde günlük
 yolunun çıktısını verir. Çıkmazsa, günlükleri yukarıda belirtilen yolda
 bulabilirsiniz (yani, en son günlük dosyası).
 
-::: warning
-<!-- -->
-Hassas bilgiler redakte edilmez, bu nedenle günlükleri paylaşırken dikkatli
-olun.
-<!-- -->
-:::
+> [!WARNING]
+> Hassas bilgiler redakte edilmez, bu nedenle günlükleri paylaşırken dikkatli
+> olun.
+
 
 ### Sürekli entegrasyon {#diagnose-issues-using-logs-ci}
 

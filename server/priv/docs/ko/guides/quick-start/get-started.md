@@ -27,10 +27,10 @@ tuist init
 <LocalizedLink href="/guides/features/registry">레지스트리</LocalizedLink>와 같은 기능을
 활용할 수 있도록 해줍니다.
 
-::: info 기존 프로젝트 마이그레이션
-<!-- -->
-기존 프로젝트를 생성된 프로젝트로 마이그레이션하여 개발자 경험을 증진시키고
-<LocalizedLink href="/guides/features/cache">캐시</LocalizedLink>를 활용하려면
-<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">마이그레이션 가이드</LocalizedLink>를 참고바랍니다.
-<!-- -->
-:::
+> [!NOTE]
+> **기존 프로젝트 마이그레이션**
+>
+> 기존 프로젝트를 생성된 프로젝트로 마이그레이션하여 개발자 경험을 증진시키고
+> <LocalizedLink href="/guides/features/cache">캐시</LocalizedLink>를 활용하려면
+> <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">마이그레이션 가이드</LocalizedLink>를 참고바랍니다.
+

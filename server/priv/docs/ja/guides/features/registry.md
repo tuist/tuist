@@ -33,11 +33,9 @@ tuist registry setup
 tuist registry login
 ```
 
-::: 情報
-<!-- -->
-認証には<LocalizedLink href="/guides/server/accounts-and-projects">Tuistアカウントとプロジェクト</LocalizedLink>が必要です。
-<!-- -->
-:::
+> [!NOTE]
+> 認証には<LocalizedLink href="/guides/server/accounts-and-projects">Tuistアカウントとプロジェクト</LocalizedLink>が必要です。
+
 
 ### 依存関係の解決{#resolving-dependencies}。
 
@@ -57,9 +55,7 @@ CI上でレジストリを設定するには、このガイドに従ってくだ
 パッケージのレジストリを使用する場合、パッケージのレジストリ識別子は`pointfreeco.swift-composable-architecture`
 となります。
 
-::: 情報
-<!-- -->
-識別子には複数のドットを含めることはできません。リポジトリ名にドットが含まれる場合は、アンダースコアに置き換えられます。例えば、`https://github.com/groue/GRDB.swift`
-パッケージは、レジストリ識別子`groue.GRDB_swift` を持つことになります。
-<!-- -->
-:::
+> [!NOTE]
+> 識別子には複数のドットを含めることはできません。リポジトリ名にドットが含まれる場合は、アンダースコアに置き換えられます。例えば、`https://github.com/groue/GRDB.swift`
+> パッケージは、レジストリ識別子`groue.GRDB_swift` を持つことになります。
+

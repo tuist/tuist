@@ -7,11 +7,11 @@
 ---
 # مشروع Xcode {#xcode-project}
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
+
 
 يمكنك تشغيل اختبارات مشاريع Xcode الخاصة بك بشكل انتقائي من خلال سطر الأوامر.
 `لذلك، يمكنك إضافة الأمر` إلى الأمر `tuist` - على سبيل المثال، `tuist xcodebuild

@@ -7,11 +7,11 @@
 ---
 # İçgörüler {#insights}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+
 
 Büyük projeler üzerinde çalışmak bir angarya gibi hissettirmemelidir. Aslında,
 sadece iki hafta önce başladığınız bir proje üzerinde çalışmak kadar keyifli
@@ -27,11 +27,9 @@ olur:
 - Yapım süresi son bir hafta içinde önemli ölçüde arttı mı?
 - Testlerim yavaşladı mı? Hangileri yavaşladı?
 
-::: info
-<!-- -->
-Tuist Insights erken geliştirme aşamasındadır.
-<!-- -->
-:::
+> [!NOTE]
+> Tuist Insights erken geliştirme aşamasındadır.
+
 
 ## Yapılar {#builds}
 
@@ -46,20 +44,16 @@ Yerel derleme sürelerini izlemeye başlamak için `tuist inspect build` komutun
 ![Yapıları incelemek için eylem sonrası]
 (/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
-::: info
-<!-- -->
-Tuist'in derleme yapılandırmasını izlemesini sağlamak için "Derleme ayarlarını
-şuradan sağla" seçeneğini çalıştırılabilir dosyaya veya ana derleme hedefinize
-ayarlamanızı öneririz.
-<!-- -->
-:::
+> [!NOTE]
+> Tuist'in derleme yapılandırmasını izlemesini sağlamak için "Derleme ayarlarını
+> şuradan sağla" seçeneğini çalıştırılabilir dosyaya veya ana derleme hedefinize
+> ayarlamanızı öneririz.
 
-::: info
-<!-- -->
-<LocalizedLink href="/guides/features/projects">oluşturulmuş projele</LocalizedLink> kullanmıyorsanız, derleme başarısız olursa şema sonrası
-eylem yürütülmez.
-<!-- -->
-:::
+
+> [!NOTE]
+> <LocalizedLink href="/guides/features/projects">oluşturulmuş projele</LocalizedLink> kullanmıyorsanız, derleme başarısız olursa şema sonrası
+> eylem yürütülmez.
+
 > 
 > Xcode'daki belgelenmemiş bir özellik, bu durumda bile çalıştırmanıza izin
 > verir. İlgili `project.pbxproj` dosyasında şemanızın `BuildAction` içinde
@@ -80,15 +74,14 @@ Mise](https://mise.jdx.dev/) kullanıyorsanız, senaryonuzun eylem sonrası orta
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: tip MISE & PROJECT PATHS
-<!-- -->
-Ortamınızın `PATH` ortam değişkeni scheme post eylemi tarafından miras alınmaz
-ve bu nedenle Mise'ı nasıl kurduğunuza bağlı olarak Mise'ın mutlak yolunu
-kullanmanız gerekir. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen dizinden
-çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften devralmayı
-unutmayın.
-<!-- -->
-:::
+> [!TIP]
+> **Mise & Project Paths**
+>
+> Ortamınızın `PATH` ortam değişkeni scheme post eylemi tarafından miras alınmaz
+> ve bu nedenle Mise'ı nasıl kurduğunuza bağlı olarak Mise'ın mutlak yolunu
+> kullanmanız gerekir. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen dizinden
+> çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften devralmayı
+> unutmayın.
 
 
 Yerel derlemeleriniz artık Tuist hesabınıza giriş yaptığınız sürece takip
@@ -96,12 +89,10 @@ ediliyor. Artık derleme sürelerinize Tuist kontrol panelinden erişebilir ve
 zaman içinde nasıl geliştiklerini görebilirsiniz:
 
 
-::: tip
-<!-- -->
-Gösterge tablosuna hızlıca erişmek için CLI'dan `tuist project show --web`
-komutunu çalıştırın.
-<!-- -->
-:::
+> [!TIP]
+> Gösterge tablosuna hızlıca erişmek için CLI'dan `tuist project show --web`
+> komutunu çalıştırın.
+
 
 ![Yapı içgörüleri içeren gösterge
 tablosu](/images/guides/features/build-insights/builds-dashboard.png)
@@ -126,15 +117,15 @@ Mise](https://mise.jdx.dev/) kullanıyorsanız, senaryonuzun eylem sonrası orta
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: tip MISE & PROJECT PATHS
-<!-- -->
-Ortamınızın `PATH` ortam değişkeni scheme post eylemi tarafından miras alınmaz
-ve bu nedenle Mise'ı nasıl kurduğunuza bağlı olarak Mise'ın mutlak yolunu
-kullanmanız gerekir. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen dizinden
-çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften devralmayı
-unutmayın.
-<!-- -->
-:::
+> [!TIP]
+> **Mise & Project Paths**
+>
+> Ortamınızın `PATH` ortam değişkeni scheme post eylemi tarafından miras alınmaz
+> ve bu nedenle Mise'ı nasıl kurduğunuza bağlı olarak Mise'ın mutlak yolunu
+> kullanmanız gerekir. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen dizinden
+> çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften devralmayı
+> unutmayın.
+
 
 Test çalışmalarınız artık Tuist hesabınıza giriş yaptığınız sürece takip
 ediliyor. Test içgörülerinize Tuist kontrol panelinden erişebilir ve zaman
@@ -150,12 +141,10 @@ olduğu gibi, her bir testin derinliklerine de dalabilirsiniz:
 
 ## Oluşturulmuş projele {#generated-projects}
 
-::: info
-<!-- -->
-Otomatik olarak oluşturulan şemalar otomatik olarak hem `tuist inspect build`
-hem de `tuist inspect test` son eylemlerini içerir.
-<!-- -->
-:::
+> [!NOTE]
+> Otomatik olarak oluşturulan şemalar otomatik olarak hem `tuist inspect build`
+> hem de `tuist inspect test` son eylemlerini içerir.
+
 > 
 > Otomatik oluşturulan şemalarınızdaki içgörüleri izlemekle ilgilenmiyorsanız,
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>

@@ -16,12 +16,10 @@ a tu organización de Tuist, puedes configurarlo con:
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-::: advertencia
-<!-- -->
-Debes autenticarte con Google mediante una dirección de correo electrónico
-vinculada a la organización cuyo dominio estás configurando.
-<!-- -->
-:::
+> [!WARNING]
+> Debes autenticarte con Google mediante una dirección de correo electrónico
+> vinculada a la organización cuyo dominio estás configurando.
+
 
 ## Okta {#okta}
 
@@ -66,12 +64,10 @@ funcione con Tuist:
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-::: advertencia
-<!-- -->
-Los usuarios deben registrarse inicialmente a través de su panel de control
-Okta, ya que Tuist actualmente no soporta el aprovisionamiento y
-desaprovisionamiento automático de usuarios de tu organización Okta. Una vez que
-se registren a través de su panel de Okta, se añadirán automáticamente a tu
-organización Tuist.
-<!-- -->
-:::
+> [!WARNING]
+> Los usuarios deben registrarse inicialmente a través de su panel de control
+> Okta, ya que Tuist actualmente no soporta el aprovisionamiento y
+> desaprovisionamiento automático de usuarios de tu organización Okta. Una vez que
+> se registren a través de su panel de Okta, se añadirán automáticamente a tu
+> organización Tuist.
+

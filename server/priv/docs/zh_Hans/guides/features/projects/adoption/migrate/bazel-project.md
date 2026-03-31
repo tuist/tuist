@@ -13,12 +13,12 @@ Xcode
 iOS 平台团队引入了 Bazel，但在领导这项工作的工程师离开公司后，他们不得不放弃这项工作。苹果公司对 Xcode 和构建系统之间强耦合的立场也是导致
 Bazel 项目难以长期维护的另一个因素。
 
-::: tip TUIST UNIQUENESS LIES IN ITS FINESSE
-<!-- -->
-Tuist 与其与 Xcode 和 Xcode 项目对抗，不如拥抱它。相同的概念（如目标、方案、构建设置），熟悉的语言（如
-Swift），简单而愉快的体验，让维护和扩展项目成为每个人的工作，而不仅仅是 iOS 平台团队的工作。
-<!-- -->
-:::
+> [!TIP]
+> **Tuist Uniqueness Lies In Its Finesse**
+>
+> Tuist 与其与 Xcode 和 Xcode 项目对抗，不如拥抱它。相同的概念（如目标、方案、构建设置），熟悉的语言（如
+> Swift），简单而愉快的体验，让维护和扩展项目成为每个人的工作，而不仅仅是 iOS 平台团队的工作。
+
 
 ## 规则{#rules}
 

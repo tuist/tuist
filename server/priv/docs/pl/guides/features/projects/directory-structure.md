@@ -71,15 +71,13 @@ za pomocą flagi `--path`. Manifest powinien znajdować się w katalogu lub
 podkatalogu katalogu zawierającego katalog `Tuist`, który reprezentuje korzeń
 projektu.
 
-::: napiwek
-<!-- -->
-Przestrzenie robocze Xcode umożliwiały dzielenie projektów na wiele projektów
-Xcode w celu zmniejszenia prawdopodobieństwa wystąpienia konfliktów scalania.
-Jeśli właśnie do tego używałeś obszarów roboczych, nie potrzebujesz ich w Tuist.
-Tuist automatycznie generuje obszar roboczy zawierający projekt i projekty od
-niego zależne.
-<!-- -->
-:::
+> [!TIP]
+> Przestrzenie robocze Xcode umożliwiały dzielenie projektów na wiele projektów
+> Xcode w celu zmniejszenia prawdopodobieństwa wystąpienia konfliktów scalania.
+> Jeśli właśnie do tego używałeś obszarów roboczych, nie potrzebujesz ich w Tuist.
+> Tuist automatycznie generuje obszar roboczy zawierający projekt i projekty od
+> niego zależne.
+
 
 ## Pakiet Swift <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 

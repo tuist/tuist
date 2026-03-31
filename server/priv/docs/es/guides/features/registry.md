@@ -46,12 +46,10 @@ minuto**, puede autenticarse ejecutando:
 tuist registry login
 ```
 
-::: info
-<!-- -->
-La autenticación requiere una cuenta
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist y un proyecto</LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> La autenticación requiere una cuenta
+> <LocalizedLink href="/guides/server/accounts-and-projects">Tuist y un proyecto</LocalizedLink>.
+
 
 ### Resolver dependencias {#resolving-dependencies}
 
@@ -75,11 +73,9 @@ paquete `https://github.com/pointfreeco/swift-composable-architecture`, el
 identificador del registro del paquete sería
 `pointfreeco.swift-composable-architecture`.
 
-::: info
-<!-- -->
-El identificador no puede contener más de un punto. Si el nombre del repositorio
-contiene un punto, se sustituye por un guión bajo. Por ejemplo, el paquete
-`https://github.com/groue/GRDB.swift` tendría el identificador de registro
-`groue.GRDB_swift`.
-<!-- -->
-:::
+> [!NOTE]
+> El identificador no puede contener más de un punto. Si el nombre del repositorio
+> contiene un punto, se sustituye por un guión bajo. Por ejemplo, el paquete
+> `https://github.com/groue/GRDB.swift` tendría el identificador de registro
+> `groue.GRDB_swift`.
+

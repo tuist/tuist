@@ -32,11 +32,13 @@
 | `tuist_posthog_api_key_API_key` | مفتاح واجهة برمجة التطبيقات لمشروع PostHog الخاص بك | لا يوجد |         | `phc_fpR9c0Hs5Hs5H5H5VXXUsupUsupU1I0WLWLEq366FaZH6H6HJR3lRIWVR` |
 | `tuist_posthog_url`             | عنوان URL نقطة نهاية واجهة برمجة تطبيقات PostHog    | لا يوجد |         | `https://eu.i.posthog.com`                                      |
 
-::: info عن تمكين التحليلات
-يتم تمكين التحليلات فقط عندما يتم تكوين كل من `TUIST_POSTHOG_API_KEY` و
-`TUIST_POSTHOG_URL`. إذا كان أي من المتغيرين مفقودًا، فلن يتم إرسال أي أحداث
-تحليلية.
-:::
+> [!NOTE]
+> **عن تمكين التحليلات**
+>
+> يتم تمكين التحليلات فقط عندما يتم تكوين كل من `TUIST_POSTHOG_API_KEY` و
+> `TUIST_POSTHOG_URL`. إذا كان أي من المتغيرين مفقودًا، فلن يتم إرسال أي أحداث
+> تحليلية.
+
 
 ### الميزات {#posthog-features}
 
@@ -157,9 +159,9 @@
 
 مجموعة من المقاييس المتعلقة بتخزين القطع الأثرية في مخزن بعيد (مثل s3).
 
-::: tip
-هذه المقاييس مفيدة لفهم أداء عمليات التخزين وتحديد الاختناقات المحتملة.
-:::
+> [!TIP]
+> هذه المقاييس مفيدة لفهم أداء عمليات التخزين وتحديد الاختناقات المحتملة.
+
 
 ### `tuist_storage_get_get_object_size_size_size_size_bytes` (رسم بياني) {#tuist_storage_get_get_object_size_size_size_size_bytes-histogram}
 

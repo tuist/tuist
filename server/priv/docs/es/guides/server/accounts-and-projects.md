@@ -27,13 +27,13 @@ Si estás familiarizado con [GitHub](https://github.com), el concepto es similar
 al suyo, donde puedes tener cuentas personales y de organización, y se
 identifican por un *handle* que se utiliza al construir URLs.
 
-::: info CLI-FIRST
-<!-- -->
-La mayoría de las operaciones para gestionar cuentas y proyectos se realizan a
-través de la CLI. Estamos trabajando en una interfaz web que facilitará la
-gestión de cuentas y proyectos.
-<!-- -->
-:::
+> [!NOTE]
+> **Cli-first**
+>
+> La mayoría de las operaciones para gestionar cuentas y proyectos se realizan a
+> través de la CLI. Estamos trabajando en una interfaz web que facilitará la
+> gestión de cuentas y proyectos.
+
 
 Puede gestionar la organización a través de los subcomandos bajo
 <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>.
@@ -63,14 +63,14 @@ el siguiente contenido:
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: warning TUIST PROJECT-ONLY FEATURES
-<!-- -->
-Tenga en cuenta que hay algunas características como
-<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> que
-requieren que usted tenga un proyecto Tuist. Si utilizas proyectos Xcode sin
-procesar, no podrás utilizar estas funciones.
-<!-- -->
-:::
+> [!WARNING]
+> **Tuist Project-only Features**
+>
+> Tenga en cuenta que hay algunas características como
+> <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> que
+> requieren que usted tenga un proyecto Tuist. Si utilizas proyectos Xcode sin
+> procesar, no podrás utilizar estas funciones.
+
 
 La URL de tu proyecto se construye utilizando el "handle" completo. Por ejemplo,
 el panel de Tuist, que es público, es accesible en

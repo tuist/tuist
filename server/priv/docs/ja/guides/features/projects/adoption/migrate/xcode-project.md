@@ -69,12 +69,12 @@ let package = Package(
 は依存関係を定義するマニフェスト・ファイルです。`Tuist.swift`
 ファイルは、プロジェクトのためにプロジェクト・スコープのTuist設定を定義する場所です。
 
-::: tip PROJECT NAME WITH -TUIST SUFFIX
-<!-- -->
-既存のXcodeプロジェクトとのコンフリクトを防ぐため、プロジェクト名に`-Tuist`
-という接尾辞をつけることをお勧めします。プロジェクトをTuistに完全に移行したら、この接尾辞を削除することができます。
-<!-- -->
-:::
+> [!TIP]
+> **Project Name With -tuist Suffix**
+>
+> 既存のXcodeプロジェクトとのコンフリクトを防ぐため、プロジェクト名に`-Tuist`
+> という接尾辞をつけることをお勧めします。プロジェクトをTuistに完全に移行したら、この接尾辞を削除することができます。
+
 
 ## CIでTuistプロジェクトをビルドしてテストする{#build-and-test-the-tuist-project-in-ci}
 
@@ -151,12 +151,11 @@ let package = Package(
 )
 ```
 
-::: tip PRODUCT TYPES
-<!-- -->
-`PackageSettings` struct内の`productTypes`
-dictionaryに追加することで、特定のパッケージの製品タイプをオーバーライドできます。デフォルトでは、Tuistはすべてのパッケージが静的フレームワークであると仮定しています。
-<!-- -->
-:::
+> [!TIP]
+> **Product Types**
+>
+> `PackageSettings` struct内の`productTypes`
+> dictionaryに追加することで、特定のパッケージの製品タイプをオーバーライドできます。デフォルトでは、Tuistはすべてのパッケージが静的フレームワークであると仮定しています。
 
 
 ## 移籍の順番を決める{#determine-the-migration-order}
@@ -218,11 +217,11 @@ let project = Project(
 )
 ```
 
-::: info TEST TARGETS
-<!-- -->
-ターゲットに関連するテストターゲッ トがある場合は、`Project.swift` ファイルで定義し、同じ手順を繰り返します。
-<!-- -->
-:::
+> [!NOTE]
+> **Test Targets**
+>
+> ターゲットに関連するテストターゲッ トがある場合は、`Project.swift` ファイルで定義し、同じ手順を繰り返します。
+
 
 ### ターゲット移行の検証{#validate-the-target-migration}
 

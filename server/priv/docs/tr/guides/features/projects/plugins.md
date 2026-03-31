@@ -102,14 +102,14 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### Görev eklentisi <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-::: warning DEPRECATED
-<!-- -->
-Görev eklentileri kullanımdan kaldırılmıştır. Projeniz için bir otomasyon çözümü
-arıyorsanız [bu blog
-yazısına](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) göz
-atın.
-<!-- -->
-:::
+> [!WARNING]
+> **Deprecated**
+>
+> Görev eklentileri kullanımdan kaldırılmıştır. Projeniz için bir otomasyon çözümü
+> arıyorsanız [bu blog
+> yazısına](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) göz
+> atın.
+
 
 Görevler, `tuist-` adlandırma kuralına uymaları halinde `tuist` komutu
 aracılığıyla çağrılabilen `$PATH`-açık yürütülebilir dosyalarıdır. Önceki
@@ -133,15 +133,15 @@ Görevleri dağıtmak için Tuist kullanıyorsanız
   çalıştırarak yükleyebilirlerse, doğrudan çağırarak ya da `tuist xxx`
   aracılığıyla çalıştırabilirler.
 
-::: info THE FUTURE OF PROJECTAUTOMATION
-<!-- -->
-`ProjectAutomation` ve `XcodeGraph` modellerini, proje grafiğinin tamamını
-kullanıcıya sunan geriye dönük uyumlu tek bir çerçevede birleştirmeyi
-planlıyoruz. Dahası, oluşturma mantığını kendi CLI'nizden de kullanabileceğiniz
-yeni bir katmana, `XcodeGraph` çıkaracağız. Bunu kendi Tuist'inizi oluşturmak
-gibi düşünün.
-<!-- -->
-:::
+> [!NOTE]
+> **The Future Of Projectautomation**
+>
+> `ProjectAutomation` ve `XcodeGraph` modellerini, proje grafiğinin tamamını
+> kullanıcıya sunan geriye dönük uyumlu tek bir çerçevede birleştirmeyi
+> planlıyoruz. Dahası, oluşturma mantığını kendi CLI'nizden de kullanabileceğiniz
+> yeni bir katmana, `XcodeGraph` çıkaracağız. Bunu kendi Tuist'inizi oluşturmak
+> gibi düşünün.
+
 
 ## Eklentileri kullanma {#using-plugins}
 
@@ -179,22 +179,22 @@ let tuist = Tuist(
 Eklentileri ekledikten sonra, `tuist install` eklentileri global bir önbellek
 dizinine getirecektir.
 
-::: info NO VERSION RESOLUTION
-<!-- -->
-Sizin de fark etmiş olabileceğiniz gibi, eklentiler için sürüm çözünürlüğü
-sağlamıyoruz. Tekrarlanabilirliği sağlamak için Git etiketlerini veya SHA'ları
-kullanmanızı öneririz.
-<!-- -->
-:::
+> [!NOTE]
+> **No Version Resolution**
+>
+> Sizin de fark etmiş olabileceğiniz gibi, eklentiler için sürüm çözünürlüğü
+> sağlamıyoruz. Tekrarlanabilirliği sağlamak için Git etiketlerini veya SHA'ları
+> kullanmanızı öneririz.
 
-::: tip PROJECT DESCRIPTION HELPERS PLUGINS
-<!-- -->
-Bir proje açıklama yardımcıları eklentisi kullanılırken, yardımcıları içeren
-modülün adı eklentinin adıdır
-```swift
-import ProjectDescription
-import MyTuistPlugin
-let project = Project.app(name: "MyCoolApp", platform: .iOS)
-```
-<!-- -->
-:::
+
+> [!TIP]
+> **Project Description Helpers Plugins**
+>
+> Bir proje açıklama yardımcıları eklentisi kullanılırken, yardımcıları içeren
+> modülün adı eklentinin adıdır
+> ```swift
+> import ProjectDescription
+> import MyTuistPlugin
+> let project = Project.app(name: "MyCoolApp", platform: .iOS)
+> ```
+

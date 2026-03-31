@@ -29,14 +29,14 @@ Duże pull requesty są trudne do przejrzenia i łatwiej jest przeoczyć szczeg�
 Jeśli pull request staje się zbyt duży i niemożliwy do zarządzania, zasugeruj
 autorowi jego rozbicie.
 
-::: info EXCEPTIONS
-<!-- -->
-Istnieje kilka scenariuszy, w których podział pull requesta nie jest możliwy, na
-przykład gdy zmiany są ściśle powiązane i nie można ich podzielić. W takich
-przypadkach autor powinien przedstawić jasne wyjaśnienie zmian i ich
-uzasadnienie.
-<!-- -->
-:::
+> [!NOTE]
+> **Exceptions**
+>
+> Istnieje kilka scenariuszy, w których podział pull requesta nie jest możliwy, na
+> przykład gdy zmiany są ściśle powiązane i nie można ich podzielić. W takich
+> przypadkach autor powinien przedstawić jasne wyjaśnienie zmian i ich
+> uzasadnienie.
+
 
 ## Spójność {#consistency}
 

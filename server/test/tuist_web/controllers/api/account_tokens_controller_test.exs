@@ -142,6 +142,27 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       assert response["message"] =~ "not authorized"
     end
 
+    test "returns forbidden when an organization member tries to create an account token", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture()
+      member = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: owner, preload: [:account])
+
+      Accounts.add_user_to_organization(member, organization, role: :user)
+
+      conn = TuistWeb.Authentication.put_current_user(conn, member)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/accounts/#{organization.account.name}/tokens", %{
+          scopes: ["account:members:write"],
+          name: "member-token"
+        })
+
+      response = json_response(conn, :forbidden)
+      assert response["message"] =~ "not authorized"
+    end
+
     test "creates token with project restrictions when project_handles is provided", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])

@@ -16,13 +16,13 @@ These guidelines introduce the principles of the architecture, helping you
 identify and organize your application features in different layers. It also
 introduces tips, tools, and advice if you decide to use this architecture.
 
-::: info µFEATURES
-<!-- -->
-This architecture was previously known as µFeatures. We've renamed it to The
-Modular Architecture (TMA) to better reflect its purpose and the principles
-behind it.
-<!-- -->
-:::
+> [!NOTE]
+> **Μfeatures**
+>
+> This architecture was previously known as µFeatures. We've renamed it to The
+> Modular Architecture (TMA) to better reflect its purpose and the principles
+> behind it.
+
 
 ## Core principle {#core-principle}
 
@@ -58,21 +58,21 @@ enforce in your project thanks to Tuist's DSL.
 | `FeatureTesting`   | `FeatureInterface`          | Testing data and mocks      |
 | `FeatureExample`   | `FeatureTesting`, `Feature` | Example app                 |
 
-::: tip UI Previews
-<!-- -->
-`Feature` can use `FeatureTesting` as a Development Asset to allow for UI
-previews
-<!-- -->
-:::
+> [!TIP]
+> **Ui Previews**
+>
+> `Feature` can use `FeatureTesting` as a Development Asset to allow for UI
+> previews
 
-::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
-<!-- -->
-Alternatively, you can use compiler directives to include test data and mocks in
-the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You
-simplify the graph, but you'll end up compiling code that you won't need for
-running the app.
-<!-- -->
-:::
+
+> [!WARNING]
+> **Compiler Directives Instead Of Testing Targets**
+>
+> Alternatively, you can use compiler directives to include test data and mocks in
+> the `Feature` or `FeatureInterface` targets when compiling for `Debug`. You
+> simplify the graph, but you'll end up compiling code that you won't need for
+> running the app.
+
 
 ## Why a module {#why-a-module}
 
@@ -157,15 +157,15 @@ func productType() -> Product {
 ```
 
 
-::: warning MERGEABLE LIBRARIES
-<!-- -->
-Apple attempted to alleviate the cumbersomeness of switching between static and
-dynamic libraries by introducing [mergeable
-libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
-However, that introduces build-time non-determinism that makes your build
-non-reproducible and harder to optimize so we don't recommend using it.
-<!-- -->
-:::
+> [!WARNING]
+> **Mergeable Libraries**
+>
+> Apple attempted to alleviate the cumbersomeness of switching between static and
+> dynamic libraries by introducing [mergeable
+> libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
+> However, that introduces build-time non-determinism that makes your build
+> non-reproducible and harder to optimize so we don't recommend using it.
+
 
 ## Code {#code}
 

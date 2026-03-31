@@ -24,14 +24,14 @@ którzy kierowali wysiłkiem, opuścili firmę. Stanowisko Apple w sprawie silne
 sprzężenia między Xcode a systemem kompilacji jest kolejnym czynnikiem, który
 utrudnia utrzymanie projektów Bazel w czasie.
 
-::: tip TUIST UNIQUENESS LIES IN ITS FINESSE
-<!-- -->
-Zamiast walczyć z Xcode i projektami Xcode, Tuist je obejmuje. To te same
-koncepcje (np. cele, schematy, ustawienia kompilacji), znajomy język (tj. Swift)
-oraz proste i przyjemne doświadczenie, które sprawia, że utrzymywanie i
-skalowanie projektów jest zadaniem każdego, a nie tylko zespołu platformy iOS.
-<!-- -->
-:::
+> [!TIP]
+> **Tuist Uniqueness Lies In Its Finesse**
+>
+> Zamiast walczyć z Xcode i projektami Xcode, Tuist je obejmuje. To te same
+> koncepcje (np. cele, schematy, ustawienia kompilacji), znajomy język (tj. Swift)
+> oraz proste i przyjemne doświadczenie, które sprawia, że utrzymywanie i
+> skalowanie projektów jest zadaniem każdego, a nie tylko zespołu platformy iOS.
+
 
 ## Zasady {#rules}
 
