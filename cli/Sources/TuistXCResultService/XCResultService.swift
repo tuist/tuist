@@ -148,11 +148,11 @@ public struct XCResultService: XCResultServicing {
         xcresultPath: AbsolutePath
     ) async throws -> TestSummary {
         let actionLog = try await actionLog(from: xcresultPath)
-        let rawFailuresFromActionLog = actionLog.extractTestFailures(rootDirectory: rootDirectory)
-        let failuresFromActionLog = rawFailuresFromActionLog.reduce(into: [String: [TestFailure]]()) { result, entry in
-            let key = normalizeTestIdentifier(entry.key)
-            result[key, default: []].append(contentsOf: entry.value)
-        }
+        let failuresFromActionLog = actionLog.extractTestFailures(rootDirectory: rootDirectory)
+            .reduce(into: [String: [TestFailure]]()) { result, entry in
+                let key = normalizeTestIdentifier(entry.key)
+                result[key, default: []].append(contentsOf: entry.value)
+            }
 
         var allTestCases: [TestCase] = []
         var suiteDurations: [String: Int] = [:]
