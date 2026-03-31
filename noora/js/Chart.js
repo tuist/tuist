@@ -114,12 +114,8 @@ export default {
     );
     this.chart.setOption(option);
 
-    const clickUrlsEl = this.el.querySelector("[data-part='click-urls']");
-    if (clickUrlsEl) {
-      let clickUrls = [];
-      try {
-        clickUrls = JSON.parse(clickUrlsEl.textContent);
-      } catch (_) {}
+    if (option.clickUrls && Array.isArray(option.clickUrls)) {
+      const clickUrls = option.clickUrls;
 
       this.chart.on("click", (params) => {
         const url = clickUrls[params.dataIndex];

@@ -290,7 +290,6 @@ defmodule Noora.Chart do
       {# The actual chart is managed by ECharts, so we are ignoring any updates by LiveView. The chart should be updated by changing the component attributes. #}
       <div id={"#{@id}-chart"} data-part="chart" phx-update="ignore"></div>
       <div data-part="data" hidden>{Jason.encode!(@option)}</div>
-      <div :if={@click_urls != []} data-part="click-urls" hidden>{Jason.encode!(@click_urls)}</div>
     </div>
     """
   end
@@ -357,6 +356,13 @@ defmodule Noora.Chart do
     merged_options =
       if chart_type == "bar" && assigns.bar_radius do
         apply_bar_radius_to_series(merged_options, assigns.bar_radius)
+      else
+        merged_options
+      end
+
+    merged_options =
+      if assigns.click_urls != [] do
+        Map.put(merged_options, :clickUrls, assigns.click_urls)
       else
         merged_options
       end
