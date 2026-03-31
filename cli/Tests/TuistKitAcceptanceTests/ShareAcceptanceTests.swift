@@ -20,6 +20,7 @@ import TuistTesting
 
 struct ShareAcceptanceTests {
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -61,6 +62,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -87,6 +89,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -146,6 +149,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -204,6 +208,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,

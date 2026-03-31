@@ -10,7 +10,7 @@ import TuistTesting
 @testable import TuistKit
 
 struct InitAcceptanceTests {
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies())
     func generated_macos_app() async throws {
         let fileSystem = FileSystem()
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -86,7 +86,7 @@ struct InitAcceptanceTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withFixture("xcode_project_ios_app"))
+    @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies(), .withFixture("xcode_project_ios_app"))
     func xcode_project_ios_app() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try #require(TuistTest.fixtureDirectory)

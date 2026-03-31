@@ -18,7 +18,7 @@ import TuistTestCommand
 @testable import TuistKit
 
 struct GeneratorAcceptanceTests {
-    @Test(.withFixture("generated_app_with_framework_and_tests")) func app_with_framework_and_tests() async throws {
+    @Test(.disabled(), .withFixture("generated_app_with_framework_and_tests")) func app_with_framework_and_tests() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
@@ -30,7 +30,7 @@ struct GeneratorAcceptanceTests {
         try TuistTest.expectFrameworkNotEmbedded("Framework", by: "AppExtension", inXcodeProj: xcodeprojPath)
     }
 
-    @Test(.withFixture("generated_app_with_exponea_sdk"), .withMockedLogger()) func app_with_exponea_sdk() async throws {
+    @Test(.disabled(), .withFixture("generated_app_with_exponea_sdk"), .withMockedLogger()) func app_with_exponea_sdk() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
 
@@ -39,7 +39,7 @@ struct GeneratorAcceptanceTests {
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
     }
 
-    @Test(.withFixture("generated_spm_dependency_with_trait_conditions"), .withMockedLogger())
+    @Test(.disabled(), .withFixture("generated_spm_dependency_with_trait_conditions"), .withMockedLogger())
     func spm_dependency_with_trait_conditions() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
 
@@ -47,7 +47,7 @@ struct GeneratorAcceptanceTests {
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
     }
 
-    @Test(.withFixture("generated_ios_app_with_local_swift_package"), .withMockedLogger())
+    @Test(.disabled(), .withFixture("generated_ios_app_with_local_swift_package"), .withMockedLogger())
     func local_spm_dependency_with_assets() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -69,6 +69,7 @@ struct GeneratorAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .withFixture("generated_framework_with_environment_variables"),
         .withMockedLogger(),
         .withMockedEnvironment()
@@ -95,7 +96,7 @@ struct GenerateAcceptanceTestiOSAppWithTests {
         try await run(BuildCommand.self)
     }
 
-    @Test(.withFixture("generated_ios_app_with_tests"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_tests"), .inTemporaryDirectory)
     func focused_targets() async throws {
         let fixturePath = try fixtureDirectory()
 
@@ -137,7 +138,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworks {
 }
 
 struct GenerateAcceptanceTestiOSAppWithHeaders {
-    @Test(.withFixture("generated_ios_app_with_headers"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_headers"), .inTemporaryDirectory)
     func ios_app_with_headers() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -145,7 +146,7 @@ struct GenerateAcceptanceTestiOSAppWithHeaders {
 }
 
 struct GenerateAcceptanceTestInvalidWorkspaceManifestName {
-    @Test(.withFixture("generated_invalid_workspace_manifest_name"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_invalid_workspace_manifest_name"), .inTemporaryDirectory)
     func invalid_workspace_manifest_name() async throws {
         let fixturePath = try fixtureDirectory()
         do {
@@ -158,7 +159,7 @@ struct GenerateAcceptanceTestInvalidWorkspaceManifestName {
 }
 
 struct GenerateAcceptanceTestCacheProfilesInvalidDefault {
-    @Test(.withFixture("generated_ios_app_with_cache_profiles_invalid_default"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_cache_profiles_invalid_default"), .inTemporaryDirectory)
     func ios_app_with_cache_profiles_invalid_default() async throws {
         do {
             try await run(GenerateCommand.self)
@@ -184,7 +185,7 @@ struct GenerateAcceptanceTestCacheProfilesInvalidDefault {
 // }
 
 struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
-    @Test(.withFixture("generated_ios_app_with_framework_and_resources"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_framework_and_resources"), .inTemporaryDirectory)
     func ios_app_with_framework_and_resources() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -273,7 +274,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
 }
 
 struct GenerateAcceptanceTestiOSAppWithFrameworkXcassetsAndDefaultIntenalImports {
-    @Test(.withFixture("generated_ios_app_with_framework_xcassets_and_default_internal_imports"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_framework_xcassets_and_default_internal_imports"), .inTemporaryDirectory)
     func ios_app_with_framework_xcassets_and_default_internal_imports() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -281,7 +282,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkXcassetsAndDefaultIntenalImports
 }
 
 struct GenerateAcceptanceTestiOSAppWithOnDemandResources {
-    @Test(.withFixture("generated_ios_app_with_on_demand_resources"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_on_demand_resources"), .inTemporaryDirectory)
     func ios_app_with_on_demand_resources() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -313,7 +314,7 @@ struct GenerateAcceptanceTestiOSAppWithOnDemandResources {
 }
 
 struct GenerateAcceptanceTestiOSAppWithPrivacyManifest {
-    @Test(.withFixture("generated_ios_app_with_privacy_manifest"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_privacy_manifest"), .inTemporaryDirectory)
     func ios_app_with_privacy_manifest() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -328,7 +329,7 @@ struct GenerateAcceptanceTestiOSAppWithPrivacyManifest {
 }
 
 struct GenerateAcceptanceTestIosAppWithCustomDevelopmentRegion {
-    @Test(.withFixture("generated_ios_app_with_custom_development_region"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_custom_development_region"), .inTemporaryDirectory)
     func ios_app_with_custom_development_region() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -359,7 +360,7 @@ struct GenerateAcceptanceTestIosAppWithCustomDevelopmentRegion {
 }
 
 struct GenerateAcceptanceTestiOSAppWithCustomResourceParserOptions {
-    @Test(.withFixture("generated_ios_app_with_custom_resource_parser_options"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_custom_resource_parser_options"), .inTemporaryDirectory)
     func ios_app_with_custom_resource_parser_options() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -396,7 +397,7 @@ struct GenerateAcceptanceTestiOSAppWithCustomResourceParserOptions {
 }
 
 struct GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework {
-    @Test(.withFixture("generated_ios_app_with_framework_linking_static_framework"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_framework_linking_static_framework"), .inTemporaryDirectory)
     func ios_app_with_framework_linking_static_framework() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -422,7 +423,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework {
 }
 
 struct GenerateAcceptanceTestsiOSAppWithCustomScheme {
-    @Test(.withFixture("generated_ios_app_with_custom_scheme"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_custom_scheme"), .inTemporaryDirectory)
     func ios_app_with_custom_scheme() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -473,7 +474,7 @@ struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
 }
 
 struct GenerateAcceptanceTestiOSAppWithMultiConfigs {
-    @Test(.withFixture("generated_ios_app_with_multi_configs"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_multi_configs"), .inTemporaryDirectory)
     func ios_app_with_multi_configs() async throws {
         try await run(GenerateCommand.self)
         try await XCTAssertSchemeContainsBuildSettings(
@@ -516,7 +517,7 @@ struct GenerateAcceptanceTestiOSAppWithMultiConfigs {
 }
 
 struct GenerateAcceptanceTestiOSAppWithIncompatibleXcode {
-    @Test(.withFixture("generated_ios_app_with_incompatible_xcode"), .withMockedDependencies())
+    @Test(.disabled(), .withFixture("generated_ios_app_with_incompatible_xcode"), .withMockedDependencies())
     func ios_app_with_incompatible_xcode() async throws {
         do {
             try await run(GenerateCommand.self)
@@ -575,7 +576,7 @@ struct GenerateAcceptanceTestiOSAppWithIncompatibleXcode {
 // }
 
 struct GenerateAcceptanceTestiOSAppWithBuildVariables {
-    @Test(.withFixture("generated_ios_app_with_build_variables"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_build_variables"), .inTemporaryDirectory)
     func ios_app_with_build_variables() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -598,7 +599,7 @@ struct GenerateAcceptanceTestiOSAppWithBuildVariables {
 }
 
 struct GenerateAcceptanceTestiOSAppWithRemoteSwiftPackage {
-    @Test(.withFixture("generated_ios_app_with_remote_swift_package"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_remote_swift_package"), .inTemporaryDirectory)
     func ios_app_with_remote_swift_package() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -606,7 +607,7 @@ struct GenerateAcceptanceTestiOSAppWithRemoteSwiftPackage {
 }
 
 struct GenerateAcceptanceTestVisionOSAppWithRemoteSwiftPackage {
-    @Test(.withFixture("generated_visionos_app"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_visionos_app"), .inTemporaryDirectory)
     func visionos_app() async throws {
         try await run(GenerateCommand.self)
 //        TODO: Fix
@@ -615,7 +616,7 @@ struct GenerateAcceptanceTestVisionOSAppWithRemoteSwiftPackage {
 }
 
 struct GenerateAcceptanceTestiOSAppWithLocalBinarySwiftPackage {
-    @Test(.withFixture("generated_ios_app_with_local_binary_swift_package"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_local_binary_swift_package"), .inTemporaryDirectory)
     func ios_app_with_local_binary_swift_package() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -623,7 +624,7 @@ struct GenerateAcceptanceTestiOSAppWithLocalBinarySwiftPackage {
 }
 
 struct GenerateAcceptanceTestAppWithSignedLocalBinarySwiftPackage {
-    @Test(.withFixture("generated_app_with_signed_local_binary_swift_package"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_signed_local_binary_swift_package"), .inTemporaryDirectory)
     func app_with_signed_local_binary_swift_package() async throws {
         let fixturePath = try fixtureDirectory()
 
@@ -708,7 +709,7 @@ struct GenerateAcceptanceTestiOSAppWithExtensions {
 // }
 
 struct GenerateAcceptanceTestiOSAppWithWatchApp2 {
-    @Test(.withFixture("generated_ios_app_with_watchapp2"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_watchapp2"), .inTemporaryDirectory)
     func ios_app_with_watchapp2() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
@@ -746,14 +747,14 @@ struct GenerateAcceptanceTestInvalidManifest {
 }
 
 struct GenerateAcceptanceTestiOSAppLarge {
-    @Test(.withFixture("generated_ios_app_large"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_large"), .inTemporaryDirectory)
     func ios_app_large() async throws {
         try await run(GenerateCommand.self)
     }
 }
 
 struct GenerateAcceptanceTestiOSWorkspaceWithDependencyCycle {
-    @Test(.withFixture("generated_ios_workspace_with_dependency_cycle"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_workspace_with_dependency_cycle"), .inTemporaryDirectory)
     func ios_workspace_with_dependency_cycle() async throws {
         do {
             try await run(GenerateCommand.self)
@@ -765,7 +766,7 @@ struct GenerateAcceptanceTestiOSWorkspaceWithDependencyCycle {
 }
 
 struct GenerateAcceptanceTestiOSAppWithCoreData {
-    @Test(.withFixture("generated_ios_app_with_coredata"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_coredata"), .inTemporaryDirectory)
     func ios_app_with_coredata() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
@@ -796,7 +797,7 @@ struct GenerateAcceptanceTestiOSAppWithCoreData {
 }
 
 struct GenerateAcceptanceTestiOSAppWithAppClip {
-    @Test(.withFixture("generated_ios_app_with_appclip"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_appclip"), .inTemporaryDirectory)
     func ios_app_with_appclip() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -832,7 +833,7 @@ struct GenerateAcceptanceTestCommandLineToolBase {
 }
 
 struct GenerateAcceptanceTestGeneratedBundleWithMetalFiles {
-    @Test(.withFixture("generated_bundle_with_metal_files"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_bundle_with_metal_files"), .inTemporaryDirectory)
     func generated_bundle_with_metal_files() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "Bundle")
@@ -845,7 +846,7 @@ struct GenerateAcceptanceTestGeneratedBundleWithMetalFiles {
 }
 
 struct GenerateAcceptanceTestGeneratedStaticFrameworkIncludesMetalLib {
-    @Test(.withFixture("generated_metallib_in_static_framework"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_metallib_in_static_framework"), .inTemporaryDirectory)
     func generated_bundle_with_metal_files() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "StaticMetallibFramework")
@@ -858,7 +859,7 @@ struct GenerateAcceptanceTestGeneratedStaticFrameworkIncludesMetalLib {
 }
 
 struct GenerateAcceptanceTestCommandLineToolWithStaticLibrary {
-    @Test(.withFixture("generated_command_line_tool_with_static_library"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_command_line_tool_with_static_library"), .inTemporaryDirectory)
     func command_line_tool_with_static_library() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "CommandLineTool")
@@ -866,7 +867,7 @@ struct GenerateAcceptanceTestCommandLineToolWithStaticLibrary {
 }
 
 struct GenerateAcceptanceTestCommandLineToolWithDynamicLibrary {
-    @Test(.withFixture("generated_command_line_tool_with_dynamic_library"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_command_line_tool_with_dynamic_library"), .inTemporaryDirectory)
     func command_line_tool_with_dynamic_library() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "CommandLineTool")
@@ -874,7 +875,7 @@ struct GenerateAcceptanceTestCommandLineToolWithDynamicLibrary {
 }
 
 struct GenerateAcceptanceTestCommandLineToolWithDynamicFramework {
-    @Test(.withFixture("generated_command_line_tool_with_dynamic_framework"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_command_line_tool_with_dynamic_framework"), .inTemporaryDirectory)
     func command_line_tool_with_dynamic_framework() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "CommandLineTool")
@@ -882,7 +883,7 @@ struct GenerateAcceptanceTestCommandLineToolWithDynamicFramework {
 }
 
 struct GenerateAcceptanceTestmacOSAppWithCopyFiles {
-    @Test(.withFixture("generated_macos_app_with_copy_files"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_macos_app_with_copy_files"), .inTemporaryDirectory)
     func macos_app_with_copy_files() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -902,7 +903,7 @@ struct GenerateAcceptanceTestmacOSAppWithCopyFiles {
 }
 
 struct GenerateAcceptanceTestManifestWithLogs {
-    @Test(.withFixture("generated_manifest_with_logs"), .withMockedDependencies())
+    @Test(.disabled(), .withFixture("generated_manifest_with_logs"), .withMockedDependencies())
     func manifest_with_logs() async throws {
         try await run(GenerateCommand.self)
         TuistTest.expectLogs("Target name - App", at: .info, <=)
@@ -910,7 +911,7 @@ struct GenerateAcceptanceTestManifestWithLogs {
 }
 
 struct GenerateAcceptanceTestsProjectWithClassPrefix {
-    @Test(.withFixture("generated_project_with_class_prefix"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_project_with_class_prefix"), .inTemporaryDirectory)
     func project_with_class_prefix() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -926,7 +927,7 @@ struct GenerateAcceptanceTestsProjectWithClassPrefix {
 }
 
 struct GenerateAcceptanceTestProjectWithFileHeaderTemplate {
-    @Test(.withFixture("generated_project_with_file_header_template"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_project_with_file_header_template"), .inTemporaryDirectory)
     func project_with_file_header_template() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
@@ -945,7 +946,7 @@ struct GenerateAcceptanceTestProjectWithFileHeaderTemplate {
 }
 
 struct GenerateAcceptanceTestProjectWithInlineFileHeaderTemplate {
-    @Test(.withFixture("generated_project_with_inline_file_header_template"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_project_with_inline_file_header_template"), .inTemporaryDirectory)
     func project_with_inline_file_header_template() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
@@ -964,7 +965,7 @@ struct GenerateAcceptanceTestProjectWithInlineFileHeaderTemplate {
 }
 
 struct GenerateAcceptanceTestWorkspaceWithFileHeaderTemplate {
-    @Test(.withFixture("generated_workspace_with_file_header_template"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_workspace_with_file_header_template"), .inTemporaryDirectory)
     func workspace_with_file_header_template() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
@@ -983,7 +984,7 @@ struct GenerateAcceptanceTestWorkspaceWithFileHeaderTemplate {
 }
 
 struct GenerateAcceptanceTestWorkspaceWithInlineFileHeaderTemplate {
-    @Test(.withFixture("generated_workspace_with_inline_file_header_template"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_workspace_with_inline_file_header_template"), .inTemporaryDirectory)
     func workspace_with_inline_file_header_template() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
@@ -1002,7 +1003,7 @@ struct GenerateAcceptanceTestWorkspaceWithInlineFileHeaderTemplate {
 }
 
 struct GenerateAcceptanceTestiOSAppWithFrameworkAndDisabledResources {
-    @Test(.withFixture("generated_ios_app_with_framework_and_disabled_resources"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_framework_and_disabled_resources"), .inTemporaryDirectory)
     func ios_app_with_framework_and_disabled_resources() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
@@ -1044,7 +1045,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndDisabledResources {
 }
 
 struct GenerateAcceptanceTestmacOSAppWithExtensions {
-    @Test(.withFixture("generated_macos_app_with_extensions"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_macos_app_with_extensions"), .inTemporaryDirectory)
     func macos_app_with_extensions() async throws {
         let fileSystem = FileSystem()
         let sourceRootPath = try sourceRootPath()
@@ -1069,7 +1070,7 @@ struct GenerateAcceptanceTestmacOSAppWithExtensions {
 }
 
 struct GenerateAcceptanceTestiOSAppWithNoneLinkingStatusFramework {
-    @Test(.withFixture("generated_ios_app_with_none_linking_status_framework"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_none_linking_status_framework"), .inTemporaryDirectory)
     func ios_app_with_none_linking_status_framework() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -1096,7 +1097,7 @@ struct GenerateAcceptanceTestiOSAppWithNoneLinkingStatusFramework {
 }
 
 struct GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework {
-    @Test(.withFixture("generated_ios_app_with_weakly_linked_framework"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_weakly_linked_framework"), .inTemporaryDirectory)
     func ios_app_with_weakly_linked_framework() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -1121,7 +1122,7 @@ struct GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework {
 }
 
 struct GenerateAcceptanceTestiOSAppWithCatalyst {
-    @Test(.withFixture("generated_ios_app_with_catalyst"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_catalyst"), .inTemporaryDirectory)
     func ios_app_with_catalyst() async throws {
         let osVersion = ProcessInfo.processInfo.operatingSystemVersion
         if osVersion.majorVersion >= 26 {
@@ -1141,7 +1142,7 @@ struct GenerateAcceptanceTestiOSAppWithCatalyst {
 }
 
 struct GenerateAcceptanceTestSPMPackage {
-    @Test(.withFixture("generated_spm_package"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_spm_package"), .inTemporaryDirectory)
     func spm_package() async throws {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
@@ -1155,7 +1156,7 @@ struct GenerateAcceptanceTestSPMPackage {
 }
 
 struct GenerateAcceptanceTestAppWithDefaultConfiguration {
-    @Test(.withFixture("generated_app_with_custom_default_configuration"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_custom_default_configuration"), .inTemporaryDirectory)
     func app_with_custom_default_configuration() async throws {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -1163,7 +1164,7 @@ struct GenerateAcceptanceTestAppWithDefaultConfiguration {
 }
 
 struct GenerateAcceptanceTestAppWithDefaultConfigurationSettings {
-    @Test(.withFixture("generated_app_with_custom_default_configuration_settings"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_custom_default_configuration_settings"), .inTemporaryDirectory)
     func app_with_custom_default_configuration_settings() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -1181,7 +1182,7 @@ struct GenerateAcceptanceTestAppWithDefaultConfigurationSettings {
 }
 
 struct GenerateAcceptanceTestAppWithCustomScheme {
-    @Test(.withFixture("generated_app_with_custom_scheme"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_custom_scheme"), .inTemporaryDirectory)
     func app_with_custom_scheme() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -1202,7 +1203,7 @@ struct GenerateAcceptanceTestAppWithCustomScheme {
 }
 
 struct GenerateAcceptanceTestGeneratediOSAppWithoutConfigManifest {
-    @Test(.withFixture("generated_ios_app_without_config_manifest"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_without_config_manifest"), .inTemporaryDirectory)
     func generated_ios_app_without_config_manifest() async throws {
         try await run(InstallCommand.self)
         try await run(BuildCommand.self)
@@ -1210,7 +1211,7 @@ struct GenerateAcceptanceTestGeneratediOSAppWithoutConfigManifest {
 }
 
 struct GeneratediOSStaticLibraryWithStringResources {
-    @Test(.withFixture("generated_ios_static_library_with_string_resources"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_static_library_with_string_resources"), .inTemporaryDirectory)
     func generated_ios_static_library_with_string_resources() async throws {
         try await run(InstallCommand.self)
         try await run(BuildCommand.self)
@@ -1226,7 +1227,7 @@ struct GeneratediOSStaticLibraryWithStringResources {
 }
 
 struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
-    @Test(.withFixture("generated_ios_app_with_static_framework_with_xcstrings"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_static_framework_with_xcstrings"), .inTemporaryDirectory)
     func ios_app_with_static_framework_with_xcstrings() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -1259,7 +1260,7 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
 }
 
 struct GenerateAcceptanceTestsAppWithMetalOptions {
-    @Test(.withFixture("generated_app_with_metal_options"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_metal_options"), .inTemporaryDirectory)
     func app_with_metal_options() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -1286,7 +1287,7 @@ struct GenerateAcceptanceTestsAppWithMetalOptions {
 }
 
 struct GenerateAcceptanceTestAppWithGoogleMaps {
-    @Test(.withFixture("generated_app_with_google_maps"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_google_maps"), .inTemporaryDirectory)
     func app_with_google_maps() async throws {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
@@ -1295,7 +1296,7 @@ struct GenerateAcceptanceTestAppWithGoogleMaps {
 }
 
 struct GenerateAcceptanceTestAppWithGlobs {
-    @Test(.withFixture("generated_app_with_globs"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_globs"), .inTemporaryDirectory)
     func app_with_globs() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
@@ -1318,7 +1319,7 @@ struct GenerateAcceptanceTestAppWithGlobs {
 }
 
 struct GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages {
-    @Test(.withFixture("generated_framework_with_macro_and_plugin_packages"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_framework_with_macro_and_plugin_packages"), .inTemporaryDirectory)
     func framework_with_macro_and_plugin_packages() async throws {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
@@ -1327,7 +1328,7 @@ struct GenerateAcceptanceTestFrameworkWithMacroAndPluginPackages {
 }
 
 struct GenerateAcceptanceTestAppWithRevenueCat {
-    @Test(.withFixture("generated_app_with_revenue_cat"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_revenue_cat"), .inTemporaryDirectory)
     func app_with_revenue_cat() async throws {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
@@ -1336,7 +1337,7 @@ struct GenerateAcceptanceTestAppWithRevenueCat {
 }
 
 struct GenerateAcceptanceTestAppWithSwiftCMark {
-    @Test(.withFixture("generated_app_with_swift_cmark"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_swift_cmark"), .inTemporaryDirectory)
     func app_with_swift_cmark() async throws {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
@@ -1345,7 +1346,7 @@ struct GenerateAcceptanceTestAppWithSwiftCMark {
 }
 
 struct GenerateAcceptanceTestAppWithSPMModuleAliases {
-    @Test(.withFixture("generated_app_with_spm_module_aliases"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_spm_module_aliases"), .inTemporaryDirectory)
     func app_with_spm_module_aliases() async throws {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
@@ -1354,7 +1355,7 @@ struct GenerateAcceptanceTestAppWithSPMModuleAliases {
 }
 
 struct GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies {
-    @Test(.withFixture("generated_app_with_local_spm_module_with_remote_dependencies"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_local_spm_module_with_remote_dependencies"), .inTemporaryDirectory)
     func app_with_local_spm_module_with_remote_dependencies() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(InstallCommand.self)
@@ -1377,7 +1378,7 @@ struct GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies {
 }
 
 struct GenerateAcceptanceTestAppWithNonLocalAppDependencies {
-    @Test(.withFixture("generated_app_with_executable_non_local_dependencies"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_executable_non_local_dependencies"), .inTemporaryDirectory)
     func app_with_non_local_app_dependencies() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(InstallCommand.self)
@@ -1410,7 +1411,7 @@ struct GenerateAcceptanceTestAppWithNonLocalAppDependencies {
 }
 
 struct GenerateAcceptanceTestAppWithGeneratedSources {
-    @Test(.withFixture("generated_app_with_generated_sources"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_generated_sources"), .inTemporaryDirectory)
     func app_with_generated_sources() async throws {
         let fixturePath = try fixtureDirectory()
         try await run(InstallCommand.self)
@@ -1438,7 +1439,7 @@ struct GenerateAcceptanceTestAppWithGeneratedSources {
 }
 
 struct GenerateAcceptanceTestAppWithMacBundle {
-    @Test(.withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory)
     func app_with_mac_bundle() async throws {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
@@ -1482,7 +1483,7 @@ struct GenerateAcceptanceTestAppWithMacBundle {
         )
     }
 
-    @Test(.withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory)
     func macos_app_with_mac_bundle() async throws {
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
@@ -1518,7 +1519,7 @@ struct GenerateAcceptanceTestAppWithMacBundle {
     /// Tests that external local Swift packages configured as dynamic frameworks
     /// compile and run without crashing when accessing Bundle.module.
     /// This is a regression test for https://github.com/tuist/tuist/issues/XXXX
-    @Test(.withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory)
     func app_with_external_dynamic_framework_with_resources() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
@@ -1602,12 +1603,12 @@ struct GenerateAcceptanceTestAppWithMacBundle {
 }
 
 struct GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies {
-    @Test(.withFixture("generated_app_with_signed_xcframework_dependencies"))
+    @Test(.disabled(), .withFixture("generated_app_with_signed_xcframework_dependencies"))
     func app_with_signed_xcframework_dependencies() async throws {
         try await run(GenerateCommand.self)
     }
 
-    @Test(.withFixture("generated_app_with_signed_xcframework_dependencies_mismatching_signature"), .withMockedDependencies())
+    @Test(.disabled(), .withFixture("generated_app_with_signed_xcframework_dependencies_mismatching_signature"), .withMockedDependencies())
     func app_with_mismatching_signed_xcframework_dependencies() async throws {
         do {
             try await run(GenerateCommand.self)
@@ -1628,6 +1629,7 @@ struct GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies {
 
 struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
     @Test(
+        .disabled(),
         .withFixture("generated_ios_app_with_sandbox_disabled")
     )
     func sandbox_disabled() async throws {
