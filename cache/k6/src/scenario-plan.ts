@@ -30,7 +30,7 @@ export const SCENARIO_PLANS: ScenarioPlan[] = [
   { key: 'module_exists_10mb', exec: 'moduleExists10mb', rate: 25, duration: 5, expectedLatencyMs: 20, minIterations: 115 },
   { key: 'module_read_10mb', exec: 'moduleRead10mb', rate: 14, duration: 15, expectedLatencyMs: 1200, minIterations: 190, preAllocatedVUs: 32, maxVUs: 64 },
   { key: 'gradle_read_10mb', exec: 'gradleRead10mb', rate: 14, duration: 15, expectedLatencyMs: 1200, minIterations: 190, preAllocatedVUs: 32, maxVUs: 64 },
-  { key: 'module_write_10mb', exec: 'moduleWrite10mb', rate: 3, duration: 45, expectedLatencyMs: 18000, minIterations: 120, preAllocatedVUs: 80, maxVUs: 160 },
+  { key: 'module_write_10mb', exec: 'moduleWrite10mb', rate: 2, duration: 60, expectedLatencyMs: 18000, minIterations: 120, preAllocatedVUs: 80, maxVUs: 160 },
   { key: 'gradle_write_10mb', exec: 'gradleWrite10mb', rate: 3, duration: 35, expectedLatencyMs: 5000, minIterations: 95, preAllocatedVUs: 32, maxVUs: 64 },
 
   { key: 'module_exists_25mb', exec: 'moduleExists25mb', rate: 10, duration: 5, expectedLatencyMs: 20, minIterations: 45 },
