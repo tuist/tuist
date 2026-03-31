@@ -143,6 +143,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     Tuist.Tests.TestSuiteRun.Buffer.flush()
     TestCaseFailure.Buffer.flush()
     TestCaseRunRepetition.Buffer.flush()
+    Tuist.Tests.TestCaseRunArgument.Buffer.flush()
     TestCaseEvent.Buffer.flush()
 
     result

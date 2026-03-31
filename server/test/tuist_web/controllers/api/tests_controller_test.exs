@@ -397,6 +397,112 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
+    test "creates a test run with parameterized test arguments", %{conn: conn, user: user, project: project} do
+      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        [module] = attrs.test_modules
+        [test_case] = module.test_cases
+        arguments = test_case.arguments
+
+        assert length(arguments) == 2
+
+        [arg1, arg2] = arguments
+        assert arg1.name == ".cardUser"
+        assert arg1.status == "failure"
+        assert arg1.duration == 500
+        assert length(arg1.failures) == 1
+        assert hd(arg1.failures).message == "Snapshot does not match"
+        assert length(arg1.repetitions) == 2
+
+        assert arg2.name == ".cardAdmin"
+        assert arg2.status == "success"
+
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           build_system: "xcode",
+           test_case_runs: [
+             %{
+               id: UUIDv7.generate(),
+               name: "profile details",
+               module_name: "MyTests",
+               suite_name: "ProfileTests",
+               arguments: [
+                 %{id: UUIDv7.generate(), name: ".cardUser"},
+                 %{id: UUIDv7.generate(), name: ".cardAdmin"}
+               ]
+             }
+           ]
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            duration: 5000,
+            is_ci: false,
+            status: "failure",
+            test_modules: [
+              %{
+                name: "MyTests",
+                status: "failure",
+                duration: 5000,
+                test_suites: [
+                  %{name: "ProfileTests", status: "failure", duration: 5000}
+                ],
+                test_cases: [
+                  %{
+                    name: "profile details",
+                    test_suite_name: "ProfileTests",
+                    status: "failure",
+                    duration: 1000,
+                    arguments: [
+                      %{
+                        name: ".cardUser",
+                        status: "failure",
+                        duration: 500,
+                        failures: [
+                          %{
+                            message: "Snapshot does not match",
+                            path: "ProfileTests.swift",
+                            line_number: 22,
+                            issue_type: "issue_recorded"
+                          }
+                        ],
+                        repetitions: [
+                          %{repetition_number: 1, name: "First Run", status: "success", duration: 200},
+                          %{repetition_number: 2, name: "Retry 1", status: "failure", duration: 300}
+                        ]
+                      },
+                      %{
+                        name: ".cardAdmin",
+                        status: "success",
+                        duration: 500
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        )
+
+      response = json_response(conn, 200)
+      assert %{"type" => "test"} = response
+      [test_case_run] = response["test_case_runs"]
+      assert test_case_run["name"] == "profile details"
+      assert length(test_case_run["arguments"]) == 2
+      [arg1, arg2] = test_case_run["arguments"]
+      assert arg1["name"] == ".cardUser"
+      assert arg2["name"] == ".cardAdmin"
+    end
+
     test "enqueues a VCS pull request comment", %{conn: conn, user: user, project: project} do
       test_pid = self()
 

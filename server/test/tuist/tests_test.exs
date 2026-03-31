@@ -139,6 +139,69 @@ defmodule Tuist.TestsTest do
       assert run.crash_report == nil
     end
 
+    test "preloads arguments with nested associations when requested" do
+      # Given
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "MyTests",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "parameterized test",
+                  test_suite_name: "MySuite",
+                  status: "failure",
+                  duration: 500,
+                  arguments: [
+                    %{
+                      name: ".variant1",
+                      status: "failure",
+                      duration: 200,
+                      failures: [
+                        %{message: "Failed", path: "Test.swift", line_number: 10, issue_type: "assertion_failure"}
+                      ],
+                      repetitions: [
+                        %{repetition_number: 1, name: "First Run", status: "success", duration: 100},
+                        %{repetition_number: 2, name: "Retry 1", status: "failure", duration: 100}
+                      ]
+                    },
+                    %{
+                      name: ".variant2",
+                      status: "success",
+                      duration: 300
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      [test_case_run] = test_run.test_case_runs
+
+      # When
+      {:ok, run} =
+        Tests.get_test_case_run_by_id(test_case_run.id,
+          preload: [arguments: [:failures, :repetitions, :attachments]]
+        )
+
+      # Then
+      assert length(run.arguments) == 2
+      arg1 = Enum.find(run.arguments, &(&1.name == ".variant1"))
+      arg2 = Enum.find(run.arguments, &(&1.name == ".variant2"))
+
+      assert arg1.status == "failure"
+      assert length(arg1.failures) == 1
+      assert hd(arg1.failures).message == "Failed"
+      assert length(arg1.repetitions) == 2
+
+      assert arg2.status == "success"
+      assert arg2.failures == []
+      assert arg2.repetitions == []
+    end
+
     test "does not preload associations when not requested" do
       # Given
       test_case_run = RunsFixtures.test_case_run_fixture()
