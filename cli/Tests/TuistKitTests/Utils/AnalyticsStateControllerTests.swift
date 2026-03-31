@@ -1,87 +1,37 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Mockable
 import Path
 import Testing
+import TuistCASAnalytics
 @testable import TuistKit
 
 struct AnalyticsStateControllerTests {
     private let fileSystem = FileSystem()
+    private let database = MockCASAnalyticsDatabasing()
 
     @Test(.inTemporaryDirectory)
-    func clean_removesOldAnalyticsFiles() async throws {
+    func clean_removesLegacyFileDirectories() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-        let casDirectory = temporaryDirectory.appending(component: "cas")
-        let nodesDirectory = temporaryDirectory.appending(component: "nodes")
-        let keyValueReadDirectory = temporaryDirectory.appending(components: ["keyvalue", "read"])
-        let keyValueWriteDirectory = temporaryDirectory.appending(components: ["keyvalue", "write"])
-
-        try await fileSystem.makeDirectory(at: casDirectory)
-        try await fileSystem.makeDirectory(at: nodesDirectory)
-        try await fileSystem.makeDirectory(at: keyValueReadDirectory)
-        try await fileSystem.makeDirectory(at: keyValueWriteDirectory)
-
-        let oldCasFile = casDirectory.appending(component: "old-cas.json")
-        let oldNodesFile = nodesDirectory.appending(component: "old-node")
-        let oldKVReadFile = keyValueReadDirectory.appending(component: "old-read.json")
-        let oldKVWriteFile = keyValueWriteDirectory.appending(component: "old-write.json")
-
-        for file in [oldCasFile, oldNodesFile, oldKVReadFile, oldKVWriteFile] {
-            try await fileSystem.touch(file)
+        for dir in ["cas", "nodes", "keyvalue"] {
+            let dirPath = temporaryDirectory.appending(component: dir)
+            try await fileSystem.makeDirectory(at: dirPath)
+            try await fileSystem.touch(dirPath.appending(component: "file.json"))
         }
 
-        let oldDate = Calendar.current.date(byAdding: .hour, value: -2, to: Date())!
-        for file in [oldCasFile, oldNodesFile, oldKVReadFile, oldKVWriteFile] {
-            try FileManager.default.setAttributes(
-                [FileAttributeKey.creationDate: oldDate],
-                ofItemAtPath: file.pathString
-            )
-        }
+        given(database).removeOldEntries(olderThan: .any).willReturn()
 
-        // When
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
+            database: database,
             stateDirectory: temporaryDirectory
         )
 
-        // Then
-        #expect(try await !fileSystem.exists(oldCasFile))
-        #expect(try await !fileSystem.exists(oldNodesFile))
-        #expect(try await !fileSystem.exists(oldKVReadFile))
-        #expect(try await !fileSystem.exists(oldKVWriteFile))
-    }
-
-    @Test(.inTemporaryDirectory)
-    func clean_keepsRecentAnalyticsFiles() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-
-        let casDirectory = temporaryDirectory.appending(component: "cas")
-        let nodesDirectory = temporaryDirectory.appending(component: "nodes")
-        let keyValueReadDirectory = temporaryDirectory.appending(components: ["keyvalue", "read"])
-
-        try await fileSystem.makeDirectory(at: casDirectory)
-        try await fileSystem.makeDirectory(at: nodesDirectory)
-        try await fileSystem.makeDirectory(at: keyValueReadDirectory)
-
-        let recentCasFile = casDirectory.appending(component: "recent-cas.json")
-        let recentNodesFile = nodesDirectory.appending(component: "recent-node")
-        let recentKVReadFile = keyValueReadDirectory.appending(component: "recent-read.json")
-
-        for file in [recentCasFile, recentNodesFile, recentKVReadFile] {
-            try await fileSystem.touch(file)
-        }
-
-        // When
-        try await AnalyticsStateController.clean(
-            fileSystem: fileSystem,
-            stateDirectory: temporaryDirectory
-        )
-
-        // Then
-        #expect(try await fileSystem.exists(recentCasFile))
-        #expect(try await fileSystem.exists(recentNodesFile))
-        #expect(try await fileSystem.exists(recentKVReadFile))
+        #expect(try await !fileSystem.exists(temporaryDirectory.appending(component: "cas")))
+        #expect(try await !fileSystem.exists(temporaryDirectory.appending(component: "nodes")))
+        #expect(try await !fileSystem.exists(temporaryDirectory.appending(component: "keyvalue")))
     }
 
     @Test(.inTemporaryDirectory)
@@ -92,23 +42,41 @@ struct AnalyticsStateControllerTests {
         try await fileSystem.makeDirectory(at: logsDirectory)
         try await fileSystem.touch(logsDirectory.appending(component: "old-log.txt"))
 
-        // When
+        given(database).removeOldEntries(olderThan: .any).willReturn()
+
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
+            database: database,
             stateDirectory: temporaryDirectory
         )
 
-        // Then
         #expect(try await !fileSystem.exists(logsDirectory))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func clean_removesOldDatabaseEntries() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(database).removeOldEntries(olderThan: .any).willReturn()
+
+        try await AnalyticsStateController.clean(
+            fileSystem: fileSystem,
+            database: database,
+            stateDirectory: temporaryDirectory
+        )
+
+        verify(database).removeOldEntries(olderThan: .any).called(1)
     }
 
     @Test(.inTemporaryDirectory)
     func clean_handlesNonExistentDirectories() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-        // When/Then -- should not throw
+        given(database).removeOldEntries(olderThan: .any).willReturn()
+
         try await AnalyticsStateController.clean(
             fileSystem: fileSystem,
+            database: database,
             stateDirectory: temporaryDirectory
         )
     }

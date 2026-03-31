@@ -14,16 +14,28 @@ let package = Package(
             name: "XCActivityLogParser",
             targets: ["XCActivityLogParser"]
         ),
+        .library(
+            name: "CASAnalyticsDatabase",
+            targets: ["CASAnalyticsDatabase"]
+        ),
     ],
     dependencies: [
         .package(id: "MobileNativeFoundation.XCLogParser", from: "0.2.46"),
         .package(id: "tuist.Path", from: "0.3.8"),
         .package(id: "tuist.FileSystem", from: "0.15.0"),
+        .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
     ],
     targets: [
         .target(
+            name: "CASAnalyticsDatabase",
+            dependencies: [
+                .product(name: "SQLite", package: "stephencelis.SQLite_swift"),
+            ]
+        ),
+        .target(
             name: "XCActivityLogParser",
             dependencies: [
+                "CASAnalyticsDatabase",
                 .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
                 .product(name: "Path", package: "tuist.Path"),
                 .product(name: "FileSystem", package: "tuist.FileSystem"),

@@ -3,6 +3,7 @@
     import Foundation
     import Mockable
     import Path
+    import TuistAppleArchiver
     import TuistAutomation
     import TuistCI
     import TuistCore
@@ -57,6 +58,7 @@
         private let fileSystem: FileSysteming
         private let fileArchiver: FileArchivingFactorying
         private let shardMatrixOutputService: ShardMatrixOutputServicing
+        private let appleArchiver: AppleArchiving
 
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
@@ -70,7 +72,8 @@
             ciController: CIControlling = CIController(),
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory(),
-            shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService()
+            shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
+            appleArchiver: AppleArchiving = AppleArchiver()
         ) {
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
@@ -82,6 +85,7 @@
             self.fileSystem = fileSystem
             self.fileArchiver = fileArchiver
             self.shardMatrixOutputService = shardMatrixOutputService
+            self.appleArchiver = appleArchiver
         }
 
         public func plan(
@@ -151,9 +155,9 @@
             )
 
             Logger.current.debug("Uploading test products bundle...")
-            let archivePath = try await fileArchiver
-                .makeFileArchiver(for: [xctestproductsPath])
-                .zip(name: "bundle.xctestproducts")
+            let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
+            let archivePath = archiveDirectory.appending(component: "bundle.aar")
+            try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                 artifactPath: archivePath,
                 generateUploadURL: { part in
@@ -182,6 +186,16 @@
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
+        }
+
+        /// Creates a compressed archive of the test products bundle, excluding files not needed for test execution
+        /// (dSYMs, .swiftmodule directories) to significantly reduce upload size.
+        private func archiveXCTestProducts(_ xctestproductsPath: AbsolutePath, to archivePath: AbsolutePath) async throws {
+            try await appleArchiver.compress(
+                directory: xctestproductsPath,
+                to: archivePath,
+                excludePatterns: [".dSYM", ".swiftmodule"]
+            )
         }
     }
 #endif

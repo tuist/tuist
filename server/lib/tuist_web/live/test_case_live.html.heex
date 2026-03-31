@@ -553,6 +553,16 @@
             status="warning"
           />
         </:col>
+        <:col :let={test_case_run} label={dgettext("dashboard_tests", "Branch")}>
+          <.text_cell
+            icon="git_branch"
+            label={
+              if test_case_run.git_branch == "",
+                do: dgettext("dashboard_tests", "Unknown"),
+                else: test_case_run.git_branch
+            }
+          />
+        </:col>
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Ran by")}>
           <.test_ran_by_badge_cell test={test_case_run} />
         </:col>

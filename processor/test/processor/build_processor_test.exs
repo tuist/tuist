@@ -19,9 +19,10 @@ defmodule Processor.BuildProcessorTest do
 
       expect(ExAws, :request, fn _ -> {:ok, :done} end)
 
-      expect(Processor.XCActivityLogNIF, :parse, fn path, cas_path, true ->
+      expect(Processor.XCActivityLogNIF, :parse, fn path, db_path, legacy_path, true ->
         assert String.ends_with?(path, "test.xcactivitylog")
-        assert String.ends_with?(cas_path, "cas_metadata")
+        assert String.ends_with?(db_path, "cas_analytics.db")
+        assert String.ends_with?(legacy_path, "cas_metadata")
         {:ok, %{"duration" => 1000, "status" => "success"}}
       end)
 
@@ -34,9 +35,10 @@ defmodule Processor.BuildProcessorTest do
     test "extracts build and parses xcactivitylog", %{tmp_dir: tmp_dir} do
       zip_path = write_test_zip(tmp_dir)
 
-      expect(Processor.XCActivityLogNIF, :parse, fn path, cas_path, true ->
+      expect(Processor.XCActivityLogNIF, :parse, fn path, db_path, legacy_path, true ->
         assert String.ends_with?(path, "test.xcactivitylog")
-        assert String.ends_with?(cas_path, "cas_metadata")
+        assert String.ends_with?(db_path, "cas_analytics.db")
+        assert String.ends_with?(legacy_path, "cas_metadata")
         {:ok, %{"duration" => 500, "status" => "success", "targets" => []}}
       end)
 
@@ -47,7 +49,7 @@ defmodule Processor.BuildProcessorTest do
     test "passes xcode_cache_upload_enabled to NIF", %{tmp_dir: tmp_dir} do
       zip_path = write_test_zip(tmp_dir)
 
-      expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, false ->
+      expect(Processor.XCActivityLogNIF, :parse, fn _path, _db_path, _legacy_path, false ->
         {:ok, %{"status" => "success"}}
       end)
 
@@ -57,7 +59,7 @@ defmodule Processor.BuildProcessorTest do
     test "ignores manifest when present", %{tmp_dir: tmp_dir} do
       zip_path = write_test_zip(tmp_dir, manifest: %{"xcode_cache_upload_enabled" => true})
 
-      expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
+      expect(Processor.XCActivityLogNIF, :parse, fn _path, _db_path, _legacy_path, true ->
         {:ok, %{"status" => "success"}}
       end)
 
@@ -76,7 +78,7 @@ defmodule Processor.BuildProcessorTest do
 
       zip_path = write_test_zip(tmp_dir, machine_metrics: metrics)
 
-      expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
+      expect(Processor.XCActivityLogNIF, :parse, fn _path, _db_path, _legacy_path, true ->
         {:ok,
          %{
            "status" => "success",
@@ -109,7 +111,7 @@ defmodule Processor.BuildProcessorTest do
       zip_path = Path.join(tmp_dir, "malformed_metrics.zip")
       File.write!(zip_path, zip_bytes)
 
-      expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
+      expect(Processor.XCActivityLogNIF, :parse, fn _path, _db_path, _legacy_path, true ->
         {:ok,
          %{
            "status" => "success",

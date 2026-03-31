@@ -1,6 +1,49 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.171.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* preserve external static xcframework deps for cached dynamics by [@pepicrft](https://github.com/pepicrft) in [#10089](https://github.com/tuist/tuist/pull/10089)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.1...4.171.2
+
+## What's Changed in 4.171.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* strip dSYMs and compress shard bundle before upload by [@fortmarek](https://github.com/fortmarek) in [#10112](https://github.com/tuist/tuist/pull/10112)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.0...4.171.1
+
+## What's Changed in 4.171.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add retries for OIDC token failures by [@cschmatzler](https://github.com/cschmatzler) in [#10085](https://github.com/tuist/tuist/pull/10085)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.170.1...4.171.0
+
+## What's Changed in 4.170.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add selective testing observability via MCP, API, CLI, and skills by [@pepicrft](https://github.com/pepicrft) in [#10013](https://github.com/tuist/tuist/pull/10013)
+### 🐛 Bug Fixes
+
+* replace file-based CAS analytics with SQLite for faster inspect build by [@fortmarek](https://github.com/fortmarek) in [#10062](https://github.com/tuist/tuist/pull/10062)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.169.2...4.170.1
+
 ## What's Changed in 4.169.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

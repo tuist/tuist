@@ -12,6 +12,7 @@ import TuistLoggerTesting
 import TuistNooraTesting
 import TuistServer
 import TuistSupport
+import TuistTestCommand
 import TuistTesting
 import XcodeProj
 
@@ -138,6 +139,68 @@ struct TuistCacheEEAcceptanceTests {
             "CODE_SIGNING_ALLOWED=NO",
         ]
         try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withTestingSimulator("iPhone 17"),
+        .withFixture("generated_feature_tests_with_cached_library_and_googlemaps")
+    ) func generated_feature_tests_with_cached_library_and_googlemaps() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let simulator = try #require(Simulator.testing)
+        let xcodeprojPath = fixtureDirectory.appending(components: "Feature", "Feature.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["Library", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "Feature",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+                "--device",
+                simulator.name,
+                "--",
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "Library",
+            by: "Feature",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "Library",
+            by: "FeatureTests",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkNotLinked(
+            "GoogleMaps",
+            by: "Feature",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkNotLinked(
+            "GoogleMapsBase",
+            by: "Feature",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkNotLinked(
+            "GoogleMapsCore",
+            by: "Feature",
+            xcodeprojPath: xcodeprojPath
+        )
     }
 
     @Test(

@@ -24,10 +24,26 @@ config :cache, CacheWeb.Endpoint,
 
 config :cache, :oban_web_basic_auth, username: "admin", password: "admin"
 
+config :cache, :s3,
+  bucket: "tuist-development",
+  xcode_cache_bucket: nil,
+  registry_bucket: nil,
+  protocols: [:http1]
+
 config :cache,
   server_url: "http://localhost:8080",
   storage_dir: System.get_env("STORAGE_DIR") || "/tmp/cache",
   api_key: System.get_env("TUIST_CACHE_API_KEY")
+
+config :ex_aws, :s3,
+  scheme: "http://",
+  host: "localhost",
+  port: 9095,
+  region: "us-east-1"
+
+config :ex_aws,
+  access_key_id: System.get_env("S3_ACCESS_KEY_ID", "minio"),
+  secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY", "minio1234")
 
 config :logger, :console, format: "[$level] $message\n"
 

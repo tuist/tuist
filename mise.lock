@@ -74,6 +74,17 @@ backend = "core:java"
 "platforms.linux-x64" = { checksum = "sha256:a2def047a73941e01a73739f92755f86b895811afb1f91243db214cff5bdac3f", url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-x64_bin.tar.gz"}
 "platforms.macos-arm64" = { checksum = "sha256:b3d588e16ec1e0ef9805d8a696591bd518a5cea62567da8f53b5ce32d11d22e4", url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_macos-aarch64_bin.tar.gz"}
 
+[[tools.jq]]
+version = "1.8.1"
+backend = "aqua:jqlang/jq"
+"platforms.linux-arm64" = { checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"}
+"platforms.linux-x64" = { checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"}
+"platforms.linux-x64-musl" = { checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"}
+"platforms.macos-arm64" = { checksum = "sha256:a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-arm64"}
+"platforms.macos-x64" = { checksum = "sha256:e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"}
+"platforms.windows-x64" = { checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"}
+
 [[tools.protoc]]
 version = "32.1"
 backend = "aqua:protocolbuffers/protobuf/protoc"
@@ -84,6 +95,17 @@ backend = "aqua:protocolbuffers/protobuf/protoc"
 "platforms.macos-arm64" = { checksum = "sha256:a7b51b2113862690fa52c62f8891a6037bafb9db88d4f9924c486de9d9bb89d5", url = "https://github.com/protocolbuffers/protobuf/releases/download/v32.1/protoc-32.1-osx-aarch_64.zip"}
 "platforms.macos-x64" = { checksum = "sha256:f9caa5b4d0b537acffb0ffd7d53225511a5574ef903fca550ea9e7600987f13b", url = "https://github.com/protocolbuffers/protobuf/releases/download/v32.1/protoc-32.1-osx-x86_64.zip"}
 "platforms.windows-x64" = { checksum = "sha256:69569cbc178cd5785ecb7d93569913110677eafeb4b8f82970c361fad4c7cd66", url = "https://github.com/protocolbuffers/protobuf/releases/download/v32.1/protoc-32.1-win64.zip"}
+
+[[tools.rclone]]
+version = "1.73.3"
+backend = "aqua:rclone/rclone"
+"platforms.linux-arm64" = { checksum = "sha256:ed2a638b4cb15abe4f01d6d9c015f3a1cb41aa7a17c96db2725542c61f353b8e", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-arm64.zip"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:ed2a638b4cb15abe4f01d6d9c015f3a1cb41aa7a17c96db2725542c61f353b8e", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-arm64.zip"}
+"platforms.linux-x64" = { checksum = "sha256:70278c22b98c7d02aed01828b70053904dbce4c8a1a15d7781d836c6fdb036ea", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-amd64.zip"}
+"platforms.linux-x64-musl" = { checksum = "sha256:70278c22b98c7d02aed01828b70053904dbce4c8a1a15d7781d836c6fdb036ea", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-linux-amd64.zip"}
+"platforms.macos-arm64" = { checksum = "sha256:ef046e9facd10d1fb39d0ef865d7fab9b5c6ca1597ac7c9167f3aa0c7747393f", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-osx-arm64.zip"}
+"platforms.macos-x64" = { checksum = "sha256:aaf209187baf40a4f6b732104121f81eedc0264aaa91186952ec3e78b82025b1", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-osx-amd64.zip"}
+"platforms.windows-x64" = { checksum = "sha256:1c51142576194d124ffa9654f45bab972530da22a3a339509bf9bed399f9dea3", url = "https://github.com/rclone/rclone/releases/download/v1.73.3/rclone-v1.73.3-windows-amd64.zip"}
 
 [[tools.sops]]
 version = "3.9.3"
@@ -116,11 +138,19 @@ backend = "aqua:realm/SwiftLint"
 "platforms.macos-x64" = { url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"}
 
 [[tools.tuist]]
-version = "4.169.2"
+version = "4.171.2"
 backend = "aqua:tuist/tuist"
-"platforms.linux-arm64" = { checksum = "sha256:b9dded2195fa3aaada6566f21e609f4adab10ef927d372c01f63e1a7e8ef8ed2", url = "https://github.com/tuist/tuist/releases/download/4.169.2/tuist-linux-aarch64.tar.gz"}
-"platforms.linux-arm64-musl" = { checksum = "sha256:b9dded2195fa3aaada6566f21e609f4adab10ef927d372c01f63e1a7e8ef8ed2", url = "https://github.com/tuist/tuist/releases/download/4.169.2/tuist-linux-aarch64.tar.gz"}
-"platforms.linux-x64" = { checksum = "sha256:ddb865b099f0b97ddc981b2d0808b7071afbdf0808feb310d205531bfe7eb076", url = "https://github.com/tuist/tuist/releases/download/4.169.2/tuist-linux-x86_64.tar.gz"}
-"platforms.linux-x64-musl" = { checksum = "sha256:ddb865b099f0b97ddc981b2d0808b7071afbdf0808feb310d205531bfe7eb076", url = "https://github.com/tuist/tuist/releases/download/4.169.2/tuist-linux-x86_64.tar.gz"}
-"platforms.macos-arm64" = { checksum = "sha256:594be7f8b0512c64156c291abd316436b5b4e36e7b0eafbd4093b5319d69a9ee", url = "https://github.com/tuist/tuist/releases/download/4.169.2/tuist.zip"}
-"platforms.macos-x64" = { checksum = "sha256:594be7f8b0512c64156c291abd316436b5b4e36e7b0eafbd4093b5319d69a9ee", url = "https://github.com/tuist/tuist/releases/download/4.169.2/tuist.zip"}
+"platforms.linux-x64" = { checksum = "sha256:5d12d2536db8d87e2e1b25b20da208a6d85c3cc2f7489d87142cd7b51f4eb4b3", url = "https://github.com/tuist/tuist/releases/download/4.171.2/tuist-linux-x86_64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:a4092a32cce19349a4e706294e2cd9100320d19ab67d7530fbfa8629e78d987b", url = "https://github.com/tuist/tuist/releases/download/4.171.2/tuist.zip"}
+"platforms.macos-x64" = { checksum = "sha256:a4092a32cce19349a4e706294e2cd9100320d19ab67d7530fbfa8629e78d987b", url = "https://github.com/tuist/tuist/releases/download/4.171.2/tuist.zip"}
+
+[[tools.yq]]
+version = "4.52.5"
+backend = "aqua:mikefarah/yq"
+"platforms.linux-arm64" = { checksum = "sha256:90fa510c50ee8ca75544dbfffed10c88ed59b36834df35916520cddc623d9aaa", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_arm64"}
+"platforms.linux-arm64-musl" = { checksum = "sha256:90fa510c50ee8ca75544dbfffed10c88ed59b36834df35916520cddc623d9aaa", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_arm64"}
+"platforms.linux-x64" = { checksum = "sha256:75d893a0d5940d1019cb7cdc60001d9e876623852c31cfc6267047bc31149fa9", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64"}
+"platforms.linux-x64-musl" = { checksum = "sha256:75d893a0d5940d1019cb7cdc60001d9e876623852c31cfc6267047bc31149fa9", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_linux_amd64"}
+"platforms.macos-arm64" = { checksum = "sha256:45a12e64d4bd8a31c72ee1b889e81f1b1110e801baad3d6f030c111db0068de0", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_darwin_arm64"}
+"platforms.macos-x64" = { checksum = "sha256:6e399d1eb466860c3202d231727197fdce055888c5c7bec6964156983dd1559d", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_darwin_amd64"}
+"platforms.windows-x64" = { checksum = "sha256:47594981f3848a4b4447494adeca9555f908f7cf0a89c4da3fd0243a4631da1c", url = "https://github.com/mikefarah/yq/releases/download/v4.52.5/yq_windows_amd64.exe"}
