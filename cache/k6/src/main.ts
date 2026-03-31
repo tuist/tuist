@@ -48,12 +48,14 @@ interface ScenarioConfig {
   duration: number;
   expectedLatencyMs: number;
   startTime: string;
+  preAllocatedVUs?: number;
+  maxVUs?: number;
 }
 
 function makeScenario(cfg: ScenarioConfig): any {
   const expectedConcurrentVUs = Math.ceil((cfg.rate * cfg.expectedLatencyMs) / 1000);
-  const preAllocatedVUs = Math.max(Math.ceil(expectedConcurrentVUs * 1.5), 1);
-  const maxVUs = Math.max(preAllocatedVUs * 2, preAllocatedVUs + 2);
+  const preAllocatedVUs = cfg.preAllocatedVUs ?? Math.max(Math.ceil(expectedConcurrentVUs * 1.5), 1);
+  const maxVUs = cfg.maxVUs ?? Math.max(preAllocatedVUs * 2, preAllocatedVUs + 2);
 
   return {
     executor: 'constant-arrival-rate',
@@ -78,6 +80,8 @@ for (const plan of SCENARIO_PLANS) {
     duration: plan.duration,
     expectedLatencyMs: plan.expectedLatencyMs,
     startTime: `${offset}s`,
+    preAllocatedVUs: plan.preAllocatedVUs,
+    maxVUs: plan.maxVUs,
   });
   offset += plan.duration;
 }
