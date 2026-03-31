@@ -269,13 +269,6 @@ defmodule Noora.Chart do
     """
   )
 
-  attr(:click_urls, :list,
-    default: [],
-    doc: """
-    A list of URLs corresponding to each data point in the first series.
-    When a data point is clicked, the browser navigates to the URL at the matching index.
-    """
-  )
 
   attr(:rest, :global, doc: "Additional HTML attributes to add to the container div")
 
@@ -356,13 +349,6 @@ defmodule Noora.Chart do
     merged_options =
       if chart_type == "bar" && assigns.bar_radius do
         apply_bar_radius_to_series(merged_options, assigns.bar_radius)
-      else
-        merged_options
-      end
-
-    merged_options =
-      if assigns.click_urls != [] do
-        Map.put(merged_options, :clickUrls, assigns.click_urls)
       else
         merged_options
       end

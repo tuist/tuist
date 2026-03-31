@@ -291,7 +291,6 @@ defmodule TuistWeb.TestsLive do
       [
         :recent_test_runs,
         :recent_test_runs_chart_data,
-        :recent_test_runs_chart_urls,
         :failed_test_runs_count,
         :passed_test_runs_count
       ],
@@ -318,12 +317,12 @@ defmodule TuistWeb.TestsLive do
 
             value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
 
-            %{value: value, itemStyle: %{color: color}, date: run.ran_at}
-          end)
-
-        recent_test_runs_chart_urls =
-          Enum.map(recent_test_runs, fn run ->
-            ~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{run.id}"
+            %{
+              value: value,
+              itemStyle: %{color: color},
+              date: run.ran_at,
+              url: ~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{run.id}"
+            }
           end)
 
         failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "failure" end)
@@ -333,7 +332,7 @@ defmodule TuistWeb.TestsLive do
          %{
            recent_test_runs: recent_test_runs,
            recent_test_runs_chart_data: recent_test_runs_chart_data,
-           recent_test_runs_chart_urls: recent_test_runs_chart_urls,
+
            failed_test_runs_count: failed_test_runs_count,
            passed_test_runs_count: passed_test_runs_count
          }}

@@ -114,19 +114,21 @@ export default {
     );
     this.chart.setOption(option);
 
-    if (option.clickUrls && Array.isArray(option.clickUrls)) {
-      const clickUrls = option.clickUrls;
+    const hasClickableData = option.series && option.series.some(
+      (s) => s.data && s.data.some((d) => d && typeof d === "object" && d.url)
+    );
 
+    if (hasClickableData) {
       this.chart.on("click", (params) => {
-        const url = clickUrls[params.dataIndex];
-        if (url) {
-          window.location.href = url;
+        const dataItem = params.data;
+        if (dataItem && dataItem.url) {
+          window.location.href = dataItem.url;
         }
       });
 
       const chartDom = this.el.querySelector("[data-part='chart']");
       this.chart.on("mouseover", (params) => {
-        if (clickUrls[params.dataIndex]) {
+        if (params.data && params.data.url) {
           chartDom.style.cursor = "pointer";
         }
       });

@@ -175,7 +175,7 @@ defmodule TuistWeb.ModuleCacheLive do
   end
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
-    assign_async(socket, [:runs, :recent_runs_chart_data, :recent_runs_chart_urls, :avg_recent_hit_rate], fn ->
+    assign_async(socket, [:runs, :recent_runs_chart_data, :avg_recent_hit_rate], fn ->
       # Add 14-day filter to leverage ClickHouse partition pruning and reduce rows scanned
       fourteen_days_ago = DateTime.add(DateTime.utc_now(), -14, :day)
 
@@ -206,13 +206,9 @@ defmodule TuistWeb.ModuleCacheLive do
 
           %{
             value: hit_rate,
-            date: event.ran_at
+            date: event.ran_at,
+            url: ~p"/#{project.account.name}/#{project.name}/runs/#{event.id}"
           }
-        end)
-
-      recent_runs_chart_urls =
-        Enum.map(reversed_events, fn event ->
-          ~p"/#{project.account.name}/#{project.name}/runs/#{event.id}"
         end)
 
       avg_recent_hit_rate =
@@ -231,7 +227,7 @@ defmodule TuistWeb.ModuleCacheLive do
        %{
          runs: events,
          recent_runs_chart_data: recent_runs_chart_data,
-         recent_runs_chart_urls: recent_runs_chart_urls,
+
          avg_recent_hit_rate: avg_recent_hit_rate
        }}
     end)

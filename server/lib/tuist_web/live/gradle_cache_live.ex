@@ -215,13 +215,9 @@ defmodule TuistWeb.GradleCacheLive do
 
         %{
           value: hit_rate,
-          date: build.inserted_at
+          date: build.inserted_at,
+          url: ~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
         }
-      end)
-
-    recent_builds_chart_urls =
-      Enum.map(reversed_builds, fn build ->
-        ~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
       end)
 
     avg_recent_hit_rate =
@@ -239,7 +235,7 @@ defmodule TuistWeb.GradleCacheLive do
     socket
     |> assign(:builds, builds)
     |> assign(:recent_builds_chart_data, recent_builds_chart_data)
-    |> assign(:recent_builds_chart_urls, recent_builds_chart_urls)
+
     |> assign(:avg_recent_hit_rate, avg_recent_hit_rate)
   end
 end

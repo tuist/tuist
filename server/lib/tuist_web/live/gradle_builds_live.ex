@@ -256,13 +256,9 @@ defmodule TuistWeb.GradleBuildsLive do
         %{
           value: build.duration_ms,
           itemStyle: %{color: color},
-          date: build.inserted_at
+          date: build.inserted_at,
+          url: ~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
         }
-      end)
-
-    recent_builds_chart_urls =
-      Enum.map(reversed_builds, fn build ->
-        ~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
       end)
 
     successful_builds_count = Enum.count(builds, &(&1.status == "success"))
@@ -271,7 +267,7 @@ defmodule TuistWeb.GradleBuildsLive do
     socket
     |> assign(:builds, builds)
     |> assign(:recent_builds_chart_data, recent_builds_chart_data)
-    |> assign(:recent_builds_chart_urls, recent_builds_chart_urls)
+
     |> assign(:successful_builds_count, successful_builds_count)
     |> assign(:failed_builds_count, failed_builds_count)
   end

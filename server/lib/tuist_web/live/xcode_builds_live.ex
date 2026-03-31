@@ -279,7 +279,6 @@ defmodule TuistWeb.XcodeBuildsLive do
       [
         :recent_builds,
         :recent_builds_chart_data,
-        :recent_builds_chart_urls,
         :successful_builds_count,
         :failed_builds_count
       ],
@@ -309,12 +308,12 @@ defmodule TuistWeb.XcodeBuildsLive do
                 _ -> "var:noora-chart-destructive"
               end
 
-            %{value: run.duration, itemStyle: %{color: color}, date: run.inserted_at}
-          end)
-
-        recent_builds_chart_urls =
-          Enum.map(recent_builds, fn run ->
-            ~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{run.id}"
+            %{
+              value: run.duration,
+              itemStyle: %{color: color},
+              date: run.inserted_at,
+              url: ~p"/#{project.account.name}/#{project.name}/builds/build-runs/#{run.id}"
+            }
           end)
 
         %{successful_count: successful_builds_count, failed_count: failed_builds_count} =
@@ -324,7 +323,7 @@ defmodule TuistWeb.XcodeBuildsLive do
          %{
            recent_builds: recent_builds,
            recent_builds_chart_data: recent_builds_chart_data,
-           recent_builds_chart_urls: recent_builds_chart_urls,
+
            successful_builds_count: successful_builds_count,
            failed_builds_count: failed_builds_count
          }}
