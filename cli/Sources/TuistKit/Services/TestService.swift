@@ -16,8 +16,8 @@ import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
 import TuistXCResultService
-import XCResultParser
 import XcodeGraph
+import XCResultParser
 
 import struct TSCUtility.Version
 

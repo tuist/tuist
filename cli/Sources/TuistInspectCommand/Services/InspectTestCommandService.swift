@@ -8,19 +8,19 @@
     import TuistConfig
     import TuistConfigLoader
     import TuistCore
-    import TuistGit
-    import TuistRootDirectoryLocator
     import TuistEnvironment
+    import TuistGit
     import TuistKit
     import TuistLoader
     import TuistLogging
     import TuistProcess
+    import TuistRootDirectoryLocator
     import TuistServer
     import TuistSupport
     import TuistXCActivityLog
     import TuistXcodeProjectOrWorkspacePathLocator
     import TuistXCResultService
-import XCResultParser
+    import XCResultParser
 
     enum InspectTestCommandServiceError: Equatable, LocalizedError {
         case executablePathMissing
