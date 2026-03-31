@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.171.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* resolve incorrect storeKitConfigurationPath and GPX paths in generated xcschemes by [@fortmarek](https://github.com/fortmarek) in [#10122](https://github.com/tuist/tuist/pull/10122)
+* embed App Intents metadata in cached xcframeworks by [@fortmarek](https://github.com/fortmarek) in [#10120](https://github.com/tuist/tuist/pull/10120)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.3...4.171.4
+
 ## What's Changed in 4.171.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
