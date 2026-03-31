@@ -56,70 +56,22 @@ defmodule TuistWeb.DocsLive do
     |> assign(:selected_account, selected_account)
     |> assign(:account_projects, projects)
     |> assign(:selected_project, selected_project)
+    |> build_breadcrumbs(selected_account, accounts, selected_project, projects)
   end
 
   def handle_params(params, _url, socket) do
-    socket = apply_selector_params(socket, params)
-
     case socket.assigns.live_action do
       :overview -> handle_overview(socket)
       :show -> handle_show(params, socket)
     end
   end
 
-  defp apply_selector_params(socket, params) do
-    current_user = socket.assigns[:current_user]
-    if is_nil(current_user), do: socket, else: do_apply_selector_params(socket, params)
-  end
-
-  defp do_apply_selector_params(socket, params) do
-    current_user = socket.assigns[:current_user]
-    accounts = socket.assigns.user_accounts
-
-    {selected_account, projects} =
-      case params["account"] do
-        nil ->
-          {socket.assigns.selected_account, socket.assigns.account_projects}
-
-        account_id ->
-          case Enum.find(accounts, &(&1.id == account_id)) do
-            nil ->
-              {socket.assigns.selected_account, socket.assigns.account_projects}
-
-            account ->
-              {account, AccountProjectBreadcrumbs.get_account_projects(account, current_user)}
-          end
-      end
-
-    selected_project =
-      case params["project"] do
-        nil ->
-          if socket.assigns.selected_account == selected_account,
-            do: socket.assigns.selected_project,
-            else: List.first(projects)
-
-        project_id ->
-          Enum.find(projects, &(&1.id == project_id)) || List.first(projects)
-      end
-
-    socket
-    |> assign(:selected_account, selected_account)
-    |> assign(:account_projects, projects)
-    |> assign(:selected_project, selected_project)
-    |> build_breadcrumbs(selected_account, accounts, selected_project, projects)
-  end
-
   defp build_breadcrumbs(socket, selected_account, accounts, selected_project, projects) do
-    current_path = socket.assigns[:current_path] || "/en/docs"
-    base_path = URI.parse(current_path).path || current_path
-
     account_breadcrumb =
-      AccountProjectBreadcrumbs.account_breadcrumb(selected_account, accounts, docs_base_path: base_path)
+      AccountProjectBreadcrumbs.account_breadcrumb(selected_account, accounts, stateful: true)
 
     project_breadcrumb =
-      AccountProjectBreadcrumbs.project_breadcrumb(selected_project, selected_account, projects,
-        docs_base_path: base_path
-      )
+      AccountProjectBreadcrumbs.project_breadcrumb(selected_project, selected_account, projects, stateful: true)
 
     assign(socket, :breadcrumbs, [account_breadcrumb, project_breadcrumb])
   end
@@ -621,6 +573,43 @@ defmodule TuistWeb.DocsLive do
 
   def handle_event("copy-page-markdown", _params, socket) do
     {:noreply, socket}
+  end
+
+  def handle_event("select-account", %{"value" => account_id}, socket) do
+    case Enum.find(socket.assigns.user_accounts, &(&1.id == account_id)) do
+      nil ->
+        {:noreply, socket}
+
+      account ->
+        current_user = socket.assigns[:current_user]
+        projects = AccountProjectBreadcrumbs.get_account_projects(account, current_user)
+        selected_project = List.first(projects)
+
+        {:noreply,
+         socket
+         |> assign(:selected_account, account)
+         |> assign(:account_projects, projects)
+         |> assign(:selected_project, selected_project)
+         |> build_breadcrumbs(account, socket.assigns.user_accounts, selected_project, projects)}
+    end
+  end
+
+  def handle_event("select-project", %{"value" => project_id}, socket) do
+    case Enum.find(socket.assigns.account_projects, &(&1.id == project_id)) do
+      nil ->
+        {:noreply, socket}
+
+      project ->
+        {:noreply,
+         socket
+         |> assign(:selected_project, project)
+         |> build_breadcrumbs(
+           socket.assigns.selected_account,
+           socket.assigns.user_accounts,
+           project,
+           socket.assigns.account_projects
+         )}
+    end
   end
 
   defp fetch_latest_videos do

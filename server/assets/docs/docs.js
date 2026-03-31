@@ -5,6 +5,7 @@ import topbar from "../app/js/vendor/topbar.js";
 import Noora from "noora";
 import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
+import DocsSelectorHook from "./hooks/docs-selector-hook.js";
 import { initDocsSearch } from "./hooks/docs-search-hook.js";
 
 import "./docs.css";
@@ -19,6 +20,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
     ...Noora.Hooks,
     DocsContent: DocsContentHook,
     DocsInstallTabs: DocsInstallTabsHook,
+    DocsSelector: DocsSelectorHook,
   },
 });
 

@@ -11,26 +11,24 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
   alias Tuist.Projects
 
   def account_breadcrumb(selected_account, current_user_accounts, opts \\ []) do
-    docs_base_path = Keyword.get(opts, :docs_base_path)
+    stateful? = Keyword.get(opts, :stateful, false)
 
     %{
       label: selected_account.name,
       icon: "smart_home",
       show_avatar: true,
       avatar_color: Accounts.avatar_color(selected_account),
+      selector_event: if(stateful?, do: "select-account"),
       items:
         Enum.map(current_user_accounts, fn account ->
-          item = %{
+          %{
             label: account.name,
             value: account.id,
             selected: account.id == selected_account.id,
+            href: if(!stateful?, do: ~p"/#{account.name}/projects"),
             show_avatar: true,
             avatar_color: Accounts.avatar_color(account)
           }
-
-          if docs_base_path,
-            do: Map.put(item, :patch, "#{docs_base_path}?account=#{account.id}"),
-            else: Map.put(item, :href, ~p"/#{account.name}/projects")
         end) ++
           [
             %{
@@ -45,7 +43,7 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
   end
 
   def project_breadcrumb(selected_project, selected_account, projects, opts \\ []) do
-    docs_base_path = Keyword.get(opts, :docs_base_path)
+    stateful? = Keyword.get(opts, :stateful, false)
 
     label =
       if is_nil(selected_project),
@@ -60,23 +58,16 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
     %{
       label: label,
       badge: badge,
+      selector_event: if(stateful?, do: "select-project"),
       items:
         Enum.map(projects, fn project ->
-          item = %{
+          %{
             label: project.name,
             value: project.id,
             selected: not is_nil(selected_project) and selected_project.id == project.id,
+            href: if(!stateful?, do: ~p"/#{selected_account.name}/#{project.name}"),
             badge: build_system_badge(project.build_system)
           }
-
-          if docs_base_path,
-            do:
-              Map.put(
-                item,
-                :patch,
-                "#{docs_base_path}?account=#{selected_account.id}&project=#{project.id}"
-              ),
-            else: Map.put(item, :href, ~p"/#{selected_account.name}/#{project.name}")
         end) ++
           [
             %{
