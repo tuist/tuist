@@ -474,6 +474,65 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
     }
 
+    func test_schemeTestAction_gpxSimulatedLocation() throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/somepath/Workspace")
+        let projectPath = workspacePath.appending(components: ["Projects", "Project"])
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+
+        let gpxPath = projectPath.appending(
+            try RelativePath(validating: "Resources/TestLocation.gpx")
+        )
+        let testAction = TestAction.test(
+            targets: [
+                TestableTarget(
+                    target: TargetReference(projectPath: projectPath, name: "AppTests"),
+                    simulatedLocation: .gpxFile(gpxPath)
+                ),
+            ],
+            arguments: nil
+        )
+
+        let scheme = Scheme.test(name: "AppTests", testAction: testAction)
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: projectPath.appending(component: "Project.xcodeproj"),
+            targets: [target, testTarget]
+        )
+        let graph = Graph.test(
+            path: workspacePath,
+            workspace: .test(
+                path: workspacePath,
+                xcWorkspacePath: workspacePath.appending(component: "Workspace.xcworkspace")
+            ),
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: testTarget.name, path: project.path): [
+                    .target(name: target.name, path: project.path),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: workspacePath,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        let testable = try XCTUnwrap(result.testables.first)
+        XCTAssertEqual(
+            testable.locationScenarioReference?.identifier,
+            "Projects/Project/Resources/TestLocation.gpx"
+        )
+        XCTAssertEqual(testable.locationScenarioReference?.referenceType, "0")
+    }
+
     func test_schemeTestAction_with_expandVariable() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
@@ -1232,11 +1291,118 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
         XCTAssertEqual(
             result.storeKitConfigurationFileReference,
-            .init(identifier: "../Projects/Project/nested/configuration/configuration.storekit")
+            .init(identifier: "Projects/Project/nested/configuration/configuration.storekit")
         )
         XCTAssertEqual(result.locationScenarioReference?.referenceType, "1")
         XCTAssertEqual(result.locationScenarioReference?.identifier, "New York, NY, USA")
         XCTAssertEqual(result.language, "pl")
+    }
+
+    func test_schemeLaunchAction_storeKitConfigurationPath_withSiblingWorkspaceAndProject() throws {
+        // Given
+        // Workspace and project are siblings at the repo root
+        let repoRoot = try AbsolutePath(validating: "/repo")
+        let projectPath = repoRoot.appending(components: ["iOS", "App"])
+
+        let runAction = RunAction.test(
+            configurationName: "Debug",
+            executable: TargetReference(projectPath: projectPath, name: "App"),
+            options: .init(
+                storeKitConfigurationPath: projectPath.appending(
+                    try RelativePath(validating: "Resources/Products.storekit")
+                )
+            )
+        )
+        let scheme = Scheme.test(
+            buildAction: BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")]),
+            runAction: runAction
+        )
+
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: projectPath.appending(component: "App.xcodeproj"),
+            targets: [app]
+        )
+        let graph = Graph.test(
+            path: repoRoot,
+            workspace: .test(
+                path: repoRoot,
+                xcWorkspacePath: repoRoot.appending(component: "Workspace.xcworkspace")
+            ),
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeLaunchAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: repoRoot,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        // Path should be relative to the directory containing the .xcworkspace, not the bundle itself.
+        // This means no leading "../" to escape the .xcworkspace bundle.
+        XCTAssertEqual(
+            result.storeKitConfigurationFileReference,
+            .init(identifier: "iOS/App/Resources/Products.storekit")
+        )
+    }
+
+    func test_schemeLaunchAction_gpxSimulatedLocation() throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/somepath/Workspace")
+        let projectPath = workspacePath.appending(components: ["Projects", "Project"])
+
+        let gpxPath = projectPath.appending(
+            try RelativePath(validating: "Resources/MyLocation.gpx")
+        )
+        let runAction = RunAction.test(
+            configurationName: "Debug",
+            executable: TargetReference(projectPath: projectPath, name: "App"),
+            options: .init(
+                simulatedLocation: .gpxFile(gpxPath)
+            )
+        )
+        let scheme = Scheme.test(
+            buildAction: BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")]),
+            runAction: runAction
+        )
+
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: projectPath.appending(component: "Project.xcodeproj"),
+            targets: [app]
+        )
+        let graph = Graph.test(
+            path: workspacePath,
+            workspace: .test(
+                path: workspacePath,
+                xcWorkspacePath: workspacePath.appending(component: "Workspace.xcworkspace")
+            ),
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeLaunchAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: workspacePath,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(
+            result.locationScenarioReference?.identifier,
+            "Projects/Project/Resources/MyLocation.gpx"
+        )
+        XCTAssertEqual(result.locationScenarioReference?.referenceType, "0")
     }
 
     func test_schemeLaunchAction_argumentsOrder() throws {
