@@ -135,6 +135,42 @@ defmodule Tuist.OrganizationTest do
       assert "must be a valid URL" in errors_on(changeset).oauth2_authorize_url
     end
 
+    test "rejects private IP addresses in oauth2 URLs" do
+      for private_url <- [
+            "https://127.0.0.1/authorize",
+            "https://10.0.0.1/authorize",
+            "https://172.16.0.1/authorize",
+            "https://192.168.1.1/authorize",
+            "https://169.254.169.254/authorize",
+            "https://0.0.0.0/authorize",
+            "https://localhost/authorize",
+            "https://service.local/authorize",
+            "https://metadata.internal/authorize"
+          ] do
+        changeset =
+          Organization.create_changeset(
+            %Organization{},
+            Map.put(@oauth2_attrs, :oauth2_authorize_url, private_url)
+          )
+
+        assert changeset.valid? == false,
+               "Expected #{private_url} to be rejected"
+
+        assert "must be a valid URL" in errors_on(changeset).oauth2_authorize_url
+      end
+    end
+
+    test "rejects private addresses in sso_organization_id for oauth2" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :sso_organization_id, "https://localhost")
+        )
+
+      assert changeset.valid? == false
+      assert "must be a valid URL" in errors_on(changeset).sso_organization_id
+    end
+
     test "requires the oauth2 fields on create" do
       changeset =
         Organization.create_changeset(%Organization{}, %{

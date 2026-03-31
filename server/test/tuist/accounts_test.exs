@@ -3286,6 +3286,50 @@ defmodule Tuist.AccountsTest do
 
       assert {:error, :not_found} == Accounts.sso_organization_for_user_email(user.email)
     end
+
+    test "falls back to domain-based matching for okta when user is not in SSO organization" do
+      creator = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: creator,
+          sso_provider: :okta,
+          sso_organization_id: "example.okta.com",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
+        )
+
+      {:ok, got_organization} =
+        Accounts.sso_organization_for_user_email("someone@example.com")
+
+      assert got_organization.id == organization.id
+    end
+
+    test "falls back to domain-based matching for custom oauth2 when user is not in SSO organization" do
+      creator = AccountsFixtures.user_fixture()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: creator,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://example.com",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret",
+          oauth2_authorize_url: "https://example.com/authorize",
+          oauth2_token_url: "https://example.com/token",
+          oauth2_user_info_url: "https://example.com/userinfo"
+        )
+
+      {:ok, got_organization} =
+        Accounts.sso_organization_for_user_email("someone@example.com")
+
+      assert got_organization.id == organization.id
+    end
+
+    test "domain-based fallback returns error when no matching organization" do
+      assert {:error, :not_found} ==
+               Accounts.sso_organization_for_user_email("someone@nomatch.com")
+    end
   end
 
   describe "create_namespace_tenant_for_account/1" do

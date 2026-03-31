@@ -1654,6 +1654,30 @@ defmodule Tuist.Accounts do
       {:ok, organization}
     else
       _ ->
+        sso_organization_for_email_domain(email)
+    end
+  end
+
+  defp sso_organization_for_email_domain(email) do
+    case String.split(email, "@") do
+      [_username, domain] ->
+        okta_domain = String.replace(domain, ".com", ".okta.com")
+        url_domain = "https://#{domain}"
+
+        case Repo.one(
+               from(o in Organization,
+                 where: not is_nil(o.sso_provider),
+                 where:
+                   o.sso_organization_id == ^domain or
+                     o.sso_organization_id == ^okta_domain or
+                     o.sso_organization_id == ^url_domain
+               )
+             ) do
+          %Organization{} = organization -> {:ok, organization}
+          nil -> {:error, :not_found}
+        end
+
+      _ ->
         {:error, :not_found}
     end
   end

@@ -155,14 +155,23 @@ defmodule TuistWeb.SSOSettingsLive do
     sso_provider = String.to_existing_atom(selected_provider)
     attrs = build_oauth2_attrs(selected_provider, params["sso"] || %{}, socket.assigns.sso_enforced)
 
-    {:ok, updated_organization} = Accounts.update_sso_configuration(organization.id, sso_provider, attrs)
+    case Accounts.update_sso_configuration(organization.id, sso_provider, attrs) do
+      {:ok, updated_organization} ->
+        {:noreply,
+         socket
+         |> assign(organization: updated_organization)
+         |> assign_form_from_organization(updated_organization)
+         |> assign_saved_state()
+         |> assign(flash_message: nil)}
 
-    {:noreply,
-     socket
-     |> assign(organization: updated_organization)
-     |> assign_form_from_organization(updated_organization)
-     |> assign_saved_state()
-     |> assign(flash_message: nil)}
+      {:error, changeset} ->
+        message =
+          changeset
+          |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+          |> Enum.map_join(", ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
+
+        {:noreply, assign(socket, flash_message: {"error", message})}
+    end
   end
 
   defp build_oauth2_attrs(selected_provider, form, sso_enforced) do

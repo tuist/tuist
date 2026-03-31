@@ -215,6 +215,52 @@ defmodule TuistWeb.SSOSettingsLiveTest do
       assert html =~ "Enable Single Sign-On"
     end
 
+    test "shows error when submitting invalid URLs", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
+
+      html =
+        lv
+        |> form("#sso-form", %{
+          "sso" => %{
+            "oauth2_site" => "not-a-url",
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => "test_client_secret",
+            "oauth2_authorize_url" => "not-a-url",
+            "oauth2_token_url" => "not-a-url",
+            "oauth2_user_info_url" => "not-a-url"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "must be a valid URL"
+    end
+
+    test "shows error when submitting private addresses", %{conn: conn, account: account} do
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
+
+      html =
+        lv
+        |> form("#sso-form", %{
+          "sso" => %{
+            "oauth2_site" => "https://localhost",
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => "test_client_secret",
+            "oauth2_authorize_url" => "https://localhost/authorize",
+            "oauth2_token_url" => "https://localhost/token",
+            "oauth2_user_info_url" => "https://localhost/userinfo"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "must be a valid URL"
+    end
+
     test "displays custom OAuth2 setup instructions when selected", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 

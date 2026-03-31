@@ -271,7 +271,8 @@ defmodule TuistWeb.AuthController do
   defp sso_auth(conn, config, sso_provider, route_provider) do
     params = [code: conn.params["code"]]
 
-    with {:ok, %Client{token: token} = client} <-
+    with :ok <- validate_sso_urls(config),
+         {:ok, %Client{token: token} = client} <-
            Client.get_token(sso_client(config, sso_callback_url(route_provider)), params),
          {:ok, %{status_code: 200, body: userinfo}} <- Client.get(client, config.user_info_url),
          {:ok, uid, email} <- validate_sso_userinfo(userinfo) do
@@ -280,6 +281,20 @@ defmodule TuistWeb.AuthController do
       {:ok, %{status_code: status_code, body: body}} -> {:error, {:userinfo_request_failed, status_code, body}}
       {:error, reason} -> {:error, reason}
       error -> {:error, error}
+    end
+  end
+
+  defp validate_sso_urls(config) do
+    urls =
+      Enum.filter(
+        [config.site, config.authorize_url, config.token_url, config.user_info_url],
+        &String.starts_with?(&1, "http")
+      )
+
+    if Enum.all?(urls, &Tuist.URL.public_url?/1) do
+      :ok
+    else
+      {:error, :unsafe_sso_url}
     end
   end
 

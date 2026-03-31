@@ -132,16 +132,7 @@ defmodule Tuist.Accounts.Organization do
     end
   end
 
-  defp valid_oauth2_url?(url) do
-    case URI.parse(url) do
-      %URI{scheme: scheme, host: host, query: nil, fragment: nil}
-      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        true
-
-      _ ->
-        false
-    end
-  end
+  defp valid_oauth2_url?(url), do: Tuist.URL.public_url?(url)
 
   defp normalize_oauth2_endpoint_urls(changeset) do
     Enum.reduce(@oauth2_endpoint_fields, changeset, fn field, changeset ->
