@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description "Build a production release (NIF + Elixir)"
-#MISE depends ["build-nif"]
+#MISE depends=["build-nif"]
 #MISE raw=true
 set -euo pipefail
 
