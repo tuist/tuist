@@ -256,6 +256,12 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
+      - name: Setup Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup
+      - name: Install Tuist dependencies
+        if: steps.cache.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
