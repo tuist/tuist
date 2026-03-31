@@ -11,21 +11,25 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
   alias Tuist.Projects
 
   def account_breadcrumb(selected_account, current_user_accounts, opts \\ []) do
-    stateful? = Keyword.get(opts, :stateful, false)
+    docs_base_path = Keyword.get(opts, :docs_base_path)
 
     %{
       label: selected_account.name,
       icon: "smart_home",
       show_avatar: true,
       avatar_color: Accounts.avatar_color(selected_account),
-      on_select: if(stateful?, do: "select-account"),
       items:
         Enum.map(current_user_accounts, fn account ->
+          href =
+            if docs_base_path,
+              do: "#{docs_base_path}?account=#{account.id}",
+              else: ~p"/#{account.name}/projects"
+
           %{
             label: account.name,
             value: account.id,
             selected: account.id == selected_account.id,
-            href: if(!stateful?, do: ~p"/#{account.name}/projects"),
+            href: href,
             show_avatar: true,
             avatar_color: Accounts.avatar_color(account)
           }
@@ -43,7 +47,7 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
   end
 
   def project_breadcrumb(selected_project, selected_account, projects, opts \\ []) do
-    stateful? = Keyword.get(opts, :stateful, false)
+    docs_base_path = Keyword.get(opts, :docs_base_path)
 
     label =
       if is_nil(selected_project),
@@ -51,19 +55,25 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
         else: selected_project.name
 
     badge =
-      if is_nil(selected_project), do: nil, else: build_system_badge(selected_project.build_system)
+      if is_nil(selected_project),
+        do: nil,
+        else: build_system_badge(selected_project.build_system)
 
     %{
       label: label,
       badge: badge,
-      on_select: if(stateful?, do: "select-project"),
       items:
         Enum.map(projects, fn project ->
+          href =
+            if docs_base_path,
+              do: "#{docs_base_path}?account=#{selected_account.id}&project=#{project.id}",
+              else: ~p"/#{selected_account.name}/#{project.name}"
+
           %{
             label: project.name,
             value: project.id,
             selected: not is_nil(selected_project) and selected_project.id == project.id,
-            href: if(!stateful?, do: ~p"/#{selected_account.name}/#{project.name}"),
+            href: href,
             badge: build_system_badge(project.build_system)
           }
         end) ++
