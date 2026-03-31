@@ -30,15 +30,12 @@ jobs:
     steps:
       - name: Resolve inputs
         id: resolve
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           echo "pr_ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
           echo "pr_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
-          MAIN_SHA=$(gh api "/repos/${{ github.repository }}/commits/main" --jq '.sha')
-          echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
+          echo "main_sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Remove label
         env:
@@ -62,6 +59,7 @@ jobs:
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
+          install_args: "ruby gem:kamal"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Setup SSH
@@ -82,11 +80,14 @@ jobs:
     env:
       REGION: eu-central
       CACHE_HOST: cache-eu-central-staging.tuist.dev
+    defaults:
+      run:
+        working-directory: cache
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.pr_ref }}
-      - name: Create cache project token
+      - name: Create cache account token
         env:
           SERVER_URL: https://staging.tuist.dev
           AUTH_EMAIL: tuistrocks@tuist.dev
@@ -99,20 +100,38 @@ jobs:
           AUTH_RESPONSE=$(curl -fsS "$SERVER_URL/api/auth" \
             -H 'Content-Type: application/json' \
             -d "{\"email\":\"$AUTH_EMAIL\",\"password\":\"$AUTH_PASSWORD\"}")
-          ACCESS_TOKEN=$(printf '%s' "$AUTH_RESPONSE" | grep -o '"access_token":"[^"]*"' | head -1 | cut -d '"' -f4)
+          ACCESS_TOKEN=$(printf '%s' "$AUTH_RESPONSE" | jq -r '.access_token // empty')
 
           if [ -z "$ACCESS_TOKEN" ]; then
             echo "::error::Failed to obtain access token"
             exit 1
           fi
 
-          PROJECT_TOKEN_RESPONSE=$(curl -fsS "$SERVER_URL/api/projects/$ACCOUNT_HANDLE/$PROJECT_HANDLE/tokens" \
-            -X POST \
+          TOKEN_NAME="cache-load-test"
+          EXPIRES_AT=$(date -u -d '+6 hours' '+%Y-%m-%dT%H:%M:%SZ')
+          DELETE_STATUS=$(curl -sS -o /dev/null -w '%{http_code}' \
+            "$SERVER_URL/api/accounts/$ACCOUNT_HANDLE/tokens/$TOKEN_NAME" \
+            -X DELETE \
             -H "Authorization: Bearer $ACCESS_TOKEN")
-          CACHE_AUTH_TOKEN=$(printf '%s' "$PROJECT_TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | head -1 | cut -d '"' -f4)
+
+          if [ "$DELETE_STATUS" != "204" ] && [ "$DELETE_STATUS" != "404" ]; then
+            echo "::error::Failed to delete existing account token (status $DELETE_STATUS)"
+            exit 1
+          fi
+
+          ACCOUNT_TOKEN_RESPONSE=$(curl -fsS "$SERVER_URL/api/accounts/$ACCOUNT_HANDLE/tokens" \
+            -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "$(jq -cn \
+              --arg name "$TOKEN_NAME" \
+              --arg expires_at "$EXPIRES_AT" \
+              --arg project_handle "$PROJECT_HANDLE" \
+              '{scopes:["project:cache:read","project:cache:write"], name:$name, expires_at:$expires_at, project_handles:[$project_handle]}')")
+          CACHE_AUTH_TOKEN=$(printf '%s' "$ACCOUNT_TOKEN_RESPONSE" | jq -r '.token // empty')
 
           if [ -z "$CACHE_AUTH_TOKEN" ]; then
-            echo "::error::Failed to obtain project token"
+            echo "::error::Failed to obtain account token"
             exit 1
           fi
 
@@ -120,6 +139,12 @@ jobs:
           echo "::add-mask::$CACHE_AUTH_TOKEN"
           echo "CACHE_AUTH_TOKEN=$CACHE_AUTH_TOKEN" >> "$GITHUB_ENV"
       - uses: grafana/setup-k6-action@v1
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install: false
+          env: false
+          cache: false
+          working_directory: cache
       - name: Wait for cache service
         run: |
           echo "Waiting for cache service at ${{ env.CACHE_HOST }}..."
@@ -128,20 +153,19 @@ jobs:
               echo "Cache service ready after ${i}s"
               break
             fi
+            if [ "$i" -eq 30 ]; then
+              echo "::error::Cache service at ${{ env.CACHE_HOST }} did not become ready in time"
+              exit 1
+            fi
             echo "Attempt $i: not ready, waiting..."
             sleep 2
           done
-      - name: Run baseline k6
-        working-directory: cache/k6
-        run: |
-          set -euo pipefail
-          k6 run src/main.ts \
-            -e CACHE_HOST=${{ env.CACHE_HOST }} \
-            -e CACHE_AUTH_TOKEN="$CACHE_AUTH_TOKEN" \
-            -e SERVER_URL=https://staging.tuist.dev \
-            -e REGION=${{ env.REGION }} \
-            -e RUN_ID="lt-baseline-${{ github.run_id }}-${{ env.REGION }}" \
-            -e COMMIT_SHA=${{ needs.resolve.outputs.main_sha }}
+      - name: Run baseline load test
+        env:
+          SERVER_URL: https://staging.tuist.dev
+          RUN_ID: lt-baseline-${{ github.run_id }}-${{ env.REGION }}
+          COMMIT_SHA: ${{ needs.resolve.outputs.main_sha }}
+        run: mise run load-test
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -165,6 +189,7 @@ jobs:
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
+          install_args: "ruby gem:kamal"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Setup SSH
@@ -185,11 +210,14 @@ jobs:
     env:
       REGION: eu-central
       CACHE_HOST: cache-eu-central-staging.tuist.dev
+    defaults:
+      run:
+        working-directory: cache
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.pr_ref }}
-      - name: Create cache project token
+      - name: Create cache account token
         env:
           SERVER_URL: https://staging.tuist.dev
           AUTH_EMAIL: tuistrocks@tuist.dev
@@ -202,20 +230,38 @@ jobs:
           AUTH_RESPONSE=$(curl -fsS "$SERVER_URL/api/auth" \
             -H 'Content-Type: application/json' \
             -d "{\"email\":\"$AUTH_EMAIL\",\"password\":\"$AUTH_PASSWORD\"}")
-          ACCESS_TOKEN=$(printf '%s' "$AUTH_RESPONSE" | grep -o '"access_token":"[^"]*"' | head -1 | cut -d '"' -f4)
+          ACCESS_TOKEN=$(printf '%s' "$AUTH_RESPONSE" | jq -r '.access_token // empty')
 
           if [ -z "$ACCESS_TOKEN" ]; then
             echo "::error::Failed to obtain access token"
             exit 1
           fi
 
-          PROJECT_TOKEN_RESPONSE=$(curl -fsS "$SERVER_URL/api/projects/$ACCOUNT_HANDLE/$PROJECT_HANDLE/tokens" \
-            -X POST \
+          TOKEN_NAME="cache-load-test"
+          EXPIRES_AT=$(date -u -d '+6 hours' '+%Y-%m-%dT%H:%M:%SZ')
+          DELETE_STATUS=$(curl -sS -o /dev/null -w '%{http_code}' \
+            "$SERVER_URL/api/accounts/$ACCOUNT_HANDLE/tokens/$TOKEN_NAME" \
+            -X DELETE \
             -H "Authorization: Bearer $ACCESS_TOKEN")
-          CACHE_AUTH_TOKEN=$(printf '%s' "$PROJECT_TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | head -1 | cut -d '"' -f4)
+
+          if [ "$DELETE_STATUS" != "204" ] && [ "$DELETE_STATUS" != "404" ]; then
+            echo "::error::Failed to delete existing account token (status $DELETE_STATUS)"
+            exit 1
+          fi
+
+          ACCOUNT_TOKEN_RESPONSE=$(curl -fsS "$SERVER_URL/api/accounts/$ACCOUNT_HANDLE/tokens" \
+            -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "$(jq -cn \
+              --arg name "$TOKEN_NAME" \
+              --arg expires_at "$EXPIRES_AT" \
+              --arg project_handle "$PROJECT_HANDLE" \
+              '{scopes:["project:cache:read","project:cache:write"], name:$name, expires_at:$expires_at, project_handles:[$project_handle]}')")
+          CACHE_AUTH_TOKEN=$(printf '%s' "$ACCOUNT_TOKEN_RESPONSE" | jq -r '.token // empty')
 
           if [ -z "$CACHE_AUTH_TOKEN" ]; then
-            echo "::error::Failed to obtain project token"
+            echo "::error::Failed to obtain account token"
             exit 1
           fi
 
@@ -223,6 +269,12 @@ jobs:
           echo "::add-mask::$CACHE_AUTH_TOKEN"
           echo "CACHE_AUTH_TOKEN=$CACHE_AUTH_TOKEN" >> "$GITHUB_ENV"
       - uses: grafana/setup-k6-action@v1
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install: false
+          env: false
+          cache: false
+          working_directory: cache
       - name: Wait for cache service
         run: |
           echo "Waiting for cache service at ${{ env.CACHE_HOST }}..."
@@ -231,20 +283,19 @@ jobs:
               echo "Cache service ready after ${i}s"
               break
             fi
+            if [ "$i" -eq 30 ]; then
+              echo "::error::Cache service at ${{ env.CACHE_HOST }} did not become ready in time"
+              exit 1
+            fi
             echo "Attempt $i: not ready, waiting..."
             sleep 2
           done
-      - name: Run k6
-        working-directory: cache/k6
-        run: |
-          set -euo pipefail
-          k6 run src/main.ts \
-            -e CACHE_HOST=${{ env.CACHE_HOST }} \
-            -e CACHE_AUTH_TOKEN="$CACHE_AUTH_TOKEN" \
-            -e SERVER_URL=https://staging.tuist.dev \
-            -e REGION=${{ env.REGION }} \
-            -e RUN_ID="lt-pr-${{ needs.resolve.outputs.pr_number }}-${{ github.run_id }}-${{ env.REGION }}" \
-            -e COMMIT_SHA=${{ needs.resolve.outputs.pr_sha }}
+      - name: Run PR load test
+        env:
+          SERVER_URL: https://staging.tuist.dev
+          RUN_ID: lt-pr-${{ needs.resolve.outputs.pr_number }}-${{ github.run_id }}-${{ env.REGION }}
+          COMMIT_SHA: ${{ needs.resolve.outputs.pr_sha }}
+        run: mise run load-test
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -467,6 +518,7 @@ jobs:
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
+          install_args: "ruby gem:kamal"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Setup SSH
@@ -483,6 +535,7 @@ jobs:
     name: Update PR comment
     needs: [resolve, deploy-main, baseline, deploy-pr, test, compare, restore]
     if: always() && needs.deploy-main.result == 'success'
+    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -558,7 +611,6 @@ jobs:
           needs.test.result == 'failure' ||
           needs.compare.result == 'failure' ||
           needs.restore.result == 'failure' ||
-          needs.comment.result == 'failure' ||
           needs.compare.outputs.verdict == 'fail'
         run: |
           echo "::error::Load test detected regressions or test failures"

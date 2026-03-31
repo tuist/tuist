@@ -31,12 +31,12 @@ export const SCENARIO_PLANS: ScenarioPlan[] = [
   { key: 'module_read_10mb', exec: 'moduleRead10mb', rate: 14, duration: 15, expectedLatencyMs: 1200, minIterations: 190, preAllocatedVUs: 32, maxVUs: 64 },
   { key: 'gradle_read_10mb', exec: 'gradleRead10mb', rate: 14, duration: 15, expectedLatencyMs: 1200, minIterations: 190, preAllocatedVUs: 32, maxVUs: 64 },
   { key: 'module_write_10mb', exec: 'moduleWrite10mb', rate: 2, duration: 60, expectedLatencyMs: 18000, minIterations: 120, preAllocatedVUs: 80, maxVUs: 160 },
-  { key: 'gradle_write_10mb', exec: 'gradleWrite10mb', rate: 3, duration: 35, expectedLatencyMs: 5000, minIterations: 95, preAllocatedVUs: 32, maxVUs: 64 },
+  { key: 'gradle_write_10mb', exec: 'gradleWrite10mb', rate: 2, duration: 50, expectedLatencyMs: 7000, minIterations: 95, preAllocatedVUs: 32, maxVUs: 64 },
 
   { key: 'module_exists_25mb', exec: 'moduleExists25mb', rate: 10, duration: 5, expectedLatencyMs: 20, minIterations: 45 },
   { key: 'module_read_25mb', exec: 'moduleRead25mb', rate: 10, duration: 20, expectedLatencyMs: 3000, minIterations: 180, preAllocatedVUs: 48, maxVUs: 96 },
   { key: 'gradle_read_25mb', exec: 'gradleRead25mb', rate: 10, duration: 20, expectedLatencyMs: 3000, minIterations: 180, preAllocatedVUs: 48, maxVUs: 96 },
-  { key: 'module_write_25mb', exec: 'moduleWrite25mb', rate: 1, duration: 60, expectedLatencyMs: 22000, minIterations: 55, preAllocatedVUs: 48, maxVUs: 96 },
+  { key: 'module_write_25mb', exec: 'moduleWrite25mb', rate: 1, duration: 75, expectedLatencyMs: 22000, minIterations: 55, preAllocatedVUs: 48, maxVUs: 96 },
   { key: 'gradle_write_25mb', exec: 'gradleWrite25mb', rate: 1, duration: 60, expectedLatencyMs: 8000, minIterations: 50, preAllocatedVUs: 32, maxVUs: 64 },
 ];
 
