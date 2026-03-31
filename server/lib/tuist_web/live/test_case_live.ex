@@ -267,28 +267,21 @@ defmodule TuistWeb.TestCaseLive do
           }
         } = socket
       ) do
+    was_auto_quarantined = project.auto_quarantine_flaky_tests
+
+    update_attrs =
+      if was_auto_quarantined,
+        do: %{is_flaky: true, is_quarantined: true},
+        else: %{is_flaky: true}
+
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
-        %{is_flaky: true},
+        update_attrs,
         actor_id: current_user.account.id
       )
 
-    test_case_detail = %{test_case_detail | is_flaky: updated_test_case.is_flaky}
-
-    {test_case_detail, was_auto_quarantined} =
-      if project.auto_quarantine_flaky_tests do
-        {:ok, quarantined_test_case} =
-          Tests.update_test_case(
-            test_case_id,
-            %{is_quarantined: true},
-            actor_id: current_user.account.id
-          )
-
-        {%{test_case_detail | is_quarantined: quarantined_test_case.is_quarantined}, true}
-      else
-        {test_case_detail, false}
-      end
+    test_case_detail = Map.merge(test_case_detail, Map.take(updated_test_case, [:is_flaky, :is_quarantined]))
 
     # Send Slack notification for manual flaky marking
     send_manual_flaky_alert(project, updated_test_case, current_user, was_auto_quarantined)

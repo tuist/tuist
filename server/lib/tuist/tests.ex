@@ -592,7 +592,7 @@ defmodule Tuist.Tests do
         |> Map.merge(filtered_attrs)
         |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
-      {1, nil} = TestCase.Buffer.insert_all([attrs])
+      IngestRepo.insert_all(TestCase, [attrs])
 
       create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
 
