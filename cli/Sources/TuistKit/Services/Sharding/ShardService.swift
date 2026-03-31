@@ -30,7 +30,6 @@ public protocol ShardServicing {
 public enum ShardServiceError: LocalizedError, Equatable {
     case cannotDeriveReference
     case invalidDownloadURL(String)
-    case testProductsNotFound
     case invalidXCTestRun
 
     public var errorDescription: String? {
@@ -40,8 +39,6 @@ public enum ShardServiceError: LocalizedError, Equatable {
                 "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
         case let .invalidDownloadURL(url):
             return "Invalid shard download URL: \(url)"
-        case .testProductsNotFound:
-            return "No .xctestproducts bundle found in the downloaded shard archive."
         case .invalidXCTestRun:
             return "The .xctestrun file has an invalid format."
         }
@@ -101,16 +98,9 @@ public struct ShardService: ShardServicing {
         let shardArchivePath = try await fileClient.download(url: downloadURL)
         Logger.current.debug("Downloaded test products bundle.")
 
-        let unzippedPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-        try await appleArchiver.decompress(archive: shardArchivePath, to: unzippedPath)
+        let testProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+        try await appleArchiver.decompress(archive: shardArchivePath, to: testProductsPath)
         try? await fileSystem.remove(shardArchivePath)
-
-        guard let testProductsPath = try await fileSystem
-            .glob(directory: unzippedPath, include: ["*.xctestproducts"])
-            .first(where: { _ in true })
-        else {
-            throw ShardServiceError.testProductsNotFound
-        }
         Logger.current.debug("Extracted test products to \(testProductsPath.pathString)")
 
         let xcTestRunPaths = try await fileSystem
