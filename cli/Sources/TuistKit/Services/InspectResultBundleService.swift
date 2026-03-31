@@ -132,13 +132,15 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         )
 
         let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)
+        let argumentIdsByRunAndName = argumentIdsByRunAndName(testCaseRuns: test.test_case_runs)
 
         await testSummary.testCases.forEach(context: .concurrent) { testCase in
             await uploadAttachments(
                 for: testCase,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                testCaseRunIdsByIdentity: testCaseRunIdsByIdentity
+                testCaseRunIdsByIdentity: testCaseRunIdsByIdentity,
+                argumentIdsByRunAndName: argumentIdsByRunAndName
             )
         }
 
@@ -151,7 +153,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         for testCase: TestCase,
         fullHandle: String,
         serverURL: URL,
-        testCaseRunIdsByIdentity: [String: String]
+        testCaseRunIdsByIdentity: [String: String],
+        argumentIdsByRunAndName: [String: String]
     ) async {
         guard !testCase.attachments.isEmpty else { return }
 
@@ -164,13 +167,17 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
 
         await testCase.attachments.forEach(context: .concurrent) { attachment in
             do {
+                let argumentId: String? = attachment.argumentName.flatMap { argName in
+                    argumentIdsByRunAndName["\(testCaseRunId)/\(argName)"]
+                }
                 let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     testCaseRunId: testCaseRunId,
                     fileName: attachment.fileName,
                     filePath: attachment.filePath,
-                    repetitionNumber: attachment.repetitionNumber
+                    repetitionNumber: attachment.repetitionNumber,
+                    testCaseRunArgumentId: argumentId
                 )
                 if let crashReport = testCase.crashReport,
                    crashReport.filePath == attachment.filePath
@@ -197,6 +204,16 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         testCaseRuns.reduce(into: [:]) { result, run in
             let key = testCaseRunIdentityKey(moduleName: run.module_name, suiteName: run.suite_name, name: run.name)
             result[key] = run.id
+        }
+    }
+
+    private func argumentIdsByRunAndName(
+        testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
+    ) -> [String: String] {
+        testCaseRuns.reduce(into: [:]) { result, run in
+            for argument in run.arguments ?? [] {
+                result["\(run.id)/\(argument.name)"] = argument.id
+            }
         }
     }
 

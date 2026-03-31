@@ -148,7 +148,11 @@ public struct XCResultService: XCResultServicing {
         xcresultPath: AbsolutePath
     ) async throws -> TestSummary {
         let actionLog = try await actionLog(from: xcresultPath)
-        let failuresFromActionLog = actionLog.extractTestFailures(rootDirectory: rootDirectory)
+        let rawFailuresFromActionLog = actionLog.extractTestFailures(rootDirectory: rootDirectory)
+        let failuresFromActionLog = rawFailuresFromActionLog.reduce(into: [String: [TestFailure]]()) { result, entry in
+            let key = normalizeTestIdentifier(entry.key)
+            result[key, default: []].append(contentsOf: entry.value)
+        }
 
         var allTestCases: [TestCase] = []
         var suiteDurations: [String: Int] = [:]
@@ -260,38 +264,66 @@ public struct XCResultService: XCResultServicing {
 
         let suiteName = extractSuiteName(from: node.nodeIdentifier)
 
-        // Check for repetitions (retry scenario)
-        let repetitionNodes = (node.children ?? []).filter { $0.nodeType == "Repetition" }
+        let argumentNodes = (node.children ?? []).filter { $0.nodeType == "Arguments" }
+        let directRepetitions = (node.children ?? []).filter { $0.nodeType == "Repetition" }
 
-        let repetitions: [TestCaseRepetition] = repetitionNodes.enumerated().compactMap { index, repNode in
-            guard let repName = repNode.name, let repResult = repNode.result else { return nil }
-
-            let repStatus = testStatus(from: repResult)
-            let repDuration = repNode.durationInSeconds.map { secondsToMilliseconds($0) } ?? 0
-            let repFailures = extractFailures(from: repNode, rootDirectory: rootDirectory)
-
-            return TestCaseRepetition(
-                repetitionNumber: index + 1,
-                name: repName,
-                status: repStatus,
-                duration: repDuration,
-                failures: repFailures
+        // Build per-argument data for parameterized tests
+        let arguments: [TestCaseArgument] = argumentNodes.compactMap { argNode in
+            guard let argName = argNode.name else { return nil }
+            let argRepNodes = (argNode.children ?? []).filter { $0.nodeType == "Repetition" }
+            let argRepetitions = argRepNodes.compactMap { repNode -> TestCaseRepetition? in
+                guard let repName = repNode.name, let repResult = repNode.result else { return nil }
+                let repNumber = Int(repNode.nodeIdentifier ?? "") ?? 0
+                return TestCaseRepetition(
+                    repetitionNumber: repNumber,
+                    name: repName,
+                    status: testStatus(from: repResult),
+                    duration: repNode.durationInSeconds.map { secondsToMilliseconds($0) } ?? 0,
+                    failures: extractFailures(from: repNode, rootDirectory: rootDirectory)
+                )
+            }
+            let argFailures = argRepetitions.filter { $0.status == .failed }.flatMap(\.failures)
+            let argStatus: TestStatus = argRepetitions.contains(where: { $0.status == .failed }) ? .failed : .passed
+            let argDuration = argRepetitions.compactMap(\.duration).max() ?? 0
+            return TestCaseArgument(
+                name: argName,
+                status: argStatus,
+                duration: argDuration,
+                failures: argFailures,
+                repetitions: argRepetitions
             )
         }
 
-        // Collect failures - from failed repetitions if present, otherwise from node
-        let failures: [TestCaseFailure]
-        let failedRepetitions = repetitions.filter { $0.status == .failed }
-        if !failedRepetitions.isEmpty {
-            failures = failedRepetitions.flatMap(\.failures)
+        // Build merged repetitions for backward compat
+        let allRepetitionNodes = if !directRepetitions.isEmpty {
+            directRepetitions
         } else {
-            failures = testCaseFailures(
-                testName: name,
-                suiteName: suiteName,
-                node: node,
-                rootDirectory: rootDirectory,
-                actionLogFailures: actionLogFailures
-            )
+            argumentNodes.flatMap { ($0.children ?? []).filter { $0.nodeType == "Repetition" } }
+        }
+
+        let repetitions: [TestCaseRepetition] = mergeRepetitions(
+            allRepetitionNodes,
+            rootDirectory: rootDirectory
+        )
+
+        // Collect failures - from failed repetitions or action log (not from arguments,
+        // those are sent separately via the arguments payload to avoid duplication)
+        let failures: [TestCaseFailure]
+        if !arguments.isEmpty {
+            failures = []
+        } else {
+            let failedRepetitions = repetitions.filter { $0.status == .failed }
+            if !failedRepetitions.isEmpty {
+                failures = failedRepetitions.flatMap(\.failures)
+            } else {
+                failures = testCaseFailures(
+                    testName: name,
+                    suiteName: suiteName,
+                    node: node,
+                    rootDirectory: rootDirectory,
+                    actionLogFailures: actionLogFailures
+                )
+            }
         }
 
         return TestCase(
@@ -301,7 +333,8 @@ public struct XCResultService: XCResultServicing {
             duration: node.durationInSeconds.map { secondsToMilliseconds($0) },
             status: testStatus(from: node.result),
             failures: failures,
-            repetitions: repetitions
+            repetitions: repetitions,
+            arguments: arguments
         )
     }
 
@@ -420,6 +453,44 @@ public struct XCResultService: XCResultServicing {
             }
     }
 
+    /// Merges repetition nodes by their identifier (e.g. "1" for First Run, "2" for Retry 1).
+    /// For parameterized tests, multiple Arguments children each have their own repetitions
+    /// with the same identifiers. This merges them so the result has one entry per repetition
+    /// number, with combined failures and worst-case status.
+    private func mergeRepetitions(
+        _ nodes: [TestNode],
+        rootDirectory: AbsolutePath?
+    ) -> [TestCaseRepetition] {
+        var grouped: [Int: (name: String, status: TestStatus, duration: Int, failures: [TestCaseFailure])] = [:]
+
+        for repNode in nodes {
+            guard let repName = repNode.name, let repResult = repNode.result else { continue }
+            let repNumber = Int(repNode.nodeIdentifier ?? "") ?? 0
+            let repStatus = testStatus(from: repResult)
+            let repDuration = repNode.durationInSeconds.map { secondsToMilliseconds($0) } ?? 0
+            let repFailures = extractFailures(from: repNode, rootDirectory: rootDirectory)
+
+            if var existing = grouped[repNumber] {
+                if repStatus == .failed { existing.status = .failed }
+                existing.duration = max(existing.duration, repDuration)
+                existing.failures.append(contentsOf: repFailures)
+                grouped[repNumber] = existing
+            } else {
+                grouped[repNumber] = (repName, repStatus, repDuration, repFailures)
+            }
+        }
+
+        return grouped.sorted(by: { $0.key < $1.key }).map { number, value in
+            TestCaseRepetition(
+                repetitionNumber: number,
+                name: value.name,
+                status: value.status,
+                duration: value.duration,
+                failures: value.failures
+            )
+        }
+    }
+
     private struct FileLocation {
         let filePath: String
         let lineNumber: Int
@@ -483,6 +554,7 @@ public struct XCResultService: XCResultServicing {
             let suggestedHumanReadableName: String?
             let isAssociatedWithFailure: Bool?
             let repetitionNumber: Int?
+            let arguments: [String]?
         }
     }
 
@@ -523,7 +595,8 @@ public struct XCResultService: XCResultServicing {
                     let testAttachment = TestAttachment(
                         filePath: filePath,
                         fileName: attachment.suggestedHumanReadableName ?? attachment.exportedFileName,
-                        repetitionNumber: attachment.repetitionNumber
+                        repetitionNumber: attachment.repetitionNumber,
+                        argumentName: attachment.arguments?.first
                     )
                     attachmentsByTestIdentifier[normalizedIdentifier, default: []].append(testAttachment)
 
@@ -571,16 +644,23 @@ public struct XCResultService: XCResultServicing {
     }
 
     /// Normalizes a test identifier to the `SuiteName/testName` format by stripping
-    /// trailing parentheses and keeping only the last two path components.
+    /// backticks, trailing parameter signatures, and keeping only the last two path components.
+    ///
+    /// Swift Testing uses backtick-quoted names with parameter signatures in the action log
+    /// and attachment manifest (e.g., `` `profile details`(_:) ``), while the test results
+    /// use plain names (e.g., `profile details`). This normalization ensures consistent matching.
     ///
     /// Examples:
     ///   - `"Module/TestClass/testMethod()"` → `"TestClass/testMethod"`
     ///   - `"TestClass/testMethod()"` → `"TestClass/testMethod"`
+    ///   - `` "TestClass/`test name`(_:)" `` → `"TestClass/test name"`
+    ///   - `` "TestClass/`test name`(promotion:)" `` → `"TestClass/test name"`
     ///   - `"testMethod()"` → `"testMethod"`
     private func normalizeTestIdentifier(_ identifier: String) -> String {
         var normalized = identifier
-        if normalized.hasSuffix("()") {
-            normalized = String(normalized.dropLast(2))
+        normalized = normalized.replacingOccurrences(of: "`", with: "")
+        if let range = normalized.range(of: #"\([^)]*\)$"#, options: .regularExpression) {
+            normalized = String(normalized[..<range.lowerBound])
         }
         let components = normalized.split(separator: "/")
         if components.count >= 2 {

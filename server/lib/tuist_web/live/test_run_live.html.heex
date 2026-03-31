@@ -488,68 +488,180 @@
                 </.neutral_button>
               </div>
               <div data-part="content" data-state="closed">
-                <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
+                <%= if Enum.any?(test_case_run.arguments) do %>
                   <div
-                    :for={{repetition, rep_index} <- Enum.with_index(test_case_run.repetitions)}
-                    data-part="repetition-wrapper"
+                    :for={argument <- test_case_run.arguments}
+                    class="argument-collapsible"
                   >
-                    <div data-part="repetition-item">
+                    <div data-part="argument-header">
                       <.badge
-                        :if={repetition.status == "success"}
+                        :if={argument.status == "success"}
                         label={dgettext("dashboard_tests", "Passed")}
                         color="success"
                         style="light-fill"
                         size="small"
                       />
                       <.badge
-                        :if={repetition.status == "failure"}
+                        :if={argument.status == "failure"}
                         label={dgettext("dashboard_tests", "Failed")}
                         color="destructive"
                         style="light-fill"
                         size="small"
                       />
-                      <span data-part="repetition-name">{repetition.name}</span>
-                    </div>
-                    <.failure_message_span
-                      :if={
-                        repetition.status == "failure" and Enum.any?(test_case_run.failures) and
-                          Enum.at(test_case_run.failures, rep_index)
-                      }
-                      failure={Enum.at(test_case_run.failures, rep_index)}
-                      context={@run}
-                    />
-                    <div
-                      :if={
-                        Enum.any?(
-                          attachments_for_repetition(
-                            test_case_run.attachments,
-                            repetition.repetition_number
-                          )
-                        )
-                      }
-                      data-part="attachments-list"
-                    >
-                      <.inline_attachment_items
-                        attachments={
-                          attachments_for_repetition(
-                            test_case_run.attachments,
-                            repetition.repetition_number
-                          )
+                      <span data-part="argument-name">{argument.name}</span>
+                      <.neutral_button
+                        id={"arg-closed-btn-#{argument.id}"}
+                        variant="secondary"
+                        size="small"
+                        phx-click={
+                          JS.hide(to: "#arg-closed-btn-#{argument.id}")
+                          |> JS.show(to: "#arg-open-btn-#{argument.id}", display: "flex")
+                          |> JS.show(to: "#arg-body-#{argument.id}", display: "flex")
                         }
-                        test_case_run={test_case_run}
-                        project={@selected_project}
-                        id_prefix={"overview-rep-#{rep_index}"}
-                        text_attachment_urls={@text_attachment_urls}
+                      >
+                        <.chevron_down />
+                      </.neutral_button>
+                      <.neutral_button
+                        id={"arg-open-btn-#{argument.id}"}
+                        variant="secondary"
+                        size="small"
+                        style="display:none"
+                        phx-click={
+                          JS.show(to: "#arg-closed-btn-#{argument.id}", display: "flex")
+                          |> JS.hide(to: "#arg-open-btn-#{argument.id}")
+                          |> JS.hide(to: "#arg-body-#{argument.id}")
+                        }
+                      >
+                        <.chevron_up />
+                      </.neutral_button>
+                    </div>
+                    <div id={"arg-body-#{argument.id}"} data-part="argument-body" style="display:none">
+                      <div :if={Enum.any?(argument.repetitions)} data-part="repetitions">
+                        <div
+                          :for={{repetition, rep_index} <- Enum.with_index(Enum.sort_by(argument.repetitions, & &1.repetition_number))}
+                          data-part="repetition-wrapper"
+                        >
+                          <div data-part="repetition-item">
+                            <.badge
+                              :if={repetition.status == "success"}
+                              label={dgettext("dashboard_tests", "Passed")}
+                              color="success"
+                              style="light-fill"
+                              size="small"
+                            />
+                            <.badge
+                              :if={repetition.status == "failure"}
+                              label={dgettext("dashboard_tests", "Failed")}
+                              color="destructive"
+                              style="light-fill"
+                              size="small"
+                            />
+                            <span data-part="repetition-name">{repetition.name}</span>
+                          </div>
+                          <.failure_message_span
+                            :for={failure <- argument.failures}
+                            :if={repetition.status == "failure"}
+                            failure={failure}
+                            context={@run}
+                          />
+                          <div
+                            :if={
+                              Enum.any?(
+                                attachments_for_repetition(
+                                  argument.attachments,
+                                  repetition.repetition_number
+                                )
+                              )
+                            }
+                            data-part="attachments-list"
+                          >
+                            <.inline_attachment_items
+                              attachments={
+                                attachments_for_repetition(
+                                  argument.attachments,
+                                  repetition.repetition_number
+                                )
+                              }
+                              test_case_run={test_case_run}
+                              project={@selected_project}
+                              id_prefix={"overview-arg-#{argument.id}-rep-#{rep_index}"}
+                              text_attachment_urls={@text_attachment_urls}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <.failure_message_span
+                        :for={failure <- argument.failures}
+                        :if={!Enum.any?(argument.repetitions)}
+                        failure={failure}
+                        context={@run}
                       />
                     </div>
                   </div>
-                </div>
-                <.failure_message_span
-                  :for={failure <- test_case_run.failures}
-                  :if={!Enum.any?(test_case_run.repetitions)}
-                  failure={failure}
-                  context={@run}
-                />
+                <% else %>
+                  <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
+                    <div
+                      :for={{repetition, rep_index} <- Enum.with_index(test_case_run.repetitions)}
+                      data-part="repetition-wrapper"
+                    >
+                      <div data-part="repetition-item">
+                        <.badge
+                          :if={repetition.status == "success"}
+                          label={dgettext("dashboard_tests", "Passed")}
+                          color="success"
+                          style="light-fill"
+                          size="small"
+                        />
+                        <.badge
+                          :if={repetition.status == "failure"}
+                          label={dgettext("dashboard_tests", "Failed")}
+                          color="destructive"
+                          style="light-fill"
+                          size="small"
+                        />
+                        <span data-part="repetition-name">{repetition.name}</span>
+                      </div>
+                      <.failure_message_span
+                        :if={
+                          repetition.status == "failure" and Enum.any?(test_case_run.failures) and
+                            Enum.at(test_case_run.failures, rep_index)
+                        }
+                        failure={Enum.at(test_case_run.failures, rep_index)}
+                        context={@run}
+                      />
+                      <div
+                        :if={
+                          Enum.any?(
+                            attachments_for_repetition(
+                              test_case_run.attachments,
+                              repetition.repetition_number
+                            )
+                          )
+                        }
+                        data-part="attachments-list"
+                      >
+                        <.inline_attachment_items
+                          attachments={
+                            attachments_for_repetition(
+                              test_case_run.attachments,
+                              repetition.repetition_number
+                            )
+                          }
+                          test_case_run={test_case_run}
+                          project={@selected_project}
+                          id_prefix={"overview-rep-#{rep_index}"}
+                          text_attachment_urls={@text_attachment_urls}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <.failure_message_span
+                    :for={failure <- test_case_run.failures}
+                    :if={!Enum.any?(test_case_run.repetitions)}
+                    failure={failure}
+                    context={@run}
+                  />
+                <% end %>
                 <div :if={test_case_run.crash_report} data-part="crash-report-details">
                   <div data-part="crash-report-header">
                     <span data-part="crash-report-title">

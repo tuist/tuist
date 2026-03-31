@@ -638,7 +638,13 @@ defmodule TuistWeb.TestRunLive do
     }
 
     Tests.list_test_case_runs(attrs,
-      preload: [:failures, :repetitions, :attachments, crash_report: :test_case_run_attachment]
+      preload: [
+        :failures,
+        :repetitions,
+        :attachments,
+        crash_report: :test_case_run_attachment,
+        arguments: [:failures, :repetitions, :attachments]
+      ]
     )
   end
 

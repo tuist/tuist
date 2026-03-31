@@ -4815,6 +4815,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/repetition_number`.
             public var repetition_number: Swift.Int?
+            /// The UUID of the argument this attachment belongs to (for parameterized tests).
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/test_case_run_argument_id`.
+            public var test_case_run_argument_id: Swift.String?
             /// The UUID of the test case run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/test_case_run_id`.
@@ -4824,19 +4828,23 @@ public enum Components {
             /// - Parameters:
             ///   - file_name: The file name of the attachment.
             ///   - repetition_number: The repetition number (attempt) this attachment belongs to.
+            ///   - test_case_run_argument_id: The UUID of the argument this attachment belongs to (for parameterized tests).
             ///   - test_case_run_id: The UUID of the test case run.
             public init(
                 file_name: Swift.String,
                 repetition_number: Swift.Int? = nil,
+                test_case_run_argument_id: Swift.String? = nil,
                 test_case_run_id: Swift.String
             ) {
                 self.file_name = file_name
                 self.repetition_number = repetition_number
+                self.test_case_run_argument_id = test_case_run_argument_id
                 self.test_case_run_id = test_case_run_id
             }
             public enum CodingKeys: String, CodingKey {
                 case file_name
                 case repetition_number
+                case test_case_run_argument_id
                 case test_case_run_id
             }
         }
@@ -7538,6 +7546,181 @@ public enum Components {
                 public var status: Components.Schemas.TestParams.test_modulesPayloadPayload.statusPayload
                 /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload`.
                 public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload`.
+                    public struct argumentsPayloadPayload: Codable, Hashable, Sendable {
+                        /// The duration of this argument variant in milliseconds.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/duration`.
+                        public var duration: Swift.Int?
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload`.
+                        public struct failuresPayloadPayload: Codable, Hashable, Sendable {
+                            /// The type of issue.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload/issue_type`.
+                            @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case error_thrown = "error_thrown"
+                                case assertion_failure = "assertion_failure"
+                                case issue_recorded = "issue_recorded"
+                            }
+                            /// The type of issue.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload/issue_type`.
+                            public var issue_type: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.failuresPayloadPayload.issue_typePayload?
+                            /// The line number where the failure occurred.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload/line_number`.
+                            public var line_number: Swift.Int
+                            /// The failure message.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload/message`.
+                            public var message: Swift.String?
+                            /// The file path where the failure occurred.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload/path`.
+                            public var path: Swift.String?
+                            /// Creates a new `failuresPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - issue_type: The type of issue.
+                            ///   - line_number: The line number where the failure occurred.
+                            ///   - message: The failure message.
+                            ///   - path: The file path where the failure occurred.
+                            public init(
+                                issue_type: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.failuresPayloadPayload.issue_typePayload? = nil,
+                                line_number: Swift.Int,
+                                message: Swift.String? = nil,
+                                path: Swift.String? = nil
+                            ) {
+                                self.issue_type = issue_type
+                                self.line_number = line_number
+                                self.message = message
+                                self.path = path
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case issue_type
+                                case line_number
+                                case message
+                                case path
+                            }
+                        }
+                        /// The failures for this argument variant.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/failures`.
+                        public typealias failuresPayload = [Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.failuresPayloadPayload]
+                        /// The failures for this argument variant.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/failures`.
+                        public var failures: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.failuresPayload?
+                        /// The argument label (e.g., '.cardUser').
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/name`.
+                        public var name: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload`.
+                        public struct repetitionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The duration in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/duration`.
+                            public var duration: Swift.Int?
+                            /// The name of the repetition.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/name`.
+                            public var name: Swift.String
+                            /// The repetition attempt number.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/repetition_number`.
+                            public var repetition_number: Swift.Int
+                            /// The status.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case success = "success"
+                                case failure = "failure"
+                            }
+                            /// The status.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/status`.
+                            public var status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.statusPayload
+                            /// Creates a new `repetitionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - duration: The duration in milliseconds.
+                            ///   - name: The name of the repetition.
+                            ///   - repetition_number: The repetition attempt number.
+                            ///   - status: The status.
+                            public init(
+                                duration: Swift.Int? = nil,
+                                name: Swift.String,
+                                repetition_number: Swift.Int,
+                                status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.statusPayload
+                            ) {
+                                self.duration = duration
+                                self.name = name
+                                self.repetition_number = repetition_number
+                                self.status = status
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case duration
+                                case name
+                                case repetition_number
+                                case status
+                            }
+                        }
+                        /// The repetition attempts for this argument variant.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitions`.
+                        public typealias repetitionsPayload = [Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload]
+                        /// The repetition attempts for this argument variant.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/repetitions`.
+                        public var repetitions: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayload?
+                        /// The status for this argument variant.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                        }
+                        /// The status for this argument variant.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/argumentsPayload/status`.
+                        public var status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.statusPayload
+                        /// Creates a new `argumentsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - duration: The duration of this argument variant in milliseconds.
+                        ///   - failures: The failures for this argument variant.
+                        ///   - name: The argument label (e.g., '.cardUser').
+                        ///   - repetitions: The repetition attempts for this argument variant.
+                        ///   - status: The status for this argument variant.
+                        public init(
+                            duration: Swift.Int? = nil,
+                            failures: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.failuresPayload? = nil,
+                            name: Swift.String,
+                            repetitions: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayload? = nil,
+                            status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.statusPayload
+                        ) {
+                            self.duration = duration
+                            self.failures = failures
+                            self.name = name
+                            self.repetitions = repetitions
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case duration
+                            case failures
+                            case name
+                            case repetitions
+                            case status
+                        }
+                    }
+                    /// The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/arguments`.
+                    public typealias argumentsPayload = [Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload]
+                    /// The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/arguments`.
+                    public var arguments: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayload?
                     /// The duration of the test case in milliseconds.
                     ///
                     /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/duration`.
@@ -7686,6 +7869,7 @@ public enum Components {
                     /// Creates a new `test_casesPayloadPayload`.
                     ///
                     /// - Parameters:
+                    ///   - arguments: The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).
                     ///   - duration: The duration of the test case in milliseconds.
                     ///   - failures: The failures that occurred in this test case.
                     ///   - is_quarantined: Whether this test case was quarantined when it ran.
@@ -7694,6 +7878,7 @@ public enum Components {
                     ///   - status: The status of the test case.
                     ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
                     public init(
+                        arguments: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayload? = nil,
                         duration: Swift.Int,
                         failures: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
                         is_quarantined: Swift.Bool? = nil,
@@ -7702,6 +7887,7 @@ public enum Components {
                         status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
                         test_suite_name: Swift.String? = nil
                     ) {
+                        self.arguments = arguments
                         self.duration = duration
                         self.failures = failures
                         self.is_quarantined = is_quarantined
@@ -7711,6 +7897,7 @@ public enum Components {
                         self.test_suite_name = test_suite_name
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case arguments
                         case duration
                         case failures
                         case is_quarantined
@@ -9505,6 +9692,41 @@ public enum Components {
             public var project_id: Swift.Int
             /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload`.
             public struct test_case_runsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/argumentsPayload`.
+                public struct argumentsPayloadPayload: Codable, Hashable, Sendable {
+                    /// The UUID of the argument.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/argumentsPayload/id`.
+                    public var id: Swift.String
+                    /// The argument label.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/argumentsPayload/name`.
+                    public var name: Swift.String
+                    /// Creates a new `argumentsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - id: The UUID of the argument.
+                    ///   - name: The argument label.
+                    public init(
+                        id: Swift.String,
+                        name: Swift.String
+                    ) {
+                        self.id = id
+                        self.name = name
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case id
+                        case name
+                    }
+                }
+                /// The argument variants (for parameterized tests).
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/arguments`.
+                public typealias argumentsPayload = [Components.Schemas.RunsTest.test_case_runsPayloadPayload.argumentsPayloadPayload]
+                /// The argument variants (for parameterized tests).
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/arguments`.
+                public var arguments: Components.Schemas.RunsTest.test_case_runsPayloadPayload.argumentsPayload?
                 /// The UUID of the test case run.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/id`.
@@ -9524,22 +9746,26 @@ public enum Components {
                 /// Creates a new `test_case_runsPayloadPayload`.
                 ///
                 /// - Parameters:
+                ///   - arguments: The argument variants (for parameterized tests).
                 ///   - id: The UUID of the test case run.
                 ///   - module_name: The module name of the test case.
                 ///   - name: The name of the test case.
                 ///   - suite_name: The suite name of the test case.
                 public init(
+                    arguments: Components.Schemas.RunsTest.test_case_runsPayloadPayload.argumentsPayload? = nil,
                     id: Swift.String,
                     module_name: Swift.String,
                     name: Swift.String,
                     suite_name: Swift.String
                 ) {
+                    self.arguments = arguments
                     self.id = id
                     self.module_name = module_name
                     self.name = name
                     self.suite_name = suite_name
                 }
                 public enum CodingKeys: String, CodingKey {
+                    case arguments
                     case id
                     case module_name
                     case name
@@ -15581,28 +15807,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -49044,6 +49270,181 @@ public enum Operations {
                         public var status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.statusPayload
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload`.
                         public struct test_casesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload`.
+                            public struct argumentsPayloadPayload: Codable, Hashable, Sendable {
+                                /// The duration of this argument variant in milliseconds.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/duration`.
+                                public var duration: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload`.
+                                public struct failuresPayloadPayload: Codable, Hashable, Sendable {
+                                    /// The type of issue.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload/issue_type`.
+                                    @frozen public enum issue_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                        case error_thrown = "error_thrown"
+                                        case assertion_failure = "assertion_failure"
+                                        case issue_recorded = "issue_recorded"
+                                    }
+                                    /// The type of issue.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload/issue_type`.
+                                    public var issue_type: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.failuresPayloadPayload.issue_typePayload?
+                                    /// The line number where the failure occurred.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload/line_number`.
+                                    public var line_number: Swift.Int
+                                    /// The failure message.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload/message`.
+                                    public var message: Swift.String?
+                                    /// The file path where the failure occurred.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/failuresPayload/path`.
+                                    public var path: Swift.String?
+                                    /// Creates a new `failuresPayloadPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - issue_type: The type of issue.
+                                    ///   - line_number: The line number where the failure occurred.
+                                    ///   - message: The failure message.
+                                    ///   - path: The file path where the failure occurred.
+                                    public init(
+                                        issue_type: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.failuresPayloadPayload.issue_typePayload? = nil,
+                                        line_number: Swift.Int,
+                                        message: Swift.String? = nil,
+                                        path: Swift.String? = nil
+                                    ) {
+                                        self.issue_type = issue_type
+                                        self.line_number = line_number
+                                        self.message = message
+                                        self.path = path
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case issue_type
+                                        case line_number
+                                        case message
+                                        case path
+                                    }
+                                }
+                                /// The failures for this argument variant.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/failures`.
+                                public typealias failuresPayload = [Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.failuresPayloadPayload]
+                                /// The failures for this argument variant.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/failures`.
+                                public var failures: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.failuresPayload?
+                                /// The argument label (e.g., '.cardUser').
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/name`.
+                                public var name: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload`.
+                                public struct repetitionsPayloadPayload: Codable, Hashable, Sendable {
+                                    /// The duration in milliseconds.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/duration`.
+                                    public var duration: Swift.Int?
+                                    /// The name of the repetition.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/name`.
+                                    public var name: Swift.String
+                                    /// The repetition attempt number.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/repetition_number`.
+                                    public var repetition_number: Swift.Int
+                                    /// The status.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/status`.
+                                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                        case success = "success"
+                                        case failure = "failure"
+                                    }
+                                    /// The status.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitionsPayload/status`.
+                                    public var status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.statusPayload
+                                    /// Creates a new `repetitionsPayloadPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - duration: The duration in milliseconds.
+                                    ///   - name: The name of the repetition.
+                                    ///   - repetition_number: The repetition attempt number.
+                                    ///   - status: The status.
+                                    public init(
+                                        duration: Swift.Int? = nil,
+                                        name: Swift.String,
+                                        repetition_number: Swift.Int,
+                                        status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload.statusPayload
+                                    ) {
+                                        self.duration = duration
+                                        self.name = name
+                                        self.repetition_number = repetition_number
+                                        self.status = status
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case duration
+                                        case name
+                                        case repetition_number
+                                        case status
+                                    }
+                                }
+                                /// The repetition attempts for this argument variant.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitions`.
+                                public typealias repetitionsPayload = [Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayloadPayload]
+                                /// The repetition attempts for this argument variant.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/repetitions`.
+                                public var repetitions: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayload?
+                                /// The status for this argument variant.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/status`.
+                                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                    case success = "success"
+                                    case failure = "failure"
+                                }
+                                /// The status for this argument variant.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/argumentsPayload/status`.
+                                public var status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.statusPayload
+                                /// Creates a new `argumentsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - duration: The duration of this argument variant in milliseconds.
+                                ///   - failures: The failures for this argument variant.
+                                ///   - name: The argument label (e.g., '.cardUser').
+                                ///   - repetitions: The repetition attempts for this argument variant.
+                                ///   - status: The status for this argument variant.
+                                public init(
+                                    duration: Swift.Int? = nil,
+                                    failures: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.failuresPayload? = nil,
+                                    name: Swift.String,
+                                    repetitions: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.repetitionsPayload? = nil,
+                                    status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload.statusPayload
+                                ) {
+                                    self.duration = duration
+                                    self.failures = failures
+                                    self.name = name
+                                    self.repetitions = repetitions
+                                    self.status = status
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case duration
+                                    case failures
+                                    case name
+                                    case repetitions
+                                    case status
+                                }
+                            }
+                            /// The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/arguments`.
+                            public typealias argumentsPayload = [Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayloadPayload]
+                            /// The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/arguments`.
+                            public var arguments: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayload?
                             /// The duration of the test case in milliseconds.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/duration`.
@@ -49192,6 +49593,7 @@ public enum Operations {
                             /// Creates a new `test_casesPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - arguments: The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).
                             ///   - duration: The duration of the test case in milliseconds.
                             ///   - failures: The failures that occurred in this test case.
                             ///   - is_quarantined: Whether this test case was quarantined when it ran.
@@ -49200,6 +49602,7 @@ public enum Operations {
                             ///   - status: The status of the test case.
                             ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
                             public init(
+                                arguments: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.argumentsPayload? = nil,
                                 duration: Swift.Int,
                                 failures: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
                                 is_quarantined: Swift.Bool? = nil,
@@ -49208,6 +49611,7 @@ public enum Operations {
                                 status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
                                 test_suite_name: Swift.String? = nil
                             ) {
+                                self.arguments = arguments
                                 self.duration = duration
                                 self.failures = failures
                                 self.is_quarantined = is_quarantined
@@ -49217,6 +49621,7 @@ public enum Operations {
                                 self.test_suite_name = test_suite_name
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case arguments
                                 case duration
                                 case failures
                                 case is_quarantined
@@ -49781,6 +50186,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/repetition_number`.
                     public var repetition_number: Swift.Int?
+                    /// The UUID of the argument this attachment belongs to (for parameterized tests).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/test_case_run_argument_id`.
+                    public var test_case_run_argument_id: Swift.String?
                     /// The UUID of the test case run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/test_case_run_id`.
@@ -49790,19 +50199,23 @@ public enum Operations {
                     /// - Parameters:
                     ///   - file_name: The file name of the attachment.
                     ///   - repetition_number: The repetition number (attempt) this attachment belongs to.
+                    ///   - test_case_run_argument_id: The UUID of the argument this attachment belongs to (for parameterized tests).
                     ///   - test_case_run_id: The UUID of the test case run.
                     public init(
                         file_name: Swift.String,
                         repetition_number: Swift.Int? = nil,
+                        test_case_run_argument_id: Swift.String? = nil,
                         test_case_run_id: Swift.String
                     ) {
                         self.file_name = file_name
                         self.repetition_number = repetition_number
+                        self.test_case_run_argument_id = test_case_run_argument_id
                         self.test_case_run_id = test_case_run_id
                     }
                     public enum CodingKeys: String, CodingKey {
                         case file_name
                         case repetition_number
+                        case test_case_run_argument_id
                         case test_case_run_id
                     }
                 }

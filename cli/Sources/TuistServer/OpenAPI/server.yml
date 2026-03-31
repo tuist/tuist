@@ -1905,6 +1905,12 @@ components:
           type: integer
           x-struct:
           x-validate:
+        test_case_run_argument_id:
+          description: The UUID of the argument this attachment belongs to (for parameterized tests).
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         test_case_run_id:
           description: The UUID of the test case run.
           type: string
@@ -3791,6 +3797,110 @@ components:
                 description: The test cases within this module.
                 items:
                   properties:
+                    arguments:
+                      description: The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).
+                      items:
+                        properties:
+                          duration:
+                            description: The duration of this argument variant in milliseconds.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          failures:
+                            description: The failures for this argument variant.
+                            items:
+                              properties:
+                                issue_type:
+                                  description: The type of issue.
+                                  enum:
+                                    - error_thrown
+                                    - assertion_failure
+                                    - issue_recorded
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                line_number:
+                                  description: The line number where the failure occurred.
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                message:
+                                  description: The failure message.
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                path:
+                                  description: The file path where the failure occurred.
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                              required:
+                                - line_number
+                              type: object
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          name:
+                            description: "The argument label (e.g., '.cardUser')."
+                            type: string
+                            x-struct:
+                            x-validate:
+                          repetitions:
+                            description: The repetition attempts for this argument variant.
+                            items:
+                              properties:
+                                duration:
+                                  description: The duration in milliseconds.
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                name:
+                                  description: The name of the repetition.
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                                repetition_number:
+                                  description: The repetition attempt number.
+                                  type: integer
+                                  x-struct:
+                                  x-validate:
+                                status:
+                                  description: The status.
+                                  enum:
+                                    - success
+                                    - failure
+                                  type: string
+                                  x-struct:
+                                  x-validate:
+                              required:
+                                - repetition_number
+                                - name
+                                - status
+                              type: object
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          status:
+                            description: The status for this argument variant.
+                            enum:
+                              - success
+                              - failure
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - name
+                          - status
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
                     duration:
                       description: The duration of the test case in milliseconds.
                       type: integer
@@ -5116,6 +5226,29 @@ components:
           description: The test case runs created by this test run, with their identifiers.
           items:
             properties:
+              arguments:
+                description: The argument variants (for parameterized tests).
+                items:
+                  properties:
+                    id:
+                      description: The UUID of the argument.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    name:
+                      description: The argument label.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - id
+                    - name
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
               id:
                 description: The UUID of the test case run.
                 type: string
@@ -7500,6 +7633,14 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -7522,14 +7663,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
       responses:
@@ -18361,6 +18494,110 @@ paths:
                         description: The test cases within this module.
                         items:
                           properties:
+                            arguments:
+                              description: The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).
+                              items:
+                                properties:
+                                  duration:
+                                    description: The duration of this argument variant in milliseconds.
+                                    type: integer
+                                    x-struct:
+                                    x-validate:
+                                  failures:
+                                    description: The failures for this argument variant.
+                                    items:
+                                      properties:
+                                        issue_type:
+                                          description: The type of issue.
+                                          enum:
+                                            - error_thrown
+                                            - assertion_failure
+                                            - issue_recorded
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        line_number:
+                                          description: The line number where the failure occurred.
+                                          type: integer
+                                          x-struct:
+                                          x-validate:
+                                        message:
+                                          description: The failure message.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        path:
+                                          description: The file path where the failure occurred.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                      required:
+                                        - line_number
+                                      type: object
+                                      x-struct:
+                                      x-validate:
+                                    type: array
+                                    x-struct:
+                                    x-validate:
+                                  name:
+                                    description: "The argument label (e.g., '.cardUser')."
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  repetitions:
+                                    description: The repetition attempts for this argument variant.
+                                    items:
+                                      properties:
+                                        duration:
+                                          description: The duration in milliseconds.
+                                          type: integer
+                                          x-struct:
+                                          x-validate:
+                                        name:
+                                          description: The name of the repetition.
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                        repetition_number:
+                                          description: The repetition attempt number.
+                                          type: integer
+                                          x-struct:
+                                          x-validate:
+                                        status:
+                                          description: The status.
+                                          enum:
+                                            - success
+                                            - failure
+                                          type: string
+                                          x-struct:
+                                          x-validate:
+                                      required:
+                                        - repetition_number
+                                        - name
+                                        - status
+                                      type: object
+                                      x-struct:
+                                      x-validate:
+                                    type: array
+                                    x-struct:
+                                    x-validate:
+                                  status:
+                                    description: The status for this argument variant.
+                                    enum:
+                                      - success
+                                      - failure
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                required:
+                                  - name
+                                  - status
+                                type: object
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
                             duration:
                               description: The duration of the test case in milliseconds.
                               type: integer
@@ -18600,6 +18837,12 @@ paths:
                   description: The repetition number (attempt) this attachment belongs to.
                   nullable: true
                   type: integer
+                  x-struct:
+                  x-validate:
+                test_case_run_argument_id:
+                  description: The UUID of the argument this attachment belongs to (for parameterized tests).
+                  nullable: true
+                  type: string
                   x-struct:
                   x-validate:
                 test_case_run_id:

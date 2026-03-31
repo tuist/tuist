@@ -8,6 +8,7 @@ public struct TestCase {
     public let status: TestStatus
     public let failures: [TestCaseFailure]
     public let repetitions: [TestCaseRepetition]
+    public let arguments: [TestCaseArgument]
     public var crashReport: CrashReport?
     public var attachments: [TestAttachment]
     public var isQuarantined: Bool
@@ -20,6 +21,7 @@ public struct TestCase {
         status: TestStatus,
         failures: [TestCaseFailure],
         repetitions: [TestCaseRepetition] = [],
+        arguments: [TestCaseArgument] = [],
         crashReport: CrashReport? = nil,
         attachments: [TestAttachment] = [],
         isQuarantined: Bool = false
@@ -31,6 +33,7 @@ public struct TestCase {
         self.status = status
         self.failures = failures
         self.repetitions = repetitions
+        self.arguments = arguments
         self.crashReport = crashReport
         self.attachments = attachments
         self.isQuarantined = isQuarantined

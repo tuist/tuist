@@ -413,6 +413,61 @@ defmodule TuistWeb.API.TestsController do
                            },
                            required: [:repetition_number, :name, :status]
                          }
+                       },
+                       arguments: %Schema{
+                         type: :array,
+                         description: "The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).",
+                         items: %Schema{
+                           type: :object,
+                           properties: %{
+                             name: %Schema{
+                               type: :string,
+                               description: "The argument label (e.g., '.cardUser')."
+                             },
+                             status: %Schema{
+                               type: :string,
+                               description: "The status for this argument variant.",
+                               enum: ["success", "failure"]
+                             },
+                             duration: %Schema{
+                               type: :integer,
+                               description: "The duration of this argument variant in milliseconds."
+                             },
+                             failures: %Schema{
+                               type: :array,
+                               description: "The failures for this argument variant.",
+                               items: %Schema{
+                                 type: :object,
+                                 properties: %{
+                                   message: %Schema{type: :string, description: "The failure message."},
+                                   path: %Schema{type: :string, description: "The file path where the failure occurred."},
+                                   line_number: %Schema{type: :integer, description: "The line number where the failure occurred."},
+                                   issue_type: %Schema{
+                                     type: :string,
+                                     description: "The type of issue.",
+                                     enum: ["error_thrown", "assertion_failure", "issue_recorded"]
+                                   }
+                                 },
+                                 required: [:line_number]
+                               }
+                             },
+                             repetitions: %Schema{
+                               type: :array,
+                               description: "The repetition attempts for this argument variant.",
+                               items: %Schema{
+                                 type: :object,
+                                 properties: %{
+                                   repetition_number: %Schema{type: :integer, description: "The repetition attempt number."},
+                                   name: %Schema{type: :string, description: "The name of the repetition."},
+                                   status: %Schema{type: :string, description: "The status.", enum: ["success", "failure"]},
+                                   duration: %Schema{type: :integer, description: "The duration in milliseconds."}
+                                 },
+                                 required: [:repetition_number, :name, :status]
+                               }
+                             }
+                           },
+                           required: [:name, :status]
+                         }
                        }
                      },
                      required: [:name, :status, :duration]
@@ -473,12 +528,20 @@ defmodule TuistWeb.API.TestsController do
           url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
           test_case_runs:
             Enum.map(test_run.test_case_runs, fn run ->
-              %{
+              result = %{
                 id: run.id,
                 name: run.name,
                 module_name: run.module_name,
                 suite_name: run.suite_name
               }
+
+              case Map.get(run, :arguments) do
+                nil ->
+                  result
+
+                arguments ->
+                  Map.put(result, :arguments, Enum.map(arguments, &Map.take(&1, [:id, :name])))
+              end
             end)
         })
 

@@ -22,7 +22,13 @@ defmodule TuistWeb.TestCaseRunLive do
     test_case_run =
       case Tests.get_test_case_run_by_id(params["test_case_run_id"],
              project_id: project.id,
-             preload: [:failures, :repetitions, :attachments, crash_report: :test_case_run_attachment]
+             preload: [
+               :failures,
+               :repetitions,
+               :attachments,
+               crash_report: :test_case_run_attachment,
+               arguments: [:failures, :repetitions, :attachments]
+             ]
            ) do
         {:ok, run} ->
           Tuist.Repo.preload(run, :ran_by_account)
@@ -280,8 +286,12 @@ defmodule TuistWeb.TestCaseRunLive do
   defp assign_text_attachment_urls(socket, test_case_run) do
     project = socket.assigns.selected_project
 
+    all_attachments =
+      test_case_run.attachments ++
+        Enum.flat_map(test_case_run.arguments, & &1.attachments)
+
     urls =
-      test_case_run.attachments
+      all_attachments
       |> Enum.filter(fn att -> text_attachment_type?(attachment_type(att.file_name)) end)
       |> Map.new(fn attachment ->
         s3_key =

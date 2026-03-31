@@ -60,6 +60,7 @@ defmodule Tuist.Tests.TestCaseRun do
 
     has_one :crash_report, Tuist.Tests.CrashReport, foreign_key: :test_case_run_id
     has_many :attachments, Tuist.Tests.TestCaseRunAttachment, foreign_key: :test_case_run_id
+    has_many :arguments, Tuist.Tests.TestCaseRunArgument, foreign_key: :test_case_run_id
     has_many :failures, Tuist.Tests.TestCaseFailure, foreign_key: :test_case_run_id
     has_many :repetitions, Tuist.Tests.TestCaseRunRepetition, foreign_key: :test_case_run_id
   end
