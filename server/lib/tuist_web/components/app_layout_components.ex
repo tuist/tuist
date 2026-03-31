@@ -461,7 +461,8 @@ defmodule TuistWeb.AppLayoutComponents do
             value={breadcrumb_item.value}
             label={breadcrumb_item.label}
             selected={breadcrumb_item.selected}
-            href={breadcrumb_item.href}
+            href={breadcrumb_item[:href]}
+            patch={breadcrumb_item[:patch]}
             show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
             avatar_color={Map.get(breadcrumb_item, :avatar_color)}
             icon={Map.get(breadcrumb_item, :icon)}

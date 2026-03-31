@@ -138,6 +138,7 @@ defmodule Noora.Breadcrumbs do
   attr(:value, :string, required: true, doc: "Value associated with the breadcrumb item")
   attr(:selected, :boolean, default: false, doc: "Whether the item is selected")
   attr(:href, :string, default: nil, doc: "Standard URL for navigation")
+  attr(:patch, :string, default: nil, doc: "Phoenix LiveView patch navigation path")
   attr(:show_avatar, :boolean, default: false, doc: "Whether to show the avatar")
   attr(:icon, :string, default: nil, doc: "Icon to display. Overrides `show_avatar`.")
 
@@ -157,7 +158,7 @@ defmodule Noora.Breadcrumbs do
 
   def breadcrumb_item(assigns) do
     ~H"""
-    <.dropdown_item value={@value} label={@label} href={@href} data-selected={@selected}>
+    <.dropdown_item value={@value} label={@label} href={@href} patch={@patch} data-selected={@selected}>
       <:left_icon :if={@show_avatar or not is_nil(@icon)}>
         <.avatar
           :if={@show_avatar and is_nil(@icon)}

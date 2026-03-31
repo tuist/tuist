@@ -20,19 +20,17 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
       avatar_color: Accounts.avatar_color(selected_account),
       items:
         Enum.map(current_user_accounts, fn account ->
-          href =
-            if docs_base_path,
-              do: "#{docs_base_path}?account=#{account.id}",
-              else: ~p"/#{account.name}/projects"
-
-          %{
+          item = %{
             label: account.name,
             value: account.id,
             selected: account.id == selected_account.id,
-            href: href,
             show_avatar: true,
             avatar_color: Accounts.avatar_color(account)
           }
+
+          if docs_base_path,
+            do: Map.put(item, :patch, "#{docs_base_path}?account=#{account.id}"),
+            else: Map.put(item, :href, ~p"/#{account.name}/projects")
         end) ++
           [
             %{
@@ -64,18 +62,21 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
       badge: badge,
       items:
         Enum.map(projects, fn project ->
-          href =
-            if docs_base_path,
-              do: "#{docs_base_path}?account=#{selected_account.id}&project=#{project.id}",
-              else: ~p"/#{selected_account.name}/#{project.name}"
-
-          %{
+          item = %{
             label: project.name,
             value: project.id,
             selected: not is_nil(selected_project) and selected_project.id == project.id,
-            href: href,
             badge: build_system_badge(project.build_system)
           }
+
+          if docs_base_path,
+            do:
+              Map.put(
+                item,
+                :patch,
+                "#{docs_base_path}?account=#{selected_account.id}&project=#{project.id}"
+              ),
+            else: Map.put(item, :href, ~p"/#{selected_account.name}/#{project.name}")
         end) ++
           [
             %{
