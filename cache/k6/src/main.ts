@@ -4,77 +4,82 @@ import { REGION, COMMIT_SHA } from './config.ts';
 import { ALL_NAMES } from './metrics.ts';
 import { authToken } from './lib/auth.ts';
 import { seedAll, seedDataOf, setupFromSeedData } from './lib/seed.ts';
+import { SCENARIO_PLANS, SCENARIO_PLAN_BY_KEY } from './scenario-plan.ts';
 import { SeedData, SetupData } from './types.ts';
 
-export { xcodeRead, xcodeWrite } from './scenarios/xcode.ts';
-export { moduleExists, moduleRead, moduleWrite } from './scenarios/module.ts';
-export { gradleRead, gradleWrite } from './scenarios/gradle.ts';
+export {
+  xcodeRead10kb,
+  xcodeRead256kb,
+  xcodeRead2mb,
+  xcodeWrite10kb,
+  xcodeWrite256kb,
+  xcodeWrite2mb,
+} from './scenarios/xcode.ts';
+export {
+  moduleExists5mb,
+  moduleExists10mb,
+  moduleExists25mb,
+  moduleRead5mb,
+  moduleRead10mb,
+  moduleRead25mb,
+  moduleWrite5mb,
+  moduleWrite10mb,
+  moduleWrite25mb,
+} from './scenarios/module.ts';
+export {
+  gradleRead5mb,
+  gradleRead10mb,
+  gradleRead25mb,
+  gradleWrite5mb,
+  gradleWrite10mb,
+  gradleWrite25mb,
+} from './scenarios/gradle.ts';
 export { keyValueRead, keyValueWrite } from './scenarios/kv.ts';
 
 // --- Scenario builder ---
 //
-// Durations are tuned per scenario based on observed iteration latencies.
-// Fast scenarios (sub-second p50) need only 30s for thousands of samples.
-// Medium scenarios (~1-7s p50) need 60s for hundreds of samples.
-// Slow scenarios (10-45s p50 on US-East) need 180s to collect enough data.
+// Each reported metric now maps 1:1 to a dedicated scenario. That gives us
+// deterministic iteration budgets per metric instead of relying on weighted
+// random bucket selection inside a shared scenario.
 
 interface ScenarioConfig {
   exec: string;
   rate: number;
   duration: number;
+  expectedLatencyMs: number;
   startTime: string;
-  preAllocatedVUs?: number;
-  maxVUs?: number;
 }
 
 function makeScenario(cfg: ScenarioConfig): any {
-  const halfRate = Math.ceil(cfg.rate * 0.5);
-  const burstRate = Math.ceil(cfg.rate * 1.5);
-  const d = cfg.duration;
+  const expectedConcurrentVUs = Math.ceil((cfg.rate * cfg.expectedLatencyMs) / 1000);
+  const preAllocatedVUs = Math.max(Math.ceil(expectedConcurrentVUs * 1.5), 1);
+  const maxVUs = Math.max(preAllocatedVUs * 2, preAllocatedVUs + 2);
 
   return {
-    executor: 'ramping-arrival-rate',
+    executor: 'constant-arrival-rate',
     exec: cfg.exec,
-    startRate: 0,
+    rate: cfg.rate,
     timeUnit: '1s',
-    preAllocatedVUs: cfg.preAllocatedVUs ?? Math.max(Math.ceil(burstRate * 0.02), 5),
-    maxVUs: cfg.maxVUs ?? Math.max(Math.ceil(burstRate * 0.2), 10),
+    duration: `${cfg.duration}s`,
+    preAllocatedVUs,
+    maxVUs,
     startTime: cfg.startTime,
-    stages: [
-      { duration: `${Math.ceil(d * 0.10)}s`, target: halfRate },
-      { duration: `${Math.ceil(d * 0.20)}s`, target: halfRate },
-      { duration: `${Math.ceil(d * 0.10)}s`, target: cfg.rate },
-      { duration: `${Math.ceil(d * 0.30)}s`, target: cfg.rate },
-      { duration: `${Math.ceil(d * 0.10)}s`, target: burstRate },
-      { duration: `${Math.ceil(d * 0.20)}s`, target: burstRate },
-    ],
   };
 }
 
 // --- Build k6 options (scenarios run sequentially) ---
 
-const SCENARIO_ENTRIES = [
-  { key: 'key_value_read', exec: 'keyValueRead', rate: 512, duration: 30 },
-  { key: 'key_value_write', exec: 'keyValueWrite', rate: 256, duration: 30 },
-  { key: 'xcode_read', exec: 'xcodeRead', rate: 512, duration: 30 },
-  { key: 'xcode_write', exec: 'xcodeWrite', rate: 256, duration: 30 },
-  { key: 'module_exists', exec: 'moduleExists', rate: 64, duration: 30 },
-  { key: 'module_read', exec: 'moduleRead', rate: 128, duration: 60 },
-  { key: 'module_write', exec: 'moduleWrite', rate: 32, duration: 180 },
-  { key: 'gradle_read', exec: 'gradleRead', rate: 128, duration: 60 },
-  { key: 'gradle_write', exec: 'gradleWrite', rate: 32, duration: 180 },
-];
-
 const scenarios: Record<string, any> = {};
 let offset = 0;
-for (const entry of SCENARIO_ENTRIES) {
-  scenarios[entry.key] = makeScenario({
-    exec: entry.exec,
-    rate: entry.rate,
-    duration: entry.duration,
+for (const plan of SCENARIO_PLANS) {
+  scenarios[plan.key] = makeScenario({
+    exec: plan.exec,
+    rate: plan.rate,
+    duration: plan.duration,
+    expectedLatencyMs: plan.expectedLatencyMs,
     startTime: `${offset}s`,
   });
-  offset += entry.duration;
+  offset += plan.duration;
 }
 
 export const options: Partial<Options> = {
@@ -123,23 +128,28 @@ export function handleSummary(data: any): Record<string, string> {
   };
 
   for (const name of ALL_NAMES) {
+    const plan = SCENARIO_PLAN_BY_KEY[name];
     const dur = data.metrics[`${name}_duration`];
     const err = data.metrics[`${name}_errors`];
     const itr = data.metrics[`${name}_iters`];
 
-    if (dur && itr && itr.values.count > 0) {
-      result.metrics[name] = {
-        p50: dur.values.med ?? 0,
-        p95: dur.values['p(95)'] ?? 0,
-        p99: dur.values['p(99)'] ?? 0,
-        avg: dur.values.avg ?? 0,
-        min: dur.values.min ?? 0,
-        max: dur.values.max ?? 0,
-        throughput: itr.values.rate ?? 0,
-        iterations: itr.values.count ?? 0,
-        error_rate: err ? (err.values.rate ?? 0) : 0,
-      };
-    }
+    if (!plan) continue;
+
+    const iterations = itr?.values.count ?? 0;
+
+    result.metrics[name] = {
+      p50: dur?.values.med ?? 0,
+      p95: dur?.values['p(95)'] ?? 0,
+      p99: dur?.values['p(99)'] ?? 0,
+      avg: dur?.values.avg ?? 0,
+      min: dur?.values.min ?? 0,
+      max: dur?.values.max ?? 0,
+      throughput: iterations / plan.duration,
+      iterations,
+      min_iterations: plan.minIterations,
+      target_iterations: plan.rate * plan.duration,
+      error_rate: err ? (err.values.rate ?? 0) : 0,
+    };
   }
 
   return { 'result.json': JSON.stringify(result, null, 2) };

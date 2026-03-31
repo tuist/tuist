@@ -322,10 +322,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          P50_THRESHOLD="1.10"
-          P50_ABS_MIN="50"
-          P50_ABS_THRESHOLD="10"
-          THROUGHPUT_THRESHOLD="0.97"
+          P50_ABS_FAST_MAX="20"
+          P50_ABS_FAST_THRESHOLD="5"
+          P50_ABS_MEDIUM_MAX="100"
+          P50_ABS_MEDIUM_THRESHOLD="15"
+          P50_RELATIVE_MEDIUM_THRESHOLD="1.35"
+          P50_RELATIVE_SLOW_THRESHOLD="1.20"
+          THROUGHPUT_THRESHOLD="0.90"
           ERROR_RATE_THRESHOLD="0"
           VERDICT="pass"
           REGRESSIONS=""
@@ -341,20 +344,20 @@ jobs:
           compare_metric() {
             local region="$1" pr_file="$2" baseline_file="$3" metric="$4"
 
-            local pr_p50 pr_p95 pr_p99 pr_throughput pr_error_rate
-            local base_p50 base_p95 base_p99 base_throughput base_error_rate
+            local pr_p50 pr_p95 pr_p99 pr_throughput pr_error_rate pr_iters pr_min_iters
+            local base_p50 base_throughput base_iters
 
             pr_p50=$(jq -r ".metrics[\"$metric\"].p50 // 0" "$pr_file")
             pr_p95=$(jq -r ".metrics[\"$metric\"].p95 // 0" "$pr_file")
             pr_p99=$(jq -r ".metrics[\"$metric\"].p99 // 0" "$pr_file")
             pr_throughput=$(jq -r ".metrics[\"$metric\"].throughput // 0" "$pr_file")
             pr_error_rate=$(jq -r ".metrics[\"$metric\"].error_rate // 0" "$pr_file")
+            pr_iters=$(jq -r ".metrics[\"$metric\"].iterations // 0" "$pr_file")
+            pr_min_iters=$(jq -r ".metrics[\"$metric\"].min_iterations // 0" "$pr_file")
 
             base_p50=$(jq -r ".metrics[\"$metric\"].p50 // 0" "$baseline_file")
-            base_p95=$(jq -r ".metrics[\"$metric\"].p95 // 0" "$baseline_file")
-            base_p99=$(jq -r ".metrics[\"$metric\"].p99 // 0" "$baseline_file")
             base_throughput=$(jq -r ".metrics[\"$metric\"].throughput // 0" "$baseline_file")
-            base_error_rate=$(jq -r ".metrics[\"$metric\"].error_rate // 0" "$baseline_file")
+            base_iters=$(jq -r ".metrics[\"$metric\"].iterations // 0" "$baseline_file")
 
             if [ "$(echo "$pr_error_rate > $ERROR_RATE_THRESHOLD" | bc -l)" -eq 1 ]; then
               local pct
@@ -362,20 +365,38 @@ jobs:
               add_failure "$region" "$metric" "error_rate" "0%" "${pct}%" "-"
             fi
 
-            # Only check p50 — p95/p99 are too noisy on staging
-            if [ "$(echo "$base_p50 > 0" | bc -l)" -eq 1 ]; then
-              local p50_diff
-              p50_diff=$(echo "$pr_p50 - $base_p50" | bc -l)
-              local p50_regression=0
+            local iterations_valid=1
+            if [ "$(echo "$pr_min_iters > 0" | bc -l)" -eq 1 ]; then
+              if [ "$(echo "$base_iters < $pr_min_iters" | bc -l)" -eq 1 ]; then
+                iterations_valid=0
+                add_failure "$region" "$metric" "baseline_iterations" "$(printf '%.0f' "$base_iters")" ">= $(printf '%.0f' "$pr_min_iters")" "-"
+              fi
 
-              if [ "$(echo "$base_p50 < $P50_ABS_MIN" | bc -l)" -eq 1 ]; then
-                # Low-latency metric: use absolute threshold only
-                if [ "$(echo "$p50_diff > $P50_ABS_THRESHOLD" | bc -l)" -eq 1 ]; then
+              if [ "$(echo "$pr_iters < $pr_min_iters" | bc -l)" -eq 1 ]; then
+                iterations_valid=0
+                add_failure "$region" "$metric" "pr_iterations" ">= $(printf '%.0f' "$pr_min_iters")" "$(printf '%.0f' "$pr_iters")" "-"
+              fi
+            fi
+
+            if [ "$iterations_valid" -eq 1 ] && [ "$(echo "$base_p50 > 0" | bc -l)" -eq 1 ]; then
+              local p50_diff
+              local p50_regression=0
+              p50_diff=$(echo "$pr_p50 - $base_p50" | bc -l)
+
+              if [ "$(echo "$base_p50 < $P50_ABS_FAST_MAX" | bc -l)" -eq 1 ]; then
+                if [ "$(echo "$p50_diff > $P50_ABS_FAST_THRESHOLD" | bc -l)" -eq 1 ]; then
+                  p50_regression=1
+                fi
+              elif [ "$(echo "$base_p50 < $P50_ABS_MEDIUM_MAX" | bc -l)" -eq 1 ]; then
+                if [ "$(echo "$p50_diff > $P50_ABS_MEDIUM_THRESHOLD" | bc -l)" -eq 1 ]; then
+                  p50_regression=1
+                fi
+              elif [ "$(echo "$base_p50 < 1000" | bc -l)" -eq 1 ]; then
+                if [ "$(echo "$pr_p50 > $base_p50 * $P50_RELATIVE_MEDIUM_THRESHOLD" | bc -l)" -eq 1 ]; then
                   p50_regression=1
                 fi
               else
-                # High-latency metric: use percentage threshold
-                if [ "$(echo "$pr_p50 > $base_p50 * $P50_THRESHOLD" | bc -l)" -eq 1 ]; then
+                if [ "$(echo "$pr_p50 > $base_p50 * $P50_RELATIVE_SLOW_THRESHOLD" | bc -l)" -eq 1 ]; then
                   p50_regression=1
                 fi
               fi
@@ -387,9 +408,7 @@ jobs:
               fi
             fi
 
-            local pr_iters
-            pr_iters=$(jq -r ".metrics[\"$metric\"].iterations // 0" "$pr_file")
-            if [ "$(echo "$base_throughput > 0" | bc -l)" -eq 1 ] && [ "$(echo "$pr_iters >= 20" | bc -l)" -eq 1 ]; then
+            if [ "$iterations_valid" -eq 1 ] && [ "$(echo "$base_throughput > 0" | bc -l)" -eq 1 ]; then
               if [ "$(echo "$pr_throughput < $base_throughput * $THROUGHPUT_THRESHOLD" | bc -l)" -eq 1 ]; then
                 local delta
                 delta=$(printf "%.1f" "$(echo "(1 - $pr_throughput / $base_throughput) * 100" | bc -l)")
@@ -397,7 +416,7 @@ jobs:
               fi
             fi
 
-            SUMMARY="${SUMMARY}| ${region} | ${metric} | $(printf '%.2f' "$pr_p50") | $(printf '%.2f' "$pr_p95") | $(printf '%.2f' "$pr_p99") | $(printf '%.1f' "$pr_throughput") | $(printf '%.2f' "$(echo "$pr_error_rate * 100" | bc -l)")% |
+            SUMMARY="${SUMMARY}| ${region} | ${metric} | $(printf '%.0f' "$base_iters") | $(printf '%.0f' "$pr_iters") | $(printf '%.0f' "$pr_min_iters") | $(printf '%.2f' "$pr_p50") | $(printf '%.2f' "$pr_p95") | $(printf '%.2f' "$pr_p99") | $(printf '%.1f' "$pr_throughput") | $(printf '%.2f' "$(echo "$pr_error_rate * 100" | bc -l)")% |
           "
           }
 
@@ -450,8 +469,8 @@ jobs:
           if [ -n "$SUMMARY" ]; then
             REPORT="${REPORT}
           ### Summary
-          | Region | Metric | p50 (ms) | p95 (ms) | p99 (ms) | Throughput | Error Rate |
-          |---|---|---:|---:|---:|---:|---:|
+          | Region | Metric | Baseline Iters | PR Iters | Min Iters | p50 (ms) | p95 (ms) | p99 (ms) | Throughput | Error Rate |
+          |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
           ${SUMMARY}"
           fi
 

@@ -1,15 +1,14 @@
 import http from 'k6/http';
 import { SetupData } from '../types.ts';
-import { LARGE_SIZES, RUN_ID } from '../config.ts';
+import { RUN_ID } from '../config.ts';
 import { authHeaders, cacheUrl } from '../lib/http.ts';
-import { weightedRandom, randomItem, randomId } from '../lib/util.ts';
+import { randomItem, randomId } from '../lib/util.ts';
 import { record } from '../metrics.ts';
 import { getPayload } from '../payloads.ts';
 
-export function gradleRead(data: SetupData): void {
+function gradleReadBucket(data: SetupData, bucketName: string): void {
   const token = data.token;
-  const bucket = weightedRandom(LARGE_SIZES);
-  const seeded = data.gradle[bucket.name];
+  const seeded = data.gradle[bucketName];
   if (!seeded || seeded.keys.length === 0) return;
 
   const key = randomItem(seeded.keys);
@@ -19,14 +18,13 @@ export function gradleRead(data: SetupData): void {
     { headers: authHeaders(token), timeout: '120s' },
   );
 
-  record(`gradle_read_${bucket.name}`, Date.now() - start, res.status === 200);
+  record(`gradle_read_${bucketName}`, Date.now() - start, res.status === 200);
 }
 
-export function gradleWrite(data: SetupData): void {
+function gradleWriteBucket(data: SetupData, bucketName: string): void {
   const token = data.token;
-  const bucket = weightedRandom(LARGE_SIZES);
   const key = `${RUN_ID}-gradlew-${randomId()}`;
-  const payload = getPayload(bucket.name);
+  const payload = getPayload(bucketName);
 
   const start = Date.now();
   const res = http.put(
@@ -38,5 +36,29 @@ export function gradleWrite(data: SetupData): void {
     },
   );
 
-  record(`gradle_write_${bucket.name}`, Date.now() - start, res.status === 200 || res.status === 201);
+  record(`gradle_write_${bucketName}`, Date.now() - start, res.status === 200 || res.status === 201);
+}
+
+export function gradleRead5mb(data: SetupData): void {
+  gradleReadBucket(data, '5mb');
+}
+
+export function gradleRead10mb(data: SetupData): void {
+  gradleReadBucket(data, '10mb');
+}
+
+export function gradleRead25mb(data: SetupData): void {
+  gradleReadBucket(data, '25mb');
+}
+
+export function gradleWrite5mb(data: SetupData): void {
+  gradleWriteBucket(data, '5mb');
+}
+
+export function gradleWrite10mb(data: SetupData): void {
+  gradleWriteBucket(data, '10mb');
+}
+
+export function gradleWrite25mb(data: SetupData): void {
+  gradleWriteBucket(data, '25mb');
 }

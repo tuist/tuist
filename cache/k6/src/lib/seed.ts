@@ -163,17 +163,16 @@ function seedKvDirect(token: string): string[] {
 
 function warmReads(token: string, data: SetupData): void {
   for (const seeded of Object.values(data.xcode)) {
-    if (seeded.kvCasIds.length > 0) {
-      http.get(cacheUrl(`/api/cache/keyvalue/${seeded.kvCasIds[0]}`), { headers: authHeaders(token) });
+    for (const kvCasId of seeded.kvCasIds) {
+      http.get(cacheUrl(`/api/cache/keyvalue/${kvCasId}`), { headers: authHeaders(token) });
     }
-    if (seeded.casIds.length > 0) {
-      http.get(cacheUrl(`/api/cache/cas/${seeded.casIds[0]}`), { headers: authHeaders(token) });
+    for (const casId of seeded.casIds) {
+      http.get(cacheUrl(`/api/cache/cas/${casId}`), { headers: authHeaders(token) });
     }
   }
 
   for (const seeded of Object.values(data.module)) {
-    if (seeded.refs.length > 0) {
-      const ref = seeded.refs[0];
+    for (const ref of seeded.refs) {
       http.get(
         cacheUrl(`/api/cache/module/${ref.hash}`, { hash: ref.hash, name: ref.name }),
         { headers: authHeaders(token) },
@@ -182,12 +181,12 @@ function warmReads(token: string, data: SetupData): void {
   }
 
   for (const seeded of Object.values(data.gradle)) {
-    if (seeded.keys.length > 0) {
-      http.get(cacheUrl(`/api/cache/gradle/${seeded.keys[0]}`), { headers: authHeaders(token) });
+    for (const key of seeded.keys) {
+      http.get(cacheUrl(`/api/cache/gradle/${key}`), { headers: authHeaders(token) });
     }
   }
 
-  for (const casId of data.kvDirect.slice(0, 3)) {
+  for (const casId of data.kvDirect) {
     http.get(cacheUrl(`/api/cache/keyvalue/${casId}`), { headers: authHeaders(token) });
   }
 }
