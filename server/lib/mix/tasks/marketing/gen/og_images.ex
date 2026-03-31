@@ -98,10 +98,13 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
         image_path = Path.join(og_images_directory, "changelog/#{entry.id}.jpg")
         File.mkdir_p!(Path.dirname(image_path))
 
+        date = Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")
+
         html =
           ChangelogOgImage.render_html(
             title: entry.title,
             description: entry.description,
+            date: date,
             pull_request: entry.pull_request,
             fonts_dir: fonts_dir,
             logo_path: logo_path
