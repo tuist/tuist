@@ -461,7 +461,7 @@ public enum Module: String, CaseIterable {
             default:
                 []
             }
-        return dependencies + [.external(name: "SnapshotTesting")] + sharedDependencies
+        return dependencies + sharedDependencies
     }
 
     public var strictConcurrencySetting: String? {

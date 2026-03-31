@@ -320,10 +320,10 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
 
     #if canImport(TuistCacheEE)
         @Test(
-        .disabled(),
-        .withFixture("generated_ios_app_with_static_frameworks_with_resources"),
-        .inTemporaryDirectory
-    )
+            .disabled(),
+            .withFixture("generated_ios_app_with_static_frameworks_with_resources"),
+            .inTemporaryDirectory
+        )
         func app_with_objc_static_framework_with_resources_from_cache() async throws {
             let fileSystem = FileSystem()
             let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
