@@ -36,13 +36,13 @@ Apple musiałoby przejść do pierwszych zasad i zrewidować niektóre decyzje, 
 miały sens jako menedżer zależności, ale nie jako menedżer projektów, na
 przykład użycie skompilowanego języka jako interfejsu do definiowania projektów.
 
-::: tip SPM AS JUST A DEPENDENCY MANAGER
-<!-- -->
-Tuist traktuje Swift Package Manager jako menedżer zależności i jest to świetny
-menedżer. Używamy go do rozwiązywania zależności i ich budowania. Nie używamy go
-do definiowania projektów, ponieważ nie jest do tego przeznaczony.
-<!-- -->
-:::
+> [!TIP]
+> **Spm As Just A Dependency Manager**
+>
+> Tuist traktuje Swift Package Manager jako menedżer zależności i jest to świetny
+> menedżer. Używamy go do rozwiązywania zależności i ich budowania. Nie używamy go
+> do definiowania projektów, ponieważ nie jest do tego przeznaczony.
+
 
 ## Migracja z menedżera pakietów Swift do Tuist {#migrating-from-swift-package-manager-to-tuist}
 

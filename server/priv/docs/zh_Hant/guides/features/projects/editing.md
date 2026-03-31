@@ -24,12 +24,12 @@ tuist edit
 該指令會在全局目錄中建立一個 Xcode 專案，並在 Xcode 中開啟。該專案包含一個`Manifests`
 目錄，您可以建立該目錄，以確保您所有的manifests都是有效的。
 
-::: info GLOB-RESOLVED MANIFESTS
-<!-- -->
-`tuist edit` 使用專案根目錄（包含`Tuist.swift` 檔案的目錄）中的 glob`**/{Manifest}.swift`
-解析要包含的清單。請確定專案根目錄中有一個有效的`Tuist.swift` 。
-<!-- -->
-:::
+> [!NOTE]
+> **Glob-resolved Manifests**
+>
+> `tuist edit` 使用專案根目錄（包含`Tuist.swift` 檔案的目錄）中的 glob`**/{Manifest}.swift`
+> 解析要包含的清單。請確定專案根目錄中有一個有效的`Tuist.swift` 。
+
 
 ### 忽略清單檔案{#ignoring-manifest-files}
 

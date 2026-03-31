@@ -34,9 +34,9 @@ Tuist uses historical test timing data to intelligently balance the load across 
         link="/guides/features/test-sharding/gradle"/>
 </HomeCards>
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-- <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> configured (for optimal shard balancing based on historical timing data)
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> - <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> configured (for optimal shard balancing based on historical timing data)
+

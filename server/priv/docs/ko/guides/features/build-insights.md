@@ -7,11 +7,11 @@
 ---
 # 인사이트 {#insights}
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
+
 
 대규모 프로젝트 작업이 번거로운 일처럼 느껴져서는 안 됩니다. 오히려 불과 2주 전에 시작한 프로젝트에서 일하는 것처럼 즐거워야 합니다. 그렇지
 않은 이유 중 하나는 프로젝트가 커질수록 개발자 환경이 악화되기 때문입니다. 빌드 시간이 길어지고 테스트가 느리고 불안정해집니다. 이러한 문제가
@@ -22,11 +22,9 @@
 - 지난 주에 빌드 시간이 크게 증가했나요?
 - 테스트 속도가 느려졌나요? 어떤 테스트가?
 
-::: info
-<!-- -->
-튜이스트 인사이트는 초기 개발 단계에 있습니다.
-<!-- -->
-:::
+> [!NOTE]
+> 튜이스트 인사이트는 초기 개발 단계에 있습니다.
+
 
 ## 빌드 {#builds}
 
@@ -38,17 +36,13 @@ CI 워크플로우의 성능에 대한 몇 가지 지표가 있을 수 있지만
 ![빌드 검사를 위한 사후
 작업](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
-::: info
-<!-- -->
-"빌드 설정 제공 위치"를 실행 파일 또는 기본 빌드 대상으로 설정하여 Tuist에서 빌드 구성을 추적할 수 있도록 하는 것이 좋습니다.
-<!-- -->
-:::
+> [!NOTE]
+> "빌드 설정 제공 위치"를 실행 파일 또는 기본 빌드 대상으로 설정하여 Tuist에서 빌드 구성을 추적할 수 있도록 하는 것이 좋습니다.
 
-::: info
-<!-- -->
-<LocalizedLink href="/guides/features/projects">생성된 프로젝트</LocalizedLink>를 사용하지 않는 경우 빌드 실패 시 사후 체계 작업이 실행되지 않습니다.
-<!-- -->
-:::
+
+> [!NOTE]
+> <LocalizedLink href="/guides/features/projects">생성된 프로젝트</LocalizedLink>를 사용하지 않는 경우 빌드 실패 시 사후 체계 작업이 실행되지 않습니다.
+
 > 
 > Xcode에 문서화되지 않은 기능을 사용하면 이 경우에도 실행할 수 있습니다. 다음과 같이 관련 `project.pbxproj` 파일에 있는
 > 스키마의 `BuildAction` 에서 `runPostActionsOnFailure` 속성을 `YES` 로 설정합니다:
@@ -67,24 +61,21 @@ Mise](https://mise.jdx.dev/)를 사용하는 경우, 스크립트는 액션 후 
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: 팁 실수 및 프로젝트 경로
-<!-- -->
-환경의 `PATH` 환경 변수는 스키마 포스트 액션에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
-따라 달라집니다. 또한 프로젝트의 대상에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는 것을
-잊지 마세요.
-<!-- -->
-:::
+> [!TIP]
+> **실수 및 프로젝트 경로**
+>
+> 환경의 `PATH` 환경 변수는 스키마 포스트 액션에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
+> 따라 달라집니다. 또한 프로젝트의 대상에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는 것을
+> 잊지 마세요.
 
 
 이제 로컬 빌드는 Tuist 계정에 로그인되어 있는 한 추적됩니다. 이제 Tuist 대시보드에서 빌드 시간에 액세스하여 시간이 지남에 따라
 어떻게 변화하는지 확인할 수 있습니다:
 
 
-::: tip
-<!-- -->
-대시보드에 빠르게 액세스하려면 CLI에서 `tuist project show --web` 을 실행합니다.
-<!-- -->
-:::
+> [!TIP]
+> 대시보드에 빠르게 액세스하려면 CLI에서 `tuist project show --web` 을 실행합니다.
+
 
 ![빌드 인사이트가 있는 대시보드](/images/guides/features/build-insights/builds-dashboard.png)
 
@@ -105,13 +96,13 @@ Mise](https://mise.jdx.dev/)를 사용하는 경우, 스크립트는 액션 후 
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: 팁 실수 및 프로젝트 경로
-<!-- -->
-환경의 `PATH` 환경 변수는 스키마 포스트 액션에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
-따라 달라집니다. 또한 프로젝트의 대상에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는 것을
-잊지 마세요.
-<!-- -->
-:::
+> [!TIP]
+> **실수 및 프로젝트 경로**
+>
+> 환경의 `PATH` 환경 변수는 스키마 포스트 액션에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
+> 따라 달라집니다. 또한 프로젝트의 대상에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는 것을
+> 잊지 마세요.
+
 
 이제 튜이스트 계정에 로그인되어 있는 한 테스트 실행이 추적됩니다. 튜이스트 대시보드에서 테스트 인사이트에 액세스하여 시간이 지남에 따라 어떻게
 발전하는지 확인할 수 있습니다:
@@ -124,11 +115,9 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 
 ## Generated 프로젝트 {#generated-projects}
 
-::: info
-<!-- -->
-자동 생성된 계획에는 `tuist inspect build` 및 `tuist inspect test` 포스트 액션이 모두 자동으로 포함됩니다.
-<!-- -->
-:::
+> [!NOTE]
+> 자동 생성된 계획에는 `tuist inspect build` 및 `tuist inspect test` 포스트 액션이 모두 자동으로 포함됩니다.
+
 > 
 > 자동 생성된 스키마에서 인사이트를 추적하는 데 관심이 없다면
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>

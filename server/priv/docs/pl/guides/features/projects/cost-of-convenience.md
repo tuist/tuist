@@ -79,14 +79,14 @@ nieudane kompilacje, które są trudne do debugowania, gdy projekt się rozrasta
 Konsekwencją tej decyzji projektowej jest to, że wiele projektów przypadkowo
 kompiluje się z grafem, który nie jest dobrze zdefiniowany.
 
-::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
-<!-- -->
-Tuist udostępnia polecenie
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies"></LocalizedLink>
-do wykrywania niejawnych zależności. Możesz użyć tego polecenia, aby sprawdzić w
-CI, czy wszystkie zależności są jawne.
-<!-- -->
-:::
+> [!TIP]
+> **Tuist Detection Of Implicit Dependencies**
+>
+> Tuist udostępnia polecenie
+> <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies"></LocalizedLink>
+> do wykrywania niejawnych zależności. Możesz użyć tego polecenia, aby sprawdzić w
+> CI, czy wszystkie zależności są jawne.
+
 
 ### Znajdź niejawne zależności w schematach {#find-implicit-dependencies-in-schemes}.
 
@@ -107,12 +107,10 @@ powodu pewnego stanu w danych pochodnych, który działa jak
 [singleton](https://en.wikipedia.org/wiki/Singleton_pattern), ale następnie nie
 skompilować się na CI, ponieważ stan jest inny.
 
-::: napiwek
-<!-- -->
-Zalecamy wyłączenie tej opcji w schematach projektu i korzystanie z Tuist, który
-ułatwia zarządzanie grafem zależności.
-<!-- -->
-:::
+> [!TIP]
+> Zalecamy wyłączenie tej opcji w schematach projektu i korzystanie z Tuist, który
+> ułatwia zarządzanie grafem zależności.
+
 
 ### SwiftUI Previews and static libraries/frameworks {#swiftui-previews-and-static-librariesframeworks}.
 

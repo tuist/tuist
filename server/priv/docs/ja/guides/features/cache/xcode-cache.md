@@ -51,12 +51,12 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 `COMPILATION_CACHE_REMOTE_SERVICE_PATH` と`COMPILATION_CACHE_ENABLE_PLUGIN`
 は、Xcodeのビルド設定UIで直接公開されていないため、**ユーザー定義のビルド設定** として追加する必要があることに注意してください：
 
-::: info SOCKET PATH
-<!-- -->
-`tuist setup cache`
-を実行すると、ソケットパスが表示されます。スラッシュをアンダースコアに置き換えたプロジェクトの完全なハンドルに基づいています。
-<!-- -->
-:::
+> [!NOTE]
+> **Socket Path**
+>
+> `tuist setup cache`
+> を実行すると、ソケットパスが表示されます。スラッシュをアンダースコアに置き換えたプロジェクトの完全なハンドルに基づいています。
+
 
 これらの設定は、`xcodebuild` を実行する際に、以下のようなフラグを追加して指定することもできる：
 
@@ -68,25 +68,25 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-::: info GENERATED PROJECTS
-<!-- -->
-プロジェクトがTuistによって生成されている場合は、手動で設定する必要はない。
+> [!NOTE]
+> **Generated Projects**
+>
+> プロジェクトがTuistによって生成されている場合は、手動で設定する必要はない。
+>
+> その場合、`Tuist.swift` ファイルに`enableCaching: true` を追加するだけでよい：
+> ```swift
+> import ProjectDescription
+>
+> let tuist = Tuist(
+>     fullHandle: "your-org/your-project",
+>     project: .tuist(
+>         generationOptions: .options(
+>             enableCaching: true
+>         )
+>     )
+> )
+> ```
 
-その場合、`Tuist.swift` ファイルに`enableCaching: true` を追加するだけでよい：
-```swift
-import ProjectDescription
-
-let tuist = Tuist(
-    fullHandle: "your-org/your-project",
-    project: .tuist(
-        generationOptions: .options(
-            enableCaching: true
-        )
-    )
-)
-```
-<!-- -->
-:::
 
 ### 継続的インテグレーション#{continuous-integration}。
 

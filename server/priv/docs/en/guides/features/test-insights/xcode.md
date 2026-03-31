@@ -7,11 +7,11 @@
 ---
 # Xcode test insights {#xcode-test-insights}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+
 
 Tuist Test Insights gives you Xcode test analytics to monitor your test suite's health by identifying slow tests or quickly understanding failed CI runs. As your test suite grows, it becomes increasingly difficult to spot trends like gradually slowing tests or intermittent failures. Tuist Test Insights provides you with the visibility you need to maintain a fast and reliable test suite.
 
@@ -33,13 +33,13 @@ In case you're using [Mise](https://mise.jdx.dev/), your script will need to act
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: tip MISE & PROJECT PATHS
-<!-- -->
-Your environment's `PATH` environment variable is not inherited by the scheme post action, and therefore you have to use Mise's absolute path,
-which will depend on how you installed Mise. Moreover, don't forget to inherit the build settings from a target in your project such that you
-can run Mise from the directory pointed to by $SRCROOT.
-<!-- -->
-:::
+> [!TIP]
+> **Mise & Project Paths**
+>
+> Your environment's `PATH` environment variable is not inherited by the scheme post action, and therefore you have to use Mise's absolute path,
+> which will depend on how you installed Mise. Moreover, don't forget to inherit the build settings from a target in your project such that you
+> can run Mise from the directory pointed to by $SRCROOT.
+
 
 Your test runs are now tracked as long as you are logged in to your Tuist account. You can access your test insights in the Tuist dashboard and see how they evolve over time:
 
@@ -51,11 +51,9 @@ Apart from overall trends, you can also dive deep into each individual test, suc
 
 ## Generated projects {#generated-projects}
 
-::: info
-<!-- -->
-Auto-generated schemes automatically include the `tuist inspect test` post-action.
-<!-- -->
-:::
+> [!NOTE]
+> Auto-generated schemes automatically include the `tuist inspect test` post-action.
+
 >
 > If you are not interested in tracking test insights in your auto-generated schemes, disable them using the [testInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) generation option.
 

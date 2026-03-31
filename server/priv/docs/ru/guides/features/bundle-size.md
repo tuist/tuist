@@ -7,11 +7,11 @@
 ---
 # Познавательная информация о пакетах {#bundle-size}
 
-::: предупреждение РЕКВИЗИТЫ
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Реквизиты**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
+
 
 По мере того как вы добавляете в приложение все больше функций, размер пакета
 приложения продолжает расти. Хотя некоторый рост размера пакета неизбежен,
@@ -72,15 +72,15 @@ jobs:
 
 ## Комментарии к запросам на перетяжку/слияние {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-Чтобы получить автоматические комментарии к запросам pull/merge, интегрируйте
-ваш
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist-проект</LocalizedLink>
-с
-<LocalizedLink href="/guides/server/authentication">Git-платформой</LocalizedLink>.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> Чтобы получить автоматические комментарии к запросам pull/merge, интегрируйте
+> ваш
+> <LocalizedLink href="/guides/server/accounts-and-projects">Tuist-проект</LocalizedLink>
+> с
+> <LocalizedLink href="/guides/server/authentication">Git-платформой</LocalizedLink>.
+
 
 Как только ваш проект Tuist будет связан с вашей Git-платформой, например
 [GitHub](https://github.com), Tuist будет публиковать комментарий

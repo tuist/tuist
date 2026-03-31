@@ -15,12 +15,12 @@
 - قم بإنشاء ميزة جديدة تتبع بنية معينة: `tuist سقالة الأفعى - الاسم MyFeature`.
 - إنشاء مشاريع جديدة: `تويست سقالة ميزة المشروع - اسم المشروع الرئيسي`
 
-::: info NON-OPINIONATED
-<!-- -->
-تويست ليس له رأي في محتوى القوالب الخاصة بك، وما تستخدمها من أجله. فهي مطلوبة
-فقط لتكون في دليل محدد.
-<!-- -->
-:::
+> [!NOTE]
+> **Non-opinionated**
+>
+> تويست ليس له رأي في محتوى القوالب الخاصة بك، وما تستخدمها من أجله. فهي مطلوبة
+> فقط لتكون في دليل محدد.
+
 
 ## تعريف القالب {#defining-a-template}
 
@@ -63,9 +63,9 @@ let template = Template(
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: info
-نظرًا لأن النظام الأساسي هو وسيطة اختيارية، يمكننا أيضًا استدعاء الأمر بدون الوسيطة `-- النظام الأساسي macos`.
-:::
+> [!NOTE]
+> نظرًا لأن النظام الأساسي هو وسيطة اختيارية، يمكننا أيضًا استدعاء الأمر بدون الوسيطة `-- النظام الأساسي macos`.
+
 
 إذا لم يوفر لك `.string` و `.files` مرونة كافية، يمكنك الاستفادة من لغة النمذجة
 [Stencil] (https://stencil.fuller.li/en/latest/) عبر حالة `.file`. بالإضافة إلى
@@ -80,6 +80,8 @@ tuist scaffold name_of_template --name Name --platform macos
 يمكنك أيضًا استخدام `.directory` الذي يتيح إمكانية نسخ مجلدات كاملة إلى مسار
 معين.
 
-::: tip PROJECT DESCRIPTION HELPERS
-تدعم القوالب استخدام <LocalizedLink href="/guides/features/projects/code-sharing">مساعدي وصف المشروع</LocalizedLink> لإعادة استخدام الشيفرة عبر القوالب.
-:::
+> [!TIP]
+> **Project Description Helpers**
+>
+> تدعم القوالب استخدام <LocalizedLink href="/guides/features/projects/code-sharing">مساعدي وصف المشروع</LocalizedLink> لإعادة استخدام الشيفرة عبر القوالب.
+

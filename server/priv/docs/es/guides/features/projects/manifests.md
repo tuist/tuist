@@ -19,15 +19,15 @@ el código en distintos archivos de manifiesto, y Xcode para ofrecer una
 experiencia de edición de primera clase gracias al resaltado de sintaxis, el
 autocompletado y la validación.
 
-::: info CACHING
-<!-- -->
-Dado que los archivos de manifiesto son archivos Swift que necesitan ser
-compilados, Tuist almacena en caché los resultados de la compilación para
-acelerar el proceso de análisis. Por lo tanto, notarás que la primera vez que
-ejecutes Tuist, puede tardar un poco más en generar el proyecto. Las siguientes
-ejecuciones serán más rápidas.
-<!-- -->
-:::
+> [!NOTE]
+> **Caching**
+>
+> Dado que los archivos de manifiesto son archivos Swift que necesitan ser
+> compilados, Tuist almacena en caché los resultados de la compilación para
+> acelerar el proceso de análisis. Por lo tanto, notarás que la primera vez que
+> ejecutes Tuist, puede tardar un poco más en generar el proyecto. Las siguientes
+> ejecuciones serán más rápidas.
+
 
 ## Proyecto.swift {#projectswift}
 
@@ -48,13 +48,13 @@ let project = Project(
 ```
 
 
-::: warning ROOT VARIABLES
-<!-- -->
-La única variable que debe estar en la raíz del manifiesto es `let project =
-Project(...)`. Si necesitas reutilizar código en varias partes del manifiesto,
-puedes utilizar funciones Swift.
-<!-- -->
-:::
+> [!WARNING]
+> **Root Variables**
+>
+> La única variable que debe estar en la raíz del manifiesto es `let project =
+> Project(...)`. Si necesitas reutilizar código en varias partes del manifiesto,
+> puedes utilizar funciones Swift.
+
 
 ## Espacio de trabajo.swift {#workspaceswift}
 
@@ -78,14 +78,12 @@ let workspace = Workspace(
 )
 ```
 
-::: info
-<!-- -->
-Tuist resolverá el gráfico de dependencias e incluirá los proyectos de las
-dependencias en el espacio de trabajo. No necesitas incluirlos manualmente. Esto
-es necesario para que el sistema de compilación resuelva las dependencias
-correctamente.
-<!-- -->
-:::
+> [!NOTE]
+> Tuist resolverá el gráfico de dependencias e incluirá los proyectos de las
+> dependencias en el espacio de trabajo. No necesitas incluirlos manualmente. Esto
+> es necesario para que el sistema de compilación resuelva las dependencias
+> correctamente.
+
 
 ### Multi o monoproyecto {#multi-or-monoproject}
 

@@ -7,13 +7,13 @@
 ---
 # Wygenerowane projekty {#generated-projects}
 
-::: ostrzeżenie WYMAGANIA
-<!-- -->
-- Projekt wygenerowany przez
-  <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Wymagania**
+>
+> - Projekt wygenerowany przez
+>   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
+> - Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+
 
 Aby selektywnie uruchamiać testy w wygenerowanym projekcie, należy użyć
 polecenia `tuist test`. Polecenie

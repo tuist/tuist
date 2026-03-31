@@ -74,12 +74,10 @@ Ayrıca, bağımlılık grafiğinin bir temsilini dışa aktaran `tuist graph` v
 hedefleri ikili dosyalar olarak önbelleğe alan `tuist cache` gibi özellikleri
 etkinleştirir.
 
-::: tip
-<!-- -->
-Xcode'dan özelliklerin taşınmasına yönelik her talebi, basit ve açık API'lerle
-kavramları basitleştirmek için bir fırsat olarak değerlendirmeliyiz.
-<!-- -->
-:::
+> [!TIP]
+> Xcode'dan özelliklerin taşınmasına yönelik her talebi, basit ve açık API'lerle
+> kavramları basitleştirmek için bir fırsat olarak değerlendirmeliyiz.
+
 
 ## Basit tutun {#keep-it-simple}
 

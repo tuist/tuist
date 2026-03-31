@@ -93,12 +93,12 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### 任務外掛程式 <Badge type="warning" text="deprecated" />{#task-plugin-badge-typewarning-textdeprecated-}
 
-::: warning DEPRECATED
-<!-- -->
-任務外掛已經過時。如果您正在為專案尋找自動化解決方案，請參閱
-[本篇部落格文章](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)。
-<!-- -->
-:::
+> [!WARNING]
+> **Deprecated**
+>
+> 任務外掛已經過時。如果您正在為專案尋找自動化解決方案，請參閱
+> [本篇部落格文章](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)。
+
 
 任務是`$PATH`-exposed 的可執行檔，如果遵循命名慣例`tuist-<task-name>` ，則可透過`tuist`
 指令來啟用。在早期版本中，Tuist 在`tuist plugin` 下提供了一些弱化的慣例和工具，以`build`,`run`,`test`
@@ -114,13 +114,13 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 - 如果您將您的工具命名為`tuist-{xxx}` ，使用者可以執行`mise install` 來安裝它，他們可以直接呼叫它，或透過`tuist xxx`
   來執行它。
 
-::: info THE FUTURE OF PROJECTAUTOMATION
-<!-- -->
-我們計劃將`ProjectAutomation` 和`XcodeGraph`
-的模型整合為一個單一的向後相容的框架，將專案圖形的完整性暴露給用戶。此外，我們將提取生成邏輯到一個新的層，`XcodeGraph` ，您也可以從您自己的 CLI
-中使用它。將其視為建立您自己的 Tuist。
-<!-- -->
-:::
+> [!NOTE]
+> **The Future Of Projectautomation**
+>
+> 我們計劃將`ProjectAutomation` 和`XcodeGraph`
+> 的模型整合為一個單一的向後相容的框架，將專案圖形的完整性暴露給用戶。此外，我們將提取生成邏輯到一個新的層，`XcodeGraph` ，您也可以從您自己的 CLI
+> 中使用它。將其視為建立您自己的 Tuist。
+
 
 ## 使用外掛程式{#using-plugins}
 
@@ -155,19 +155,19 @@ let tuist = Tuist(
 
 新增外掛程式後，`tuist install` 會在全域快取目錄中取得外掛程式。
 
-::: info NO VERSION RESOLUTION
-<!-- -->
-您可能已經注意到，我們不提供外掛程式的版本解析。我們建議使用 Git 標籤或 SHA 以確保可重複性。
-<!-- -->
-:::
+> [!NOTE]
+> **No Version Resolution**
+>
+> 您可能已經注意到，我們不提供外掛程式的版本解析。我們建議使用 Git 標籤或 SHA 以確保可重複性。
 
-::: tip PROJECT DESCRIPTION HELPERS PLUGINS
-<!-- -->
-使用專案描述輔助外掛程式時，包含輔助程式的模組名稱即為外掛程式的名稱
-```swift
-import ProjectDescription
-import MyTuistPlugin
-let project = Project.app(name: "MyCoolApp", platform: .iOS)
-```
-<!-- -->
-:::
+
+> [!TIP]
+> **Project Description Helpers Plugins**
+>
+> 使用專案描述輔助外掛程式時，包含輔助程式的模組名稱即為外掛程式的名稱
+> ```swift
+> import ProjectDescription
+> import MyTuistPlugin
+> let project = Project.app(name: "MyCoolApp", platform: .iOS)
+> ```
+

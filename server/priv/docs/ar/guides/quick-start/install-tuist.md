@@ -51,13 +51,13 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
-<!-- -->
-يمكنك التحقق من أن ثنائيات التثبيت الخاصة بك قد تم بناؤها من خلال تشغيل الأمر
-التالي، والذي يتحقق مما إذا كان فريق الشهادة هو `U6LC622NKF`:
+> [!TIP]
+> **Verifying The Authenticity Of The Binaries**
+>
+> يمكنك التحقق من أن ثنائيات التثبيت الخاصة بك قد تم بناؤها من خلال تشغيل الأمر
+> التالي، والذي يتحقق مما إذا كان فريق الشهادة هو `U6LC622NKF`:
+>
+> ```bash
+> curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
+> ```
 
-```bash
-curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
-```
-<!-- -->
-:::

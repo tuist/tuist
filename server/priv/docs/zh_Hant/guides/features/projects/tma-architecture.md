@@ -13,11 +13,11 @@ API 相互連結。
 
 這些指導方針介紹架構的原則，協助您識別和組織不同層級的應用程式功能。如果您決定使用此架構，它也會介紹提示、工具和建議。
 
-::: info µFEATURES
-<!-- -->
-此架構之前稱為 µFeatures。我們將其重新命名為 The Modular Architecture (TMA)，以更好地反映其目的及其背後的原則。
-<!-- -->
-:::
+> [!NOTE]
+> **Μfeatures**
+>
+> 此架構之前稱為 µFeatures。我們將其重新命名為 The Modular Architecture (TMA)，以更好地反映其目的及其背後的原則。
+
 
 ## 核心原則{#core-principle}
 
@@ -44,18 +44,18 @@ API 相互連結。
 | `功能測試` | `功能介面`      | 測試資料和模擬 |
 | `功能範例` | `功能測試`,`功能` | 應用範例    |
 
-::: tip UI Previews
-<!-- -->
-`功能` 可以使用`FeatureTesting` 作為開發資產，以允許 UI 預覽
-<!-- -->
-:::
+> [!TIP]
+> **Ui Previews**
+>
+> `功能` 可以使用`FeatureTesting` 作為開發資產，以允許 UI 預覽
 
-::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
-<!-- -->
-另外，您也可以在編譯`Debug` 時，使用編譯器指令在`Feature` 或`FeatureInterface`
-目標中包含測試資料和模組。您可以簡化圖形，但最終您會編譯出執行應用程式時不需要的程式碼。
-<!-- -->
-:::
+
+> [!WARNING]
+> **Compiler Directives Instead Of Testing Targets**
+>
+> 另外，您也可以在編譯`Debug` 時，使用編譯器指令在`Feature` 或`FeatureInterface`
+> 目標中包含測試資料和模組。您可以簡化圖形，但最終您會編譯出執行應用程式時不需要的程式碼。
+
 
 ## 為什麼需要模組{#why-a-module}
 
@@ -114,13 +114,13 @@ func productType() -> Product {
 ```
 
 
-::: warning MERGEABLE LIBRARIES
-<!-- -->
-Apple 嘗試透過引入 [mergeable
-libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)
-來減輕在靜態與動態函式庫之間切換的麻煩。然而，這會引進建立時的非決定性，使得您的建立不可重複，而且更難優化，因此我們不建議使用。
-<!-- -->
-:::
+> [!WARNING]
+> **Mergeable Libraries**
+>
+> Apple 嘗試透過引入 [mergeable
+> libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)
+> 來減輕在靜態與動態函式庫之間切換的麻煩。然而，這會引進建立時的非決定性，使得您的建立不可重複，而且更難優化，因此我們不建議使用。
+
 
 ## 代碼{#code}
 

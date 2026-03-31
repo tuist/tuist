@@ -7,12 +7,12 @@
 ---
 # Xcode test sharding {#xcode-test-sharding}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-- <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> configured (for optimal shard balancing)
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> - <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> configured (for optimal shard balancing)
+
 
 Test sharding for Xcode projects uses `tuist xcodebuild build-for-testing` to create a shard plan and `tuist xcodebuild test` to execute each shard.
 
@@ -415,8 +415,6 @@ workflows:
       - TUIST_SHARD_INDEX: 4
 ```
 
-::: tip
-<!-- -->
-Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
-<!-- -->
-:::
+> [!TIP]
+> Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
+

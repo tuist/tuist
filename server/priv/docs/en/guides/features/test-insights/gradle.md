@@ -7,11 +7,11 @@
 ---
 # Gradle test insights {#gradle-test-insights}
 
-::: warning REQUIREMENTS
-<!-- -->
-- The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
+
 
 Tuist's Gradle plugin automatically uploads test results after each test task execution, giving you visibility into test performance and flaky tests directly in the Tuist dashboard.
 

@@ -19,11 +19,11 @@
 如果您熟悉 [GitHub](https://github.com)，其概念與他們類似，您可以擁有個人和組織帳號，並透過*句柄* 來識別，該句柄會在構建 URL
 時使用。
 
-::: info CLI-FIRST
-<!-- -->
-管理帳戶和專案的大部分作業都是透過 CLI 完成。我們正在開發 Web 介面，讓帳戶和專案管理變得更容易。
-<!-- -->
-:::
+> [!NOTE]
+> **Cli-first**
+>
+> 管理帳戶和專案的大部分作業都是透過 CLI 完成。我們正在開發 Web 介面，讓帳戶和專案管理變得更容易。
+
 
 您可以透過 <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> 下的子指令管理組織。若要建立新的組織帳戶，請執行
 ```bash
@@ -45,13 +45,13 @@ tuist organization create {account-handle}
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
 ```
 
-::: warning TUIST PROJECT-ONLY FEATURES
-<!-- -->
-請注意，有些功能如
-<LocalizedLink href="/guides/features/cache">二進位快取</LocalizedLink>，需要您擁有 Tuist
-專案。如果您使用的是原始的 Xcode 專案，則無法使用這些功能。
-<!-- -->
-:::
+> [!WARNING]
+> **Tuist Project-only Features**
+>
+> 請注意，有些功能如
+> <LocalizedLink href="/guides/features/cache">二進位快取</LocalizedLink>，需要您擁有 Tuist
+> 專案。如果您使用的是原始的 Xcode 專案，則無法使用這些功能。
+
 
 您專案的 URL 是使用完整句柄來建立的。例如，Tuist 的儀表板是公開的，可在
 [tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist) 存取，其中`tuist/tuist`

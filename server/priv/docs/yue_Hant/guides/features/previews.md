@@ -7,11 +7,11 @@
 ---
 # Previews {#previews}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+
 
 When building an app, you may want to share it with others to get feedback.
 Traditionally, this is something that teams do by building, signing, and pushing
@@ -23,12 +23,12 @@ from a colleague or a friend.
 To make this process more streamlined, Tuist provides a way to generate and
 share previews of your apps with anyone.
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
-<!-- -->
-When building for device, it is currently your responsibility to ensure the app
-is signed correctly. We plan to streamline this in the future.
-<!-- -->
-:::
+> [!WARNING]
+> **Device Builds Need To Be Signed**
+>
+> When building for device, it is currently your responsibility to ensure the app
+> is signed correctly. We plan to streamline this in the future.
+
 
 ::: code-group
 ```bash [Tuist Project]
@@ -70,17 +70,17 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning UNIQUE BUILD NUMBERS IN CI
-<!-- -->
-Ensure the `CFBundleVersion` (build version) is unique by leveraging a CI run
-number that most CI providers expose. For example, in GitHub Actions you can set
-the `CFBundleVersion` to the <code v-pre>${{ github.run_number }}</code>
-variable.
+> [!WARNING]
+> **Unique Build Numbers In Ci**
+>
+> Ensure the `CFBundleVersion` (build version) is unique by leveraging a CI run
+> number that most CI providers expose. For example, in GitHub Actions you can set
+> the `CFBundleVersion` to the <code v-pre>${{ github.run_number }}</code>
+> variable.
+>
+> Uploading a preview with the same binary (build) and the same `CFBundleVersion`
+> will fail.
 
-Uploading a preview with the same binary (build) and the same `CFBundleVersion`
-will fail.
-<!-- -->
-:::
 
 ## Tracks {#tracks}
 
@@ -103,12 +103,12 @@ This is useful for:
   notify users about
 - **Filtering**: Easily find and manage previews by track in the Tuist dashboard
 
-::: warning PREVIEWS' VISIBILITY
-<!-- -->
-Only people with access to the organization the project belongs to can access
-the previews. We plan to add support for expiring links.
-<!-- -->
-:::
+> [!WARNING]
+> **Previews' Visibility**
+>
+> Only people with access to the organization the project belongs to can access
+> the previews. We plan to add support for expiring links.
+
 
 ## Tuist macOS app {#tuist-macos-app}
 
@@ -127,11 +127,11 @@ app by running `brew install --cask tuist/tuist/tuist`.
 When you now click on "Run" in the Preview page, the macOS app will
 automatically launch it on your currently selected device.
 
-::: warning REQUIREMENTS
-<!-- -->
-You need to have Xcode locally installed and be on macOS 14 or later.
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> You need to have Xcode locally installed and be on macOS 14 or later.
+
 
 ## Tuist iOS app {#tuist-ios-app}
 
@@ -149,13 +149,13 @@ your previews.
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-To get automatic pull/merge request comments, integrate your
-<LocalizedLink href="/guides/server/accounts-and-projects">remote project</LocalizedLink> with a
-<LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> To get automatic pull/merge request comments, integrate your
+> <LocalizedLink href="/guides/server/accounts-and-projects">remote project</LocalizedLink> with a
+> <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+
 
 Testing new functionality should be a part of any code review. But having to
 build an app locally adds unnecessary friction, often leading to developers
@@ -240,11 +240,9 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: info
-<!-- -->
-Update checking is automatically disabled on simulators and App Store builds.
-<!-- -->
-:::
+> [!NOTE]
+> Update checking is automatically disabled on simulators and App Store builds.
+
 
 ## README badge {#readme-badge}
 

@@ -108,11 +108,9 @@ let tuist = Tuist()
 <!-- -->
 :::
 
-::: warning
-<!-- -->
-Tuist używa katalogu `Tuist/` do określenia katalogu głównego projektu, a
-następnie szuka innych plików manifestu globalizujących katalogi. Zalecamy
-utworzenie tych plików w wybranym edytorze i od tego momentu można użyć `tuist
-edit` do edycji projektu za pomocą Xcode.
-<!-- -->
-:::
+> [!WARNING]
+> Tuist używa katalogu `Tuist/` do określenia katalogu głównego projektu, a
+> następnie szuka innych plików manifestu globalizujących katalogi. Zalecamy
+> utworzenie tych plików w wybranym edytorze i od tego momentu można użyć `tuist
+> edit` do edycji projektu za pomocą Xcode.
+

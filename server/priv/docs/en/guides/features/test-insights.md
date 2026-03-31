@@ -9,11 +9,11 @@
 
 Use Test Insights to monitor your test suite's health by identifying slow tests, tracking flaky tests, and quickly understanding failed CI runs. It currently supports both Xcode and Gradle build systems.
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+
 
 <HomeCards>
     <HomeCard

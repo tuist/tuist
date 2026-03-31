@@ -7,12 +7,12 @@
 ---
 # Generated project {#generated-project}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+
 
 To run tests selectively with your generated project, use the `tuist test`
 command. The command

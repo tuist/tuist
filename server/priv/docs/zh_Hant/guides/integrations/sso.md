@@ -15,11 +15,9 @@
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-::: warning
-<!-- -->
-您必須使用與您要設定網域的組織相關聯的電子郵件，向 Google 進行驗證。
-<!-- -->
-:::
+> [!WARNING]
+> 您必須使用與您要設定網域的組織相關聯的電子郵件，向 Google 進行驗證。
+
 
 ## Okta{#okta}
 
@@ -51,9 +49,7 @@ tuist organization update sso my-organization --provider google --organization-i
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-::: warning
-<!-- -->
-由於 Tuist 目前不支援從您的 Okta 組織自動配置和取消配置使用者，因此使用者一開始需要透過他們的 Okta 面板登入。一旦他們透過 Okta
-面板登入，便會自動加入您的 Tuist 組織。
-<!-- -->
-:::
+> [!WARNING]
+> 由於 Tuist 目前不支援從您的 Okta 組織自動配置和取消配置使用者，因此使用者一開始需要透過他們的 Okta 面板登入。一旦他們透過 Okta
+> 面板登入，便會自動加入您的 Tuist 組織。
+

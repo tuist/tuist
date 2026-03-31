@@ -20,14 +20,14 @@ değil, Xcode projeleri üreten bir araç olduğu için tasarım gereği bu konu
 yetersiz kalıyor. Xcode projeleri üretmenin ötesinde size yardımcı olacak bir
 araca ihtiyacınız varsa Tuist'i düşünebilirsiniz.
 
-::: tip SWIFT OVER YAML
-<!-- -->
-Birçok kuruluş, yapılandırma biçimi olarak Swift'i kullandığı için Tuist'i proje
-oluşturma aracı olarak da tercih ediyor. Swift, geliştiricilerin aşina olduğu
-bir programlama dilidir ve onlara Xcode'un otomatik tamamlama, tür denetimi ve
-doğrulama özelliklerini kullanma kolaylığı sağlar.
-<!-- -->
-:::
+> [!TIP]
+> **Swift Over Yaml**
+>
+> Birçok kuruluş, yapılandırma biçimi olarak Swift'i kullandığı için Tuist'i proje
+> oluşturma aracı olarak da tercih ediyor. Swift, geliştiricilerin aşina olduğu
+> bir programlama dilidir ve onlara Xcode'un otomatik tamamlama, tür denetimi ve
+> doğrulama özelliklerini kullanma kolaylığı sağlar.
+
 
 Aşağıda, projelerinizi XcodeGen'den Tuist'e taşımanıza yardımcı olacak bazı
 hususlar ve yönergeler yer almaktadır.
@@ -79,13 +79,13 @@ projelerdeki hedefleri referans alan hedeflere sahip bir projeniz
 <!-- -->
 :::
 
-::: tip XCODE'S LANGUAGE
-<!-- -->
-Hem XcodeGen hem de Tuist, Xcode'un dilini ve kavramlarını benimser. Ancak
-Tuist'in Swift tabanlı yapılandırması size Xcode'un otomatik tamamlama, tür
-denetimi ve doğrulama özelliklerini kullanma kolaylığı sağlar.
-<!-- -->
-:::
+> [!TIP]
+> **Xcode's Language**
+>
+> Hem XcodeGen hem de Tuist, Xcode'un dilini ve kavramlarını benimser. Ancak
+> Tuist'in Swift tabanlı yapılandırması size Xcode'un otomatik tamamlama, tür
+> denetimi ve doğrulama özelliklerini kullanma kolaylığı sağlar.
+
 
 ## Özel şablonlar {#spec-templates}
 

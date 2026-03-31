@@ -71,11 +71,11 @@ let package = Package(
 `Project.swift` 是您定義專案的清單檔，而`Package.swift` 則是您定義依賴物件的清單檔。`Tuist.swift`
 檔案可讓您為專案定義專案範圍內的 Tuist 設定。
 
-::: tip PROJECT NAME WITH -TUIST SUFFIX
-<!-- -->
-為了防止與現有的 Xcode 專案衝突，我們建議在專案名稱中加入`-Tuist` 後綴。當您完全將專案遷移至 Tuist 之後，您就可以將它刪除。
-<!-- -->
-:::
+> [!TIP]
+> **Project Name With -tuist Suffix**
+>
+> 為了防止與現有的 Xcode 專案衝突，我們建議在專案名稱中加入`-Tuist` 後綴。當您完全將專案遷移至 Tuist 之後，您就可以將它刪除。
+
 
 ## 在 CI 中建立並測試 Tuist 專案{#build-and-test-the-tuist-project-in-ci}
 
@@ -150,12 +150,11 @@ let package = Package(
 )
 ```
 
-::: tip PRODUCT TYPES
-<!-- -->
-您可以在`PackageSettings` 結構中，將特定套件的產品類型加入`productTypes` 字典，以覆寫該套件的產品類型。預設情況下，Tuist
-假定所有套件都是靜態框架。
-<!-- -->
-:::
+> [!TIP]
+> **Product Types**
+>
+> 您可以在`PackageSettings` 結構中，將特定套件的產品類型加入`productTypes` 字典，以覆寫該套件的產品類型。預設情況下，Tuist
+> 假定所有套件都是靜態框架。
 
 
 ## 確定移轉順序{#determine-the-migration-order}
@@ -216,11 +215,11 @@ let project = Project(
 )
 ```
 
-::: info TEST TARGETS
-<!-- -->
-如果目標有關聯的測試目標，您應該在`Project.swift` 檔案中定義，並重複相同的步驟。
-<!-- -->
-:::
+> [!NOTE]
+> **Test Targets**
+>
+> 如果目標有關聯的測試目標，您應該在`Project.swift` 檔案中定義，並重複相同的步驟。
+
 
 ### 驗證目標移轉{#validate-the-target-migration}
 

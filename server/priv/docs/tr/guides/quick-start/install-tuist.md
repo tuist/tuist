@@ -15,13 +15,11 @@ birini kullanmanızı öneririz.**
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-::: info
-<!-- -->
-Mise, farklı ortamlarda araçların deterministik sürümlerini sağlamaya ihtiyaç
-duyan bir ekip veya kuruluşsanız [Homebrew](https://brew.sh) için önerilen bir
-alternatiftir.
-<!-- -->
-:::
+> [!NOTE]
+> Mise, farklı ortamlarda araçların deterministik sürümlerini sağlamaya ihtiyaç
+> duyan bir ekip veya kuruluşsanız [Homebrew](https://brew.sh) için önerilen bir
+> alternatiftir.
+
 
 Tuist'i aşağıdaki komutlardan herhangi birini kullanarak kurabilirsiniz:
 
@@ -55,14 +53,14 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
-<!-- -->
-Sertifikanın takımının `U6LC622NKF` olup olmadığını kontrol eden aşağıdaki
-komutu çalıştırarak kurulumunuzun ikili dosyalarının bizim tarafımızdan
-oluşturulduğunu doğrulayabilirsiniz:
+> [!TIP]
+> **Verifying The Authenticity Of The Binaries**
+>
+> Sertifikanın takımının `U6LC622NKF` olup olmadığını kontrol eden aşağıdaki
+> komutu çalıştırarak kurulumunuzun ikili dosyalarının bizim tarafımızdan
+> oluşturulduğunu doğrulayabilirsiniz:
+>
+> ```bash
+> curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
+> ```
 
-```bash
-curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
-```
-<!-- -->
-:::

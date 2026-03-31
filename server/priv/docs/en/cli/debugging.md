@@ -9,11 +9,9 @@
 
 Tuist provides several tools to help you diagnose issues when commands don't behave as expected.
 
-::: warning
-<!-- -->
-Session data may contain sensitive information such as file paths, project names, and request/response bodies. While sensitive headers (like Authorization) are redacted, be mindful when sharing session data with others.
-<!-- -->
-:::
+> [!WARNING]
+> Session data may contain sensitive information such as file paths, project names, and request/response bodies. While sensitive headers (like Authorization) are redacted, be mindful when sharing session data with others.
+
 
 ## Session data {#session-data}
 
@@ -33,11 +31,9 @@ The HAR file records all HTTP requests and responses made during the session, wh
 - **Browser Developer Tools**: Chrome, Firefox, and Safari all support importing HAR files in their Network tab.
 - **[HAR Viewer](http://www.softwareishard.com/har/viewer/)**: A web-based HAR file viewer.
 
-::: tip
-<!-- -->
-Learn more about Tuist's directory organization and how to configure custom directories in the <LocalizedLink href="/cli/directories">Directories documentation</LocalizedLink>.
-<!-- -->
-:::
+> [!TIP]
+> Learn more about Tuist's directory organization and how to configure custom directories in the <LocalizedLink href="/cli/directories">Directories documentation</LocalizedLink>.
+
 
 By default, the CLI outputs the session path when the execution exits unexpectedly. If it doesn't, you can find the session data in the path mentioned above (i.e., the most recent session directory).
 

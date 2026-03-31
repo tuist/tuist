@@ -7,11 +7,11 @@
 ---
 # Xcode projesi {#xcode-project}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+
 
 Xcode projelerinizin testlerini komut satırı üzerinden seçerek
 çalıştırabilirsiniz. Bunun için `xcodebuild` komutunuzun başına `tuist`

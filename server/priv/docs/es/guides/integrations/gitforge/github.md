@@ -35,22 +35,22 @@ o
 ![Una imagen que muestra el comentario del pull
 request](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: info REQUIREMENTS
-<!-- -->
-El comentario sólo se publica cuando sus ejecuciones de CI están
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">autenticadas</LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> **Requirements**
+>
+> El comentario sólo se publica cuando sus ejecuciones de CI están
+> <LocalizedLink href="/guides/integrations/continuous-integration#authentication">autenticadas</LocalizedLink>.
 
-::: info GITHUB_REF
-<!-- -->
-Si usted tiene un flujo de trabajo personalizado que no se activa en un commit
-PR, pero por ejemplo, un comentario de GitHub, puede que tenga que asegurarse de
-que la variable `GITHUB_REF` se establece en `refs/pull/<pr_number>/merge` o
-`refs/pull/<pr_number>/head`.</pr_number></pr_number>
 
-Puede ejecutar el comando correspondiente, como `tuist share`, con el prefijo
-`GITHUB_REF` variable de entorno: <code v-pre>GITHUB_REF="refs/pull/${{
-github.event.issue.number }}/head" tuist share</code>
-<!-- -->
-:::
+> [!NOTE]
+> **Github_ref**
+>
+> Si usted tiene un flujo de trabajo personalizado que no se activa en un commit
+> PR, pero por ejemplo, un comentario de GitHub, puede que tenga que asegurarse de
+> que la variable `GITHUB_REF` se establece en `refs/pull/<pr_number>/merge` o
+> `refs/pull/<pr_number>/head`.</pr_number></pr_number>
+>
+> Puede ejecutar el comando correspondiente, como `tuist share`, con el prefijo
+> `GITHUB_REF` variable de entorno: <code v-pre>GITHUB_REF="refs/pull/${{
+> github.event.issue.number }}/head" tuist share</code>
+

@@ -7,11 +7,11 @@
 ---
 # Bundle insights {#bundle-size}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+
 
 As you add more features to your app, your app bundle size keeps growing. While some of the bundle size growth is inevitable as you ship more code and assets, there are many ways to minimize that growth, such as by ensuring your assets are not duplicated across your bundles or stripping unused binary symbols. Tuist Bundle Insights supports both **Apple** and **Android** bundles, providing you with tools and insights to help your app size stay small, and we also monitor your app size over time.
 
@@ -91,22 +91,22 @@ Once set up, you will be able to see how your bundle size evolves over time:
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> To get automatic pull/merge request comments, integrate your <LocalizedLink href="/guides/server/accounts-and-projects">Tuist project</LocalizedLink> with a <LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), Tuist will post a comment directly in your pull/merge requests whenever you run `tuist inspect bundle`:
 ![GitHub app comment with inspected bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)
 
 ## Size thresholds {#size-thresholds}
 
-::: warning INTEGRATION WITH GIT FORGE REQUIRED
-<!-- -->
-To use size thresholds, connect the [Tuist GitHub App](https://github.com/apps/tuist) to your project. You can do this from your project's integrations page.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Forge Required**
+>
+> To use size thresholds, connect the [Tuist GitHub App](https://github.com/apps/tuist) to your project. You can do this from your project's integrations page.
+
 
 Size thresholds let you block pull requests when the bundle size increases beyond a configured percentage compared to a baseline branch. When a threshold is violated, Tuist creates a GitHub Check Run on the PR commit, blocking the merge until the size increase is resolved:
 

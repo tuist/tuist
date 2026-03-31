@@ -81,12 +81,10 @@ posibles.** Además, permite funciones como `tuist graph`, que exporta una
 representación del gráfico de dependencias, o `tuist cache`, que almacena en
 caché todos los objetivos como binarios.
 
-::: consejo
-<!-- -->
-Deberíamos tratar cada solicitud de portar funciones de Xcode como una
-oportunidad para simplificar conceptos con API sencillas y explícitas.
-<!-- -->
-:::
+> [!TIP]
+> Deberíamos tratar cada solicitud de portar funciones de Xcode como una
+> oportunidad para simplificar conceptos con API sencillas y explícitas.
+
 
 ## Que sea sencillo {#keep-it-simple}
 

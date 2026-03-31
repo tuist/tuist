@@ -85,13 +85,13 @@ let package = Package(
 archivo `Tuist.swift` es donde puedes definir la configuración de Tuist para tu
 proyecto.
 
-::: tip PROJECT NAME WITH -TUIST SUFFIX
-<!-- -->
-Para evitar conflictos con el proyecto Xcode existente, recomendamos añadir el
-sufijo `-Tuist` al nombre del proyecto. Puedes eliminarlo una vez que hayas
-migrado completamente tu proyecto a Tuist.
-<!-- -->
-:::
+> [!TIP]
+> **Project Name With -tuist Suffix**
+>
+> Para evitar conflictos con el proyecto Xcode existente, recomendamos añadir el
+> sufijo `-Tuist` al nombre del proyecto. Puedes eliminarlo una vez que hayas
+> migrado completamente tu proyecto a Tuist.
+
 
 ## Construir y probar el proyecto Tuist en CI {#build-and-test-the-tuist-project-in-ci}
 
@@ -175,13 +175,12 @@ let package = Package(
 )
 ```
 
-::: tip PRODUCT TYPES
-<!-- -->
-Puedes anular el tipo de producto para un paquete específico añadiéndolo al
-diccionario `productTypes` en la estructura `PackageSettings`. Por defecto,
-Tuist asume que todos los paquetes son frameworks estáticos.
-<!-- -->
-:::
+> [!TIP]
+> **Product Types**
+>
+> Puedes anular el tipo de producto para un paquete específico añadiéndolo al
+> diccionario `productTypes` en la estructura `PackageSettings`. Por defecto,
+> Tuist asume que todos los paquetes son frameworks estáticos.
 
 
 ## Determinar el orden de migración {#determine-the-migration-order}
@@ -250,12 +249,12 @@ let project = Project(
 )
 ```
 
-::: info TEST TARGETS
-<!-- -->
-Si el objetivo tiene un objetivo de prueba asociado, deberá definirlo también en
-el archivo `Project.swift` repitiendo los mismos pasos.
-<!-- -->
-:::
+> [!NOTE]
+> **Test Targets**
+>
+> Si el objetivo tiene un objetivo de prueba asociado, deberá definirlo también en
+> el archivo `Project.swift` repitiendo los mismos pasos.
+
 
 ### Validar la migración de destino {#validate-the-target-migration}
 

@@ -7,11 +7,11 @@
 ---
 # Información sobre el paquete {#bundle-size}
 
-::: advertencia REQUISITOS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requisitos**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+
 
 A medida que añades más funciones a tu aplicación, el tamaño del paquete sigue
 creciendo. Aunque parte del crecimiento del tamaño del paquete es inevitable a
@@ -74,14 +74,14 @@ paquete](/images/guides/features/bundle-size/bundle-size-graph.png)
 
 ## Comentarios a las solicitudes de extracción/fusión {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-Para obtener comentarios automáticos de pull/merge request, integra tu proyecto
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
-con una plataforma
-<LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> Para obtener comentarios automáticos de pull/merge request, integra tu proyecto
+> <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
+> con una plataforma
+> <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
+
 
 Una vez que tu proyecto Tuist esté conectado con tu plataforma Git como
 [GitHub](https://github.com), Tuist publicará un comentario directamente en tus

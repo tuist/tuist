@@ -41,14 +41,14 @@ gerçekleştirilebilir:
   olduğu yapılandırmayı dahil edebilir ve derleyici yönergelerini kullanarak
   yapılandırmaları değiştirmek için çalışma zamanı mantığını dahil edemezsiniz.
 
-::: info Non-standard configurations
-<!-- -->
-Tuist, standart olmayan yapılandırmaları destekler ve vanilya Xcode projelerine
-kıyasla yönetilmelerini kolaylaştırırken, yapılandırmalar bağımlılık grafiği
-boyunca tutarlı değilse uyarılar alırsınız. Bu, derleme güvenilirliğini
-sağlamaya yardımcı olur ve yapılandırmayla ilgili sorunları önler.
-<!-- -->
-:::
+> [!NOTE]
+> **Non-standard Configurations**
+>
+> Tuist, standart olmayan yapılandırmaları destekler ve vanilya Xcode projelerine
+> kıyasla yönetilmelerini kolaylaştırırken, yapılandırmalar bağımlılık grafiği
+> boyunca tutarlı değilse uyarılar alırsınız. Bu, derleme güvenilirliğini
+> sağlamaya yardımcı olur ve yapılandırmayla ilgili sorunları önler.
+
 
 ## Oluşturulmuş projeler
 

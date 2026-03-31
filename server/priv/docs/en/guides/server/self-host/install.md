@@ -9,11 +9,11 @@
 
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
-::: warning LICENSE REQUIRED
-<!-- -->
-Self-hosting Tuist requires a legally valid paid license. The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
+> [!WARNING]
+> **License Required**
+>
+> Self-hosting Tuist requires a legally valid paid license. The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+
 
 ## Release cadence {#release-cadence}
 
@@ -68,33 +68,33 @@ To run it, your infrastructure must support running Docker images. Note that mos
 
 In addition to running the Docker images, you'll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Postgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
 
-::: info MIGRATIONS
-<!-- -->
-The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
-<!-- -->
-:::
+> [!NOTE]
+> **Migrations**
+>
+> The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
+
 
 ### ClickHouse database {#clickhouse-database}
 
 Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large amounts of analytics data. ClickHouse is **required** for features like build insights. You can choose whether to self-host ClickHouse or use their hosted service.
 
-::: info MIGRATIONS
-<!-- -->
-The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
-<!-- -->
-:::
+> [!NOTE]
+> **Migrations**
+>
+> The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
+
 
 ### Storage {#storage}
 
 You’ll also need a solution to store files (e.g. framework and library binaries). Currently we support any storage that's S3-compliant.
 
-::: tip OPTIMIZED CACHING
-<!-- -->
-If your goal is primarily to bring your own bucket for storing binaries and reduce cache latency, you might not need to self-host the whole server. You can self-host cache nodes and connect them to the hosted Tuist server or your self-hosted server.
+> [!TIP]
+> **Optimized Caching**
+>
+> If your goal is primarily to bring your own bucket for storing binaries and reduce cache latency, you might not need to self-host the whole server. You can self-host cache nodes and connect them to the hosted Tuist server or your self-hosted server.
+>
+> See the <LocalizedLink href="/guides/cache/self-host">cache self-hosting guide</LocalizedLink>.
 
-See the <LocalizedLink href="/guides/cache/self-host">cache self-hosting guide</LocalizedLink>.
-<!-- -->
-:::
 
 ### Self-hosted cache nodes {#self-hosted-cache-nodes}
 
@@ -107,11 +107,11 @@ To use self-hosted cache nodes with a self-hosted Tuist server:
 
 The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.
 
-::: info LAUNCH CHECKS
-<!-- -->
-The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
-<!-- -->
-:::
+> [!NOTE]
+> **Launch Checks**
+>
+> The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
+
 
 ### License configuration {#license-configuration}
 
@@ -124,11 +124,11 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 
 \* Either `TUIST_LICENSE` or `TUIST_LICENSE_CERTIFICATE_BASE64` must be provided, but not both. Use `TUIST_LICENSE` for standard deployments.
 
-::: warning EXPIRATION DATE
-<!-- -->
-Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
+> [!WARNING]
+> **Expiration Date**
+>
+> Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+
 
 ### Base environment configuration {#base-environment-configuration}
 
@@ -196,11 +196,11 @@ You'll then need to expose the following environment variables in the environmen
 
 You can set up authentication with Google using [OAuth 2](https://developers.google.com/identity/protocols/oauth2). For that, you'll need to create a new credential of type OAuth client ID. When creating the credentials, select "Web Application" as application type, name it `Tuist`, and set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url` is the URL your hosted-service is running at. Once you create the app, copy the client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` respectively.
 
-::: info CONSENT SCREEN SCOPES
-<!-- -->
-You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
-<!-- -->
-:::
+> [!NOTE]
+> **Consent Screen Scopes**
+>
+> You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
+
 
 #### Okta {#okta}
 
@@ -240,11 +240,11 @@ You can use any S3-compliant storage provider to store artifacts. The following 
 | `TUIST_S3_PROTOCOL` | The protocol to use when connecting to the storage provider (`http1` or `http2`) | No | `http1` | `http1` |
 | `TUIST_S3_VIRTUAL_HOST` | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host) | No | `false` | `1` |
 
-::: info AWS authentication with Web Identity Token from environment variables
-<!-- -->
-If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
-<!-- -->
-:::
+> [!NOTE]
+> **Aws Authentication With Web Identity Token From Environment Variables**
+>
+> If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
+
 
 #### Google Cloud Storage {#google-cloud-storage}
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
@@ -263,17 +263,17 @@ Tuist requires email functionality for user authentication and transactional not
 
 \* Email configuration variables are required only if you want to send emails. If not configured, email confirmation is automatically skipped
 
-::: info SMTP SUPPORT
-<!-- -->
-Generic SMTP support is not currently available. If you need SMTP support for your on-premise deployment, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
-<!-- -->
-:::
+> [!NOTE]
+> **Smtp Support**
+>
+> Generic SMTP support is not currently available. If you need SMTP support for your on-premise deployment, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
 
-::: info AIR-GAPPED DEPLOYMENTS
-<!-- -->
-For on-premise installations without internet access or email provider configuration, email confirmation is automatically skipped by default. Users can log in immediately after registration. If you have email configured but still want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require email confirmation when email is configured, set `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
-<!-- -->
-:::
+
+> [!NOTE]
+> **Air-gapped Deployments**
+>
+> For on-premise installations without internet access or email provider configuration, email confirmation is automatically skipped by default. Users can log in immediately after registration. If you have email configured but still want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require email confirmation when email is configured, set `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
+
 
 ### Git platform configuration {#git-platform-configuration}
 
@@ -300,11 +300,11 @@ We provide a comprehensive Docker Compose configuration that includes all requir
 - Redis for persistent KV storage across deploys (optional)
 - pgweb for database administration
 
-::: danger LICENSE REQUIRED
-<!-- -->
-A valid `TUIST_LICENSE` environment variable is legally required to run the Tuist server, including local development instances. If you need a license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
+> [!CAUTION]
+> **License Required**
+>
+> A valid `TUIST_LICENSE` environment variable is legally required to run the Tuist server, including local development instances. If you need a license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
+
 
 **Quick Start:**
 
@@ -392,11 +392,9 @@ docker pull ghcr.io/tuist/tuist:0.1.0
 
 The deployment process for the Docker image will differ based on your chosen cloud provider and your organization's continuous deployment approach. Since most cloud solutions and tools, like [Kubernetes](https://kubernetes.io/), utilize Docker images as fundamental units, the examples in this section should align well with your existing setup.
 
-::: warning
-<!-- -->
-If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
-<!-- -->
-:::
+> [!WARNING]
+> If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response.
+
 
 #### Fly {#fly}
 
@@ -512,11 +510,11 @@ In addition to Finch metrics, Tuist exposes metrics for:
 
 Tuist provides a set of utilities under `/ops/` that you can use to manage your instance.
 
-::: warning Authorization
-<!-- -->
-Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
-<!-- -->
-:::
+> [!WARNING]
+> **Authorization**
+>
+> Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
+
 
 - **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.
 - **Dashboard (`/ops/dashboard`):** You can view a dashboard that provides insights into the application's performance and health (e.g. memory consumption, processes running, number of requests). This dashboard can be quite useful to understand if the hardware you're using is enough to handle the load.

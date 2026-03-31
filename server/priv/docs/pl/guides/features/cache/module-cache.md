@@ -8,13 +8,13 @@
 
 # Pamięć podręczna modułów {#module-cache}
 
-::: ostrzeżenie WYMAGANIA
-<!-- -->
-- Projekt wygenerowany przez
-  <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Wymagania**
+>
+> - Projekt wygenerowany przez
+>   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
+> - Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+
 
 Tuist Module cache zapewnia potężny sposób na optymalizację czasu kompilacji
 poprzez buforowanie modułów jako plików binarnych (`.xcframework`s) i
@@ -66,15 +66,13 @@ tuist test
 <!-- -->
 :::
 
-::: warning
-<!-- -->
-Buforowanie binarne to funkcja przeznaczona dla przepływów pracy deweloperskiej,
-takich jak uruchamianie aplikacji na symulatorze lub urządzeniu lub uruchamianie
-testów. Nie jest przeznaczona do kompilacji wersji. Podczas archiwizacji
-aplikacji należy wygenerować projekt ze źródłami przy użyciu flagi
-`--no-binary-cache`.
-<!-- -->
-:::
+> [!WARNING]
+> Buforowanie binarne to funkcja przeznaczona dla przepływów pracy deweloperskiej,
+> takich jak uruchamianie aplikacji na symulatorze lub urządzeniu lub uruchamianie
+> testów. Nie jest przeznaczona do kompilacji wersji. Podczas archiwizacji
+> aplikacji należy wygenerować projekt ze źródłami przy użyciu flagi
+> `--no-binary-cache`.
+
 
 ## Profile pamięci podręcznej {#cache-profiles}
 
@@ -127,13 +125,13 @@ Tylko następujące produkty docelowe mogą być buforowane przez Tuist:
 
 Pracujemy nad obsługą bibliotek i celów, które zależą od XCTest.
 
-::: info UPSTREAM DEPENDENCIES
-<!-- -->
-Gdy cel nie jest buforowalny, powoduje to, że cele nadrzędne również nie są
-buforowalne. Na przykład, jeśli mamy graf zależności `A &gt; B`, gdzie A zależy
-od B, jeśli B jest niebuforowalne, A również będzie niebuforowalne.
-<!-- -->
-:::
+> [!NOTE]
+> **Upstream Dependencies**
+>
+> Gdy cel nie jest buforowalny, powoduje to, że cele nadrzędne również nie są
+> buforowalne. Na przykład, jeśli mamy graf zależności `A &gt; B`, gdzie A zależy
+> od B, jeśli B jest niebuforowalne, A również będzie niebuforowalne.
+
 
 ## Wydajność {#efficiency}
 
@@ -160,12 +158,12 @@ w głównej gałęzi**, aby ogrzać pamięć podręczną. Zapewni to, że pamię
 zawsze będzie zawierać pliki binarne dla zmian w `głównej`, dzięki czemu gałąź
 lokalna i CI będą budować na nich przyrostowo.
 
-::: tip CACHE WARMING USES BINARIES
-<!-- -->
-Polecenie `tuist cache` również korzysta z binarnej pamięci podręcznej, aby
-przyspieszyć nagrzewanie.
-<!-- -->
-:::
+> [!TIP]
+> **Cache Warming Uses Binaries**
+>
+> Polecenie `tuist cache` również korzysta z binarnej pamięci podręcznej, aby
+> przyspieszyć nagrzewanie.
+
 
 Poniżej przedstawiono kilka przykładów typowych przepływów pracy:
 

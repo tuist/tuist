@@ -109,12 +109,12 @@ func productType() -> Product {
 ```
 
 
-:::警告 マージブル・ライブラリー
-<!-- -->
-Appleは、[mergeable
-libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)を導入することで、スタティック・ライブラリとダイナミック・ライブラリの切り替えの煩雑さを軽減しようとしました。しかし、これはビルド時に非決定性をもたらし、ビルドを再現不可能にし、最適化しにくくするので、私たちはこれを使うことを推奨しません。
-<!-- -->
-:::
+> [!WARNING]
+> **マージブル・ライブラリー**
+>
+> Appleは、[mergeable
+> libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)を導入することで、スタティック・ライブラリとダイナミック・ライブラリの切り替えの煩雑さを軽減しようとしました。しかし、これはビルド時に非決定性をもたらし、ビルドを再現不可能にし、最適化しにくくするので、私たちはこれを使うことを推奨しません。
+
 
 ## コード {#code}
 

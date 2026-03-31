@@ -40,14 +40,14 @@ sposoby:
   konfigurację, z którą powiązana jest wersja produkcyjna aplikacji
   wykorzystując dyrektywy kompilatora.
 
-::: info Niestandardowe konfiguracje
-<!-- -->
-Chociaż Tuist obsługuje niestandardowe konfiguracje i upraszcza zarządzanie nimi
-w porównaniu do zwykłych projektów Xcode, jeśli konfiguracje nie są spójne dla
-grafu zależności, otrzymasz ostrzeżenia . Pomaga to zapewnić niezawodność
-kompilacji i zapobiega problemom związanym z konfiguracją.
-<!-- -->
-:::
+> [!NOTE]
+> **Niestandardowe Konfiguracje**
+>
+> Chociaż Tuist obsługuje niestandardowe konfiguracje i upraszcza zarządzanie nimi
+> w porównaniu do zwykłych projektów Xcode, jeśli konfiguracje nie są spójne dla
+> grafu zależności, otrzymasz ostrzeżenia . Pomaga to zapewnić niezawodność
+> kompilacji i zapobiega problemom związanym z konfiguracją.
+
 
 ## Wygenerowane projekty
 

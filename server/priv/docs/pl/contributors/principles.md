@@ -79,12 +79,10 @@ razie nie byłyby możliwe.** Co więcej, umożliwia to korzystanie z funkcji ta
 jak `tuist graph`, która eksportuje reprezentację grafu zależności, lub `tuist
 cache`, która buforuje wszystkie cele jako pliki binarne.
 
-::: napiwek
-<!-- -->
-Powinniśmy traktować każdą prośbę o przeniesienie funkcji z Xcode jako okazję do
-uproszczenia koncepcji za pomocą prostych i wyraźnych interfejsów API.
-<!-- -->
-:::
+> [!TIP]
+> Powinniśmy traktować każdą prośbę o przeniesienie funkcji z Xcode jako okazję do
+> uproszczenia koncepcji za pomocą prostych i wyraźnych interfejsów API.
+
 
 ## Zachowaj prostotę {#keep-it-simple}
 

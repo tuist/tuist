@@ -63,22 +63,19 @@ Tuist Insights 处于早期开发阶段。
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: tip MISE & PROJECT PATHS
-<!-- -->
-方案后操作不会继承`PATH` 环境变量，因此必须使用 Mise 的绝对路径，这取决于安装 Mise 的方式。此外，不要忘记从项目中的目标中继承构建设置，以便从
-$SRCROOT 指向的目录运行 Mise。
-<!-- -->
-:::
+> [!TIP]
+> **Mise & Project Paths**
+>
+> 方案后操作不会继承`PATH` 环境变量，因此必须使用 Mise 的绝对路径，这取决于安装 Mise 的方式。此外，不要忘记从项目中的目标中继承构建设置，以便从
+> $SRCROOT 指向的目录运行 Mise。
 
 
 现在，只要您登录 Tuist 帐户，您的本地构建就会被跟踪。您现在可以在 Tuist 面板中访问您的构建时间，并查看它们随时间的变化情况：
 
 
-::: tip
-<!-- -->
-要快速访问仪表板，请从 CLI 运行`tuist project show --web` 。
-<!-- -->
-:::
+> [!TIP]
+> 要快速访问仪表板，请从 CLI 运行`tuist project show --web` 。
+
 
 !!!!!!!!!![仪表板，包含构建见解](/images/guides/features/build-insights/builds-dashboard.png)。
 
@@ -97,12 +94,12 @@ $SRCROOT 指向的目录运行 Mise。
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: tip MISE & PROJECT PATHS
-<!-- -->
-方案后操作不会继承`PATH` 环境变量，因此必须使用 Mise 的绝对路径，这取决于安装 Mise 的方式。此外，不要忘记从项目中的目标中继承构建设置，以便从
-$SRCROOT 指向的目录运行 Mise。
-<!-- -->
-:::
+> [!TIP]
+> **Mise & Project Paths**
+>
+> 方案后操作不会继承`PATH` 环境变量，因此必须使用 Mise 的绝对路径，这取决于安装 Mise 的方式。此外，不要忘记从项目中的目标中继承构建设置，以便从
+> $SRCROOT 指向的目录运行 Mise。
+
 
 现在，只要您登录 Tuist 帐户，您的测试运行就会被跟踪。您可以在 Tuist 面板中访问您的测试洞察，并查看它们如何随时间演变：
 

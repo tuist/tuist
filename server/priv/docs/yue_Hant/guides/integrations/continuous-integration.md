@@ -116,22 +116,20 @@ jobs:
 <!-- -->
 :::
 
-::: info OIDC SETUP
-<!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. The `permissions: id-token:
-write` is required for OIDC to work. Alternatively, you can use a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` secret.
-<!-- -->
-:::
+> [!NOTE]
+> **Oidc Setup**
+>
+> Before using OIDC authentication, you need to
+> <LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. The `permissions: id-token:
+> write` is required for OIDC to work. Alternatively, you can use a
+> <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` secret.
 
-::: tip
-<!-- -->
-We recommend using `mise use --pin` in your Tuist projects to pin the version of
-Tuist across environments. The command will create a `.tool-versions` file
-containing the version of Tuist.
-<!-- -->
-:::
+
+> [!TIP]
+> We recommend using `mise use --pin` in your Tuist projects to pin the version of
+> Tuist across environments. The command will create a `.tool-versions` file
+> containing the version of Tuist.
+
 
 ### Xcode Cloud {#xcode-cloud}
 
@@ -165,12 +163,12 @@ tuist generate
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-Use a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your
-Xcode Cloud workflow settings.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> Use a <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> by setting the `TUIST_TOKEN` environment variable in your
+> Xcode Cloud workflow settings.
+
 
 ### CircleCI {#circleci}
 
@@ -226,15 +224,15 @@ jobs:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. CircleCI OIDC tokens include
-your connected GitHub repository, which Tuist uses to authorize access to your
-projects. Alternatively, you can use a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> Before using OIDC authentication, you need to
+> <LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. CircleCI OIDC tokens include
+> your connected GitHub repository, which Tuist uses to authorize access to your
+> projects. Alternatively, you can use a
+> <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
+
 
 ### Bitrise {#bitrise}
 
@@ -292,15 +290,15 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-Before using OIDC authentication, you need to
-<LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. Bitrise OIDC tokens include
-your connected GitHub repository, which Tuist uses to authorize access to your
-projects. Alternatively, you can use a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> Before using OIDC authentication, you need to
+> <LocalizedLink href="/guides/integrations/gitforge/github">connect your GitHub repository</LocalizedLink> to your Tuist project. Bitrise OIDC tokens include
+> your connected GitHub repository, which Tuist uses to authorize access to your
+> projects. Alternatively, you can use a
+> <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> with the `TUIST_TOKEN` environment variable.
+
 
 ### Codemagic {#codemagic}
 
@@ -344,10 +342,10 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-Create a
-<LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> and add it as a secret environment variable named
-`TUIST_TOKEN`.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> Create a
+> <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> and add it as a secret environment variable named
+> `TUIST_TOKEN`.
+

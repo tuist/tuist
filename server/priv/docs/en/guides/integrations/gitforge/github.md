@@ -18,11 +18,11 @@ After that, you can add a project connection between your GitHub repository and 
 
 ![An image that shows adding the project connection](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-::: tip IP ALLOWLISTING
-<!-- -->
-If your GitHub organization uses [IP allow lists](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) or your GitHub instance is behind a firewall, make sure to allowlist Tuist's <LocalizedLink href="/guides/server/network#outbound-ip-addresses">outbound IP addresses</LocalizedLink> so that the integration can communicate with your repository.
-<!-- -->
-:::
+> [!TIP]
+> **Ip Allowlisting**
+>
+> If your GitHub organization uses [IP allow lists](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) or your GitHub instance is behind a firewall, make sure to allowlist Tuist's <LocalizedLink href="/guides/server/network#outbound-ip-addresses">outbound IP addresses</LocalizedLink> so that the integration can communicate with your repository.
+
 
 ## Pull/merge request comments {#pull-merge-request-comments}
 
@@ -30,16 +30,16 @@ The GitHub app posts a Tuist run report, which includes a summary of the PR, inc
 
 ![An image that shows the pull request comment](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
-::: info REQUIREMENTS
-<!-- -->
-The comment is only posted when your CI runs are <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> **Requirements**
+>
+> The comment is only posted when your CI runs are <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
 
-::: info GITHUB_REF
-<!-- -->
-If you have a custom workflow that's not triggered on a PR commit, but for example, a GitHub comment, you might need to ensure that the `GITHUB_REF` variable is set to either `refs/pull/<PR_NUMBER>/merge` or `refs/pull/<PR_NUMBER>/head`.
 
-You can run the relevant command, like `tuist share`, with the prefixed `GITHUB_REF` environment variable: <code v-pre>GITHUB_REF="refs/pull/${{ github.event.issue.number }}/head" tuist share</code>
-<!-- -->
-:::
+> [!NOTE]
+> **Github_ref**
+>
+> If you have a custom workflow that's not triggered on a PR commit, but for example, a GitHub comment, you might need to ensure that the `GITHUB_REF` variable is set to either `refs/pull/<PR_NUMBER>/merge` or `refs/pull/<PR_NUMBER>/head`.
+>
+> You can run the relevant command, like `tuist share`, with the prefixed `GITHUB_REF` environment variable: <code v-pre>GITHUB_REF="refs/pull/${{ github.event.issue.number }}/head" tuist share</code>
+

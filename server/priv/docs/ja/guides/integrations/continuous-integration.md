@@ -112,20 +112,18 @@ jobs:
 <!-- -->
 :::
 
-::: info OIDC SETUP
-<!-- -->
-OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。OIDC
-を動作させるには`permissions: id-token: write` が必要です。あるいは、`TUIST_TOKEN` secret を持つ
-<LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使うこともできます。
-<!-- -->
-:::
+> [!NOTE]
+> **Oidc Setup**
+>
+> OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。OIDC
+> を動作させるには`permissions: id-token: write` が必要です。あるいは、`TUIST_TOKEN` secret を持つ
+> <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使うこともできます。
 
-::: チップ
-<!-- -->
-環境間でTuistのバージョンを固定するために、Tuistプロジェクトで`mise use --pin`
-を使用することを推奨する。このコマンドはTuistのバージョンを含む`.tool-versions` ファイルを作成する。
-<!-- -->
-:::
+
+> [!TIP]
+> 環境間でTuistのバージョンを固定するために、Tuistプロジェクトで`mise use --pin`
+> を使用することを推奨する。このコマンドはTuistのバージョンを含む`.tool-versions` ファイルを作成する。
+
 
 ### Xcodeクラウド{#xcode-cloud}
 
@@ -157,13 +155,13 @@ tuist generate
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-Xcode Cloud のワークフロー設定で`TUIST_TOKEN`
-環境変数を設定し、<LocalizedLink href="/guides/server/authentication#project-tokens">プロジェクト・トークン</LocalizedLink>
-を使用します。
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> Xcode Cloud のワークフロー設定で`TUIST_TOKEN`
+> 環境変数を設定し、<LocalizedLink href="/guides/server/authentication#project-tokens">プロジェクト・トークン</LocalizedLink>
+> を使用します。
+
 
 ### サークルCI{#circleci}
 
@@ -218,13 +216,13 @@ jobs:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。CircleCI
-OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
-環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。CircleCI
+> OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
+> 環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
+
 
 ### ビットライズ{#bitrise}
 
@@ -281,13 +279,13 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。Bitrise
-OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
-環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。Bitrise
+> OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
+> 環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
+
 
 ### コードマジック{#codemagic}
 
@@ -330,8 +328,8 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-<LocalizedLink href="/guides/server/authentication#project-tokens">プロジェクト・トークン</LocalizedLink>を作成し、`TUIST_TOKEN` という秘密の環境変数として追加する。
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> <LocalizedLink href="/guides/server/authentication#project-tokens">プロジェクト・トークン</LocalizedLink>を作成し、`TUIST_TOKEN` という秘密の環境変数として追加する。
+

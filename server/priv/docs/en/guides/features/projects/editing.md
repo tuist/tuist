@@ -31,11 +31,11 @@ tuist edit
 The command creates an Xcode project in a global directory and opens it in Xcode.
 The project includes a `Manifests` directory that you can build to ensure all your manifests are valid.
 
-::: info GLOB-RESOLVED MANIFESTS
-<!-- -->
-`tuist edit` resolves the manifests to be included by using the glob `**/{Manifest}.swift` from the project's root directory (the one containing the `Tuist.swift` file). Make sure there's a valid `Tuist.swift` at the root of the project.
-<!-- -->
-:::
+> [!NOTE]
+> **Glob-resolved Manifests**
+>
+> `tuist edit` resolves the manifests to be included by using the glob `**/{Manifest}.swift` from the project's root directory (the one containing the `Tuist.swift` file). Make sure there's a valid `Tuist.swift` at the root of the project.
+
 
 ### Ignoring manifest files {#ignoring-manifest-files}
 

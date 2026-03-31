@@ -37,12 +37,12 @@ Xcode와 XcodeProj 구조 때문에, 의존성 그래프의 유지 보수는 지
 
 이어지는 섹션에서는, 의존성을 프로젝트에 정의하는 방법에 대해 배울 것 입니다.
 
-::: tip 그래프 검증
-<!-- -->
-프로젝트를 생성할 때 Tuist는 순환이 있는지 모든 의존성이 유효한지 확인하기 위해 Graph를 검증 합니다. 덕분에, 어떤 팀도 의존성을
-망가트릴 걱정 없이 그래프 개선을 할 수 있습니다.
-<!-- -->
-:::
+> [!TIP]
+> **그래프 검증**
+>
+> 프로젝트를 생성할 때 Tuist는 순환이 있는지 모든 의존성이 유효한지 확인하기 위해 Graph를 검증 합니다. 덕분에, 어떤 팀도 의존성을
+> 망가트릴 걱정 없이 그래프 개선을 할 수 있습니다.
+
 
 ## Local 의존성 {#local-dependencies}
 
@@ -57,12 +57,12 @@ Xcode와 XcodeProj 구조 때문에, 의존성 그래프의 유지 보수는 지
 - `SDK`: 시스템 SDK와의 종속성을 선언합니다.
 - `XCTest`: XCTest와의 종속성을 선언합니다.
 
-::: info DEPENDENCY CONDITIONS
-<!-- -->
-모든 종속성 유형은 플랫폼에 따라 종속성을 조건부로 연결하기 위해 `조건` 옵션을 허용합니다. 기본적으로 대상에서 지원하는 모든 플랫폼에 대한
-종속성을 연결합니다.
-<!-- -->
-:::
+> [!NOTE]
+> **Dependency Conditions**
+>
+> 모든 종속성 유형은 플랫폼에 따라 종속성을 조건부로 연결하기 위해 `조건` 옵션을 허용합니다. 기본적으로 대상에서 지원하는 모든 플랫폼에 대한
+> 종속성을 연결합니다.
+
 
 ## 외부 종속성 {#external-dependencies}
 
@@ -121,12 +121,12 @@ let package = Package(
 <!-- -->
 :::
 
-::: tip PACKAGE SETTINGS
-<!-- -->
-컴파일러 지시어로 래핑된 `PackageSettings` 인스턴스를 사용하면 패키지가 통합되는 방식을 구성할 수 있습니다. 예를 들어, 위의
-예에서는 패키지에 사용되는 기본 제품 유형을 재정의하는 데 사용됩니다. 기본적으로 이 옵션은 필요하지 않습니다.
-<!-- -->
-:::
+> [!TIP]
+> **Package Settings**
+>
+> 컴파일러 지시어로 래핑된 `PackageSettings` 인스턴스를 사용하면 패키지가 통합되는 방식을 구성할 수 있습니다. 예를 들어, 위의
+> 예에서는 패키지에 사용되는 기본 제품 유형을 재정의하는 데 사용됩니다. 기본적으로 이 옵션은 필요하지 않습니다.
+
 
 > [중요] 커스텀 빌드 구성 프로젝트에서 커스텀 빌드 구성(표준 `디버그` 및 `릴리스` 이외의 구성)을 사용하는 경우
 > `baseSettings` 를 사용하여 `PackageSettings` 에서 지정해야 합니다. 외부 종속성은 프로젝트의 설정을 알아야
@@ -191,12 +191,12 @@ let project = Project(
 <!-- -->
 :::
 
-::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
-<!-- -->
-**스키마** 는 스키마 목록을 깔끔하게 유지하기 위해 Swift 패키지 프로젝트에 자동으로 생성되지 않습니다. Xcode의 UI를 통해 생성할
-수 있습니다.
-<!-- -->
-:::
+> [!NOTE]
+> **No Schemes Generated For External Packages**
+>
+> **스키마** 는 스키마 목록을 깔끔하게 유지하기 위해 Swift 패키지 프로젝트에 자동으로 생성되지 않습니다. Xcode의 UI를 통해 생성할
+> 수 있습니다.
+
 
 #### Xcode의 기본 통합 {#xcodes-default-integration}
 
@@ -218,13 +218,13 @@ let target = .target(name: "MyTarget", dependencies: [
 
 Swift 매크로 및 빌드 도구 플러그인의 경우 각각 `.macro` 및 `.plugin` 형식을 사용해야 합니다.
 
-::: warning SPM Build Tool Plugins
-<!-- -->
-프로젝트 종속성에 대해 Tuist의 [XcodeProj 기반 통합](#tuist-s-xcodeproj-based-integration)을
-사용하는 경우에도 SPM 빌드 도구 플러그인은 [Xcode의 기본 통합](#xcode-s-default-integration) 메커니즘을
-사용하여 선언해야 합니다.
-<!-- -->
-:::
+> [!WARNING]
+> **Spm Build Tool Plugins**
+>
+> 프로젝트 종속성에 대해 Tuist의 [XcodeProj 기반 통합](#tuist-s-xcodeproj-based-integration)을
+> 사용하는 경우에도 SPM 빌드 도구 플러그인은 [Xcode의 기본 통합](#xcode-s-default-integration) 메커니즘을
+> 사용하여 선언해야 합니다.
+
 
 SPM 빌드 도구 플러그인의 실제 적용 사례는 Xcode의 "빌드 도구 플러그인 실행" 빌드 단계에서 코드 린팅을 수행하는 것입니다. 패키지
 매니페스트에서는 다음과 같이 정의됩니다:
@@ -288,12 +288,12 @@ carthage update
 tuist generate
 ```
 
-::: warning BUILD AND TEST
-<!-- -->
-프로젝트를 빌드하고 테스트하는 경우 `xcodebuild build` 및 `tuist test`, 마찬가지로 빌드 또는 테스트 전에
-`carthage update` 명령을 실행하여 Carthage에서 해결된 종속성이 존재하는지 확인해야 합니다.
-<!-- -->
-:::
+> [!WARNING]
+> **Build And Test**
+>
+> 프로젝트를 빌드하고 테스트하는 경우 `xcodebuild build` 및 `tuist test`, 마찬가지로 빌드 또는 테스트 전에
+> `carthage update` 명령을 실행하여 Carthage에서 해결된 종속성이 존재하는지 확인해야 합니다.
+
 
 ### 코코아팟 {#cocoapods}
 
@@ -308,12 +308,10 @@ tuist generate
 pod install
 ```
 
-::: warning
-<!-- -->
-코코아팟 종속성은 프로젝트 생성 직후에 `xcodebuild` 를 실행하는 `build` 또는 `test` 와 같은 워크플로우와 호환되지
-않습니다. 또한 핑거프린팅 로직이 Pods 종속성을 고려하지 않기 때문에 바이너리 캐싱 및 선택적 테스트와도 호환되지 않습니다.
-<!-- -->
-:::
+> [!WARNING]
+> 코코아팟 종속성은 프로젝트 생성 직후에 `xcodebuild` 를 실행하는 `build` 또는 `test` 와 같은 워크플로우와 호환되지
+> 않습니다. 또한 핑거프린팅 로직이 Pods 종속성을 고려하지 않기 때문에 바이너리 캐싱 및 선택적 테스트와도 호환되지 않습니다.
+
 
 ## 정적 또는 동적 {#static-or-dynamic}
 
@@ -351,13 +349,13 @@ func productType() -> Product {
 같이 때때로 필요한 추가 빌드 설정을 설정하는 데 의존한다는 의미입니다. 따라서 올바른 결정을 내리는 데 도움이 되는 리소스를 문서 형태로
 제공하는 것이 저희의 입장입니다.
 
-::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
-<!-- -->
-많은 프로젝트에서 통합하는 Swift 패키지는 [컴포저블
-아키텍처](https://github.com/pointfreeco/swift-composable-architecture)입니다. 자세한 내용은
-[이 섹션](#the-composable-architecture)에서 확인하세요.
-<!-- -->
-:::
+> [!TIP]
+> **Example: The Composable Architecture**
+>
+> 많은 프로젝트에서 통합하는 Swift 패키지는 [컴포저블
+> 아키텍처](https://github.com/pointfreeco/swift-composable-architecture)입니다. 자세한 내용은
+> [이 섹션](#the-composable-architecture)에서 확인하세요.
+
 
 ### 시나리오 {#scenarios}
 
@@ -458,12 +456,12 @@ let package = Package(
 
 다음 구성은 모든 것을 동적으로 연결하므로 앱 + 테스트 대상 및 SwiftUI 미리보기가 작동합니다.
 
-::: tip STATIC OR DYNAMIC
-<!-- -->
-동적 링크가 항상 권장되는 것은 아닙니다. 자세한 내용은 [정적 또는 동적](#static-or-dynamic) 섹션을 참조하세요. 이 예에서는
-단순화를 위해 모든 종속성을 조건 없이 동적으로 연결했습니다.
-<!-- -->
-:::
+> [!TIP]
+> **Static Or Dynamic**
+>
+> 동적 링크가 항상 권장되는 것은 아닙니다. 자세한 내용은 [정적 또는 동적](#static-or-dynamic) 섹션을 참조하세요. 이 예에서는
+> 단순화를 위해 모든 종속성을 조건 없이 동적으로 연결했습니다.
+
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 6.0
@@ -512,11 +510,9 @@ let packageSettings = PackageSettings(
 #endif
 ```
 
-::: warning
-<!-- -->
-`가져오기 공유` 대신 `가져오기 SwiftSharing` 을 입력해야 합니다.
-<!-- -->
-:::
+> [!WARNING]
+> `가져오기 공유` 대신 `가져오기 SwiftSharing` 을 입력해야 합니다.
+
 
 ### 전이적 정적 종속성이 `.swiftmodule을 통해 누출되는 경우` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
@@ -529,13 +525,13 @@ let packageSettings = PackageSettings(
 internal import StaticModule
 ```
 
-::: info Mise란?
-<!-- -->
-가져오기에 대한 액세스 수준은 Swift 6에 포함되었습니다. 이전 버전의 Swift를 사용하는 경우
-<LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>를
-대신 사용해야 합니다:
-<!-- -->
-:::
+> [!NOTE]
+> **Mise란?**
+>
+> 가져오기에 대한 액세스 수준은 Swift 6에 포함되었습니다. 이전 버전의 Swift를 사용하는 경우
+> <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>를
+> 대신 사용해야 합니다:
+
 
 ```swift
 @_implementationOnly import StaticModule

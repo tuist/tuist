@@ -15,11 +15,11 @@ SSO can be configured from the **SSO** tab in your organization settings. Google
 
 Google SSO allows any developer who signs in with a Google Workspace account from your domain to be automatically added to your Tuist organization.
 
-::: info PREREQUISITES
-<!-- -->
-You need a Google Workspace organization with a verified domain. You must also be authenticated with Google using an email tied to the domain you are setting up.
-<!-- -->
-:::
+> [!NOTE]
+> **Prerequisites**
+>
+> You need a Google Workspace organization with a verified domain. You must also be authenticated with Google using an email tied to the domain you are setting up.
+
 
 ### Setup
 
@@ -51,8 +51,6 @@ Okta SSO uses the OIDC protocol to allow members of your Okta organization to si
 4. Enter your **Okta domain**, **Client ID**, and **Client Secret**.
 5. Click **Save changes**.
 
-::: warning
-<!-- -->
-Users need to initially sign in via their Okta dashboard as Tuist currently doesn't support automatic provisioning and deprovisioning of users. Once they sign in via Okta, they will be automatically added to your Tuist organization.
-<!-- -->
-:::
+> [!WARNING]
+> Users need to initially sign in via their Okta dashboard as Tuist currently doesn't support automatic provisioning and deprovisioning of users. Once they sign in via Okta, they will be automatically added to your Tuist organization.
+

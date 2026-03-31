@@ -7,11 +7,11 @@
 ---
 # Perspectivas {#insights}
 
-::: advertencia REQUISITOS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requisitos**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+
 
 Trabajar en grandes proyectos no debería ser una tarea pesada. De hecho, debería
 ser tan agradable como trabajar en un proyecto que empezaste hace sólo dos
@@ -28,11 +28,9 @@ En otras palabras, Tuist Insights te ayuda a responder a preguntas como:
   semana?
 - ¿Mis pruebas se han vuelto más lentas? ¿Cuáles?
 
-::: info
-<!-- -->
-Tuist Insights está en fase inicial de desarrollo.
-<!-- -->
-:::
+> [!NOTE]
+> Tuist Insights está en fase inicial de desarrollo.
+
 
 ## Build {#build}
 
@@ -48,20 +46,16 @@ de su esquema:
 [Post-acción para inspeccionar
 construcciones](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
-::: info
-<!-- -->
-Recomendamos establecer "Proporcionar configuración de compilación desde" al
-ejecutable o a tu objetivo de compilación principal para permitir que Tuist
-rastree la configuración de compilación.
-<!-- -->
-:::
+> [!NOTE]
+> Recomendamos establecer "Proporcionar configuración de compilación desde" al
+> ejecutable o a tu objetivo de compilación principal para permitir que Tuist
+> rastree la configuración de compilación.
 
-::: info
-<!-- -->
-Si no está utilizando <LocalizedLink href="/guides/features/projects">proyectos generados</LocalizedLink>, la acción post-scheme no se ejecuta en caso de que
-falle la compilación.
-<!-- -->
-:::
+
+> [!NOTE]
+> Si no está utilizando <LocalizedLink href="/guides/features/projects">proyectos generados</LocalizedLink>, la acción post-scheme no se ejecuta en caso de que
+> falle la compilación.
+
 > 
 > Una característica no documentada de Xcode permite ejecutarlo incluso en este
 > caso. Establezca el atributo `runPostActionsOnFailure` en `YES` en su esquema
@@ -83,15 +77,14 @@ necesitará activar `tuist` en el entorno post-acción:
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: tip MISE & PROJECT PATHS
-<!-- -->
-La variable de entorno `PATH` de su entorno no es heredada por la acción
-posterior al esquema, por lo que tendrá que utilizar la ruta absoluta de Mise,
-que dependerá de cómo haya instalado Mise. Además, no olvide heredar la
-configuración de compilación de un objetivo de su proyecto para poder ejecutar
-Mise desde el directorio apuntado por $SRCROOT.
-<!-- -->
-:::
+> [!TIP]
+> **Mise & Project Paths**
+>
+> La variable de entorno `PATH` de su entorno no es heredada por la acción
+> posterior al esquema, por lo que tendrá que utilizar la ruta absoluta de Mise,
+> que dependerá de cómo haya instalado Mise. Además, no olvide heredar la
+> configuración de compilación de un objetivo de su proyecto para poder ejecutar
+> Mise desde el directorio apuntado por $SRCROOT.
 
 
 Ahora se hace un seguimiento de tus construcciones locales siempre que estés
@@ -99,12 +92,10 @@ conectado a tu cuenta de Tuist. Ahora puedes acceder a tus tiempos de
 compilación en el panel de Tuist y ver cómo evolucionan con el tiempo:
 
 
-::: consejo
-<!-- -->
-Para acceder rápidamente al panel de control, ejecute `tuist project show --web`
-desde la CLI.
-<!-- -->
-:::
+> [!TIP]
+> Para acceder rápidamente al panel de control, ejecute `tuist project show --web`
+> desde la CLI.
+
 
 (/images/guides/features/build-insights/builds-dashboard.png)[Panel de control con
 información de construcción]
@@ -129,15 +120,15 @@ necesitará activar `tuist` en el entorno post-acción:
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: tip MISE & PROJECT PATHS
-<!-- -->
-La variable de entorno `PATH` de su entorno no es heredada por la acción
-posterior al esquema, por lo que tendrá que utilizar la ruta absoluta de Mise,
-que dependerá de cómo haya instalado Mise. Además, no olvide heredar la
-configuración de compilación de un objetivo de su proyecto para poder ejecutar
-Mise desde el directorio apuntado por $SRCROOT.
-<!-- -->
-:::
+> [!TIP]
+> **Mise & Project Paths**
+>
+> La variable de entorno `PATH` de su entorno no es heredada por la acción
+> posterior al esquema, por lo que tendrá que utilizar la ruta absoluta de Mise,
+> que dependerá de cómo haya instalado Mise. Además, no olvide heredar la
+> configuración de compilación de un objetivo de su proyecto para poder ejecutar
+> Mise desde el directorio apuntado por $SRCROOT.
+
 
 Ahora puedes hacer un seguimiento de tus pruebas siempre que estés conectado a
 tu cuenta de Tuist. Puedes acceder a los resultados de tus pruebas en el panel
@@ -153,12 +144,10 @@ individual, como cuando se depuran fallos o pruebas lentas en el CI:
 
 ## Proyectos generados {#generated-projects}
 
-::: info
-<!-- -->
-Los esquemas autogenerados incluyen automáticamente las post-acciones `tuist
-inspect build` y `tuist inspect test`.
-<!-- -->
-:::
+> [!NOTE]
+> Los esquemas autogenerados incluyen automáticamente las post-acciones `tuist
+> inspect build` y `tuist inspect test`.
+
 > 
 > Si no le interesa realizar un seguimiento de los insights en sus esquemas
 > autogenerados, desactívelos mediante las opciones de generación

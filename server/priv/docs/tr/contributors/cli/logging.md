@@ -16,13 +16,11 @@ bağımlılık enjekte edilir ve kullanılarak herhangi bir yerden erişilebilir
 Logger.current
 ```
 
-::: info
-<!-- -->
-Görev yerelleri, `Dispatch` veya ayrılmış görevleri kullanırken değeri yaymaz,
-bu nedenle bunları kullanırsanız, değeri almanız ve asenkron işleme aktarmanız
-gerekir.
-<!-- -->
-:::
+> [!NOTE]
+> Görev yerelleri, `Dispatch` veya ayrılmış görevleri kullanırken değeri yaymaz,
+> bu nedenle bunları kullanırsanız, değeri almanız ve asenkron işleme aktarmanız
+> gerekir.
+
 
 ## Ne loglenmeli {#what-to-log}
 

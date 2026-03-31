@@ -17,13 +17,13 @@ Bu kılavuz, mimarinin ilkelerini tanıtarak uygulama özelliklerinizi farklı
 katmanlarda tanımlamanıza ve düzenlemenize yardımcı olur. Ayrıca, bu mimariyi
 kullanmaya karar vermeniz halinde size ipuçları, araçlar ve tavsiyeler de sunar.
 
-::: info µFEATURES
-<!-- -->
-Bu mimari daha önce µFeatures olarak biliniyordu. Amacını ve arkasındaki
-ilkeleri daha iyi yansıtması için adını The Modular Architecture (TMA) olarak
-değiştirdik.
-<!-- -->
-:::
+> [!NOTE]
+> **Μfeatures**
+>
+> Bu mimari daha önce µFeatures olarak biliniyordu. Amacını ve arkasındaki
+> ilkeleri daha iyi yansıtması için adını The Modular Architecture (TMA) olarak
+> değiştirdik.
+
 
 ## Temel ilke {#core-principle}
 
@@ -60,21 +60,21 @@ adlandırma kuralını izlemenizi öneririz.
 | `ÖzellikTesti`     | `FeatureInterface`          | Test verileri ve mock'lar     |
 | `ÖzellikÖrnek`     | `FeatureTesting`, `Feature` | Örnek uygulama                |
 
-::: tip UI Previews
-<!-- -->
-`Özellik`, UI önizlemelerine izin vermek için `FeatureTesting` adresini
-Geliştirme Varlığı olarak kullanabilir
-<!-- -->
-:::
+> [!TIP]
+> **Ui Previews**
+>
+> `Özellik`, UI önizlemelerine izin vermek için `FeatureTesting` adresini
+> Geliştirme Varlığı olarak kullanabilir
 
-::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
-<!-- -->
-Alternatif olarak, `Debug` için derleme yaparken test verilerini ve mock'ları
-`Feature` veya `FeatureInterface` hedeflerine dahil etmek için derleyici
-yönergelerini kullanabilirsiniz. Grafiği basitleştirirsiniz, ancak uygulamayı
-çalıştırmak için ihtiyaç duymayacağınız kodu derlemiş olursunuz.
-<!-- -->
-:::
+
+> [!WARNING]
+> **Compiler Directives Instead Of Testing Targets**
+>
+> Alternatif olarak, `Debug` için derleme yaparken test verilerini ve mock'ları
+> `Feature` veya `FeatureInterface` hedeflerine dahil etmek için derleyici
+> yönergelerini kullanabilirsiniz. Grafiği basitleştirirsiniz, ancak uygulamayı
+> çalıştırmak için ihtiyaç duymayacağınız kodu derlemiş olursunuz.
+
 
 ## Neden bir modül {#why-a-module}
 
@@ -165,16 +165,16 @@ func productType() -> Product {
 ```
 
 
-::: warning MERGEABLE LIBRARIES
-<!-- -->
-Apple, statik ve dinamik kütüphaneler arasında geçiş yapmanın zahmetini
-[birleştirilebilir
-kütüphaneler](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)
-sunarak hafifletmeye çalışmıştır. Ancak bu, derlemenizi tekrar üretilemez hale
-getiren ve optimize etmeyi zorlaştıran derleme zamanı belirsizliklerini
-beraberinde getirir, bu nedenle kullanmanızı önermiyoruz.
-<!-- -->
-:::
+> [!WARNING]
+> **Mergeable Libraries**
+>
+> Apple, statik ve dinamik kütüphaneler arasında geçiş yapmanın zahmetini
+> [birleştirilebilir
+> kütüphaneler](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)
+> sunarak hafifletmeye çalışmıştır. Ancak bu, derlemenizi tekrar üretilemez hale
+> getiren ve optimize etmeyi zorlaştıran derleme zamanı belirsizliklerini
+> beraberinde getirir, bu nedenle kullanmanızı önermiyoruz.
+
 
 ## Kod {#code}
 
