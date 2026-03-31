@@ -141,12 +141,7 @@ import TuistHTTP
                                 )
                         }
 
-                    let arguments:
-                        [Operations.createTest.Input.Body.jsonPayload
-                            .test_modulesPayloadPayload
-                            .test_casesPayloadPayload.argumentsPayloadPayload
-                        ]? = testCase.arguments.isEmpty ? nil : testCase.arguments
-                        .map { argument in
+                    let arguments = testCase.arguments.map { argument in
                             let argFailures = argument.failures.map { failure in
                                 Operations.createTest.Input.Body.jsonPayload
                                     .test_modulesPayloadPayload
