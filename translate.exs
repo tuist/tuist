@@ -5,32 +5,102 @@ Mix.install([
 ])
 
 defmodule L10n.Context do
+  @moduledoc """
+  Resolves the hierarchical L10N.md context chain.
+
+  L10N.md files can be nested at any level of the directory tree. When resolving
+  context for a given directory, all L10N.md files from the repo root down to that
+  directory are collected, parsed, and merged. Frontmatter from deeper files overrides
+  parent values; markdown bodies are concatenated (root first).
+
+  Per-locale overrides (e.g., `L10N/es.md`) provide additional context specific
+  to a single target language.
+  """
+
   @l10n_filename "L10N.md"
 
+  @doc """
+  Resolves the full L10N.md context chain from `repo_root` down to `start_dir`.
+
+  Returns `{merged_frontmatter, merged_body, context_files}` where `context_files`
+  is a list of `%{path: relative_path, hash: sha256}` maps for each L10N.md file
+  in the chain, ordered from root to deepest.
+  """
   def resolve_chain(start_dir, repo_root) do
-    start_dir
-    |> directories_up_to(repo_root)
-    |> Enum.map(&Path.join(&1, @l10n_filename))
-    |> Enum.filter(&File.exists?/1)
-    |> Enum.reverse()
-    |> Enum.map(&parse_file/1)
-    |> merge_chain()
+    l10n_paths =
+      start_dir
+      |> directories_up_to(repo_root)
+      |> Enum.map(&Path.join(&1, @l10n_filename))
+      |> Enum.filter(&File.exists?/1)
+      |> Enum.reverse()
+
+    parsed = Enum.map(l10n_paths, &parse_file/1)
+
+    context_files =
+      Enum.map(l10n_paths, fn path ->
+        content = File.read!(path)
+
+        %{
+          "path" => Path.relative_to(path, repo_root),
+          "hash" => hash_content(content)
+        }
+      end)
+
+    {merged_frontmatter, merged_body} = merge_chain(parsed)
+    {merged_frontmatter, merged_body, context_files}
   end
 
+  @doc """
+  Loads per-locale override context for the given locale.
+
+  Walks the same directory chain as `resolve_chain/2` and collects any
+  `L10N/{locale}.md` files found. Returns `{override_body, override_files}`.
+  """
   def load_locale_override(start_dir, repo_root, locale) do
-    start_dir
-    |> directories_up_to(repo_root)
-    |> Enum.map(&Path.join([&1, "L10N", "#{locale}.md"]))
-    |> Enum.filter(&File.exists?/1)
-    |> Enum.reverse()
-    |> Enum.map(fn path -> path |> File.read!() |> parse_content() |> elem(1) end)
-    |> Enum.join("\n\n")
+    override_paths =
+      start_dir
+      |> directories_up_to(repo_root)
+      |> Enum.map(&Path.join([&1, "L10N", "#{locale}.md"]))
+      |> Enum.filter(&File.exists?/1)
+      |> Enum.reverse()
+
+    body =
+      override_paths
+      |> Enum.map(fn path -> path |> File.read!() |> parse_content() |> elem(1) end)
+      |> Enum.join("\n\n")
+
+    override_files =
+      Enum.map(override_paths, fn path ->
+        content = File.read!(path)
+
+        %{
+          "path" => Path.relative_to(path, repo_root),
+          "hash" => hash_content(content)
+        }
+      end)
+
+    {body, override_files}
   end
 
+  @doc """
+  Parses a single L10N.md file into `{frontmatter_map, body_string}`.
+  """
   def parse_file(path) do
     path |> File.read!() |> parse_content()
   end
 
+  @doc """
+  Splits a string into YAML frontmatter and markdown body.
+
+  Expects content in the format:
+      ---
+      key: value
+      ---
+      Markdown body here
+
+  Returns `{frontmatter_map, body_string}`. If no frontmatter delimiters
+  are found, returns `{%{}, content}`.
+  """
   def parse_content(content) do
     case String.split(content, ~r/^---\s*$/m, parts: 3) do
       ["", frontmatter, body] ->
@@ -40,6 +110,13 @@ defmodule L10n.Context do
       _ ->
         {%{}, String.trim(content)}
     end
+  end
+
+  @doc """
+  Computes a SHA-256 hex digest of the given content.
+  """
+  def hash_content(content) do
+    :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
   end
 
   defp merge_chain(parsed_files) do
@@ -79,15 +156,40 @@ defmodule L10n.Context do
 end
 
 defmodule L10n.Lock do
+  @moduledoc """
+  Manages lock files that track translation state.
+
+  Each lock file is a JSON document stored at `.l10n/{pot_path}/{locale}.lock`
+  and contains the full context tree used to produce the translation, including
+  individual hashes for the source .pot file and each L10N.md context file.
+  A translation is considered stale when any of these hashes change.
+  """
+
+  @doc """
+  Computes a composite SHA-256 hash from the .pot content, merged context body,
+  and any per-locale override content. This single hash is used for quick
+  staleness comparison.
+  """
   def compute_hash(pot_content, context_content, locale_override) do
     data = pot_content <> "\n---\n" <> context_content <> "\n---\n" <> (locale_override || "")
     :crypto.hash(:sha256, data) |> Base.encode16(case: :lower)
   end
 
+  @doc """
+  Returns the file path for a lock file given the repo root, the relative
+  path of the .pot source file, and the target locale.
+
+  Example: `lock_path("/repo", "server/priv/gettext/errors.pot", "es")`
+  returns `"/repo/.l10n/server/priv/gettext/errors.pot/es.lock"`
+  """
   def lock_path(repo_root, pot_relative_path, locale) do
     Path.join([repo_root, ".l10n", pot_relative_path, "#{locale}.lock"])
   end
 
+  @doc """
+  Returns `true` if the lock file is missing or its stored hash
+  differs from `current_hash`.
+  """
   def stale?(lock_path, current_hash) do
     case read(lock_path) do
       {:ok, %{"hash" => stored_hash}} -> stored_hash != current_hash
@@ -95,14 +197,32 @@ defmodule L10n.Lock do
     end
   end
 
-  def write!(lock_path, hash, model) do
+  @doc """
+  Writes a lock file with full context tree information.
+
+  The lock includes:
+  - `hash`: composite hash for quick staleness checks
+  - `model`: the LLM model used for translation
+  - `translated_at`: ISO 8601 timestamp
+  - `source`: hash of the .pot file content
+  - `context_files`: list of L10N.md files with their individual hashes
+  - `locale_override_files`: list of per-locale override files with hashes
+  """
+  def write!(lock_path, attrs) do
     lock_path |> Path.dirname() |> File.mkdir_p!()
 
-    data = %{
-      "hash" => hash,
-      "translated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
-      "model" => model
-    }
+    data =
+      %{
+        "hash" => attrs.hash,
+        "model" => attrs.model,
+        "translated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+        "source" => %{
+          "file" => attrs.source_file,
+          "hash" => attrs.source_hash
+        },
+        "context_files" => attrs.context_files,
+        "locale_override_files" => attrs.locale_override_files
+      }
 
     File.write!(lock_path, JSON.encode!(data))
   end
@@ -116,6 +236,14 @@ defmodule L10n.Lock do
 end
 
 defmodule L10n.Translator do
+  @moduledoc """
+  Translates .pot files to target locales using an LLM via req_llm.
+
+  Builds a structured prompt with translation rules, context from the L10N.md
+  chain, and the full .pot source content. Supports any provider that req_llm
+  supports (Anthropic, OpenAI, Ollama, etc.).
+  """
+
   @plural_forms %{
     "es" => "nplurals=2; plural=n != 1;",
     "ja" => "nplurals=1; plural=0;",
@@ -125,6 +253,14 @@ defmodule L10n.Translator do
     "zh_Hant" => "nplurals=1; plural=0;"
   }
 
+  @doc """
+  Resolves a model string into a req_llm-compatible model reference.
+
+  Handles `"ollama:model_name"` by configuring a local OpenAI-compatible
+  endpoint at `localhost:11434`. All other model strings (e.g.,
+  `"anthropic:claude-sonnet-4-6"`, `"openai:gpt-4.1"`) are passed through
+  directly to req_llm.
+  """
   def resolve_model(model_string) do
     case String.split(model_string, ":", parts: 2) do
       ["ollama", model_id] ->
@@ -141,6 +277,13 @@ defmodule L10n.Translator do
     end
   end
 
+  @doc """
+  Translates a single .pot file content to the given locale.
+
+  Constructs a system prompt with translation rules and L10N.md context,
+  sends the full .pot content as the user message, and returns the
+  translated .po file content as a string.
+  """
   def translate(pot_content, locale, language, context_body, locale_override, model) do
     plural_forms = Map.get(@plural_forms, locale, "nplurals=2; plural=n != 1;")
 
@@ -201,15 +344,24 @@ defmodule L10n.Translator do
     |> String.trim()
   end
 
-  def translate_all(pot_content, targets, context_body, model, l10n_dir, repo_root, pot_relative_path, opts) do
+  @doc """
+  Translates a .pot file to all target locales in parallel.
+
+  For each target, checks the lock file to skip up-to-date translations
+  (unless `force: true`). Successful translations are validated, written
+  to disk, and locked. Returns a list of `{:translated, locale}`,
+  `{:skipped, locale}`, or `{:error, locale, reason}` tuples.
+  """
+  def translate_all(pot_content, targets, context_body, model, l10n_dir, repo_root, pot_relative_path, context_files, opts) do
     force = Keyword.get(opts, :force, false)
+    source_hash = L10n.Context.hash_content(pot_content)
 
     targets
     |> Task.async_stream(
       fn target ->
         locale = target["locale"]
         language = target["language"]
-        locale_override = Keyword.get(opts, :locale_override_fn, fn _ -> "" end).(locale)
+        {locale_override, locale_override_files} = Keyword.get(opts, :locale_override_fn, fn _ -> {"", []} end).(locale)
 
         hash =
           L10n.Lock.compute_hash(
@@ -232,7 +384,16 @@ defmodule L10n.Translator do
                 output_path = Path.join([l10n_dir, target["path"], po_filename])
                 output_path |> Path.dirname() |> File.mkdir_p!()
                 File.write!(output_path, po_content <> "\n")
-                L10n.Lock.write!(lock_path, hash, model)
+
+                L10n.Lock.write!(lock_path, %{
+                  hash: hash,
+                  model: model,
+                  source_file: pot_relative_path,
+                  source_hash: source_hash,
+                  context_files: context_files,
+                  locale_override_files: locale_override_files
+                })
+
                 {:translated, locale}
 
               {:error, reason} ->
@@ -251,6 +412,17 @@ defmodule L10n.Translator do
 end
 
 defmodule L10n.Validator do
+  @moduledoc """
+  Validates translated .po file content.
+
+  Uses `Expo.PO.parse_string/1` to verify the output is syntactically
+  valid Gettext PO format.
+  """
+
+  @doc """
+  Validates that the given string is a syntactically valid .po file.
+  Returns `:ok` or `{:error, reason}`.
+  """
   def validate(po_content) do
     case Expo.PO.parse_string(po_content) do
       {:ok, _po} -> :ok
@@ -260,6 +432,29 @@ defmodule L10n.Validator do
 end
 
 defmodule L10n.CLI do
+  @moduledoc """
+  Entry point for the translation script.
+
+  Parses CLI arguments, discovers L10N.md files with `sources` configured,
+  resolves context chains, and orchestrates parallel translation across
+  all target locales.
+
+  ## Usage
+
+      elixir translate.exs [options]
+
+  ## Options
+
+    * `--force`, `-f` — Re-translate all files, ignoring lock state
+    * `--locale`, `-l` — Translate only the specified locale (e.g., `--locale es`)
+    * `--model`, `-m` — Override the LLM model from L10N.md (e.g., `--model openai:gpt-4.1`)
+    * `--concurrency`, `-c` — Max parallel translations per .pot file (default: 4)
+    * `--timeout`, `-t` — Timeout in ms per translation (default: 300000)
+  """
+
+  @doc """
+  Main entry point. Parses argv and runs the translation pipeline.
+  """
   def run(argv) do
     {opts, _rest} = parse_args(argv)
     repo_root = find_repo_root()
@@ -282,7 +477,7 @@ defmodule L10n.CLI do
   end
 
   defp process_l10n_dir(l10n_dir, repo_root, opts) do
-    {frontmatter, context_body} = L10n.Context.resolve_chain(l10n_dir, repo_root)
+    {frontmatter, context_body, context_files} = L10n.Context.resolve_chain(l10n_dir, repo_root)
 
     model = Keyword.get(opts, :model) || Map.get(frontmatter, "model", "anthropic:claude-sonnet-4-6")
     sources = Map.get(frontmatter, "sources", [])
@@ -308,34 +503,42 @@ defmodule L10n.CLI do
           Path.join(l10n_dir, pattern) |> Path.wildcard()
         end)
 
-      Enum.flat_map(pot_files, fn pot_path ->
-        pot_relative = Path.relative_to(pot_path, repo_root)
-        pot_content = File.read!(pot_path)
-        domain = Path.basename(pot_path, ".pot")
+      pot_files
+      |> Task.async_stream(
+        fn pot_path ->
+          pot_relative = Path.relative_to(pot_path, repo_root)
+          pot_content = File.read!(pot_path)
+          domain = Path.basename(pot_path, ".pot")
 
-        IO.puts("  Translating #{domain}...")
+          IO.puts("  Translating #{domain}...")
 
-        locale_override_fn = fn locale ->
-          L10n.Context.load_locale_override(l10n_dir, repo_root, locale)
-        end
+          locale_override_fn = fn locale ->
+            L10n.Context.load_locale_override(l10n_dir, repo_root, locale)
+          end
 
-        L10n.Translator.translate_all(
-          pot_content,
-          targets,
-          context_body,
-          model,
-          l10n_dir,
-          repo_root,
-          pot_relative,
-          force: Keyword.get(opts, :force, false),
-          locale_override_fn: locale_override_fn,
-          max_concurrency: Keyword.get(opts, :concurrency, 4),
-          timeout: Keyword.get(opts, :timeout, 300_000)
-        )
-      end)
+          L10n.Translator.translate_all(
+            pot_content,
+            targets,
+            context_body,
+            model,
+            l10n_dir,
+            repo_root,
+            pot_relative,
+            context_files,
+            force: Keyword.get(opts, :force, false),
+            locale_override_fn: locale_override_fn,
+            max_concurrency: Keyword.get(opts, :concurrency, 4),
+            timeout: Keyword.get(opts, :timeout, 300_000)
+          )
+        end,
+        max_concurrency: Keyword.get(opts, :concurrency, 4),
+        timeout: Keyword.get(opts, :timeout, 300_000) * 2
+      )
+      |> Enum.flat_map(fn {:ok, results} -> results end)
     end
   end
 
+  @doc false
   defp normalize_targets(targets, path_template) when is_map(targets) do
     Enum.map(targets, fn {locale, language} ->
       path = String.replace(path_template, "{locale}", locale)
@@ -360,6 +563,7 @@ defmodule L10n.CLI do
     String.trim(root)
   end
 
+  @doc false
   defp find_l10n_files_with_sources(repo_root) do
     Path.join([repo_root, "**", "L10N.md"])
     |> Path.wildcard()
