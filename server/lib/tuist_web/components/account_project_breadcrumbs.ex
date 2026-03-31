@@ -4,26 +4,28 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
   Used by both the dashboard layout and the docs layout.
   """
   use TuistWeb, :verified_routes
-
   use Gettext, backend: TuistWeb.Gettext
 
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
 
-  def account_breadcrumb(selected_account, current_user_accounts) do
+  def account_breadcrumb(selected_account, current_user_accounts, opts \\ []) do
+    stateful? = Keyword.get(opts, :stateful, false)
+
     %{
       label: selected_account.name,
       icon: "smart_home",
       show_avatar: true,
       avatar_color: Accounts.avatar_color(selected_account),
+      on_select: if(stateful?, do: "select-account"),
       items:
         Enum.map(current_user_accounts, fn account ->
           %{
             label: account.name,
             value: account.id,
             selected: account.id == selected_account.id,
-            href: ~p"/#{account.name}/projects",
+            href: if(!stateful?, do: ~p"/#{account.name}/projects"),
             show_avatar: true,
             avatar_color: Accounts.avatar_color(account)
           }
@@ -40,17 +42,20 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
     }
   end
 
-  def project_breadcrumb(selected_project, selected_account, projects) do
+  def project_breadcrumb(selected_project, selected_account, projects, opts \\ []) do
+    stateful? = Keyword.get(opts, :stateful, false)
+
     %{
       label: selected_project.name,
       badge: build_system_badge(selected_project.build_system),
+      on_select: if(stateful?, do: "select-project"),
       items:
         Enum.map(projects, fn project ->
           %{
             label: project.name,
             value: project.id,
             selected: selected_project.id == project.id,
-            href: ~p"/#{selected_account.name}/#{project.name}",
+            href: if(!stateful?, do: ~p"/#{selected_account.name}/#{project.name}"),
             badge: build_system_badge(project.build_system)
           }
         end) ++
@@ -81,7 +86,8 @@ defmodule TuistWeb.AccountProjectBreadcrumbs do
     account
     |> Projects.get_all_project_accounts()
     |> Enum.filter(fn %{account: account, project: project} ->
-      Authorization.authorize(:project_url_access, current_user, %{project | account: account}) == :ok
+      Authorization.authorize(:project_url_access, current_user, %{project | account: account}) ==
+        :ok
     end)
     |> Enum.map(&%{&1.project | account: &1.account})
   end

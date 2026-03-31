@@ -167,15 +167,7 @@
             href={~p"/docs/login?#{%{return_to: @current_path}}"}
           />
         <% else %>
-          <.headerbar_breadcrumbs
-            breadcrumbs={assigns[:breadcrumbs] || []}
-            id="docs-headerbar-breadcrumbs"
-          />
-          <.account_dropdown
-            id="docs-account-dropdown"
-            latest_app_release={%{ok?: false, result: nil}}
-            current_user={@current_user}
-          />
+          <span data-part="user-name">{@current_user.account.name}</span>
         <% end %>
       </div>
       <div data-part="mobile-actions">
@@ -196,6 +188,16 @@
         </.neutral_button>
       </div>
     </nav>
+    <div
+      :if={not is_nil(assigns[:current_user]) and (assigns[:breadcrumbs] || []) != []}
+      id="docs-context-bar"
+      data-part="context-bar"
+    >
+      <.headerbar_breadcrumbs
+        breadcrumbs={assigns[:breadcrumbs] || []}
+        id="docs-context-breadcrumbs"
+      />
+    </div>
     <div id="docs-mobile-menu-bar" role="toolbar" aria-label={dgettext("docs", "Page navigation")}>
       <button
         type="button"

@@ -37,24 +37,48 @@ defmodule TuistWeb.DocsLive do
   end
 
   defp assign_breadcrumbs(socket, nil) do
-    assign(socket, :breadcrumbs, [])
+    socket
+    |> assign(:breadcrumbs, [])
+    |> assign(:user_accounts, [])
+    |> assign(:selected_account, nil)
+    |> assign(:selected_project, nil)
+    |> assign(:account_projects, [])
   end
 
   defp assign_breadcrumbs(socket, current_user) do
     accounts = AccountProjectBreadcrumbs.get_user_accounts(current_user)
     selected_account = current_user.account
     projects = AccountProjectBreadcrumbs.get_account_projects(selected_account, current_user)
+    selected_project = List.first(projects)
 
-    breadcrumbs = [AccountProjectBreadcrumbs.account_breadcrumb(selected_account, accounts)]
+    socket
+    |> assign(:user_accounts, accounts)
+    |> assign(:selected_account, selected_account)
+    |> assign(:account_projects, projects)
+    |> assign(:selected_project, selected_project)
+    |> build_breadcrumbs(selected_account, accounts, selected_project, projects)
+  end
+
+  defp build_breadcrumbs(socket, selected_account, accounts, selected_project, projects) do
+    breadcrumbs = [
+      AccountProjectBreadcrumbs.account_breadcrumb(selected_account, accounts, stateful: true)
+    ]
 
     breadcrumbs =
-      case projects do
-        [first_project | _] ->
-          breadcrumbs ++
-            [AccountProjectBreadcrumbs.project_breadcrumb(first_project, selected_account, projects)]
-
-        [] ->
+      case selected_project do
+        nil ->
           breadcrumbs
+
+        project ->
+          breadcrumbs ++
+            [
+              AccountProjectBreadcrumbs.project_breadcrumb(
+                project,
+                selected_account,
+                projects,
+                stateful: true
+              )
+            ]
       end
 
     assign(socket, :breadcrumbs, breadcrumbs)
@@ -564,6 +588,49 @@ defmodule TuistWeb.DocsLive do
 
   def handle_event("copy-page-markdown", _params, socket) do
     {:noreply, socket}
+  end
+
+  def handle_event("select-account", %{"value" => account_id}, socket) do
+    current_user = socket.assigns[:current_user]
+
+    case Enum.find(socket.assigns.user_accounts, &(&1.id == account_id)) do
+      nil ->
+        {:noreply, socket}
+
+      account ->
+        projects = AccountProjectBreadcrumbs.get_account_projects(account, current_user)
+        selected_project = List.first(projects)
+
+        {:noreply,
+         socket
+         |> assign(:selected_account, account)
+         |> assign(:account_projects, projects)
+         |> assign(:selected_project, selected_project)
+         |> build_breadcrumbs(
+           account,
+           socket.assigns.user_accounts,
+           selected_project,
+           projects
+         )}
+    end
+  end
+
+  def handle_event("select-project", %{"value" => project_id}, socket) do
+    case Enum.find(socket.assigns.account_projects, &(&1.id == project_id)) do
+      nil ->
+        {:noreply, socket}
+
+      project ->
+        {:noreply,
+         socket
+         |> assign(:selected_project, project)
+         |> build_breadcrumbs(
+           socket.assigns.selected_account,
+           socket.assigns.user_accounts,
+           project,
+           socket.assigns.account_projects
+         )}
+    end
   end
 
   defp fetch_latest_videos do
