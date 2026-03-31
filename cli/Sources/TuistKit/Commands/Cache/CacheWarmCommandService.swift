@@ -498,6 +498,30 @@ import XcodeGraph
                     output: xcframeworkPath
                 )
 
+                // Embed App Intents metadata if available.
+                // For static frameworks, appintentsmetadataprocessor writes a .appintents bundle
+                // as a sibling to the .framework in the build products directory. We copy the
+                // Metadata.appintents directory into each framework slice of the xcframework so
+                // the app target's AppIntentsSSUTraining phase can discover it.
+                let appIntentsBundleName = "\(cacheableTarget.0.target.productName).appintents"
+                for artifactDir in Set(platformBinaryArtifacts) {
+                    let metadataSource = artifactDir.appending(
+                        components: [appIntentsBundleName, "Metadata.appintents"]
+                    )
+                    guard try await fileSystem.exists(metadataSource) else { continue }
+                    let frameworkSlices = try await fileSystem.glob(
+                        directory: xcframeworkPath,
+                        include: ["*/*.framework"]
+                    ).collect()
+                    for slice in frameworkSlices {
+                        try await fileSystem.copy(
+                            metadataSource,
+                            to: slice.appending(component: "Metadata.appintents")
+                        )
+                    }
+                    break
+                }
+
                 xcframeworks.append(CacheGraphTargetBuiltArtifact(
                     type: .xcframework,
                     graphTarget: cacheableTarget.0,
