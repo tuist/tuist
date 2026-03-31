@@ -104,8 +104,8 @@ func schemes() -> [Scheme] {
                 postActions: [
                     inspectBuildPostAction(target: "TuistKitAcceptanceTests"),
                 ],
-                findImplicitDependencies: false,
-                runPostActionsOnFailure: true
+                runPostActionsOnFailure: true,
+                findImplicitDependencies: false
             ),
             testAction: .targets(
                 Module.allCases.flatMap(\.acceptanceTestTargets).map {
