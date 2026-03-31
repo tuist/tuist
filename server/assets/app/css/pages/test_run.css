@@ -295,7 +295,7 @@
   }
 
   & .argument-collapsible + .argument-collapsible {
-    margin-top: var(--noora-spacing-3);
+    margin-top: var(--noora-spacing-5);
   }
 
   & .argument-collapsible {
