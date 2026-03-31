@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.171.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* archive shard bundle directly from source with exclude patterns by [@fortmarek](https://github.com/fortmarek) in [#10121](https://github.com/tuist/tuist/pull/10121)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.171.2...4.171.3
+
 ## What's Changed in 4.171.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
