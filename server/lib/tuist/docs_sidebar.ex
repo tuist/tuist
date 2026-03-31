@@ -440,6 +440,10 @@ defmodule Tuist.Docs.Sidebar do
           %Item{label: "tuist.toml", slug: "/en/references/tuist-toml"},
           %Item{
             label: "Project description",
+            url: "https://projectdescription.tuist.dev/documentation/projectdescription"
+          },
+          %Item{
+            label: "Server API",
             url: "https://tuist.dev/api/docs"
           },
           %Item{
