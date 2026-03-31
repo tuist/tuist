@@ -518,15 +518,54 @@
     >
       <.card_section data-part="attachments-card-section">
         <%= if Enum.any?(@test_case_run.arguments, fn arg -> Enum.any?(arg.attachments) end) do %>
-          <div data-part="attachments-list">
-            <div
-              :for={argument <- @test_case_run.arguments}
-              :if={Enum.any?(argument.attachments, fn att -> attachment_type(att.file_name) != :ips end)}
-              data-part="argument-attachment-group"
-            >
-              <div data-part="repetition-attachment-header">
-                <span data-part="repetition-attachment-label">{argument.name}</span>
-              </div>
+          <div
+            :for={argument <- @test_case_run.arguments}
+            :if={Enum.any?(argument.attachments, fn att -> attachment_type(att.file_name) != :ips end)}
+            class="argument-collapsible"
+          >
+            <div data-part="argument-header">
+              <.badge
+                :if={argument.status == "success"}
+                label={dgettext("dashboard_tests", "Passed")}
+                color="success"
+                style="light-fill"
+                size="small"
+              />
+              <.badge
+                :if={argument.status == "failure"}
+                label={dgettext("dashboard_tests", "Failed")}
+                color="destructive"
+                style="light-fill"
+                size="small"
+              />
+              <span data-part="argument-name">{argument.name}</span>
+              <.neutral_button
+                id={"att-arg-closed-btn-#{argument.id}"}
+                variant="secondary"
+                size="medium"
+                phx-click={
+                  JS.hide(to: "#att-arg-closed-btn-#{argument.id}")
+                  |> JS.show(to: "#att-arg-open-btn-#{argument.id}", display: "flex")
+                  |> JS.show(to: "#att-arg-body-#{argument.id}", display: "flex")
+                }
+              >
+                <.chevron_down />
+              </.neutral_button>
+              <.neutral_button
+                id={"att-arg-open-btn-#{argument.id}"}
+                variant="secondary"
+                size="medium"
+                style="display:none"
+                phx-click={
+                  JS.show(to: "#att-arg-closed-btn-#{argument.id}", display: "flex")
+                  |> JS.hide(to: "#att-arg-open-btn-#{argument.id}")
+                  |> JS.hide(to: "#att-arg-body-#{argument.id}")
+                }
+              >
+                <.chevron_up />
+              </.neutral_button>
+            </div>
+            <div id={"att-arg-body-#{argument.id}"} data-part="argument-body" style="display:none">
               <%= if has_repetition_attachments?(argument.attachments) do %>
                 <% {arg_grouped, arg_ungrouped} =
                   group_attachments_by_repetition(argument.attachments, argument.repetitions) %>
