@@ -10,18 +10,16 @@ import TuistTestCommand
 import TuistTesting
 @testable import TuistKit
 
-struct BuildAcceptanceTests {
+struct BuildAcceptanceTestMultiplatformAppWithExtension {
     @Test(
         .disabled(),
         .withFixture("generated_multiplatform_app_with_extension"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func multiplatform_app_with_extension() async throws {
-        // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-        // When/Then
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
         do {
             try await TuistTest.run(
@@ -46,41 +44,18 @@ struct BuildAcceptanceTests {
             throw error
         }
     }
+}
 
+struct BuildAcceptanceTestFrameworkBuildableFoldersAndXcassets {
     @Test(
         .disabled(),
         .withFixture("generated_ios_app_with_framework_buildable_folders_and_xcassets"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
     ) func ios_app_with_framework_buildable_folders_and_xcassets() async throws {
-        // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-        // When/Then
-        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-        try await TuistTest.run(
-            BuildCommand.self,
-            [
-                "App",
-                "--path",
-                fixtureDirectory.pathString,
-                "--derived-data-path",
-                temporaryDirectory.pathString,
-            ]
-        )
-    }
-
-    @Test(
-        .withFixture("generated_app_with_buildable_folders"),
-        .inTemporaryDirectory,
-        .withMockedEnvironment()
-    ) func app_with_buildable_folders() async throws {
-        // Given
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-
-        // When/Then
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
         try await TuistTest.run(
             BuildCommand.self,
@@ -95,7 +70,29 @@ struct BuildAcceptanceTests {
     }
 }
 
-/// Build projects using Tuist build
+struct BuildAcceptanceTestAppWithBuildableFolders {
+    @Test(
+        .withFixture("generated_app_with_buildable_folders"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func app_with_buildable_folders() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await TuistTest.run(
+            BuildCommand.self,
+            [
+                "App",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+            ]
+        )
+    }
+}
+
 struct BuildAcceptanceTestWithTemplates {
     @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies())
     func with_templates() async throws {
@@ -522,7 +519,7 @@ struct BuildAcceptanceTestiOSAppWithCPlusPLusInteroperability {
     }
 }
 
-struct XcodeBuildCommandAcceptanceTests {
+struct XcodeBuildBuildCommandAcceptanceTests {
     @Test(
         .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
@@ -548,7 +545,9 @@ struct XcodeBuildCommandAcceptanceTests {
             ]
         )
     }
+}
 
+struct XcodeBuildTestCommandAcceptanceTests {
     @Test(
         .disabled(),
         .withFixture("generated_ios_app_with_tests"),
@@ -575,7 +574,9 @@ struct XcodeBuildCommandAcceptanceTests {
             ]
         )
     }
+}
 
+struct XcodeBuildBuildForTestingCommandAcceptanceTests {
     @Test(
         .disabled(),
         .withFixture("generated_ios_app_with_tests"),
@@ -602,7 +603,9 @@ struct XcodeBuildCommandAcceptanceTests {
             ]
         )
     }
+}
 
+struct XcodeBuildTestWithoutBuildingCommandAcceptanceTests {
     @Test(
         .disabled(),
         .withFixture("generated_ios_app_with_tests"),
@@ -614,7 +617,6 @@ struct XcodeBuildCommandAcceptanceTests {
 
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
 
-        // First build for testing
         try await TuistTest.run(
             XcodeBuildBuildForTestingCommand.self,
             [
@@ -630,7 +632,6 @@ struct XcodeBuildCommandAcceptanceTests {
             ]
         )
 
-        // Then test without building
         try await TuistTest.run(
             XcodeBuildTestWithoutBuildingCommand.self,
             [
@@ -646,7 +647,9 @@ struct XcodeBuildCommandAcceptanceTests {
             ]
         )
     }
+}
 
+struct XcodeBuildArchiveCommandAcceptanceTests {
     @Test(
         .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
@@ -672,7 +675,9 @@ struct XcodeBuildCommandAcceptanceTests {
             ]
         )
     }
+}
 
+struct XcodeBuildUnorderedBuildCommandAcceptanceTests {
     @Test(
         .disabled(),
         .withFixture("generated_ios_app_with_tests"),
