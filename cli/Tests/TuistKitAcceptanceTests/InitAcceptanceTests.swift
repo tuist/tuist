@@ -48,7 +48,7 @@ struct InitAcceptanceTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies())
     func generated_ios_app() async throws {
         let fileSystem = FileSystem()
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)

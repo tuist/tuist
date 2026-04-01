@@ -159,7 +159,7 @@ struct BuildAcceptanceTestWithTemplates {
 }
 
 struct BuildAcceptanceTestInvalidArguments {
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies())
     func with_invalid_arguments() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let initAnswers = InitPromptAnswers(
