@@ -62,7 +62,10 @@ public struct AppleArchiver: AppleArchiving {
         }
         defer { try? encodeStream.close() }
 
-        let keySet = ArchiveHeader.FieldKeySet("TYP,PAT,DAT,UID,GID,MOD,FLG,MTM,CTM,SLC,LNK")!
+        // Exclude SLC (symlink content) and LNK (link) so symlinks are
+        // dereferenced during compression. Otherwise, both the symlink and its
+        // target end up in the archive, causing EEXIST errors during extraction.
+        let keySet = ArchiveHeader.FieldKeySet("TYP,PAT,DAT,UID,GID,MOD,FLG,MTM,CTM")!
 
         let filter: ArchiveHeader.EntryFilter = { _, path, _ in
             let pathString = path.string
