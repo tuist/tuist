@@ -205,7 +205,10 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
         settingsHelper.extend(buildSettings: &settings, with: additionalTargetDefaults)
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
         settingsHelper.extend(buildSettings: &settings, with: mergeableSettings)
-        settingsHelper.extend(buildSettings: &settings, with: projectOverridableTargetDefaultSettings(for: project, target: target))
+        settingsHelper.extend(
+            buildSettings: &settings,
+            with: projectOverridableTargetDefaultSettings(for: project, target: target)
+        )
         settingsHelper.extend(
             buildSettings: &settings,
             with: testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)

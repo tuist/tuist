@@ -26,11 +26,13 @@ public protocol Generating {
 public class Generator: Generating {
     private let graphLinter: GraphLinting = GraphLinter()
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
+
     private func descriptorGenerator(defaultSwiftVersion: String = "5") -> DescriptorGenerating {
         DescriptorGenerator(
             defaultSettingsProvider: DefaultSettingsProvider(defaultSwiftVersion: defaultSwiftVersion)
         )
     }
+
     private let writer: XcodeProjWriting = XcodeProjWriter()
     private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator
         .SwiftPackageManagerInteractor()
