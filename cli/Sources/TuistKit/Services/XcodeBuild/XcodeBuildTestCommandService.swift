@@ -81,7 +81,7 @@ struct XcodeBuildTestCommandService {
 
         var shardPlanId: String?
         var shardTestProductsPath: AbsolutePath?
-        var shardXCTestRunTempDirectory: AbsolutePath?
+        var shardXCTestRunPath: AbsolutePath?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
@@ -102,7 +102,7 @@ struct XcodeBuildTestCommandService {
             shardPlanId = shard.shardPlanId
 
             if let xcTestRunPath = shard.xcTestRunPath {
-                shardXCTestRunTempDirectory = xcTestRunPath.parentDirectory
+                shardXCTestRunPath = xcTestRunPath
                 passthroughXcodebuildArguments = removeOption("-xctestrun", from: passthroughXcodebuildArguments)
                 passthroughXcodebuildArguments += ["-xctestrun", xcTestRunPath.pathString]
             } else {
@@ -153,8 +153,8 @@ struct XcodeBuildTestCommandService {
                 if let shardTestProductsPath {
                     try? await fileSystem.remove(shardTestProductsPath)
                 }
-                if let shardXCTestRunTempDirectory {
-                    try? await fileSystem.remove(shardXCTestRunTempDirectory)
+                if let shardXCTestRunPath {
+                    try? await fileSystem.remove(shardXCTestRunPath)
                 }
                 return
             }
@@ -162,8 +162,8 @@ struct XcodeBuildTestCommandService {
             if let shardTestProductsPath {
                 try? await fileSystem.remove(shardTestProductsPath)
             }
-            if let shardXCTestRunTempDirectory {
-                try? await fileSystem.remove(shardXCTestRunTempDirectory)
+            if let shardXCTestRunPath {
+                try? await fileSystem.remove(shardXCTestRunPath)
             }
             throw error
         }
@@ -189,8 +189,8 @@ struct XcodeBuildTestCommandService {
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
         }
-        if let shardXCTestRunTempDirectory {
-            try? await fileSystem.remove(shardXCTestRunTempDirectory)
+        if let shardXCTestRunPath {
+            try? await fileSystem.remove(shardXCTestRunPath)
         }
     }
 
