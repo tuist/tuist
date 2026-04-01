@@ -53,7 +53,7 @@ defmodule XcodeProcessor.XCResultProcessor do
 
     case File.read(json_path) do
       {:ok, content} -> JSON.decode!(content)
-      {:error, _} -> []
+      {:error, :enoent} -> []
     end
   end
 
