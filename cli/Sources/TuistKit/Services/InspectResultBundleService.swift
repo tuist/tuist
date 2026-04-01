@@ -171,8 +171,10 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             throw UploadResultBundleServiceError.missingFullHandle
         }
 
+        let resolvedResultBundlePath = try await fileSystem.resolveSymbolicLink(resultBundlePath)
+
         if !quarantinedTests.isEmpty {
-            try await writeQuarantinedTests(quarantinedTests, to: resultBundlePath)
+            try await writeQuarantinedTests(quarantinedTests, to: resolvedResultBundlePath)
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -186,7 +188,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         let testRunId = UUID().uuidString.lowercased()
 
         try await analyticsArtifactUploadService.uploadResultBundle(
-            resultBundlePath,
+            resolvedResultBundlePath,
             fullHandle: fullHandle,
             commandEventId: testRunId,
             serverURL: serverURL
