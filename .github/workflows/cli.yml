@@ -228,6 +228,8 @@ jobs:
       - name: Build tests
         id: shard
         run: tuist test --build-only --no-binary-cache --shard-total 2 --shard-granularity suite TuistAcceptanceTests
+        env:
+          TUIST_ENABLE_CACHING: false
 
   cli-acceptance-tests:
     name: Acceptance Tests
