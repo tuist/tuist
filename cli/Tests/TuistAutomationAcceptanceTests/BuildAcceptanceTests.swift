@@ -2,11 +2,11 @@ import FileSystem
 import FileSystemTesting
 import Path
 import Testing
+import TuistAcceptanceTesting
 import TuistBuildCommand
 import TuistGenerateCommand
 import TuistInitCommand
 import TuistSupport
-import TuistAcceptanceTesting
 import TuistTestCommand
 import TuistTesting
 @testable import TuistKit
