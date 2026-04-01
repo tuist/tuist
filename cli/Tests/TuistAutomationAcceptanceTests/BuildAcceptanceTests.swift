@@ -7,6 +7,7 @@ import TuistGenerateCommand
 import TuistInitCommand
 import TuistSupport
 import TuistTestCommand
+import TuistAcceptanceTesting
 import TuistTesting
 @testable import TuistKit
 
@@ -649,12 +650,11 @@ struct XcodeBuildTestWithoutBuildingCommandAcceptanceTests {
     }
 }
 
-struct XcodeBuildArchiveCommandAcceptanceTests {
+struct XcodeBuildShardWithLocalTestProductsAcceptanceTests {
     @Test(
-        .withFixture("generated_ios_app_with_tests"),
-        .inTemporaryDirectory,
-        .withMockedEnvironment()
-    ) func xcodebuild_test_without_building_with_local_test_products() async throws {
+        .withFixtureConnectedToCanary("generated_ios_app_with_tests"),
+        .inTemporaryDirectory
+    ) func xcodebuild_shard_with_local_test_products() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
@@ -662,11 +662,13 @@ struct XcodeBuildArchiveCommandAcceptanceTests {
 
         let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
 
-        // Build for testing, outputting test products to a known path (simulating a shared volume)
         try await TuistTest.run(
             XcodeBuildBuildForTestingCommand.self,
             [
                 "build-for-testing",
+                "--shard-total",
+                "1",
+                "--shard-skip-upload",
                 "-project",
                 fixtureDirectory.pathString + "/App.xcodeproj",
                 "-scheme",
@@ -678,11 +680,12 @@ struct XcodeBuildArchiveCommandAcceptanceTests {
             ]
         )
 
-        // Test without building, consuming test products from the same path
         try await TuistTest.run(
             XcodeBuildTestWithoutBuildingCommand.self,
             [
                 "test-without-building",
+                "--shard-index",
+                "0",
                 "-testProductsPath",
                 testProductsPath.pathString,
                 "-destination",
@@ -690,7 +693,9 @@ struct XcodeBuildArchiveCommandAcceptanceTests {
             ]
         )
     }
+}
 
+struct XcodeBuildArchiveCommandAcceptanceTests {
     @Test(
         .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
