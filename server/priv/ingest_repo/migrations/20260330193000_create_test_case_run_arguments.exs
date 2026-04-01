@@ -5,8 +5,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunArguments do
     create table(:test_case_run_arguments,
              primary_key: false,
              engine: "MergeTree",
-             options:
-               "PARTITION BY toYYYYMM(inserted_at) ORDER BY (test_case_run_id, id)"
+             options: "PARTITION BY toYYYYMM(inserted_at) ORDER BY (test_case_run_id, id)"
            ) do
       add :id, :uuid, null: false
       add :test_case_run_id, :uuid, null: false

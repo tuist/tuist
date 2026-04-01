@@ -39,11 +39,11 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunByShardId
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
-  alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
@@ -1101,8 +1101,7 @@ defmodule Tuist.Tests do
       create_test_cases(test.project_id, test_case_data_list, existing_test_cases)
 
     {test_case_runs, all_failures, all_repetitions, all_arguments} =
-      Enum.reduce(test_cases, {[], [], [], []}, fn case_attrs,
-                                                    {runs_acc, failures_acc, reps_acc, args_acc} ->
+      Enum.reduce(test_cases, {[], [], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc, args_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)

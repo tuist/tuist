@@ -597,10 +597,19 @@
                         <.chevron_up />
                       </.neutral_button>
                     </div>
-                    <div id={"arg-body-#{argument.id}"} data-part="argument-body" style="display:none">
+                    <div
+                      id={"arg-body-#{argument.id}"}
+                      data-part="argument-body"
+                      style="display:none"
+                    >
                       <div :if={Enum.any?(argument.repetitions)} data-part="repetitions">
                         <div
-                          :for={{repetition, rep_index} <- Enum.with_index(Enum.sort_by(argument.repetitions, & &1.repetition_number))}
+                          :for={
+                            {repetition, rep_index} <-
+                              Enum.with_index(
+                                Enum.sort_by(argument.repetitions, & &1.repetition_number)
+                              )
+                          }
                           data-part="repetition-wrapper"
                         >
                           <div data-part="repetition-item">

@@ -25,7 +25,16 @@ defmodule Tuist.Tests.TestCaseRunRepetition do
 
   def create_changeset(repetition, attrs) do
     repetition
-    |> cast(attrs, [:id, :test_case_run_id, :test_case_run_argument_id, :repetition_number, :name, :status, :duration, :inserted_at])
+    |> cast(attrs, [
+      :id,
+      :test_case_run_id,
+      :test_case_run_argument_id,
+      :repetition_number,
+      :name,
+      :status,
+      :duration,
+      :inserted_at
+    ])
     |> validate_required([:id, :test_case_run_id, :repetition_number, :name, :status])
     |> validate_inclusion(:status, ["success", "failure"])
   end

@@ -421,7 +421,8 @@ defmodule TuistWeb.API.TestsController do
                        },
                        arguments: %Schema{
                          type: :array,
-                         description: "The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).",
+                         description:
+                           "The argument variants for parameterized tests (Swift Testing @Test with arguments, JUnit5 @ParameterizedTest).",
                          items: %Schema{
                            type: :object,
                            properties: %{
@@ -446,7 +447,10 @@ defmodule TuistWeb.API.TestsController do
                                  properties: %{
                                    message: %Schema{type: :string, description: "The failure message."},
                                    path: %Schema{type: :string, description: "The file path where the failure occurred."},
-                                   line_number: %Schema{type: :integer, description: "The line number where the failure occurred."},
+                                   line_number: %Schema{
+                                     type: :integer,
+                                     description: "The line number where the failure occurred."
+                                   },
                                    issue_type: %Schema{
                                      type: :string,
                                      description: "The type of issue.",
@@ -462,9 +466,16 @@ defmodule TuistWeb.API.TestsController do
                                items: %Schema{
                                  type: :object,
                                  properties: %{
-                                   repetition_number: %Schema{type: :integer, description: "The repetition attempt number."},
+                                   repetition_number: %Schema{
+                                     type: :integer,
+                                     description: "The repetition attempt number."
+                                   },
                                    name: %Schema{type: :string, description: "The name of the repetition."},
-                                   status: %Schema{type: :string, description: "The status.", enum: ["success", "failure"]},
+                                   status: %Schema{
+                                     type: :string,
+                                     description: "The status.",
+                                     enum: ["success", "failure"]
+                                   },
                                    duration: %Schema{type: :integer, description: "The duration in milliseconds."}
                                  },
                                  required: [:repetition_number, :name, :status]
