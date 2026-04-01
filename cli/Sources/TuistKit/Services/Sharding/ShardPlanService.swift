@@ -189,14 +189,12 @@
         }
 
         /// Creates a compressed archive of the test products bundle, excluding files not needed for test execution
-        /// (dSYMs) to reduce upload size.
-        /// Note: .swiftmodule directories are preserved because acceptance tests may compile manifests
-        /// at runtime using ProjectDescription's compiler module from the shard bundle.
+        /// (dSYMs, .swiftmodule directories) to significantly reduce upload size.
         private func archiveXCTestProducts(_ xctestproductsPath: AbsolutePath, to archivePath: AbsolutePath) async throws {
             try await appleArchiver.compress(
                 directory: xctestproductsPath,
                 to: archivePath,
-                excludePatterns: [".dSYM"]
+                excludePatterns: [".dSYM", ".swiftmodule"]
             )
         }
     }
