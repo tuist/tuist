@@ -1141,20 +1141,7 @@ defmodule Tuist.Tests do
           shard_index: shard_index
         }
 
-        failures = Map.get(case_attrs, :failures, [])
-
-        test_case_failures =
-          Enum.map(failures, fn failure_attrs ->
-            %{
-              id: UUIDv7.generate(),
-              test_case_run_id: test_case_run_id,
-              message: Map.get(failure_attrs, :message),
-              path: Map.get(failure_attrs, :path),
-              line_number: Map.get(failure_attrs, :line_number),
-              issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
-              inserted_at: NaiveDateTime.utc_now()
-            }
-          end)
+        test_case_failures = build_failures(case_attrs, test_case_run_id)
 
         test_case_repetitions =
           Enum.map(repetitions, fn rep_attrs ->
@@ -1169,19 +1156,7 @@ defmodule Tuist.Tests do
             }
           end)
 
-        test_case_attachments =
-          case_attrs
-          |> Map.get(:attachments, [])
-          |> Enum.map(fn att_attrs ->
-            %{
-              id: Map.get(att_attrs, :attachment_id) || UUIDv7.generate(),
-              test_case_run_id: test_case_run_id,
-              test_run_id: test.id,
-              file_name: Map.get(att_attrs, :file_name),
-              repetition_number: Map.get(att_attrs, :repetition_number),
-              inserted_at: NaiveDateTime.utc_now()
-            }
-          end)
+        test_case_attachments = build_attachments(case_attrs, test_case_run_id, test.id)
 
         {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc,
          test_case_attachments ++ attachments_acc}
@@ -1203,6 +1178,37 @@ defmodule Tuist.Tests do
     create_first_run_events(test_case_runs, new_test_case_ids)
 
     {test_case_ids_with_flaky_run, test_case_runs}
+  end
+
+  defp build_failures(case_attrs, test_case_run_id) do
+    case_attrs
+    |> Map.get(:failures, [])
+    |> Enum.map(fn failure_attrs ->
+      %{
+        id: UUIDv7.generate(),
+        test_case_run_id: test_case_run_id,
+        message: Map.get(failure_attrs, :message),
+        path: Map.get(failure_attrs, :path),
+        line_number: Map.get(failure_attrs, :line_number),
+        issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
+        inserted_at: NaiveDateTime.utc_now()
+      }
+    end)
+  end
+
+  defp build_attachments(case_attrs, test_case_run_id, test_run_id) do
+    case_attrs
+    |> Map.get(:attachments, [])
+    |> Enum.map(fn att_attrs ->
+      %{
+        id: Map.get(att_attrs, :attachment_id) || UUIDv7.generate(),
+        test_case_run_id: test_case_run_id,
+        test_run_id: test_run_id,
+        file_name: Map.get(att_attrs, :file_name),
+        repetition_number: Map.get(att_attrs, :repetition_number),
+        inserted_at: NaiveDateTime.utc_now()
+      }
+    end)
   end
 
   defp create_first_run_events(test_case_runs, new_test_case_ids) do
