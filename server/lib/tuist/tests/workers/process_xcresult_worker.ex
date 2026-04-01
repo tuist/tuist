@@ -14,8 +14,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
           %{
             "test_run_id" => test_run_id,
             "storage_key" => storage_key,
-            "account_id" => account_id,
-            "project_id" => project_id
+            "account_id" => account_id
           } = args,
         attempt: attempt,
         max_attempts: max_attempts
