@@ -198,15 +198,15 @@ defmodule L10n.Lock do
   end
 
   @doc """
-  Writes a lock file with full context tree information.
+  Writes a lock file with the full dependency tree.
 
-  The lock includes:
-  - `hash`: composite hash for quick staleness checks
-  - `model`: the LLM model used for translation
-  - `translated_at`: ISO 8601 timestamp
-  - `source`: hash of the .pot file content
-  - `context_files`: list of L10N.md files with their individual hashes
-  - `locale_override_files`: list of per-locale override files with hashes
+  The lock represents the hash as a tree of inputs:
+  - `source`: the .pot file that was translated
+  - `context`: nested L10N.md chain (root -> child -> child), with
+    locale overrides attached to the deepest context node
+
+  This makes it easy to see exactly which files contributed to the
+  composite hash and why a re-translation was triggered.
   """
   def write!(lock_path, attrs) do
     lock_path |> Path.dirname() |> File.mkdir_p!()
@@ -216,15 +216,52 @@ defmodule L10n.Lock do
         "hash" => attrs.hash,
         "model" => attrs.model,
         "translated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
-        "source" => %{
-          "file" => attrs.source_file,
-          "hash" => attrs.source_hash
-        },
-        "context_files" => attrs.context_files,
-        "locale_override_files" => attrs.locale_override_files
+        "hash_tree" => %{
+          "source" => %{
+            "file" => attrs.source_file,
+            "hash" => attrs.source_hash
+          },
+          "context" => build_context_tree(attrs.context_files, attrs.locale_override_files)
+        }
       }
 
     File.write!(lock_path, pretty_json(data))
+  end
+
+  defp build_context_tree([], []), do: nil
+  defp build_context_tree([], _), do: nil
+
+  defp build_context_tree([root | rest], locale_override_files) do
+    node = %{
+      "file" => root["path"],
+      "hash" => root["hash"]
+    }
+
+    case rest do
+      [] ->
+        maybe_attach_overrides(node, locale_override_files)
+
+      _ ->
+        child = build_context_tree(rest, locale_override_files)
+        Map.put(node, "child", child)
+    end
+  end
+
+  defp maybe_attach_overrides(node, []), do: node
+
+  defp maybe_attach_overrides(node, override_files) do
+    override_tree = build_override_tree(override_files)
+    Map.put(node, "locale_override", override_tree)
+  end
+
+  defp build_override_tree([single]), do: %{"file" => single["path"], "hash" => single["hash"]}
+
+  defp build_override_tree([first | rest]) do
+    %{
+      "file" => first["path"],
+      "hash" => first["hash"],
+      "child" => build_override_tree(rest)
+    }
   end
 
   defp read(path) do

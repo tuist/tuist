@@ -15,7 +15,7 @@ msgstr "%{hit_rate}%"
 #: lib/tuist_web/live/build_run_live.ex:636
 #, elixir-autogen, elixir-format
 msgid "%{message} in %{link}"
-msgstr "%{message} 于 %{link}"
+msgstr "%{message} 在 %{link}"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:213
 #, elixir-autogen, elixir-format
@@ -87,7 +87,7 @@ msgstr "构建运行"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "构建运行"
+msgstr "构建运行列表"
 
 #: lib/tuist_web/live/build_run_live.ex:884
 #: lib/tuist_web/live/build_run_live.html.heex:262
@@ -125,7 +125,7 @@ msgstr "构建："
 #: lib/tuist_web/components/runs/module_cache_tab.ex:335
 #, elixir-autogen, elixir-format
 msgid "Buildable folders"
-msgstr "可构建的文件夹"
+msgstr "可构建文件夹"
 
 #: lib/tuist_web/live/builds_live.ex:15
 #: lib/tuist_web/live/xcode_builds_live.html.heex:3
@@ -146,7 +146,7 @@ msgstr "构建者"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:241
 #, elixir-autogen, elixir-format
 msgid "Bundle ID"
-msgstr "Bundle ID"
+msgstr "包 ID"
 
 #: lib/tuist_web/live/build_run_live.html.heex:902
 #, elixir-autogen, elixir-format
@@ -253,12 +253,12 @@ msgstr "未在缓存中找到的可缓存任务。"
 #: lib/tuist_web/live/build_run_live.html.heex:835
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "从缓存（本地+远程）中检索到的可缓存任务。"
+msgstr "从缓存（本地 + 远程）中检索到的可缓存任务。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1297
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks will appear here when using Tuist cache"
-msgstr "使用 Tuist 缓存时，可缓存任务将显示在此处"
+msgstr "使用 Tuist 缓存时，可缓存任务会显示在此处"
 
 #: lib/tuist_web/live/build_run_live.html.heex:920
 #, elixir-autogen, elixir-format
@@ -277,7 +277,7 @@ msgstr "类别"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Clean"
-msgstr "清理"
+msgstr "干净的"
 
 #: lib/tuist_web/live/build_run_live.html.heex:203
 #: lib/tuist_web/live/generate_runs_live.ex:258
@@ -368,7 +368,7 @@ msgstr "部署目标"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:247
 #, elixir-autogen, elixir-format
 msgid "Destinations"
-msgstr "目标设备"
+msgstr "目标"
 
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:193
 #: lib/tuist_web/live/xcode_builds_live.ex:337
@@ -409,7 +409,7 @@ msgstr "持续时间"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:311
 #, elixir-autogen, elixir-format
 msgid "Entitlements"
-msgstr "权限设置"
+msgstr "权限"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:289
 #, elixir-autogen, elixir-format
@@ -432,7 +432,7 @@ msgstr "错误"
 #: lib/tuist_web/live/build_run_live.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Errors and Warnings"
-msgstr "错误和警告"
+msgstr "错误与警告"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:256
 #, elixir-autogen, elixir-format
@@ -483,7 +483,7 @@ msgstr "编译资源目录 %{path} 失败"
 #: lib/tuist_web/live/build_run_live.ex:673
 #, elixir-autogen, elixir-format
 msgid "Failed compiling storyboard %{path}"
-msgstr "编译故事板 %{path} 失败"
+msgstr "编译 storyboard %{path} 失败"
 
 #: lib/tuist_web/live/build_run_live.ex:667
 #, elixir-autogen, elixir-format
@@ -513,7 +513,7 @@ msgstr "链接 %{path} 失败"
 #: lib/tuist_web/live/build_run_live.ex:679
 #, elixir-autogen, elixir-format
 msgid "Failed linking storyboards %{path}"
-msgstr "链接故事板 %{path} 失败"
+msgstr "链接 storyboard %{path} 失败"
 
 #: lib/tuist_web/live/build_run_live.ex:685
 #, elixir-autogen, elixir-format
@@ -523,7 +523,7 @@ msgstr "合并 Swift 模块 %{path} 失败"
 #: lib/tuist_web/live/build_run_live.ex:694
 #, elixir-autogen, elixir-format
 msgid "Failed precompiling bridging header %{path}"
-msgstr "预编译桥接头文件 %{path} 失败"
+msgstr "预编译 bridging header %{path} 失败"
 
 #: lib/tuist_web/live/build_run_live.ex:706
 #, elixir-autogen, elixir-format
@@ -538,7 +538,7 @@ msgstr "验证 %{path} 失败"
 #: lib/tuist_web/live/build_run_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "Failed validating embedded binary %{path}"
-msgstr "验证嵌入的二进制文件 %{path} 失败"
+msgstr "验证嵌入式二进制文件 %{path} 失败"
 
 #: lib/tuist_web/live/build_run_live.ex:676
 #, elixir-autogen, elixir-format
@@ -556,7 +556,7 @@ msgstr "文件"
 #: lib/tuist_web/live/build_run_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "File Breakdown"
-msgstr "文件细分"
+msgstr "文件拆解"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:136
 #: lib/tuist_web/live/build_run_live.html.heex:502
@@ -567,7 +567,7 @@ msgstr "文件细分"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "Filter"
-msgstr "筛选"
+msgstr "过滤"
 
 #: lib/tuist_web/live/generate_runs_live.html.heex:3
 #: lib/tuist_web/live/run_detail_live.html.heex:30
@@ -640,7 +640,7 @@ msgstr "本地"
 #: lib/tuist_web/live/build_run_live.html.heex:818
 #, elixir-autogen, elixir-format
 msgid "Looks like you're having a great day!"
-msgstr "看起来你今天心情不错！"
+msgstr "看起来你今天过得很愉快！"
 
 #: lib/tuist_web/live/build_run_live.html.heex:211
 #, elixir-autogen, elixir-format
@@ -701,7 +701,7 @@ msgstr "未找到可缓存任务"
 #: lib/tuist_web/live/build_run_live.html.heex:1456
 #, elixir-autogen, elixir-format
 msgid "No data"
-msgstr "暂无数据"
+msgstr "无数据"
 
 #: lib/tuist_web/live/generate_runs_live.html.heex:131
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:215
@@ -763,12 +763,12 @@ msgstr "概览"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:856
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "成功"
+msgstr "通过"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:62
 #, elixir-autogen, elixir-format
 msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "成功从缓存中检索到的模块百分比。"
+msgstr "成功从缓存检索的模块百分比。"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:230
 #, elixir-autogen, elixir-format
@@ -802,12 +802,12 @@ msgstr "项目设置"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:893
 #, elixir-autogen, elixir-format
 msgid "Ran at"
-msgstr "运行于"
+msgstr "运行时间"
 
-#: lib/tuist_web/live/generate_runs_live.ex:313
+#: lib/tuist_web/live/generate_runs_live.ex:314
 #: lib/tuist_web/live/generate_runs_live.html.heex:87
 #: lib/tuist_web/live/run_detail_live.html.heex:150
-#: lib/tuist_web/live/xcode_build_runs_live.ex:304
+#: lib/tuist_web/live/xcode_build_runs_live.ex:305
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:130
 #: lib/tuist_web/live/xcode_builds_live.html.heex:873
 #, elixir-autogen, elixir-format
@@ -817,7 +817,7 @@ msgstr "运行者"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:739
 #, elixir-autogen, elixir-format
 msgid "Recent Builds"
-msgstr "最近构建"
+msgstr "近期构建"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:174
 #: lib/tuist_web/components/runs/module_cache_tab.ex:429
@@ -881,7 +881,7 @@ msgstr "选择性测试命中"
 #: lib/tuist_web/live/run_detail_live.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
-msgstr "选择性测试命中表示由于选择性测试而跳过的测试模块数量。"
+msgstr "选择性测试命中表示因选择性测试而跳过的测试模块数量。"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:244
 #, elixir-autogen, elixir-format
@@ -891,7 +891,7 @@ msgstr "选择性测试未命中"
 #: lib/tuist_web/live/run_detail_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-msgstr "选择性测试未命中表示之前未成功运行而被执行的测试模块数量。"
+msgstr "选择性测试未命中表示之前未成功运行而现在执行的测试模块数量。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1476
 #: lib/tuist_web/live/build_run_live.html.heex:1496
@@ -1005,7 +1005,7 @@ msgstr "测试：%{scheme}"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "具有各百分位区间的平均构建时长。"
+msgstr "带有各单独百分位区间的平均构建时长。"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:232
 #, elixir-autogen, elixir-format
@@ -1020,7 +1020,7 @@ msgstr "成功构建的百分比。"
 #: lib/tuist_web/live/build_run_live.html.heex:857
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "可缓存任务中被缓存命中（本地+远程）的百分比。"
+msgstr "可缓存任务中命中缓存（本地 + 远程）的百分比。"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:195
 #, elixir-autogen, elixir-format
@@ -1040,17 +1040,17 @@ msgstr "写入唯一标识可缓存任务的缓存键到缓存所需时间。"
 #: lib/tuist_web/live/build_run_live.html.heex:1427
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput in megabits per second."
-msgstr "按时间加权的平均下载吞吐量，单位为兆比特每秒。"
+msgstr "按时间加权的平均下载吞吐量，以兆位每秒计。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1444
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average upload throughput in megabits per second."
-msgstr "按时间加权的平均上传吞吐量，单位为兆比特每秒。"
+msgstr "按时间加权的平均上传吞吐量，以兆位每秒计。"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Total builds"
-msgstr "构建总数"
+msgstr "总构建"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:219
 #, elixir-autogen, elixir-format
@@ -1060,7 +1060,7 @@ msgstr "模块总数"
 #: lib/tuist_web/live/run_detail_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "Total modules represents the total number of testable modules."
-msgstr "模块总数代表可测试模块的总数。"
+msgstr "模块总数表示可测试模块的总数量。"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:37
 #, elixir-autogen, elixir-format
@@ -1070,29 +1070,29 @@ msgstr "从本地或远程缓存中获取的模块总数。"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:51
 #, elixir-autogen, elixir-format
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
-msgstr "若缓存已完全填充，可从缓存中获取的模块总数。"
+msgstr "如果缓存已完全填充，可能从缓存中获取的模块总数。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:880
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded."
-msgstr "下载的缓存工件总大小。"
+msgstr "缓存工件下载的总大小。"
 
 #: lib/tuist_web/live/build_run_live.html.heex:888
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded."
-msgstr "上传的缓存工件总大小。"
+msgstr "缓存工件上传的总大小。"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:204
 #: lib/tuist_web/live/run_detail_live.html.heex:321
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
-msgstr "尝试更改您的搜索词"
+msgstr "尝试更改搜索词"
 
 #: lib/tuist_web/live/build_run_live.html.heex:587
 #: lib/tuist_web/live/build_run_live.html.heex:723
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
-msgstr "尝试更新您的搜索"
+msgstr "尝试更新搜索内容"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:186
 #, elixir-autogen, elixir-format
@@ -1180,7 +1180,7 @@ msgstr "编译资源目录 %{path} 时警告"
 #: lib/tuist_web/live/build_run_live.ex:731
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling storyboard %{path}"
-msgstr "编译故事板 %{path} 时警告"
+msgstr "编译 storyboard %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:725
 #, elixir-autogen, elixir-format
@@ -1210,7 +1210,7 @@ msgstr "链接 %{path} 时警告"
 #: lib/tuist_web/live/build_run_live.ex:737
 #, elixir-autogen, elixir-format
 msgid "Warning when linking storyboards %{path}"
-msgstr "链接故事板 %{path} 时警告"
+msgstr "链接 storyboard %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:743
 #, elixir-autogen, elixir-format
@@ -1220,7 +1220,7 @@ msgstr "合并 Swift 模块 %{path} 时警告"
 #: lib/tuist_web/live/build_run_live.ex:752
 #, elixir-autogen, elixir-format
 msgid "Warning when precompiling bridging header %{path}"
-msgstr "预编译桥接头文件 %{path} 时警告"
+msgstr "预编译 bridging header %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:764
 #, elixir-autogen, elixir-format
@@ -1235,7 +1235,7 @@ msgstr "验证 %{path} 时警告"
 #: lib/tuist_web/live/build_run_live.ex:755
 #, elixir-autogen, elixir-format
 msgid "Warning when validating embedded binary %{path}"
-msgstr "验证嵌入的二进制文件 %{path} 时警告"
+msgstr "验证嵌入式二进制文件 %{path} 时警告"
 
 #: lib/tuist_web/live/build_run_live.ex:734
 #, elixir-autogen, elixir-format
@@ -1431,7 +1431,7 @@ msgstr "自定义元数据"
 #: lib/tuist_web/live/generate_runs_live.ex:21
 #, elixir-autogen, elixir-format
 msgid "Generations"
-msgstr "版本"
+msgstr "世代"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:12
 #, elixir-autogen, elixir-format
@@ -1486,7 +1486,7 @@ msgstr "刷新"
 #: lib/tuist_web/live/build_run_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "这通常需要几秒钟。如果页面没有自动更新，请点击刷新按钮。"
+msgstr "这通常需要几秒钟。如果页面未自动更新，请点击刷新按钮。"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:74
 #, elixir-autogen, elixir-format

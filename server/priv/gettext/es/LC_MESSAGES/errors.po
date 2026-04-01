@@ -15,9 +15,9 @@ msgstr "Página no encontrada"
 #: lib/tuist_web/controllers/build_controller.ex:33
 #, elixir-autogen, elixir-format
 msgid "Build not found"
-msgstr "Compilación no encontrada"
+msgstr "Build no encontrado"
 
 #: lib/tuist_web/controllers/build_controller.ex:29
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to access this build"
-msgstr "No está autorizado para acceder a esta compilación"
+msgstr "No está autorizado para acceder a este build"

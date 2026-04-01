@@ -9,12 +9,12 @@
       "path": "L10N.md"
     }
   ],
-  "hash": "405fe8b415f9e07f775092eb247748f3a05536520f15cd39f2c4464dcf396763",
+  "hash": "04dfd1a9356d8e4906f07f6897b17f6699fdb50d7847f33add9e464ff100c171",
   "locale_override_files": [],
   "model": "openai:gpt-4.1-mini",
   "source": {
     "file": "server/priv/gettext/dashboard_cache.pot",
-    "hash": "c875e3cee80fbf6bd69dd88e8aa2ce556d6cb46d8ca2bf9e01e92334613759e5"
+    "hash": "50680616da3b4e0b246034441450e91e8c32afbf5c22fede4737328507b35dee"
   },
-  "translated_at": "2026-03-31T16:53:00.576049Z"
+  "translated_at": "2026-04-01T07:46:23.153895Z"
 }

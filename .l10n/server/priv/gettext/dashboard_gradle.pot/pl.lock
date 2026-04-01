@@ -9,12 +9,12 @@
       "path": "L10N.md"
     }
   ],
-  "hash": "e94c98e49369bcd5eca94c7a4580252a29bf9fd59bd2677e1a6142cd0b018028",
+  "hash": "4f0bea089668416a7af0350a0aa4dec3b7e7f56c3869dcb032515480c6316372",
   "locale_override_files": [],
   "model": "openai:gpt-4.1-mini",
   "source": {
     "file": "server/priv/gettext/dashboard_gradle.pot",
-    "hash": "bc500d3fa3d1ce5f4191b09dce2596fee3e1be91db12d89e6e1cb43dce03aff8"
+    "hash": "7369118411bc35739269806e4e1d7c68c37bfd3c6fe728a030d62cd19fdfb537"
   },
-  "translated_at": "2026-03-31T16:57:56.633166Z"
+  "translated_at": "2026-04-01T07:37:33.346725Z"
 }
