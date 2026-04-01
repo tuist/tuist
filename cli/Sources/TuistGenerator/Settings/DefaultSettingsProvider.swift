@@ -89,7 +89,11 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
         ],
     ]
 
-    public init() {}
+    private let defaultSwiftVersion: String
+
+    public init(defaultSwiftVersion: String = "5") {
+        self.defaultSwiftVersion = defaultSwiftVersion
+    }
 
     // MARK: - DefaultSettingsProviding
 
@@ -262,7 +266,7 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
         // at the project level and it automatically applying to all targets without it getting
         // overwritten.
         if project.settings.base["SWIFT_VERSION"] == nil {
-            settings["SWIFT_VERSION"] = "5.0"
+            settings["SWIFT_VERSION"] = .string(defaultSwiftVersion)
         }
         return settings
     }
