@@ -1,455 +1,442 @@
-if Code.ensure_loaded?(Phoenix) do
-  defmodule TuistCommon.PromExPhoenixPlugin do
-    @moduledoc """
-    Shared Phoenix PromEx plugin for Tuist services.
+defmodule TuistCommon.PromExPhoenixPlugin do
+  @moduledoc """
+  Shared Phoenix PromEx plugin for Tuist services.
 
-    It mirrors `PromEx.Plugins.Phoenix` but excludes the `host` label from HTTP
-    metrics by default to avoid high-cardinality series from arbitrary request
-    hosts and preview/custom domains.
-    """
+  It mirrors `PromEx.Plugins.Phoenix` but excludes the `host` label from HTTP
+  metrics by default to avoid high-cardinality series from arbitrary request
+  hosts and preview/custom domains.
+  """
 
-    use PromEx.Plugin
+  use PromEx.Plugin
 
-    require Logger
+  require Logger
 
-    alias Phoenix.Socket
-    alias Plug.Conn
-    alias PromEx.Utils
+  alias Phoenix.Socket
+  alias Plug.Conn
+  alias PromEx.Utils
 
-    @stop_event [:prom_ex, :plugin, :phoenix, :stop]
-    @init_event [:phoenix, :endpoint, :init]
+  @stop_event [:prom_ex, :plugin, :phoenix, :stop]
+  @init_event [:phoenix, :endpoint, :init]
 
-    @impl true
-    def event_metrics(opts) do
-      otp_app = Keyword.fetch!(opts, :otp_app)
-      metric_prefix = Keyword.get(opts, :metric_prefix, PromEx.metric_prefix(otp_app, :phoenix))
-      phoenix_event_prefixes = fetch_event_prefixes!(opts)
-      duration_unit = Keyword.get(opts, :duration_unit, :millisecond)
-      normalize_event_name = Keyword.get(opts, :normalize_event_name, fn event -> event end)
+  @impl true
+  def event_metrics(opts) do
+    otp_app = Keyword.fetch!(opts, :otp_app)
+    metric_prefix = Keyword.get(opts, :metric_prefix, PromEx.metric_prefix(otp_app, :phoenix))
+    phoenix_event_prefixes = fetch_event_prefixes!(opts)
+    duration_unit = Keyword.get(opts, :duration_unit, :millisecond)
+    normalize_event_name = Keyword.get(opts, :normalize_event_name, fn event -> event end)
 
-      set_up_telemetry_proxy(phoenix_event_prefixes)
+    set_up_telemetry_proxy(phoenix_event_prefixes)
 
+    [
+      endpoint_info(metric_prefix, opts),
+      http_events(metric_prefix, opts),
+      channel_events(metric_prefix, duration_unit, normalize_event_name),
+      socket_events(metric_prefix, duration_unit)
+    ]
+  end
+
+  def default_http_metric_tags(
+        status_tag \\ :status,
+        include_host_tag \\ false,
+        include_controller_action_tags \\ true
+      ) do
+    base_tags =
+      if include_controller_action_tags do
+        [status_tag, :method, :path, :controller, :action]
+      else
+        [status_tag, :method, :path]
+      end
+
+    if include_host_tag, do: base_tags ++ [:host], else: base_tags
+  end
+
+  defp endpoint_info(metric_prefix, opts) do
+    phoenix_endpoints = normalize_endpoint(opts)
+    keep_function_filter = keep_endpoint_metrics(phoenix_endpoints)
+
+    Event.build(
+      :phoenix_endpoint_metrics,
       [
-        endpoint_info(metric_prefix, opts),
-        http_events(metric_prefix, opts),
-        channel_events(metric_prefix, duration_unit, normalize_event_name),
-        socket_events(metric_prefix, duration_unit)
+        last_value(
+          metric_prefix ++ [:endpoint, :url, :info],
+          event_name: @init_event,
+          description: "The configured URL of the Endpoint module.",
+          measurement: fn _measurements -> 1 end,
+          tag_values: &phoenix_init_tag_values/1,
+          tags: [:url, :endpoint],
+          keep: keep_function_filter
+        ),
+        last_value(
+          metric_prefix ++ [:endpoint, :port, :info],
+          event_name: @init_event,
+          description: "The configured port of the Endpoint module.",
+          measurement: fn _measurements -> 1 end,
+          tag_values: &phoenix_init_tag_values/1,
+          tags: [:port, :endpoint],
+          keep: keep_function_filter
+        )
       ]
-    end
+    )
+  end
 
-    def default_http_metric_tags(
-          status_tag \\ :status,
-          include_host_tag \\ false,
-          include_controller_action_tags \\ true
-        ) do
-      base_tags =
-        if include_controller_action_tags do
-          [status_tag, :method, :path, :controller, :action]
-        else
-          [status_tag, :method, :path]
-        end
+  defp normalize_endpoint(opts) do
+    cond do
+      endpoint = Keyword.get(opts, :endpoint) ->
+        [endpoint]
 
-      if include_host_tag, do: base_tags ++ [:host], else: base_tags
-    end
+      endpoints = Keyword.get(opts, :endpoints) ->
+        Enum.map(endpoints, fn {endpoint, _settings} ->
+          endpoint
+        end)
 
-    defp endpoint_info(metric_prefix, opts) do
-      phoenix_endpoints = normalize_endpoint(opts)
-      keep_function_filter = keep_endpoint_metrics(phoenix_endpoints)
-
-      Event.build(
-        :phoenix_endpoint_metrics,
-        [
-          last_value(
-            metric_prefix ++ [:endpoint, :url, :info],
-            event_name: @init_event,
-            description: "The configured URL of the Endpoint module.",
-            measurement: fn _measurements -> 1 end,
-            tag_values: &phoenix_init_tag_values/1,
-            tags: [:url, :endpoint],
-            keep: keep_function_filter
-          ),
-          last_value(
-            metric_prefix ++ [:endpoint, :port, :info],
-            event_name: @init_event,
-            description: "The configured port of the Endpoint module.",
-            measurement: fn _measurements -> 1 end,
-            tag_values: &phoenix_init_tag_values/1,
-            tags: [:port, :endpoint],
-            keep: keep_function_filter
-          )
-        ]
-      )
-    end
-
-    defp normalize_endpoint(opts) do
-      cond do
-        endpoint = Keyword.get(opts, :endpoint) ->
-          [endpoint]
-
-        endpoints = Keyword.get(opts, :endpoints) ->
-          Enum.map(endpoints, fn {endpoint, _settings} ->
-            endpoint
-          end)
-
-        true ->
-          []
-      end
-    end
-
-    defp keep_endpoint_metrics(phoenix_endpoints) do
-      fn %{module: module} ->
-        module in phoenix_endpoints
-      end
-    end
-
-    defp phoenix_init_tag_values(%{config: config, module: module}) do
-      port =
-        cond do
-          Keyword.has_key?(config, :http) and config[:http][:port] ->
-            config[:http][:port]
-
-          Keyword.has_key?(config, :https) and config[:https][:port] ->
-            config[:https][:port]
-
-          true ->
-            "Unknown"
-        end
-
-      %{
-        endpoint: normalize_module_name(module),
-        url: module.url(),
-        port: port
-      }
-    end
-
-    defp http_events(metric_prefix, opts) do
-      routers = fetch_routers!(opts)
-      additional_routes = fetch_additional_routes!(opts)
-      status_tag = Keyword.get(opts, :http_status_tag, :status)
-      include_controller_action_tags = Keyword.get(opts, :include_controller_action_tags, true)
-
-      http_metrics_tags =
-        default_http_metric_tags(
-          status_tag,
-          Keyword.get(opts, :include_host_tag, false),
-          include_controller_action_tags
-        )
-
-      duration_unit = Keyword.get(opts, :duration_unit, :millisecond)
-      duration_unit_plural = Utils.make_plural_atom(duration_unit)
-
-      Event.build(
-        :phoenix_http_event_metrics,
-        [
-          distribution(
-            metric_prefix ++ [:http, :request, :duration, duration_unit_plural],
-            event_name: @stop_event,
-            measurement: :duration,
-            description: "The time it takes for the application to respond to HTTP requests.",
-            reporter_options: [
-              buckets: [10, 100, 500, 1_000, 5_000, 10_000, 30_000]
-            ],
-            tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
-            tags: http_metrics_tags,
-            unit: {:native, duration_unit}
-          ),
-          distribution(
-            metric_prefix ++ [:http, :response, :size, :bytes],
-            event_name: @stop_event,
-            description: "The size of the HTTP response payload.",
-            reporter_options: [
-              buckets: [64, 512, 4_096, 65_536, 262_144, 1_048_576, 4_194_304, 16_777_216]
-            ],
-            measurement: fn _measurements, metadata ->
-              case metadata.conn.resp_body do
-                nil -> 0
-                _ -> :erlang.iolist_size(metadata.conn.resp_body)
-              end
-            end,
-            tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
-            tags: http_metrics_tags,
-            unit: :byte
-          ),
-          counter(
-            metric_prefix ++ [:http, :requests, :total],
-            event_name: @stop_event,
-            description: "The number of requests have been serviced.",
-            tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
-            tags: http_metrics_tags
-          )
-        ]
-      )
-    end
-
-    defp channel_events(metric_prefix, duration_unit, normalize_event_name) do
-      duration_unit_plural = Utils.make_plural_atom(duration_unit)
-
-      Event.build(
-        :phoenix_channel_event_metrics,
-        [
-          counter(
-            metric_prefix ++ [:channel, :joined, :total],
-            event_name: [:phoenix, :channel_joined],
-            description: "The number of channel joins that have occurred.",
-            tag_values: fn %{
-                             result: result,
-                             socket: %Socket{transport: transport, endpoint: endpoint}
-                           } ->
-              %{
-                transport: transport,
-                result: result,
-                endpoint: normalize_module_name(endpoint)
-              }
-            end,
-            tags: [:result, :transport, :endpoint]
-          ),
-          distribution(
-            metric_prefix ++ [:channel, :handled_in, :duration, duration_unit_plural],
-            event_name: [:phoenix, :channel_handled_in],
-            measurement: :duration,
-            description: "The time it takes for the application to respond to channel messages.",
-            reporter_options: [
-              buckets: [10, 100, 500, 1_000, 5_000, 10_000]
-            ],
-            tag_values: fn %{socket: %Socket{endpoint: endpoint, handler: handler}, event: event} ->
-              %{
-                endpoint: normalize_module_name(endpoint),
-                event: normalize_event_name.(event),
-                handler: normalize_module_name(handler)
-              }
-            end,
-            tags: [:endpoint, :handler, :event],
-            unit: {:native, duration_unit}
-          )
-        ]
-      )
-    end
-
-    defp socket_events(metric_prefix, duration_unit) do
-      duration_unit_plural = Utils.make_plural_atom(duration_unit)
-
-      Event.build(
-        :phoenix_socket_event_metrics,
-        [
-          distribution(
-            metric_prefix ++ [:socket, :connected, :duration, duration_unit_plural],
-            event_name: [:phoenix, :socket_connected],
-            measurement: :duration,
-            description:
-              "The time it takes for the application to establish a socket connection.",
-            reporter_options: [
-              buckets: [10, 100, 500, 1_000, 5_000, 10_000]
-            ],
-            tag_values: fn %{result: result, endpoint: endpoint, transport: transport} ->
-              %{
-                transport: transport,
-                result: result,
-                endpoint: normalize_module_name(endpoint)
-              }
-            end,
-            tags: [:result, :transport, :endpoint],
-            unit: {:native, duration_unit}
-          )
-        ]
-      )
-    end
-
-    defp get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag) do
-      fn
-        %{conn: %Conn{} = conn} ->
-          default_route_tags = default_route_tags(conn, additional_routes)
-
-          conn
-          |> do_get_router_info(routers, default_route_tags)
-          |> Map.merge(http_status_tags(conn.status, status_tag))
-          |> Map.put(:method, conn.method)
-          |> maybe_put_host(conn.host, http_metrics_tags)
-          |> Map.take(http_metrics_tags)
-
-        _ ->
-          Logger.warning("Could not resolve path for request")
-      end
-    end
-
-    defp http_status_tags(status, :status) do
-      %{status: status}
-    end
-
-    defp http_status_tags(status, :status_class) do
-      %{status_class: status_class(status)}
-    end
-
-    defp status_class(status) when is_integer(status) and status >= 100 do
-      "#{div(status, 100)}xx"
-    end
-
-    defp status_class(_status), do: "unknown"
-
-    defp default_route_tags(_conn, []),
-      do: %{path: "Unknown", controller: "Unknown", action: "Unknown"}
-
-    defp default_route_tags(conn, additional_routes),
-      do: handle_additional_routes_check(conn, additional_routes)
-
-    defp maybe_put_host(tags, host, http_metrics_tags) do
-      if :host in http_metrics_tags, do: Map.put(tags, :host, host), else: tags
-    end
-
-    defp do_get_router_info(conn, routers, default_route_tags) do
-      routers
-      |> Enum.find_value(default_route_tags, fn router ->
-        case Phoenix.Router.route_info(router, conn.method, conn.request_path, conn.host) do
-          :error ->
-            false
-
-          %{route: path, plug: controller, plug_opts: action} ->
-            %{
-              path: path,
-              controller: normalize_module_name(controller),
-              action: normalize_action(action)
-            }
-        end
-      end)
-    end
-
-    defp handle_additional_routes_check(%Conn{request_path: request_path}, additional_routes) do
-      default_tags = %{
-        path: "Unknown",
-        controller: "Unknown",
-        action: "Unknown"
-      }
-
-      additional_routes
-      |> Enum.find_value(default_tags, fn {path_label, route_check} ->
-        cond do
-          is_binary(route_check) and route_check == request_path ->
-            %{
-              path: path_label,
-              controller: "NA",
-              action: "NA"
-            }
-
-          match?(%Regex{}, route_check) and Regex.match?(route_check, request_path) ->
-            %{
-              path: path_label,
-              controller: "NA",
-              action: "NA"
-            }
-
-          true ->
-            false
-        end
-      end)
-    end
-
-    defp set_up_telemetry_proxy(phoenix_event_prefixes) do
-      phoenix_event_prefixes
-      |> Enum.each(fn telemetry_prefix ->
-        stop_event = telemetry_prefix ++ [:stop]
-
-        :telemetry.attach(
-          [:prom_ex, :phoenix, :proxy] ++ telemetry_prefix,
-          stop_event,
-          &__MODULE__.handle_proxy_phoenix_event/4,
-          %{}
-        )
-      end)
-    end
-
-    @doc false
-    def handle_proxy_phoenix_event(_event_name, event_measurement, event_metadata, _config) do
-      :telemetry.execute(@stop_event, event_measurement, event_metadata)
-    end
-
-    defp normalize_module_name(name) when is_atom(name) do
-      name
-      |> Atom.to_string()
-      |> String.trim_leading("Elixir.")
-    end
-
-    defp normalize_module_name(name) do
-      String.trim_leading(name, "Elixir.")
-    end
-
-    defp normalize_action(action) when is_atom(action), do: action
-    defp normalize_action(_action), do: "Unknown"
-
-    defp fetch_additional_routes!(opts) do
-      opts
-      |> fetch_either!(:router, :endpoints)
-      |> case do
-        endpoints when is_list(endpoints) ->
-          endpoints
-          |> Enum.flat_map(fn
-            {_endpoint, endpoint_opts} ->
-              Keyword.get(endpoint_opts, :additional_routes, [])
-          end)
-          |> MapSet.new()
-          |> MapSet.to_list()
-
-        _router ->
-          Keyword.get(opts, :additional_routes, [])
-      end
-    end
-
-    defp fetch_event_prefixes!(opts) do
-      opts
-      |> fetch_either!(:router, :endpoints)
-      |> case do
-        endpoints when is_list(endpoints) ->
-          endpoints
-          |> Enum.map(fn
-            {_endpoint, endpoint_opts} ->
-              Keyword.get(endpoint_opts, :event_prefix, [:phoenix, :endpoint])
-          end)
-
-        _router ->
-          [Keyword.get(opts, :event_prefix, [:phoenix, :endpoint])]
-      end
-      |> MapSet.new()
-      |> MapSet.to_list()
-    end
-
-    defp fetch_routers!(opts) do
-      opts
-      |> fetch_either!(:router, :endpoints)
-      |> case do
-        endpoints when is_list(endpoints) ->
-          endpoints
-          |> Enum.flat_map(fn
-            {_endpoint, endpoint_opts} ->
-              Keyword.fetch!(endpoint_opts, :routers)
-          end)
-          |> MapSet.new()
-          |> MapSet.to_list()
-
-        router ->
-          [router]
-      end
-    end
-
-    defp fetch_either!(keywordlist, key1, key2) do
-      case {Keyword.has_key?(keywordlist, key1), Keyword.has_key?(keywordlist, key2)} do
-        {true, _} ->
-          keywordlist[key1]
-
-        {false, true} ->
-          keywordlist[key2]
-
-        {false, false} ->
-          raise KeyError,
-                "Neither #{inspect(key1)} nor #{inspect(key2)} found in #{inspect(keywordlist)}"
-      end
+      true ->
+        []
     end
   end
-else
-  defmodule TuistCommon.PromExPhoenixPlugin do
-    @moduledoc false
-    use PromEx.Plugin
 
-    @impl true
-    def event_metrics(_opts) do
-      PromEx.Plugin.no_dep_raise(__MODULE__, "Phoenix")
+  defp keep_endpoint_metrics(phoenix_endpoints) do
+    fn %{module: module} ->
+      module in phoenix_endpoints
+    end
+  end
+
+  defp phoenix_init_tag_values(%{config: config, module: module}) do
+    port =
+      cond do
+        Keyword.has_key?(config, :http) and config[:http][:port] ->
+          config[:http][:port]
+
+        Keyword.has_key?(config, :https) and config[:https][:port] ->
+          config[:https][:port]
+
+        true ->
+          "Unknown"
+      end
+
+    %{
+      endpoint: normalize_module_name(module),
+      url: module.url(),
+      port: port
+    }
+  end
+
+  defp http_events(metric_prefix, opts) do
+    routers = fetch_routers!(opts)
+    additional_routes = fetch_additional_routes!(opts)
+    status_tag = Keyword.get(opts, :http_status_tag, :status)
+    include_controller_action_tags = Keyword.get(opts, :include_controller_action_tags, true)
+
+    http_metrics_tags =
+      default_http_metric_tags(
+        status_tag,
+        Keyword.get(opts, :include_host_tag, false),
+        include_controller_action_tags
+      )
+
+    duration_unit = Keyword.get(opts, :duration_unit, :millisecond)
+    duration_unit_plural = Utils.make_plural_atom(duration_unit)
+
+    Event.build(
+      :phoenix_http_event_metrics,
+      [
+        distribution(
+          metric_prefix ++ [:http, :request, :duration, duration_unit_plural],
+          event_name: @stop_event,
+          measurement: :duration,
+          description: "The time it takes for the application to respond to HTTP requests.",
+          reporter_options: [
+            buckets: [10, 100, 500, 1_000, 5_000, 10_000, 30_000]
+          ],
+          tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
+          tags: http_metrics_tags,
+          unit: {:native, duration_unit}
+        ),
+        distribution(
+          metric_prefix ++ [:http, :response, :size, :bytes],
+          event_name: @stop_event,
+          description: "The size of the HTTP response payload.",
+          reporter_options: [
+            buckets: [64, 512, 4_096, 65_536, 262_144, 1_048_576, 4_194_304, 16_777_216]
+          ],
+          measurement: fn _measurements, metadata ->
+            case metadata.conn.resp_body do
+              nil -> 0
+              _ -> :erlang.iolist_size(metadata.conn.resp_body)
+            end
+          end,
+          tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
+          tags: http_metrics_tags,
+          unit: :byte
+        ),
+        counter(
+          metric_prefix ++ [:http, :requests, :total],
+          event_name: @stop_event,
+          description: "The number of requests have been serviced.",
+          tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
+          tags: http_metrics_tags
+        )
+      ]
+    )
+  end
+
+  defp channel_events(metric_prefix, duration_unit, normalize_event_name) do
+    duration_unit_plural = Utils.make_plural_atom(duration_unit)
+
+    Event.build(
+      :phoenix_channel_event_metrics,
+      [
+        counter(
+          metric_prefix ++ [:channel, :joined, :total],
+          event_name: [:phoenix, :channel_joined],
+          description: "The number of channel joins that have occurred.",
+          tag_values: fn %{
+                           result: result,
+                           socket: %Socket{transport: transport, endpoint: endpoint}
+                         } ->
+            %{
+              transport: transport,
+              result: result,
+              endpoint: normalize_module_name(endpoint)
+            }
+          end,
+          tags: [:result, :transport, :endpoint]
+        ),
+        distribution(
+          metric_prefix ++ [:channel, :handled_in, :duration, duration_unit_plural],
+          event_name: [:phoenix, :channel_handled_in],
+          measurement: :duration,
+          description: "The time it takes for the application to respond to channel messages.",
+          reporter_options: [
+            buckets: [10, 100, 500, 1_000, 5_000, 10_000]
+          ],
+          tag_values: fn %{socket: %Socket{endpoint: endpoint, handler: handler}, event: event} ->
+            %{
+              endpoint: normalize_module_name(endpoint),
+              event: normalize_event_name.(event),
+              handler: normalize_module_name(handler)
+            }
+          end,
+          tags: [:endpoint, :handler, :event],
+          unit: {:native, duration_unit}
+        )
+      ]
+    )
+  end
+
+  defp socket_events(metric_prefix, duration_unit) do
+    duration_unit_plural = Utils.make_plural_atom(duration_unit)
+
+    Event.build(
+      :phoenix_socket_event_metrics,
+      [
+        distribution(
+          metric_prefix ++ [:socket, :connected, :duration, duration_unit_plural],
+          event_name: [:phoenix, :socket_connected],
+          measurement: :duration,
+          description: "The time it takes for the application to establish a socket connection.",
+          reporter_options: [
+            buckets: [10, 100, 500, 1_000, 5_000, 10_000]
+          ],
+          tag_values: fn %{result: result, endpoint: endpoint, transport: transport} ->
+            %{
+              transport: transport,
+              result: result,
+              endpoint: normalize_module_name(endpoint)
+            }
+          end,
+          tags: [:result, :transport, :endpoint],
+          unit: {:native, duration_unit}
+        )
+      ]
+    )
+  end
+
+  defp get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag) do
+    fn
+      %{conn: %Conn{} = conn} ->
+        default_route_tags = default_route_tags(conn, additional_routes)
+
+        conn
+        |> do_get_router_info(routers, default_route_tags)
+        |> Map.merge(http_status_tags(conn.status, status_tag))
+        |> Map.put(:method, conn.method)
+        |> maybe_put_host(conn.host, http_metrics_tags)
+        |> Map.take(http_metrics_tags)
+
+      _ ->
+        Logger.warning("Could not resolve path for request")
+    end
+  end
+
+  defp http_status_tags(status, :status) do
+    %{status: status}
+  end
+
+  defp http_status_tags(status, :status_class) do
+    %{status_class: status_class(status)}
+  end
+
+  defp status_class(status) when is_integer(status) and status >= 100 do
+    "#{div(status, 100)}xx"
+  end
+
+  defp status_class(_status), do: "unknown"
+
+  defp default_route_tags(_conn, []),
+    do: %{path: "Unknown", controller: "Unknown", action: "Unknown"}
+
+  defp default_route_tags(conn, additional_routes),
+    do: handle_additional_routes_check(conn, additional_routes)
+
+  defp maybe_put_host(tags, host, http_metrics_tags) do
+    if :host in http_metrics_tags, do: Map.put(tags, :host, host), else: tags
+  end
+
+  defp do_get_router_info(conn, routers, default_route_tags) do
+    routers
+    |> Enum.find_value(default_route_tags, fn router ->
+      case Phoenix.Router.route_info(router, conn.method, conn.request_path, conn.host) do
+        :error ->
+          false
+
+        %{route: path, plug: controller, plug_opts: action} ->
+          %{
+            path: path,
+            controller: normalize_module_name(controller),
+            action: normalize_action(action)
+          }
+      end
+    end)
+  end
+
+  defp handle_additional_routes_check(%Conn{request_path: request_path}, additional_routes) do
+    default_tags = %{
+      path: "Unknown",
+      controller: "Unknown",
+      action: "Unknown"
+    }
+
+    additional_routes
+    |> Enum.find_value(default_tags, fn {path_label, route_check} ->
+      cond do
+        is_binary(route_check) and route_check == request_path ->
+          %{
+            path: path_label,
+            controller: "NA",
+            action: "NA"
+          }
+
+        match?(%Regex{}, route_check) and Regex.match?(route_check, request_path) ->
+          %{
+            path: path_label,
+            controller: "NA",
+            action: "NA"
+          }
+
+        true ->
+          false
+      end
+    end)
+  end
+
+  defp set_up_telemetry_proxy(phoenix_event_prefixes) do
+    phoenix_event_prefixes
+    |> Enum.each(fn telemetry_prefix ->
+      stop_event = telemetry_prefix ++ [:stop]
+
+      :telemetry.attach(
+        [:prom_ex, :phoenix, :proxy] ++ telemetry_prefix,
+        stop_event,
+        &__MODULE__.handle_proxy_phoenix_event/4,
+        %{}
+      )
+    end)
+  end
+
+  @doc false
+  def handle_proxy_phoenix_event(_event_name, event_measurement, event_metadata, _config) do
+    :telemetry.execute(@stop_event, event_measurement, event_metadata)
+  end
+
+  defp normalize_module_name(name) when is_atom(name) do
+    name
+    |> Atom.to_string()
+    |> String.trim_leading("Elixir.")
+  end
+
+  defp normalize_module_name(name) do
+    String.trim_leading(name, "Elixir.")
+  end
+
+  defp normalize_action(action) when is_atom(action), do: action
+  defp normalize_action(_action), do: "Unknown"
+
+  defp fetch_additional_routes!(opts) do
+    opts
+    |> fetch_either!(:router, :endpoints)
+    |> case do
+      endpoints when is_list(endpoints) ->
+        endpoints
+        |> Enum.flat_map(fn
+          {_endpoint, endpoint_opts} ->
+            Keyword.get(endpoint_opts, :additional_routes, [])
+        end)
+        |> MapSet.new()
+        |> MapSet.to_list()
+
+      _router ->
+        Keyword.get(opts, :additional_routes, [])
+    end
+  end
+
+  defp fetch_event_prefixes!(opts) do
+    opts
+    |> fetch_either!(:router, :endpoints)
+    |> case do
+      endpoints when is_list(endpoints) ->
+        endpoints
+        |> Enum.map(fn
+          {_endpoint, endpoint_opts} ->
+            Keyword.get(endpoint_opts, :event_prefix, [:phoenix, :endpoint])
+        end)
+
+      _router ->
+        [Keyword.get(opts, :event_prefix, [:phoenix, :endpoint])]
+    end
+    |> MapSet.new()
+    |> MapSet.to_list()
+  end
+
+  defp fetch_routers!(opts) do
+    opts
+    |> fetch_either!(:router, :endpoints)
+    |> case do
+      endpoints when is_list(endpoints) ->
+        endpoints
+        |> Enum.flat_map(fn
+          {_endpoint, endpoint_opts} ->
+            Keyword.fetch!(endpoint_opts, :routers)
+        end)
+        |> MapSet.new()
+        |> MapSet.to_list()
+
+      router ->
+        [router]
+    end
+  end
+
+  defp fetch_either!(keywordlist, key1, key2) do
+    case {Keyword.has_key?(keywordlist, key1), Keyword.has_key?(keywordlist, key2)} do
+      {true, _} ->
+        keywordlist[key1]
+
+      {false, true} ->
+        keywordlist[key2]
+
+      {false, false} ->
+        raise KeyError,
+              "Neither #{inspect(key1)} nor #{inspect(key2)} found in #{inspect(keywordlist)}"
     end
   end
 end
