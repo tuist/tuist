@@ -1,9 +1,8 @@
 defmodule TuistWeb.Docs.MarkdownComponents do
   @moduledoc """
-  Phoenix components designed for use directly inside documentation
-  markdown files. These replace the VitePress/Vue custom elements
-  (HomeCards, Badge, etc.) with native Phoenix LiveView components
-  that work through HEEx compilation of markdown.
+  Phoenix components for use directly inside documentation markdown
+  files. Pages with `live: true` in frontmatter compile through HEEx,
+  making these components available to authors.
   """
   use Phoenix.Component
   use Noora
@@ -38,10 +37,10 @@ defmodule TuistWeb.Docs.MarkdownComponents do
 
     ~H"""
     <a href={@href} data-part="feature-card">
-      <div data-part="feature-card-image">
-        <span data-part="feature-card-title">{@title}</span>
+      <div data-part="image">
+        <span data-part="title">{@title}</span>
       </div>
-      <div data-part="feature-card-body">
+      <div data-part="body">
         <p>{@details}</p>
       </div>
     </a>

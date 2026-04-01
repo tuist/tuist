@@ -76,3 +76,11 @@
     link="https://handbook.tuist.dev"
 />
 </TuistWeb.Docs.MarkdownComponents.home_cards>
+
+## See Tuist in action
+
+**Learn from real implementations** and get inspired by what's possible when your toolchain just works.
+
+## Join a thriving community
+
+**Connect with thousands of developers** who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling.

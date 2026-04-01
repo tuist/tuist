@@ -227,11 +227,11 @@ defmodule TuistWeb.DocsLive do
               patch={docs_path("/#{@locale}/guides/features/cache/module-cache")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.database /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Cache")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.database /></span>
+                <span data-part="title">{dgettext("docs", "Cache")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -244,11 +244,11 @@ defmodule TuistWeb.DocsLive do
               patch={docs_path("/#{@locale}/guides/features/build-insights")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.search /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Insights")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.search /></span>
+                <span data-part="title">{dgettext("docs", "Insights")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -274,11 +274,11 @@ defmodule TuistWeb.DocsLive do
               patch={docs_path("/#{@locale}/guides/features/selective-testing")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.subtask /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Selective Testing")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.subtask /></span>
+                <span data-part="title">{dgettext("docs", "Selective Testing")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -291,11 +291,11 @@ defmodule TuistWeb.DocsLive do
               patch={docs_path("/#{@locale}/guides/features/test-insights/flaky-tests")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.progress_x /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Flaky Tests")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.progress_x /></span>
+                <span data-part="title">{dgettext("docs", "Flaky Tests")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -308,11 +308,11 @@ defmodule TuistWeb.DocsLive do
               patch={docs_path("/#{@locale}/guides/features/test-insights")}
               data-part="feature-card"
             >
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.search /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Insights")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.search /></span>
+                <span data-part="title">{dgettext("docs", "Insights")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
@@ -335,11 +335,11 @@ defmodule TuistWeb.DocsLive do
           </p>
           <div data-part="feature-cards">
             <.link patch={docs_path("/#{@locale}/guides/features/previews")} data-part="feature-card">
-              <div data-part="feature-card-image">
-                <span data-part="feature-card-icon"><.devices /></span>
-                <span data-part="feature-card-title">{dgettext("docs", "Previews")}</span>
+              <div data-part="image">
+                <span data-part="icon"><.devices /></span>
+                <span data-part="title">{dgettext("docs", "Previews")}</span>
               </div>
-              <div data-part="feature-card-body">
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
