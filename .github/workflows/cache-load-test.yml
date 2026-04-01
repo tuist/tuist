@@ -1,9 +1,24 @@
 name: Cache Load Test
 
 on:
-  pull_request:
-    types: [labeled]
-    branches: ['main']
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number
+        required: true
+        type: string
+      pr_ref:
+        description: Pull request head ref
+        required: true
+        type: string
+      pr_sha:
+        description: Pull request head SHA
+        required: true
+        type: string
+      main_sha:
+        description: Base branch SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,9 +34,6 @@ jobs:
     name: Resolve inputs
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: >
-      github.event.label.name == 'load-test' &&
-      github.event.pull_request.head.repo.full_name == github.repository
     outputs:
       pr_number: ${{ steps.resolve.outputs.pr_number }}
       pr_ref: ${{ steps.resolve.outputs.pr_ref }}
@@ -30,18 +42,17 @@ jobs:
     steps:
       - name: Resolve inputs
         id: resolve
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_REF: ${{ inputs.pr_ref }}
+          PR_SHA: ${{ inputs.pr_sha }}
+          MAIN_SHA: ${{ inputs.main_sha }}
         run: |
           set -euo pipefail
-          echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-          echo "pr_ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
-          echo "pr_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
-          echo "main_sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
-
-      - name: Remove label
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api "/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels/load-test" -X DELETE || true
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "pr_ref=$PR_REF" >> "$GITHUB_OUTPUT"
+          echo "pr_sha=$PR_SHA" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
 
   deploy-main:
     name: Deploy main
@@ -74,7 +85,7 @@ jobs:
     name: Baseline
     needs: [resolve, deploy-main]
     runs-on: namespace-profile-default
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -107,7 +118,7 @@ jobs:
     name: Test
     needs: [resolve, deploy-pr]
     runs-on: namespace-profile-default
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
