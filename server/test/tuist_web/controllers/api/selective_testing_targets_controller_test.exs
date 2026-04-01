@@ -2,10 +2,10 @@ defmodule TuistWeb.API.SelectiveTestingTargetsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  alias Tuist.CommandEvents
   alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
@@ -21,8 +21,10 @@ defmodule TuistWeb.API.SelectiveTestingTargetsControllerTest do
     test "returns an empty list when there are no targets", %{conn: conn, user: user, project: project} do
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: user.account.id)
 
-      stub(Tests, :get_test, fn _id -> {:ok, test_run} end)
-      stub(CommandEvents, :get_command_event_by_test_run_id, fn _id -> {:ok, %{id: UUIDv7.generate()}} end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        test_run_id: test_run.id
+      )
 
       stub(Xcode, :selective_testing_analytics, fn _run, _flop_params ->
         {%{test_modules: []},
@@ -55,8 +57,10 @@ defmodule TuistWeb.API.SelectiveTestingTargetsControllerTest do
     test "returns targets with selective testing data", %{conn: conn, user: user, project: project} do
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: user.account.id)
 
-      stub(Tests, :get_test, fn _id -> {:ok, test_run} end)
-      stub(CommandEvents, :get_command_event_by_test_run_id, fn _id -> {:ok, %{id: UUIDv7.generate()}} end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        test_run_id: test_run.id
+      )
 
       stub(Xcode, :selective_testing_analytics, fn _run, _flop_params ->
         {%{
@@ -98,8 +102,10 @@ defmodule TuistWeb.API.SelectiveTestingTargetsControllerTest do
     test "filters targets by hit_status", %{conn: conn, user: user, project: project} do
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: user.account.id)
 
-      stub(Tests, :get_test, fn _id -> {:ok, test_run} end)
-      stub(CommandEvents, :get_command_event_by_test_run_id, fn _id -> {:ok, %{id: UUIDv7.generate()}} end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        test_run_id: test_run.id
+      )
 
       expect(Xcode, :selective_testing_analytics, fn _run, flop_params ->
         assert %{field: :selective_testing_hit, op: :==, value: "miss"} in flop_params.filters
@@ -133,8 +139,10 @@ defmodule TuistWeb.API.SelectiveTestingTargetsControllerTest do
     test "supports pagination", %{conn: conn, user: user, project: project} do
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: user.account.id)
 
-      stub(Tests, :get_test, fn _id -> {:ok, test_run} end)
-      stub(CommandEvents, :get_command_event_by_test_run_id, fn _id -> {:ok, %{id: UUIDv7.generate()}} end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        test_run_id: test_run.id
+      )
 
       expect(Xcode, :selective_testing_analytics, fn _run, flop_params ->
         assert flop_params.page == 2
@@ -171,17 +179,15 @@ defmodule TuistWeb.API.SelectiveTestingTargetsControllerTest do
     test "looks up the command event by test_run_id and passes it to selective_testing_analytics",
          %{conn: conn, user: user, project: project} do
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: user.account.id)
-      command_event_id = UUIDv7.generate()
 
-      stub(Tests, :get_test, fn _id -> {:ok, test_run} end)
-
-      expect(CommandEvents, :get_command_event_by_test_run_id, fn id ->
-        assert id == test_run.id
-        {:ok, %{id: command_event_id, created_at: NaiveDateTime.utc_now(), project_id: project.id}}
-      end)
+      command_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          test_run_id: test_run.id
+        )
 
       expect(Xcode, :selective_testing_analytics, fn run, _flop_params ->
-        assert run.id == command_event_id
+        assert run.id == command_event.id
 
         {%{test_modules: []},
          %{
@@ -203,12 +209,6 @@ defmodule TuistWeb.API.SelectiveTestingTargetsControllerTest do
     test "returns 404 when command event is not found for test run",
          %{conn: conn, user: user, project: project} do
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: user.account.id)
-
-      stub(Tests, :get_test, fn _id -> {:ok, test_run} end)
-
-      stub(CommandEvents, :get_command_event_by_test_run_id, fn _id ->
-        {:error, :not_found}
-      end)
 
       conn =
         get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/#{test_run.id}/targets")
