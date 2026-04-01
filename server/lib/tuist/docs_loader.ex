@@ -377,7 +377,7 @@ defmodule Tuist.Docs.Loader do
 
       """
       <Noora.Alert.alert status="#{status}" title="#{title}" type="secondary" size="large" class="tuist-admonition">\
-      <:description_slot>#{content}</:description_slot>\
+      #{content}\
       </Noora.Alert.alert>\
       """
     end)

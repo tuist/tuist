@@ -48,7 +48,7 @@ defmodule Noora.Alert do
     doc: "The description of the alert. Only shown if `size` is large."
   )
 
-  slot(:description_slot,
+  slot(:inner_block,
     required: false,
     doc: "Rich HTML description. Takes precedence over the `description` attribute when provided."
   )
@@ -86,10 +86,10 @@ defmodule Noora.Alert do
         <.icon status={@status} />
         <div data-part="column">
           <span data-part="title">{@title}</span>
-          <div :if={@description_slot != []} data-part="description">
-            {render_slot(@description_slot)}
+          <div :if={@inner_block != []} data-part="description">
+            {render_slot(@inner_block)}
           </div>
-          <span :if={@description_slot == [] and @description} data-part="description">
+          <span :if={@inner_block == [] and @description} data-part="description">
             {@description}
           </span>
           <div :if={@action != []} data-part="actions">
