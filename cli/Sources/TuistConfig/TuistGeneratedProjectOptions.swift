@@ -49,7 +49,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 includeGenerateScheme: false,
                 enableCaching: false,
                 registryEnabled: false,
-                warningsAsErrors: .none
+                warningsAsErrors: .none,
+                defaultSwiftVersion: nil
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
             cacheOptions: CacheOptions(
@@ -105,6 +106,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let enableCaching: Bool
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
+        public let defaultSwiftVersion: String?
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -121,7 +123,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             includeGenerateScheme: Bool,
             enableCaching: Bool = false,
             registryEnabled: Bool = false,
-            warningsAsErrors: WarningsAsErrors = .none
+            warningsAsErrors: WarningsAsErrors = .none,
+            defaultSwiftVersion: String? = nil
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -138,6 +141,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.enableCaching = enableCaching
             self.registryEnabled = registryEnabled
             self.warningsAsErrors = warningsAsErrors
+            self.defaultSwiftVersion = defaultSwiftVersion
         }
 
         #if DEBUG
@@ -157,7 +161,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 includeGenerateScheme: Bool = true,
                 enableCaching: Bool = false,
                 registryEnabled: Bool = false,
-                warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none
+                warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
+                defaultSwiftVersion: String? = nil
             ) -> Self {
                 .init(
                     resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -174,7 +179,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                     includeGenerateScheme: includeGenerateScheme,
                     enableCaching: enableCaching,
                     registryEnabled: registryEnabled,
-                    warningsAsErrors: warningsAsErrors
+                    warningsAsErrors: warningsAsErrors,
+                    defaultSwiftVersion: defaultSwiftVersion
                 )
             }
         #endif

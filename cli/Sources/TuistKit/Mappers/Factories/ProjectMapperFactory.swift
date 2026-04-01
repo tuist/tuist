@@ -99,6 +99,9 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         // Template macros
         mappers.append(IDETemplateMacrosMapper())
 
+        // Default Swift version
+        mappers.append(DefaultSwiftVersionProjectMapper(tuist: tuist))
+
         // Xcode cache settings
         mappers.append(XcodeCacheSettingsProjectMapper(tuist: tuist))
 
