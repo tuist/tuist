@@ -29,7 +29,7 @@ struct TestResultStatusesTests {
             .init(name: "testC()", testSuite: nil, module: "CoreTests", status: .passed),
             .init(name: "testD()", testSuite: nil, module: "CoreTests", status: .passed),
         ])
-        #expect(statuses.passingModuleNames == ["CoreTests"])
+        #expect(statuses.passingModuleNames() == ["CoreTests"])
     }
 
     @Test
@@ -38,7 +38,7 @@ struct TestResultStatusesTests {
             .init(name: "testA()", testSuite: nil, module: "AppTests", status: .passed),
             .init(name: "testB()", testSuite: nil, module: "CoreTests", status: .passed),
         ])
-        #expect(statuses.passingModuleNames == ["AppTests", "CoreTests"])
+        #expect(statuses.passingModuleNames() == ["AppTests", "CoreTests"])
     }
 
     @Test

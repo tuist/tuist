@@ -89,13 +89,6 @@ public enum TestServiceError: FatalError, Equatable {
     }
 }
 
-import ArgumentParser
-
-public enum TestProcessingMode: String, Sendable, CaseIterable, ExpressibleByArgument {
-    case local
-    case remote
-}
-
 public struct TestService { // swiftlint:disable:this type_body_length
     private let generatorFactory: GeneratorFactorying
     private let cacheStorageFactory: CacheStorageFactorying
@@ -989,7 +982,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
 
             let passingTestTargets = testTargets.filter {
-                testStatuses.passingModuleNames.contains($0.target.name)
+                testStatuses.passingModuleNames().contains($0.target.name)
             }
 
             try await storeSuccessfulTestHashes(

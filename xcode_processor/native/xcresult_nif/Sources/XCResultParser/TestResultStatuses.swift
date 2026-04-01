@@ -32,7 +32,7 @@ public struct TestResultStatuses: Sendable {
         testCases.contains { $0.status == .failed }
     }
 
-    public var passingModuleNames: Set<String> {
+    public func passingModuleNames() -> Set<String> {
         Set(
             testCasesByModule.compactMap { module, cases -> String? in
                 guard let module else { return nil }
