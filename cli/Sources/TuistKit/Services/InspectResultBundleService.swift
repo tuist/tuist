@@ -309,7 +309,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     }
 }
 
-struct QuarantinedTestEntry: Codable {
+private struct QuarantinedTestEntry: Codable {
     let target: String
     let `class`: String?
     let method: String?
