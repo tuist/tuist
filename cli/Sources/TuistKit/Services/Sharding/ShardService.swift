@@ -33,6 +33,7 @@ public enum ShardServiceError: LocalizedError, Equatable {
     case cannotDeriveReference
     case invalidDownloadURL(String)
     case invalidXCTestRun
+    case xcTestRunNotFound(AbsolutePath)
 
     public var errorDescription: String? {
         switch self {
@@ -43,6 +44,8 @@ public enum ShardServiceError: LocalizedError, Equatable {
             return "Invalid shard download URL: \(url)"
         case .invalidXCTestRun:
             return "The .xctestrun file has an invalid format."
+        case let .xcTestRunNotFound(path):
+            return "No .xctestrun file found in \(path.pathString)"
         }
     }
 }
@@ -114,28 +117,28 @@ public struct ShardService: ShardServicing {
             Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
         }
 
-        let xcTestRunPaths = try await fileSystem
+        guard let xcTestRunSourcePath = try await fileSystem
             .glob(directory: resolvedTestProductsPath, include: ["**/*.xctestrun"])
             .collect()
-        let tempXCTestRunDir = testProductsPath != nil
-            ? try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-xctestrun")
-            : nil
-        for path in xcTestRunPaths {
-            let plistData = try await fileSystem.readFile(at: path)
-            let filteredData = try filterXCTestRun(
-                plistData: plistData,
-                modules: shard.modules,
-                suites: shard.suites.additionalProperties
-            )
-            if let tempXCTestRunDir {
-                let destPath = tempXCTestRunDir.appending(component: path.basename)
-                let plistString = String(decoding: filteredData, as: UTF8.self)
-                try await fileSystem.writeText(plistString, at: destPath)
-                xcTestRunPath = destPath
-            } else {
-                let plistString = String(decoding: filteredData, as: UTF8.self)
-                try await fileSystem.writeText(plistString, at: path)
-            }
+            .first
+        else {
+            throw ShardServiceError.xcTestRunNotFound(resolvedTestProductsPath)
+        }
+
+        let plistData = try await fileSystem.readFile(at: xcTestRunSourcePath)
+        let filteredData = try filterXCTestRun(
+            plistData: plistData,
+            modules: shard.modules,
+            suites: shard.suites.additionalProperties
+        )
+        let plistString = String(decoding: filteredData, as: UTF8.self)
+        if testProductsPath != nil {
+            let tempXCTestRunDir = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-xctestrun")
+            let destPath = tempXCTestRunDir.appending(component: xcTestRunSourcePath.basename)
+            try await fileSystem.writeText(plistString, at: destPath)
+            xcTestRunPath = destPath
+        } else {
+            try await fileSystem.writeText(plistString, at: xcTestRunSourcePath)
         }
 
         let selectiveTestingGraphPath = resolvedTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
