@@ -15,7 +15,7 @@ msgstr "%{hit_rate}%"
 #: lib/tuist_web/live/build_run_live.ex:636
 #, elixir-autogen, elixir-format
 msgid "%{message} in %{link}"
-msgstr "%{link}에서 %{message}"
+msgstr "%{link} 내 %{message}"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:213
 #, elixir-autogen, elixir-format
@@ -57,12 +57,12 @@ msgstr "평균 빌드 시간"
 #: lib/tuist_web/live/build_run_live.html.heex:1037
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache keys"
-msgstr "캐시 키 읽기 평균 지연 시간"
+msgstr "캐시 키 읽기 평균 대기 시간"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1093
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache keys"
-msgstr "캐시 키 쓰기 평균 지연 시간"
+msgstr "캐시 키 쓰기 평균 대기 시간"
 
 #: lib/tuist_web/live/generate_runs_live.ex:279
 #: lib/tuist_web/live/generate_runs_live.html.heex:84
@@ -87,7 +87,7 @@ msgstr "빌드 실행"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "빌드 실행 목록"
+msgstr "빌드 실행들"
 
 #: lib/tuist_web/live/build_run_live.ex:884
 #: lib/tuist_web/live/build_run_live.html.heex:262
@@ -141,7 +141,7 @@ msgstr "빌드 시각"
 #: lib/tuist_web/live/build_run_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Built by"
-msgstr "빌드 사용자"
+msgstr "빌드한 사람"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:241
 #, elixir-autogen, elixir-format
@@ -151,7 +151,7 @@ msgstr "번들 ID"
 #: lib/tuist_web/live/build_run_live.html.heex:902
 #, elixir-autogen, elixir-format
 msgid "CAS Outputs"
-msgstr "CAS 출력"
+msgstr "CAS 출력물"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1259
 #, elixir-autogen, elixir-format
@@ -161,17 +161,17 @@ msgstr "CAS 출력"
 #: lib/tuist_web/live/build_run_live.html.heex:1371
 #, elixir-autogen, elixir-format
 msgid "CAS outputs"
-msgstr "CAS 출력"
+msgstr "CAS 출력물"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1605
 #, elixir-autogen, elixir-format
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "Tuist 캐시를 사용할 때 CAS 출력이 여기에 표시됩니다"
+msgstr "Tuist 캐시를 사용할 때 CAS 출력물이 여기에 표시됩니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1323
 #, elixir-autogen, elixir-format
 msgid "CAS outputs:"
-msgstr "CAS 출력:"
+msgstr "CAS 출력물:"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:333
 #: lib/tuist_web/live/xcode_builds_live.html.heex:131
@@ -233,12 +233,12 @@ msgstr "캐시 가능한 작업"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:401
 #, elixir-autogen, elixir-format
 msgid "Cacheable targets"
-msgstr "캐시 가능한 타깃"
+msgstr "캐시 가능한 타겟"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:101
 #, elixir-autogen, elixir-format
 msgid "Cacheable targets:"
-msgstr "캐시 가능한 타깃:"
+msgstr "캐시 가능한 타겟:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:968
 #, elixir-autogen, elixir-format
@@ -253,12 +253,12 @@ msgstr "캐시에서 찾을 수 없는 캐시 가능한 작업입니다."
 #: lib/tuist_web/live/build_run_live.html.heex:835
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
-msgstr "캐시에서 가져온 캐시 가능한 작업(로컬 + 원격)입니다."
+msgstr "캐시(로컬 + 원격)에서 가져온 캐시 가능한 작업입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1297
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks will appear here when using Tuist cache"
-msgstr "Tuist 캐시 사용 시 캐시 가능한 작업이 여기에 표시됩니다."
+msgstr "Tuist 캐시를 사용할 때 캐시 가능한 작업이 여기에 표시됩니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:920
 #, elixir-autogen, elixir-format
@@ -285,7 +285,7 @@ msgstr "클린"
 #: lib/tuist_web/live/run_detail_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Command"
-msgstr "명령어"
+msgstr "명령"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:169
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:127
@@ -353,12 +353,12 @@ msgstr "파일 복사"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:277
 #, elixir-autogen, elixir-format
 msgid "Core data models"
-msgstr "코어 데이터 모델"
+msgstr "Core 데이터 모델"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:317
 #, elixir-autogen, elixir-format
 msgid "Dependencies"
-msgstr "종속성"
+msgstr "의존성"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:299
 #, elixir-autogen, elixir-format
@@ -375,7 +375,7 @@ msgstr "대상"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:579
 #, elixir-autogen, elixir-format
 msgid "Device"
-msgstr "장치"
+msgstr "기기"
 
 #: lib/tuist_web/live/build_run_live.ex:1066
 #: lib/tuist_web/live/build_run_live.html.heex:1384
@@ -404,7 +404,7 @@ msgstr "다운로드 처리량"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:876
 #, elixir-autogen, elixir-format
 msgid "Duration"
-msgstr "지속 시간"
+msgstr "소요 시간"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:311
 #, elixir-autogen, elixir-format
@@ -427,12 +427,12 @@ msgstr "환경:"
 #: lib/tuist_web/live/build_run_live.html.heex:790
 #, elixir-autogen, elixir-format
 msgid "Errors"
-msgstr "오류"
+msgstr "에러"
 
 #: lib/tuist_web/live/build_run_live.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Errors and Warnings"
-msgstr "오류 및 경고"
+msgstr "에러 및 경고"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:256
 #, elixir-autogen, elixir-format
@@ -478,7 +478,7 @@ msgstr "XIB 파일 %{path} 컴파일 실패"
 #: lib/tuist_web/live/build_run_live.ex:670
 #, elixir-autogen, elixir-format
 msgid "Failed compiling assets catalog %{path}"
-msgstr "자산 카탈로그 %{path} 컴파일 실패"
+msgstr "애셋 카탈로그 %{path} 컴파일 실패"
 
 #: lib/tuist_web/live/build_run_live.ex:673
 #, elixir-autogen, elixir-format
@@ -556,7 +556,7 @@ msgstr "파일"
 #: lib/tuist_web/live/build_run_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "File Breakdown"
-msgstr "파일 상세"
+msgstr "파일 분석"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:136
 #: lib/tuist_web/live/build_run_live.html.heex:502
@@ -640,7 +640,7 @@ msgstr "로컬"
 #: lib/tuist_web/live/build_run_live.html.heex:818
 #, elixir-autogen, elixir-format
 msgid "Looks like you're having a great day!"
-msgstr "좋은 하루를 보내고 계신 것 같네요!"
+msgstr "즐거운 하루를 보내고 계신 것 같네요!"
 
 #: lib/tuist_web/live/build_run_live.html.heex:211
 #, elixir-autogen, elixir-format
@@ -657,7 +657,7 @@ msgstr "Mac 장치"
 #: lib/tuist_web/live/test_run_live.ex:1055
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "놓친 것"
+msgstr "놓침"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:156
 #: lib/tuist_web/live/build_run_live.html.heex:468
@@ -672,7 +672,7 @@ msgstr "모듈"
 #: lib/tuist_web/live/build_run_live.html.heex:447
 #, elixir-autogen, elixir-format
 msgid "Module Breakdown"
-msgstr "모듈 상세"
+msgstr "모듈 분석"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:73
 #: lib/tuist_web/live/run_detail_live.html.heex:97
@@ -688,12 +688,12 @@ msgstr "이름"
 #: lib/tuist_web/live/build_run_live.html.heex:1603
 #, elixir-autogen, elixir-format
 msgid "No CAS outputs found"
-msgstr "CAS 출력을 찾을 수 없습니다"
+msgstr "CAS 출력물 없음"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1295
 #, elixir-autogen, elixir-format
 msgid "No cacheable tasks found"
-msgstr "캐시 가능한 작업을 찾을 수 없습니다"
+msgstr "캐시 가능한 작업이 없습니다"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1087
 #: lib/tuist_web/live/build_run_live.html.heex:1143
@@ -710,12 +710,12 @@ msgstr "데이터 없음"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:900
 #, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "아직 데이터가 없습니다"
+msgstr "아직 데이터 없음"
 
 #: lib/tuist_web/live/build_run_live.html.heex:816
 #, elixir-autogen, elixir-format
 msgid "No errors detected"
-msgstr "오류가 감지되지 않았습니다"
+msgstr "에러 없음"
 
 #: lib/tuist_web/live/build_run_live.html.heex:722
 #, elixir-autogen, elixir-format
@@ -727,12 +727,12 @@ msgstr "파일을 찾을 수 없습니다"
 #: lib/tuist_web/live/run_detail_live.html.heex:320
 #, elixir-autogen, elixir-format
 msgid "No modules found"
-msgstr "모듈을 찾을 수 없습니다"
+msgstr "모듈 없음"
 
 #: lib/tuist_web/live/build_run_live.html.heex:773
 #, elixir-autogen, elixir-format
 msgid "No warnings detected"
-msgstr "경고가 감지되지 않았습니다"
+msgstr "경고 없음"
 
 #: lib/tuist_web/live/build_run_live.html.heex:296
 #: lib/tuist_web/live/run_detail_live.html.heex:165
@@ -763,12 +763,12 @@ msgstr "개요"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:856
 #, elixir-autogen, elixir-format
 msgid "Passed"
-msgstr "성공"
+msgstr "통과"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:62
 #, elixir-autogen, elixir-format
 msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "캐시에서 성공적으로 가져온 모듈의 비율입니다."
+msgstr "캐시에서 성공적으로 가져온 모듈의 비율."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:230
 #, elixir-autogen, elixir-format
@@ -802,12 +802,12 @@ msgstr "프로젝트 설정"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:893
 #, elixir-autogen, elixir-format
 msgid "Ran at"
-msgstr "실행 시간"
+msgstr "실행 시각"
 
-#: lib/tuist_web/live/generate_runs_live.ex:313
+#: lib/tuist_web/live/generate_runs_live.ex:314
 #: lib/tuist_web/live/generate_runs_live.html.heex:87
 #: lib/tuist_web/live/run_detail_live.html.heex:150
-#: lib/tuist_web/live/xcode_build_runs_live.ex:304
+#: lib/tuist_web/live/xcode_build_runs_live.ex:305
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:130
 #: lib/tuist_web/live/xcode_builds_live.html.heex:873
 #, elixir-autogen, elixir-format
@@ -881,17 +881,17 @@ msgstr "선택적 테스트 적중"
 #: lib/tuist_web/live/run_detail_live.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
-msgstr "선택적 테스트 적중은 선택적 테스트 덕분에 건너뛴 테스트 모듈 수를 나타냅니다."
+msgstr "선택적 테스트 적중은 선택적 테스트로 인해 건너뛴 테스트 모듈 수를 나타냅니다."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:244
 #, elixir-autogen, elixir-format
 msgid "Selective test misses"
-msgstr "선택적 테스트 미스"
+msgstr "선택적 테스트 실패"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-msgstr "선택적 테스트 미스는 이전에 성공적으로 실행되지 않아 실행된 테스트 모듈 수를 나타냅니다."
+msgstr "선택적 테스트 실패는 이전에 성공적으로 실행되지 않아 실행된 테스트 모듈 수를 나타냅니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1476
 #: lib/tuist_web/live/build_run_live.html.heex:1496
@@ -955,17 +955,17 @@ msgstr "Swift 버전"
 #: lib/tuist_web/live/build_run_live.html.heex:692
 #, elixir-autogen, elixir-format
 msgid "Target"
-msgstr "타깃"
+msgstr "타겟"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:283
 #, elixir-autogen, elixir-format
 msgid "Target scripts"
-msgstr "타깃 스크립트"
+msgstr "타겟 스크립트"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:329
 #, elixir-autogen, elixir-format
 msgid "Target settings"
-msgstr "타깃 설정"
+msgstr "타겟 설정"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1185
 #, elixir-autogen, elixir-format
@@ -980,7 +980,7 @@ msgstr "작업 적중"
 #: lib/tuist_web/live/build_run_live.html.heex:844
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr "작업 미스"
+msgstr "작업 실패"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:105
 #, elixir-autogen, elixir-format
@@ -1005,7 +1005,7 @@ msgstr "테스트: %{scheme}"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "개별 백분위 구간을 포함한 평균 빌드 시간입니다."
+msgstr "개별 백분위 간격을 포함한 평균 빌드 시간입니다."
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:232
 #, elixir-autogen, elixir-format
@@ -1015,12 +1015,12 @@ msgstr "실패한 빌드 수입니다."
 #: lib/tuist_web/live/xcode_builds_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "The percentage of builds that succeeded."
-msgstr "성공한 빌드 비율입니다."
+msgstr "성공한 빌드의 비율입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:857
 #, elixir-autogen, elixir-format
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "캐시 적중한 캐시 가능 작업의 비율입니다(로컬 + 원격)."
+msgstr "캐시 적중(로컬 + 원격)된 캐시 가능한 작업의 비율입니다."
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:195
 #, elixir-autogen, elixir-format
@@ -1030,22 +1030,22 @@ msgstr "총 빌드 수입니다."
 #: lib/tuist_web/live/build_run_live.html.heex:1044
 #, elixir-autogen, elixir-format
 msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
-msgstr "캐시에서 캐시 가능 작업을 고유하게 식별하는 캐시 키를 읽는 시간입니다."
+msgstr "캐시에서 캐시 가능한 작업을 고유하게 식별하는 캐시 키를 읽는 데 걸리는 시간입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1100
 #, elixir-autogen, elixir-format
 msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
-msgstr "캐시 가능 작업을 고유하게 식별하는 캐시 키를 캐시에 쓰는 시간입니다."
+msgstr "캐시 가능한 작업을 고유하게 식별하는 캐시 키를 캐시에 쓰는 데 걸리는 시간입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1427
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput in megabits per second."
-msgstr "시간 가중 평균 다운로드 처리량(Mbps)입니다."
+msgstr "초당 메가비트 단위의 시간 가중 평균 다운로드 처리량입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1444
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average upload throughput in megabits per second."
-msgstr "시간 가중 평균 업로드 처리량(Mbps)입니다."
+msgstr "초당 메가비트 단위의 시간 가중 평균 업로드 처리량입니다."
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:193
 #, elixir-autogen, elixir-format
@@ -1070,17 +1070,17 @@ msgstr "로컬 또는 원격 캐시에서 가져온 총 모듈 수입니다."
 #: lib/tuist_web/components/runs/module_cache_tab.ex:51
 #, elixir-autogen, elixir-format
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
-msgstr "완전히 채워진 경우 캐시에서 가져올 수 있었던 총 모듈 수입니다."
+msgstr "캐시가 완전히 채워졌다면 가져올 수 있었던 총 모듈 수입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:880
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts downloaded."
-msgstr "다운로드된 캐시 아티팩트의 총 크기입니다."
+msgstr "다운로드한 캐시 아티팩트의 총 크기입니다."
 
 #: lib/tuist_web/live/build_run_live.html.heex:888
 #, elixir-autogen, elixir-format
 msgid "Total size of cache artifacts uploaded."
-msgstr "업로드된 캐시 아티팩트의 총 크기입니다."
+msgstr "업로드한 캐시 아티팩트의 총 크기입니다."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:204
 #: lib/tuist_web/live/run_detail_live.html.heex:321
@@ -1092,7 +1092,7 @@ msgstr "검색어를 변경해 보세요"
 #: lib/tuist_web/live/build_run_live.html.heex:723
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
-msgstr "검색을 갱신해 보세요"
+msgstr "검색을 다시 시도해 보세요"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:186
 #, elixir-autogen, elixir-format
@@ -1159,88 +1159,88 @@ msgstr "더 보기"
 #: lib/tuist_web/live/build_run_live.ex:710
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling C file %{path}"
-msgstr "C 파일 %{path} 컴파일 경고"
+msgstr "C 파일 %{path} 컴파일 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:713
 #: lib/tuist_web/live/build_run_live.ex:749
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling Swift file %{path}"
-msgstr "Swift 파일 %{path} 컴파일 경고"
+msgstr "Swift 파일 %{path} 컴파일 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:746
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling XIB file %{path}"
-msgstr "XIB 파일 %{path} 컴파일 경고"
+msgstr "XIB 파일 %{path} 컴파일 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:728
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling assets catalog %{path}"
-msgstr "자산 카탈로그 %{path} 컴파일 경고"
+msgstr "애셋 카탈로그 %{path} 컴파일 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:731
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling storyboard %{path}"
-msgstr "스토리보드 %{path} 컴파일 경고"
+msgstr "스토리보드 %{path} 컴파일 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:725
 #, elixir-autogen, elixir-format
 msgid "Warning when copying Swift libraries %{path}"
-msgstr "Swift 라이브러리 %{path} 복사 경고"
+msgstr "Swift 라이브러리 %{path} 복사 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:740
 #, elixir-autogen, elixir-format
 msgid "Warning when copying resource file %{path}"
-msgstr "리소스 파일 %{path} 복사 경고"
+msgstr "리소스 파일 %{path} 복사 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:719
 #, elixir-autogen, elixir-format
 msgid "Warning when creating static library %{path}"
-msgstr "정적 라이브러리 %{path} 생성 경고"
+msgstr "정적 라이브러리 %{path} 생성 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:716
 #, elixir-autogen, elixir-format
 msgid "Warning when executing script %{script_name}"
-msgstr "스크립트 %{script_name} 실행 경고"
+msgstr "스크립트 %{script_name} 실행 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:722
 #, elixir-autogen, elixir-format
 msgid "Warning when linking %{path}"
-msgstr "%{path} 링크 경고"
+msgstr "%{path} 링크 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:737
 #, elixir-autogen, elixir-format
 msgid "Warning when linking storyboards %{path}"
-msgstr "스토리보드 %{path} 링크 경고"
+msgstr "스토리보드 %{path} 링크 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:743
 #, elixir-autogen, elixir-format
 msgid "Warning when merging Swift module %{path}"
-msgstr "Swift 모듈 %{path} 병합 경고"
+msgstr "Swift 모듈 %{path} 병합 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:752
 #, elixir-autogen, elixir-format
 msgid "Warning when precompiling bridging header %{path}"
-msgstr "브리징 헤더 %{path} 사전 컴파일 경고"
+msgstr "브리징 헤더 %{path} 사전 컴파일 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:764
 #, elixir-autogen, elixir-format
 msgid "Warning when processing %{path}"
-msgstr "%{path} 처리 경고"
+msgstr "%{path} 처리 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:758
 #, elixir-autogen, elixir-format
 msgid "Warning when validating %{path}"
-msgstr "%{path} 검증 경고"
+msgstr "%{path} 검증 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:755
 #, elixir-autogen, elixir-format
 msgid "Warning when validating embedded binary %{path}"
-msgstr "임베디드 바이너리 %{path} 검증 경고"
+msgstr "내장 바이너리 %{path} 검증 중 경고"
 
 #: lib/tuist_web/live/build_run_live.ex:734
 #, elixir-autogen, elixir-format
 msgid "Warning when writing auxiliary file %{path}"
-msgstr "보조 파일 %{path} 쓰기 경고"
+msgstr "보조 파일 %{path} 기록 중 경고"
 
 #: lib/tuist_web/live/build_run_live.html.heex:177
 #: lib/tuist_web/live/build_run_live.html.heex:395
@@ -1289,12 +1289,12 @@ msgstr "p50 빌드 시간"
 #: lib/tuist_web/live/build_run_live.html.heex:1040
 #, elixir-autogen, elixir-format
 msgid "p50 latency reading cache keys"
-msgstr "p50 캐시 키 읽기 지연"
+msgstr "p50 캐시 키 읽기 대기 시간"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1096
 #, elixir-autogen, elixir-format
 msgid "p50 latency writing cache keys"
-msgstr "p50 캐시 키 쓰기 지연"
+msgstr "p50 캐시 키 쓰기 대기 시간"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:439
 #, elixir-autogen, elixir-format
@@ -1309,12 +1309,12 @@ msgstr "p90 빌드 시간"
 #: lib/tuist_web/live/build_run_live.html.heex:1039
 #, elixir-autogen, elixir-format
 msgid "p90 latency reading cache keys"
-msgstr "p90 캐시 키 읽기 지연"
+msgstr "p90 캐시 키 읽기 대기 시간"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1095
 #, elixir-autogen, elixir-format
 msgid "p90 latency writing cache keys"
-msgstr "p90 캐시 키 쓰기 지연"
+msgstr "p90 캐시 키 쓰기 대기 시간"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:425
 #, elixir-autogen, elixir-format
@@ -1329,27 +1329,27 @@ msgstr "p99 빌드 시간"
 #: lib/tuist_web/live/build_run_live.html.heex:1038
 #, elixir-autogen, elixir-format
 msgid "p99 latency reading cache keys"
-msgstr "p99 캐시 키 읽기 지연"
+msgstr "p99 캐시 키 읽기 대기 시간"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1094
 #, elixir-autogen, elixir-format
 msgid "p99 latency writing cache keys"
-msgstr "p99 캐시 키 쓰기 지연"
+msgstr "p99 캐시 키 쓰기 대기 시간"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "지난달 이후"
+msgstr "지난달부터"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "지난주 이후"
+msgstr "지난주부터"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:327
 #, elixir-autogen, elixir-format
 msgid "since last year"
-msgstr "지난해 이후"
+msgstr "지난해부터"
 
 #: lib/tuist_web/live/build_run_live.html.heex:361
 #: lib/tuist_web/live/build_run_live.html.heex:398
@@ -1375,7 +1375,7 @@ msgstr "취소"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:618
 #, elixir-autogen, elixir-format
 msgid "Custom"
-msgstr "사용자 지정"
+msgstr "사용자 정의"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:159
 #: lib/tuist_web/live/xcode_builds_live.html.heex:615
@@ -1387,29 +1387,29 @@ msgstr "최근 12개월"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:600
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
-msgstr "최근 24시간"
+msgstr "지난 24시간"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:154
 #: lib/tuist_web/live/xcode_builds_live.html.heex:610
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
-msgstr "최근 30일"
+msgstr "지난 30일"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:149
 #: lib/tuist_web/live/xcode_builds_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
-msgstr "최근 7일"
+msgstr "지난 7일"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:328
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "지난 기간 이후"
+msgstr "지난 기간부터"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
-msgstr "어제 이후"
+msgstr "어제부터"
 
 #: lib/tuist_web/live/generate_runs_live.ex:295
 #: lib/tuist_web/live/run_detail_live.html.heex:123
@@ -1426,7 +1426,7 @@ msgstr "전체"
 #: lib/tuist_web/live/build_run_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Custom metadata"
-msgstr "사용자 지정 메타데이터"
+msgstr "사용자 정의 메타데이터"
 
 #: lib/tuist_web/live/generate_runs_live.ex:21
 #, elixir-autogen, elixir-format
@@ -1451,7 +1451,7 @@ msgstr "값"
 #: lib/tuist_web/live/build_run_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "Machine Metrics"
-msgstr "기기 메트릭"
+msgstr "머신 메트릭"
 
 #: lib/tuist_web/live/build_run_live.html.heex:101
 #: lib/tuist_web/live/build_run_live.html.heex:118
@@ -1476,19 +1476,19 @@ msgstr "처리 중"
 #: lib/tuist_web/live/build_run_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "Your build is being processed"
-msgstr "빌드를 처리 중입니다"
+msgstr "빌드 처리 중입니다"
 
 #: lib/tuist_web/live/build_run_live.html.heex:154
 #, elixir-autogen, elixir-format
 msgid "Refresh"
-msgstr "갱신"
+msgstr "새로 고침"
 
 #: lib/tuist_web/live/build_run_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
-msgstr "보통 몇 초 정도 걸립니다. 페이지가 자동으로 갱신되지 않으면 갱신 버튼을 클릭하세요."
+msgstr "보통 몇 초 정도 걸립니다. 페이지가 자동으로 업데이트되지 않으면 새로 고침 버튼을 클릭하세요."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:74
 #, elixir-autogen, elixir-format
 msgid "Download session"
-msgstr "세션 다운로드"
+msgstr "다운로드 세션"

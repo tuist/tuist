@@ -401,7 +401,20 @@ defmodule L10n.Translator do
     ]
 
     resolved_model = resolve_model(model)
-    response = ReqLLM.generate_text!(resolved_model, messages, max_tokens: 32_000, receive_timeout: 600_000)
+
+    task =
+      Task.async(fn ->
+        ReqLLM.generate_text!(resolved_model, messages,
+          max_tokens: 32_000,
+          receive_timeout: 300_000
+        )
+      end)
+
+    response =
+      case Task.yield(task, 1_200_000) || Task.shutdown(task, :brutal_kill) do
+        {:ok, result} -> result
+        nil -> raise "Translation timed out after 20 minutes"
+      end
 
     text =
       case response do
