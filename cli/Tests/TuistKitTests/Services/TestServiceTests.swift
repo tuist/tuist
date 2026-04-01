@@ -1386,8 +1386,12 @@ final class TestServiceTests: TuistUnitTestCase {
                     ]
                 )
             )
+        xcResultService.reset()
         given(xcResultService)
-            .parseTestStatuses(path: .value(xcresultPath))
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
             .willReturn(
                 TestResultStatuses(testCases: [
                     .init(name: "testA", testSuite: nil, module: "FrameworkATests", status: .failed),
