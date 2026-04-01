@@ -999,7 +999,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 cacheStorage: uploadCacheStorage
             )
 
-            if onlyQuarantinedTestsFailed(testStatuses: testStatuses, quarantinedTests: quarantinedTests) {
+            if testQuarantineService.onlyQuarantinedTestsFailed(testStatuses: testStatuses, quarantinedTests: quarantinedTests) {
                 return
             }
 
@@ -1492,27 +1492,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return nil
-    }
-
-    private func onlyQuarantinedTestsFailed(
-        testStatuses: TestResultStatuses,
-        quarantinedTests: [TestIdentifier]
-    ) -> Bool {
-        guard !quarantinedTests.isEmpty else { return false }
-        let failedTests = testStatuses.testCases.filter { $0.status == .failed }
-        guard !failedTests.isEmpty else { return false }
-        return failedTests.allSatisfy { testCase in
-            quarantinedTests.contains { quarantined in
-                guard testCase.module == quarantined.target else { return false }
-                if let quarantinedClass = quarantined.class, testCase.testSuite != quarantinedClass {
-                    return false
-                }
-                if let quarantinedMethod = quarantined.method, testCase.name != quarantinedMethod {
-                    return false
-                }
-                return true
-            }
-        }
     }
 
     private func rootDirectory() async throws -> AbsolutePath? {
