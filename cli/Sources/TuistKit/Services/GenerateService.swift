@@ -50,6 +50,7 @@ public struct GenerateService {
         path: String?,
         includedTargets: Set<TargetQuery>,
         noOpen: Bool,
+        skipLint: Bool = false,
         configuration: String?,
         ignoreBinaryCache: Bool,
         cacheProfile: CacheProfileType?
@@ -84,9 +85,13 @@ public struct GenerateService {
             cacheProfile: resolvedCacheProfile,
             cacheStorage: cacheStorage
         )
+        var options = config.project.generatedProject?.generationOptions
+        if skipLint {
+            options?.skipLint = true
+        }
         let (workspacePath, _, _) = try await generator.generateWithGraph(
             path: path,
-            options: config.project.generatedProject?.generationOptions
+            options: options
         )
         if !noOpen {
             try await opener.open(path: workspacePath)

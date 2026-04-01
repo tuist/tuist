@@ -105,6 +105,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let enableCaching: Bool
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
+        public var skipLint: Bool
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -121,7 +122,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             includeGenerateScheme: Bool,
             enableCaching: Bool = false,
             registryEnabled: Bool = false,
-            warningsAsErrors: WarningsAsErrors = .none
+            warningsAsErrors: WarningsAsErrors = .none,
+            skipLint: Bool = false
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -138,6 +140,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.enableCaching = enableCaching
             self.registryEnabled = registryEnabled
             self.warningsAsErrors = warningsAsErrors
+            self.skipLint = skipLint
         }
 
         #if DEBUG

@@ -65,6 +65,12 @@
         )
         var cacheProfile: CacheProfileType?
 
+        @Flag(
+            help: "Skip graph linting during generation.",
+            envKey: .generateLint
+        )
+        var lint: Bool = true
+
         @Option(
             name: .shortAndLong,
             help: "Configuration to generate for."
@@ -86,6 +92,7 @@
                 path: path,
                 includedTargets: Set(includedTargets),
                 noOpen: !open,
+                skipLint: !lint,
                 configuration: configuration,
                 ignoreBinaryCache: !binaryCache,
                 cacheProfile: cacheProfile

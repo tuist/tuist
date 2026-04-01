@@ -65,7 +65,9 @@ public class Generator: Generating {
         // When mutating the graph to use cache, we currently end up double linking some frameworks.
         // To workaround those false positive warnings, we lint the graph before we replace source modules with xcframeworks
         // And assume the changes in the mapper are correct.
-        try await lint(graphTraverser: GraphTraverser(graph: environment.initialGraphWithSources ?? graph))
+        if options?.skipLint != true {
+            try await lint(graphTraverser: GraphTraverser(graph: environment.initialGraphWithSources ?? graph))
+        }
 
         // Generate
         let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
