@@ -100,16 +100,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
           {:ok, parsed_data}
 
         {:ok, %{status: status, body: body}} ->
-          Logger.error(
-            "Xcode processor returned #{status} for test run #{test_run_id}: #{inspect(body)}"
-          )
+          Logger.error("Xcode processor returned #{status} for test run #{test_run_id}: #{inspect(body)}")
 
           {:error, "xcode_processor_error_#{status}: #{inspect(body)}"}
 
         {:error, reason} ->
-          Logger.error(
-            "Xcode processor request failed for test run #{test_run_id}: #{inspect(reason)}"
-          )
+          Logger.error("Xcode processor request failed for test run #{test_run_id}: #{inspect(reason)}")
 
           {:error, reason}
       end
