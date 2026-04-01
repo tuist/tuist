@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - "translate.exs"
       - "server/priv/gettext/*.pot"
       - "L10N.md"
       - "server/L10N.md"

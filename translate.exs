@@ -32,7 +32,6 @@ defmodule L10n.Context do
       |> directories_up_to(repo_root)
       |> Enum.map(&Path.join(&1, @l10n_filename))
       |> Enum.filter(&File.exists?/1)
-      |> Enum.reverse()
 
     parsed = Enum.map(l10n_paths, &parse_file/1)
 
@@ -62,7 +61,6 @@ defmodule L10n.Context do
       |> directories_up_to(repo_root)
       |> Enum.map(&Path.join([&1, "L10N", "#{locale}.md"]))
       |> Enum.filter(&File.exists?/1)
-      |> Enum.reverse()
 
     body =
       override_paths
@@ -313,12 +311,9 @@ defmodule L10n.Translator do
   """
 
   @plural_forms %{
-    "ar" => "nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5;",
     "es" => "nplurals=2; plural=n != 1;",
     "ja" => "nplurals=1; plural=0;",
     "ko" => "nplurals=1; plural=0;",
-    "pl" => "nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",
-    "pt" => "nplurals=2; plural=n > 1;",
     "ru" => "nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",
     "yue_Hant" => "nplurals=1; plural=0;",
     "zh_Hans" => "nplurals=1; plural=0;",
@@ -442,7 +437,7 @@ defmodule L10n.Translator do
         hash =
           L10n.Lock.compute_hash(
             pot_content,
-            context_body <> locale_override,
+            context_body,
             locale_override
           )
 
@@ -481,7 +476,7 @@ defmodule L10n.Translator do
         end
       end,
       max_concurrency: Keyword.get(opts, :max_concurrency, 4),
-      timeout: :infinity
+      timeout: Keyword.get(opts, :timeout, 1_200_000)
     )
     |> Enum.map(fn {:ok, result} -> result end)
   end
@@ -608,7 +603,7 @@ defmodule L10n.CLI do
           )
         end,
         max_concurrency: Keyword.get(opts, :concurrency, 4),
-        timeout: :infinity
+        timeout: :infinity  # pot-level timeout is infinite; per-locale tasks have their own timeout
       )
       |> Enum.flat_map(fn {:ok, results} -> results end)
     end
