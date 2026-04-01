@@ -15,7 +15,11 @@ on:
         description: Pull request head SHA
         required: true
         type: string
-      main_sha:
+      base_ref:
+        description: Base branch ref
+        required: true
+        type: string
+      base_sha:
         description: Base branch SHA
         required: true
         type: string
@@ -38,7 +42,8 @@ jobs:
       pr_number: ${{ steps.resolve.outputs.pr_number }}
       pr_ref: ${{ steps.resolve.outputs.pr_ref }}
       pr_sha: ${{ steps.resolve.outputs.pr_sha }}
-      main_sha: ${{ steps.resolve.outputs.main_sha }}
+      base_ref: ${{ steps.resolve.outputs.base_ref }}
+      base_sha: ${{ steps.resolve.outputs.base_sha }}
     steps:
       - name: Resolve inputs
         id: resolve
@@ -46,16 +51,18 @@ jobs:
           PR_NUMBER: ${{ inputs.pr_number }}
           PR_REF: ${{ inputs.pr_ref }}
           PR_SHA: ${{ inputs.pr_sha }}
-          MAIN_SHA: ${{ inputs.main_sha }}
+          BASE_REF: ${{ inputs.base_ref }}
+          BASE_SHA: ${{ inputs.base_sha }}
         run: |
           set -euo pipefail
           echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           echo "pr_ref=$PR_REF" >> "$GITHUB_OUTPUT"
           echo "pr_sha=$PR_SHA" >> "$GITHUB_OUTPUT"
-          echo "main_sha=$MAIN_SHA" >> "$GITHUB_OUTPUT"
+          echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
-  deploy-main:
-    name: Deploy main
+  deploy-base:
+    name: Deploy base
     needs: resolve
     runs-on: namespace-profile-default
     timeout-minutes: 30
@@ -63,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve.outputs.main_sha }}
+          ref: ${{ needs.resolve.outputs.base_sha }}
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -83,7 +90,7 @@ jobs:
 
   baseline:
     name: Baseline
-    needs: [resolve, deploy-main]
+    needs: [resolve, deploy-base]
     runs-on: namespace-profile-default
     timeout-minutes: 30
     steps:
@@ -95,7 +102,7 @@ jobs:
           cache-host: cache-eu-central-staging.tuist.dev
           region: eu-central
           run-id: lt-baseline-${{ github.run_id }}-eu-central
-          commit-sha: ${{ needs.resolve.outputs.main_sha }}
+          commit-sha: ${{ needs.resolve.outputs.base_sha }}
           artifact-name: baseline-result-eu-central
 
   deploy-pr:
@@ -133,10 +140,10 @@ jobs:
 
   compare:
     name: Compare
-    needs: [resolve, deploy-main, baseline, deploy-pr, test]
+    needs: [resolve, deploy-base, baseline, deploy-pr, test]
     if: >
       always() &&
-      needs.deploy-main.result == 'success' &&
+      needs.deploy-base.result == 'success' &&
       needs.baseline.result == 'success' &&
       needs.deploy-pr.result == 'success' &&
       needs.test.result == 'success'
@@ -167,7 +174,8 @@ jobs:
         id: compare
         env:
           PR_SHA: ${{ needs.resolve.outputs.pr_sha }}
-          MAIN_SHA: ${{ needs.resolve.outputs.main_sha }}
+          BASE_REF: ${{ needs.resolve.outputs.base_ref }}
+          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
         run: bash cache/ci/compare-load-test.sh
 
       - uses: actions/upload-artifact@v4
@@ -177,17 +185,17 @@ jobs:
           path: report.md
           retention-days: 30
 
-  restore:
-    name: Restore main
-    needs: [resolve, deploy-main, baseline, deploy-pr, test, compare]
-    if: always() && needs.deploy-main.result == 'success'
+  restore-base:
+    name: Restore base
+    needs: [resolve, deploy-base, baseline, deploy-pr, test, compare]
+    if: always() && needs.deploy-base.result == 'success'
     runs-on: namespace-profile-default
     timeout-minutes: 30
     environment: cache-staging
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve.outputs.main_sha }}
+          ref: ${{ needs.resolve.outputs.base_sha }}
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -207,8 +215,8 @@ jobs:
 
   comment:
     name: Update PR comment
-    needs: [resolve, deploy-main, baseline, deploy-pr, test, compare, restore]
-    if: always() && needs.deploy-main.result == 'success'
+    needs: [resolve, deploy-base, baseline, deploy-pr, test, compare, restore-base]
+    if: always() && needs.deploy-base.result == 'success'
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -224,12 +232,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
           PR_SHA: ${{ needs.resolve.outputs.pr_sha }}
+          BASE_REF: ${{ needs.resolve.outputs.base_ref }}
+          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
           VERDICT: ${{ needs.compare.outputs.verdict }}
           BASELINE_RESULT: ${{ needs.baseline.result }}
           DEPLOY_PR_RESULT: ${{ needs.deploy-pr.result }}
           TEST_RESULT: ${{ needs.test.result }}
           COMPARE_RESULT: ${{ needs.compare.result }}
-          RESTORE_RESULT: ${{ needs.restore.result }}
+          RESTORE_RESULT: ${{ needs.restore-base.result }}
         run: |
           set -euo pipefail
           MARKER="<!-- cache-load-test -->"
@@ -258,6 +268,7 @@ jobs:
 
           **Status:** ${STATUS}
           **PR SHA:** \`${PR_SHA}\`
+          **Baseline:** \`${BASE_REF}\` @ \`${BASE_SHA}\`
           **Workflow:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
           Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
@@ -273,8 +284,8 @@ jobs:
 
   finalize:
     name: Finalize load test
-    needs: [resolve, deploy-main, baseline, deploy-pr, test, compare, restore, comment]
-    if: always() && needs.deploy-main.result == 'success'
+    needs: [resolve, deploy-base, baseline, deploy-pr, test, compare, restore-base, comment]
+    if: always() && needs.deploy-base.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -284,7 +295,7 @@ jobs:
           needs.deploy-pr.result == 'failure' ||
           needs.test.result == 'failure' ||
           needs.compare.result == 'failure' ||
-          needs.restore.result == 'failure' ||
+          needs.restore-base.result == 'failure' ||
           needs.compare.outputs.verdict == 'fail'
         run: |
           echo "::error::Load test detected regressions or test failures"

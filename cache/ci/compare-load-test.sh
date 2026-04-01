@@ -2,7 +2,8 @@
 set -euo pipefail
 
 : "${PR_SHA:?PR_SHA must be set}"
-: "${MAIN_SHA:?MAIN_SHA must be set}"
+: "${BASE_REF:?BASE_REF must be set}"
+: "${BASE_SHA:?BASE_SHA must be set}"
 : "${GITHUB_RUN_ID:?GITHUB_RUN_ID must be set}"
 : "${GITHUB_SERVER_URL:?GITHUB_SERVER_URL must be set}"
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY must be set}"
@@ -147,7 +148,7 @@ fi
 
 REPORT="${REPORT}
 **PR SHA:** \`${PR_SHA}\`
-**Baseline:** \`main\` @ \`${MAIN_SHA}\`
+**Baseline:** \`${BASE_REF}\` @ \`${BASE_SHA}\`
 **Workflow:** [${GITHUB_RUN_ID}](${WORKFLOW_URL})
 "
 
