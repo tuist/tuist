@@ -1388,7 +1388,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
         } catch {
-            let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
+            let summary = mode == .local
+                ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
+                : nil
             await uploadResultBundleIfNeeded(
                 testSummary: summary,
                 resultBundlePath: resultBundlePath,
@@ -1400,7 +1402,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             throw error
         }
 
-        let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
+        let summary = mode == .local
+            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
+            : nil
         await uploadResultBundleIfNeeded(
             testSummary: summary,
             resultBundlePath: resultBundlePath,
