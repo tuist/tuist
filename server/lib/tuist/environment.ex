@@ -107,8 +107,12 @@ defmodule Tuist.Environment do
   end
 
   def cache_endpoints(secrets \\ secrets()) do
-    case get([:cache, :endpoints], secrets) do
-      endpoints when is_binary(endpoints) ->
+    value =
+      System.get_env("TUIST_CACHE_ENDPOINTS") ||
+        get([:cache, :endpoints], secrets)
+
+    case value do
+      endpoints when is_binary(endpoints) and endpoints != "" ->
         endpoints |> String.split(",") |> Enum.map(&String.trim/1)
 
       _ ->

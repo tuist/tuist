@@ -91,6 +91,10 @@ spec:
               value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
             - name: TUIST_S3_BUCKET_AS_HOST
               value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if .Values.cache.enabled }}
+            - name: TUIST_CACHE_ENDPOINTS
+              value: "http://{{ include "tuist.componentName" (dict "root" . "component" "cache") }}:{{ .Values.cache.service.port }}"
+            {{- end }}
             {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ include "tuist.observabilityOtlpEndpoint" . | quote }}
