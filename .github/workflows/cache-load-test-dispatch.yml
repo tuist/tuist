@@ -67,6 +67,7 @@ jobs:
           base_sha=$(jq -r '.base.sha' <<<"$pr_json")
 
           gh workflow run cache-load-test.yml \
+            --repo "$REPOSITORY" \
             --ref "$pr_ref" \
             -f pr_number="$PR_NUMBER" \
             -f pr_ref="$pr_ref" \
