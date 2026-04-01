@@ -119,15 +119,17 @@ defmodule XcodeProcessor.XCResultProcessor do
 
   defp replace_attachments(module, uploaded_map) do
     Map.update(module, "test_cases", [], fn test_cases ->
-      Enum.map(test_cases, fn test_case ->
-        Map.update(test_case, "attachments", [], fn attachments ->
-          Enum.flat_map(attachments, fn att ->
-            case Map.fetch(uploaded_map, att["file_path"]) do
-              {:ok, uploaded} -> [uploaded]
-              :error -> []
-            end
-          end)
-        end)
+      Enum.map(test_cases, &replace_test_case_attachments(&1, uploaded_map))
+    end)
+  end
+
+  defp replace_test_case_attachments(test_case, uploaded_map) do
+    Map.update(test_case, "attachments", [], fn attachments ->
+      Enum.flat_map(attachments, fn att ->
+        case Map.fetch(uploaded_map, att["file_path"]) do
+          {:ok, uploaded} -> [uploaded]
+          :error -> []
+        end
       end)
     end)
   end
