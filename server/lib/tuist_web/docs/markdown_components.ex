@@ -61,23 +61,6 @@ defmodule TuistWeb.Docs.MarkdownComponents do
     ~H"<Noora.Icon.alert_triangle />"
   end
 
-  @doc """
-  Wraps a raw HTML `<table>` from markdown with Noora table styling.
-
-  Noora's `Noora.Table` expects structured data via `rows`/`col` slots and
-  cannot wrap arbitrary HTML tables. This component applies the same CSS
-  class (`noora-table`) to get consistent styling.
-  """
-  slot :inner_block, required: true
-
-  def doc_table(assigns) do
-    ~H"""
-    <div class="noora-table">
-      {render_slot(@inner_block)}
-    </div>
-    """
-  end
-
   attr :locale, :string, default: "en"
   slot :inner_block, required: true
 

@@ -240,7 +240,7 @@ defmodule Tuist.Docs.Loader do
       |> MDEx.to_html!()
       |> then(fn h -> if live?, do: convert_github_alerts_to_components(h), else: convert_github_alerts(h) end)
       |> HTML.wrap_code_blocks()
-      |> then(fn h -> if live?, do: wrap_tables_with_component(h), else: wrap_tables(h) end)
+      |> wrap_tables()
       |> rewrite_image_paths()
       |> replace_heading_ids(custom_ids)
       |> HTML.add_heading_anchors()
@@ -383,11 +383,6 @@ defmodule Tuist.Docs.Loader do
     end)
   end
 
-  defp wrap_tables_with_component(html) do
-    html
-    |> String.replace("<table>", "<TuistWeb.Docs.MarkdownComponents.doc_table><table>")
-    |> String.replace("</table>", "</table></TuistWeb.Docs.MarkdownComponents.doc_table>")
-  end
 
   defp localize_link_components(markdown, locale) do
     Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
