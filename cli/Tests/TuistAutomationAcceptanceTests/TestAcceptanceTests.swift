@@ -1,7 +1,10 @@
 import FileSystem
 import FileSystemTesting
+import Path
 import Testing
+import TuistAcceptanceTesting
 import TuistBuildCommand
+import TuistEnvironment
 import TuistSupport
 import TuistTestCommand
 import TuistTesting
@@ -294,6 +297,55 @@ struct TestAcceptanceTestMultiplatformApp {
         try await TuistTest.run(
             TestCommand.self,
             ["--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
+    }
+}
+
+struct TestAcceptanceTestShardWithLocalTestProducts {
+    @Test(
+        .withFixtureConnectedToCanary("generated_ios_app_with_tests"),
+        .inTemporaryDirectory
+    ) func shard_with_local_test_products() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
+        let shardReference = "acceptance-test-\(Int.random(in: 100_000 ... 999_999))"
+
+        // Set CI env vars so ShardService can derive the shard reference
+        Environment.mocked?.variables["GITHUB_ACTIONS"] = "true"
+        Environment.mocked?.variables["GITHUB_RUN_ID"] = shardReference
+        Environment.mocked?.variables["GITHUB_RUN_ATTEMPT"] = "1"
+        let githubOutputPath = temporaryDirectory.appending(component: "github_output")
+        try await FileSystem().writeText("", at: githubOutputPath)
+        Environment.mocked?.variables["GITHUB_OUTPUT"] = githubOutputPath.pathString
+
+        // Build phase: build tests and create shard plan, skip S3 upload
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "MacFrameworkTests",
+                "--build-only",
+                "--shard-total", "1",
+                "--shard-skip-upload",
+                "--path", fixtureDirectory.pathString,
+                "--",
+                "-testProductsPath", testProductsPath.pathString,
+                "-destination", "platform=macOS",
+            ]
+        )
+
+        // Test phase: run shard using local test products
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "MacFrameworkTests",
+                "--without-building",
+                "--shard-index", "0",
+                "--path", fixtureDirectory.pathString,
+                "--",
+                "-testProductsPath", testProductsPath.pathString,
+                "-destination", "platform=macOS",
+            ]
         )
     }
 }

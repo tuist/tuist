@@ -2,7 +2,9 @@ import FileSystem
 import FileSystemTesting
 import Path
 import Testing
+import TuistAcceptanceTesting
 import TuistBuildCommand
+import TuistEnvironment
 import TuistGenerateCommand
 import TuistInitCommand
 import TuistSupport
@@ -644,6 +646,50 @@ struct XcodeBuildTestWithoutBuildingCommandAcceptanceTests {
                 "platform=iOS Simulator,name=iPhone 17",
                 "-derivedDataPath",
                 temporaryDirectory.pathString,
+            ]
+        )
+    }
+}
+
+struct XcodeBuildShardWithLocalTestProductsAcceptanceTests {
+    @Test(
+        .withFixtureConnectedToCanary("generated_ios_app_with_tests"),
+        .inTemporaryDirectory
+    ) func xcodebuild_shard_with_local_test_products() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
+        let shardReference = "acceptance-test-\(Int.random(in: 100_000 ... 999_999))"
+
+        // Set CI env vars so ShardService can derive the shard reference
+        Environment.mocked?.variables["GITHUB_ACTIONS"] = "true"
+        Environment.mocked?.variables["GITHUB_RUN_ID"] = shardReference
+        Environment.mocked?.variables["GITHUB_RUN_ATTEMPT"] = "1"
+        let githubOutputPath = temporaryDirectory.appending(component: "github_output")
+        try await FileSystem().writeText("", at: githubOutputPath)
+        Environment.mocked?.variables["GITHUB_OUTPUT"] = githubOutputPath.pathString
+
+        try await TuistTest.run(
+            XcodeBuildBuildForTestingCommand.self,
+            [
+                "--shard-total", "1",
+                "--shard-skip-upload",
+                "-project", fixtureDirectory.pathString + "/App.xcodeproj",
+                "-scheme", "MacFrameworkTests",
+                "-destination", "platform=macOS",
+                "-testProductsPath", testProductsPath.pathString,
+            ]
+        )
+
+        try await TuistTest.run(
+            XcodeBuildTestWithoutBuildingCommand.self,
+            [
+                "--shard-index", "0",
+                "-testProductsPath", testProductsPath.pathString,
+                "-destination", "platform=macOS",
             ]
         )
     }

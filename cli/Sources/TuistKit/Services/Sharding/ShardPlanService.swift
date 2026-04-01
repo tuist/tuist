@@ -25,7 +25,8 @@
             shardMaxDuration: Int?,
             fullHandle: String,
             serverURL: URL,
-            buildRunId: String?
+            buildRunId: String?,
+            skipUpload: Bool
         ) async throws -> Components.Schemas.ShardPlan
     }
 
@@ -99,7 +100,8 @@
             shardMaxDuration: Int?,
             fullHandle: String,
             serverURL: URL,
-            buildRunId: String?
+            buildRunId: String?,
+            skipUpload: Bool = false
         ) async throws -> Components.Schemas.ShardPlan {
             guard let reference = reference ?? ciController.ciInfo()?.shardReference else {
                 throw ShardPlanServiceError.cannotDeriveSessionId
@@ -148,41 +150,46 @@
 
             Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
 
-            let uploadId = try await startShardUploadService.startUpload(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                reference: reference
-            )
+            if skipUpload {
+                Logger.current
+                    .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
+            } else {
+                let uploadId = try await startShardUploadService.startUpload(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    reference: reference
+                )
 
-            Logger.current.debug("Uploading test products bundle...")
-            let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
-            let archivePath = archiveDirectory.appending(component: "bundle.aar")
-            try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
-            let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
-                artifactPath: archivePath,
-                generateUploadURL: { part in
-                    try await multipartUploadGenerateURLShardsService.generateUploadURL(
-                        fullHandle: fullHandle,
-                        serverURL: serverURL,
-                        reference: reference,
-                        uploadId: uploadId,
-                        partNumber: part.number
-                    )
-                },
-                updateProgress: { progress in
-                    Logger.current.debug("Upload progress: \(Int(progress * 100))%")
-                }
-            )
+                Logger.current.debug("Uploading test products bundle...")
+                let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
+                let archivePath = archiveDirectory.appending(component: "bundle.aar")
+                try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
+                let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
+                    artifactPath: archivePath,
+                    generateUploadURL: { part in
+                        try await multipartUploadGenerateURLShardsService.generateUploadURL(
+                            fullHandle: fullHandle,
+                            serverURL: serverURL,
+                            reference: reference,
+                            uploadId: uploadId,
+                            partNumber: part.number
+                        )
+                    },
+                    updateProgress: { progress in
+                        Logger.current.debug("Upload progress: \(Int(progress * 100))%")
+                    }
+                )
 
-            try await multipartUploadCompleteShardsService.completeUpload(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                reference: reference,
-                uploadId: uploadId,
-                parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
-            )
+                try await multipartUploadCompleteShardsService.completeUpload(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    reference: reference,
+                    uploadId: uploadId,
+                    parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
+                )
 
-            Logger.current.debug("Upload complete. Shard matrix ready.")
+                Logger.current.debug("Upload complete. Shard matrix ready.")
+            }
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
