@@ -75,6 +75,8 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                         "SKIP_INSTALL": "YES",
                         "GENERATE_MASTER_OBJECT_FILE": "NO",
                         "VERSIONING_SYSTEM": "",
+                        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L925
+                        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L225
                         "PACKAGE_RESOURCE_TARGET_KIND": "resource",
                     ],
                     configurations: [:]
@@ -88,14 +90,15 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 buildableFolders: resourceBuildableFolders
             )
             modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
-            // Asset catalogs and string catalogs need to be included in the main target's
-            // sources build phase so Xcode generates typed symbols (mirroring SwiftPM's PIF
-            // builder). Both are also compiled into the companion resource bundle via its
-            // Resources phase. The companion bundle must declare PACKAGE_RESOURCE_TARGET_KIND
-            // = "resource" so Xcode knows it is a pure resource container and does not run
-            // string extraction on it; the main target carries PACKAGE_RESOURCE_TARGET_KIND
-            // = "regular" (set below together with PACKAGE_RESOURCE_BUNDLE_NAME) which tells
-            // Xcode to perform extraction here where the Swift source references live.
+            // Asset catalogs and string catalogs are added to the main target's Sources build
+            // phase so Xcode generates typed symbols. This mirrors SwiftPM's PIF builder:
+            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L944-L952
+            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L345-L360
+            // Both are also compiled into the companion resource bundle via its Resources phase.
+            // The companion bundle declares PACKAGE_RESOURCE_TARGET_KIND = "resource" (above)
+            // so Xcode treats it as a pure resource container and skips string extraction.
+            // The main target carries PACKAGE_RESOURCE_TARGET_KIND = "regular" (below) so Xcode
+            // runs extraction here where the Swift source references live.
             let codeGeneratingResourceExtensions: Set<String> = ["xcassets", "xcstrings"]
             for resource in target.resources.resources {
                 if let ext = resource.path.extension, codeGeneratingResourceExtensions.contains(ext) {
@@ -115,11 +118,12 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             // preserving GenerateAssetSymbols for typed resource accessors. Without this,
             // xcodebuild archive fails for static targets because LinkAssetCatalog references
             // an UninstalledProducts path that doesn't exist during archiving.
+            //
             // PACKAGE_RESOURCE_TARGET_KIND = "regular" tells Xcode this is a normal compilation
-            // target (not a resource bundle) so string extraction runs here where Swift source
-            // references live. The companion bundle uses "resource" (set above) so Xcode skips
-            // extraction there. This mirrors SwiftPM's PIF builder and fixes stale-string
-            // detection for multiplatform static frameworks.
+            // target (not a resource bundle) so string extraction runs here where the Swift
+            // source references live. This mirrors SwiftPM's PIF builder:
+            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L642
+            //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift#L524
             var base = modifiedTarget.settings?.base ?? SettingsDictionary()
             base["PACKAGE_RESOURCE_BUNDLE_NAME"] = .string(bundleName)
             base["PACKAGE_RESOURCE_TARGET_KIND"] = .string("regular")
