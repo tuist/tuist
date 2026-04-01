@@ -2265,6 +2265,8 @@ defmodule Tuist.Tests do
     "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
   end
 
+  # Legacy path for attachments created before test_run_id was added to the schema.
+  # New attachments use the test_run_id-based path above.
   def attachment_storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
