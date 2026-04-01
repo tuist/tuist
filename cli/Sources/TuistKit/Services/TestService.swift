@@ -89,7 +89,9 @@ public enum TestServiceError: FatalError, Equatable {
     }
 }
 
-public enum TestProcessingMode: String, Sendable, CaseIterable {
+import ArgumentParser
+
+public enum TestProcessingMode: String, Sendable, CaseIterable, ExpressibleByArgument {
     case local
     case remote
 }

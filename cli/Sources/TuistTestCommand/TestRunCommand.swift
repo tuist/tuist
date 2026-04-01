@@ -12,8 +12,6 @@
     import TuistServer
     import TuistSupport
 
-    extension TestProcessingMode: ExpressibleByArgument {}
-
     enum TuistTestFlagError: FatalError, Equatable {
         case invalidCombination([String])
 
