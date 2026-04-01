@@ -1,15 +1,19 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.172.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.173.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* add --inspect-mode flag for remote xcresult processing by [@fortmarek](https://github.com/fortmarek) in [#10145](https://github.com/tuist/tuist/pull/10145)
+* support shared volumes for test shard distribution by [@fortmarek](https://github.com/fortmarek) in [#10144](https://github.com/tuist/tuist/pull/10144)
 ### 🐛 Bug Fixes
 
 * preserve .swiftmodule directories in shard archives by [@fortmarek](https://github.com/fortmarek) in [#10137](https://github.com/tuist/tuist/pull/10137)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.172.0...4.172.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.172.0...4.173.0
 
 ## What's Changed in 4.172.0<!-- RELEASE NOTES START -->
 
