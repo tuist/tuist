@@ -85,19 +85,19 @@ struct XcodeBuildTestCommandService {
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-            let localTestProductsPath: AbsolutePath?
+            let testProductsPath: AbsolutePath?
             if let localPathString = passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) {
                 let currentDirectory = try await Environment.current.currentWorkingDirectory()
-                localTestProductsPath = try AbsolutePath(validating: localPathString, relativeTo: currentDirectory)
+                testProductsPath = try AbsolutePath(validating: localPathString, relativeTo: currentDirectory)
             } else {
-                localTestProductsPath = nil
+                testProductsPath = nil
             }
 
             let shard = try await shardService.shard(
                 shardIndex: shardIndex,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                localTestProductsPath: localTestProductsPath
+                testProductsPath: testProductsPath
             )
             shardPlanId = shard.shardPlanId
 

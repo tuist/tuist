@@ -25,7 +25,7 @@ public protocol ShardServicing {
         shardIndex: Int,
         fullHandle: String,
         serverURL: URL,
-        localTestProductsPath: AbsolutePath?
+        testProductsPath: AbsolutePath?
     ) async throws -> Shard
 }
 
@@ -72,7 +72,7 @@ public struct ShardService: ShardServicing {
         shardIndex: Int,
         fullHandle: String,
         serverURL: URL,
-        localTestProductsPath: AbsolutePath? = nil
+        testProductsPath: AbsolutePath? = nil
     ) async throws -> Shard {
         guard let reference = ciController.ciInfo()?.shardReference else {
             throw ShardServiceError.cannotDeriveReference
@@ -95,25 +95,25 @@ public struct ShardService: ShardServicing {
             Logger.current.notice("Shard \(shardIndex): \(names.joined(separator: ", "))", metadata: .section)
         }
 
-        let testProductsPath: AbsolutePath
+        let resolvedTestProductsPath: AbsolutePath
         var xcTestRunPath: AbsolutePath?
 
-        if let localTestProductsPath {
-            testProductsPath = localTestProductsPath
-            Logger.current.debug("Using local test products at \(localTestProductsPath.pathString)")
+        if let testProductsPath {
+            resolvedTestProductsPath = testProductsPath
+            Logger.current.debug("Using local test products at \(testProductsPath.pathString)")
 
             let xcTestRunPaths = try await fileSystem
-                .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
+                .glob(directory: resolvedTestProductsPath, include: ["**/*.xctestrun"])
                 .collect()
             let tempXCTestRunDir = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-xctestrun")
-            for xcTestRunPath in xcTestRunPaths {
-                let plistData = try await fileSystem.readFile(at: xcTestRunPath)
+            for path in xcTestRunPaths {
+                let plistData = try await fileSystem.readFile(at: path)
                 let filteredData = try filterXCTestRun(
                     plistData: plistData,
                     modules: shard.modules,
                     suites: shard.suites.additionalProperties
                 )
-                let destPath = tempXCTestRunDir.appending(component: xcTestRunPath.basename)
+                let destPath = tempXCTestRunDir.appending(component: path.basename)
                 try filteredData.write(to: URL(fileURLWithPath: destPath.pathString))
             }
             xcTestRunPath = tempXCTestRunDir
@@ -124,26 +124,26 @@ public struct ShardService: ShardServicing {
             let shardArchivePath = try await fileClient.download(url: downloadURL)
             Logger.current.debug("Downloaded test products bundle.")
 
-            testProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-            try await appleArchiver.decompress(archive: shardArchivePath, to: testProductsPath)
+            resolvedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+            try await appleArchiver.decompress(archive: shardArchivePath, to: resolvedTestProductsPath)
             try? await fileSystem.remove(shardArchivePath)
-            Logger.current.debug("Extracted test products to \(testProductsPath.pathString)")
+            Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
 
             let xcTestRunPaths = try await fileSystem
-                .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
+                .glob(directory: resolvedTestProductsPath, include: ["**/*.xctestrun"])
                 .collect()
-            for xcTestRunPath in xcTestRunPaths {
-                let plistData = try await fileSystem.readFile(at: xcTestRunPath)
+            for path in xcTestRunPaths {
+                let plistData = try await fileSystem.readFile(at: path)
                 let filteredData = try filterXCTestRun(
                     plistData: plistData,
                     modules: shard.modules,
                     suites: shard.suites.additionalProperties
                 )
-                try filteredData.write(to: URL(fileURLWithPath: xcTestRunPath.pathString))
+                try filteredData.write(to: URL(fileURLWithPath: path.pathString))
             }
         }
 
-        let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        let selectiveTestingGraphPath = resolvedTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
         var selectiveTestingGraph: SelectiveTestingGraph?
         if try await fileSystem.exists(selectiveTestingGraphPath) {
             selectiveTestingGraph = try? await fileSystem.readJSONFile(at: selectiveTestingGraphPath)
@@ -155,7 +155,7 @@ public struct ShardService: ShardServicing {
         return Shard(
             reference: reference,
             shardPlanId: shard.shard_plan_id,
-            testProductsPath: testProductsPath,
+            testProductsPath: resolvedTestProductsPath,
             xcTestRunPath: xcTestRunPath,
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph
