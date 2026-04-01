@@ -53,11 +53,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.main_sha }}
-      - uses: ./.github/actions/cache-deploy-staging
+      - uses: 1password/install-cli-action@v2
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "ruby gem:kamal"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cache
+      - uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
-          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
-          kamal-secrets: ${{ secrets.CACHE_KAMAL_SECRETS }}
+      - name: Deploy with Kamal
+        shell: bash
+        working-directory: cache
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+          SECRETS: ${{ secrets.CACHE_KAMAL_SECRETS }}
+        run: mise run deploy "staging"
 
   baseline:
     name: Baseline
@@ -166,11 +177,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.main_sha }}
-      - uses: ./.github/actions/cache-deploy-staging
+      - uses: 1password/install-cli-action@v2
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "ruby gem:kamal"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cache
+      - uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
-          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
-          kamal-secrets: ${{ secrets.CACHE_KAMAL_SECRETS }}
+      - name: Deploy with Kamal
+        shell: bash
+        working-directory: cache
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+          SECRETS: ${{ secrets.CACHE_KAMAL_SECRETS }}
+        run: mise run deploy "staging"
 
   comment:
     name: Update PR comment
