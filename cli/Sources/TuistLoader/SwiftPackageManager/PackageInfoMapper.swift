@@ -642,6 +642,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     try mapDependency(
                         name: name,
                         targetPackage: package,
+                        currentTargetName: target.name,
                         packageInfo: packageInfo,
                         packageType: packageType,
                         packageSettings: packageSettings,
@@ -711,6 +712,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private func mapDependency(
         name: String,
         targetPackage: String? = nil,
+        currentTargetName: String? = nil,
         packageInfo: PackageInfo,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
@@ -733,10 +735,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
         } catch {
             return nil
         }
-        // If this is a .product dependency that explicitly references a different package,
-        // it must be an external dependency — skip the local target lookup to avoid
-        // self-referential resolution when a local target has the same name.
-        if let targetPackage, targetPackage != packageInfo.name {
+        // If this is a .product dependency that explicitly references a different package
+        // and the dependency name matches the current target name, it would create a
+        // self-referential loop. Resolve as external to avoid the circular dependency.
+        if let targetPackage, targetPackage != packageInfo.name,
+           let currentTargetName, currentTargetName == name
+        {
             if let aliasedName = moduleAliases?[name] {
                 dependencyModuleAliases[name] = aliasedName
                 return .external(name: aliasedName, condition: platformCondition)
