@@ -66,7 +66,7 @@ defmodule TuistWeb.Docs.MarkdownComponents do
 
   def home_cards(assigns) do
     ~H"""
-    <div class="docs-home-cards">
+    <div data-part="feature-cards">
       {render_slot(@inner_block)}
     </div>
     """
@@ -88,11 +88,11 @@ defmodule TuistWeb.Docs.MarkdownComponents do
     assigns = assign(assigns, :href, href)
 
     ~H"""
-    <a href={@href} class="docs-home-card">
-      <div data-part="image">
-        <strong>{@title}</strong>
+    <a href={@href} data-part="feature-card">
+      <div data-part="feature-card-image">
+        <span data-part="feature-card-title">{@title}</span>
       </div>
-      <div data-part="body">
+      <div data-part="feature-card-body">
         <p>{@details}</p>
       </div>
     </a>

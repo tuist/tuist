@@ -346,14 +346,14 @@ defmodule Tuist.Docs.Loader do
           link_href = if link == "", do: "#", else: Paths.public_path(locale, link)
 
           EEx.eval_string(
-            ~s(<a href="<%= link_href %>" class="docs-home-card"><div data-part="image"><strong><%= title %></strong></div><div data-part="body"><p><%= details %></p></div></a>),
+            ~s(<a href="<%= link_href %>" data-part="feature-card"><div data-part="feature-card-image"><span data-part="feature-card-title"><%= title %></span></div><div data-part="feature-card-body"><p><%= details %></p></div></a>),
             link_href: link_href,
             title: title,
             details: details
           )
         end)
 
-      EEx.eval_string(~s(<div class="docs-home-cards"><%= cards %></div>\n), cards: cards)
+      EEx.eval_string(~s(<div data-part="feature-cards"><%= cards %></div>\n), cards: cards)
     end)
   end
 
