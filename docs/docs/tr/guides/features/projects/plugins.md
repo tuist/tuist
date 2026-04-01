@@ -7,36 +7,35 @@
 ---
 # Eklentiler {#plugins}
 
-Eklentiler, Tuist artefaktlarını birden fazla projede paylaşmak ve yeniden
-kullanmak için bir araçtır. Aşağıdaki artefaktlar desteklenmektedir:
+Eklentiler, Tuist öğelerini birden fazla proje arasında paylaşmak ve yeniden
+kullanmak için bir araçtır. Aşağıdaki öğeler desteklenmektedir:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Proje açıklaması
-  yardımcıları</LocalizedLink> birden fazla projeye yayılmış.
+- <LocalizedLink href="/guides/features/projects/code-sharing">Birden fazla
+  projeye yayılan proje açıklaması yardımcıları</LocalizedLink>.
 - <LocalizedLink href="/guides/features/projects/templates">Birden fazla projede
-  şablonlar</LocalizedLink>.
+  kullanılan şablonlar</LocalizedLink>.
 - Birden fazla projeye yayılan görevler.
 - <LocalizedLink href="/guides/features/projects/synthesized-files">Birden fazla
-  projede kaynak erişimci</LocalizedLink> şablonu
+  projede kullanılan kaynak erişimci</LocalizedLink> şablonu
 
-Eklentiler, Tuist'in işlevselliğini basit bir şekilde genişletmek için
-tasarlanmıştır. Bu nedenle, **dikkate alınması gereken bazı sınırlamalar
-vardır**:
+Eklentiler, Tuist'in işlevselliğini genişletmenin basit bir yolu olarak
+tasarlanmıştır. Bu nedenle, dikkate alınması gereken bazı sınırlamalar vardır
+**** :
 
-- Bir eklenti başka bir eklentiye bağımlı olamaz.
-- Bir eklenti, üçüncü taraf Swift package'lerine bağlı olamaz.
-- Bir eklenti, eklentiyi kullanan projedeki proje açıklaması yardımcılarını
+- Bir eklenti, başka bir eklentiye bağımlı olamaz.
+- Bir eklenti, üçüncü taraf Swift package'lerine bağımlı olamaz
+- Bir eklenti, kendisini kullanan projenin proje açıklaması yardımcılarını
   kullanamaz.
 
 Daha fazla esnekliğe ihtiyacınız varsa, araç için bir özellik önermeyi veya
-Tuist'in oluşturma çerçevesini temel alarak kendi çözümünüzü geliştirmeyi
-düşünün,
+Tuist'in oluşturma çerçevesini kullanarak kendi çözümünüzü geliştirmeyi düşünün,
 [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
 
 ## Eklenti türleri {#plugin-types}
 
 ### Proje açıklaması yardımcı eklentisi {#project-description-helper-plugin}
 
-Proje açıklaması yardımcı eklentisi, eklentinin adını belirten bir
+Bir proje açıklaması yardımcı eklentisi, eklentinin adını bildiren bir
 `Plugin.swift` manifest dosyası ve yardımcı Swift dosyalarını içeren bir
 `ProjectDescriptionHelpers` dizini içeren bir dizinle temsil edilir.
 
@@ -59,9 +58,9 @@ let plugin = Plugin(name: "MyPlugin")
 ### Kaynak erişim şablonları eklentisi {#resource-accessor-templates-plugin}
 
 <LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">sentezlenmiş
-kaynak erişimcileri</LocalizedLink> paylaşmanız gerekiyorsa, bu tür bir eklenti
-kullanabilirsiniz. Eklenti, eklentinin adını bildiren bir `Plugin.swift`
-manifest dosyası ve kaynak erişimci şablon dosyalarını içeren bir
+kaynak erişimcileri</LocalizedLink> paylaşmanız gerekiyorsa, bu tür bir
+eklentiyi kullanabilirsiniz. Eklenti, eklentinin adını bildiren bir
+`Plugin.swift` manifest dosyası ve kaynak erişimci şablon dosyalarını içeren bir
 `ResourceSynthesizers` dizini içeren bir dizinle temsil edilir.
 
 
@@ -116,42 +115,43 @@ inceleyin.
 <!-- -->
 :::
 
-Görevler, `$PATH`-exposed çalıştırılabilir dosyalardır ve `tuist` komutu ile
-çağrılabilirler, ancak `tuist-<task-name>` adlandırma kuralına uymaları gerekir.
-Önceki sürümlerde, Tuist `tuist plugin` altında `build`, `run`, `test` ve
-`archive` Swift Package'lerinde çalıştırılabilir dosyalarla temsil edilen
-görevler için bazı zayıf kurallar ve araçlar sağlıyordu, ancak bu özelliği,
-aracın bakım yükünü ve karmaşıklığını artırdığı için kullanımdan
-kaldırdık.</task-name>
+`` Görevler, `$PATH` adresinde bulunan ve` komutu aracılığıyla çağrılabilen
+yürütülebilir dosyalardır; ancak bunun için `tuist-<task-name>` adlandırma
+kuralına uymaları gerekir. Önceki sürümlerde Tuist, `tuist plugin` altında,
+Swift Packagelerindeki yürütülebilir dosyalarla temsil edilen `build , `run`,
+`test` ve `archive` görevlerini oluşturmak için bazı zayıf kurallar ve araçlar
+sağlıyordu; ancak bu özellik, bakım yükünü ve aracın karmaşıklığını artırdığı
+için artık kullanılmamaktadır.</task-name>
 
 Görevleri dağıtmak için Tuist kullanıyorsanız,
 - Her Tuist sürümüyle birlikte dağıtılan `ProjectAutomation.xcframework`
-  dosyasını kullanmaya devam ederek, mantığınızda `let graph = try
-  Tuist.graph()` ile proje grafiğine erişebilirsiniz. Komut, `tuist` komutunu
-  çalıştırmak için sistem sürecini kullanır ve proje grafiğinin bellek içi
+  dosyasını kullanmaya devam ederek, `let graph = try Tuist.graph()` komutuyla
+  mantığınızdan proje grafiğine erişebilirsiniz. Bu komut, sistem sürecini
+  kullanarak `tuist` komutunu çalıştırır ve proje grafiğinin bellek içi
   temsilini döndürür.
-- Görevleri dağıtmak için, GitHub sürümlerinde `arm64` ve `x86_64` destekleyen
-  bir fat binary eklemenizi ve [Mise](https://mise.jdx.dev) kurulum aracını
-  kullanmanızı öneririz. Mise'ye aracınızı nasıl kuracağını öğretmek için bir
-  eklenti deposuna ihtiyacınız olacak. Referans olarak
-  [Tuist's](https://github.com/asdf-community/asdf-tuist) kullanabilirsiniz.
-- Aracınızı `tuist-{xxx}` olarak adlandırırsanız ve kullanıcılar `mise install`
+- Görevleri dağıtmak için, GitHub sürümlerine `arm64` ve `x86_64` adreslerini
+  destekleyen bir fat binary eklemenizi ve kurulum aracı olarak
+  [Mise](https://mise.jdx.dev) kullanmanızı öneririz. Mise'ye aracınızı nasıl
+  kuracağını öğretmek için bir eklenti deposuna ihtiyacınız olacak. Referans
+  olarak [Tuist'in](https://github.com/asdf-community/asdf-tuist) deposunu
+  kullanabilirsiniz.
+- Aracınıza `tuist-{xxx}` adını verirseniz ve kullanıcılar `mise install`
   komutunu çalıştırarak yükleyebilirse, aracı doğrudan çağırarak veya `tuist
   xxx` komutunu kullanarak çalıştırabilirler.
 
 ::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
-`ProjectAutomation` ve `XcodeGraph` modellerini, proje grafiğinin tamamını
-kullanıcıya gösteren tek bir geriye dönük uyumlu çerçeveye birleştirmeyi
-planlıyoruz. Ayrıca, oluşturma mantığını kendi CLI'nizden de kullanabileceğiniz
-yeni bir katmana, `XcodeGraph` çıkaracağız. Bunu kendi Tuist'inizi oluşturmak
-olarak düşünün.
+`, ProjectAutomation` ve `XcodeGraph` modellerini, proje grafiğinin tamamını
+kullanıcıya sunan tek bir geriye dönük uyumlu çerçeve altında birleştirmeyi
+planlıyoruz. Ayrıca, oluşturma mantığını yeni bir katmana, `XcodeGraph`
+ayıracağız; bu katmanı kendi CLI'nizden de kullanabilirsiniz. Bunu kendi
+Tuist'inizi oluşturmak olarak düşünün.
 <!-- -->
 :::
 
 ## Eklentileri kullanma {#using-plugins}
 
-Eklentiyi kullanmak için, onu projenizin
+Bir eklentiyi kullanmak için, onu projenizin
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 manifest dosyasına eklemeniz gerekir:
 
@@ -166,9 +166,9 @@ let tuist = Tuist(
 )
 ```
 
-Farklı depolarda bulunan projelerde bir eklentiyi yeniden kullanmak
-istiyorsanız, eklentinizi bir Git deposuna aktarabilir ve `Tuist.swift`
-dosyasında ona başvurabilirsiniz:
+Farklı depolarda bulunan projeler arasında bir eklentiyi yeniden kullanmak
+istiyorsanız, eklentinizi bir Git deposuna yükleyebilir ve `Tuist.swift`
+dosyasında ona referans verebilirsiniz:
 
 ```swift
 import ProjectDescription
@@ -182,21 +182,21 @@ let tuist = Tuist(
 )
 ```
 
-Eklentileri ekledikten sonra, `tuist install` komutu eklentileri global bir
-önbellek dizinine indirir.
+Eklentileri ekledikten sonra, `tuist install` komutu eklentileri genel önbellek
+dizinine yükleyecektir.
 
 ::: info NO VERSION RESOLUTION
 <!-- -->
-Belki fark etmişsinizdir, eklentiler için sürüm çözünürlüğü sağlamıyoruz.
-Tekrarlanabilirliği sağlamak için Git etiketleri veya SHA'lar kullanmanızı
-öneririz.
+Fark etmiş olabileceğiniz gibi, eklentiler için sürüm çözümleme hizmeti
+sunmuyoruz. Tekrarlanabilirliği sağlamak için Git etiketleri veya SHA'ları
+kullanmanızı öneririz.
 <!-- -->
 :::
 
 ::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
-Proje açıklaması yardımcıları eklentisini kullanırken, yardımcıları içeren
-modülün adı eklentinin adıdır.
+Bir proje açıklaması yardımcıları eklentisi kullanırken, yardımcıları içeren
+modülün adı eklentinin adıdır
 ```swift
 import ProjectDescription
 import MyTuistPlugin
