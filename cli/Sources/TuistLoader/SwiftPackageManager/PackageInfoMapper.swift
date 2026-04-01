@@ -638,9 +638,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
             dependencies = try linkerDependencies + target.dependencies.compactMap {
                 switch $0 {
-                case let .product(name: name, package: _, moduleAliases: moduleAliases, condition: condition):
+                case let .product(name: name, package: package, moduleAliases: moduleAliases, condition: condition):
                     try mapDependency(
                         name: name,
+                        targetPackage: package,
                         packageInfo: packageInfo,
                         packageType: packageType,
                         packageSettings: packageSettings,
@@ -709,6 +710,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     private func mapDependency(
         name: String,
+        targetPackage: String? = nil,
         packageInfo: PackageInfo,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
@@ -731,6 +733,18 @@ public struct PackageInfoMapper: PackageInfoMapping {
         } catch {
             return nil
         }
+        // If this is a .product dependency that explicitly references a different package,
+        // it must be an external dependency — skip the local target lookup to avoid
+        // self-referential resolution when a local target has the same name.
+        if let targetPackage, targetPackage != packageInfo.name {
+            if let aliasedName = moduleAliases?[name] {
+                dependencyModuleAliases[name] = aliasedName
+                return .external(name: aliasedName, condition: platformCondition)
+            } else {
+                return .external(name: name, condition: platformCondition)
+            }
+        }
+
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
             if target.type == .binary, case let .external(artifactPaths: artifactPaths) = packageType,
                let artifactPath = artifactPaths[target.name]
