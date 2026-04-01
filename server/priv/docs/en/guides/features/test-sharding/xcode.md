@@ -418,7 +418,7 @@ workflows:
 > [!TIP]
 > Bitrise does not support dynamic parallel job creation at runtime. Define a fixed number of shard workflows in your pipeline stages — workflows within a stage run in parallel automatically.
 
-## Skipping upload and download with shared volumes {#shared-volumes}
+## Shared volumes {#shared-volumes}
 
 By default, the build phase uploads the `.xctestproducts` bundle to remote storage, and each shard runner downloads it. If your CI provider supports **shared volumes** (persistent storage mounted across jobs), you can skip this upload/download entirely by passing the test products through a shared filesystem.
 
@@ -450,7 +450,7 @@ tuist xcodebuild test \
 |------|---------------------|-------------|
 | `--shard-skip-upload` | `TUIST_TEST_SHARD_SKIP_UPLOAD` | Skip uploading the test products bundle to remote storage |
 
-### Namespace Runners {#namespace-runners}
+### Namespace {#namespace}
 
 [Namespace](https://namespace.so) runners support shared volumes across GitHub Actions jobs. Here's an example workflow:
 
