@@ -78,16 +78,8 @@ defmodule XcodeProcessor.XCResultProcessorTest do
       assert {:error, "parse failed"} = XCResultProcessor.process("some/key.zip")
     end
 
-    test "applies quarantine marking from quarantined_tests.json" do
-      temp_dir =
-        Path.join(
-          System.tmp_dir!(),
-          "xcresult_quarantine_test_#{:erlang.unique_integer([:positive])}"
-        )
-
-      File.mkdir_p!(temp_dir)
-      on_exit(fn -> File.rm_rf(temp_dir) end)
-
+    @tag :tmp_dir
+    test "applies quarantine marking from quarantined_tests.json", %{tmp_dir: tmp_dir} do
       quarantined_tests = [
         %{"target" => "AppTests", "class" => "Suite", "method" => "testA()"}
       ]
@@ -96,7 +88,7 @@ defmodule XcodeProcessor.XCResultProcessorTest do
 
       {:ok, fixture_zip} =
         :zip.create(
-          ~c"#{Path.join(temp_dir, "fixture.zip")}",
+          ~c"#{Path.join(tmp_dir, "fixture.zip")}",
           [
             {~c"Test.xcresult/Info.plist", "fake"},
             {~c"Test.xcresult/quarantined_tests.json", quarantine_json}

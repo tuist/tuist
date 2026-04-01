@@ -82,19 +82,39 @@ struct XcodeBuildTestCommandService {
 
         var shardPlanId: String?
         var shardTestProductsPath: AbsolutePath?
+        var shardXCTestRunPath: AbsolutePath?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+            let testProductsPath: AbsolutePath?
+            if let localPathString = passedValue(for: "-testProductsPath", arguments: passthroughXcodebuildArguments) {
+                let currentDirectory = try await Environment.current.currentWorkingDirectory()
+                testProductsPath = try AbsolutePath(validating: localPathString, relativeTo: currentDirectory)
+            } else {
+                testProductsPath = nil
+            }
+
             let shard = try await shardService.shard(
                 shardIndex: shardIndex,
                 fullHandle: fullHandle,
-                serverURL: serverURL
+                serverURL: serverURL,
+                testProductsPath: testProductsPath
             )
-            shardTestProductsPath = shard.testProductsPath
+            shardPlanId = shard.shardPlanId
+
             passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
-            passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
-            shardPlanId = shard.shardPlanId
+
+            if let xcTestRunPath = shard.xcTestRunPath {
+                shardXCTestRunPath = xcTestRunPath
+                passthroughXcodebuildArguments = removeOption("-testProductsPath", from: passthroughXcodebuildArguments)
+                passthroughXcodebuildArguments = removeOption("-xctestrun", from: passthroughXcodebuildArguments)
+                passthroughXcodebuildArguments += ["-xctestrun", xcTestRunPath.pathString]
+            } else {
+                shardTestProductsPath = shard.testProductsPath
+                passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
+            }
         }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
@@ -155,12 +175,13 @@ struct XcodeBuildTestCommandService {
                 if let shardTestProductsPath {
                     try? await fileSystem.remove(shardTestProductsPath)
                 }
+                if let shardXCTestRunPath {
+                    try? await fileSystem.remove(shardXCTestRunPath)
+                }
                 return
             }
 
-            if let shardTestProductsPath {
-                try? await fileSystem.remove(shardTestProductsPath)
-            }
+            try? await cleanUpShardArtifacts(testProductsPath: shardTestProductsPath, xcTestRunPath: shardXCTestRunPath)
             throw error
         }
 
@@ -187,6 +208,18 @@ struct XcodeBuildTestCommandService {
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
+        }
+        if let shardXCTestRunPath {
+            try? await fileSystem.remove(shardXCTestRunPath)
+        }
+    }
+
+    private func cleanUpShardArtifacts(testProductsPath: AbsolutePath?, xcTestRunPath: AbsolutePath?) async {
+        if let testProductsPath {
+            try? await fileSystem.remove(testProductsPath)
+        }
+        if let xcTestRunPath {
+            try? await fileSystem.remove(xcTestRunPath)
         }
     }
 

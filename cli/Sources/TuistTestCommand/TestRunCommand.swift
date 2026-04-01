@@ -281,6 +281,20 @@
         )
         var shardReference: String?
 
+        @Flag(
+            name: .long,
+            help: "Skip uploading test products to remote storage. Use when you provide test products to shard runners yourself, for example via shared volumes.",
+            envKey: .testShardSkipUpload
+        )
+        var shardSkipUpload: Bool = false
+
+        @Option(
+            name: .long,
+            help: "The zero-based shard index to execute.",
+            envKey: .testShardIndex
+        )
+        var shardIndex: Int?
+
         @Option(
             name: .long,
             help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
@@ -400,7 +414,8 @@
                 shardMax: shardMax,
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
-                shardIndex: EnvKey.testShardIndex.envValue(),
+                shardIndex: shardIndex,
+                shardSkipUpload: shardSkipUpload,
                 mode: inspectMode
             )
         }

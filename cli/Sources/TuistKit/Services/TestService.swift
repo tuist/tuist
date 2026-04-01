@@ -219,6 +219,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardTotal: Int? = nil,
         shardMaxDuration: Int? = nil,
         shardIndex: Int? = nil,
+        shardSkipUpload: Bool = false,
         mode: TestProcessingMode = .local
     ) async throws {
         if validateTestTargetsParameters {
@@ -510,7 +511,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         shardMaxDuration: shardMaxDuration,
                         fullHandle: fullHandle,
                         serverURL: serverURL,
-                        buildRunId: buildRunId
+                        buildRunId: buildRunId,
+                        skipUpload: shardSkipUpload
                     )
                 }
             }
@@ -523,7 +525,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func runShard(
         shardIndex: Int,
         schemeName _: String?,
-        path _: AbsolutePath,
+        path: AbsolutePath,
         config: Tuist,
         deviceName: String?,
         platform: String?,
@@ -543,10 +545,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        let localTestProductsPath = testProductsPathFromArguments(passthroughXcodeBuildArguments, relativeTo: path)
         let shard = try await shardService.shard(
             shardIndex: shardIndex,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            testProductsPath: localTestProductsPath
         )
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
@@ -570,6 +574,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        var shardPassthroughArguments = passthroughXcodeBuildArguments
+        if let xcTestRunPath = shard.xcTestRunPath {
+            shardPassthroughArguments = removeOption("-testProductsPath", from: shardPassthroughArguments)
+            shardPassthroughArguments += ["-xctestrun", xcTestRunPath.pathString]
+        }
+
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: shard.testProductsPath,
             testTargets: testTargets,
@@ -581,7 +591,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             rosetta: rosetta,
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: shardPassthroughArguments
         )
 
         var testError: Error?
@@ -615,7 +625,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             runResultBundlePath: runResultBundlePath,
             resultBundlePath: resultBundlePath
         )
-        try? await fileSystem.remove(shard.testProductsPath)
+        if let xcTestRunPath = shard.xcTestRunPath {
+            try? await fileSystem.remove(xcTestRunPath)
+        } else {
+            try? await fileSystem.remove(shard.testProductsPath)
+        }
 
         if let testError {
             throw testError
@@ -722,6 +736,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
         AlertController.current.success(.alert("The project tests ran successfully"))
     }
 
+    private func removeOption(_ option: String, from arguments: [String]) -> [String] {
+        guard let index = arguments.firstIndex(of: option) else { return arguments }
+        var result = arguments
+        result.remove(at: index)
+        if result.indices.contains(index) {
+            result.remove(at: index)
+        }
+        return result
+    }
+
     private func testProductsPathFromArguments(_ arguments: [String], relativeTo path: AbsolutePath) -> AbsolutePath? {
         guard let index = arguments.firstIndex(of: "-testProductsPath"),
               arguments.indices.contains(index + 1)
@@ -747,7 +771,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String]
     ) async throws -> [String] {
         var arguments = ["test-without-building"]
-        if !passthroughXcodeBuildArguments.contains("-testProductsPath") {
+        if !passthroughXcodeBuildArguments.contains("-testProductsPath"),
+           !passthroughXcodeBuildArguments.contains("-xctestrun")
+        {
             arguments += ["-testProductsPath", testProductsPath.pathString]
         }
 
