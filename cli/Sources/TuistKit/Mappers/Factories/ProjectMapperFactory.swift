@@ -100,7 +100,9 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         mappers.append(IDETemplateMacrosMapper())
 
         // Default Swift version
-        mappers.append(DefaultSwiftVersionProjectMapper(tuist: tuist))
+        if let generationOptions = tuist.project.generatedProject?.generationOptions {
+            mappers.append(DefaultSwiftVersionProjectMapper(defaultSwiftVersion: generationOptions.defaultSwiftVersion))
+        }
 
         // Xcode cache settings
         mappers.append(XcodeCacheSettingsProjectMapper(tuist: tuist))

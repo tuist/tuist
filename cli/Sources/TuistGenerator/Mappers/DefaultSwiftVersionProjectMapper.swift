@@ -1,22 +1,21 @@
 import Foundation
-import Logging
 import TuistConfig
 import TuistCore
 import XcodeGraph
 
-/// Sets the project-level `SWIFT_VERSION` build setting from the `defaultSwiftVersion` generation option.
-/// This allows `DefaultSettingsProvider` to skip injecting its built-in default, so all local targets
-/// inherit the user-chosen version instead.
+/// Sets `SWIFT_VERSION` in the project's base settings from the `defaultSwiftVersion` generation option.
+///
+/// `DefaultSettingsProvider` skips injecting its built-in `"5.0"` default when it finds `SWIFT_VERSION`
+/// already present in `project.settings.base`, so this mapper is the single source of truth for the
+/// default Swift version applied to local targets.
 public struct DefaultSwiftVersionProjectMapper: ProjectMapping {
-    private let tuist: Tuist
+    private let defaultSwiftVersion: String
 
-    public init(tuist: Tuist) {
-        self.tuist = tuist
+    public init(defaultSwiftVersion: String) {
+        self.defaultSwiftVersion = defaultSwiftVersion
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        let defaultSwiftVersion = tuist.project.generatedProject?.generationOptions.defaultSwiftVersion ?? "5"
-
         var project = project
         var baseSettings = project.settings.base
         baseSettings["SWIFT_VERSION"] = .string(defaultSwiftVersion)
