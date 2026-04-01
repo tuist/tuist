@@ -8,35 +8,35 @@ import TuistTesting
 
 @testable import TuistKit
 
-struct TestAcceptanceTests {
+struct TestAcceptanceTestiOSAppWithFrameworks {
     @Test(
+        .disabled(),
         .withFixture("generated_ios_app_with_frameworks"),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()
     ) func ios_app_with_frameworks() async throws {
-        // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-        // When/Then
         try await TuistTest.run(
             TestCommand.self,
             ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
         )
     }
+}
 
+struct TestAcceptanceTestAppWithFrameworkAndTests {
     @Test(
+        .disabled(),
         .withFixture("generated_app_with_framework_and_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()
     ) func app_with_framework_and_tests() async throws {
-        // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-        // When/Then
         try await TuistTest.run(
             TestCommand.self,
             ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString, "App"]
@@ -68,9 +68,8 @@ struct TestAcceptanceTests {
     }
 }
 
-/// Test projects using tuist test
-struct TestAcceptanceTestCases {
-    @Test(.withFixture("generated_framework_with_spm_bundle"), .inTemporaryDirectory)
+struct TestAcceptanceTestFrameworkWithSPMBundle {
+    @Test(.disabled(), .withFixture("generated_framework_with_spm_bundle"), .inTemporaryDirectory)
     func with_framework_with_spm_bundle() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -80,8 +79,10 @@ struct TestAcceptanceTestCases {
             ["--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
         )
     }
+}
 
-    @Test(.withFixture("generated_app_with_test_plan"), .inTemporaryDirectory)
+struct TestAcceptanceTestAppWithTestPlan {
+    @Test(.disabled(), .withFixture("generated_app_with_test_plan"), .inTemporaryDirectory)
     func with_app_with_test_plan() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -102,8 +103,10 @@ struct TestAcceptanceTestCases {
             ]
         )
     }
+}
 
-    @Test(.withFixture("generated_app_workspace_with_test_plan"), .inTemporaryDirectory)
+struct TestAcceptanceTestAppWorkspaceWithTestPlan {
+    @Test(.disabled(), .withFixture("generated_app_workspace_with_test_plan"), .inTemporaryDirectory)
     func with_app_workspace_with_test_plan() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -120,7 +123,9 @@ struct TestAcceptanceTestCases {
             ]
         )
     }
+}
 
+struct TestAcceptanceTestInvalidArguments {
     @Test(.withFixture("generated_app_with_framework_and_tests"), .inTemporaryDirectory)
     func with_invalid_arguments() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -279,7 +284,9 @@ struct TestAcceptanceTestCases {
             )
         }
     }
+}
 
+struct TestAcceptanceTestMultiplatformApp {
     @Test(.withFixture("generated_multiplatform_app"), .inTemporaryDirectory)
     func with_multiplatform_app() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

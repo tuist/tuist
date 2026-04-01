@@ -55,6 +55,7 @@ rm release.tar.gz
 
 sudo launchctl bootout system/org.nixos.dev.tuist.xcode-processor 2>/dev/null || true
 echo "==> Stopped"
+sleep 3
 
 # Swap the symlink atomically
 ln -sfn "\${RELEASE_PATH}" "\${CURRENT_LINK}"
@@ -86,6 +87,7 @@ echo "ERROR: Health check failed after 60s"
 if [ -n "\${PREVIOUS_RELEASE}" ] && [ -d "\${PREVIOUS_RELEASE}" ]; then
     echo "==> Rolling back to \${PREVIOUS_RELEASE}..."
     sudo launchctl bootout system/org.nixos.dev.tuist.xcode-processor 2>/dev/null || true
+    sleep 3
     ln -sfn "\${PREVIOUS_RELEASE}" "\${CURRENT_LINK}"
     sudo launchctl bootstrap system /Library/LaunchDaemons/org.nixos.dev.tuist.xcode-processor.plist
 

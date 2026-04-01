@@ -462,7 +462,7 @@ defmodule TuistWeb.API.TestsController do
           %{
             test_run_id: test_run.id,
             storage_key: storage_key,
-            account_id: selected_project.account_id,
+            account_id: test_run.account_id,
             project_id: selected_project.id,
             account_handle: selected_project.account.name,
             project_handle: selected_project.name,

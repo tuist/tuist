@@ -123,6 +123,7 @@ defmodule Tuist.Tests do
 
         query =
           from(t in Test,
+            hints: ["FINAL"],
             where: t.id == ^uuid,
             order_by: [desc: t.inserted_at],
             limit: 1

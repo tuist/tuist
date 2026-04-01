@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.172.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* preserve .swiftmodule directories in shard archives by [@fortmarek](https://github.com/fortmarek) in [#10137](https://github.com/tuist/tuist/pull/10137)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.172.0...4.172.1
+
 ## What's Changed in 4.172.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
