@@ -108,7 +108,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let gitController: GitControlling
     private let rootDirectoryLocator: RootDirectoryLocating
     private let uploadResultBundleService: UploadResultBundleServicing
-    private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
     private let derivedDataLocator: DerivedDataLocating
     private let createTestService: CreateTestServicing
     private let machineEnvironment: MachineEnvironmentRetrieving
@@ -146,7 +145,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         gitController: GitControlling = GitController(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
-        analyticsArtifactUploadService: AnalyticsArtifactUploadServicing = AnalyticsArtifactUploadService(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         createTestService: CreateTestServicing = CreateTestService(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -170,7 +168,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.gitController = gitController
         self.rootDirectoryLocator = rootDirectoryLocator
         self.uploadResultBundleService = uploadResultBundleService
-        self.analyticsArtifactUploadService = analyticsArtifactUploadService
         self.derivedDataLocator = derivedDataLocator
         self.createTestService = createTestService
         self.machineEnvironment = machineEnvironment
@@ -1450,53 +1447,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     shardIndex: shardIndex
                 )
             case .remote:
-                guard let resultBundlePath,
-                      let fullHandle = config.fullHandle
-                else { return }
-                let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-                let testRunId = UUID().uuidString.lowercased()
-
-                try await analyticsArtifactUploadService.uploadResultBundle(
-                    resultBundlePath,
-                    fullHandle: fullHandle,
-                    commandEventId: testRunId,
-                    serverURL: serverURL
-                )
-
-                let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-                let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
-                let rootDir = try await rootDirectory()
-                let gitInfoDirectory = rootDir ?? currentWorkingDirectory
-                let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
-                let ciInfo = ciController.ciInfo()
-
-                let test = try await createTestService.createTest(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    id: testRunId,
-                    testSummary: TestSummary(
-                        testPlanName: nil,
-                        status: .processing,
-                        duration: 0,
-                        testModules: []
-                    ),
-                    buildRunId: nil,
-                    gitBranch: gitInfo.branch,
-                    gitCommitSHA: gitInfo.sha,
-                    gitRef: gitInfo.ref,
-                    gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
-                    isCI: Environment.current.isCI,
-                    modelIdentifier: machineEnvironment.modelIdentifier(),
-                    macOSVersion: machineEnvironment.macOSVersion,
-                    xcodeVersion: try await xcodebuildController.version()?.description,
-                    ciRunId: ciInfo?.runId,
-                    ciProjectHandle: ciInfo?.projectHandle,
-                    ciHost: ciInfo?.host,
-                    ciProvider: ciInfo?.provider,
+                guard let resultBundlePath else { return }
+                let test = try await uploadResultBundleService.uploadResultBundleRemotely(
+                    resultBundlePath: resultBundlePath,
+                    config: config,
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex
                 )
-
                 AlertController.current.success(
                     .alert("Result bundle uploaded for processing. View at \(test.url)")
                 )
