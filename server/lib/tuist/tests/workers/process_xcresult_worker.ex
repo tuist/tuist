@@ -2,49 +2,70 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   @moduledoc false
   use Oban.Worker, queue: :default, max_attempts: 3, unique: [keys: [:test_run_id]]
 
+  alias Tuist.Accounts
+  alias Tuist.Storage
   alias Tuist.Tests
 
   require Logger
 
   @impl Oban.Worker
   def perform(%Oban.Job{
-        args:
-          %{
-            "test_run_id" => test_run_id,
-            "storage_key" => storage_key,
-            "account_id" => account_id,
-            "project_id" => project_id
-          } = args,
+        args: %{"test_run_id" => test_run_id, "storage_key" => storage_key, "account_id" => account_id} = args,
         attempt: attempt,
         max_attempts: max_attempts
       }) do
     xcode_processor_url = Tuist.Environment.xcode_processor_url()
 
-    if is_nil(xcode_processor_url) or xcode_processor_url == "" do
-      {:error, "xcode_processor_url_not_configured"}
-    else
-      result =
-        send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, account_id, project_id)
+    result =
+      if is_nil(xcode_processor_url) or xcode_processor_url == "" do
+        process_locally(test_run_id, storage_key, account_id, args)
+      else
+        send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, args)
+      end
 
-      case result do
-        {:ok, parsed_data} ->
-          replace_test_run(parsed_data, args)
+    case result do
+      {:ok, parsed_data} ->
+        replace_test_run(parsed_data, args)
 
-        {:error, reason} ->
-          if attempt >= max_attempts do
-            Logger.error(
-              "Failed to process xcresult for test run #{test_run_id} after #{max_attempts} attempts: #{inspect(reason)}"
-            )
+      {:error, reason} ->
+        if attempt >= max_attempts do
+          Logger.error(
+            "Failed to process xcresult for test run #{test_run_id} after #{max_attempts} attempts: #{inspect(reason)}"
+          )
 
-            mark_failed_processing(args)
-          end
+          mark_failed_processing(args)
+        end
 
-          {:error, reason}
+        {:error, reason}
+    end
+  end
+
+  defp process_locally(test_run_id, storage_key, account_id, args) do
+    with {:ok, account} <- Accounts.get_account_by_id(account_id) do
+      temp_path = Path.join(System.tmp_dir!(), "xcresult_#{test_run_id}.zip")
+
+      try do
+        case Storage.download_to_file(storage_key, temp_path, account) do
+          {:ok, _} ->
+            opts = [
+              test_run_id: test_run_id,
+              account_handle: args["account_handle"],
+              project_handle: args["project_handle"],
+              s3_bucket: Tuist.Environment.s3_bucket_name()
+            ]
+
+            XcodeProcessor.XCResultProcessor.process_local(temp_path, opts)
+
+          {:error, _} = error ->
+            error
+        end
+      after
+        File.rm(temp_path)
       end
     end
   end
 
-  defp send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, account_id, project_id) do
+  defp send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, args) do
     webhook_secret = Tuist.Environment.xcode_processor_webhook_secret()
 
     if is_nil(webhook_secret) or webhook_secret == "" do
@@ -54,8 +75,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       payload = %{
         test_run_id: test_run_id,
         storage_key: storage_key,
-        account_id: account_id,
-        project_id: project_id
+        account_id: args["account_id"],
+        project_id: args["project_id"],
+        account_handle: args["account_handle"],
+        project_handle: args["project_handle"]
       }
 
       json_body = JSON.encode!(payload)
@@ -78,10 +101,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
         {:ok, %{status: status, body: body}} ->
           Logger.error("Xcode processor returned #{status} for test run #{test_run_id}: #{inspect(body)}")
+
           {:error, "xcode_processor_error_#{status}: #{inspect(body)}"}
 
         {:error, reason} ->
           Logger.error("Xcode processor request failed for test run #{test_run_id}: #{inspect(reason)}")
+
           {:error, reason}
       end
     end

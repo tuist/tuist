@@ -71,14 +71,17 @@ RUN mkdir config
 COPY tuist_common /tuist_common
 COPY noora /noora
 COPY processor/mix.exs processor/mix.lock /processor/
+COPY xcode_processor/mix.exs xcode_processor/mix.lock /xcode_processor/
+COPY xcode_processor/config /xcode_processor/config
 
 RUN mix deps.get --only $MIX_ENV
 
 # Config files must be present before compiling dependencies
 COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
 
-# Copy processor source for path dependency compilation
+# Copy path dependency sources for compilation
 COPY processor/lib /processor/lib
+COPY xcode_processor/lib /xcode_processor/lib
 
 RUN mix deps.compile
 

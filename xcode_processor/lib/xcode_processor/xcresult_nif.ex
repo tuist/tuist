@@ -8,8 +8,6 @@ defmodule XcodeProcessor.XCResultNIF do
   Build the NIF with: `cd native/xcresult_nif && swift build -c release`
   """
 
-  require Logger
-
   @on_load :load_nif
 
   @nif_loaded :nif_load_status
@@ -26,9 +24,8 @@ defmodule XcodeProcessor.XCResultNIF do
         :persistent_term.put(@nif_loaded, true)
         :ok
 
-      {:error, reason} ->
+      {:error, _reason} ->
         :persistent_term.put(@nif_loaded, false)
-        Logger.error("Failed to load xcresult NIF from #{nif_path}: #{inspect(reason)}")
         :ok
     end
   end

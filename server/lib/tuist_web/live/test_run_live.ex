@@ -1308,6 +1308,7 @@ defmodule TuistWeb.TestRunLive do
             Tests.attachment_storage_key(%{
               account_handle: project.account.name,
               project_handle: project.name,
+              test_run_id: att.test_run_id,
               test_case_run_id: tcr.id,
               attachment_id: att.id,
               file_name: att.file_name
