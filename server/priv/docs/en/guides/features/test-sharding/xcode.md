@@ -70,6 +70,93 @@ tuist xcodebuild test \
 
 Tuist downloads the `.xctestproducts` bundle and filters it to include only the tests assigned to that shard.
 
+## Skipping upload and download with shared volumes {#shared-volumes}
+
+By default, the build phase uploads the `.xctestproducts` bundle to remote storage, and each shard runner downloads it. If your CI provider supports **shared volumes** (persistent storage mounted across jobs), you can skip this upload/download entirely by passing the test products through a shared filesystem.
+
+This can significantly reduce shard startup time, especially for large test bundles.
+
+To use shared volumes:
+
+1. In the **build phase**, pass `-testProductsPath` pointing to a shared volume and add `--shard-skip-upload` to skip the remote upload:
+
+```sh
+tuist xcodebuild build-for-testing \
+  -scheme MyScheme \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  --shard-total 5 \
+  --shard-skip-upload \
+  -testProductsPath /path/to/shared/volume/MyScheme.xctestproducts
+```
+
+2. In the **test phase**, pass the same `-testProductsPath` so Tuist reads the test products locally instead of downloading them:
+
+```sh
+tuist xcodebuild test \
+  -scheme MyScheme \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -testProductsPath /path/to/shared/volume/MyScheme.xctestproducts
+```
+
+| Flag | Environment variable | Description |
+|------|---------------------|-------------|
+| `--shard-skip-upload` | `TUIST_TEST_SHARD_SKIP_UPLOAD` | Skip uploading the test products bundle to remote storage |
+
+### Namespace Runners {#namespace-runners}
+
+[Namespace](https://namespace.so) runners support shared volumes across GitHub Actions jobs. Here's an example workflow:
+
+```yaml
+name: Tests
+on: [pull_request]
+
+jobs:
+  build:
+    name: Build test shards
+    runs-on: namespace-profile-default-macos
+    volumes:
+      - name: test-products
+        path: /Volumes/test-products
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - id: build
+        run: |
+          tuist xcodebuild build-for-testing \
+            -scheme MyScheme \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            --shard-total 5 \
+            --shard-skip-upload \
+            -testProductsPath /Volumes/test-products/MyScheme.xctestproducts
+
+  test:
+    name: "Shard #${{ matrix.shard }}"
+    needs: build
+    runs-on: namespace-profile-default-macos
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.build.outputs.matrix).shard }}
+    volumes:
+      - name: test-products
+        path: /Volumes/test-products
+        read_only: true
+    env:
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: |
+          tuist xcodebuild test \
+            -scheme MyScheme \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -testProductsPath /Volumes/test-products/MyScheme.xctestproducts
+```
+
 ## Continuous integration {#continuous-integration}
 
 Tuist automatically detects the following CI providers:

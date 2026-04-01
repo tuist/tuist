@@ -69,6 +69,11 @@ tuist test
 Tuist downloads the `.xctestproducts` bundle and filters it to include only the tests assigned to that shard.
 
 > [!TIP]
+> **Shared volumes**
+>
+> If your CI provider supports shared volumes (e.g. [Namespace](https://namespace.so)), you can skip the upload and download of test products by using the <LocalizedLink href="/guides/features/test-sharding/xcode">Xcode test sharding</LocalizedLink> workflow with `--shard-skip-upload` and `-testProductsPath`.
+
+> [!TIP]
 > **Selective Testing**
 >
 > Test sharding works seamlessly with <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>. The selective testing graph is persisted during the build phase and restored for each shard, so runners don't need to regenerate the project.
