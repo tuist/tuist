@@ -20,6 +20,25 @@ defmodule TuistWeb.Docs.MarkdownComponents do
     """
   end
 
+  attr :href, :string, required: true
+  attr :locale, :string, default: "en"
+  slot :inner_block, required: true
+
+  def localized_link(assigns) do
+    href =
+      if String.starts_with?(assigns.href, "http") do
+        assigns.href
+      else
+        Paths.public_path(assigns.locale, assigns.href)
+      end
+
+    assigns = assign(assigns, :resolved_href, href)
+
+    ~H"""
+    <a href={@resolved_href}>{render_slot(@inner_block)}</a>
+    """
+  end
+
   attr :title, :string, required: true
   attr :details, :string, required: true
   attr :link, :string, required: true

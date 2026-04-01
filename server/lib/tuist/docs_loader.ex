@@ -174,7 +174,7 @@ defmodule Tuist.Docs.Loader do
     processed_markdown =
       markdown
       |> String.replace(@script_setup_regex, "")
-      |> localize_link_components(locale)
+      |> localize_link_components(locale, live?)
       |> then(fn md -> if live?, do: md, else: convert_home_cards(md, locale) end)
       |> strip_custom_heading_ids()
       |> convert_code_groups()
@@ -331,7 +331,13 @@ defmodule Tuist.Docs.Loader do
     end)
   end
 
-  defp localize_link_components(markdown, locale) do
+  defp localize_link_components(markdown, _locale, true = _live?) do
+    Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
+      ~s(<TuistWeb.Docs.MarkdownComponents.localized_link href="#{href}" locale={@locale}>#{text}</TuistWeb.Docs.MarkdownComponents.localized_link>)
+    end)
+  end
+
+  defp localize_link_components(markdown, locale, false = _live?) do
     Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
       EEx.eval_string(~s(<a href="<%= href %>"><%= text %></a>), href: localize_href(href, locale), text: text)
     end)
