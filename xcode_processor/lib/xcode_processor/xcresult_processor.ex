@@ -4,7 +4,7 @@ defmodule XcodeProcessor.XCResultProcessor do
   require Logger
 
   def process_local(zip_path, opts \\ []) do
-    bucket = XcodeProcessor.Environment.s3_bucket()
+    bucket = Keyword.get(opts, :s3_bucket) || XcodeProcessor.Environment.s3_bucket()
     temp_dir = make_temp_dir()
 
     try do

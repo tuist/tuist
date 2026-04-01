@@ -56,7 +56,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
             opts = [
               test_run_id: test_run_id,
               account_handle: args["account_handle"],
-              project_handle: args["project_handle"]
+              project_handle: args["project_handle"],
+              s3_bucket: Tuist.Environment.s3_bucket_name()
             ]
 
             XcodeProcessor.XCResultProcessor.process_local(temp_path, opts)
