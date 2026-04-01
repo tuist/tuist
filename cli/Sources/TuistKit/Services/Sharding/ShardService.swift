@@ -101,7 +101,6 @@ public struct ShardService: ShardServicing {
         if let testProductsPath {
             resolvedTestProductsPath = testProductsPath
             Logger.current.debug("Using local test products at \(testProductsPath.pathString)")
-            xcTestRunPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-xctestrun")
         } else {
             guard let downloadURL = URL(string: shard.download_url) else {
                 throw ShardServiceError.invalidDownloadURL(shard.download_url)
@@ -118,6 +117,9 @@ public struct ShardService: ShardServicing {
         let xcTestRunPaths = try await fileSystem
             .glob(directory: resolvedTestProductsPath, include: ["**/*.xctestrun"])
             .collect()
+        let tempXCTestRunDir = testProductsPath != nil
+            ? try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-xctestrun")
+            : nil
         for path in xcTestRunPaths {
             let plistData = try await fileSystem.readFile(at: path)
             let filteredData = try filterXCTestRun(
@@ -125,9 +127,15 @@ public struct ShardService: ShardServicing {
                 modules: shard.modules,
                 suites: shard.suites.additionalProperties
             )
-            let destPath = xcTestRunPath?.appending(component: path.basename) ?? path
-            let plistString = String(decoding: filteredData, as: UTF8.self)
-            try await fileSystem.writeText(plistString, at: destPath)
+            if let tempXCTestRunDir {
+                let destPath = tempXCTestRunDir.appending(component: path.basename)
+                let plistString = String(decoding: filteredData, as: UTF8.self)
+                try await fileSystem.writeText(plistString, at: destPath)
+                xcTestRunPath = destPath
+            } else {
+                let plistString = String(decoding: filteredData, as: UTF8.self)
+                try await fileSystem.writeText(plistString, at: path)
+            }
         }
 
         let selectiveTestingGraphPath = resolvedTestProductsPath.appending(component: SelectiveTestingGraph.fileName)

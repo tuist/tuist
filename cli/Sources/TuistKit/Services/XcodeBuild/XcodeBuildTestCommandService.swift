@@ -101,16 +101,10 @@ struct XcodeBuildTestCommandService {
             )
             shardPlanId = shard.shardPlanId
 
-            if let filteredXCTestRunPath = shard.xcTestRunPath {
-                shardXCTestRunPath = filteredXCTestRunPath
-                let xctestrunFile = try await fileSystem
-                    .glob(directory: filteredXCTestRunPath, include: ["*.xctestrun"])
-                    .collect()
-                    .first
-                if let xctestrunFile {
-                    passthroughXcodebuildArguments = removeOption("-xctestrun", from: passthroughXcodebuildArguments)
-                    passthroughXcodebuildArguments += ["-xctestrun", xctestrunFile.pathString]
-                }
+            if let xcTestRunPath = shard.xcTestRunPath {
+                shardXCTestRunPath = xcTestRunPath.parentDirectory
+                passthroughXcodebuildArguments = removeOption("-xctestrun", from: passthroughXcodebuildArguments)
+                passthroughXcodebuildArguments += ["-xctestrun", xcTestRunPath.pathString]
             } else {
                 shardTestProductsPath = shard.testProductsPath
                 passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
