@@ -3,6 +3,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
   use Mimic
 
   alias Boruta.Ecto.Token
+  alias Tuist.Accounts.User
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -117,7 +118,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       jwt_token = TokenGenerator.generate(:access_token, token)
 
       {:ok, resource, _claims} = Tuist.Guardian.resource_from_token(jwt_token)
-      assert %Tuist.Accounts.User{} = resource
+      assert %User{} = resource
       assert resource.id == user.id
     end
 
@@ -130,7 +131,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       jwt_token = TokenGenerator.generate(:access_token, token)
 
       subject = Tuist.Authentication.authenticated_subject(jwt_token)
-      assert %Tuist.Accounts.User{} = subject
+      assert %User{} = subject
       assert subject.id == user.id
     end
 
