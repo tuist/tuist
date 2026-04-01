@@ -1183,7 +1183,8 @@ defmodule Tuist.Tests do
             }
           end)
 
-        {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc, test_case_attachments ++ attachments_acc}
+        {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc,
+         test_case_attachments ++ attachments_acc}
       end)
 
     Tuist.Tasks.run_async(fn ->
@@ -2258,7 +2259,9 @@ defmodule Tuist.Tests do
   end
 
   def attachment_storage_key(%{test_run_id: test_run_id} = params) when not is_nil(test_run_id) do
-    %{account_handle: account_handle, project_handle: project_handle, attachment_id: attachment_id, file_name: file_name} = params
+    %{account_handle: account_handle, project_handle: project_handle, attachment_id: attachment_id, file_name: file_name} =
+      params
+
     "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
   end
 
