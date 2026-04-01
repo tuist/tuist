@@ -69,7 +69,8 @@ struct XcodeBuildTestCommandService {
     func run(
         passthroughXcodebuildArguments: [String],
         skipQuarantine: Bool = false,
-        shardIndex: Int? = nil
+        shardIndex: Int? = nil,
+        mode: TestProcessingMode = .local
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
         try await passthroughXcodebuildArguments.append(
@@ -135,23 +136,42 @@ struct XcodeBuildTestCommandService {
                 await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
             }
 
-            let rootDirectory = await rootDirectory()
             var testSummary: TestSummary?
-            if let resultBundlePath,
-               let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
-            {
-                testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+            if mode == .local, let resultBundlePath {
+                let rootDirectory = await rootDirectory()
+                if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
+                    testSummary = testQuarantineService.markQuarantinedTests(
+                        testSummary: parsed,
+                        quarantinedTests: quarantinedTests
+                    )
+                }
             }
 
             await uploadResultBundleIfNeeded(
                 testSummary: testSummary,
+                resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
+                quarantinedTests: quarantinedTests,
                 shardPlanId: shardPlanId,
-                shardIndex: shardIndex
+                shardIndex: shardIndex,
+                mode: mode
             )
 
-            if let testSummary, testQuarantineService.onlyQuarantinedTestsFailed(testSummary: testSummary) {
+            let quarantinePass: Bool
+            if let testSummary {
+                quarantinePass = testQuarantineService.onlyQuarantinedTestsFailed(testSummary: testSummary)
+            } else if let resultBundlePath {
+                let testStatuses = try await xcResultService.parseTestStatuses(path: resultBundlePath)
+                quarantinePass = testQuarantineService.onlyQuarantinedTestsFailed(
+                    testStatuses: testStatuses,
+                    quarantinedTests: quarantinedTests
+                )
+            } else {
+                quarantinePass = false
+            }
+
+            if quarantinePass {
                 if let shardTestProductsPath {
                     try? await fileSystem.remove(shardTestProductsPath)
                 }
@@ -169,19 +189,22 @@ struct XcodeBuildTestCommandService {
             await updateBuildRunId(projectDerivedDataDirectory: derivedDataPath)
         }
 
-        let rootDirectory = await rootDirectory()
         var testSummary: TestSummary?
-        if let resultBundlePath,
-           let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
-        {
-            testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+        if mode == .local, let resultBundlePath {
+            let rootDirectory = await rootDirectory()
+            if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
+                testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+            }
         }
         await uploadResultBundleIfNeeded(
             testSummary: testSummary,
+            resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
+            quarantinedTests: quarantinedTests,
             shardPlanId: shardPlanId,
-            shardIndex: shardIndex
+            shardIndex: shardIndex,
+            mode: mode
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
@@ -300,23 +323,40 @@ struct XcodeBuildTestCommandService {
 
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
+        resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
+        quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
-        shardIndex: Int? = nil
+        shardIndex: Int? = nil,
+        mode: TestProcessingMode = .local
     ) async {
-        guard let testSummary,
-              config.fullHandle != nil
-        else { return }
+        guard config.fullHandle != nil else { return }
 
         do {
-            _ = try await uploadResultBundleService.uploadResultBundle(
-                testSummary: testSummary,
-                projectDerivedDataDirectory: projectDerivedDataDirectory,
-                config: config,
-                shardPlanId: shardPlanId,
-                shardIndex: shardIndex
-            )
+            switch mode {
+            case .local:
+                guard let testSummary else { return }
+                _ = try await uploadResultBundleService.uploadTestSummary(
+                    testSummary: testSummary,
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    config: config,
+                    shardPlanId: shardPlanId,
+                    shardIndex: shardIndex
+                )
+            case .remote:
+                guard let resultBundlePath else { return }
+                let test = try await uploadResultBundleService.uploadResultBundle(
+                    resultBundlePath: resultBundlePath,
+                    config: config,
+                    quarantinedTests: quarantinedTests,
+                    shardPlanId: shardPlanId,
+                    shardIndex: shardIndex
+                )
+                AlertController.current.success(
+                    .alert("Result bundle uploaded for processing. View at \(test.url)")
+                )
+            }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
         }

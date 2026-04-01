@@ -295,6 +295,13 @@
         )
         var shardIndex: Int?
 
+        @Option(
+            name: .long,
+            help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+            envKey: .inspectTestMode
+        )
+        var inspectMode: TestProcessingMode = .local
+
         @Argument(
             parsing: .postTerminator,
             help:
@@ -408,7 +415,8 @@
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
                 shardIndex: shardIndex,
-                shardSkipUpload: shardSkipUpload
+                shardSkipUpload: shardSkipUpload,
+                mode: inspectMode
             )
         }
     }

@@ -1873,6 +1873,7 @@ public enum Module: String, CaseIterable {
             case .xcResultService:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: "XCResultParser"),
                     .external(name: "FileSystemTesting"),
                 ]
             case .cas:

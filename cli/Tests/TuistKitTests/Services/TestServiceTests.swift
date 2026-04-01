@@ -137,9 +137,12 @@ final class TestServiceTests: TuistUnitTestCase {
         given(testQuarantineService)
             .onlyQuarantinedTestsFailed(testSummary: .any)
             .willReturn(false)
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testStatuses: .any, quarantinedTests: .any)
+            .willReturn(false)
 
         given(uploadResultBundleService)
-            .uploadResultBundle(
+            .uploadTestSummary(
                 testSummary: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
@@ -160,6 +163,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
 
         subject = TestService(
             generatorFactory: generatorFactory,
@@ -1380,6 +1386,19 @@ final class TestServiceTests: TuistUnitTestCase {
                     ]
                 )
             )
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(
+                TestResultStatuses(testCases: [
+                    .init(name: "testA", testSuite: nil, module: "FrameworkATests", status: .failed),
+                    .init(name: "testB", testSuite: nil, module: "FrameworkBTests", status: .passed),
+                ])
+            )
+
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
@@ -2728,7 +2747,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
             uploadResultBundleService.reset()
             given(uploadResultBundleService)
-                .uploadResultBundle(
+                .uploadTestSummary(
                     testSummary: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
