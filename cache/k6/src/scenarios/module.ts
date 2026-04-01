@@ -67,7 +67,7 @@ function moduleWriteBucket(data: SetupData, bucketName: string): void {
 
   const uploadId = (startRes.json() as any).upload_id;
   if (!uploadId) {
-    record(`module_write_${bucketName}`, Date.now() - start, true);
+    record(`module_write_${bucketName}`, Date.now() - start, false);
     return;
   }
 
