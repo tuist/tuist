@@ -14,7 +14,7 @@ public struct Shard {
     public let reference: String
     public let shardPlanId: String
     public let testProductsPath: AbsolutePath
-    public let filteredXCTestRunPath: AbsolutePath?
+    public let xcTestRunPath: AbsolutePath?
     public let modules: [String]
     public let selectiveTestingGraph: SelectiveTestingGraph?
 }
@@ -96,7 +96,7 @@ public struct ShardService: ShardServicing {
         }
 
         let testProductsPath: AbsolutePath
-        var filteredXCTestRunPath: AbsolutePath?
+        var xcTestRunPath: AbsolutePath?
 
         if let localTestProductsPath {
             testProductsPath = localTestProductsPath
@@ -116,7 +116,7 @@ public struct ShardService: ShardServicing {
                 let destPath = tempXCTestRunDir.appending(component: xcTestRunPath.basename)
                 try filteredData.write(to: URL(fileURLWithPath: destPath.pathString))
             }
-            filteredXCTestRunPath = tempXCTestRunDir
+            xcTestRunPath = tempXCTestRunDir
         } else {
             guard let downloadURL = URL(string: shard.download_url) else {
                 throw ShardServiceError.invalidDownloadURL(shard.download_url)
@@ -156,7 +156,7 @@ public struct ShardService: ShardServicing {
             reference: reference,
             shardPlanId: shard.shard_plan_id,
             testProductsPath: testProductsPath,
-            filteredXCTestRunPath: filteredXCTestRunPath,
+            xcTestRunPath: xcTestRunPath,
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph
         )
