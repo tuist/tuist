@@ -138,7 +138,20 @@ struct XcodeBuildTestCommandService {
                 mode: mode
             )
 
-            if let testSummary, testQuarantineService.onlyQuarantinedTestsFailed(testSummary: testSummary) {
+            let quarantinePass: Bool
+            if let testSummary {
+                quarantinePass = testQuarantineService.onlyQuarantinedTestsFailed(testSummary: testSummary)
+            } else if let resultBundlePath {
+                let testStatuses = try await xcResultService.parseTestStatuses(path: resultBundlePath)
+                quarantinePass = testQuarantineService.onlyQuarantinedTestsFailed(
+                    testStatuses: testStatuses,
+                    quarantinedTests: quarantinedTests
+                )
+            } else {
+                quarantinePass = false
+            }
+
+            if quarantinePass {
                 if let shardTestProductsPath {
                     try? await fileSystem.remove(shardTestProductsPath)
                 }
