@@ -117,22 +117,45 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     }
   end
 
-  describe "perform/1 when xcode_processor_url is not configured" do
+  describe "perform/1 when xcode_processor_url is not configured (local processing)" do
     setup do
       stub(Tuist.Environment, :xcode_processor_url, fn -> nil end)
       :ok
     end
 
-    test "returns error when url is nil", %{account: account, project: project} do
-      assert {:error, "xcode_processor_url_not_configured"} ==
-               ProcessXcresultWorker.perform(oban_job(job_args(@test_run_id, account.id, project.id)))
+    test "processes locally when url is nil", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Tuist.Accounts, :get_account_by_id, fn id ->
+        assert id == account.id
+        {:ok, account}
+      end)
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account ->
+        {:ok, :done}
+      end)
+
+      expect(XcodeProcessor.XCResultProcessor, :process_local, fn _path, _opts ->
+        {:ok, parsed_data()}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
-    test "returns error when url is empty string", %{account: account, project: project} do
+    test "processes locally when url is empty string", %{account: account, project: project} do
       stub(Tuist.Environment, :xcode_processor_url, fn -> "" end)
+      test_run_id = Ecto.UUID.generate()
 
-      assert {:error, "xcode_processor_url_not_configured"} ==
-               ProcessXcresultWorker.perform(oban_job(job_args(@test_run_id, account.id, project.id)))
+      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+      expect(XcodeProcessor.XCResultProcessor, :process_local, fn _path, _opts -> {:ok, parsed_data()} end)
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
   end
 

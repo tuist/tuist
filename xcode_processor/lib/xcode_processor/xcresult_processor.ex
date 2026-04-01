@@ -3,6 +3,21 @@ defmodule XcodeProcessor.XCResultProcessor do
 
   require Logger
 
+  def process_local(zip_path, opts \\ []) do
+    bucket = XcodeProcessor.Environment.s3_bucket()
+    temp_dir = make_temp_dir()
+
+    try do
+      result = process_zip(zip_path, temp_dir)
+
+      with {:ok, parsed_data} <- result do
+        upload_attachments(parsed_data, bucket, opts)
+      end
+    after
+      cleanup_temp(temp_dir)
+    end
+  end
+
   def process(storage_key, opts \\ []) do
     bucket = XcodeProcessor.Environment.s3_bucket()
     temp_dir = make_temp_dir()
