@@ -62,7 +62,10 @@ public struct AppleArchiver: AppleArchiving {
         }
         defer { try? encodeStream.close() }
 
-        let keySet = ArchiveHeader.FieldKeySet("TYP,PAT,DAT,UID,GID,MOD,FLG,MTM,CTM,SLC,LNK")!
+        // Exclude SLC (symlink content) and LNK (link) so symlinks are
+        // dereferenced during compression. Otherwise, both the symlink and its
+        // target end up in the archive, causing EEXIST errors during extraction.
+        let keySet = ArchiveHeader.FieldKeySet("TYP,PAT,DAT,UID,GID,MOD,FLG,MTM,CTM")!
 
         let filter: ArchiveHeader.EntryFilter = { _, path, _ in
             let pathString = path.string
@@ -83,6 +86,26 @@ public struct AppleArchiver: AppleArchiving {
     }
 
     public func decompress(archive: AbsolutePath, to directory: AbsolutePath) async throws {
+        do {
+            try extract(from: archive, to: directory)
+        } catch {
+            // Apple Archive's writeDirectoryContents may produce duplicate entries
+            // when the source directory contains symlinks to sibling directories.
+            // The extractor fails with EEXIST (renamex_np) on the second entry.
+            // Clear the partially-extracted contents and retry; the last-write-wins
+            // semantics are acceptable since the entries are identical.
+            guard error.localizedDescription.contains("File exists") else { throw error }
+            let fm = FileManager.default
+            if let contents = try? fm.contentsOfDirectory(atPath: directory.pathString) {
+                for item in contents {
+                    try? fm.removeItem(atPath: "\(directory.pathString)/\(item)")
+                }
+            }
+            try extract(from: archive, to: directory)
+        }
+    }
+
+    private func extract(from archive: AbsolutePath, to directory: AbsolutePath) throws {
         let source = FilePath(archive.pathString)
         let destination = FilePath(directory.pathString)
 
