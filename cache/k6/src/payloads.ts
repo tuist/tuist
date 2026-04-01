@@ -10,12 +10,7 @@ for (const bucket of [...XCODE_SIZES, ...LARGE_SIZES]) {
 const cache: Record<string, ArrayBuffer> = {};
 
 function buildPayload(size: number): ArrayBuffer {
-  const buf = new ArrayBuffer(size);
-  const view = new Uint8Array(buf);
-  for (let i = 0; i < size; i++) {
-    view[i] = i & 0xff;
-  }
-  return buf;
+  return new ArrayBuffer(size);
 }
 
 export function getPayloadForSize(size: number): ArrayBuffer {

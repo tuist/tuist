@@ -47,6 +47,7 @@ interface ScenarioConfig {
   duration: number;
   expectedLatencyMs: number;
   startTime: string;
+  gracefulStopSeconds: number;
   preAllocatedVUs?: number;
   maxVUs?: number;
 }
@@ -62,6 +63,7 @@ function makeScenario(cfg: ScenarioConfig): any {
     rate: cfg.rate,
     timeUnit: '1s',
     duration: `${cfg.duration}s`,
+    gracefulStop: `${cfg.gracefulStopSeconds}s`,
     preAllocatedVUs,
     maxVUs,
     startTime: cfg.startTime,
@@ -73,16 +75,19 @@ function makeScenario(cfg: ScenarioConfig): any {
 const scenarios: Record<string, any> = {};
 let offset = 0;
 for (const plan of SCENARIO_PLANS) {
+  const gracefulStopSeconds = Math.max(Math.ceil((plan.expectedLatencyMs * 2) / 1000), 1);
+
   scenarios[plan.key] = makeScenario({
     exec: plan.exec,
     rate: plan.rate,
     duration: plan.duration,
     expectedLatencyMs: plan.expectedLatencyMs,
     startTime: `${offset}s`,
+    gracefulStopSeconds,
     preAllocatedVUs: plan.preAllocatedVUs,
     maxVUs: plan.maxVUs,
   });
-  offset += plan.duration;
+  offset += plan.duration + gracefulStopSeconds;
 }
 
 export const options: Partial<Options> = {
