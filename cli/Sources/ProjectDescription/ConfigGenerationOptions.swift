@@ -107,8 +107,11 @@ extension Tuist {
         /// Controls which generation warnings are promoted to errors, causing `tuist generate` to fail.
         public var warningsAsErrors: WarningsAsErrors
 
-        /// The default `SWIFT_VERSION` build setting applied to targets that don't specify one.
-        /// For example, set to `"6"` to opt into Swift 6 language mode by default.
+        /// The default Swift language mode (`SWIFT_VERSION` build setting) applied to local targets
+        /// that don't specify one. This controls which Swift language mode the compiler uses
+        /// (e.g. `"5"` for Swift 5 mode, `"6"` for Swift 6 strict concurrency mode).
+        /// External SPM packages are not affected — their language mode is derived from their
+        /// own `Package.swift` manifest, matching SPM's behavior.
         public var defaultSwiftVersion: String
 
         public static func options(

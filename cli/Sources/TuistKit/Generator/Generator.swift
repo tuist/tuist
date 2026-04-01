@@ -67,7 +67,8 @@ public class Generator: Generating {
         try await lint(graphTraverser: GraphTraverser(graph: environment.initialGraphWithSources ?? graph))
 
         // Generate
-        let defaultSwiftVersion = options?.defaultSwiftVersion ?? "5"
+        let defaultSwiftVersion = options?.defaultSwiftVersion
+            ?? TuistGeneratedProjectOptions.GenerationOptions.defaultSwiftVersionValue
         let generator = DescriptorGenerator(
             defaultSettingsProvider: DefaultSettingsProvider(defaultSwiftVersion: defaultSwiftVersion)
         )

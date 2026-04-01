@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import struct TSCUtility.Version
+import TuistConfig
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -91,7 +92,9 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
 
     private let defaultSwiftVersion: String
 
-    public init(defaultSwiftVersion: String = "5") {
+    public init(
+        defaultSwiftVersion: String = TuistGeneratedProjectOptions.GenerationOptions.defaultSwiftVersionValue
+    ) {
         self.defaultSwiftVersion = defaultSwiftVersion
     }
 

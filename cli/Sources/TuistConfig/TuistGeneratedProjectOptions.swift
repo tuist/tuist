@@ -50,7 +50,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 enableCaching: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
-                defaultSwiftVersion: "5"
+                defaultSwiftVersion: GenerationOptions.defaultSwiftVersionValue
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
             cacheOptions: CacheOptions(
@@ -61,6 +61,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     }
 
     public struct GenerationOptions: Codable, Hashable, Equatable {
+        public static let defaultSwiftVersionValue = "5"
+
         public enum StaticSideEffectsWarningTargets: Codable, Hashable, Equatable {
             case all
             case none
@@ -124,7 +126,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             enableCaching: Bool = false,
             registryEnabled: Bool = false,
             warningsAsErrors: WarningsAsErrors = .none,
-            defaultSwiftVersion: String = "5"
+            defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -162,7 +164,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 enableCaching: Bool = false,
                 registryEnabled: Bool = false,
                 warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
-                defaultSwiftVersion: String = "5"
+                defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue
             ) -> Self {
                 .init(
                     resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
