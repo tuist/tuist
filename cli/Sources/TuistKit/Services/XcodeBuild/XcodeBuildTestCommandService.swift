@@ -120,7 +120,10 @@ struct XcodeBuildTestCommandService {
             if mode == .local, let resultBundlePath {
                 let rootDirectory = await rootDirectory()
                 if let parsed = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory) {
-                    testSummary = testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
+                    testSummary = testQuarantineService.markQuarantinedTests(
+                        testSummary: parsed,
+                        quarantinedTests: quarantinedTests
+                    )
                 }
             }
 
