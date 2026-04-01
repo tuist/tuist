@@ -17,7 +17,6 @@ public struct Shard {
     public let filteredXCTestRunPath: AbsolutePath?
     public let modules: [String]
     public let selectiveTestingGraph: SelectiveTestingGraph?
-    public let isLocalVolume: Bool
 }
 
 @Mockable
@@ -98,10 +97,8 @@ public struct ShardService: ShardServicing {
 
         let testProductsPath: AbsolutePath
         var filteredXCTestRunPath: AbsolutePath?
-        let isLocalVolume: Bool
 
         if let localTestProductsPath {
-            isLocalVolume = true
             testProductsPath = localTestProductsPath
             Logger.current.debug("Using local test products at \(localTestProductsPath.pathString)")
 
@@ -121,7 +118,6 @@ public struct ShardService: ShardServicing {
             }
             filteredXCTestRunPath = tempXCTestRunDir
         } else {
-            isLocalVolume = false
             guard let downloadURL = URL(string: shard.download_url) else {
                 throw ShardServiceError.invalidDownloadURL(shard.download_url)
             }
@@ -162,8 +158,7 @@ public struct ShardService: ShardServicing {
             testProductsPath: testProductsPath,
             filteredXCTestRunPath: filteredXCTestRunPath,
             modules: shard.modules,
-            selectiveTestingGraph: selectiveTestingGraph,
-            isLocalVolume: isLocalVolume
+            selectiveTestingGraph: selectiveTestingGraph
         )
     }
 

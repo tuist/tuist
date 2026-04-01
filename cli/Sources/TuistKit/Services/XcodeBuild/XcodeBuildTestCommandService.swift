@@ -101,17 +101,15 @@ struct XcodeBuildTestCommandService {
             )
             shardPlanId = shard.shardPlanId
 
-            if shard.isLocalVolume {
-                shardFilteredXCTestRunPath = shard.filteredXCTestRunPath
-                if let filteredXCTestRunPath = shard.filteredXCTestRunPath {
-                    let xctestrunFile = try await fileSystem
-                        .glob(directory: filteredXCTestRunPath, include: ["*.xctestrun"])
-                        .collect()
-                        .first
-                    if let xctestrunFile {
-                        passthroughXcodebuildArguments = removeOption("-xctestrun", from: passthroughXcodebuildArguments)
-                        passthroughXcodebuildArguments += ["-xctestrun", xctestrunFile.pathString]
-                    }
+            if let filteredXCTestRunPath = shard.filteredXCTestRunPath {
+                shardFilteredXCTestRunPath = filteredXCTestRunPath
+                let xctestrunFile = try await fileSystem
+                    .glob(directory: filteredXCTestRunPath, include: ["*.xctestrun"])
+                    .collect()
+                    .first
+                if let xctestrunFile {
+                    passthroughXcodebuildArguments = removeOption("-xctestrun", from: passthroughXcodebuildArguments)
+                    passthroughXcodebuildArguments += ["-xctestrun", xctestrunFile.pathString]
                 }
             } else {
                 shardTestProductsPath = shard.testProductsPath
