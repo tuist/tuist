@@ -29,6 +29,11 @@ defmodule TuistWeb.API.Schemas.Project do
         description:
           "The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git"
       },
+      token: %Schema{
+        type: :string,
+        deprecated: true,
+        description: "Deprecated. Always returns an empty string."
+      },
       visibility: %Schema{
         type: :string,
         description: "The visibility of the project",
