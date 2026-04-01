@@ -6,8 +6,8 @@ import TuistBuildCommand
 import TuistGenerateCommand
 import TuistInitCommand
 import TuistSupport
-import TuistTestCommand
 import TuistAcceptanceTesting
+import TuistTestCommand
 import TuistTesting
 @testable import TuistKit
 
