@@ -638,6 +638,47 @@ struct XcodeBuildCommandAcceptanceTests {
         .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
+    ) func xcodebuild_test_without_building_with_local_test_products() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
+
+        // Build for testing, outputting test products to a known path (simulating a shared volume)
+        try await TuistTest.run(
+            XcodeBuildBuildForTestingCommand.self,
+            [
+                "build-for-testing",
+                "-project",
+                fixtureDirectory.pathString + "/App.xcodeproj",
+                "-scheme",
+                "MacFrameworkTests",
+                "-destination",
+                "platform=macOS",
+                "-testProductsPath",
+                testProductsPath.pathString,
+            ]
+        )
+
+        // Test without building, consuming test products from the same path
+        try await TuistTest.run(
+            XcodeBuildTestWithoutBuildingCommand.self,
+            [
+                "test-without-building",
+                "-testProductsPath",
+                testProductsPath.pathString,
+                "-destination",
+                "platform=macOS",
+            ]
+        )
+    }
+
+    @Test(
+        .withFixture("generated_ios_app_with_tests"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
     ) func xcodebuild_archive_command() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

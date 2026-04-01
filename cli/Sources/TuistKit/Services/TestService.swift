@@ -508,7 +508,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         shardMaxDuration: shardMaxDuration,
                         fullHandle: fullHandle,
                         serverURL: serverURL,
-                        buildRunId: buildRunId
+                        buildRunId: buildRunId,
+                        skipUpload: false
                     )
                 }
             }
@@ -544,7 +545,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let shard = try await shardService.shard(
             shardIndex: shardIndex,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            testProductsPath: nil
         )
 
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
