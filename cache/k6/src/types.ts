@@ -1,7 +1,6 @@
 export interface SizeBucket {
   name: string;
   bytes: number;
-  weight: number;
 }
 
 export interface XcodeSeeded {

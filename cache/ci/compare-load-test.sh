@@ -126,6 +126,11 @@ for region in eu-central; do
   for metric in $METRICS; do
     compare_metric "$region" "$PR_FILE" "$BASELINE_FILE" "$metric"
   done
+
+  BASELINE_ONLY=$(jq -r --argjson pr "$(jq '.metrics | keys' "$PR_FILE")" '.metrics | keys[] | select(. as $k | $pr | index($k) | not)' "$BASELINE_FILE")
+  for metric in $BASELINE_ONLY; do
+    add_failure "$region" "$metric" "missing_in_pr" "present" "missing" "-"
+  done
 done
 
 REPORT="<!-- cache-load-test -->

@@ -49,79 +49,32 @@ jobs:
     runs-on: namespace-profile-default
     timeout-minutes: 30
     environment: cache-staging
-    defaults:
-      run:
-        working-directory: cache
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.main_sha }}
-      - uses: 1password/install-cli-action@v2
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "ruby gem:kamal"
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: cache
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.1
+      - uses: ./.github/actions/cache-deploy-staging
         with:
           ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
-      - name: Deploy main with Kamal
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
-          SECRETS: ${{ secrets.CACHE_KAMAL_SECRETS }}
-        run: mise run deploy "staging"
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+          kamal-secrets: ${{ secrets.CACHE_KAMAL_SECRETS }}
 
   baseline:
     name: Baseline
     needs: [resolve, deploy-main]
     runs-on: namespace-profile-default
     timeout-minutes: 20
-    env:
-      REGION: eu-central
-      CACHE_HOST: cache-eu-central-staging.tuist.dev
-    defaults:
-      run:
-        working-directory: cache
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.pr_ref }}
-      - name: Create cache account token
-        run: ./ci/create-cache-token.sh
-      - uses: grafana/setup-k6-action@v1
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/cache-run-k6
         with:
-          install: false
-          env: false
-          cache: false
-          working_directory: cache
-      - name: Wait for cache service
-        run: |
-          echo "Waiting for cache service at ${{ env.CACHE_HOST }}..."
-          for i in $(seq 1 30); do
-            if curl -sf "https://${{ env.CACHE_HOST }}/up" > /dev/null 2>&1; then
-              echo "Cache service ready after ${i}s"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "::error::Cache service at ${{ env.CACHE_HOST }} did not become ready in time"
-              exit 1
-            fi
-            echo "Attempt $i: not ready, waiting..."
-            sleep 2
-          done
-      - name: Run baseline load test
-        env:
-          RUN_ID: lt-baseline-${{ github.run_id }}-${{ env.REGION }}
-          COMMIT_SHA: ${{ needs.resolve.outputs.main_sha }}
-        run: mise run load-test
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: baseline-result-${{ env.REGION }}
-          path: cache/k6/result.json
-          retention-days: 30
+          cache-host: cache-eu-central-staging.tuist.dev
+          region: eu-central
+          run-id: lt-baseline-${{ github.run_id }}-eu-central
+          commit-sha: ${{ needs.resolve.outputs.main_sha }}
+          artifact-name: baseline-result-eu-central
 
   deploy-pr:
     name: Deploy PR
@@ -129,79 +82,32 @@ jobs:
     runs-on: namespace-profile-default
     timeout-minutes: 30
     environment: cache-staging
-    defaults:
-      run:
-        working-directory: cache
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.pr_ref }}
-      - uses: 1password/install-cli-action@v2
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "ruby gem:kamal"
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: cache
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.1
+      - uses: ./.github/actions/cache-deploy-staging
         with:
           ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
-      - name: Deploy with Kamal
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
-          SECRETS: ${{ secrets.CACHE_KAMAL_SECRETS }}
-        run: mise run deploy "staging"
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+          kamal-secrets: ${{ secrets.CACHE_KAMAL_SECRETS }}
 
   test:
     name: Test
     needs: [resolve, deploy-pr]
     runs-on: namespace-profile-default
     timeout-minutes: 20
-    env:
-      REGION: eu-central
-      CACHE_HOST: cache-eu-central-staging.tuist.dev
-    defaults:
-      run:
-        working-directory: cache
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.pr_ref }}
-      - name: Create cache account token
-        run: ./ci/create-cache-token.sh
-      - uses: grafana/setup-k6-action@v1
-      - uses: jdx/mise-action@v3.2.0
+      - uses: ./.github/actions/cache-run-k6
         with:
-          install: false
-          env: false
-          cache: false
-          working_directory: cache
-      - name: Wait for cache service
-        run: |
-          echo "Waiting for cache service at ${{ env.CACHE_HOST }}..."
-          for i in $(seq 1 30); do
-            if curl -sf "https://${{ env.CACHE_HOST }}/up" > /dev/null 2>&1; then
-              echo "Cache service ready after ${i}s"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "::error::Cache service at ${{ env.CACHE_HOST }} did not become ready in time"
-              exit 1
-            fi
-            echo "Attempt $i: not ready, waiting..."
-            sleep 2
-          done
-      - name: Run PR load test
-        env:
-          RUN_ID: lt-pr-${{ needs.resolve.outputs.pr_number }}-${{ github.run_id }}-${{ env.REGION }}
-          COMMIT_SHA: ${{ needs.resolve.outputs.pr_sha }}
-        run: mise run load-test
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: k6-result-${{ env.REGION }}
-          path: cache/k6/result.json
-          retention-days: 30
+          cache-host: cache-eu-central-staging.tuist.dev
+          region: eu-central
+          run-id: lt-pr-${{ needs.resolve.outputs.pr_number }}-${{ github.run_id }}-eu-central
+          commit-sha: ${{ needs.resolve.outputs.pr_sha }}
+          artifact-name: k6-result-eu-central
 
   compare:
     name: Compare
@@ -256,28 +162,15 @@ jobs:
     runs-on: namespace-profile-default
     timeout-minutes: 30
     environment: cache-staging
-    defaults:
-      run:
-        working-directory: cache
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.main_sha }}
-      - uses: 1password/install-cli-action@v2
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "ruby gem:kamal"
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: cache
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.1
+      - uses: ./.github/actions/cache-deploy-staging
         with:
           ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
-      - name: Deploy main with Kamal
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
-          SECRETS: ${{ secrets.CACHE_KAMAL_SECRETS }}
-        run: mise run deploy "staging"
+          op-service-account-token: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+          kamal-secrets: ${{ secrets.CACHE_KAMAL_SECRETS }}
 
   comment:
     name: Update PR comment

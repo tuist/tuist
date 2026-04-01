@@ -1,15 +1,3 @@
-import { SizeBucket } from '../types.ts';
-
-export function weightedRandom(items: SizeBucket[]): SizeBucket {
-  const rand = Math.random();
-  let cumulative = 0;
-  for (const item of items) {
-    cumulative += item.weight;
-    if (rand < cumulative) return item;
-  }
-  return items[items.length - 1];
-}
-
 export function randomItem<T>(items: T[]): T {
   return items[Math.floor(Math.random() * items.length)];
 }

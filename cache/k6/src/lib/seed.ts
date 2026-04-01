@@ -1,5 +1,4 @@
 import http from 'k6/http';
-import { check } from 'k6';
 import {
   XCODE_SEED_COUNT, MODULE_SEED_COUNT, GRADLE_SEED_COUNT, KV_DIRECT_SEED_COUNT,
   XCODE_SIZES, LARGE_SIZES, KV_DISTRIBUTIONS, MODULE_PART_SIZE, RUN_ID,
@@ -29,14 +28,18 @@ function seedXcode(token: string): Record<string, XcodeSeeded> {
           timeout: '120s',
         },
       );
-      check(casRes, { 'seed xcode cas: ok': (r) => r.status === 204 || r.status === 200 });
+      if (casRes.status !== 204 && casRes.status !== 200) {
+        throw new Error(`Seed xcode CAS failed for ${casId}: status=${casRes.status}`);
+      }
 
       const kvRes = http.put(
         cacheUrl('/api/cache/keyvalue'),
         JSON.stringify({ cas_id: kvCasId, entries: [{ value: casId }] }),
         { headers: { ...authHeaders(token), 'Content-Type': 'application/json' } },
       );
-      check(kvRes, { 'seed xcode kv: ok': (r) => r.status === 204 });
+      if (kvRes.status !== 204) {
+        throw new Error(`Seed xcode KV failed for ${kvCasId}: status=${kvRes.status}`);
+      }
 
       casIds.push(casId);
       kvCasIds.push(kvCasId);
@@ -64,19 +67,14 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
         null,
         { headers: authHeaders(token), responseType: 'text' },
       );
-      check(startRes, { 'seed module start: ok': (r) => r.status === 200 });
-
       if (startRes.status !== 200) {
         const body = typeof startRes.body === 'string' ? startRes.body.substring(0, 200) : '';
-        console.error(`Module start failed: status=${startRes.status} body=${body}`);
-        refs.push({ hash, name });
-        continue;
+        throw new Error(`Seed module start failed for ${hash}: status=${startRes.status} body=${body}`);
       }
 
       const uploadId = (startRes.json() as any).upload_id;
       if (!uploadId) {
-        refs.push({ hash, name });
-        continue;
+        throw new Error(`Seed module start returned no upload_id for ${hash}`);
       }
 
       for (let p = 1; p <= partCount; p++) {
@@ -89,7 +87,9 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
             timeout: '120s',
           },
         );
-        check(partRes, { 'seed module part: ok': (r) => r.status === 204 });
+        if (partRes.status !== 204) {
+          throw new Error(`Seed module part ${p} failed for ${hash}: status=${partRes.status}`);
+        }
       }
 
       const parts = Array.from({ length: partCount }, (_, i) => i + 1);
@@ -98,7 +98,9 @@ function seedModule(token: string): Record<string, ModuleSeeded> {
         JSON.stringify({ parts }),
         { headers: { ...authHeaders(token), 'Content-Type': 'application/json' } },
       );
-      check(completeRes, { 'seed module complete: ok': (r) => r.status === 204 });
+      if (completeRes.status !== 204) {
+        throw new Error(`Seed module complete failed for ${hash}: status=${completeRes.status}`);
+      }
 
       refs.push({ hash, name });
     }
@@ -127,7 +129,9 @@ function seedGradle(token: string): Record<string, GradleSeeded> {
           timeout: '120s',
         },
       );
-      check(res, { 'seed gradle: ok': (r) => r.status === 200 || r.status === 201 });
+      if (res.status !== 200 && res.status !== 201) {
+        throw new Error(`Seed gradle failed for ${key}: status=${res.status}`);
+      }
 
       keys.push(key);
     }
@@ -153,7 +157,9 @@ function seedKvDirect(token: string): string[] {
       JSON.stringify({ cas_id: casId, entries }),
       { headers: { ...authHeaders(token), 'Content-Type': 'application/json' } },
     );
-    check(res, { 'seed kv direct: ok': (r) => r.status === 204 });
+    if (res.status !== 204) {
+      throw new Error(`Seed KV direct failed for ${casId}: status=${res.status}`);
+    }
 
     casIds.push(casId);
   }
@@ -189,15 +195,6 @@ function warmReads(token: string, data: SetupData): void {
   for (const casId of data.kvDirect) {
     http.get(cacheUrl(`/api/cache/keyvalue/${casId}`), { headers: authHeaders(token) });
   }
-}
-
-export function seedDataOf(data: SetupData): SeedData {
-  return {
-    xcode: data.xcode,
-    module: data.module,
-    gradle: data.gradle,
-    kvDirect: data.kvDirect,
-  };
 }
 
 export function setupFromSeedData(token: string, seedData: SeedData): SetupData {

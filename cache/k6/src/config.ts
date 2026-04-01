@@ -18,21 +18,21 @@ export const GRADLE_SEED_COUNT = 4;
 export const KV_DIRECT_SEED_COUNT = 10;
 
 export const XCODE_SIZES: SizeBucket[] = [
-  { name: '10kb', bytes: 10 * 1024, weight: 0.6 },
-  { name: '256kb', bytes: 256 * 1024, weight: 0.3 },
-  { name: '2mb', bytes: 2 * 1024 * 1024, weight: 0.1 },
+  { name: '10kb', bytes: 10 * 1024 },
+  { name: '256kb', bytes: 256 * 1024 },
+  { name: '2mb', bytes: 2 * 1024 * 1024 },
 ];
 
 export const LARGE_SIZES: SizeBucket[] = [
-  { name: '5mb', bytes: 5 * 1024 * 1024, weight: 0.7 },
-  { name: '10mb', bytes: 10 * 1024 * 1024, weight: 0.2 },
-  { name: '25mb', bytes: 25 * 1024 * 1024, weight: 0.1 },
+  { name: '5mb', bytes: 5 * 1024 * 1024 },
+  { name: '10mb', bytes: 10 * 1024 * 1024 },
+  { name: '25mb', bytes: 25 * 1024 * 1024 },
 ];
 
 export const KV_DISTRIBUTIONS = [
-  { entries: 4, valueSize: 64, weight: 0.5 },
-  { entries: 8, valueSize: 128, weight: 0.35 },
-  { entries: 16, valueSize: 256, weight: 0.15 },
+  { entries: 4, valueSize: 64 },
+  { entries: 8, valueSize: 128 },
+  { entries: 16, valueSize: 256 },
 ];
 
 export const MODULE_PART_SIZE = 10 * 1024 * 1024;
