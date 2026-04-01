@@ -9,11 +9,17 @@ defmodule XcodeProcessorWeb.WebhookController do
           "test_run_id" => test_run_id,
           "storage_key" => storage_key,
           "project_id" => project_id
-        }
+        } = params
       ) do
     Logger.info("Processing xcresult for test run #{test_run_id} (storage_key: #{storage_key})")
 
-    {:ok, parsed_data} = XcodeProcessor.XCResultProcessor.process(storage_key)
+    opts = [
+      test_run_id: test_run_id,
+      account_handle: params["account_handle"],
+      project_handle: params["project_handle"]
+    ]
+
+    {:ok, parsed_data} = XcodeProcessor.XCResultProcessor.process(storage_key, opts)
     parsed_data = Map.put(parsed_data, "project_id", project_id)
 
     conn

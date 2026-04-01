@@ -1,7 +1,9 @@
 defmodule XcodeProcessor.XCResultProcessor do
   @moduledoc false
 
-  def process(storage_key) do
+  require Logger
+
+  def process(storage_key, opts \\ []) do
     bucket = XcodeProcessor.Environment.s3_bucket()
     temp_dir = make_temp_dir()
     zip_path = Path.join(temp_dir, "xcresult.zip")
@@ -15,6 +17,12 @@ defmodule XcodeProcessor.XCResultProcessor do
         end)
 
         result = process_zip(zip_path, temp_dir)
+
+        result =
+          with {:ok, parsed_data} <- result do
+            upload_attachments(parsed_data, bucket, opts)
+          end
+
         status = if match?({:ok, _}, result), do: :ok, else: :error
         {result, %{status: status}}
       end)
@@ -42,6 +50,65 @@ defmodule XcodeProcessor.XCResultProcessor do
       status = if match?({:ok, _}, result), do: :ok, else: :error
       {result, %{status: status}}
     end)
+  end
+
+  defp upload_attachments(parsed_data, bucket, opts) do
+    account_handle = Keyword.get(opts, :account_handle)
+    project_handle = Keyword.get(opts, :project_handle)
+    test_run_id = Keyword.get(opts, :test_run_id)
+
+    if is_nil(account_handle) or is_nil(project_handle) or is_nil(test_run_id) do
+      {:ok, parsed_data}
+    else
+      upload_ctx = {bucket, account_handle, project_handle, test_run_id}
+
+      test_modules =
+        parsed_data
+        |> Map.get("test_modules", [])
+        |> Enum.map(&upload_test_case_attachments(&1, upload_ctx))
+
+      {:ok, Map.put(parsed_data, "test_modules", test_modules)}
+    end
+  end
+
+  defp upload_test_case_attachments(module, upload_ctx) do
+    test_cases =
+      module
+      |> Map.get("test_cases", [])
+      |> Enum.map(fn test_case ->
+        attachments =
+          test_case
+          |> Map.get("attachments", [])
+          |> Enum.map(&upload_attachment(&1, upload_ctx))
+
+        Map.put(test_case, "attachments", attachments)
+      end)
+
+    Map.put(module, "test_cases", test_cases)
+  end
+
+  defp upload_attachment(attachment, {bucket, account_handle, project_handle, test_run_id}) do
+    file_path = Map.get(attachment, "file_path")
+    file_name = Map.get(attachment, "file_name")
+    attachment_id = Ecto.UUID.generate()
+
+    if file_path && File.exists?(file_path) do
+      s3_key =
+        "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
+
+      case ExAws.S3.put_object(bucket, s3_key, File.read!(file_path)) |> ExAws.request() do
+        {:ok, _} ->
+          attachment
+          |> Map.delete("file_path")
+          |> Map.put("attachment_id", attachment_id)
+
+        {:error, reason} ->
+          Logger.error("Failed to upload attachment #{file_name}: #{inspect(reason)}")
+          attachment
+      end
+    else
+      attachment
+    end
   end
 
   defp make_temp_dir do

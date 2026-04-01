@@ -24,7 +24,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       {:error, "xcode_processor_url_not_configured"}
     else
       result =
-        send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, account_id, project_id)
+        send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, args)
 
       case result do
         {:ok, parsed_data} ->
@@ -44,7 +44,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     end
   end
 
-  defp send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, account_id, project_id) do
+  defp send_to_xcode_processor(xcode_processor_url, test_run_id, storage_key, args) do
     webhook_secret = Tuist.Environment.xcode_processor_webhook_secret()
 
     if is_nil(webhook_secret) or webhook_secret == "" do
@@ -54,8 +54,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       payload = %{
         test_run_id: test_run_id,
         storage_key: storage_key,
-        account_id: account_id,
-        project_id: project_id
+        account_id: args["account_id"],
+        project_id: args["project_id"],
+        account_handle: args["account_handle"],
+        project_handle: args["project_handle"]
       }
 
       json_body = JSON.encode!(payload)

@@ -15,7 +15,7 @@ defmodule XcodeProcessorWeb.WebhookControllerTest do
     test "returns 200 with parsed data on successful processing", %{conn: conn} do
       parsed_data = %{"tests" => [%{"name" => "testExample", "status" => "passed"}]}
 
-      expect(XcodeProcessor.XCResultProcessor, :process, fn "some/key.zip" ->
+      expect(XcodeProcessor.XCResultProcessor, :process, fn "some/key.zip", _opts ->
         {:ok, parsed_data}
       end)
 

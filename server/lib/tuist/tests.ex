@@ -1099,8 +1099,8 @@ defmodule Tuist.Tests do
     {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
       create_test_cases(test.project_id, test_case_data_list, existing_test_cases)
 
-    {test_case_runs, all_failures, all_repetitions} =
-      Enum.reduce(test_cases, {[], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc} ->
+    {test_case_runs, all_failures, all_repetitions, all_attachments} =
+      Enum.reduce(test_cases, {[], [], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc, attachments_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
@@ -1169,7 +1169,21 @@ defmodule Tuist.Tests do
             }
           end)
 
-        {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc}
+        test_case_attachments =
+          case_attrs
+          |> Map.get(:attachments, [])
+          |> Enum.map(fn att_attrs ->
+            %{
+              id: Map.get(att_attrs, :attachment_id) || UUIDv7.generate(),
+              test_case_run_id: test_case_run_id,
+              test_run_id: test.id,
+              file_name: Map.get(att_attrs, :file_name),
+              repetition_number: Map.get(att_attrs, :repetition_number),
+              inserted_at: NaiveDateTime.utc_now()
+            }
+          end)
+
+        {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc, test_case_attachments ++ attachments_acc}
       end)
 
     Tuist.Tasks.run_async(fn ->
@@ -1178,6 +1192,10 @@ defmodule Tuist.Tests do
 
       if Enum.any?(all_repetitions) do
         TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
+      end
+
+      if Enum.any?(all_attachments) do
+        TestCaseRunAttachment.Buffer.insert_all(all_attachments)
       end
     end)
 
@@ -2237,6 +2255,11 @@ defmodule Tuist.Tests do
       nil -> {:error, :not_found}
       attachment -> {:ok, attachment}
     end
+  end
+
+  def attachment_storage_key(%{test_run_id: test_run_id} = params) when not is_nil(test_run_id) do
+    %{account_handle: account_handle, project_handle: project_handle, attachment_id: attachment_id, file_name: file_name} = params
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
   end
 
   def attachment_storage_key(%{
