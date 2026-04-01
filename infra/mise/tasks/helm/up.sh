@@ -52,6 +52,7 @@ HELM_ARGS=(
     --set "cache.image.tag=${IMAGE_TAG}"
     --set "server.license.key=${usage_license}"
     --set "server.appUrl=http://localhost:8080"
+    --set "server.cacheEndpointUrl=http://localhost:8090"
 )
 
 if [ "${usage_observability:-}" = "true" ]; then
@@ -73,13 +74,22 @@ helm install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
 echo "==> Waiting for pods..."
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance="$RELEASE_NAME" --timeout=120s 2>/dev/null || true
 
-echo ""
-echo "Stack is running. Port-forward with:"
-echo ""
-echo "  kubectl port-forward svc/${RELEASE_NAME}-tuist-server 8080:80      # Server  → http://localhost:8080"
+# Kill any existing port-forwards
+pkill -f "kubectl port-forward svc/${RELEASE_NAME}-tuist" 2>/dev/null || true
+sleep 1
+
+echo "==> Starting port-forwards..."
+kubectl port-forward svc/${RELEASE_NAME}-tuist-server 8080:80 &>/dev/null &
+echo "    Server  → http://localhost:8080"
+kubectl port-forward svc/${RELEASE_NAME}-tuist-cache 8090:80 &>/dev/null &
+echo "    Cache   → http://localhost:8090"
 if [ "${usage_observability:-}" = "true" ]; then
-echo "  kubectl port-forward svc/${RELEASE_NAME}-tuist-grafana 3000:3000   # Grafana → http://localhost:3000 (admin/admin)"
+    kubectl port-forward svc/${RELEASE_NAME}-tuist-grafana 3001:3000 &>/dev/null &
+    echo "    Grafana → http://localhost:3001"
 fi
+
+echo ""
+echo "Stack is ready. Port-forwards are running in the background."
 echo ""
 echo "Other commands:"
 echo "  mise run helm:status   # Check pod and service status"

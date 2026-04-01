@@ -93,11 +93,13 @@ spec:
               value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
             {{- if .Values.cache.enabled }}
             - name: TUIST_CACHE_ENDPOINTS
-              value: "http://{{ include "tuist.componentName" (dict "root" . "component" "cache") }}:{{ .Values.cache.service.port }}"
+              value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
             {{- end }}
             {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ include "tuist.observabilityOtlpEndpoint" . | quote }}
+            - name: TUIST_LOKI_URL
+              value: "http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100"
             {{- end }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}

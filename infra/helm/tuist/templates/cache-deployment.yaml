@@ -37,7 +37,7 @@ spec:
                   name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
                   key: cache-secret-key-base
             - name: SERVER_URL
-              value: {{ .Values.cache.serverUrl | quote }}
+              value: {{ .Values.cache.serverUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Values.server.service.port) | quote }}
             - name: STORAGE_DIR
               value: /storage
             - name: PHX_SOCKET_PATH

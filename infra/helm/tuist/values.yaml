@@ -33,6 +33,7 @@ server:
     virtualHost: false
     bucketAsHost: false
     bucketName: tuist
+  cacheEndpointUrl: ""
   migrationJob:
     enabled: true
     backoffLimit: 6
@@ -58,7 +59,7 @@ cache:
   resources: {}
   extraEnv: []
   publicHost: cache.local
-  serverUrl: http://tuist-server
+  serverUrl: ""
   apiKey: ""
   storage:
     pvc:
@@ -178,7 +179,7 @@ observability:
     enabled: true
     image:
       repository: grafana/grafana
-      tag: "11.6.0"
+      tag: "11.5.2"
       pullPolicy: IfNotPresent
     adminUser: admin
     adminPassword: admin

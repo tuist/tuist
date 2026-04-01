@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+echo "==> Stopping port-forwards..."
+pkill -f "kubectl port-forward svc/${usage_cluster}-tuist" 2>/dev/null || true
+
 echo "==> Deleting kind cluster '${usage_cluster}'..."
 kind delete cluster --name "${usage_cluster}"
 echo "==> Done."
