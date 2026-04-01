@@ -285,10 +285,10 @@
 
         @Option(
             name: .long,
-            help: "Processing mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+            help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
             envKey: .inspectTestMode
         )
-        var mode: TestProcessingMode = .local
+        var inspectMode: TestProcessingMode = .local
 
         @Argument(
             parsing: .postTerminator,
@@ -403,7 +403,7 @@
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
                 shardIndex: EnvKey.testShardIndex.envValue(),
-                mode: mode
+                mode: inspectMode
             )
         }
     }
