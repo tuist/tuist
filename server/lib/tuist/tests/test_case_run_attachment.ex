@@ -1,12 +1,14 @@
 defmodule Tuist.Tests.TestCaseRunAttachment do
   @moduledoc false
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_case_run_attachments" do
     field :test_case_run_id, Ecto.UUID
+    field :test_run_id, Ch, type: "Nullable(UUID)"
     field :file_name, Ch, type: "String"
     field :repetition_number, Ch, type: "Nullable(Int32)"
     field :inserted_at, Ch, type: "DateTime64(6)"
@@ -18,7 +20,7 @@ defmodule Tuist.Tests.TestCaseRunAttachment do
 
   def create_changeset(attachment, attrs) do
     attachment
-    |> cast(attrs, [:id, :test_case_run_id, :file_name, :repetition_number, :inserted_at])
+    |> cast(attrs, [:id, :test_case_run_id, :test_run_id, :file_name, :repetition_number, :inserted_at])
     |> validate_required([:id, :test_case_run_id, :file_name])
   end
 end

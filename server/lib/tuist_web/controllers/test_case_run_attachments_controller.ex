@@ -23,6 +23,7 @@ defmodule TuistWeb.TestCaseRunAttachmentsController do
         Tests.attachment_storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
+          test_run_id: attachment.test_run_id,
           test_case_run_id: test_case_run_id,
           attachment_id: attachment.id,
           file_name: file_name

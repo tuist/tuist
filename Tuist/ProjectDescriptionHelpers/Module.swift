@@ -387,7 +387,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
-                    .target(name: Module.projectDescription.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.buildCommand.targetName),
                     .target(name: Module.generateCommand.targetName),
@@ -461,7 +460,7 @@ public enum Module: String, CaseIterable {
             default:
                 []
             }
-        return dependencies + [.external(name: "SnapshotTesting")] + sharedDependencies
+        return dependencies + [.target(name: Module.projectDescription.targetName)] + sharedDependencies
     }
 
     public var strictConcurrencySetting: String? {
