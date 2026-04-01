@@ -736,17 +736,14 @@ public struct PackageInfoMapper: PackageInfoMapping {
             return nil
         }
         // If this is a .product dependency that explicitly references a different package
-        // and the dependency name matches the current target name, it would create a
-        // self-referential loop. Resolve as external to avoid the circular dependency.
+        // and the dependency name matches the current target name with no module alias
+        // to disambiguate, it would create a self-referential loop.
+        // Resolve as external to avoid the circular dependency.
         if let targetPackage, targetPackage != packageInfo.name,
-           let currentTargetName, currentTargetName == name
+           let currentTargetName, currentTargetName == name,
+           moduleAliases?[name] == nil
         {
-            if let aliasedName = moduleAliases?[name] {
-                dependencyModuleAliases[name] = aliasedName
-                return .external(name: aliasedName, condition: platformCondition)
-            } else {
-                return .external(name: name, condition: platformCondition)
-            }
+            return .external(name: name, condition: platformCondition)
         }
 
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
