@@ -281,6 +281,13 @@
         )
         var shardReference: String?
 
+        @Flag(
+            name: .long,
+            help: "Skip uploading test products to remote storage. Use when you provide test products to shard runners yourself, for example via shared volumes.",
+            envKey: .testShardSkipUpload
+        )
+        var shardSkipUpload: Bool = false
+
         @Argument(
             parsing: .postTerminator,
             help:
@@ -393,7 +400,8 @@
                 shardMax: shardMax,
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
-                shardIndex: EnvKey.testShardIndex.envValue()
+                shardIndex: EnvKey.testShardIndex.envValue(),
+                shardSkipUpload: shardSkipUpload
             )
         }
     }
