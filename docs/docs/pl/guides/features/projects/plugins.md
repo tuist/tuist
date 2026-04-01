@@ -7,38 +7,38 @@
 ---
 # Wtyczki {#plugins}
 
-Wtyczki są narzędziem służącym do udostępniania i ponownego wykorzystywania
+Wtyczki to narzędzie służące do udostępniania i ponownego wykorzystywania
 artefaktów Tuist w wielu projektach. Obsługiwane są następujące artefakty:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Pomocnicy
-  opisujący projekt</LocalizedLink> w wielu projektach.
+- <LocalizedLink href="/guides/features/projects/code-sharing">Pomocnicy opisów
+  projektów</LocalizedLink> w wielu projektach.
 - <LocalizedLink href="/guides/features/projects/templates">Szablony</LocalizedLink>
   w wielu projektach.
 - Zadania w wielu projektach.
 - <LocalizedLink href="/guides/features/projects/synthesized-files">Szablon
-  dostępu do zasobów</LocalizedLink> w wielu projektach
+  akcesora zasobów</LocalizedLink> w wielu projektach
 
-**Należy pamiętać, że wtyczki zostały zaprojektowane jako prosty sposób na
-rozszerzenie funkcjonalności Tuist. Dlatego też istnieją pewne ograniczenia,
-które należy wziąć pod uwagę**:
+Należy pamiętać, że wtyczki zostały zaprojektowane jako prosty sposób na
+rozszerzenie funkcjonalności Tuist. W związku z tym istnieją pewne ograniczenia,
+które należy wziąć pod uwagę **** :
 
 - Wtyczka nie może być zależna od innej wtyczki.
-- Wtyczka nie może polegać na pakietach Swift innych firm.
+- Wtyczka nie może opierać się na pakietach Swift innych firm
 - Wtyczka nie może korzystać z pomocników opisu projektu z projektu, który
   korzysta z tej wtyczki.
 
-Jeśli potrzebujesz większej elastyczności, rozważ zaproponowanie funkcji dla
-narzędzia lub stworzenie własnego rozwiązania w oparciu o framework generowania
-Tuist,
+Jeśli potrzebujesz większej elastyczności, rozważ zgłoszenie sugestii dotyczącej
+funkcji narzędzia lub stworzenie własnego rozwiązania w oparciu o framework
+generujący Tuist,
 [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
 
 ## Typy wtyczek {#plugin-types}
 
 ### Wtyczka pomocnicza do opisu projektu {#project-description-helper-plugin}
 
-Wtyczka pomocnicza opisu projektu jest reprezentowana przez katalog zawierający
-plik manifestu `Plugin.swift`, który deklaruje nazwę wtyczki, oraz katalog
-`ProjectDescriptionHelpers` zawierający pliki pomocnicze Swift.
+Wtyczka pomocnicza do opisu projektu jest reprezentowana przez katalog
+zawierający plik manifestu `Plugin.swift`, który deklaruje nazwę wtyczki, oraz
+katalog `ProjectDescriptionHelpers` zawierający pomocnicze pliki Swift.
 
 ::: code-group
 ```bash [Plugin.swift]
@@ -56,7 +56,7 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-### Wtyczka szablonów dostępu do zasobów {#resource-accessor-templates-plugin}
+### Wtyczka szablonów akcesorów zasobów {#resource-accessor-templates-plugin}
 
 Jeśli chcesz udostępnić
 <LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">syntetyzowane
@@ -85,7 +85,7 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-Nazwa szablonu jest wersją typu zasobu w formacie [camel
+Nazwa szablonu to wersja typu zasobu zapisana w stylu [camel
 case](https://en.wikipedia.org/wiki/Camel_case):
 
 | Typ zasobu        | Nazwa pliku szablonu     |
@@ -94,13 +94,13 @@ case](https://en.wikipedia.org/wiki/Camel_case):
 | Zasoby            | Assets.stencil           |
 | Listy właściwości | Plists.stencil           |
 | Czcionki          | Fonts.stencil            |
-| Dane podstawowe   | CoreData.stencil         |
+| Podstawowe dane   | CoreData.stencil         |
 | Interface Builder | InterfaceBuilder.stencil |
 | JSON              | JSON.stencil             |
 | YAML              | YAML.stencil             |
 
 Podczas definiowania syntezatorów zasobów w projekcie można określić nazwę
-wtyczki, aby używać szablonów z tej wtyczki:
+wtyczki, aby korzystać z szablonów z tej wtyczki:
 
 ```swift
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
@@ -110,50 +110,50 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ::: warning DEPRECATED
 <!-- -->
-Wtyczki zadań są przestarzałe. Jeśli szukasz rozwiązania do automatyzacji
+Wtyczki zadań zostały wycofane. Jeśli szukasz rozwiązania do automatyzacji dla
 swojego projektu, zapoznaj się z [tym wpisem na
 blogu](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects).
 <!-- -->
 :::
 
-`Zadania są plikami wykonywalnymi $PATH`-exposed, które można wywołać za pomocą
-polecenia `tuist`, jeśli są zgodne z konwencją nazewniczą `tuist-`. We
-wcześniejszych wersjach Tuist udostępniał kilka słabych konwencji i narzędzi w
-ramach `tuist plugin` do `build`, `run`, `test` i `archive` zadań
-reprezentowanych przez pliki wykonywalne w pakietach Swift, ale wycofaliśmy tę
-funkcję, ponieważ zwiększała ona obciążenie związane z utrzymaniem i złożoność
-narzędzia.
+Zadania to pliki wykonywalne udostępnione w `$PATH`, które można wywołać za
+pomocą polecenia `tuist`, jeśli są zgodne z konwencją nazewniczą `tuist-`. We
+wcześniejszych wersjach Tuist udostępniał pewne słabe konwencje i narzędzia w
+ramach `tuist plugin` do `tworzenia`, `uruchamiania`, `testowania` oraz
+`archiwizowania` zadań reprezentowanych przez pliki wykonywalne w pakietach
+Swift, ale wycofaliśmy tę funkcję, ponieważ zwiększała ona obciążenie związane z
+utrzymaniem i złożoność narzędzia.
 
-Jeśli używasz Tuist do dystrybucji zadań, zalecamy stworzenie
-- Możesz nadal korzystać z `ProjectAutomation.xcframework` dystrybuowanego wraz
-  z każdą wersją Tuist, aby uzyskać dostęp do wykresu projektu z poziomu logiki
-  za pomocą `let graph = try Tuist.graph()`. Polecenie wykorzystuje proces
-  systemowy do uruchomienia `tuist` i zwraca reprezentację wykresu projektu w
-  pamięci.
-- Aby rozdzielić zadania, zalecamy dołączenie pliku binarnego obsługującego
-  `arm64` i `x86_64` w wydaniach GitHub oraz użycie [Mise](https://mise.jdx.dev)
-  jako narzędzia instalacyjnego. Aby poinstruować Mise, jak zainstalować
-  narzędzie, potrzebne jest repozytorium wtyczek. Jako punkt odniesienia można
-  użyć [Tuist's](https://github.com/asdf-community/asdf-tuist).
+Jeśli korzystałeś z Tuist do przydzielania zadań, zalecamy utworzenie
+- Możesz nadal korzystać z biblioteki `ProjectAutomation.xcframework` dołączanej
+  do każdej wersji Tuist, aby uzyskać dostęp do grafu projektu z poziomu logiki
+  za pomocą `let graph = try Tuist.graph()`. Polecenie to wykorzystuje proces
+  systemowy do uruchomienia polecenia `tuist` i zwraca reprezentację grafu
+  projektu w pamięci.
+- Aby rozdzielić zadania, zalecamy dołączenie pliku binarnego typu „fat binary”,
+  który obsługuje `arm64` oraz `x86_64` w wydaniach GitHub, a także użycie
+  [Mise](https://mise.jdx.dev) jako narzędzia instalacyjnego. Aby poinstruować
+  Mise, jak zainstalować Twoje narzędzie, potrzebujesz repozytorium wtyczek.
+  Możesz skorzystać z [Tuist's](https://github.com/asdf-community/asdf-tuist)
+  jako punktu odniesienia.
 - Jeśli nazwiesz swoje narzędzie `tuist-{xxx}`, a użytkownicy będą mogli je
-  zainstalować, uruchamiając `mise install`, będą mogli je uruchomić
-  bezpośrednio lub poprzez `tuist xxx`.
+  zainstalować, uruchamiając `mise install`, będą mogli je uruchomić albo
+  bezpośrednio, albo poprzez `tuist xxx`.
 
 ::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
-Planujemy skonsolidować modele `ProjectAutomation` i `XcodeGraph` w jedną,
-kompatybilną wstecznie strukturę, która udostępnia użytkownikowi całość wykresu
+Planujemy połączyć modele `ProjectAutomation` oraz `XcodeGraph` w jedną,
+kompatybilną wstecznie strukturę, która udostępnia użytkownikowi całość grafu
 projektu. Ponadto wyodrębnimy logikę generowania do nowej warstwy, `XcodeGraph`,
-z której można również korzystać z własnego interfejsu CLI. Potraktuj to jako
-tworzenie własnego Tuist.
+z której można również korzystać z własnego CLI. Potraktuj to jako tworzenie
+własnego Tuist.
 <!-- -->
 :::
 
 ## Korzystanie z wtyczek {#using-plugins}
 
-Aby użyć wtyczki, musisz dodać ją do pliku manifestu
-<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
-swojego projektu:
+Aby użyć wtyczki, musisz dodać ją do pliku manifestu projektu
+<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>:
 
 ```swift
 import ProjectDescription
@@ -166,9 +166,9 @@ let tuist = Tuist(
 )
 ```
 
-Jeśli chcesz ponownie wykorzystać wtyczkę w różnych projektach znajdujących się
-w różnych repozytoriach, możesz przesłać swoją wtyczkę do repozytorium Git i
-odwołać się do niej w pliku `Tuist.swift`:
+Jeśli chcesz ponownie wykorzystać wtyczkę w projektach znajdujących się w
+różnych repozytoriach, możesz przesłać ją do repozytorium Git i odwołać się do
+niej w pliku `Tuist.swift`:
 
 ```swift
 import ProjectDescription
@@ -182,20 +182,20 @@ let tuist = Tuist(
 )
 ```
 
-Po dodaniu wtyczek, polecenie `tuist install` pobierze wtyczki do globalnego
-katalogu pamięci podręcznej.
+Po dodaniu wtyczek polecenie ` `` oraz `tuist install` ` pobierze wtyczki do
+globalnego katalogu pamięci podręcznej.
 
 ::: info NO VERSION RESOLUTION
 <!-- -->
-Jak zapewne zauważyłeś, nie zapewniamy rozwiązań dotyczących wersji wtyczek.
-Zalecamy stosowanie tagów Git lub SHA, aby zapewnić powtarzalność.
+Jak zapewne zauważyłeś, nie zapewniamy rozróżniania wersji dla wtyczek. Zalecamy
+używanie tagów Git lub identyfikatorów SHA, aby zapewnić odtwarzalność.
 <!-- -->
 :::
 
 ::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
-W przypadku korzystania z wtyczki pomocników opisu projektu nazwa modułu
-zawierającego pomocników jest nazwą wtyczki.
+W przypadku korzystania z wtyczki pomocniczej do opisów projektów nazwa modułu
+zawierającego pomocniki jest nazwą wtyczki
 ```swift
 import ProjectDescription
 import MyTuistPlugin
