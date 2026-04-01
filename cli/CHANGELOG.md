@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.174.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add defaultSwiftVersion generation option and respect package-declared Swift versions by [@pepicrft](https://github.com/pepicrft) in [#10151](https://github.com/tuist/tuist/pull/10151)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.173.1...4.174.0
+
 ## What's Changed in 4.173.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
