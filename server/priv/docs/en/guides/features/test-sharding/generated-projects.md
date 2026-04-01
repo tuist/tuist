@@ -409,9 +409,7 @@ tuist test \
 2. In the **test phase**, pass the same `-testProductsPath` so Tuist reads the test products locally instead of downloading them:
 
 ```sh
-tuist test \
-  -- \
-  -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
+tuist test -- -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
 ```
 
 | Flag | Environment variable | Description |
@@ -471,9 +469,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist auth login
       - run: |
-          tuist test \
-            -- \
-            -testProductsPath $TEST_PRODUCTS_PATH
+          tuist test -- -testProductsPath $TEST_PRODUCTS_PATH
       - if: always()
         run: rm -rf /Volumes/test-products/${{ github.run_id }}
 ```
