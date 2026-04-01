@@ -1,6 +1,8 @@
 import FileSystem
 import FileSystemTesting
+import Path
 import Testing
+import TuistAcceptanceTesting
 import TuistBuildCommand
 import TuistSupport
 import TuistTestCommand
@@ -294,6 +296,46 @@ struct TestAcceptanceTestMultiplatformApp {
         try await TuistTest.run(
             TestCommand.self,
             ["--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
+    }
+}
+
+struct TestAcceptanceTestShardWithLocalTestProducts {
+    @Test(
+        .withFixtureConnectedToCanary("generated_ios_app_with_tests"),
+        .inTemporaryDirectory
+    ) func shard_with_local_test_products() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
+
+        // Build phase: build tests and create shard plan, skip S3 upload
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "MacFrameworkTests",
+                "--build-only",
+                "--shard-total", "1",
+                "--shard-skip-upload",
+                "--path", fixtureDirectory.pathString,
+                "--",
+                "-testProductsPath", testProductsPath.pathString,
+                "-destination", "platform=macOS",
+            ]
+        )
+
+        // Test phase: run shard using local test products
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "MacFrameworkTests",
+                "--without-building",
+                "--shard-index", "0",
+                "--path", fixtureDirectory.pathString,
+                "--",
+                "-testProductsPath", testProductsPath.pathString,
+                "-destination", "platform=macOS",
+            ]
         )
     }
 }
