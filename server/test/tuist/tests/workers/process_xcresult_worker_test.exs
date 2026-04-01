@@ -18,12 +18,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     %{account: account, project: project}
   end
 
-  defp job_args(test_run_id, account_id, project_id) do
+  defp job_args(test_run_id, account_id, project_id, opts \\ []) do
     %{
       "test_run_id" => test_run_id,
       "storage_key" => @storage_key,
       "account_id" => account_id,
       "project_id" => project_id,
+      "account_handle" => Keyword.get(opts, :account_handle, "test-account"),
+      "project_handle" => Keyword.get(opts, :project_handle, "test-project"),
       "is_ci" => false,
       "git_branch" => "main",
       "git_commit_sha" => "abc123",

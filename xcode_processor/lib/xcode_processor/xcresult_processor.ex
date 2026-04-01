@@ -87,10 +87,22 @@ defmodule XcodeProcessor.XCResultProcessor do
         |> Task.async_stream(
           &upload_attachment(&1, bucket, account_handle, project_handle, test_run_id),
           max_concurrency: 30,
-          timeout: 60_000
+          timeout: 60_000,
+          on_timeout: :kill_task
         )
         |> Enum.zip(all_attachments)
-        |> Map.new(fn {{:ok, uploaded}, original} -> {original["file_path"], uploaded} end)
+        |> Enum.reduce(%{}, fn
+          {{:ok, {:ok, uploaded}}, original}, acc ->
+            Map.put(acc, original["file_path"], uploaded)
+
+          {{:ok, :error}, original}, acc ->
+            Logger.error("Failed to upload attachment: #{original["file_name"]}")
+            acc
+
+          {{:exit, reason}, original}, acc ->
+            Logger.error("Attachment upload task crashed for #{original["file_name"]}: #{inspect(reason)}")
+            acc
+        end)
 
       # Replace attachments in-place using the lookup
       test_modules =
@@ -106,7 +118,12 @@ defmodule XcodeProcessor.XCResultProcessor do
     Map.update(module, "test_cases", [], fn test_cases ->
       Enum.map(test_cases, fn test_case ->
         Map.update(test_case, "attachments", [], fn attachments ->
-          Enum.map(attachments, &Map.get(uploaded_map, &1["file_path"], &1))
+          Enum.flat_map(attachments, fn att ->
+            case Map.fetch(uploaded_map, att["file_path"]) do
+              {:ok, uploaded} -> [uploaded]
+              :error -> []
+            end
+          end)
         end)
       end)
     end)
@@ -121,18 +138,24 @@ defmodule XcodeProcessor.XCResultProcessor do
       s3_key =
         "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
 
-      case ExAws.S3.put_object(bucket, s3_key, File.read!(file_path)) |> ExAws.request() do
+      case file_path
+           |> ExAws.S3.Upload.stream_file()
+           |> ExAws.S3.upload(bucket, s3_key)
+           |> ExAws.request() do
         {:ok, _} ->
-          attachment
-          |> Map.delete("file_path")
-          |> Map.put("attachment_id", attachment_id)
+          uploaded =
+            attachment
+            |> Map.delete("file_path")
+            |> Map.put("attachment_id", attachment_id)
+
+          {:ok, uploaded}
 
         {:error, reason} ->
           Logger.error("Failed to upload attachment #{file_name}: #{inspect(reason)}")
-          attachment
+          :error
       end
     else
-      attachment
+      :error
     end
   end
 
