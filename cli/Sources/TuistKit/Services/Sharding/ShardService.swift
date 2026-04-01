@@ -101,22 +101,7 @@ public struct ShardService: ShardServicing {
         if let testProductsPath {
             resolvedTestProductsPath = testProductsPath
             Logger.current.debug("Using local test products at \(testProductsPath.pathString)")
-
-            let xcTestRunPaths = try await fileSystem
-                .glob(directory: resolvedTestProductsPath, include: ["**/*.xctestrun"])
-                .collect()
-            let tempXCTestRunDir = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-xctestrun")
-            for path in xcTestRunPaths {
-                let plistData = try await fileSystem.readFile(at: path)
-                let filteredData = try filterXCTestRun(
-                    plistData: plistData,
-                    modules: shard.modules,
-                    suites: shard.suites.additionalProperties
-                )
-                let destPath = tempXCTestRunDir.appending(component: path.basename)
-                try filteredData.write(to: URL(fileURLWithPath: destPath.pathString))
-            }
-            xcTestRunPath = tempXCTestRunDir
+            xcTestRunPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-xctestrun")
         } else {
             guard let downloadURL = URL(string: shard.download_url) else {
                 throw ShardServiceError.invalidDownloadURL(shard.download_url)
@@ -128,19 +113,20 @@ public struct ShardService: ShardServicing {
             try await appleArchiver.decompress(archive: shardArchivePath, to: resolvedTestProductsPath)
             try? await fileSystem.remove(shardArchivePath)
             Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
+        }
 
-            let xcTestRunPaths = try await fileSystem
-                .glob(directory: resolvedTestProductsPath, include: ["**/*.xctestrun"])
-                .collect()
-            for path in xcTestRunPaths {
-                let plistData = try await fileSystem.readFile(at: path)
-                let filteredData = try filterXCTestRun(
-                    plistData: plistData,
-                    modules: shard.modules,
-                    suites: shard.suites.additionalProperties
-                )
-                try filteredData.write(to: URL(fileURLWithPath: path.pathString))
-            }
+        let xcTestRunPaths = try await fileSystem
+            .glob(directory: resolvedTestProductsPath, include: ["**/*.xctestrun"])
+            .collect()
+        for path in xcTestRunPaths {
+            let plistData = try await fileSystem.readFile(at: path)
+            let filteredData = try filterXCTestRun(
+                plistData: plistData,
+                modules: shard.modules,
+                suites: shard.suites.additionalProperties
+            )
+            let destPath = xcTestRunPath?.appending(component: path.basename) ?? path
+            try filteredData.write(to: URL(fileURLWithPath: destPath.pathString))
         }
 
         let selectiveTestingGraphPath = resolvedTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
