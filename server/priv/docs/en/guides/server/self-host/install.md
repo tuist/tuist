@@ -370,7 +370,7 @@ docker compose down -v
 
 ## Kubernetes with Helm {#kubernetes-with-helm}
 
-Tuist provides an official Helm chart for deploying on Kubernetes. The chart packages the Tuist server, cache service, and processor, along with embedded infrastructure dependencies that you can swap for external providers as needed.
+Tuist provides an official Helm chart for deploying on Kubernetes. The chart packages the Tuist server and cache service, along with embedded infrastructure dependencies that you can swap for external providers as needed.
 
 ### Installing the chart {#installing-the-chart}
 
@@ -417,7 +417,16 @@ observability:
   enabled: true
 ```
 
-When enabled, Grafana is available with Logs, Traces, and Metrics drilldowns pre-configured. For external observability, keep this disabled and pass your own OpenTelemetry endpoint via `server.extraEnv`.
+When enabled, Grafana is available with Logs, Traces, and Metrics drilldowns pre-configured. For external observability, keep this disabled and configure the endpoints via `server.extraEnv`:
+
+```yaml
+server:
+  extraEnv:
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://your-otel-collector:4317"
+    - name: TUIST_LOKI_URL
+      value: "http://your-loki:3100"
+```
 
 ### Local testing {#helm-local-testing}
 
