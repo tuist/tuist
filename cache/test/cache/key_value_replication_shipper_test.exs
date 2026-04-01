@@ -10,6 +10,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueReplicationShipper
+  alias Ecto.Adapters.SQL
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
@@ -65,7 +66,7 @@ defmodule Cache.KeyValueReplicationShipperTest do
     source_updated_at = ~U[2026-03-12 12:00:00.123456Z]
 
     expect(Repo, :insert_all, fn Entry, %Ecto.Query{} = query, opts ->
-      {sql, _params} = Ecto.Adapters.SQL.to_sql(:all, Repo, query)
+      {sql, _params} = SQL.to_sql(:all, Repo, query)
 
       assert sql =~ "clock_timestamp()"
       assert inspect(opts[:on_conflict]) =~ "clock_timestamp()"

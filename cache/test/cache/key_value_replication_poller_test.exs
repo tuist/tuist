@@ -13,6 +13,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
   alias Cache.KeyValueEntry
   alias Cache.KeyValueReplicationPoller
   alias Cache.KeyValueRepo
+  alias Ecto.Adapters.SQL
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
@@ -195,7 +196,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
     stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
 
     expect(Repo, :all, fn %Ecto.Query{} = query, _opts ->
-      {sql, _params} = Ecto.Adapters.SQL.to_sql(:all, Repo, query)
+      {sql, _params} = SQL.to_sql(:all, Repo, query)
       assert sql =~ "clock_timestamp()"
       assert sql =~ "1 millisecond"
       send(parent, :poll_query_seen)

@@ -82,7 +82,12 @@ defmodule Cache.CleanProjectWorker do
                check_lease
              ),
            :ok <- Cleanup.renew_project_cleanup_lease(account_handle, project_handle, active_cleanup_cutoff_at),
-           {:ok, published} <- Cleanup.publish_project_cleanup(account_handle, project_handle, active_cleanup_cutoff_at) do
+           {:ok, published} <-
+             Cleanup.publish_project_cleanup(
+               account_handle,
+               project_handle,
+               active_cleanup_cutoff_at
+             ) do
         :ok =
           put_local_applied_generation_after_publish(
             account_handle,
