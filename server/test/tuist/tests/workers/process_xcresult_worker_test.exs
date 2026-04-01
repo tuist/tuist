@@ -63,7 +63,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
               "status" => "success",
               "duration" => 10.0,
               "failures" => [],
-              "repetitions" => []
+              "repetitions" => [],
+              "attachments" => [
+                %{
+                  "attachment_id" => "att-001",
+                  "file_name" => "screenshot.png",
+                  "repetition_number" => nil
+                }
+              ]
             }
           ]
         }
@@ -191,6 +198,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         [module] = attrs.test_modules
         assert module["name"] == "AppModuleTests"
         assert module["status"] == "success"
+
+        [test_case] = module["test_cases"]
+        [attachment] = test_case["attachments"]
+        assert attachment["attachment_id"] == "att-001"
+        assert attachment["file_name"] == "screenshot.png"
         {:ok, %{id: test_run_id}}
       end)
 
