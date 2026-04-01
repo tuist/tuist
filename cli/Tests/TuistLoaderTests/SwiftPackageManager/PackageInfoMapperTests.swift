@@ -6483,10 +6483,13 @@ extension ProjectDescription.Project {
             disableSynthesizedResourceAccessors: true,
             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
         ),
-        settings: ProjectDescription.Settings = .settings(configurations: [
-            .debug(name: .debug),
-            .release(name: .release),
-        ]),
+        settings: ProjectDescription.Settings = .settings(
+            base: ["SWIFT_VERSION": "5"],
+            configurations: [
+                .debug(name: .debug),
+                .release(name: .release),
+            ]
+        ),
         customSettings: ProjectDescription.SettingsDictionary = [:],
         targets: [ProjectDescription.Target]
     ) -> Self {
