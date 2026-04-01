@@ -10,8 +10,6 @@ defmodule TuistWeb.Docs.MarkdownComponents do
 
   alias Tuist.Docs.Paths
 
-  # Alert ------------------------------------------------------------------
-
   @doc """
   Wraps Noora's alert for documentation use.
 
@@ -63,8 +61,6 @@ defmodule TuistWeb.Docs.MarkdownComponents do
     ~H"<Noora.Icon.alert_triangle />"
   end
 
-  # Table ------------------------------------------------------------------
-
   @doc """
   Wraps a raw HTML `<table>` from markdown with Noora table styling.
 
@@ -81,8 +77,6 @@ defmodule TuistWeb.Docs.MarkdownComponents do
     </div>
     """
   end
-
-  # Home cards -------------------------------------------------------------
 
   attr :locale, :string, default: "en"
   slot :inner_block, required: true
