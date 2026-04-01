@@ -434,7 +434,7 @@ tuist xcodebuild build-for-testing \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
   --shard-total 5 \
   --shard-skip-upload \
-  -testProductsPath /path/to/shared/volume/MyScheme.xctestproducts
+  -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
 ```
 
 2. In the **test phase**, pass the same `-testProductsPath` so Tuist reads the test products locally instead of downloading them:
@@ -443,8 +443,11 @@ tuist xcodebuild build-for-testing \
 tuist xcodebuild test \
   -scheme MyScheme \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
-  -testProductsPath /path/to/shared/volume/MyScheme.xctestproducts
+  -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctestproducts
 ```
+
+> [!IMPORTANT]
+> Use a unique path per workflow run (e.g. include the CI run ID) to avoid collisions between concurrent runs. You should also clean up the test products after sharding completes to avoid accumulating stale data on the volume.
 
 | Flag | Environment variable | Description |
 |------|---------------------|-------------|
@@ -452,11 +455,14 @@ tuist xcodebuild test \
 
 ### Namespace {#namespace}
 
-[Namespace](https://namespace.so) runners support shared volumes across GitHub Actions jobs. Here's an example workflow:
+[Namespace](https://namespace.so) runners support shared volumes across GitHub Actions jobs. Since volumes persist across workflow runs, include `${{ github.run_id }}` in the path to isolate concurrent runs and clean up afterwards:
 
 ```yaml
 name: Tests
 on: [pull_request]
+
+env:
+  TEST_PRODUCTS_PATH: /Volumes/test-products/${{ github.run_id }}/MyScheme.xctestproducts
 
 jobs:
   build:
@@ -478,7 +484,7 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             --shard-total 5 \
             --shard-skip-upload \
-            -testProductsPath /Volumes/test-products/MyScheme.xctestproducts
+            -testProductsPath $TEST_PRODUCTS_PATH
 
   test:
     name: "Shard #${{ matrix.shard }}"
@@ -491,7 +497,6 @@ jobs:
     volumes:
       - name: test-products
         path: /Volumes/test-products
-        read_only: true
     env:
       TUIST_SHARD_INDEX: ${{ matrix.shard }}
     steps:
@@ -502,6 +507,8 @@ jobs:
           tuist xcodebuild test \
             -scheme MyScheme \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
-            -testProductsPath /Volumes/test-products/MyScheme.xctestproducts
+            -testProductsPath $TEST_PRODUCTS_PATH
+      - if: always()
+        run: rm -rf /Volumes/test-products/${{ github.run_id }}
 ```
 
