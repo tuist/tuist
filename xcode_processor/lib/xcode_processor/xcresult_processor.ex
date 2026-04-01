@@ -215,21 +215,10 @@ defmodule XcodeProcessor.XCResultProcessor do
   end
 
   defp find_xcresult(temp_dir) do
-    by_extension =
-      temp_dir
-      |> Path.join("**/*.xcresult")
-      |> Path.wildcard()
-      |> List.first()
-
-    # When uploaded via `tuist test --inspect-mode remote`, the result bundle
-    # directory may not have the .xcresult extension (e.g. named "result-bundle").
-    # All xcresult bundles contain a database.sqlite3, so we use it as a fallback marker.
-    by_extension ||
-      temp_dir
-      |> Path.join("**/database.sqlite3")
-      |> Path.wildcard()
-      |> Enum.map(&Path.dirname/1)
-      |> Enum.find(&File.dir?/1)
+    temp_dir
+    |> Path.join("**/*.xcresult")
+    |> Path.wildcard()
+    |> List.first()
   end
 
   defp cleanup_temp(temp_dir) do
