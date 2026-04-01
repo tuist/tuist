@@ -62,7 +62,7 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
 
     @Flag(
         name: .long,
-        help: "Skip uploading test products to remote storage. Use when test products are on a shared volume accessible by shard runners.",
+        help: "Skip uploading test products to remote storage. Use when you provide test products to shard runners yourself, for example via shared volumes.",
         envKey: .testShardSkipUpload
     )
     var shardSkipUpload: Bool = false
