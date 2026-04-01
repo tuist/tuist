@@ -143,10 +143,7 @@ defmodule XcodeProcessor.XCResultProcessor do
       s3_key =
         "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
 
-      case file_path
-           |> ExAws.S3.Upload.stream_file()
-           |> ExAws.S3.upload(bucket, s3_key)
-           |> ExAws.request() do
+      case bucket |> ExAws.S3.put_object(s3_key, File.read!(file_path)) |> ExAws.request() do
         {:ok, _} ->
           uploaded =
             attachment
