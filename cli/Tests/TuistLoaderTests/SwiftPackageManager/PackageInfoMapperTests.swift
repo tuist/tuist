@@ -4054,7 +4054,12 @@ struct PackageInfoMapperTests {
                 .test(
                     name: "Foo",
                     dependencies: [
-                        .product(name: "Foo", package: "ExternalFoo", moduleAliases: ["Foo": "ExternalFooTarget"], condition: nil),
+                        .product(
+                            name: "Foo",
+                            package: "ExternalFoo",
+                            moduleAliases: ["Foo": "ExternalFooTarget"],
+                            condition: nil
+                        ),
                     ]
                 ),
             ],
