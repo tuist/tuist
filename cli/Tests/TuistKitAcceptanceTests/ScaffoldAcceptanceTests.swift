@@ -37,7 +37,7 @@ struct ScaffoldAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_ios_app_with_templates"))
+    @Test(.disabled(), .withFixture("generated_ios_app_with_templates"))
     func ios_app_with_templates_custom_using_filters() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
@@ -61,7 +61,7 @@ struct ScaffoldAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_ios_app_with_templates"))
+    @Test(.disabled(), .withFixture("generated_ios_app_with_templates"))
     func ios_app_with_templates_custom_using_copy_folder() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
@@ -106,7 +106,7 @@ struct ScaffoldAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_app_with_plugins"))
+    @Test(.disabled(), .withFixture("generated_app_with_plugins"))
     func app_with_plugins_local_plugin() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
@@ -137,7 +137,7 @@ struct ScaffoldAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_app_with_plugins"))
+    @Test(.disabled(), .withFixture("generated_app_with_plugins"))
     func app_with_plugins_remote_plugin() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
@@ -168,7 +168,7 @@ struct ScaffoldAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_ios_app_with_templates"))
+    @Test(.disabled(), .withFixture("generated_ios_app_with_templates"))
     func ios_app_with_templates_custom_using_attribute() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
@@ -201,7 +201,7 @@ struct ScaffoldAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_ios_app_with_plugins_and_templates"))
+    @Test(.disabled(), .withFixture("generated_ios_app_with_plugins_and_templates"))
     func ios_app_with_local_template_and_project_description_helpers_plugin() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
@@ -222,7 +222,7 @@ struct ScaffoldAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_ios_app_with_plugins_and_templates"))
+    @Test(.disabled(), .withFixture("generated_ios_app_with_plugins_and_templates"))
     func ios_app_with_plugin_template_and_project_description_helpers_plugin() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)

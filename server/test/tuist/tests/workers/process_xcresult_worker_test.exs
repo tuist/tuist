@@ -18,12 +18,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     %{account: account, project: project}
   end
 
-  defp job_args(test_run_id, account_id, project_id) do
+  defp job_args(test_run_id, account_id, project_id, opts \\ []) do
     %{
       "test_run_id" => test_run_id,
       "storage_key" => @storage_key,
       "account_id" => account_id,
       "project_id" => project_id,
+      "account_handle" => Keyword.get(opts, :account_handle, "test-account"),
+      "project_handle" => Keyword.get(opts, :project_handle, "test-project"),
       "is_ci" => false,
       "git_branch" => "main",
       "git_commit_sha" => "abc123",
@@ -63,7 +65,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
               "status" => "success",
               "duration" => 10.0,
               "failures" => [],
-              "repetitions" => []
+              "repetitions" => [],
+              "attachments" => [
+                %{
+                  "attachment_id" => "att-001",
+                  "file_name" => "screenshot.png",
+                  "repetition_number" => nil
+                }
+              ]
             }
           ]
         }
@@ -110,22 +119,45 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     }
   end
 
-  describe "perform/1 when xcode_processor_url is not configured" do
+  describe "perform/1 when xcode_processor_url is not configured (local processing)" do
     setup do
       stub(Tuist.Environment, :xcode_processor_url, fn -> nil end)
       :ok
     end
 
-    test "returns error when url is nil", %{account: account, project: project} do
-      assert {:error, "xcode_processor_url_not_configured"} ==
-               ProcessXcresultWorker.perform(oban_job(job_args(@test_run_id, account.id, project.id)))
+    test "processes locally when url is nil", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+
+      expect(Tuist.Accounts, :get_account_by_id, fn id ->
+        assert id == account.id
+        {:ok, account}
+      end)
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account ->
+        {:ok, :done}
+      end)
+
+      expect(XcodeProcessor.XCResultProcessor, :process_local, fn _path, _opts ->
+        {:ok, parsed_data()}
+      end)
+
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
 
-    test "returns error when url is empty string", %{account: account, project: project} do
+    test "processes locally when url is empty string", %{account: account, project: project} do
       stub(Tuist.Environment, :xcode_processor_url, fn -> "" end)
+      test_run_id = Ecto.UUID.generate()
 
-      assert {:error, "xcode_processor_url_not_configured"} ==
-               ProcessXcresultWorker.perform(oban_job(job_args(@test_run_id, account.id, project.id)))
+      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:ok, account} end)
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+      expect(XcodeProcessor.XCResultProcessor, :process_local, fn _path, _opts -> {:ok, parsed_data()} end)
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
     end
   end
 
@@ -191,6 +223,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         [module] = attrs.test_modules
         assert module["name"] == "AppModuleTests"
         assert module["status"] == "success"
+
+        [test_case] = module["test_cases"]
+        [attachment] = test_case["attachments"]
+        assert attachment["attachment_id"] == "att-001"
+        assert attachment["file_name"] == "screenshot.png"
         {:ok, %{id: test_run_id}}
       end)
 

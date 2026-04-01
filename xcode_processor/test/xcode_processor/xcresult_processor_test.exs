@@ -86,7 +86,7 @@ defmodule XcodeProcessor.XCResultProcessorTest do
         )
 
       File.mkdir_p!(temp_dir)
-      on_exit(fn -> File.rm_rf(temp_dir)  end)
+      on_exit(fn -> File.rm_rf(temp_dir) end)
 
       quarantined_tests = [
         %{"target" => "AppTests", "class" => "Suite", "method" => "testA()"}
@@ -165,6 +165,72 @@ defmodule XcodeProcessor.XCResultProcessorTest do
       [case_a] = module["test_cases"]
 
       refute Map.has_key?(case_a, "is_quarantined")
+    end
+
+    test "uploads attachments to S3 when handles are provided" do
+      {fixture_dir, fixture_zip} = create_xcresult_zip()
+      on_exit(fn -> File.rm_rf(fixture_dir) end)
+
+      attachment_file = Path.join(fixture_dir, "screenshot.png")
+      File.write!(attachment_file, "fake-png-data")
+
+      parsed_data = %{
+        "test_modules" => [
+          %{
+            "name" => "Module",
+            "test_cases" => [
+              %{
+                "name" => "test_example",
+                "attachments" => [
+                  %{
+                    "file_path" => attachment_file,
+                    "file_name" => "screenshot.png",
+                    "repetition_number" => nil
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # Download call
+      expect(ExAws, :request, fn %ExAws.Operation.S3{http_method: :get} -> {:ok, :done} end)
+
+      # Upload call for the attachment (streaming multipart upload)
+      expect(ExAws, :request, fn %ExAws.S3.Upload{bucket: _bucket, path: path} ->
+        assert String.contains?(path, "tests/runs/run-123/attachments/")
+        assert String.ends_with?(path, "/screenshot.png")
+        {:ok, %{status_code: 200}}
+      end)
+
+      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
+        File.cp!(fixture_zip, dest_path)
+        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
+      end)
+
+      stub(ExAws.S3, :upload, fn stream, _bucket, key ->
+        %ExAws.S3.Upload{bucket: "tuist", path: key, src: stream}
+      end)
+
+      expect(XcodeProcessor.XCResultNIF, :parse, fn _path, _root ->
+        {:ok, parsed_data}
+      end)
+
+      opts = [
+        test_run_id: "run-123",
+        account_handle: "MyOrg",
+        project_handle: "MyProject"
+      ]
+
+      assert {:ok, result} = XCResultProcessor.process("some/key.zip", opts)
+
+      [module] = result["test_modules"]
+      [test_case] = module["test_cases"]
+      [attachment] = test_case["attachments"]
+      assert attachment["attachment_id"]
+      assert attachment["file_name"] == "screenshot.png"
+      refute Map.has_key?(attachment, "file_path")
     end
 
     test "cleans up temp directory even when processing fails" do
