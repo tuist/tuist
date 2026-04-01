@@ -8,7 +8,7 @@ permissions:
   contents: read
   actions: write
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   dispatch:
@@ -26,7 +26,7 @@ jobs:
           set -euo pipefail
 
           remove_label() {
-            gh api "/repos/${REPOSITORY}/issues/${PR_NUMBER}/labels/load-test" -X DELETE || true
+            gh pr edit "$PR_NUMBER" --repo "$REPOSITORY" --remove-label load-test || true
           }
 
           if [ "$LABEL_NAME" != 'load-test' ]; then
