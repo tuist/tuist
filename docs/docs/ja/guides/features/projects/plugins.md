@@ -7,27 +7,30 @@
 ---
 # プラグイン{#plugins}
 
-プラグインは、複数のプロジェクト間でTuistアーティファクトを共有・再利用するためのツールです。以下のアーティファクトがサポートされています：
+プラグインは、複数のプロジェクト間でTuistのアートファクトを共有・再利用するためのツールです。以下のアートファクトがサポートされています：
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト説明ヘルパー</LocalizedLink>を複数プロジェクトにまたがって使用します。
-- <LocalizedLink href="/guides/features/projects/templates">複数プロジェクトにまたがるテンプレート</LocalizedLink>。
-- 複数プロジェクトにまたがるタスク。
-- <LocalizedLink href="/guides/features/projects/synthesized-files">リソースアクセサ</LocalizedLink>テンプレートを複数プロジェクトにまたがって使用
+- <LocalizedLink href="/guides/features/projects/code-sharing">複数のプロジェクトにまたがるプロジェクト説明ヘルパー</LocalizedLink>。
+- <LocalizedLink href="/guides/features/projects/templates">複数のプロジェクトにまたがるテンプレート</LocalizedLink>。
+- 複数のプロジェクトにまたがるタスク。
+- <LocalizedLink href="/guides/features/projects/synthesized-files">複数のプロジェクトにまたがるリソースアクセサ</LocalizedLink>テンプレート
 
-プラグインはTuistの機能を拡張する簡便な手段として設計されています。そのため、**いくつかの制限事項を考慮する必要があります。詳細は** をご参照ください。
+プラグインは、Tuistの機能を拡張するためのシンプルな手段として設計されています。そのため、**いくつかの制限事項があります。**:
 
-- プラグインは他のプラグインに依存できません。
-- プラグインはサードパーティのSwiftパッケージに依存してはならない
-- プラグインは、そのプラグインを使用しているプロジェクトのプロジェクト説明ヘルパーを使用できません。
+- プラグインは他のプラグインに依存することはできません。
+- プラグインはサードパーティ製のSwiftパッケージに依存してはなりません
+- プラグインは、そのプラグインを使用しているプロジェクトのプロジェクト説明ヘルパーを使用することはできません。
 
-より柔軟な対応が必要な場合は、ツールへの機能追加を提案するか、Tuistの生成フレームワーク[`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator)を基に独自ソリューションを構築することを検討してください。
+より柔軟な対応が必要な場合は、ツールの機能追加を提案するか、Tuistの生成フレームワーク
+[`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator)
+を利用して独自のソリューションを構築することを検討してください。
 
 ## プラグインの種類{#plugin-types}
 
 ### プロジェクト説明ヘルパープラグイン{#project-description-helper-plugin}
 
-プロジェクト説明ヘルパープラグインは、以下のディレクトリで構成されます：`Plugin.swift`
-（プラグイン名を宣言するマニフェストファイル）`ProjectDescriptionHelpers` （ヘルパーSwiftファイルを含むディレクトリ）
+プロジェクト記述ヘルパープラグインは、プラグイン名を宣言する ``Plugin.swift``
+マニフェストファイルを含むディレクトリと、ヘルパーのSwiftファイルを含む ``ProjectDescriptionHelpers``
+ディレクトリで構成されます。
 
 コードグループ
 ```bash [Plugin.swift]
@@ -47,8 +50,9 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### リソースアクセサテンプレートプラグイン{#resource-accessor-templates-plugin}
 
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">合成リソースアクセサ</LocalizedLink>を共有する必要がある場合、このタイプのプラグインを使用できます。プラグインは、以下のディレクトリで構成されます：`Plugin.swift`
-プラグイン名を宣言するマニフェストファイル`ResourceSynthesizers` リソースアクセサのテンプレートファイルを含むディレクトリ
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">合成リソースアクセサ</LocalizedLink>を共有する必要がある場合は、この種のプラグインを使用できます。このプラグインは、プラグインの名前を宣言する
+``Plugin.swift`` マニフェストファイルを含むディレクトリと、リソースアクセサのテンプレートファイルを含む
+``ResourceSynthesizers`` ディレクトリで構成されます。
 
 
 コードグループ
@@ -70,9 +74,9 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-テンプレートの名前は、リソースタイプの[キャメルケース](https://en.wikipedia.org/wiki/Camel_case)表記です：
+テンプレートの名前は、リソースタイプの [キャメルケース](https://en.wikipedia.org/wiki/Camel_case) 表記です：
 
-| リソースタイプ           | テンプレートファイル名              |
+| リソースの種類           | テンプレートファイル名              |
 | ----------------- | ------------------------ |
 | 文字列               | Strings.stencil          |
 | アセット              | Assets.stencil           |
@@ -83,7 +87,7 @@ let plugin = Plugin(name: "MyPlugin")
 | JSON              | JSON.stencil             |
 | YAML              | YAML.stencil             |
 
-プロジェクトでリソースシンセサイザーを定義する際、プラグインのテンプレートを使用するにはプラグイン名を指定できます:
+プロジェクトでリソースシンセサイザーを定義する際、プラグイン名指定することで、そのプラグインのテンプレートを使用できます:
 
 ```swift
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
@@ -93,36 +97,37 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ::: warning DEPRECATED
 <!-- -->
-タスクプラグインは非推奨です。プロジェクトの自動化ソリューションをお探しの方は、[こちらのブログ記事](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)をご確認ください。
+タスクプラグインは非推奨となりました。プロジェクト向けの自動化ソリューションをお探しの場合は、[こちらのブログ記事](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)をご覧ください。
 <!-- -->
 :::
 
-タスクは`$PATH`-exposed 実行可能ファイルであり、命名規則`tuist-<task-name>` に従う場合、`tuist`
-コマンドで呼び出せます。以前のバージョンでは、Tuist は`tuist plugin` 以下の弱規定とツールを提供し、Swift Packages
-内の実行可能ファイルで表される`build` 、`run` 、`test` 、`archive`
-タスクを構築していましたが、ツールの保守負担と複雑性を増すため、この機能は非推奨となりました。</task-name>
+タスクは`$PATH` に公開されており、命名規則`tuist-<task-name>` に従っている場合、`tuist`
+コマンドを通じて実行可能です。以前のバージョンでは、Tuistは`tuist plugin`
+を通じて、Swiftパッケージ内の実行可能ファイルによって表される`build` 、`run` 、`test` および`archive`
+タスクのための、いくつかの非公式な規約とツールを提供していましたが、この機能はツールの保守負担と複雑さを増大させるため、現在は非推奨となっています。</task-name>
 
-タスク配布にTuistを利用していた場合、構築をお勧めします
+タスクの割り当てにTuistを使用している場合は、
 - Tuistの各リリースに同梱されている`ProjectAutomation.xcframework`
-  を使用し続けることで、ロジックからプロジェクトグラフにアクセスできます。`let graph = try Tuist.graph()`
-  。このコマンドはシステムプロセスを使用して`tuist` コマンドを実行し、プロジェクトグラフのメモリ内表現を返します。
-- タスクを配布するには、GitHubリリースに`arm64` および`x86_64`
-  に対応したファットバイナリを含め、インストールツールとして[Mise](https://mise.jdx.dev)を使用することを推奨します。Miseにツールのインストール方法を指示するには、プラグインリポジトリが必要です。[Tuist's](https://github.com/asdf-community/asdf-tuist)を参考として使用できます。
-- ツール名を`tuist-{xxx}` と命名し、ユーザーが`mise install`
-  を実行してインストールできる場合、ユーザーは直接呼び出すか、`tuist xxx` を通じて実行できます。
+  を引き続き使用することで、ロジック内からプロジェクトグラフにアクセスできます。`let graph = try Tuist.graph()`
+  のように記述します。このコマンドはシステムプロセスを使用して`tuist` コマンドを実行し、プロジェクトグラフのメモリ内表現を返します。
+- タスクを分散させるには、GitHubのリリースに`arm64` および`x86_64`
+  をサポートするファットバイナリを含め、インストールツールとして[Mise](https://mise.jdx.dev)を使用することを推奨します。Miseにツールのインストール方法を指示するには、プラグインリポジトリが必要です。参考として[Tuist](https://github.com/asdf-community/asdf-tuist)を利用できます。
+- ツールの名前を`tuist-{xxx}` とし、ユーザーが`mise install`
+  を実行してインストールできるようにすれば、ユーザーは直接呼び出すか、`tuist xxx` を通じて実行することができます。
 
 ::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
-`の ProjectAutomation` と`の XcodeGraph`
-のモデルを統合し、プロジェクトグラフ全体をユーザーに公開する単一の互換性のあるフレームワークを構築する予定です。さらに、生成ロジックを新しいレイヤー`XcodeGraph`
-に抽出し、独自の CLI からも利用可能にします。これは独自の Tuist を構築するものと捉えてください。
+`ProjectAutomation` および`XcodeGraph`
+の各モデルを統合し、プロジェクトグラフ全体をユーザーに公開する、後方互換性のある単一のフレームワークを構築する予定です。さらに、生成ロジックを新しいレイヤーである`XcodeGraph`
+に抽出します。これは独自の CLI からも利用可能です。これは、独自の Tuist を構築するようなものと考えてください。
 <!-- -->
 :::
 
 ## プラグインの使用{#using-plugins}
 
-プラグインを使用するには、プロジェクトの<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
-マニフェストファイルに追加する必要があります：
+プラグインを使用するには、プロジェクトの
+<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
+マニフェストファイルに追加する必要があります:
 
 ```swift
 import ProjectDescription
@@ -135,7 +140,8 @@ let tuist = Tuist(
 )
 ```
 
-異なるリポジトリにあるプロジェクト間でプラグインを再利用したい場合、プラグインをGitリポジトリにプッシュし、```内の`Tuist.swift`ファイルで参照できます。`
+異なるリポジトリにあるプロジェクト間でプラグインを再利用したい場合は、プラグインをGitリポジトリにプッシュし、`のTuist.swift`
+ファイルで参照するように設定できます：
 
 ```swift
 import ProjectDescription
@@ -149,17 +155,17 @@ let tuist = Tuist(
 )
 ```
 
-プラグイン追加後、``tuist install` ` を実行すると、プラグインがグローバルキャッシュディレクトリに取得されます。
+プラグインを追加した後、`tuist install` を実行すると、プラグインがグローバルキャッシュディレクトリに取得されます。
 
 ::: info NO VERSION RESOLUTION
 <!-- -->
-ご存知かもしれませんが、プラグインのバージョン解決は提供しておりません。再現性を確保するため、GitタグまたはSHAの使用をお勧めします。
+お気づきかもしれませんが、当サービスではプラグインのバージョン解決機能は提供しておりません。再現性を確保するため、GitタグまたはSHAの使用をお勧めします。
 <!-- -->
 :::
 
 ::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
-プロジェクト説明ヘルパープラグインを使用する場合、ヘルパーを含むモジュールの名前がプラグイン名となります
+プロジェクト説明ヘルパープラグインを使用する場合、ヘルパーを含むモジュールの名前がプラグインの名前となります
 ```swift
 import ProjectDescription
 import MyTuistPlugin
