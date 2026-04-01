@@ -132,8 +132,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             sideEffects.append(sideEffect)
         }
 
-        if case .external = project.type,
-           target.sources.containsObjcFiles,
+        if target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources,
            !target.supportsResources || target.product == .staticFramework
         {
@@ -143,9 +142,24 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             let headerFile = SourceFile(path: headerFilePath, contentHash: headerHash)
             let headerSideEffect = SideEffectDescriptor.file(.init(path: headerFilePath, contents: headerData, state: .present))
 
-            let gccPrefixHeader = "$(SRCROOT)/\(headerFile.path.relative(to: project.path).pathString)"
+            let headerPathString = "$(SRCROOT)/\(headerFile.path.relative(to: project.path).pathString)"
             var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
-            settings["GCC_PREFIX_HEADER"] = .string(gccPrefixHeader)
+            
+            var otherCFlags: [String]
+            if let existing = settings["OTHER_CFLAGS"] {
+                switch existing {
+                case let .string(value):
+                    let components = value.split(separator: " ").map(String.init)
+                    otherCFlags = components.contains("$(inherited)") ? components : ["$(inherited)"] + components
+                case let .array(values):
+                    otherCFlags = values.contains("$(inherited)") ? values : ["$(inherited)"] + values
+                }
+            } else {
+                otherCFlags = ["$(inherited)"]
+            }
+            
+            otherCFlags.append(contentsOf: ["-include", headerPathString])
+            settings["OTHER_CFLAGS"] = .array(otherCFlags)
             modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
 
             sideEffects.append(headerSideEffect)
@@ -293,6 +307,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         targetName: String
     ) -> String {
         return """
+        #ifdef __OBJC__
         #import <Foundation/Foundation.h>
 
         #if __cplusplus
@@ -305,6 +320,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
 
         #if __cplusplus
         }
+        #endif
         #endif
         """
     }
