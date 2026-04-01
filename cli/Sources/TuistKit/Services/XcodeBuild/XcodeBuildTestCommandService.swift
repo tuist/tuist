@@ -107,6 +107,7 @@ struct XcodeBuildTestCommandService {
 
             if let xcTestRunPath = shard.xcTestRunPath {
                 shardXCTestRunPath = xcTestRunPath
+                passthroughXcodebuildArguments = removeOption("-testProductsPath", from: passthroughXcodebuildArguments)
                 passthroughXcodebuildArguments = removeOption("-xctestrun", from: passthroughXcodebuildArguments)
                 passthroughXcodebuildArguments += ["-xctestrun", xcTestRunPath.pathString]
             } else {

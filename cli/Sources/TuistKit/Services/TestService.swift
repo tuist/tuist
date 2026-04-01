@@ -574,6 +574,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         var shardPassthroughArguments = passthroughXcodeBuildArguments
         if let xcTestRunPath = shard.xcTestRunPath {
+            shardPassthroughArguments = removeOption("-testProductsPath", from: shardPassthroughArguments)
             shardPassthroughArguments += ["-xctestrun", xcTestRunPath.pathString]
         }
 
@@ -731,6 +732,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
         AlertController.current.success(.alert("The project tests ran successfully"))
     }
 
+    private func removeOption(_ option: String, from arguments: [String]) -> [String] {
+        guard let index = arguments.firstIndex(of: option) else { return arguments }
+        var result = arguments
+        result.remove(at: index)
+        if result.indices.contains(index) {
+            result.remove(at: index)
+        }
+        return result
+    }
+
     private func testProductsPathFromArguments(_ arguments: [String], relativeTo path: AbsolutePath) -> AbsolutePath? {
         guard let index = arguments.firstIndex(of: "-testProductsPath"),
               arguments.indices.contains(index + 1)
@@ -756,7 +767,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String]
     ) async throws -> [String] {
         var arguments = ["test-without-building"]
-        if !passthroughXcodeBuildArguments.contains("-testProductsPath") {
+        if !passthroughXcodeBuildArguments.contains("-testProductsPath"),
+           !passthroughXcodeBuildArguments.contains("-xctestrun")
+        {
             arguments += ["-testProductsPath", testProductsPath.pathString]
         }
 
