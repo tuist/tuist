@@ -4,6 +4,7 @@ import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
+import TuistEnvironment
 import TuistGenerateCommand
 import TuistInitCommand
 import TuistSupport
@@ -661,35 +662,31 @@ struct XcodeBuildShardWithLocalTestProductsAcceptanceTests {
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
 
         let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
+        let shardReference = "acceptance-test-\(UUID().uuidString)"
+
+        // Set CI env vars so ShardService can derive the shard reference
+        Environment.mocked?.variables["GITHUB_ACTIONS"] = "true"
+        Environment.mocked?.variables["GITHUB_RUN_ID"] = shardReference
+        Environment.mocked?.variables["GITHUB_RUN_ATTEMPT"] = "1"
 
         try await TuistTest.run(
             XcodeBuildBuildForTestingCommand.self,
             [
-                "build-for-testing",
-                "--shard-total",
-                "1",
+                "--shard-total", "1",
                 "--shard-skip-upload",
-                "-project",
-                fixtureDirectory.pathString + "/App.xcodeproj",
-                "-scheme",
-                "MacFrameworkTests",
-                "-destination",
-                "platform=macOS",
-                "-testProductsPath",
-                testProductsPath.pathString,
+                "-project", fixtureDirectory.pathString + "/App.xcodeproj",
+                "-scheme", "MacFrameworkTests",
+                "-destination", "platform=macOS",
+                "-testProductsPath", testProductsPath.pathString,
             ]
         )
 
         try await TuistTest.run(
             XcodeBuildTestWithoutBuildingCommand.self,
             [
-                "test-without-building",
-                "--shard-index",
-                "0",
-                "-testProductsPath",
-                testProductsPath.pathString,
-                "-destination",
-                "platform=macOS",
+                "--shard-index", "0",
+                "-testProductsPath", testProductsPath.pathString,
+                "-destination", "platform=macOS",
             ]
         )
     }

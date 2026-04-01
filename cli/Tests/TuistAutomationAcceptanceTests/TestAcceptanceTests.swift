@@ -4,6 +4,7 @@ import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
+import TuistEnvironment
 import TuistSupport
 import TuistTestCommand
 import TuistTesting
@@ -308,6 +309,12 @@ struct TestAcceptanceTestShardWithLocalTestProducts {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
+        let shardReference = "acceptance-test-\(UUID().uuidString)"
+
+        // Set CI env vars so ShardService can derive the shard reference
+        Environment.mocked?.variables["GITHUB_ACTIONS"] = "true"
+        Environment.mocked?.variables["GITHUB_RUN_ID"] = shardReference
+        Environment.mocked?.variables["GITHUB_RUN_ATTEMPT"] = "1"
 
         // Build phase: build tests and create shard plan, skip S3 upload
         try await TuistTest.run(
