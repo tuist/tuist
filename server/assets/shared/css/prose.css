@@ -121,7 +121,7 @@
       box-shadow: var(--noora-light-border-focus);
     }
 
-    & .docs-home-card-image {
+    & [data-part="image"] {
       display: flex;
       justify-content: center;
       align-items: center;
@@ -136,11 +136,11 @@
       font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
     }
 
-    & .docs-home-card-body {
+    & [data-part="body"] {
       padding: 0 var(--noora-spacing-5) var(--noora-spacing-5);
     }
 
-    & .docs-home-card-body p {
+    & [data-part="body"] p {
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-body-medium);
     }

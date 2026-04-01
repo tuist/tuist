@@ -10,23 +10,18 @@ defmodule TuistWeb.Docs.MarkdownComponents do
 
   alias Tuist.Docs.Paths
 
-  attr :locale, :string, default: "en"
-  slot :inner_block, required: true
-
-  def home_cards(assigns) do
-    ~H"""
-    <div class="docs-home-cards">
-      {render_slot(@inner_block)}
-    </div>
-    """
-  end
+  # Alert ------------------------------------------------------------------
 
   @doc """
-  An alert component for documentation that supports rich HTML content.
+  Wraps Noora's alert for documentation use.
 
-  Uses the same Noora alert CSS structure but renders the inner block
-  as the description, allowing paragraphs, links, code, and other HTML
-  from markdown.
+  We can't use `Noora.Alert.alert/1` directly because its `description`
+  attribute renders as escaped plain text inside a `<span>`. Markdown
+  alert content is rich HTML (paragraphs, links, code) that needs a
+  `<div>` and unescaped rendering via `inner_block`.
+
+  Once Noora's alert gains a slot-based description, this wrapper can be
+  replaced with a direct `<.alert>` call.
   """
   attr :status, :string,
     values: ~w(information warning error success),
@@ -68,11 +63,33 @@ defmodule TuistWeb.Docs.MarkdownComponents do
     ~H"<Noora.Icon.alert_triangle />"
   end
 
+  # Table ------------------------------------------------------------------
+
+  @doc """
+  Wraps a raw HTML `<table>` from markdown with Noora table styling.
+
+  Noora's `Noora.Table` expects structured data via `rows`/`col` slots and
+  cannot wrap arbitrary HTML tables. This component applies the same CSS
+  class (`noora-table`) to get consistent styling.
+  """
   slot :inner_block, required: true
 
   def doc_table(assigns) do
     ~H"""
     <div class="noora-table">
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  # Home cards -------------------------------------------------------------
+
+  attr :locale, :string, default: "en"
+  slot :inner_block, required: true
+
+  def home_cards(assigns) do
+    ~H"""
+    <div class="docs-home-cards">
       {render_slot(@inner_block)}
     </div>
     """
@@ -95,10 +112,10 @@ defmodule TuistWeb.Docs.MarkdownComponents do
 
     ~H"""
     <a href={@href} class="docs-home-card">
-      <div class="docs-home-card-image">
+      <div data-part="image">
         <strong>{@title}</strong>
       </div>
-      <div class="docs-home-card-body">
+      <div data-part="body">
         <p>{@details}</p>
       </div>
     </a>

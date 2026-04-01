@@ -346,7 +346,7 @@ defmodule Tuist.Docs.Loader do
           link_href = if link == "", do: "#", else: Paths.public_path(locale, link)
 
           EEx.eval_string(
-            ~s(<a href="<%= link_href %>" class="docs-home-card"><div class="docs-home-card-image"><strong><%= title %></strong></div><div class="docs-home-card-body"><p><%= details %></p></div></a>),
+            ~s(<a href="<%= link_href %>" class="docs-home-card"><div data-part="image"><strong><%= title %></strong></div><div data-part="body"><p><%= details %></p></div></a>),
             link_href: link_href,
             title: title,
             details: details
@@ -363,8 +363,6 @@ defmodule Tuist.Docs.Loader do
     |> String.replace("</table>", "</table></div>")
   end
 
-  @mc "TuistWeb.Docs.MarkdownComponents"
-
   defp convert_github_alerts_to_components(html) do
     Regex.replace(@github_alert_regex, html, fn _, type, default_title, content ->
       status = Map.get(@github_alert_type_to_status, type, "information")
@@ -375,17 +373,21 @@ defmodule Tuist.Docs.Loader do
           _ -> {default_title, content}
         end
 
-      ~s(<#{@mc}.doc_alert status="#{status}" title="#{escape_attr(title)}">#{content}</#{@mc}.doc_alert>)
+      title = title |> String.replace("\"", "&quot;") |> String.replace("<", "&lt;")
+
+      """
+      <TuistWeb.Docs.MarkdownComponents.doc_alert status="#{status}" title="#{title}">\
+      #{content}\
+      </TuistWeb.Docs.MarkdownComponents.doc_alert>\
+      """
     end)
   end
 
   defp wrap_tables_with_component(html) do
     html
-    |> String.replace("<table>", ~s(<#{@mc}.doc_table><table>))
-    |> String.replace("</table>", ~s(</table></#{@mc}.doc_table>))
+    |> String.replace("<table>", "<TuistWeb.Docs.MarkdownComponents.doc_table><table>")
+    |> String.replace("</table>", "</table></TuistWeb.Docs.MarkdownComponents.doc_table>")
   end
-
-  defp escape_attr(str), do: str |> String.replace("\"", "&quot;") |> String.replace("<", "&lt;")
 
   defp localize_link_components(markdown, locale) do
     Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
