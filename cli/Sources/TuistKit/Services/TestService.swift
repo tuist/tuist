@@ -89,6 +89,11 @@ public enum TestServiceError: FatalError, Equatable {
     }
 }
 
+public enum TestProcessingMode: String, Sendable, CaseIterable {
+    case local
+    case remote
+}
+
 public struct TestService { // swiftlint:disable:this type_body_length
     private let generatorFactory: GeneratorFactorying
     private let cacheStorageFactory: CacheStorageFactorying
@@ -103,6 +108,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let gitController: GitControlling
     private let rootDirectoryLocator: RootDirectoryLocating
     private let uploadResultBundleService: UploadResultBundleServicing
+    private let analyticsArtifactUploadService: AnalyticsArtifactUploadServicing
     private let derivedDataLocator: DerivedDataLocating
     private let createTestService: CreateTestServicing
     private let machineEnvironment: MachineEnvironmentRetrieving
@@ -140,6 +146,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         gitController: GitControlling = GitController(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
+        analyticsArtifactUploadService: AnalyticsArtifactUploadServicing = AnalyticsArtifactUploadService(),
         derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
         createTestService: CreateTestServicing = CreateTestService(),
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -163,6 +170,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.gitController = gitController
         self.rootDirectoryLocator = rootDirectoryLocator
         self.uploadResultBundleService = uploadResultBundleService
+        self.analyticsArtifactUploadService = analyticsArtifactUploadService
         self.derivedDataLocator = derivedDataLocator
         self.createTestService = createTestService
         self.machineEnvironment = machineEnvironment
@@ -218,7 +226,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         shardMax: Int? = nil,
         shardTotal: Int? = nil,
         shardMaxDuration: Int? = nil,
-        shardIndex: Int? = nil
+        shardIndex: Int? = nil,
+        mode: TestProcessingMode = .local
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -458,7 +467,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 config: config,
-                quarantinedTests: quarantinedTests
+                quarantinedTests: quarantinedTests,
+                mode: mode
             )
         } catch {
             try await copyResultBundlePathIfNeeded(
@@ -593,6 +603,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
         await uploadResultBundleIfNeeded(
             testSummary: summary,
+            resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
@@ -695,6 +706,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
         await uploadResultBundleIfNeeded(
             testSummary: summary,
+            resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding
@@ -906,7 +918,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
         config: Tuist,
-        quarantinedTests: [TestIdentifier]
+        quarantinedTests: [TestIdentifier],
+        mode: TestProcessingMode = .local
     ) async throws {
         let timer = clock.startTimer()
         let graphTraverser = GraphTraverser(graph: graph)
@@ -963,7 +976,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     testPlanConfiguration: testPlanConfiguration,
                     passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                     config: config,
-                    quarantinedTests: quarantinedTests
+                    quarantinedTests: quarantinedTests,
+                    mode: mode
                 )
             }
         } catch {
@@ -1284,7 +1298,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
         config: Tuist,
-        quarantinedTests: [TestIdentifier]
+        quarantinedTests: [TestIdentifier],
+        mode: TestProcessingMode = .local
     ) async throws {
         Logger.current.log(
             level: .notice, "\(action.description) scheme \(scheme.name)", metadata: .section
@@ -1379,9 +1394,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
             await uploadResultBundleIfNeeded(
                 testSummary: summary,
+                resultBundlePath: resultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
-                action: action
+                action: action,
+                mode: mode
             )
             throw error
         }
@@ -1389,9 +1406,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let summary = await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
         await uploadResultBundleIfNeeded(
             testSummary: summary,
+            resultBundlePath: resultBundlePath,
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config,
-            action: action
+            action: action,
+            mode: mode
         )
     }
 
@@ -1408,23 +1427,80 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
+        resultBundlePath: AbsolutePath?,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction,
         shardPlanId: String? = nil,
-        shardIndex: Int? = nil
+        shardIndex: Int? = nil,
+        mode: TestProcessingMode = .local
     ) async {
-        guard let testSummary, config.fullHandle != nil, action != .build
+        guard config.fullHandle != nil, action != .build
         else { return }
 
         do {
-            _ = try await uploadResultBundleService.uploadResultBundle(
-                testSummary: testSummary,
-                projectDerivedDataDirectory: projectDerivedDataDirectory,
-                config: config,
-                shardPlanId: shardPlanId,
-                shardIndex: shardIndex
-            )
+            switch mode {
+            case .local:
+                guard let testSummary else { return }
+                _ = try await uploadResultBundleService.uploadResultBundle(
+                    testSummary: testSummary,
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    config: config,
+                    shardPlanId: shardPlanId,
+                    shardIndex: shardIndex
+                )
+            case .remote:
+                guard let resultBundlePath,
+                      let fullHandle = config.fullHandle
+                else { return }
+                let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+                let testRunId = UUID().uuidString.lowercased()
+
+                try await analyticsArtifactUploadService.uploadResultBundle(
+                    resultBundlePath,
+                    fullHandle: fullHandle,
+                    commandEventId: testRunId,
+                    serverURL: serverURL
+                )
+
+                let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+                let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
+                let rootDir = try await rootDirectory()
+                let gitInfoDirectory = rootDir ?? currentWorkingDirectory
+                let gitInfo = try gitController.gitInfo(workingDirectory: gitInfoDirectory)
+                let ciInfo = ciController.ciInfo()
+
+                let test = try await createTestService.createTest(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    id: testRunId,
+                    testSummary: TestSummary(
+                        testPlanName: nil,
+                        status: .processing,
+                        duration: 0,
+                        testModules: []
+                    ),
+                    buildRunId: nil,
+                    gitBranch: gitInfo.branch,
+                    gitCommitSHA: gitInfo.sha,
+                    gitRef: gitInfo.ref,
+                    gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+                    isCI: Environment.current.isCI,
+                    modelIdentifier: machineEnvironment.modelIdentifier(),
+                    macOSVersion: machineEnvironment.macOSVersion,
+                    xcodeVersion: try await xcodebuildController.version()?.description,
+                    ciRunId: ciInfo?.runId,
+                    ciProjectHandle: ciInfo?.projectHandle,
+                    ciHost: ciInfo?.host,
+                    ciProvider: ciInfo?.provider,
+                    shardPlanId: shardPlanId,
+                    shardIndex: shardIndex
+                )
+
+                AlertController.current.success(
+                    .alert("Result bundle uploaded for processing. View at \(test.url)")
+                )
+            }
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
         }

@@ -12,6 +12,8 @@
     import TuistServer
     import TuistSupport
 
+    extension TestProcessingMode: ExpressibleByArgument {}
+
     enum TuistTestFlagError: FatalError, Equatable {
         case invalidCombination([String])
 
@@ -281,6 +283,13 @@
         )
         var shardReference: String?
 
+        @Option(
+            name: .long,
+            help: "Processing mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+            envKey: .testMode
+        )
+        var mode: TestProcessingMode = .local
+
         @Argument(
             parsing: .postTerminator,
             help:
@@ -393,7 +402,8 @@
                 shardMax: shardMax,
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
-                shardIndex: EnvKey.testShardIndex.envValue()
+                shardIndex: EnvKey.testShardIndex.envValue(),
+                mode: mode
             )
         }
     }
