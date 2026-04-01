@@ -456,15 +456,10 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
-        // Exclude any products embed in unit test host apps
+        // Unit tests never embed frameworks — they either run inside a host app
+        // (which embeds the frameworks) or standalone (where DYLD paths are used instead).
         if target.target.product == .unitTests {
-            if let hostApp = unitTestHost(path: path, name: name) {
-                references.subtract(
-                    embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
-                )
-            } else {
-                references = Set()
-            }
+            references = Set()
         }
 
         return references
