@@ -286,7 +286,7 @@
         @Option(
             name: .long,
             help: "Processing mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
-            envKey: .testMode
+            envKey: .inspectTestMode
         )
         var mode: TestProcessingMode = .local
 
