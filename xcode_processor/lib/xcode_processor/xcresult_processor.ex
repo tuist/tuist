@@ -60,50 +60,38 @@ defmodule XcodeProcessor.XCResultProcessor do
     if is_nil(account_handle) or is_nil(project_handle) or is_nil(test_run_id) do
       {:ok, parsed_data}
     else
-      # Collect all attachments with their location indices
-      indexed_attachments = collect_indexed_attachments(Map.get(parsed_data, "test_modules", []))
+      # Collect all attachments, upload in parallel, build a lookup by file_path
+      all_attachments =
+        parsed_data
+        |> Map.get("test_modules", [])
+        |> Enum.flat_map(&Map.get(&1, "test_cases", []))
+        |> Enum.flat_map(&Map.get(&1, "attachments", []))
 
-      # Upload all attachments in parallel
-      uploaded =
-        indexed_attachments
+      uploaded_map =
+        all_attachments
         |> Task.async_stream(
-          fn {mi, ci, ai, att} ->
-            {mi, ci, ai,
-             upload_attachment(att, bucket, account_handle, project_handle, test_run_id)}
-          end,
-          max_concurrency: 10,
+          &upload_attachment(&1, bucket, account_handle, project_handle, test_run_id),
+          max_concurrency: 30,
           timeout: 60_000
         )
-        |> Enum.map(fn {:ok, result} -> result end)
+        |> Enum.zip(all_attachments)
+        |> Map.new(fn {{:ok, uploaded}, original} -> {original["file_path"], uploaded} end)
 
-      test_modules = reassemble_attachments(Map.get(parsed_data, "test_modules", []), uploaded)
+      # Replace attachments in-place using the lookup
+      test_modules =
+        parsed_data
+        |> Map.get("test_modules", [])
+        |> Enum.map(&replace_attachments(&1, uploaded_map))
+
       {:ok, Map.put(parsed_data, "test_modules", test_modules)}
     end
   end
 
-  defp collect_indexed_attachments(test_modules) do
-    test_modules
-    |> Enum.with_index()
-    |> Enum.flat_map(fn {module, mi} ->
-      module
-      |> Map.get("test_cases", [])
-      |> Enum.with_index()
-      |> Enum.flat_map(&index_test_case_attachments(&1, mi))
-    end)
-  end
-
-  defp index_test_case_attachments({test_case, ci}, mi) do
-    test_case
-    |> Map.get("attachments", [])
-    |> Enum.with_index()
-    |> Enum.map(fn {att, ai} -> {mi, ci, ai, att} end)
-  end
-
-  defp reassemble_attachments(test_modules, uploaded) do
-    Enum.reduce(uploaded, test_modules, fn {mi, ci, ai, att}, modules ->
-      List.update_at(modules, mi, fn module ->
-        update_in(module, ["test_cases", Access.at(ci), "attachments", Access.at(ai)], fn _ ->
-          att
+  defp replace_attachments(module, uploaded_map) do
+    Map.update(module, "test_cases", [], fn test_cases ->
+      Enum.map(test_cases, fn test_case ->
+        Map.update(test_case, "attachments", [], fn attachments ->
+          Enum.map(attachments, &Map.get(uploaded_map, &1["file_path"], &1))
         end)
       end)
     end)
