@@ -1599,7 +1599,8 @@ extension PackageInfo {
         }
 
         // When swiftLanguageVersions is not declared, derive from tools-version,
-        // matching SPM's behavior in ToolsVersion.swiftLanguageVersion.
+        // matching SPM's behavior in ToolsVersion.swiftLanguageVersion:
+        // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageModel/ToolsVersion.swift
         switch toolsVersion.major {
         case 4:
             return toolsVersion.minor < 2 ? "4" : "4.2"
