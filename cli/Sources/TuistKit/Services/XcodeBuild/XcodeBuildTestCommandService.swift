@@ -160,12 +160,7 @@ struct XcodeBuildTestCommandService {
                 return
             }
 
-            if let shardTestProductsPath {
-                try? await fileSystem.remove(shardTestProductsPath)
-            }
-            if let shardXCTestRunPath {
-                try? await fileSystem.remove(shardXCTestRunPath)
-            }
+            try? await cleanUpShardArtifacts(testProductsPath: shardTestProductsPath, xcTestRunPath: shardXCTestRunPath)
             throw error
         }
 
@@ -192,6 +187,15 @@ struct XcodeBuildTestCommandService {
         }
         if let shardXCTestRunPath {
             try? await fileSystem.remove(shardXCTestRunPath)
+        }
+    }
+
+    private func cleanUpShardArtifacts(testProductsPath: AbsolutePath?, xcTestRunPath: AbsolutePath?) async {
+        if let testProductsPath {
+            try? await fileSystem.remove(testProductsPath)
+        }
+        if let xcTestRunPath {
+            try? await fileSystem.remove(xcTestRunPath)
         }
     }
 
