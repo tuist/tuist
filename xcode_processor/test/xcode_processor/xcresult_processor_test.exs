@@ -108,7 +108,7 @@ defmodule XcodeProcessor.XCResultProcessorTest do
       # Download call
       expect(ExAws, :request, fn %ExAws.Operation.S3{http_method: :get} -> {:ok, :done} end)
 
-      # Upload call for the attachment (multipart upload via ExAws.S3.upload)
+      # Upload call for the attachment (streaming multipart upload)
       expect(ExAws, :request, fn %ExAws.S3.Upload{bucket: _bucket, path: path} ->
         assert String.contains?(path, "tests/runs/run-123/attachments/")
         assert String.ends_with?(path, "/screenshot.png")
