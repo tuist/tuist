@@ -50,6 +50,30 @@ defmodule TuistCommon.PromExPhoenixPluginTest do
 
       assert Enum.all?(http_event.metrics, fn metric -> :host in metric.tags end)
     end
+
+    test "can collapse status to status class" do
+      http_event =
+        phoenix_http_event(
+          router: Router,
+          endpoint: Endpoint,
+          http_status_tag: :status_class
+        )
+
+      assert Enum.all?(http_event.metrics, fn metric ->
+               :status_class in metric.tags and :status not in metric.tags
+             end)
+
+      [request_duration | _] = http_event.metrics
+
+      conn =
+        Plug.Test.conn(:get, "/articles")
+        |> Map.put(:status, 404)
+
+      tag_values = request_duration.tag_values.(%{conn: conn})
+
+      assert tag_values.status_class == "4xx"
+      refute Map.has_key?(tag_values, :status)
+    end
   end
 
   defp phoenix_http_event(opts) do

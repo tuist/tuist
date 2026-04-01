@@ -15,6 +15,7 @@ defmodule Cache.PromEx do
       {TuistCommon.PromExPhoenixPlugin,
        router: CacheWeb.Router,
        endpoint: CacheWeb.Endpoint,
+       http_status_tag: :status_class,
        duration_buckets: [10, 100, 500, 1000, 5000, 10_000, 30_000]},
       PromEx.Plugins.Oban,
       Cache.Xcode.PromExPlugin,

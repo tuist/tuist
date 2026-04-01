@@ -37,8 +37,8 @@ if Code.ensure_loaded?(Phoenix) do
       ]
     end
 
-    def default_http_metric_tags(include_host_tag \\ false) do
-      base_tags = [:status, :method, :path, :controller, :action]
+    def default_http_metric_tags(status_tag \\ :status, include_host_tag \\ false) do
+      base_tags = [status_tag, :method, :path, :controller, :action]
 
       if include_host_tag, do: base_tags ++ [:host], else: base_tags
     end
@@ -116,7 +116,11 @@ if Code.ensure_loaded?(Phoenix) do
     defp http_events(metric_prefix, opts) do
       routers = fetch_routers!(opts)
       additional_routes = fetch_additional_routes!(opts)
-      http_metrics_tags = default_http_metric_tags(Keyword.get(opts, :include_host_tag, false))
+      status_tag = Keyword.get(opts, :http_status_tag, :status)
+
+      http_metrics_tags =
+        default_http_metric_tags(status_tag, Keyword.get(opts, :include_host_tag, false))
+
       duration_unit = Keyword.get(opts, :duration_unit, :millisecond)
       duration_unit_plural = Utils.make_plural_atom(duration_unit)
 
@@ -131,7 +135,7 @@ if Code.ensure_loaded?(Phoenix) do
             reporter_options: [
               buckets: [10, 100, 500, 1_000, 5_000, 10_000, 30_000]
             ],
-            tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags),
+            tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
             tags: http_metrics_tags,
             unit: {:native, duration_unit}
           ),
@@ -148,7 +152,7 @@ if Code.ensure_loaded?(Phoenix) do
                 _ -> :erlang.iolist_size(metadata.conn.resp_body)
               end
             end,
-            tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags),
+            tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
             tags: http_metrics_tags,
             unit: :byte
           ),
@@ -156,7 +160,7 @@ if Code.ensure_loaded?(Phoenix) do
             metric_prefix ++ [:http, :requests, :total],
             event_name: @stop_event,
             description: "The number of requests have been serviced.",
-            tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags),
+            tag_values: get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag),
             tags: http_metrics_tags
           )
         ]
@@ -236,23 +240,35 @@ if Code.ensure_loaded?(Phoenix) do
       )
     end
 
-    defp get_conn_tags(routers, additional_routes, http_metrics_tags) do
+    defp get_conn_tags(routers, additional_routes, http_metrics_tags, status_tag) do
       fn
         %{conn: %Conn{} = conn} ->
           default_route_tags = default_route_tags(conn, additional_routes)
 
           conn
           |> do_get_router_info(routers, default_route_tags)
-          |> Map.merge(%{
-            status: conn.status,
-            method: conn.method
-          })
+          |> Map.merge(http_status_tags(conn.status, status_tag))
+          |> Map.put(:method, conn.method)
           |> maybe_put_host(conn.host, http_metrics_tags)
 
         _ ->
           Logger.warning("Could not resolve path for request")
       end
     end
+
+    defp http_status_tags(status, :status) do
+      %{status: status}
+    end
+
+    defp http_status_tags(status, :status_class) do
+      %{status_class: status_class(status)}
+    end
+
+    defp status_class(status) when is_integer(status) and status >= 100 do
+      "#{div(status, 100)}xx"
+    end
+
+    defp status_class(_status), do: "unknown"
 
     defp default_route_tags(_conn, []),
       do: %{path: "Unknown", controller: "Unknown", action: "Unknown"}
