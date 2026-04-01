@@ -315,6 +315,9 @@ struct TestAcceptanceTestShardWithLocalTestProducts {
         Environment.mocked?.variables["GITHUB_ACTIONS"] = "true"
         Environment.mocked?.variables["GITHUB_RUN_ID"] = shardReference
         Environment.mocked?.variables["GITHUB_RUN_ATTEMPT"] = "1"
+        let githubOutputPath = temporaryDirectory.appending(component: "github_output")
+        try await FileSystem().writeText("", at: githubOutputPath)
+        Environment.mocked?.variables["GITHUB_OUTPUT"] = githubOutputPath.pathString
 
         // Build phase: build tests and create shard plan, skip S3 upload
         try await TuistTest.run(
