@@ -10,12 +10,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{
-        args:
-          %{
-            "test_run_id" => test_run_id,
-            "storage_key" => storage_key,
-            "account_id" => account_id
-          } = args,
+        args: %{"test_run_id" => test_run_id, "storage_key" => storage_key, "account_id" => account_id} = args,
         attempt: attempt,
         max_attempts: max_attempts
       }) do
