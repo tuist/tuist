@@ -120,5 +120,53 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       assert %Tuist.Accounts.User{} = resource
       assert resource.id == user.id
     end
+
+    test "resolves to User via Tuist.Authentication.authenticated_subject", %{user: user} do
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      subject = Tuist.Authentication.authenticated_subject(jwt_token)
+      assert %Tuist.Accounts.User{} = subject
+      assert subject.id == user.id
+    end
+
+    test "user can access all their organizations", %{user: user} do
+      org = AccountsFixtures.organization_fixture(creator: user)
+
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      subject = Tuist.Authentication.authenticated_subject(jwt_token)
+      org_accounts = Tuist.Accounts.get_user_organization_accounts(subject)
+      org_ids = Enum.map(org_accounts, & &1.organization.id)
+      assert org.id in org_ids
+    end
+
+    test "user can list all accessible projects including org projects", %{user: user, project: project} do
+      org = AccountsFixtures.organization_fixture(creator: user)
+      org_project = ProjectsFixtures.project_fixture(account: org.account)
+      CommandEventsFixtures.command_event_fixture(project_id: org_project.id)
+
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      subject = Tuist.Authentication.authenticated_subject(jwt_token)
+      projects = Tuist.Projects.list_accessible_projects(subject)
+      project_ids = Enum.map(projects, & &1.id)
+      assert project.id in project_ids
+      assert org_project.id in project_ids
+    end
   end
 end
