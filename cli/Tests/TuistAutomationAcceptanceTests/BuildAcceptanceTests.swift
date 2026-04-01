@@ -662,7 +662,7 @@ struct XcodeBuildShardWithLocalTestProductsAcceptanceTests {
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
 
         let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
-        let shardReference = "acceptance-test-\(UUID().uuidString)"
+        let shardReference = "acceptance-test-\(Int.random(in: 100_000 ... 999_999))"
 
         // Set CI env vars so ShardService can derive the shard reference
         Environment.mocked?.variables["GITHUB_ACTIONS"] = "true"

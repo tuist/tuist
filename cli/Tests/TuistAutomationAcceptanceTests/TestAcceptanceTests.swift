@@ -1,6 +1,5 @@
 import FileSystem
 import FileSystemTesting
-import Foundation
 import Path
 import Testing
 import TuistAcceptanceTesting
@@ -310,7 +309,7 @@ struct TestAcceptanceTestShardWithLocalTestProducts {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
-        let shardReference = "acceptance-test-\(UUID().uuidString)"
+        let shardReference = "acceptance-test-\(Int.random(in: 100_000 ... 999_999))"
 
         // Set CI env vars so ShardService can derive the shard reference
         Environment.mocked?.variables["GITHUB_ACTIONS"] = "true"
