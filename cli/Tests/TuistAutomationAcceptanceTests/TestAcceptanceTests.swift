@@ -1,5 +1,6 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Path
 import Testing
 import TuistAcceptanceTesting
