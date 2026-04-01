@@ -101,15 +101,16 @@ struct XcodeBuildTestCommandService {
             )
             shardPlanId = shard.shardPlanId
 
+            passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
+            passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
+            passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
+
             if let xcTestRunPath = shard.xcTestRunPath {
                 shardXCTestRunPath = xcTestRunPath
                 passthroughXcodebuildArguments = removeOption("-xctestrun", from: passthroughXcodebuildArguments)
                 passthroughXcodebuildArguments += ["-xctestrun", xcTestRunPath.pathString]
             } else {
                 shardTestProductsPath = shard.testProductsPath
-                passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
-                passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
-                passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
                 passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
             }
         }
