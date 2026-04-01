@@ -251,9 +251,12 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
 
     private func projectOverridableTargetDefaultSettings(for project: Project, target: Target) -> SettingsDictionary {
         var settings = SettingsDictionary()
-        // Remote targets (e.g. SwiftPM packages) declare their own Swift version
-        // in their package manifest — we should not override it.
-        guard target.type == .local else { return settings }
+        // Remote targets (e.g. SwiftPM packages) that declare swiftLanguageVersions
+        // in their Package.swift already have SWIFT_VERSION set by PackageInfoMapper.
+        // We should not override it.
+        if target.type == .remote, target.settings?.base["SWIFT_VERSION"] != nil {
+            return settings
+        }
         // If swift version is already specified at the project level settings, there is no need to
         // override it with a default version. This allows users to set `SWIFT_VERSION`
         // at the project level and it automatically applying to all targets without it getting

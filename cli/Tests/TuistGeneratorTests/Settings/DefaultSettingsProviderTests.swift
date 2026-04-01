@@ -739,7 +739,38 @@ struct DefaultSettingsProvider_iOSTests {
         #expect(got["SWIFT_VERSION"] == nil)
     }
 
-    @Test(.withMockedXcodeController) func targetSettings_whenRemoteTarget_doesNotContainDefaultSwiftVersion() async throws {
+    @Test(.withMockedXcodeController)
+    func targetSettings_whenRemoteTargetWithDeclaredSwiftVersion_doesNotOverrideIt() async throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let settings = Settings(
+            base: ["SWIFT_VERSION": "5.9"],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .recommended
+        )
+        let target = Target.test(product: .framework, type: .remote, settings: settings)
+        let project = Project.test()
+        let graph = Graph.test(path: project.path)
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let got = try await subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+
+        // Then
+        #expect(got["SWIFT_VERSION"] == nil)
+    }
+
+    @Test(.withMockedXcodeController)
+    func targetSettings_whenRemoteTargetWithoutDeclaredSwiftVersion_getsDefault() async throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -765,7 +796,7 @@ struct DefaultSettingsProvider_iOSTests {
         )
 
         // Then
-        #expect(got["SWIFT_VERSION"] == nil)
+        #expect(got["SWIFT_VERSION"] == .string("6.0"))
     }
 
     @Test(.withMockedXcodeController) func targetSettings_whenRecommendedRelease_App() async throws {
