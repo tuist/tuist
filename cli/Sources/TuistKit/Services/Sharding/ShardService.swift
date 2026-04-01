@@ -120,7 +120,7 @@ public struct ShardService: ShardServicing {
         guard let xcTestRunSourcePath = try await fileSystem
             .glob(directory: resolvedTestProductsPath, include: ["**/*.xctestrun"])
             .collect()
-            .first
+            .first(where: { !$0.basename.contains(".tuist-shard-") })
         else {
             throw ShardServiceError.xcTestRunNotFound(resolvedTestProductsPath)
         }
@@ -133,8 +133,9 @@ public struct ShardService: ShardServicing {
         )
         let plistString = String(decoding: filteredData, as: UTF8.self)
         if testProductsPath != nil {
-            let tempXCTestRunDir = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-xctestrun")
-            let destPath = tempXCTestRunDir.appending(component: xcTestRunSourcePath.basename)
+            let baseName = xcTestRunSourcePath.basenameWithoutExt
+            let destPath = xcTestRunSourcePath.parentDirectory
+                .appending(component: "\(baseName).tuist-shard-\(shardIndex).xctestrun")
             try await fileSystem.writeText(plistString, at: destPath)
             xcTestRunPath = destPath
         } else {
