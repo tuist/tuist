@@ -32,7 +32,7 @@ public enum UploadResultBundleServiceError: Equatable, LocalizedError {
 
 @Mockable
 public protocol UploadResultBundleServicing {
-    func uploadResultBundle(
+    func uploadTestSummary(
         testSummary: TestSummary,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
@@ -40,7 +40,7 @@ public protocol UploadResultBundleServicing {
         shardIndex: Int?
     ) async throws -> Components.Schemas.RunsTest
 
-    func uploadResultBundleRemotely(
+    func uploadResultBundle(
         resultBundlePath: AbsolutePath,
         config: Tuist,
         shardPlanId: String?,
@@ -93,7 +93,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         self.fileSystem = fileSystem
     }
 
-    public func uploadResultBundle(
+    public func uploadTestSummary(
         testSummary: TestSummary,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
@@ -159,7 +159,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         return test
     }
 
-    public func uploadResultBundleRemotely(
+    public func uploadResultBundle(
         resultBundlePath: AbsolutePath,
         config: Tuist,
         shardPlanId: String? = nil,

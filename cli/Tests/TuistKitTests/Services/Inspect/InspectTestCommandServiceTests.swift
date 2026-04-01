@@ -49,7 +49,7 @@ struct InspectTestCommandServiceTests {
             .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 1000, testModules: []))
 
         given(uploadResultBundleService)
-            .uploadResultBundle(
+            .uploadTestSummary(
                 testSummary: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
@@ -90,7 +90,7 @@ struct InspectTestCommandServiceTests {
 
         // Then
         verify(uploadResultBundleService)
-            .uploadResultBundle(
+            .uploadTestSummary(
                 testSummary: .any,
                 projectDerivedDataDirectory: .value(nil),
                 config: .any,
@@ -128,7 +128,7 @@ struct InspectTestCommandServiceTests {
 
         // Then
         verify(uploadResultBundleService)
-            .uploadResultBundle(
+            .uploadTestSummary(
                 testSummary: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
@@ -169,7 +169,7 @@ struct InspectTestCommandServiceTests {
             .called(0)
 
         verify(uploadResultBundleService)
-            .uploadResultBundle(
+            .uploadTestSummary(
                 testSummary: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
@@ -236,7 +236,7 @@ struct InspectTestCommandServiceTests {
 
         // Then
         verify(uploadResultBundleService)
-            .uploadResultBundle(
+            .uploadTestSummary(
                 testSummary: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,

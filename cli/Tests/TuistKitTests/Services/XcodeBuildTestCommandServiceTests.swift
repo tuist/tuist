@@ -207,7 +207,7 @@ struct XcodeBuildTestCommandServiceTests {
                 .willReturn()
 
             given(uploadResultBundleService)
-                .uploadResultBundle(
+                .uploadTestSummary(
                     testSummary: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
@@ -221,7 +221,7 @@ struct XcodeBuildTestCommandServiceTests {
 
             // Then
             verify(uploadResultBundleService)
-                .uploadResultBundle(
+                .uploadTestSummary(
                     testSummary: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,

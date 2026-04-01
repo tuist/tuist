@@ -152,7 +152,7 @@ struct UploadResultBundleServiceTests {
             )
 
         // When
-        let result = try await subject.uploadResultBundle(
+        let result = try await subject.uploadTestSummary(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
             config: .test(fullHandle: "tuist/tuist"),
@@ -197,7 +197,7 @@ struct UploadResultBundleServiceTests {
         await #expect(
             throws: UploadResultBundleServiceError.missingFullHandle
         ) {
-            try await subject.uploadResultBundle(
+            try await subject.uploadTestSummary(
                 testSummary: testSummary,
                 projectDerivedDataDirectory: nil,
                 config: .test(fullHandle: nil),
@@ -231,7 +231,7 @@ struct UploadResultBundleServiceTests {
             .willReturn(.test())
 
         // When
-        _ = try await subject.uploadResultBundle(
+        _ = try await subject.uploadTestSummary(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
             config: .test(fullHandle: "tuist/tuist"),
@@ -288,7 +288,7 @@ struct UploadResultBundleServiceTests {
             )
 
         // When
-        _ = try await subject.uploadResultBundle(
+        _ = try await subject.uploadTestSummary(
             testSummary: testSummary,
             projectDerivedDataDirectory: derivedDataDirectory,
             config: .test(fullHandle: "tuist/tuist"),
@@ -363,7 +363,7 @@ struct UploadResultBundleServiceTests {
             )
 
         // When
-        _ = try await subject.uploadResultBundle(
+        _ = try await subject.uploadTestSummary(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
             config: .test(fullHandle: "tuist/tuist"),
@@ -424,7 +424,7 @@ struct UploadResultBundleServiceTests {
             .willReturn(nil)
 
         // When
-        _ = try await subject.uploadResultBundle(
+        _ = try await subject.uploadTestSummary(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
             config: .test(fullHandle: "tuist/tuist"),
@@ -580,7 +580,7 @@ struct UploadResultBundleServiceTests {
             .willReturn()
 
         // When
-        _ = try await subject.uploadResultBundle(
+        _ = try await subject.uploadTestSummary(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
             config: .test(fullHandle: "tuist/tuist"),
@@ -696,7 +696,7 @@ struct UploadResultBundleServiceTests {
             )
 
         // When
-        _ = try await subject.uploadResultBundle(
+        _ = try await subject.uploadTestSummary(
             testSummary: testSummary,
             projectDerivedDataDirectory: nil,
             config: .test(fullHandle: "tuist/tuist"),

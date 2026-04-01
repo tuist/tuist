@@ -139,7 +139,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(false)
 
         given(uploadResultBundleService)
-            .uploadResultBundle(
+            .uploadTestSummary(
                 testSummary: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
@@ -2728,7 +2728,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
             uploadResultBundleService.reset()
             given(uploadResultBundleService)
-                .uploadResultBundle(
+                .uploadTestSummary(
                     testSummary: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,

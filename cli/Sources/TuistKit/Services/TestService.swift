@@ -1439,7 +1439,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             switch mode {
             case .local:
                 guard let testSummary else { return }
-                _ = try await uploadResultBundleService.uploadResultBundle(
+                _ = try await uploadResultBundleService.uploadTestSummary(
                     testSummary: testSummary,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
@@ -1448,7 +1448,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
             case .remote:
                 guard let resultBundlePath else { return }
-                let test = try await uploadResultBundleService.uploadResultBundleRemotely(
+                let test = try await uploadResultBundleService.uploadResultBundle(
                     resultBundlePath: resultBundlePath,
                     config: config,
                     shardPlanId: shardPlanId,

@@ -277,7 +277,7 @@ struct XcodeBuildTestCommandService {
         else { return }
 
         do {
-            _ = try await uploadResultBundleService.uploadResultBundle(
+            _ = try await uploadResultBundleService.uploadTestSummary(
                 testSummary: testSummary,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,

@@ -123,7 +123,7 @@
                 throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(resolvedResultBundlePath)
             }
 
-            let test = try await uploadResultBundleService.uploadResultBundle(
+            let test = try await uploadResultBundleService.uploadTestSummary(
                 testSummary: testSummary,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
@@ -140,7 +140,7 @@
             resolvedResultBundlePath: AbsolutePath,
             config: Tuist
         ) async throws {
-            let test = try await uploadResultBundleService.uploadResultBundleRemotely(
+            let test = try await uploadResultBundleService.uploadResultBundle(
                 resultBundlePath: resolvedResultBundlePath,
                 config: config,
                 shardPlanId: nil,
