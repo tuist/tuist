@@ -20,8 +20,8 @@ data:
         endpoint: {{ include "tuist.componentName" (dict "root" . "component" "tempo") }}:4317
         tls:
           insecure: true
-      loki:
-        endpoint: http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100/loki/api/v1/push
+      otlphttp/loki:
+        endpoint: http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100/otlp
       prometheus:
         endpoint: 0.0.0.0:9464
     service:
@@ -33,7 +33,7 @@ data:
         logs:
           receivers: [otlp]
           processors: [batch]
-          exporters: [loki, debug]
+          exporters: [otlphttp/loki, debug]
         metrics:
           receivers: [otlp]
           processors: [batch]

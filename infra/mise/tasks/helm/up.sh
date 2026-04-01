@@ -58,11 +58,12 @@ if [ "${usage_observability:-}" = "true" ]; then
     HELM_ARGS+=(--set "observability.enabled=true")
 fi
 
-echo "==> Cleaning up previous migration job (immutable resource)..."
+echo "==> Cleaning up previous release (ensures stale resources are removed)..."
+helm uninstall "$RELEASE_NAME" 2>/dev/null || true
 kubectl delete job "${RELEASE_NAME}-tuist-server-migrate" 2>/dev/null || true
 
-echo "==> Installing/upgrading Helm chart..."
-helm upgrade --install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
+echo "==> Installing Helm chart..."
+helm install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
     "${HELM_ARGS[@]}" \
     --wait --timeout 5m
 
