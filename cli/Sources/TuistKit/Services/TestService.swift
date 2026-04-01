@@ -1384,6 +1384,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 action: action,
+                quarantinedTests: quarantinedTests,
                 mode: mode
             )
             throw error
@@ -1398,6 +1399,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config,
             action: action,
+            quarantinedTests: quarantinedTests,
             mode: mode
         )
     }
@@ -1419,6 +1421,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction,
+        quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
         mode: TestProcessingMode = .local
@@ -1442,6 +1445,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 let test = try await uploadResultBundleService.uploadResultBundle(
                     resultBundlePath: resultBundlePath,
                     config: config,
+                    quarantinedTests: quarantinedTests,
                     shardPlanId: shardPlanId,
                     shardIndex: shardIndex
                 )

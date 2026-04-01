@@ -143,6 +143,7 @@
             let test = try await uploadResultBundleService.uploadResultBundle(
                 resultBundlePath: resolvedResultBundlePath,
                 config: config,
+                quarantinedTests: [],
                 shardPlanId: nil,
                 shardIndex: nil
             )

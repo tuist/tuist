@@ -43,6 +43,7 @@ public protocol UploadResultBundleServicing {
     func uploadResultBundle(
         resultBundlePath: AbsolutePath,
         config: Tuist,
+        quarantinedTests: [TestIdentifier],
         shardPlanId: String?,
         shardIndex: Int?
     ) async throws -> Components.Schemas.RunsTest
@@ -162,11 +163,16 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     public func uploadResultBundle(
         resultBundlePath: AbsolutePath,
         config: Tuist,
+        quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
         shardIndex: Int? = nil
     ) async throws -> Components.Schemas.RunsTest {
         guard let fullHandle = config.fullHandle else {
             throw UploadResultBundleServiceError.missingFullHandle
+        }
+
+        if !quarantinedTests.isEmpty {
+            try await writeQuarantinedTests(quarantinedTests, to: resultBundlePath)
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -277,6 +283,21 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
     }
 
+    private func writeQuarantinedTests(
+        _ quarantinedTests: [TestIdentifier],
+        to resultBundlePath: AbsolutePath
+    ) async throws {
+        let entries = quarantinedTests.map { test in
+            QuarantinedTestEntry(
+                target: test.target,
+                class: test.class,
+                method: test.method
+            )
+        }
+        let filePath = resultBundlePath.appending(component: "quarantined_tests.json")
+        try await fileSystem.writeAsJSON(entries, at: filePath)
+    }
+
     private func rootDirectory() async throws -> AbsolutePath? {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         let workingDirectory = Environment.current.workspacePath ?? currentWorkingDirectory
@@ -286,4 +307,10 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             return try await rootDirectoryLocator.locate(from: workingDirectory)
         }
     }
+}
+
+struct QuarantinedTestEntry: Codable {
+    let target: String
+    let `class`: String?
+    let method: String?
 }
