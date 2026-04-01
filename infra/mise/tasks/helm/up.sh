@@ -59,8 +59,11 @@ if [ "${usage_observability:-}" = "true" ]; then
 fi
 
 echo "==> Cleaning up previous release (ensures stale resources are removed)..."
-helm uninstall "$RELEASE_NAME" 2>/dev/null || true
-kubectl delete job "${RELEASE_NAME}-tuist-server-migrate" 2>/dev/null || true
+if helm status "$RELEASE_NAME" >/dev/null 2>&1; then
+    helm uninstall "$RELEASE_NAME" --wait 2>/dev/null || true
+    kubectl delete pvc -l app.kubernetes.io/instance="$RELEASE_NAME" --wait=true 2>/dev/null || true
+fi
+kubectl delete job "${RELEASE_NAME}-tuist-server-migrate" --wait=true 2>/dev/null || true
 
 echo "==> Installing Helm chart..."
 helm install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
