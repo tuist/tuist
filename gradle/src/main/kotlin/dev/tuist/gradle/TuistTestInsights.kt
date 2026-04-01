@@ -58,16 +58,7 @@ data class TestCase(
     val duration: Long,
     val failures: List<TestFailure>,
     val repetitions: List<TestCaseRepetition>? = null,
-    @SerializedName("is_quarantined") val isQuarantined: Boolean = false,
-    val arguments: List<TestCaseArgument>? = null
-)
-
-data class TestCaseArgument(
-    val name: String,
-    val status: String,
-    val duration: Long,
-    val failures: List<TestFailure>,
-    val repetitions: List<TestCaseRepetition>? = null
+    @SerializedName("is_quarantined") val isQuarantined: Boolean = false
 )
 
 data class TestCaseRepetition(
@@ -183,135 +174,48 @@ internal class TestReportCollector {
         )
     }
 
-    private val parameterizedPattern = Regex("""^(.+?)(\[.+])$""")
-
     private fun buildTestCases(attempts: List<TestAttempt>): List<TestCase> {
-        val grouped = attempts.groupBy { Pair(it.testName, it.className) }
+        return attempts
+            .groupBy { Pair(it.testName, it.className) }
+            .map { (key, attempts) ->
+                val (testName, className) = key
+                val lastAttempt = attempts.last()
+                val finalStatus = mapTestResultType(lastAttempt.resultType)
+                val totalDuration = attempts.sumOf { it.endTime - it.startTime }
 
-        // Detect parameterized tests: names matching "methodName[index]" or "[index] value"
-        // Group by (parentName, className) to merge invocations into arguments
-        val parameterizedGroups = mutableMapOf<Triple<String, String?, String>, MutableList<Pair<String, List<TestAttempt>>>>()
-        val regularGroups = mutableMapOf<Pair<String, String?>, List<TestAttempt>>()
-
-        for ((key, keyAttempts) in grouped) {
-            val (testName, className) = key
-            val match = parameterizedPattern.matchEntire(testName)
-            if (match != null) {
-                val parentName = match.groupValues[1]
-                val argLabel = match.groupValues[2]
-                val groupKey = Triple(parentName, className, parentName)
-                parameterizedGroups.getOrPut(groupKey) { mutableListOf() }
-                    .add(argLabel to keyAttempts)
-            } else {
-                regularGroups[key] = keyAttempts
-            }
-        }
-
-        val testCases = mutableListOf<TestCase>()
-
-        // Build regular (non-parameterized) test cases
-        for ((key, keyAttempts) in regularGroups) {
-            testCases.add(buildSingleTestCase(key.first, key.second, keyAttempts))
-        }
-
-        // Build parameterized test cases with arguments
-        for ((groupKey, invocations) in parameterizedGroups) {
-            val (parentName, className, _) = groupKey
-
-            if (invocations.size == 1) {
-                // Single invocation: treat as regular test case (not parameterized)
-                val (_, keyAttempts) = invocations.first()
-                testCases.add(buildSingleTestCase(keyAttempts.first().testName, className, keyAttempts))
-            } else {
-                val arguments = invocations.map { (argLabel, argAttempts) ->
-                    val lastAttempt = argAttempts.last()
-                    val argStatus = mapTestResultType(lastAttempt.resultType)
-                    val argDuration = argAttempts.sumOf { it.endTime - it.startTime }
-
-                    val argRepetitions = if (argAttempts.size > 1) {
-                        argAttempts.mapIndexed { index, attempt ->
-                            val status = if (attempt.resultType == TestResult.ResultType.SUCCESS) "success" else "failure"
-                            TestCaseRepetition(
-                                repetitionNumber = index + 1,
-                                name = if (index == 0) "Run 1" else "Retry $index",
-                                status = status,
-                                duration = attempt.endTime - attempt.startTime
-                            )
-                        }
-                    } else {
-                        null
+                val repetitions = if (attempts.size > 1) {
+                    attempts.mapIndexed { index, attempt ->
+                        // Repetitions only support "success" or "failure" —
+                        // the test-retry plugin may report SKIPPED for retried
+                        // attempts, so treat anything non-success as failure.
+                        val status = if (attempt.resultType == TestResult.ResultType.SUCCESS) "success" else "failure"
+                        TestCaseRepetition(
+                            repetitionNumber = index + 1,
+                            name = if (index == 0) "Run 1" else "Retry $index",
+                            status = status,
+                            duration = attempt.endTime - attempt.startTime
+                        )
                     }
-
-                    val argFailures = if (argRepetitions != null) {
-                        argAttempts.flatMap { attempt -> mapTestFailures(attempt.resultType, attempt.exception) }
-                    } else {
-                        mapTestFailures(lastAttempt.resultType, lastAttempt.exception)
-                    }
-
-                    TestCaseArgument(
-                        name = argLabel,
-                        status = argStatus,
-                        duration = argDuration,
-                        failures = argFailures,
-                        repetitions = argRepetitions
-                    )
+                } else {
+                    null
                 }
 
-                val overallStatus = if (arguments.any { it.status == "failure" }) "failure" else "success"
-                val totalDuration = arguments.sumOf { it.duration }
-                val allFailures = arguments.flatMap { it.failures }
+                val failures = if (repetitions != null) {
+                    attempts.flatMap { attempt -> mapTestFailures(attempt.resultType, attempt.exception) }
+                } else {
+                    mapTestFailures(lastAttempt.resultType, lastAttempt.exception)
+                }
 
-                testCases.add(
-                    TestCase(
-                        name = parentName,
-                        testSuiteName = className,
-                        status = overallStatus,
-                        duration = totalDuration,
-                        failures = allFailures,
-                        arguments = arguments,
-                        isQuarantined = invocations.flatMap { it.second }.any { it.isQuarantined }
-                    )
+                TestCase(
+                    name = testName,
+                    testSuiteName = className,
+                    status = finalStatus,
+                    duration = totalDuration,
+                    failures = failures,
+                    repetitions = repetitions,
+                    isQuarantined = attempts.any { it.isQuarantined }
                 )
             }
-        }
-
-        return testCases
-    }
-
-    private fun buildSingleTestCase(testName: String, className: String?, attempts: List<TestAttempt>): TestCase {
-        val lastAttempt = attempts.last()
-        val finalStatus = mapTestResultType(lastAttempt.resultType)
-        val totalDuration = attempts.sumOf { it.endTime - it.startTime }
-
-        val repetitions = if (attempts.size > 1) {
-            attempts.mapIndexed { index, attempt ->
-                val status = if (attempt.resultType == TestResult.ResultType.SUCCESS) "success" else "failure"
-                TestCaseRepetition(
-                    repetitionNumber = index + 1,
-                    name = if (index == 0) "Run 1" else "Retry $index",
-                    status = status,
-                    duration = attempt.endTime - attempt.startTime
-                )
-            }
-        } else {
-            null
-        }
-
-        val failures = if (repetitions != null) {
-            attempts.flatMap { attempt -> mapTestFailures(attempt.resultType, attempt.exception) }
-        } else {
-            mapTestFailures(lastAttempt.resultType, lastAttempt.exception)
-        }
-
-        return TestCase(
-            name = testName,
-            testSuiteName = className,
-            status = finalStatus,
-            duration = totalDuration,
-            failures = failures,
-            repetitions = repetitions,
-            isQuarantined = attempts.any { it.isQuarantined }
-        )
     }
 
     private fun mapTestResultType(resultType: TestResult.ResultType): String {
