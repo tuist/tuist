@@ -37,8 +37,17 @@ if Code.ensure_loaded?(Phoenix) do
       ]
     end
 
-    def default_http_metric_tags(status_tag \\ :status, include_host_tag \\ false) do
-      base_tags = [status_tag, :method, :path, :controller, :action]
+    def default_http_metric_tags(
+          status_tag \\ :status,
+          include_host_tag \\ false,
+          include_controller_action_tags \\ true
+        ) do
+      base_tags =
+        if include_controller_action_tags do
+          [status_tag, :method, :path, :controller, :action]
+        else
+          [status_tag, :method, :path]
+        end
 
       if include_host_tag, do: base_tags ++ [:host], else: base_tags
     end
@@ -117,9 +126,14 @@ if Code.ensure_loaded?(Phoenix) do
       routers = fetch_routers!(opts)
       additional_routes = fetch_additional_routes!(opts)
       status_tag = Keyword.get(opts, :http_status_tag, :status)
+      include_controller_action_tags = Keyword.get(opts, :include_controller_action_tags, true)
 
       http_metrics_tags =
-        default_http_metric_tags(status_tag, Keyword.get(opts, :include_host_tag, false))
+        default_http_metric_tags(
+          status_tag,
+          Keyword.get(opts, :include_host_tag, false),
+          include_controller_action_tags
+        )
 
       duration_unit = Keyword.get(opts, :duration_unit, :millisecond)
       duration_unit_plural = Utils.make_plural_atom(duration_unit)
@@ -250,6 +264,7 @@ if Code.ensure_loaded?(Phoenix) do
           |> Map.merge(http_status_tags(conn.status, status_tag))
           |> Map.put(:method, conn.method)
           |> maybe_put_host(conn.host, http_metrics_tags)
+          |> Map.take(http_metrics_tags)
 
         _ ->
           Logger.warning("Could not resolve path for request")

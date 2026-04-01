@@ -74,6 +74,32 @@ defmodule TuistCommon.PromExPhoenixPluginTest do
       assert tag_values.status_class == "4xx"
       refute Map.has_key?(tag_values, :status)
     end
+
+    test "can drop controller and action labels while keeping path" do
+      http_event =
+        phoenix_http_event(
+          router: Router,
+          endpoint: Endpoint,
+          include_controller_action_tags: false
+        )
+
+      assert Enum.all?(http_event.metrics, fn metric ->
+               :path in metric.tags and :controller not in metric.tags and
+                 :action not in metric.tags
+             end)
+
+      [request_duration | _] = http_event.metrics
+
+      conn =
+        Plug.Test.conn(:get, "/articles")
+        |> Map.put(:status, 200)
+
+      tag_values = request_duration.tag_values.(%{conn: conn})
+
+      assert tag_values.path == "/articles"
+      refute Map.has_key?(tag_values, :controller)
+      refute Map.has_key?(tag_values, :action)
+    end
   end
 
   defp phoenix_http_event(opts) do
