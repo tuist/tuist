@@ -108,9 +108,8 @@ extension Tuist {
         public var warningsAsErrors: WarningsAsErrors
 
         /// The default `SWIFT_VERSION` build setting applied to targets that don't specify one.
-        /// When set, this value is used instead of the built-in default ("5").
         /// For example, set to `"6"` to opt into Swift 6 language mode by default.
-        public var defaultSwiftVersion: String?
+        public var defaultSwiftVersion: String
 
         public static func options(
             disablePackageVersionLocking: Bool = false,
@@ -125,7 +124,7 @@ extension Tuist {
             registryEnabled: Bool = false,
             additionalPackageResolutionArguments: [String] = [],
             warningsAsErrors: WarningsAsErrors = .none,
-            defaultSwiftVersion: String? = nil
+            defaultSwiftVersion: String = "5"
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
@@ -181,7 +180,8 @@ extension Tuist {
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
                 registryEnabled: false,
-                warningsAsErrors: .none
+                warningsAsErrors: .none,
+                defaultSwiftVersion: "5"
             )
         }
 
@@ -214,7 +214,8 @@ extension Tuist {
                 includeGenerateScheme: false,
                 enableCaching: false,
                 registryEnabled: false,
-                warningsAsErrors: .none
+                warningsAsErrors: .none,
+                defaultSwiftVersion: "5"
             )
         }
     }

@@ -50,7 +50,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 enableCaching: false,
                 registryEnabled: false,
                 warningsAsErrors: .none,
-                defaultSwiftVersion: nil
+                defaultSwiftVersion: "5"
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
             cacheOptions: CacheOptions(
@@ -106,7 +106,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let enableCaching: Bool
         public let registryEnabled: Bool
         public let warningsAsErrors: WarningsAsErrors
-        public let defaultSwiftVersion: String?
+        public let defaultSwiftVersion: String
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -124,7 +124,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             enableCaching: Bool = false,
             registryEnabled: Bool = false,
             warningsAsErrors: WarningsAsErrors = .none,
-            defaultSwiftVersion: String? = nil
+            defaultSwiftVersion: String = "5"
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -162,7 +162,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 enableCaching: Bool = false,
                 registryEnabled: Bool = false,
                 warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
-                defaultSwiftVersion: String? = nil
+                defaultSwiftVersion: String = "5"
             ) -> Self {
                 .init(
                     resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
