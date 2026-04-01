@@ -100,7 +100,10 @@ defmodule XcodeProcessor.XCResultProcessor do
             acc
 
           {{:exit, reason}, original}, acc ->
-            Logger.error("Attachment upload task crashed for #{original["file_name"]}: #{inspect(reason)}")
+            Logger.error(
+              "Attachment upload task crashed for #{original["file_name"]}: #{inspect(reason)}"
+            )
+
             acc
         end)
 
