@@ -16,6 +16,7 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunArgument
+  alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
@@ -154,6 +155,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(TestCaseFailure.Buffer, id: TestCaseFailure.Buffer),
         Supervisor.child_spec(TestCaseRunRepetition.Buffer, id: TestCaseRunRepetition.Buffer),
         Supervisor.child_spec(TestCaseRunArgument.Buffer, id: TestCaseRunArgument.Buffer),
+        Supervisor.child_spec(TestCaseRunAttachment.Buffer, id: TestCaseRunAttachment.Buffer),
         Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Tuist.Vault,

@@ -6892,19 +6892,45 @@ defmodule Tuist.TestsTest do
   end
 
   describe "attachment_storage_key/1" do
-    test "builds the correct S3 key with downcased handles" do
-      # When
+    test "uses test_run_id path when test_run_id is present" do
       key =
         Tests.attachment_storage_key(%{
           account_handle: "MyOrg",
           project_handle: "MyProject",
-          test_case_run_id: "run-123",
+          test_run_id: "run-789",
+          test_case_run_id: "tcr-123",
           attachment_id: "att-456",
           file_name: "crash-report.ips"
         })
 
-      # Then
-      assert key == "myorg/myproject/tests/test-case-runs/run-123/attachments/att-456/crash-report.ips"
+      assert key == "myorg/myproject/tests/runs/run-789/attachments/att-456/crash-report.ips"
+    end
+
+    test "falls back to test_case_run_id path when test_run_id is nil" do
+      key =
+        Tests.attachment_storage_key(%{
+          account_handle: "MyOrg",
+          project_handle: "MyProject",
+          test_run_id: nil,
+          test_case_run_id: "tcr-123",
+          attachment_id: "att-456",
+          file_name: "crash-report.ips"
+        })
+
+      assert key == "myorg/myproject/tests/test-case-runs/tcr-123/attachments/att-456/crash-report.ips"
+    end
+
+    test "falls back to test_case_run_id path when test_run_id is not provided" do
+      key =
+        Tests.attachment_storage_key(%{
+          account_handle: "MyOrg",
+          project_handle: "MyProject",
+          test_case_run_id: "tcr-123",
+          attachment_id: "att-456",
+          file_name: "crash-report.ips"
+        })
+
+      assert key == "myorg/myproject/tests/test-case-runs/tcr-123/attachments/att-456/crash-report.ips"
     end
   end
 

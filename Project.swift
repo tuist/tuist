@@ -108,7 +108,7 @@ func schemes() -> [Scheme] {
             ),
             testAction: .targets(
                 Module.allCases.flatMap(\.acceptanceTestTargets).map {
-                    .testableTarget(target: .target($0.name))
+                    .testableTarget(target: .target($0.name), parallelization: .enabled)
                 } + (Module.includeEE() ? [.testableTarget(target: .target("TuistCacheEEAcceptanceTests"))] : []),
                 postActions: [
                     inspectTestPostAction(target: "TuistKitAcceptanceTests"),

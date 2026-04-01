@@ -124,6 +124,7 @@ defmodule Tuist.Tests do
 
         query =
           from(t in Test,
+            hints: ["FINAL"],
             where: t.id == ^uuid,
             order_by: [desc: t.inserted_at],
             limit: 1
@@ -251,7 +252,7 @@ defmodule Tuist.Tests do
 
   defp normalize_string_keys(map) when is_map(map) do
     Map.new(map, fn
-      {k, v} when is_binary(k) -> {String.to_existing_atom(k), normalize_string_keys(v)}
+      {k, v} when is_binary(k) -> {String.to_atom(k), normalize_string_keys(v)}
       {k, v} -> {k, normalize_string_keys(v)}
     end)
   end
@@ -1100,8 +1101,9 @@ defmodule Tuist.Tests do
     {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
       create_test_cases(test.project_id, test_case_data_list, existing_test_cases)
 
-    {test_case_runs, all_failures, all_repetitions, all_arguments} =
-      Enum.reduce(test_cases, {[], [], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc, args_acc} ->
+    {test_case_runs, all_failures, all_repetitions, all_attachments, all_arguments} =
+      Enum.reduce(test_cases, {[], [], [], [], []}, fn case_attrs,
+                                                      {runs_acc, failures_acc, reps_acc, attachments_acc, args_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
@@ -1154,21 +1156,7 @@ defmodule Tuist.Tests do
             test_case_run
           end
 
-        failures = Map.get(case_attrs, :failures, [])
-
-        test_case_failures =
-          Enum.map(failures, fn failure_attrs ->
-            %{
-              id: UUIDv7.generate(),
-              test_case_run_id: test_case_run_id,
-              test_case_run_argument_id: nil,
-              message: Map.get(failure_attrs, :message),
-              path: Map.get(failure_attrs, :path),
-              line_number: Map.get(failure_attrs, :line_number),
-              issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
-              inserted_at: NaiveDateTime.utc_now()
-            }
-          end)
+        test_case_failures = build_failures(case_attrs, test_case_run_id)
 
         test_case_repetitions =
           Enum.map(repetitions, fn rep_attrs ->
@@ -1184,10 +1172,13 @@ defmodule Tuist.Tests do
             }
           end)
 
+        test_case_attachments = build_attachments(case_attrs, test_case_run_id, test.id)
+
         {
           [test_case_run | runs_acc],
           arg_failures ++ test_case_failures ++ failures_acc,
           arg_repetitions ++ test_case_repetitions ++ reps_acc,
+          test_case_attachments ++ attachments_acc,
           arg_records ++ args_acc
         }
       end)
@@ -1198,6 +1189,10 @@ defmodule Tuist.Tests do
 
       if Enum.any?(all_repetitions) do
         TestCaseRunRepetition.Buffer.insert_all(all_repetitions)
+      end
+
+      if Enum.any?(all_attachments) do
+        TestCaseRunAttachment.Buffer.insert_all(all_attachments)
       end
 
       if Enum.any?(all_arguments) do
@@ -1258,6 +1253,38 @@ defmodule Tuist.Tests do
         end)
 
       {[arg_record | args_acc], arg_failures ++ failures_acc, arg_repetitions ++ reps_acc}
+    end)
+  end
+
+  defp build_failures(case_attrs, test_case_run_id) do
+    case_attrs
+    |> Map.get(:failures, [])
+    |> Enum.map(fn failure_attrs ->
+      %{
+        id: UUIDv7.generate(),
+        test_case_run_id: test_case_run_id,
+        test_case_run_argument_id: nil,
+        message: Map.get(failure_attrs, :message),
+        path: Map.get(failure_attrs, :path),
+        line_number: Map.get(failure_attrs, :line_number),
+        issue_type: Map.get(failure_attrs, :issue_type) || "unknown",
+        inserted_at: NaiveDateTime.utc_now()
+      }
+    end)
+  end
+
+  defp build_attachments(case_attrs, test_case_run_id, test_run_id) do
+    case_attrs
+    |> Map.get(:attachments, [])
+    |> Enum.map(fn att_attrs ->
+      %{
+        id: Map.get(att_attrs, :attachment_id) || UUIDv7.generate(),
+        test_case_run_id: test_case_run_id,
+        test_run_id: test_run_id,
+        file_name: Map.get(att_attrs, :file_name),
+        repetition_number: Map.get(att_attrs, :repetition_number),
+        inserted_at: NaiveDateTime.utc_now()
+      }
     end)
   end
 
@@ -2314,6 +2341,15 @@ defmodule Tuist.Tests do
     end
   end
 
+  def attachment_storage_key(%{test_run_id: test_run_id} = params) when not is_nil(test_run_id) do
+    %{account_handle: account_handle, project_handle: project_handle, attachment_id: attachment_id, file_name: file_name} =
+      params
+
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
+  end
+
+  # Legacy path for attachments created before test_run_id was added to the schema.
+  # New attachments use the test_run_id-based path above.
   def attachment_storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,

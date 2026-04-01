@@ -286,6 +286,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     attachment = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
+      test_run_id: Keyword.get(attrs, :test_run_id, nil),
       file_name: Keyword.get(attrs, :file_name, "crash-report.ips"),
       repetition_number: Keyword.get(attrs, :repetition_number, nil),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())

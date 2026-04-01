@@ -1,5 +1,5 @@
 {
-  "originHash" : "d581886d1c209353909e911a2c05dac5ec6ffd0e34e2c40448e4924709631a6e",
+  "originHash" : "ca48e208f23adeefcd8ed6370cbf8dd54c39daa97c112e5a147bbb22d46ecf19",
   "pins" : [
     {
       "identity" : "apple.swift-atomics",
@@ -22,7 +22,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.10.1"
+        "version" : "1.11.0"
       }
     },
     {

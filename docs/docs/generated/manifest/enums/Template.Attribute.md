@@ -1,0 +1,32 @@
+**ENUM**
+
+# `Template.Attribute`
+
+**Contents**
+
+- [Cases](#cases)
+  - `required(_:)`
+  - `optional(_:default:)`
+
+```swift
+public enum Attribute: Codable, Equatable, Sendable
+```
+
+Attribute to be passed to `tuist scaffold` for generating with `Template`
+
+## Cases
+### `required(_:)`
+
+```swift
+case required(String)
+```
+
+Required attribute with a given name
+
+### `optional(_:default:)`
+
+```swift
+case optional(String, default: Value)
+```
+
+Optional attribute with a given name and a default value used when attribute not provided by user

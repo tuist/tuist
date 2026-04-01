@@ -188,13 +188,13 @@
             return shardPlan
         }
 
-        /// Creates a compressed archive of the test products bundle, excluding files not needed for test execution
-        /// (dSYMs, .swiftmodule directories) to significantly reduce upload size.
+        /// Creates a compressed archive of the test products bundle, excluding dSYMs
+        /// to reduce upload size.
         private func archiveXCTestProducts(_ xctestproductsPath: AbsolutePath, to archivePath: AbsolutePath) async throws {
             try await appleArchiver.compress(
                 directory: xctestproductsPath,
                 to: archivePath,
-                excludePatterns: [".dSYM", ".swiftmodule"]
+                excludePatterns: [".dSYM"]
             )
         }
     }

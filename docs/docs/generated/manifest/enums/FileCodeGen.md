@@ -1,0 +1,50 @@
+**ENUM**
+
+# `FileCodeGen`
+
+**Contents**
+
+- [Cases](#cases)
+  - `public`
+  - `private`
+  - `project`
+  - `disabled`
+
+```swift
+public enum FileCodeGen: String, Codable, Equatable, Sendable
+```
+
+Options for source file code generation.
+
+## Cases
+### `public`
+
+```swift
+case `public`
+```
+
+Public codegen
+
+### `private`
+
+```swift
+case `private`
+```
+
+Private codegen
+
+### `project`
+
+```swift
+case project
+```
+
+Project codegen
+
+### `disabled`
+
+```swift
+case disabled
+```
+
+Disabled codegen
