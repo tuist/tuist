@@ -372,7 +372,7 @@ import TuistHTTP
             .repetitionsPayloadPayload.statusPayload
         {
             switch status {
-            case .passed, .skipped:
+            case .passed, .skipped, .processing:
                 return .success
             case .failed:
                 return .failure
