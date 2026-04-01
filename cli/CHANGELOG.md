@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.174.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* dereference symlinks during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10163](https://github.com/tuist/tuist/pull/10163)
+* resolve result bundle symlink before remote upload by [@fortmarek](https://github.com/fortmarek) in [#10161](https://github.com/tuist/tuist/pull/10161)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.0...4.174.1
+
 ## What's Changed in 4.174.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
