@@ -402,25 +402,16 @@ defmodule L10n.Translator do
 
     resolved_model = resolve_model(model)
 
-    task =
-      Task.async(fn ->
-        ReqLLM.generate_text!(resolved_model, messages,
-          max_tokens: 32_000,
-          receive_timeout: 300_000
-        )
-      end)
-
-    response =
-      case Task.yield(task, 1_200_000) || Task.shutdown(task, :brutal_kill) do
-        {:ok, result} -> result
-        nil -> raise "Translation timed out after 20 minutes"
-      end
+    {:ok, stream_response} = ReqLLM.stream_text(resolved_model, messages,
+      max_tokens: 64_000,
+      receive_timeout: 300_000
+    )
 
     text =
-      case response do
-        %ReqLLM.Response{} -> ReqLLM.Response.text(response)
-        text when is_binary(text) -> text
-      end
+      stream_response.stream
+      |> Stream.filter(fn chunk -> chunk.type == :content end)
+      |> Enum.map(fn chunk -> chunk.text end)
+      |> Enum.join("")
 
     text
     |> String.trim()
