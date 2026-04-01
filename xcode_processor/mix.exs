@@ -30,6 +30,7 @@ defmodule XcodeProcessor.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_aws, "~> 2.0"},
       {:ex_aws_s3, "~> 2.0"},
+      {:sweet_xml, "~> 0.7"},
       {:ex_aws_sts, "~> 2.2"},
       {:jason, "~> 1.4"},
       {:loki_logger_handler, "~> 0.2"},
