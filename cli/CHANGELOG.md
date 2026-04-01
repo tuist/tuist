@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.173.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* resource/file glob excluding with ** pattern incorrectly excludes all sibling files by [@stefanomondino](https://github.com/stefanomondino) in [#10114](https://github.com/tuist/tuist/pull/10114)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.173.0...4.173.1
+
 ## What's Changed in 4.173.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
