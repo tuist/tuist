@@ -14,8 +14,10 @@ public struct Shard {
     public let reference: String
     public let shardPlanId: String
     public let testProductsPath: AbsolutePath
+    public let filteredXCTestRunPath: AbsolutePath?
     public let modules: [String]
     public let selectiveTestingGraph: SelectiveTestingGraph?
+    public let isLocalVolume: Bool
 }
 
 @Mockable
@@ -23,7 +25,8 @@ public protocol ShardServicing {
     func shard(
         shardIndex: Int,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        localTestProductsPath: AbsolutePath?
     ) async throws -> Shard
 }
 
@@ -69,7 +72,8 @@ public struct ShardService: ShardServicing {
     public func shard(
         shardIndex: Int,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        localTestProductsPath: AbsolutePath? = nil
     ) async throws -> Shard {
         guard let reference = ciController.ciInfo()?.shardReference else {
             throw ShardServiceError.cannotDeriveReference
@@ -92,28 +96,55 @@ public struct ShardService: ShardServicing {
             Logger.current.notice("Shard \(shardIndex): \(names.joined(separator: ", "))", metadata: .section)
         }
 
-        guard let downloadURL = URL(string: shard.download_url) else {
-            throw ShardServiceError.invalidDownloadURL(shard.download_url)
-        }
-        let shardArchivePath = try await fileClient.download(url: downloadURL)
-        Logger.current.debug("Downloaded test products bundle.")
+        let testProductsPath: AbsolutePath
+        var filteredXCTestRunPath: AbsolutePath?
+        let isLocalVolume: Bool
 
-        let testProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-        try await appleArchiver.decompress(archive: shardArchivePath, to: testProductsPath)
-        try? await fileSystem.remove(shardArchivePath)
-        Logger.current.debug("Extracted test products to \(testProductsPath.pathString)")
+        if let localTestProductsPath {
+            isLocalVolume = true
+            testProductsPath = localTestProductsPath
+            Logger.current.debug("Using local test products at \(localTestProductsPath.pathString)")
 
-        let xcTestRunPaths = try await fileSystem
-            .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
-            .collect()
-        for xcTestRunPath in xcTestRunPaths {
-            let plistData = try await fileSystem.readFile(at: xcTestRunPath)
-            let filteredData = try filterXCTestRun(
-                plistData: plistData,
-                modules: shard.modules,
-                suites: shard.suites.additionalProperties
-            )
-            try filteredData.write(to: URL(fileURLWithPath: xcTestRunPath.pathString))
+            let xcTestRunPaths = try await fileSystem
+                .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
+                .collect()
+            let tempXCTestRunDir = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-xctestrun")
+            for xcTestRunPath in xcTestRunPaths {
+                let plistData = try await fileSystem.readFile(at: xcTestRunPath)
+                let filteredData = try filterXCTestRun(
+                    plistData: plistData,
+                    modules: shard.modules,
+                    suites: shard.suites.additionalProperties
+                )
+                let destPath = tempXCTestRunDir.appending(component: xcTestRunPath.basename)
+                try filteredData.write(to: URL(fileURLWithPath: destPath.pathString))
+            }
+            filteredXCTestRunPath = tempXCTestRunDir
+        } else {
+            isLocalVolume = false
+            guard let downloadURL = URL(string: shard.download_url) else {
+                throw ShardServiceError.invalidDownloadURL(shard.download_url)
+            }
+            let shardArchivePath = try await fileClient.download(url: downloadURL)
+            Logger.current.debug("Downloaded test products bundle.")
+
+            testProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+            try await appleArchiver.decompress(archive: shardArchivePath, to: testProductsPath)
+            try? await fileSystem.remove(shardArchivePath)
+            Logger.current.debug("Extracted test products to \(testProductsPath.pathString)")
+
+            let xcTestRunPaths = try await fileSystem
+                .glob(directory: testProductsPath, include: ["**/*.xctestrun"])
+                .collect()
+            for xcTestRunPath in xcTestRunPaths {
+                let plistData = try await fileSystem.readFile(at: xcTestRunPath)
+                let filteredData = try filterXCTestRun(
+                    plistData: plistData,
+                    modules: shard.modules,
+                    suites: shard.suites.additionalProperties
+                )
+                try filteredData.write(to: URL(fileURLWithPath: xcTestRunPath.pathString))
+            }
         }
 
         let selectiveTestingGraphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
@@ -129,8 +160,10 @@ public struct ShardService: ShardServicing {
             reference: reference,
             shardPlanId: shard.shard_plan_id,
             testProductsPath: testProductsPath,
+            filteredXCTestRunPath: filteredXCTestRunPath,
             modules: shard.modules,
-            selectiveTestingGraph: selectiveTestingGraph
+            selectiveTestingGraph: selectiveTestingGraph,
+            isLocalVolume: isLocalVolume
         )
     }
 
