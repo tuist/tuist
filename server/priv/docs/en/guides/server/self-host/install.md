@@ -417,7 +417,30 @@ observability:
   enabled: true
 ```
 
-You can also point at your own external observability infrastructure by setting `observability.mode` to `external` and providing the relevant endpoints.
+When enabled, Grafana is available with Logs, Traces, and Metrics drilldowns pre-configured. For external observability, keep this disabled and pass your own OpenTelemetry endpoint via `server.extraEnv`.
+
+### Local testing {#helm-local-testing}
+
+> [!TIP]
+> **Testing locally with kind**
+>
+> You can spin up the full stack on your machine using [kind](https://kind.sigs.k8s.io/) and the included mise tasks. This builds the Docker images locally, creates a kind cluster, installs the chart, and port-forwards all services automatically:
+>
+> ```bash
+> # Deploy everything (builds images from source)
+> mise run helm:up --license "YOUR_LICENSE_KEY"
+>
+> # Include the observability stack (Grafana, Prometheus, Loki, Tempo)
+> mise run helm:up --license "YOUR_LICENSE_KEY" --observability
+>
+> # Check status
+> mise run helm:status
+>
+> # Tear down
+> mise run helm:down
+> ```
+>
+> **Prerequisites:** `docker`, `kind`, `helm`, and `kubectl`.
 
 ### Values reference {#helm-values-reference}
 
