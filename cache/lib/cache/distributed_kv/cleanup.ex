@@ -85,42 +85,34 @@ defmodule Cache.DistributedKV.Cleanup do
   end
 
   def publish_project_cleanup(account_handle, project_handle, active_cleanup_cutoff_at) do
-    {count, _} =
-      Repo.update_all(
-        from(project in Project,
-          where:
-            project.account_handle == ^account_handle and project.project_handle == ^project_handle and
-              project.active_cleanup_cutoff_at == ^active_cleanup_cutoff_at,
-          update: [
-            set: [
-              published_cleanup_generation: fragment("COALESCE(?, 0) + 1", project.published_cleanup_generation),
-              published_cleanup_cutoff_at: fragment("date_trunc('second', ?)", project.active_cleanup_cutoff_at),
-              cleanup_published_at: fragment("clock_timestamp()::timestamp"),
-              cleanup_event_id: fragment("nextval('cleanup_event_id_seq')"),
-              active_cleanup_cutoff_at: nil,
-              cleanup_lease_expires_at: nil,
-              updated_at: fragment("clock_timestamp()::timestamp")
-            ]
+    query =
+      from(project in Project,
+        where:
+          project.account_handle == ^account_handle and project.project_handle == ^project_handle and
+            project.active_cleanup_cutoff_at == ^active_cleanup_cutoff_at,
+        update: [
+          set: [
+            published_cleanup_generation: fragment("COALESCE(?, 0) + 1", project.published_cleanup_generation),
+            published_cleanup_cutoff_at: fragment("date_trunc('second', ?)", project.active_cleanup_cutoff_at),
+            cleanup_published_at: fragment("clock_timestamp()::timestamp"),
+            cleanup_event_id: fragment("nextval('cleanup_event_id_seq')"),
+            active_cleanup_cutoff_at: nil,
+            cleanup_lease_expires_at: nil,
+            updated_at: fragment("clock_timestamp()::timestamp")
           ]
-        ),
-        []
+        ],
+        select: %{
+          published_cleanup_generation: project.published_cleanup_generation,
+          published_cleanup_cutoff_at: project.published_cleanup_cutoff_at,
+          cleanup_event_id: project.cleanup_event_id
+        }
       )
 
-    case count do
-      1 ->
-        published =
-          Project
-          |> where([p], p.account_handle == ^account_handle and p.project_handle == ^project_handle)
-          |> select([p], %{
-            published_cleanup_generation: p.published_cleanup_generation,
-            published_cleanup_cutoff_at: p.published_cleanup_cutoff_at,
-            cleanup_event_id: p.cleanup_event_id
-          })
-          |> Repo.one!()
-
+    case Repo.update_all(query, []) do
+      {1, [published]} ->
         {:ok, published}
 
-      0 ->
+      {0, []} ->
         {:error, :cleanup_not_active}
     end
   end

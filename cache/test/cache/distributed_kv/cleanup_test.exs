@@ -180,6 +180,31 @@ defmodule Cache.DistributedKV.CleanupTest do
   end
 
   describe "publish_project_cleanup/3" do
+    test "returns published state from the same update statement" do
+      cutoff = ~U[2026-03-12 12:00:00.123456Z]
+
+      published = %{
+        published_cleanup_generation: 3,
+        published_cleanup_cutoff_at: ~U[2026-03-12 12:00:00Z],
+        cleanup_event_id: 42
+      }
+
+      expect(Repo, :update_all, fn %Ecto.Query{} = query, [] ->
+        {sql, _params} = SQL.to_sql(:update_all, Repo, query)
+
+        assert sql =~ "RETURNING"
+        assert sql =~ "nextval('cleanup_event_id_seq')"
+        assert sql =~ "date_trunc('second'"
+
+        {1, [published]}
+      end)
+
+      reject(Repo, :one!, 1)
+      reject(Repo, :one!, 2)
+
+      assert {:ok, ^published} = Cleanup.publish_project_cleanup("acme", "ios", cutoff)
+    end
+
     test "publishes cleanup and clears active state" do
       now = DateTime.utc_now()
       cutoff = DateTime.add(now, -5, :second)
