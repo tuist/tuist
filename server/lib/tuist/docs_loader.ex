@@ -376,13 +376,12 @@ defmodule Tuist.Docs.Loader do
       title = title |> String.replace("\"", "&quot;") |> String.replace("<", "&lt;")
 
       """
-      <TuistWeb.Docs.MarkdownComponents.doc_alert status="#{status}" title="#{title}">\
-      #{content}\
-      </TuistWeb.Docs.MarkdownComponents.doc_alert>\
+      <Noora.Alert.alert status="#{status}" title="#{title}" type="secondary" size="large" class="tuist-admonition">\
+      <:description_slot>#{content}</:description_slot>\
+      </Noora.Alert.alert>\
       """
     end)
   end
-
 
   defp localize_link_components(markdown, locale) do
     Regex.replace(@localized_link_regex, markdown, fn _, href, text ->

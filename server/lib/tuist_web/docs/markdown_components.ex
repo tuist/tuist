@@ -10,57 +10,6 @@ defmodule TuistWeb.Docs.MarkdownComponents do
 
   alias Tuist.Docs.Paths
 
-  @doc """
-  Wraps Noora's alert for documentation use.
-
-  We can't use `Noora.Alert.alert/1` directly because its `description`
-  attribute renders as escaped plain text inside a `<span>`. Markdown
-  alert content is rich HTML (paragraphs, links, code) that needs a
-  `<div>` and unescaped rendering via `inner_block`.
-
-  Once Noora's alert gains a slot-based description, this wrapper can be
-  replaced with a direct `<.alert>` call.
-  """
-  attr :status, :string,
-    values: ~w(information warning error success),
-    required: true
-
-  attr :title, :string, required: true
-  slot :inner_block, required: true
-
-  def doc_alert(assigns) do
-    ~H"""
-    <div
-      class="noora-alert tuist-admonition"
-      data-type="secondary"
-      data-status={@status}
-      data-size="large"
-    >
-      <div data-part="icon">
-        <.alert_icon status={@status} />
-      </div>
-      <div data-part="column">
-        <span data-part="title">{@title}</span>
-        <div data-part="description">
-          {render_slot(@inner_block)}
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  defp alert_icon(%{status: status} = assigns) when status in ["error", "information"] do
-    ~H"<Noora.Icon.alert_circle />"
-  end
-
-  defp alert_icon(%{status: "success"} = assigns) do
-    ~H"<Noora.Icon.circle_check />"
-  end
-
-  defp alert_icon(%{status: "warning"} = assigns) do
-    ~H"<Noora.Icon.alert_triangle />"
-  end
-
   attr :locale, :string, default: "en"
   slot :inner_block, required: true
 
