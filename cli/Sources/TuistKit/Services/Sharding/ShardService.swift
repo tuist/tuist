@@ -126,7 +126,8 @@ public struct ShardService: ShardServicing {
                 suites: shard.suites.additionalProperties
             )
             let destPath = xcTestRunPath?.appending(component: path.basename) ?? path
-            try filteredData.write(to: URL(fileURLWithPath: destPath.pathString))
+            let plistString = String(decoding: filteredData, as: UTF8.self)
+            try await fileSystem.writeText(plistString, at: destPath)
         }
 
         let selectiveTestingGraphPath = resolvedTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
