@@ -978,29 +978,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
             }
         } catch {
-            let rootDirectory = try await rootDirectory()
-            guard action != .build, let resultBundlePath,
-                  let parsedSummary = try await xcResultService.parse(path: resultBundlePath, rootDirectory: rootDirectory)
-            else { throw error }
+            guard action != .build, let resultBundlePath else { throw error }
 
-            let testSummary = testQuarantineService.markQuarantinedTests(
-                testSummary: parsedSummary,
-                quarantinedTests: quarantinedTests
-            )
+            let testStatuses = try await xcResultService.parseTestStatuses(path: resultBundlePath)
 
             let testTargets = testActionTargets(
                 for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
             )
 
-            let testCasesByModule = Dictionary(grouping: testSummary.testCases) { $0.module }
-            let passingTestTargetNames = Set(
-                testCasesByModule.compactMap { module, testCases -> String? in
-                    guard let module else { return nil }
-                    return testCases.allSatisfy { $0.status != .failed } ? module : nil
-                }
-            )
             let passingTestTargets = testTargets.filter {
-                passingTestTargetNames.contains($0.target.name)
+                testStatuses.passingModuleNames.contains($0.target.name)
             }
 
             try await storeSuccessfulTestHashes(
@@ -1010,7 +997,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 cacheStorage: uploadCacheStorage
             )
 
-            if testQuarantineService.onlyQuarantinedTestsFailed(testSummary: testSummary) {
+            if onlyQuarantinedTestsFailed(testStatuses: testStatuses, quarantinedTests: quarantinedTests) {
                 return
             }
 
@@ -1499,6 +1486,27 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return nil
+    }
+
+    private func onlyQuarantinedTestsFailed(
+        testStatuses: TestResultStatuses,
+        quarantinedTests: [TestIdentifier]
+    ) -> Bool {
+        guard !quarantinedTests.isEmpty else { return false }
+        let failedTests = testStatuses.testCases.filter { $0.status == .failed }
+        guard !failedTests.isEmpty else { return false }
+        return failedTests.allSatisfy { testCase in
+            quarantinedTests.contains { quarantined in
+                guard testCase.module == quarantined.target else { return false }
+                if let quarantinedClass = quarantined.class, testCase.testSuite != quarantinedClass {
+                    return false
+                }
+                if let quarantinedMethod = quarantined.method, testCase.name != quarantinedMethod {
+                    return false
+                }
+                return true
+            }
+        }
     }
 
     private func rootDirectory() async throws -> AbsolutePath? {

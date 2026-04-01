@@ -9,6 +9,7 @@ import XCResultParser
 @Mockable
 public protocol XCResultServicing {
     func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary?
+    func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses
     func mostRecentXCResultFile(projectDerivedDataDirectory: AbsolutePath) async throws -> AbsolutePath?
 }
 
@@ -59,5 +60,9 @@ public struct XCResultService: XCResultServicing {
 
     public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
         try await parser.parse(path: path, rootDirectory: rootDirectory)
+    }
+
+    public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {
+        try await parser.parseTestStatuses(path: path)
     }
 }
