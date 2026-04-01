@@ -48,42 +48,6 @@ defmodule XcodeProcessor.XCResultProcessorTest do
       assert {:ok, ^parsed_data} = XCResultProcessor.process("some/key.zip")
     end
 
-    test "finds xcresult bundle without .xcresult extension" do
-      temp_dir =
-        Path.join(
-          System.tmp_dir!(),
-          "xcresult_no_ext_test_#{:erlang.unique_integer([:positive])}"
-        )
-
-      File.mkdir_p!(temp_dir)
-      on_exit(fn -> File.rm_rf(temp_dir) end)
-
-      {:ok, fixture_zip} =
-        :zip.create(
-          ~c"#{Path.join(temp_dir, "fixture.zip")}",
-          [
-            {~c"result-bundle/Info.plist", "fake-plist-content"},
-            {~c"result-bundle/database.sqlite3", "fake-db"}
-          ]
-        )
-
-      parsed_data = %{"tests" => [%{"name" => "testExample", "status" => "passed"}]}
-
-      stub(ExAws.S3, :download_file, fn _bucket, _key, dest_path ->
-        File.cp!(to_string(fixture_zip), dest_path)
-        %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}
-      end)
-
-      expect(ExAws, :request, fn _ -> {:ok, :done} end)
-
-      expect(XcodeProcessor.XCResultNIF, :parse, fn xcresult_path, _root_dir ->
-        assert String.ends_with?(xcresult_path, "result-bundle")
-        {:ok, parsed_data}
-      end)
-
-      assert {:ok, ^parsed_data} = XCResultProcessor.process("some/key.zip")
-    end
-
     test "raises when S3 download fails" do
       stub(ExAws.S3, :download_file, fn _bucket, _key, _dest_path ->
         %ExAws.Operation.S3{http_method: :get, bucket: "tuist", path: "key"}

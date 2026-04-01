@@ -830,6 +830,44 @@ struct UploadResultBundleServiceTests {
         #expect(entries[1]["target"] == "CoreTests")
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_resolvesSymlinkBeforeUpload() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "result-bundle.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        let symlinkPath = temporaryDirectory.appending(component: "result-bundle")
+        try FileManager.default.createSymbolicLink(
+            atPath: symlinkPath.pathString,
+            withDestinationPath: xcresultPath.pathString
+        )
+
+        given(analyticsArtifactUploadService)
+            .uploadResultBundle(
+                .any,
+                fullHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .willReturn()
+
+        _ = try await subject.uploadResultBundle(
+            resultBundlePath: symlinkPath,
+            config: .test(fullHandle: "tuist/tuist"),
+            quarantinedTests: [],
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        verify(analyticsArtifactUploadService)
+            .uploadResultBundle(
+                .value(xcresultPath),
+                fullHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(1)
+    }
+
     @Test(.withMockedEnvironment())
     func uploadResultBundle_throwsWhenFullHandleMissing() async throws {
         await #expect(
