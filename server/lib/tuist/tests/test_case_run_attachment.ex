@@ -8,7 +8,7 @@ defmodule Tuist.Tests.TestCaseRunAttachment do
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_case_run_attachments" do
     field :test_case_run_id, Ecto.UUID
-    field :test_run_id, Ecto.UUID
+    field :test_run_id, Ch, type: "Nullable(UUID)"
     field :file_name, Ch, type: "String"
     field :repetition_number, Ch, type: "Nullable(Int32)"
     field :inserted_at, Ch, type: "DateTime64(6)"
