@@ -94,7 +94,7 @@ defmodule Tuist.Ops.DailySlackReportWorker do
 
   defp format_numbers({this_week, total, growth}) do
     ~s"""
-    #{this_week} created (#{if growth >= 0, do: "↑ #{growth}%", else: "↓ #{growth}%"}) | Total: #{Tuist.Cldr.Number.to_string!(total, format: :short, fractional_digits: 0, locale: "en")}
+    #{this_week} created (#{if growth >= 0, do: "↑ #{growth}%", else: "↓ #{growth}%"}) | Total: #{Number.Human.number_to_human(total, precision: 0)}
     """
   end
 
