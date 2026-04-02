@@ -11,7 +11,12 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{
         args:
-          %{"build_id" => build_id, "storage_key" => storage_key, "account_id" => account_id, "project_id" => project_id} =
+          %{
+            "build_id" => build_id,
+            "storage_key" => storage_key,
+            "account_id" => account_id,
+            "project_id" => project_id
+          } =
             args,
         attempt: attempt,
         max_attempts: max_attempts
@@ -23,7 +28,14 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       if is_nil(processor_url) or processor_url == "" do
         process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled)
       else
-        send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled)
+        send_to_processor(
+          processor_url,
+          build_id,
+          storage_key,
+          account_id,
+          project_id,
+          xcode_cache_upload_enabled
+        )
       end
 
     build_metadata = Map.get(args, "build_metadata", %{})
@@ -48,7 +60,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   end
 
   defp process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
-    with {:ok, account} <- Accounts.get_account_by_id(account_id) do
+    with true <- function_exported?(Processor.BuildProcessor, :process_build, 2),
+         {:ok, account} <- Accounts.get_account_by_id(account_id) do
       temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}.zip")
 
       try do
@@ -62,10 +75,24 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       after
         File.rm(temp_path)
       end
+    else
+      false ->
+        Logger.error("Embedded build processor is not available for build #{build_id}")
+        {:error, :embedded_build_processor_not_available}
+
+      {:error, _} = error ->
+        error
     end
   end
 
-  defp send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled) do
+  defp send_to_processor(
+         processor_url,
+         build_id,
+         storage_key,
+         account_id,
+         project_id,
+         xcode_cache_upload_enabled
+       ) do
     webhook_secret = Tuist.Environment.processor_webhook_secret()
 
     if is_nil(webhook_secret) or webhook_secret == "" do
