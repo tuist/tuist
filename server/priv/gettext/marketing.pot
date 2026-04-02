@@ -167,6 +167,7 @@ msgstr ""
 #: lib/tuist_web/marketing/components/marketing_layout_components/header.html.heex:326
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:197
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:411
+#: lib/tuist_web/marketing/live/marketing_changelog_entry_live.html.heex:8
 #: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:5
 #: lib/tuist_web/marketing/structured_markup.ex:218
 #, elixir-autogen, elixir-format
@@ -955,7 +956,7 @@ msgstr ""
 msgid "Supercharge your app development"
 msgstr ""
 
-#: lib/mix/tasks/marketing/gen/og_images.ex:66
+#: lib/mix/tasks/marketing/gen/og_images.ex:77
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:264
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:214
 #: lib/tuist_web/marketing/controllers/marketing_html/support.html.heex:2
@@ -1065,7 +1066,7 @@ msgstr ""
 msgid "Tuist Digest"
 msgstr ""
 
-#: lib/mix/tasks/marketing/gen/og_images.ex:60
+#: lib/mix/tasks/marketing/gen/og_images.ex:71
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:294
 #, elixir-autogen, elixir-format
 msgid "Tuist Digest Newsletter"
@@ -1422,7 +1423,7 @@ msgstr ""
 msgid "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
 msgstr ""
 
-#: lib/mix/tasks/marketing/gen/og_images.ex:54
+#: lib/mix/tasks/marketing/gen/og_images.ex:65
 #, elixir-autogen, elixir-format
 msgid "About us"
 msgstr ""
@@ -1488,7 +1489,7 @@ msgid "Founded"
 msgstr ""
 
 #: lib/tuist_web/marketing/live/marketing_customers_live.ex:73
-#: lib/tuist_web/marketing/structured_markup.ex:280
+#: lib/tuist_web/marketing/structured_markup.ex:296
 #, elixir-autogen, elixir-format
 msgid "Learn how teams use Tuist to scale their iOS development."
 msgstr ""
@@ -1540,7 +1541,7 @@ msgstr ""
 msgid "Customers"
 msgstr ""
 
-#: lib/tuist_web/marketing/structured_markup.ex:279
+#: lib/tuist_web/marketing/structured_markup.ex:295
 #, elixir-autogen, elixir-format
 msgid "Tuist Customers"
 msgstr ""
