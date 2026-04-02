@@ -7,11 +7,11 @@
 ---
 # CLI {#cli}
 
-The Tuist CLI is one of the interfaces for interacting with Tuist, and the most common one if you are using <LocalizedLink href="/guides/features/projects">generated projects</LocalizedLink>. It provides commands for generating projects, caching binaries, running tests, sharing previews, and more.
+The Tuist CLI is one of the interfaces for interacting with Tuist, and the most common one if you are using <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects">generated projects</TuistWeb.Docs.MarkdownComponents.localized_link>. It provides commands for generating projects, caching binaries, running tests, sharing previews, and more.
 
 ## Getting started {#getting-started}
 
-If you haven't installed Tuist yet, follow the <LocalizedLink href="/guides/install-tuist">installation guide</LocalizedLink> to get started.
+If you haven't installed Tuist yet, follow the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/install-tuist">installation guide</TuistWeb.Docs.MarkdownComponents.localized_link> to get started.
 
 Once installed, you can run `tuist` in your terminal to see a list of available commands:
 
@@ -21,8 +21,8 @@ tuist --help
 
 ## Configuration {#configuration}
 
-The CLI behavior can be configured through a `tuist.toml` file. See the <LocalizedLink href="/references/tuist-toml">tuist.toml reference</LocalizedLink> for all available options.
+The CLI behavior can be configured through a `tuist.toml` file. See the <TuistWeb.Docs.MarkdownComponents.localized_link href="/references/tuist-toml">tuist.toml reference</TuistWeb.Docs.MarkdownComponents.localized_link> for all available options.
 
 ## Troubleshooting {#troubleshooting}
 
-If you run into issues, check the <LocalizedLink href="/cli/debugging">debugging guide</LocalizedLink> for tools to diagnose problems, including session logs and network recordings.
+If you run into issues, check the <TuistWeb.Docs.MarkdownComponents.localized_link href="/cli/debugging">debugging guide</TuistWeb.Docs.MarkdownComponents.localized_link> for tools to diagnose problems, including session logs and network recordings.

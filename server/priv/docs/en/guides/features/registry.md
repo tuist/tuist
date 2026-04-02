@@ -66,18 +66,18 @@ tuist registry login
 ```
 
 > [!NOTE]
-> Authentication requires a <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>.
+> Authentication requires a <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</TuistWeb.Docs.MarkdownComponents.localized_link>.
 
 
 ### Resolving dependencies {#resolving-dependencies}
 
 To resolve dependencies from the registry instead of from source control, continue reading based on your project setup:
-- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode project</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Generated project with the Xcode package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Swift package</LocalizedLink>
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/registry/xcode-project">Xcode project</TuistWeb.Docs.MarkdownComponents.localized_link>
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/registry/generated-project">Generated project with the Xcode package integration</TuistWeb.Docs.MarkdownComponents.localized_link>
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/registry/xcodeproj-integration">Generated project with the XcodeProj-based package integration</TuistWeb.Docs.MarkdownComponents.localized_link>
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/registry/swift-package">Swift package</TuistWeb.Docs.MarkdownComponents.localized_link>
 
-To set up the registry on the CI, follow this guide: <LocalizedLink href="/guides/features/registry/continuous-integration">Continuous integration</LocalizedLink>.
+To set up the registry on the CI, follow this guide: <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/registry/continuous-integration">Continuous integration</TuistWeb.Docs.MarkdownComponents.localized_link>.
 
 ### Package registry identifiers {#package-registry-identifiers}
 

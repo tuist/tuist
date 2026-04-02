@@ -24,14 +24,14 @@ If you are familiar with [GitHub](https://github.com), the concept is similar to
 > Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
 
 
-You can manage the organization through the subcommands under <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>. To create a new organization account, run:
+You can manage the organization through the subcommands under <TuistWeb.Docs.MarkdownComponents.localized_link href="/cli/organization">`tuist organization`</TuistWeb.Docs.MarkdownComponents.localized_link>. To create a new organization account, run:
 ```bash
 tuist organization create {account-handle}
 ```
 
 ## Projects {#projects}
 
-Your projects need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> to create and manage projects.
+Your projects need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <TuistWeb.Docs.MarkdownComponents.localized_link href="/cli/project">`tuist project`</TuistWeb.Docs.MarkdownComponents.localized_link> to create and manage projects.
 
 Projects are identified by a full handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full handle would be `tuist/tuist`.
 
@@ -44,7 +44,7 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 > [!WARNING]
 > **Tuist Project-only Features**
 >
-> Note that some features like <LocalizedLink href="/guides/features/cache/module-cache">module caching</LocalizedLink> require a Tuist-managed project. If you are not using Tuist to manage your project, you won't be able to use those features.
+> Note that some features like <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/cache/module-cache">module caching</TuistWeb.Docs.MarkdownComponents.localized_link> require a Tuist-managed project. If you are not using Tuist to manage your project, you won't be able to use those features.
 
 
 Your project's URL is constructed by using the full handle. For example, Tuist's dashboard, which is public, is accessible at [tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), where `tuist/tuist` is the project's full handle.

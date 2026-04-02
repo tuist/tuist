@@ -70,7 +70,7 @@ NSBundle *bundle = [MyFeatureResources bundle];
 > [!TIP]
 > **Supporting Resources In Libraries Through Bundles**
 >
-> If a target product, for example a library, doesn't support resources, Tuist will include the resources in a target of product type `bundle` ensuring that it ends up in the final product and that the interface points to the right bundle. These synthesized bundles are automatically tagged with `tuist:synthesized` and inherit all tags from their parent target, allowing you to target them in <LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache profiles</LocalizedLink>.
+> If a target product, for example a library, doesn't support resources, Tuist will include the resources in a target of product type `bundle` ensuring that it ends up in the final product and that the interface points to the right bundle. These synthesized bundles are automatically tagged with `tuist:synthesized` and inherit all tags from their parent target, allowing you to target them in <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/metadata-tags#system-tags">cache profiles</TuistWeb.Docs.MarkdownComponents.localized_link>.
 
 
 ## Resource accessors {#resource-accessors}

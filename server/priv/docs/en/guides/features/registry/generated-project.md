@@ -7,7 +7,7 @@
 ---
 # Generated project with the Xcode package integration {#generated-project-with-xcode-based-integration}
 
-If you are using the <LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode's default integration</LocalizedLink> of packages with Tuist Projects, you need to use the registry identifier instead of a URL when adding a package:
+If you are using the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode's default integration</TuistWeb.Docs.MarkdownComponents.localized_link> of packages with Tuist Projects, you need to use the registry identifier instead of a URL when adding a package:
 ```swift
 import ProjectDescription
 

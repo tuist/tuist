@@ -10,7 +10,7 @@
 > [!WARNING]
 > **Requirements**
 >
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> - A <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</TuistWeb.Docs.MarkdownComponents.localized_link>
 
 
 Tuist Test Insights gives you Xcode test analytics to monitor your test suite's health by identifying slow tests or quickly understanding failed CI runs. As your test suite grows, it becomes increasingly difficult to spot trends like gradually slowing tests or intermittent failures. Tuist Test Insights provides you with the visibility you need to maintain a fast and reliable test suite.
@@ -105,10 +105,10 @@ testAction: .testAction(
 
 ## Continuous integration {#continuous-integration}
 
-To track test insights on CI, you will need to ensure that your CI is <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
+To track test insights on CI, you will need to ensure that your CI is <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</TuistWeb.Docs.MarkdownComponents.localized_link>.
 
 Additionally, you will either need to:
-- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
+- Use the <TuistWeb.Docs.MarkdownComponents.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</TuistWeb.Docs.MarkdownComponents.localized_link> command when invoking `xcodebuild` actions.
 - Add `-resultBundlePath` to your `xcodebuild` invocation.
 
 When `xcodebuild` tests your project without `-resultBundlePath`, the required result bundle files are not generated. The `tuist inspect test` post-action requires these files to analyze your tests.

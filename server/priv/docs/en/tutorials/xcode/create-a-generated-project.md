@@ -21,12 +21,12 @@ tuist init
 <!-- -->
 :::
 
-The command will walk you through the steps to <LocalizedLink href="/guides/features/projects">create a generated project</LocalizedLink> or integrate an existing Xcode project or workspace. It helps you connect your setup to the remote server, giving you access to features like <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>, <LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
+The command will walk you through the steps to <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects">create a generated project</TuistWeb.Docs.MarkdownComponents.localized_link> or integrate an existing Xcode project or workspace. It helps you connect your setup to the remote server, giving you access to features like <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/selective-testing">selective testing</TuistWeb.Docs.MarkdownComponents.localized_link>, <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/previews">previews</TuistWeb.Docs.MarkdownComponents.localized_link>, and the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/registry">registry</TuistWeb.Docs.MarkdownComponents.localized_link>.
 
 > [!NOTE]
 > **Migrate An Existing Project**
 >
-> If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out our <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
+> If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/cache">cache</TuistWeb.Docs.MarkdownComponents.localized_link>, check out our <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</TuistWeb.Docs.MarkdownComponents.localized_link>.
 
 
 ## Add dependencies {#add-dependencies}

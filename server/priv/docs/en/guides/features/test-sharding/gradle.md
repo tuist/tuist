@@ -10,7 +10,7 @@
 > [!WARNING]
 > **Requirements**
 >
-> - The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
+> - The <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/install-gradle-plugin">Tuist Gradle plugin</TuistWeb.Docs.MarkdownComponents.localized_link> installed and configured
 
 
 The Tuist Gradle plugin includes built-in support for test sharding. It discovers test suites by scanning compiled test class files and uses the Tuist server to create balanced shard plans based on historical timing data.

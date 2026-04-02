@@ -71,7 +71,7 @@ You can integrate them using Xcode's default integration mechanism or using Tuis
 Xcode's default integration while being the most convenient one,
 lacks flexibility and control that's required for medium and large projects.
 To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
-Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> and <LocalizedLink href="/guides/features/selective-testing">selective test runs</LocalizedLink>.
+Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/cache">caching</TuistWeb.Docs.MarkdownComponents.localized_link> and <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/selective-testing">selective test runs</TuistWeb.Docs.MarkdownComponents.localized_link>.
 
 XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
 
@@ -310,7 +310,7 @@ The **general rule of thumb** is that you want as many things as possible to be 
 
 The challenge with changing between static and dynamic linking in a project graph is that is not trivial in Xcode because a change has cascading effect on the entire graph (e.g. libraries can't contain resources, static frameworks don't need to be embedded). Apple tried to solve the problem with compile time solutions like Swift Package Manager's automatic decision between static and dynamic linking, or [Mergeable Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries). However, this adds new dynamic variables to the compilation graph, adding new sources of non-determinism, and potentially causing some features like Swift Previews that rely on the compilation graph to become unreliable.
 
-Luckily, Tuist conceptually compresses the complexity associated with changing between static and dynamic and synthesizes <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> that are standard across linking types. In combination with <LocalizedLink href="/guides/features/projects/dynamic-configuration">dynamic configurations via environment variables</LocalizedLink>, you can pass the linking type at invocation time, and use the value in your manifests to set the product type of your targets.
+Luckily, Tuist conceptually compresses the complexity associated with changing between static and dynamic and synthesizes <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</TuistWeb.Docs.MarkdownComponents.localized_link> that are standard across linking types. In combination with <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/dynamic-configuration">dynamic configurations via environment variables</TuistWeb.Docs.MarkdownComponents.localized_link>, you can pass the linking type at invocation time, and use the value in your manifests to set the product type of your targets.
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -323,7 +323,7 @@ func productType() -> Product {
 }
 ```
 
-Note that Tuist <LocalizedLink href="/guides/features/projects/cost-of-convenience">does not default to convenience through implicit configuration due to its costs</LocalizedLink>. What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
+Note that Tuist <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/cost-of-convenience">does not default to convenience through implicit configuration due to its costs</TuistWeb.Docs.MarkdownComponents.localized_link>. What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
 
 > [!TIP]
 > **Example: The Composable Architecture**
@@ -468,14 +468,14 @@ let packageSettings = PackageSettings(
 
 ### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
-When a dynamic framework or library depends on static ones through `import StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the dynamic framework or library, potentially <LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causing the compilation to fail</LocalizedLink>. To prevent that, you'll have to import the static dependency using <LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>:
+When a dynamic framework or library depends on static ones through `import StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the dynamic framework or library, potentially <TuistWeb.Docs.MarkdownComponents.localized_link href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causing the compilation to fail</TuistWeb.Docs.MarkdownComponents.localized_link>. To prevent that, you'll have to import the static dependency using <TuistWeb.Docs.MarkdownComponents.localized_link href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</TuistWeb.Docs.MarkdownComponents.localized_link>:
 
 ```swift
 internal import StaticModule
 ```
 
 > [!NOTE]
-> Access level on imports was included in Swift 6. If you're using older versions of Swift, you need to use <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink> instead:
+> Access level on imports was included in Swift 6. If you're using older versions of Swift, you need to use <TuistWeb.Docs.MarkdownComponents.localized_link href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</TuistWeb.Docs.MarkdownComponents.localized_link> instead:
 
 
 ```swift

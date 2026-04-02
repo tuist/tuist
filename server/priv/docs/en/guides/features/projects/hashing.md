@@ -7,7 +7,7 @@
 ---
 # Hashing {#hashing}
 
-Features like <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> or selective test execution require a way to determine whether a target has changed. Tuist calculates a hash for each target in the dependency graph to determine if a target has changed. The hash is calculated based on the following attributes:
+Features like <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/cache">caching</TuistWeb.Docs.MarkdownComponents.localized_link> or selective test execution require a way to determine whether a target has changed. Tuist calculates a hash for each target in the dependency graph to determine if a target has changed. The hash is calculated based on the following attributes:
 
 - The target's attributes (e.g., name, platform, product, etc.)
 - The target's files
@@ -15,7 +15,7 @@ Features like <LocalizedLink href="/guides/features/cache">caching</LocalizedLin
 
 ### Cache attributes {#cache-attributes}
 
-Additionally, when calculating the hash for <LocalizedLink href="/guides/features/cache">caching</LocalizedLink>, we also hash the following attributes.
+Additionally, when calculating the hash for <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/cache">caching</TuistWeb.Docs.MarkdownComponents.localized_link>, we also hash the following attributes.
 
 #### Swift version {#swift-version}
 
@@ -35,7 +35,7 @@ The idea behind the flag `-configuration` was to ensure debug binaries were not 
 
 If you notice non-deterministic behaviors when using the caching across environments or invocations, it might be related to differences across the environments or a bug in the hashing logic. We recommend following these steps to debug the issue:
 
-1. Run `tuist hash cache` or `tuist hash selective-testing` (hashes for <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> or <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>), copy the hashes, rename the project directory, and run the command again. The hashes should match.
+1. Run `tuist hash cache` or `tuist hash selective-testing` (hashes for <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/cache">binary caching</TuistWeb.Docs.MarkdownComponents.localized_link> or <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/selective-testing">selective testing</TuistWeb.Docs.MarkdownComponents.localized_link>), copy the hashes, rename the project directory, and run the command again. The hashes should match.
 2. If the hashes don't match, it's likely that the generated project depends on the environment. Run `tuist graph --format json` in both cases and compare the graphs. Alternatively, generate the projects and compare their `project.pbxproj` files with a diff tool such as [Diffchecker](https://www.diffchecker.com).
 3. If the hashes are the same but differ across environments (for example, CI and local), make sure the same [configuration](#configuration) and [Swift version](#swift-version) are used everywhere. The Swift version is tied to the Xcode version, so confirm the Xcode versions match.
 

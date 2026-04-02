@@ -12,7 +12,7 @@ Use Build Insights to track local and CI build performance. It currently support
 > [!WARNING]
 > **Requirements**
 >
-> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+> - A <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</TuistWeb.Docs.MarkdownComponents.localized_link>
 
 
 <HomeCards>

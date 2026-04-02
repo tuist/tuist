@@ -9,10 +9,10 @@
 
 Plugins are a tool to share and reuse Tuist artifacts across multiple projects. The following artifacts are supported:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Project description helpers</LocalizedLink> across multiple projects.
-- <LocalizedLink href="/guides/features/projects/templates">Templates</LocalizedLink> across multiple projects.
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/code-sharing">Project description helpers</TuistWeb.Docs.MarkdownComponents.localized_link> across multiple projects.
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/templates">Templates</TuistWeb.Docs.MarkdownComponents.localized_link> across multiple projects.
 - Tasks across multiple projects.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">Resource accessor</LocalizedLink> template across multiple projects
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/synthesized-files">Resource accessor</TuistWeb.Docs.MarkdownComponents.localized_link> template across multiple projects
 
 Note that plugins are designed to be a simple way to extend Tuist's functionality. Therefore there are **some limitations to consider**:
 
@@ -46,7 +46,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### Resource accessor templates plugin {#resource-accessor-templates-plugin}
 
-If you need to share <LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">synthesized resource accessors</LocalizedLink> you can use
+If you need to share <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/projects/synthesized-files#resource-accessors">synthesized resource accessors</TuistWeb.Docs.MarkdownComponents.localized_link> you can use
 this type of plugin. The plugin is represented by a directory containing a `Plugin.swift` manifest file that declares the plugin's name and a `ResourceSynthesizers` directory containing the resource accessor template files.
 
 

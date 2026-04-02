@@ -14,11 +14,11 @@ Tuist hosts a server-side MCP endpoint at `https://tuist.dev/mcp`. By connecting
 
 ## MCP vs Skills
 
-MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</LocalizedLink> can overlap in what they do. Given the current overlap between the two, choose one approach per workflow and use it consistently (either MCP or skills) instead of mixing both in the same flow.
+MCP and <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/agentic-coding/skills">Skills</TuistWeb.Docs.MarkdownComponents.localized_link> can overlap in what they do. Given the current overlap between the two, choose one approach per workflow and use it consistently (either MCP or skills) instead of mixing both in the same flow.
 
 ## Configuration
 
-Add `https://tuist.dev/mcp` as a remote MCP server in your client. Authentication happens through OAuth automatically. The MCP endpoint uses the `mcp` scope group, which grants read-only access to all your projects. See the <LocalizedLink href="/guides/server/authentication#scope-groups">scope groups documentation</LocalizedLink> for details.
+Add `https://tuist.dev/mcp` as a remote MCP server in your client. Authentication happens through OAuth automatically. The MCP endpoint uses the `mcp` scope group, which grants read-only access to all your projects. See the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</TuistWeb.Docs.MarkdownComponents.localized_link> for details.
 
 <details>
 <summary>Claude Code</summary>

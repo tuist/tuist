@@ -7,12 +7,12 @@
 ---
 # Install the Gradle plugin {#install-the-gradle-plugin}
 
-Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <LocalizedLink href="/guides/features/cache/gradle-cache">remote build caching</LocalizedLink> and <LocalizedLink href="/guides/features/build-insights/gradle">build insights</LocalizedLink>. This guide walks you through installing and configuring the plugin.
+Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/cache/gradle-cache">remote build caching</TuistWeb.Docs.MarkdownComponents.localized_link> and <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/build-insights/gradle">build insights</TuistWeb.Docs.MarkdownComponents.localized_link>. This guide walks you through installing and configuring the plugin.
 
 > [!WARNING]
 > **Requirements**
 >
-> - <LocalizedLink href="/guides/install-tuist">Tuist CLI</LocalizedLink> 4.138.1 or later
+> - <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/install-tuist">Tuist CLI</TuistWeb.Docs.MarkdownComponents.localized_link> 4.138.1 or later
 > - A Gradle project
 
 
@@ -54,7 +54,7 @@ Each teammate should run the following to get access to the Tuist features on th
 tuist auth login
 ```
 
-For CI, follow the <LocalizedLink href="/guides/integrations/continuous-integration#authentication">CI authentication guide</LocalizedLink> to configure authentication for your environment.
+For CI, follow the <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/integrations/continuous-integration#authentication">CI authentication guide</TuistWeb.Docs.MarkdownComponents.localized_link> to configure authentication for your environment.
 
 ## Configuration reference {#configuration-reference}
 
@@ -77,7 +77,7 @@ The following options are available in the `tuist` extension block in `settings.
 
 Once the plugin is installed and configured, you can enable:
 
-- <LocalizedLink href="/guides/features/cache/gradle-cache">Remote build cache</LocalizedLink> to share build artifacts across your team and CI.
-- <LocalizedLink href="/guides/features/build-insights/gradle">Build insights</LocalizedLink> to track task timings and cache behavior in the Tuist dashboard.
-- <LocalizedLink href="/guides/features/test-insights/gradle">Test insights</LocalizedLink> to track test performance and detect flaky tests.
-- <LocalizedLink href="/guides/features/test-insights/flaky-tests">Flaky tests</LocalizedLink> to automatically detect, track, and quarantine flaky tests.
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/cache/gradle-cache">Remote build cache</TuistWeb.Docs.MarkdownComponents.localized_link> to share build artifacts across your team and CI.
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/build-insights/gradle">Build insights</TuistWeb.Docs.MarkdownComponents.localized_link> to track task timings and cache behavior in the Tuist dashboard.
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/test-insights/gradle">Test insights</TuistWeb.Docs.MarkdownComponents.localized_link> to track test performance and detect flaky tests.
+- <TuistWeb.Docs.MarkdownComponents.localized_link href="/guides/features/test-insights/flaky-tests">Flaky tests</TuistWeb.Docs.MarkdownComponents.localized_link> to automatically detect, track, and quarantine flaky tests.
