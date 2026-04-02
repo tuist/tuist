@@ -324,6 +324,7 @@ defmodule Tuist.Docs.Sidebar do
           %Item{
             label: "Agentic coding",
             items: [
+              %Item{label: "MCP", slug: "/en/guides/features/agentic-coding/mcp"},
               %Item{label: "Skills", slug: "/en/guides/features/agentic-coding/skills"}
             ]
           }
