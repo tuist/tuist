@@ -18,40 +18,51 @@ defmodule Cache.CleanProjectWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{
-        args: %{"account_handle" => account_handle, "project_handle" => project_handle},
-        attempt: attempt
+        args: %{"account_handle" => account_handle, "project_handle" => project_handle} = args,
+        attempt: attempt,
+        inserted_at: inserted_at
       }) do
     attempt = max(attempt || 0, 1)
 
     if Config.distributed_kv_enabled?() do
       perform_distributed_cleanup(account_handle, project_handle, attempt)
     else
-      perform_local_cleanup(account_handle, project_handle)
+      perform_local_cleanup(account_handle, project_handle, local_cleanup_cutoff(args, inserted_at))
     end
   end
 
-  defp perform_local_cleanup(account_handle, project_handle) do
-    :ok = delete_project_kv_entries(account_handle, project_handle, DateTime.utc_now(), fn -> :ok end)
+  defp perform_local_cleanup(account_handle, project_handle, cutoff) do
+    safe_cutoff = DateTime.truncate(cutoff, :second)
 
-    disk_result =
-      case Disk.delete_project(account_handle, project_handle) do
-        :ok ->
-          :ok = CacheArtifacts.delete_by_project(account_handle, project_handle)
-          Logger.info("Cleaned disk cache for project #{account_handle}/#{project_handle}")
-          :ok
+    with :ok <- perform_local_node_cleanup(account_handle, project_handle, safe_cutoff, fn -> :ok end),
+         :ok <- maybe_delete_xcode_s3_artifacts(account_handle, project_handle, safe_cutoff, fn -> :ok end),
+         :ok <-
+           delete_s3_artifacts_with_cutoff(account_handle, project_handle, :cache, "cache", safe_cutoff, fn -> :ok end) do
+      Logger.info(
+        "Local cleanup completed for #{account_handle}/#{project_handle} with cutoff #{DateTime.to_iso8601(safe_cutoff)}"
+      )
 
-        {:error, reason} = error ->
-          Logger.error("Failed to clean disk cache for project #{account_handle}/#{project_handle}: #{inspect(reason)}")
-
-          error
-      end
-
-    if Config.xcode_cache_bucket() do
-      delete_s3_artifacts(account_handle, project_handle, :xcode_cache, "xcode cache")
+      :ok
     end
+  end
 
-    delete_s3_artifacts(account_handle, project_handle, :cache, "cache")
-    disk_result
+  defp local_cleanup_cutoff(%{"cutoff" => cutoff_iso}, _inserted_at) do
+    {:ok, cutoff, _offset} = DateTime.from_iso8601(cutoff_iso)
+    DateTime.truncate(cutoff, :second)
+  end
+
+  defp local_cleanup_cutoff(_args, %DateTime{} = inserted_at) do
+    DateTime.truncate(inserted_at, :second)
+  end
+
+  defp local_cleanup_cutoff(_args, %NaiveDateTime{} = inserted_at) do
+    inserted_at
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.truncate(:second)
+  end
+
+  defp local_cleanup_cutoff(_args, _inserted_at) do
+    DateTime.truncate(DateTime.utc_now(), :second)
   end
 
   defp perform_distributed_cleanup(account_handle, project_handle, attempt) do
@@ -222,18 +233,6 @@ defmodule Cache.CleanProjectWorker do
 
       {:error, _} = error ->
         error
-    end
-  end
-
-  defp delete_s3_artifacts(account_handle, project_handle, type, label) do
-    prefix = "#{account_handle}/#{project_handle}/"
-
-    case S3.delete_all_with_prefix(prefix, type: type) do
-      {:ok, count} ->
-        Logger.info("Cleaned #{count} S3 #{label} objects with prefix #{prefix}")
-
-      {:error, reason} ->
-        Logger.error("Failed to clean S3 #{label} objects with prefix #{prefix}: #{inspect(reason)}")
     end
   end
 

@@ -43,8 +43,13 @@ defmodule CacheWeb.CleanController do
   def clean(conn, %{account_handle: account_handle, project_handle: project_handle}) do
     Logger.info("Cleaning cache for project #{account_handle}/#{project_handle}")
 
+    cutoff =
+      DateTime.utc_now()
+      |> DateTime.truncate(:second)
+      |> DateTime.to_iso8601()
+
     {:ok, _job} =
-      %{account_handle: account_handle, project_handle: project_handle}
+      %{account_handle: account_handle, project_handle: project_handle, cutoff: cutoff}
       |> CleanProjectWorker.new()
       |> Oban.insert()
 

@@ -39,24 +39,39 @@ defmodule Cache.CleanProjectWorkerTest do
     test "cleans local disk and S3 artifacts" do
       account_handle = "test_account"
       project_handle = "test_project"
+      cutoff = ~U[2026-03-12 12:00:00Z]
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
-        ^account_handle, ^project_handle, %DateTime{}, opts ->
+        ^account_handle, ^project_handle, ^cutoff, opts ->
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           refute Keyword.has_key?(opts, :include_pending)
           {[], 0}
       end)
 
-      expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
-      expect(CacheArtifacts, :delete_by_project, fn ^account_handle, ^project_handle -> :ok end)
-
-      expect(S3, :delete_all_with_prefix, 2, fn
-        "test_account/test_project/", [type: :xcode_cache] -> {:ok, 3}
-        "test_account/test_project/", [type: :cache] -> {:ok, 2}
+      expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
+        assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+        {:ok, 4}
       end)
 
-      job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
+      expect(S3, :delete_objects_with_prefix_before, 2, fn
+        "test_account/test_project/", ^cutoff, opts ->
+          assert :ok = Keyword.fetch!(opts, :check_lease).()
+
+          case Keyword.fetch!(opts, :type) do
+            :xcode_cache -> {:ok, 3}
+            :cache -> {:ok, 2}
+          end
+      end)
+
+      job = %Oban.Job{
+        args: %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "cutoff" => DateTime.to_iso8601(cutoff)
+        }
+      }
 
       capture_log(fn ->
         assert :ok = CleanProjectWorker.perform(job)
@@ -510,24 +525,38 @@ defmodule Cache.CleanProjectWorkerTest do
     test "skips xcode_cache deletion when no dedicated bucket is configured" do
       account_handle = "test_account"
       project_handle = "test_project"
+      cutoff = ~U[2026-03-12 12:00:00Z]
 
       stub(Config, :xcode_cache_bucket, fn -> nil end)
 
       expect(KeyValueEntries, :delete_project_entries_before, fn
-        ^account_handle, ^project_handle, %DateTime{}, opts ->
+        ^account_handle, ^project_handle, ^cutoff, opts ->
           assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
           assert is_function(Keyword.fetch!(opts, :after_delete_batch), 1)
           refute Keyword.has_key?(opts, :include_pending)
           {[], 0}
       end)
 
-      expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
-
-      expect(S3, :delete_all_with_prefix, 1, fn
-        "test_account/test_project/", [type: :cache] -> {:ok, 2}
+      expect(Disk, :delete_project_files_before, fn ^account_handle, ^project_handle, ^cutoff, opts ->
+        assert :ok = Keyword.fetch!(opts, :check_lease).()
+        assert is_function(Keyword.fetch!(opts, :on_deleted_keys), 1)
+        {:ok, 0}
       end)
 
-      job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
+      expect(S3, :delete_objects_with_prefix_before, 1, fn
+        "test_account/test_project/", ^cutoff, opts ->
+          assert Keyword.fetch!(opts, :type) == :cache
+          assert :ok = Keyword.fetch!(opts, :check_lease).()
+          {:ok, 2}
+      end)
+
+      job = %Oban.Job{
+        args: %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "cutoff" => DateTime.to_iso8601(cutoff)
+        }
+      }
 
       capture_log(fn ->
         assert :ok = CleanProjectWorker.perform(job)

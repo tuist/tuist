@@ -42,6 +42,9 @@ defmodule CacheWeb.CleanControllerTest do
         worker: CleanProjectWorker,
         args: %{account_handle: "test_account", project_handle: "test_project"}
       )
+
+      [job] = all_enqueued()
+      assert is_binary(job.args["cutoff"])
     end
 
     test "returns 422 when path params contain traversal", %{conn: conn} do

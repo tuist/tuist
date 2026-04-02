@@ -62,59 +62,81 @@ defmodule Cache.KeyValueReplicationPoller do
   end
 
   defp safe_poll(state) do
-    {result, new_state} = poll_once(state)
-    {result, %{new_state | consecutive_errors: 0}}
+    case poll_once(state) do
+      {:ok, new_state} ->
+        {:ok, %{new_state | consecutive_errors: 0}}
+
+      {:error, reason} ->
+        poll_error_result(state, reason)
+    end
   rescue
     error ->
-      Logger.error("Replication poller poll failed: #{Exception.message(error)}")
-
-      :telemetry.execute(
-        @completion_event,
-        %{duration_ms: 0, rows_materialized: 0, rows_deleted: 0},
-        %{status: :error}
-      )
-
-      {{:error, error}, %{state | consecutive_errors: state.consecutive_errors + 1}}
+      poll_error_result(state, error)
   end
 
   defp poll_once(state) do
     started_at = System.monotonic_time(:millisecond)
 
-    {total_materialized, total_deleted} =
-      case maybe_bootstrap() do
-        :ok ->
-          watermark = KeyValueEntries.distributed_watermark()
-          drain_pages(watermark, started_at, {0, 0})
+    with {:ok, {total_materialized, total_deleted}} <- poll_totals(started_at) do
+      new_state = maybe_emit_local_store_size(state)
 
-        :busy ->
-          {0, 0}
-      end
+      :telemetry.execute(
+        @completion_event,
+        %{
+          duration_ms: System.monotonic_time(:millisecond) - started_at,
+          rows_materialized: total_materialized,
+          rows_deleted: total_deleted
+        },
+        %{}
+      )
 
-    new_state = maybe_emit_local_store_size(state)
+      {:ok, new_state}
+    end
+  end
+
+  defp poll_totals(started_at) do
+    case maybe_bootstrap() do
+      :ok ->
+        watermark = KeyValueEntries.distributed_watermark()
+        drain_pages(watermark, started_at, {0, 0})
+
+      :busy ->
+        {:ok, {0, 0}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp poll_error_result(state, reason) do
+    Logger.error("Replication poller poll failed: #{format_poll_error(reason)}")
 
     :telemetry.execute(
       @completion_event,
-      %{
-        duration_ms: System.monotonic_time(:millisecond) - started_at,
-        rows_materialized: total_materialized,
-        rows_deleted: total_deleted
-      },
-      %{}
+      %{duration_ms: 0, rows_materialized: 0, rows_deleted: 0},
+      %{status: :error}
     )
 
-    {:ok, new_state}
+    {{:error, reason}, %{state | consecutive_errors: state.consecutive_errors + 1}}
   end
+
+  defp format_poll_error(error) when is_exception(error), do: Exception.message(error)
+  defp format_poll_error(reason), do: inspect(reason)
 
   defp drain_pages(watermark, started_at, totals) do
     if System.monotonic_time(:millisecond) - started_at >= @max_poll_run_ms do
-      totals
+      {:ok, totals}
     else
-      {continue?, new_watermark, new_totals} = apply_one_page(watermark, totals)
+      case apply_one_page(watermark, totals) do
+        {:ok, {continue?, new_watermark, new_totals}} ->
+          if continue? do
+            drain_pages(new_watermark, started_at, new_totals)
+          else
+            {:ok, new_totals}
+          end
 
-      if continue? do
-        drain_pages(new_watermark, started_at, new_totals)
-      else
-        new_totals
+        {:error, reason} ->
+          {:error, reason}
       end
     end
   end
@@ -130,36 +152,44 @@ defmodule Cache.KeyValueReplicationPoller do
     fetched_rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
     rows = filter_rows_against_published_barriers(fetched_rows)
 
-    {processed_count, materialized_count, deleted_count} =
-      rows
-      |> Enum.chunk_every(@apply_chunk_size)
-      |> Enum.reduce_while({0, 0, 0}, fn chunk, {processed_acc, materialized_acc, deleted_acc} ->
-        case apply_remote_chunk(chunk) do
-          {:ok, result} ->
-            {:cont,
-             {processed_acc + result.processed_count, materialized_acc + alive_row_count(chunk),
-              deleted_acc + result.deleted_count}}
+    case rows
+         |> Enum.chunk_every(@apply_chunk_size)
+         |> Enum.reduce_while({:ok, {0, 0, 0}}, fn chunk, {:ok, {processed_acc, materialized_acc, deleted_acc}} ->
+           case apply_remote_chunk(chunk) do
+             {:ok, result} ->
+               {:cont,
+                {:ok,
+                 {processed_acc + result.processed_count, materialized_acc + alive_row_count(chunk),
+                  deleted_acc + result.deleted_count}}}
 
-          {:error, _reason} ->
-            {:halt, {processed_acc, materialized_acc, deleted_acc}}
-        end
-      end)
+             {:error, :busy} ->
+               {:halt, {:ok, {processed_acc, materialized_acc, deleted_acc}}}
 
-    last_processed = last_processed_row(rows, processed_count)
-    last_advanceable = last_advanceable_row(fetched_rows, rows, processed_count)
+             {:error, reason} ->
+               {:halt, {:error, reason}}
+           end
+         end) do
+      {:error, reason} ->
+        {:error, reason}
 
-    :ok = persist_watermark_advance(last_processed, last_advanceable)
+      {:ok, {processed_count, materialized_count, deleted_count}} ->
+        last_processed = last_processed_row(rows, processed_count)
+        last_advanceable = last_advanceable_row(fetched_rows, rows, processed_count)
 
-    new_watermark =
-      if last_advanceable do
-        %{watermark_updated_at: last_advanceable.updated_at, watermark_key: last_advanceable.key}
-      else
-        watermark
-      end
+        :ok = persist_watermark_advance(last_processed, last_advanceable)
 
-    continue? = length(fetched_rows) == @page_size and processed_count == length(rows) and not is_nil(last_advanceable)
+        new_watermark =
+          if last_advanceable do
+            %{watermark_updated_at: last_advanceable.updated_at, watermark_key: last_advanceable.key}
+          else
+            watermark
+          end
 
-    {continue?, new_watermark, {total_materialized + materialized_count, total_deleted + deleted_count}}
+        continue? =
+          length(fetched_rows) == @page_size and processed_count == length(rows) and not is_nil(last_advanceable)
+
+        {:ok, {continue?, new_watermark, {total_materialized + materialized_count, total_deleted + deleted_count}}}
+    end
   end
 
   defp last_advanceable_row([], _filtered_rows, _processed_count), do: nil
@@ -217,13 +247,21 @@ defmodule Cache.KeyValueReplicationPoller do
       cutoff = latest_cutoff()
       budget = Application.get_env(:cache, :key_value_max_db_size_bytes, 25 * 1024 * 1024 * 1024)
       current_size = KeyValueEntries.estimated_size_bytes()
-      bootstrap_status = bootstrap_rows(current_size, budget, nil)
 
-      if cutoff && bootstrap_status == :complete do
-        :ok = KeyValueEntries.put_distributed_watermark(cutoff.updated_at, cutoff.key)
+      case bootstrap_rows(current_size, budget, nil) do
+        :complete ->
+          if cutoff do
+            :ok = KeyValueEntries.put_distributed_watermark(cutoff.updated_at, cutoff.key)
+          end
+
+          :ok
+
+        :busy ->
+          :busy
+
+        {:error, reason} ->
+          {:error, reason}
       end
-
-      if bootstrap_status == :busy, do: :busy, else: :ok
     else
       :ok
     end
@@ -256,13 +294,16 @@ defmodule Cache.KeyValueReplicationPoller do
       _ ->
         {rows_to_materialize, size_after_page} = bootstrap_materializable_rows(rows, current_size, budget)
 
-        status = materialize_bootstrap_rows(rows_to_materialize)
+        case materialize_bootstrap_rows(rows_to_materialize) do
+          :ok ->
+            last_row = List.last(fetched_rows)
+            bootstrap_rows(size_after_page, budget, {last_row.last_accessed_at, last_row.key})
 
-        if status == :ok do
-          last_row = List.last(fetched_rows)
-          bootstrap_rows(size_after_page, budget, {last_row.last_accessed_at, last_row.key})
-        else
-          :busy
+          :busy ->
+            :busy
+
+          {:error, reason} ->
+            {:error, reason}
         end
     end
   end
@@ -293,8 +334,7 @@ defmodule Cache.KeyValueReplicationPoller do
           {:halt, :busy}
 
         {:error, reason} ->
-          Logger.error("Unexpected bootstrap apply error: #{inspect(reason)}")
-          {:halt, :error}
+          {:halt, {:error, {:bootstrap_apply_failed, reason}}}
       end
     end)
   end
@@ -311,8 +351,7 @@ defmodule Cache.KeyValueReplicationPoller do
         {:error, :busy}
 
       {:error, reason} ->
-        Logger.error("Unexpected remote batch apply error: #{inspect(reason)}")
-        {:error, reason}
+        {:error, {:remote_batch_apply_failed, reason}}
     end
   end
 

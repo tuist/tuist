@@ -435,6 +435,66 @@ defmodule Cache.KeyValueReplicationPollerTest do
   end
 
   @tag capture_log: true
+  test "returns an error when steady-state remote batch apply fails unexpectedly" do
+    updated_at = DateTime.add(DateTime.utc_now(), -120, :second)
+
+    row = %Entry{
+      key: "keyvalue:acme:ios:cas",
+      account_handle: "acme",
+      project_handle: "ios",
+      cas_id: "cas",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+      source_node: "node-a",
+      source_updated_at: updated_at,
+      last_accessed_at: updated_at,
+      updated_at: updated_at,
+      deleted_at: nil
+    }
+
+    stub(KeyValueEntries, :distributed_watermark, fn ->
+      %{watermark_updated_at: ~U[1970-01-01 00:00:00Z], watermark_key: ""}
+    end)
+
+    stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
+    stub(KeyValueEntries, :apply_remote_batch, fn [_row] -> {:error, :unexpected_failure} end)
+    stub(Repo, :all, fn _query, _opts -> [row] end)
+
+    pid = start_supervised!(KeyValueReplicationPoller)
+
+    assert {:error, {:remote_batch_apply_failed, :unexpected_failure}} = KeyValueReplicationPoller.poll_now()
+    assert Process.alive?(pid)
+  end
+
+  @tag capture_log: true
+  test "returns an error when bootstrap apply fails unexpectedly" do
+    updated_at = DateTime.add(DateTime.utc_now(), -120, :second)
+
+    row = %Entry{
+      key: "keyvalue:acme:ios:bootstrap",
+      account_handle: "acme",
+      project_handle: "ios",
+      cas_id: "bootstrap",
+      json_payload: Jason.encode!(%{entries: [%{"value" => "artifact"}]}),
+      source_node: "node-a",
+      source_updated_at: updated_at,
+      last_accessed_at: updated_at,
+      updated_at: updated_at,
+      deleted_at: nil
+    }
+
+    stub(KeyValueEntries, :distributed_watermark, fn -> nil end)
+    stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
+    stub(KeyValueEntries, :materialize_remote_entries, fn [_row] -> {:error, :unexpected_failure} end)
+    stub(Repo, :one, fn _query, _opts -> row end)
+    stub(Repo, :all, fn _query, _opts -> [row] end)
+
+    pid = start_supervised!(KeyValueReplicationPoller)
+
+    assert {:error, {:bootstrap_apply_failed, :unexpected_failure}} = KeyValueReplicationPoller.poll_now()
+    assert Process.alive?(pid)
+  end
+
+  @tag capture_log: true
   test "survives post-commit invalidation failures and eventually clears stale cache entries" do
     capture_log(fn ->
       parent = self()
