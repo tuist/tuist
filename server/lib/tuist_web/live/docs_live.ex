@@ -557,7 +557,8 @@ defmodule TuistWeb.DocsLive do
     end
   end
 
-  defp render_doc_body(%{live: true, body_template: template, code_blocks: code_blocks}, assigns) do
+  defp render_doc_body(%{body_template: template, code_blocks: code_blocks}, assigns)
+       when not is_nil(template) do
     merged_assigns = Map.put(assigns, :_doc_code_blocks, code_blocks || [])
 
     {rendered, _} =

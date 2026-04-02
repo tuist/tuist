@@ -14,7 +14,6 @@ defmodule Tuist.Docs.Page do
     :source_path,
     :markdown,
     :last_modified,
-    live: false,
     headings: [],
     code_blocks: []
   ]

@@ -1,8 +1,7 @@
 ---
 {
   "title": "What is Tuist?",
-  "description": "Scale your app development with intelligent caching, testing, and insights.",
-  "live": true
+  "description": "Scale your app development with intelligent caching, testing, and insights."
 }
 ---
 

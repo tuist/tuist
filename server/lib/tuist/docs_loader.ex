@@ -25,11 +25,6 @@ defmodule Tuist.Docs.Loader do
                    |> Safe.to_iodata()
                    |> IO.iodata_to_binary()
 
-  # Inline SVGs for non-live alert rendering (can be removed once all pages use live: true)
-  @alert_circle_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>)
-  @circle_check_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 12l2 2l4 -4" /></svg>)
-  @alert_triangle_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>)
-
   # Regexes
   @frontmatter_regex ~r/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/s
   @localized_link_regex ~r/<LocalizedLink\s+(?:href|to)="([^"]+)"\s*>(.*?)<\/LocalizedLink>/s
@@ -38,12 +33,7 @@ defmodule Tuist.Docs.Loader do
   @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
   @code_group_regex ~r/^:::[ \t]*code-group[ \t]*\n(.*?)^:::[ \t]*$/ms
   @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
-  @github_alert_regex ~r/<div class="markdown-alert markdown-alert-(\w+)">\s*<p class="markdown-alert-title">([^<]*)<\/p>\s*(.*?)\s*<\/div>/s
   @bold_title_regex ~r/\A\s*<p><strong>([^<]+)<\/strong><\/p>\s*/s
-  @home_cards_regex ~r/<HomeCards>\s*(.*?)\s*<\/HomeCards>/s
-  @home_card_icon_regex ~r/\s+icon="[^"]*"/
-  @home_card_regex ~r/<HomeCard\s+([^>]*?)\/>/s
-  @home_card_attr_regex ~r/(\w+)="([^"]*)"/
   @code_content_regex ~r/(<code[^>]*>)(.*?)(<\/code>)/s
 
   @github_alert_type_to_status %{
@@ -53,17 +43,6 @@ defmodule Tuist.Docs.Loader do
     "warning" => "warning",
     "caution" => "error"
   }
-
-  # Non-live alert template (can be removed once all pages use live: true)
-  @github_alert_template """
-  <div class="noora-alert" data-type="secondary" data-status="<%= status %>" data-size="large">\
-  <div data-part="icon"><%= icon %></div>\
-  <div data-part="column">\
-  <span data-part="title"><%= title %></span>\
-  <div data-part="description"><%= content %></div>\
-  </div>\
-  </div>\
-  """
 
   @mdex_options [
     extension: [
@@ -125,8 +104,7 @@ defmodule Tuist.Docs.Loader do
     contents = File.read!(source_path)
 
     {attrs, markdown} = parse_frontmatter(contents)
-    live? = attrs["live"] || false
-    {html, template, code_blocks} = render_markdown(markdown, source_path, locale, live?)
+    {html, template, code_blocks} = render_markdown(markdown, source_path, locale, true)
 
     %Page{
       slug: slug,
@@ -135,7 +113,6 @@ defmodule Tuist.Docs.Loader do
       description: attrs["description"],
       body: html,
       body_template: template,
-      live: live?,
       code_blocks: code_blocks,
       markdown: markdown,
       source_path: relative_path,
@@ -152,7 +129,7 @@ defmodule Tuist.Docs.Loader do
     github_url = "https://github.com/tuist/tuist/tree/main/examples/xcode/#{dir_name}"
 
     markdown_with_link = markdown <> "\n\n[Check out example](#{github_url})\n"
-    {html, _, _} = render_markdown(markdown_with_link, readme_path, "en", false)
+    {html, template, code_blocks} = render_markdown(markdown_with_link, readme_path, "en", true)
 
     %Page{
       slug: slug,
@@ -160,6 +137,8 @@ defmodule Tuist.Docs.Loader do
       title_template: ":title · Examples · References · Tuist",
       description: "Example: #{title}",
       body: html,
+      body_template: template,
+      code_blocks: code_blocks,
       markdown: markdown_with_link,
       source_path: readme_path,
       headings: extract_headings(markdown_with_link),
@@ -168,14 +147,13 @@ defmodule Tuist.Docs.Loader do
   end
 
 
-  defp render_markdown(markdown, source_path, locale, live?) do
+  defp render_markdown(markdown, source_path, locale, _live?) do
     custom_ids = extract_custom_heading_ids(markdown)
 
     processed_markdown =
       markdown
       |> String.replace(@script_setup_regex, "")
-      |> localize_link_components(locale, live?)
-      |> then(fn md -> if live?, do: md, else: convert_home_cards(md, locale) end)
+      |> localize_link_components(locale)
       |> strip_custom_heading_ids()
       |> convert_code_groups()
 
@@ -185,35 +163,38 @@ defmodule Tuist.Docs.Loader do
       |> MDExMermaid.attach(mermaid_init: "")
       |> MDEx.Document.put_options(@mdex_options)
       |> MDEx.to_html!()
-      |> convert_github_alerts(live?)
+      |> convert_github_alerts()
       |> HTML.wrap_code_blocks()
       |> wrap_tables()
+      |> strip_unsupported_tags()
       |> rewrite_image_paths()
       |> replace_heading_ids(custom_ids)
       |> HTML.add_heading_anchors()
 
-    if live? do
-      {safe_html, code_blocks} = extract_code_contents(html)
-      safe_html = escape_heex_expressions(safe_html)
-      template = compile_heex_template(safe_html, source_path)
-      {html, template, code_blocks}
-    else
-      {html, nil, []}
+    {safe_html, code_blocks} = extract_code_contents(html)
+    safe_html = escape_heex_expressions(safe_html)
+
+    case compile_heex_template(safe_html, source_path) do
+      {:ok, template} -> {html, template, code_blocks}
+      :error -> {html, nil, []}
     end
   end
 
 
   defp compile_heex_template(html, path) do
-    EEx.compile_string(
-      html,
-      engine: Phoenix.LiveView.TagEngine,
-      file: path,
-      line: 1,
-      caller: __ENV__,
-      indentation: 0,
-      source: html,
-      tag_handler: Phoenix.LiveView.HTMLEngine
-    )
+    {:ok,
+     EEx.compile_string(
+       html,
+       engine: Phoenix.LiveView.TagEngine,
+       file: path,
+       line: 1,
+       caller: __ENV__,
+       indentation: 0,
+       source: html,
+       tag_handler: Phoenix.LiveView.HTMLEngine
+     )}
+  rescue
+    _ -> :error
   end
 
   defp extract_code_contents(html) do
@@ -241,47 +222,78 @@ defmodule Tuist.Docs.Loader do
   end
 
   defp escape_heex_expressions(html) do
-    parts = Regex.split(~r/(<%.*?%>)/s, html, include_captures: true)
+    parts = Regex.split(~r/(<%.*?%>|\{@\w+\})/s, html, include_captures: true)
 
     Enum.map_join(parts, fn part ->
-      if String.starts_with?(part, "<%"), do: part, else: String.replace(part, "{", "&#123;")
+      if String.starts_with?(part, "<%") or String.starts_with?(part, "{@"),
+        do: part,
+        else: String.replace(part, "{", "&#123;")
     end)
   end
 
 
-  defp convert_github_alerts(html, true = _live?) do
-    Regex.replace(@github_alert_regex, html, fn _, type, default_title, content ->
-      status = Map.get(@github_alert_type_to_status, type, "information")
+  @alert_opening_regex ~r/<div class="markdown-alert markdown-alert-(\w+)">\s*<p class="markdown-alert-title">([^<]*)<\/p>\s*/s
 
-      {title, content} =
-        case Regex.run(@bold_title_regex, content) do
-          [full_match, bold_title] -> {bold_title, String.replace_prefix(content, full_match, "")}
-          _ -> {default_title, content}
-        end
+  defp convert_github_alerts(html) do
+    case Regex.run(@alert_opening_regex, html, return: :index) do
+      nil ->
+        html
 
-      title = title |> String.replace("\"", "&quot;") |> String.replace("<", "&lt;")
+      [{full_start, full_len}, {_, _} = type_idx, {_, _} = title_idx] ->
+        type = binary_part(html, elem(type_idx, 0), elem(type_idx, 1))
+        default_title = binary_part(html, elem(title_idx, 0), elem(title_idx, 1))
+        after_header = full_start + full_len
+        rest = binary_part(html, after_header, byte_size(html) - after_header)
 
-      """
-      <Noora.Alert.alert status="#{status}" title="#{title}" type="secondary" size="large">\
-      #{content}\
-      </Noora.Alert.alert>\
-      """
-    end)
+        # Find the matching </div> by tracking depth (the alert's own <div> is already open)
+        close_offset = find_matching_close_div(rest, 0, 1)
+        content = binary_part(rest, 0, close_offset)
+        after_alert = after_header + close_offset + byte_size("</div>")
+
+        status = Map.get(@github_alert_type_to_status, type, "information")
+
+        {title, content} =
+          case Regex.run(@bold_title_regex, content) do
+            [match, bold] -> {bold, String.replace_prefix(content, match, "")}
+            _ -> {default_title, content}
+          end
+
+        title = title |> String.replace("\"", "&quot;") |> String.replace("<", "&lt;")
+
+        replacement =
+          ~s(<Noora.Alert.alert status="#{status}" title="#{title}" type="secondary" size="large">#{content}</Noora.Alert.alert>)
+
+        before = binary_part(html, 0, full_start)
+        after_part = binary_part(html, after_alert, byte_size(html) - after_alert)
+
+        convert_github_alerts(before <> replacement <> after_part)
+    end
   end
 
-  defp convert_github_alerts(html, false = _live?) do
-    Regex.replace(@github_alert_regex, html, fn _, type, default_title, content ->
-      status = Map.get(@github_alert_type_to_status, type, "information")
-      icon = admonition_icon(status)
+  defp find_matching_close_div(html, pos, depth) when depth > 0 do
+    remaining = binary_part(html, pos, byte_size(html) - pos)
+    open_match = :binary.match(remaining, "<div")
+    close_match = :binary.match(remaining, "</div>")
 
-      {title, content} =
-        case Regex.run(@bold_title_regex, content) do
-          [full_match, bold_title] -> {bold_title, String.replace_prefix(content, full_match, "")}
-          _ -> {default_title, content}
-        end
+    case {open_match, close_match} do
+      {_, :nomatch} ->
+        pos
 
-      EEx.eval_string(@github_alert_template, status: status, icon: icon, title: title, content: content)
-    end)
+      {{open_off, _}, {close_off, _}} when open_off < close_off ->
+        find_matching_close_div(html, pos + open_off + 4, depth + 1)
+
+      {_, {close_off, _}} ->
+        if depth == 1, do: pos + close_off, else: find_matching_close_div(html, pos + close_off + 6, depth - 1)
+    end
+  end
+
+  defp strip_unsupported_tags(html) do
+    html
+    |> String.replace(~r/<Badge[^>]*\/?>/, "")
+    |> String.replace(~r/<\/Badge>/, "")
+    |> String.replace(~r/<HomeCards[^>]*>.*?<\/HomeCards>/s, "")
+    |> String.replace(~r/<HomeVideos[^>]*\/>/, "")
+    |> String.replace(~r/<HomeCommunity[^>]*>.*?<\/HomeCommunity>/s, "")
   end
 
   defp wrap_tables(html) do
@@ -296,50 +308,9 @@ defmodule Tuist.Docs.Loader do
     |> String.replace(~s(src="/logo.png"), ~s(src="/docs/images/logo.webp"))
   end
 
-  defp admonition_icon("warning"), do: @alert_triangle_icon
-  defp admonition_icon("success"), do: @circle_check_icon
-  defp admonition_icon(_), do: @alert_circle_icon
-
-
-  defp convert_home_cards(markdown, locale) do
-    Regex.replace(@home_cards_regex, markdown, fn _, content ->
-      content = Regex.replace(@home_card_icon_regex, content, "")
-
-      cards =
-        @home_card_regex
-        |> Regex.scan(content)
-        |> Enum.map_join("", fn [_, attrs_str] ->
-          attrs =
-            @home_card_attr_regex
-            |> Regex.scan(attrs_str)
-            |> Map.new(fn [_, key, value] -> {key, value} end)
-
-          title = Map.get(attrs, "title", "")
-          details = Map.get(attrs, "details", "")
-          link = Map.get(attrs, "link", "")
-          link_href = if link == "", do: "#", else: Paths.public_path(locale, link)
-
-          EEx.eval_string(
-            ~s(<a href="<%= link_href %>" data-part="feature-card"><div data-part="image"><span data-part="title"><%= title %></span></div><div data-part="body"><p><%= details %></p></div></a>),
-            link_href: link_href,
-            title: title,
-            details: details
-          )
-        end)
-
-      EEx.eval_string(~s(<div data-part="feature-cards"><%= cards %></div>\n), cards: cards)
-    end)
-  end
-
-  defp localize_link_components(markdown, _locale, true = _live?) do
+  defp localize_link_components(markdown, _locale) do
     Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
       ~s(<TuistWeb.Docs.MarkdownComponents.localized_link href="#{href}" locale={@locale}>#{text}</TuistWeb.Docs.MarkdownComponents.localized_link>)
-    end)
-  end
-
-  defp localize_link_components(markdown, locale, false = _live?) do
-    Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
-      EEx.eval_string(~s(<a href="<%= href %>"><%= text %></a>), href: localize_href(href, locale), text: text)
     end)
   end
 
@@ -519,12 +490,6 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
-  defp localize_href("/" <> _ = href, locale) do
-    slug = "/#{locale}" <> href
-    Paths.public_path_from_slug(slug)
-  end
-
-  defp localize_href(href, _locale), do: href
 
   defp title_from_markdown(markdown) do
     case Regex.run(~r/^\s*#\s+(.+?)(?:\s+\{#.*\})?\s*$/m, markdown, capture: :all_but_first) do
