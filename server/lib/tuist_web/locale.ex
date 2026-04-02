@@ -8,25 +8,13 @@ defmodule TuistWeb.Locale do
   alias Phoenix.LiveView
   alias TuistWeb.Gettext, as: GettextBackend
 
-  @script_by_region %{
-    "CN" => "Hans",
-    "HK" => "Hant",
-    "MO" => "Hant",
-    "MY" => "Hans",
-    "SG" => "Hans",
-    "TW" => "Hant"
-  }
-
-  @script_by_language %{
-    "yue" => "Hant"
-  }
-
   def on_mount(:assign_locale, _params, session, socket) do
     locale =
       session
       |> Map.get("locale")
       |> normalize_locale()
-      |> Kernel.||(connect_locale(socket))
+
+    locale = locale || connect_locale(socket)
 
     if locale do
       Gettext.put_locale(GettextBackend, locale)
@@ -54,17 +42,10 @@ defmodule TuistWeb.Locale do
   def normalize_locale(locale) when is_binary(locale) do
     locale
     |> String.trim()
+    |> String.replace("_", "-")
     |> case do
       "" -> nil
-      locale -> locale_candidates(locale)
-    end
-    |> case do
-      nil ->
-        nil
-
-      candidates ->
-        supported_locales = Gettext.known_locales(GettextBackend)
-        Enum.find(candidates, &(&1 in supported_locales))
+      locale -> exact_supported_locale(locale) || chinese_locale(locale)
     end
   end
 
@@ -75,31 +56,19 @@ defmodule TuistWeb.Locale do
     end
   end
 
-  defp locale_candidates(locale) do
-    [language | rest] =
-      locale
-      |> String.replace("_", "-")
-      |> String.split("-", trim: true)
+  defp exact_supported_locale(locale) do
+    supported_locales = Gettext.known_locales(GettextBackend)
 
-    language = String.downcase(language)
+    candidate =
+      case String.split(locale, "-", trim: true) do
+        [language, script | _] when String.match?(script, ~r/^[A-Za-z]{4}$/) ->
+          "#{String.downcase(language)}_#{normalize_script(script)}"
 
-    script =
-      rest
-      |> Enum.find(&String.match?(&1, ~r/^[A-Za-z]{4}$/))
-      |> normalize_script()
-      |> Kernel.||(script_for(language, rest))
+        [language | _] ->
+          String.downcase(language)
+      end
 
-    case script do
-      nil -> [language]
-      script -> ["#{language}_#{script}", language]
-    end
-  end
-
-  defp script_for(language, rest) do
-    region =
-      Enum.find(rest, &String.match?(&1, ~r/^(?:[A-Za-z]{2}|\d{3})$/))
-
-    @script_by_language[language] || @script_by_region[normalize_region(region)]
+    if candidate in supported_locales, do: candidate
   end
 
   defp normalize_script(nil), do: nil
@@ -110,6 +79,21 @@ defmodule TuistWeb.Locale do
     |> String.capitalize()
   end
 
-  defp normalize_region(nil), do: nil
-  defp normalize_region(region), do: String.upcase(region)
+  # Browsers often send region-based Chinese tags while Gettext uses script-based locales.
+  defp chinese_locale(locale) do
+    locale = String.downcase(locale)
+
+    cond do
+      locale == "yue" or String.starts_with?(locale, "yue-") -> "yue_Hant"
+      String.starts_with?(locale, "zh-hans") -> "zh_Hans"
+      String.starts_with?(locale, "zh-hant") -> "zh_Hant"
+      String.starts_with?(locale, "zh-cn") -> "zh_Hans"
+      String.starts_with?(locale, "zh-my") -> "zh_Hans"
+      String.starts_with?(locale, "zh-sg") -> "zh_Hans"
+      String.starts_with?(locale, "zh-hk") -> "zh_Hant"
+      String.starts_with?(locale, "zh-mo") -> "zh_Hant"
+      String.starts_with?(locale, "zh-tw") -> "zh_Hant"
+      true -> nil
+    end
+  end
 end

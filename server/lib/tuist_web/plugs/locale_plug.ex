@@ -11,12 +11,7 @@ defmodule TuistWeb.Plugs.LocalePlug do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    locale =
-      conn
-      |> get_req_header("accept-language")
-      |> List.first()
-      |> Locale.locale_from_accept_language()
-      |> Kernel.||(conn |> get_session(:locale) |> Locale.normalize_locale())
+    locale = locale_from_headers(conn) || session_locale(conn)
 
     if locale do
       Gettext.put_locale(GettextBackend, locale)
@@ -24,5 +19,18 @@ defmodule TuistWeb.Plugs.LocalePlug do
     else
       conn
     end
+  end
+
+  defp locale_from_headers(conn) do
+    conn
+    |> get_req_header("accept-language")
+    |> List.first()
+    |> Locale.locale_from_accept_language()
+  end
+
+  defp session_locale(conn) do
+    conn
+    |> get_session(:locale)
+    |> Locale.normalize_locale()
   end
 end
