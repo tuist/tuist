@@ -45,46 +45,38 @@ The workflow is:
 
 ## L10N.md structure {#l10n-md-structure}
 
-`L10N.md` files define the context that is sent to the translation model. They have two parts:
+`L10N.md` files define the context that is sent to the translation model. The easiest way to think about them is as scoped translation instructions that can live at different directory levels.
 
-- YAML frontmatter for structured configuration.
-- Markdown body for human-written translation instructions.
+For example:
 
-At the repository root, `L10N.md` defines global rules such as:
-
-- `model`: the default model used when running `translate.exs` without an override.
-- `source_language`: the source language for the repository.
-
-At the server level, `server/L10N.md` adds server-specific configuration such as:
-
-- `validation`: the validation step for generated translations.
-- `sources`: the `.pot` files that should be translated from that directory.
-- `target_path`: where generated translations should be written.
-- `targets`: the supported locales and their language names.
-
-The markdown body is where you explain terminology, tone, formatting rules, product language, and domain-specific context that translators should follow.
+```text
+.
+|-- L10N.md
+|-- server
+|   |-- L10N.md
+|   |-- L10N
+|   |   `-- es.md
+|   `-- priv
+|       `-- gettext
+|           `-- marketing.pot
+```
 
 
 ## Directory context {#directory-context}
 
-`L10N.md` is hierarchical. The translation script walks from the repository root down to the directory being translated and merges every `L10N.md` file it finds.
+The translation script walks from the repository root down to the directory being translated and combines every `L10N.md` file it finds on that path.
 
-- Frontmatter from deeper files overrides parent frontmatter.
-- Markdown bodies are concatenated from root to deepest directory.
+In the example above:
 
-This lets you add context at the level where it applies:
+- `L10N.md` applies globally.
+- `server/L10N.md` adds server-specific context.
+- `server/L10N/es.md` adds Spanish-only overrides for that same area.
 
-- Use the root `L10N.md` for repository-wide rules.
-- Use `server/L10N.md` for server-wide terminology and target locales.
-- Add another `L10N.md` inside a subdirectory when the context only applies to that area, for example a specific product surface or documentation section.
+That means you can place context where it belongs:
 
-If the rule only applies to one language, add a locale-specific override file in an `L10N/` directory next to the relevant `L10N.md`. For example, `server/L10N/es.md` adds Spanish-only instructions.
-
-That is useful for cases such as:
-
-- keeping a product term untranslated in one locale
-- preferring a specific regional wording
-- avoiding a translation that is technically correct but unnatural for that language
+- repository-wide guidance at the root
+- area-specific guidance in a subdirectory
+- language-specific guidance in `L10N/<locale>.md`
 
 
 ## Translation pipeline {#translation-pipeline}
