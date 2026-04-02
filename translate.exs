@@ -519,7 +519,8 @@ defmodule L10n.CLI do
     * `--force`, `-f` — Re-translate all files, ignoring lock state
     * `--locale`, `-l` — Translate only the specified locale (e.g., `--locale es`)
     * `--model`, `-m` — Override the LLM model from L10N.md (e.g., `--model openai:gpt-4.1`)
-    * `--concurrency`, `-c` — Max parallel translations per .pot file (default: 4)
+    * `--concurrency`, `-c` — Max parallel translations per locale within one source file (default: 4)
+    * `--pot-concurrency` — Max parallel source files being translated at once (default: 1)
     * `--timeout`, `-t` — Timeout in ms per translation (default: 300000)
   """
 
@@ -550,7 +551,7 @@ defmodule L10n.CLI do
   defp process_l10n_dir(l10n_dir, repo_root, opts) do
     {frontmatter, context_body, context_files} = L10n.Context.resolve_chain(l10n_dir, repo_root)
 
-    model = Keyword.get(opts, :model) || Map.get(frontmatter, "model", "anthropic:claude-sonnet-4-6")
+    model = Keyword.get(opts, :model) || Map.get(frontmatter, "model", "openai:gpt-4.1-mini")
     sources = Map.get(frontmatter, "sources", [])
     target_path_template = Map.get(frontmatter, "target_path", "priv/gettext/{locale}/LC_MESSAGES")
     raw_targets = Map.get(frontmatter, "targets", %{})
@@ -602,7 +603,7 @@ defmodule L10n.CLI do
             timeout: Keyword.get(opts, :timeout, 300_000)
           )
         end,
-        max_concurrency: Keyword.get(opts, :concurrency, 4),
+        max_concurrency: Keyword.get(opts, :pot_concurrency, 1),
         timeout: :infinity  # pot-level timeout is infinite; per-locale tasks have their own timeout
       )
       |> Enum.flat_map(fn {:ok, results} -> results end)
@@ -622,7 +623,14 @@ defmodule L10n.CLI do
   defp parse_args(argv) do
     {opts, rest, _} =
       OptionParser.parse(argv,
-        strict: [force: :boolean, locale: :string, model: :string, concurrency: :integer, timeout: :integer],
+        strict: [
+          force: :boolean,
+          locale: :string,
+          model: :string,
+          concurrency: :integer,
+          pot_concurrency: :integer,
+          timeout: :integer
+        ],
         aliases: [f: :force, l: :locale, m: :model, c: :concurrency, t: :timeout]
       )
 
