@@ -19,7 +19,7 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
   # Each entry is {filename, gettext_title, opts} where opts may include :icon_path_suffix.
   @carta_pages [
     {"about", "About Tuist", [icon_path_suffix: "static/marketing/images/about/logo.webp"]},
-    {"pricing", "Pricing", [icon_path_suffix: "static/marketing/images/pricing/logo.webp"]},
+    {"pricing", "Pricing", [icon_path_suffix: "static/marketing/images/pricing/logo-transparent.png"]},
     {"blog", "Blog", []},
     {"changelog", "Changelog", []},
     {"tuist-digest", "Tuist Digest Newsletter", []},

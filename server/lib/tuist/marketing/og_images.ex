@@ -205,7 +205,8 @@ defmodule Tuist.Marketing.OgImages do
     icon_data_uri =
       if icon_path do
         icon_base64 = icon_path |> File.read!() |> Base.encode64()
-        "data:image/webp;base64,#{icon_base64}"
+        mime = if String.ends_with?(icon_path, ".png"), do: "image/png", else: "image/webp"
+        "data:#{mime};base64,#{icon_base64}"
       end
 
     assigns = %{
