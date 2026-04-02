@@ -396,9 +396,7 @@ This can significantly reduce shard startup time, especially for large test bund
 
 To use shared volumes:
 
-When you use `tuist test`, Tuist flags such as `--shard-total` and `--shard-skip-upload` go before `--`. xcodebuild-only flags such as `-testProductsPath` must be passed after `--`.
-
-1. In the **build phase**, pass `-testProductsPath` (after `--`) pointing to a shared volume and add `--shard-skip-upload` to skip the remote upload:
+1. In the **build phase**, pass `-testProductsPath` after `--` because it is an xcodebuild flag. Keep Tuist flags such as `--shard-total` and `--shard-skip-upload` before `--`:
 
 ```sh
 tuist test \
