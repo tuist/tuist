@@ -1,425 +1,400 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2025-12-24 20:48+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
-"Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
-"dashboard-1/ja/>\n"
 "Language: ja\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.1\n"
 
-## This file is a PO Template file.
-##
-## "msgid"s here are often extracted from source code.
-## Add new messages manually only if they're dynamic
-## messages that can't be statically extracted.
-##
-## Run "mix gettext.extract" to bring this file up to
-## date. Leave "msgstr"s empty as changing them here has no
-## effect: edit them in PO (.po) files instead.
-#
 #: lib/tuist_web/components/previews/app_preview.ex:24
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "%{app_name} icon"
-msgstr "アプリ名}アイコン"
+msgstr "%{app_name} アイコン"
 
 #: lib/tuist_web/controllers/error_html.ex:22
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "400"
 msgstr "400"
 
-#: lib/tuist_web/controllers/error_html.ex:37
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:34
+#: lib/tuist_web/controllers/error_html.ex:49
+#, elixir-autogen, elixir-format
 msgid "401"
 msgstr "401"
 
-#: lib/tuist_web/controllers/error_html.ex:58
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:70
+#, elixir-autogen, elixir-format
 msgid "404"
 msgstr "404"
 
-#: lib/tuist_web/controllers/error_html.ex:79
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:91
+#, elixir-autogen, elixir-format
 msgid "429"
 msgstr "429"
 
-#: lib/tuist_web/controllers/error_html.ex:94
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:106
+#, elixir-autogen, elixir-format
 msgid "500"
 msgstr "500"
 
 #: lib/tuist_web/components/account_dropdown.ex:60
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Account settings"
 msgstr "アカウント設定"
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:121
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:125
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:123
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:127
+#, elixir-autogen, elixir-format
 msgid "Avg."
-msgstr "平均。"
+msgstr "平均"
 
 #: lib/tuist_web/controllers/error_html.ex:16
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Bad request"
-msgstr "悪いリクエスト"
+msgstr "不正なリクエスト"
 
 #: lib/tuist_web/components/layouts/account.html.heex:32
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr "請求"
 
-#: lib/tuist_web/components/app_layout_components.ex:45
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:48
+#: lib/tuist_web/components/app_layout_components.ex:223
+#, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "ビルド・ラン"
+msgstr "ビルド実行"
 
-#: lib/tuist_web/components/app_layout_components.ex:28
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:31
+#: lib/tuist_web/components/app_layout_components.ex:206
+#, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "ビルド"
 
-#: lib/tuist_web/components/app_layout_components.ex:180
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:341
+#, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr "バンドル"
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:15
 #: lib/tuist_web/components/runs/ran_by_badge.ex:42
 #: lib/tuist_web/components/runs/ran_by_badge.ex:63
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/runs/ran_by_badge.ex:90
+#, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
 
-#: lib/tuist_web/components/app_layout_components.ex:122
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:168
+#, elixir-autogen, elixir-format
 msgid "Cache Runs"
-msgstr "キャッシュ・ラン"
+msgstr "キャッシュ実行"
 
 #: lib/tuist_web/live/layout_live.ex:96
-#: lib/tuist_web/live/layout_live.ex:165
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/layout_live.ex:176
+#, elixir-autogen, elixir-format
 msgid "Create organization"
-msgstr "組織を作る"
+msgstr "組織を作成"
 
 #: lib/tuist_web/components/account_dropdown.ex:75
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Download macOS app"
 msgstr "macOSアプリをダウンロード"
 
 #: lib/tuist_web/components/layouts/ops.html.heex:37
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Emails"
-msgstr "電子メール"
+msgstr "メール"
 
-#: lib/tuist_web/controllers/error_html.ex:121
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:133
+#, elixir-autogen, elixir-format
 msgid "Error"
 msgstr "エラー"
 
 #: lib/tuist_web/components/layouts/ops.html.heex:51
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "エラー"
 
 #: lib/tuist_web/components/layouts/ops.html.heex:31
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Flags"
-msgstr "フラッグ"
-
-#: lib/tuist_web/components/app_layout_components.ex:134
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Generate Runs"
-msgstr "ランの生成"
+msgstr "フラグ"
 
 #: lib/tuist_web/components/empty_card_section.ex:29
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/public_project_cta_banner.ex:40
+#, elixir-autogen, elixir-format
 msgid "Get started"
-msgstr "始める"
+msgstr "はじめる"
 
-#: lib/tuist_web/controllers/error_html.ex:143
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:155
+#, elixir-autogen, elixir-format
 msgid "Go to dashboard"
-msgstr "ダッシュボードへ"
+msgstr "ダッシュボードへ移動"
 
 #: lib/tuist_web/components/layouts/ops.html.heex:61
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Grafana"
-msgstr "グラファナ"
+msgstr "Grafana"
 
 #: lib/tuist_web/components/layouts/account.html.heex:44
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Integrations"
-msgstr "Integrations"
+msgstr "連携"
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:26
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:29
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:25
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:28
+#, elixir-autogen, elixir-format
 msgid "Invalid GitHub app installation. Please try again."
-msgstr "GitHubアプリのインストールが無効です。もう一度お試しください。"
+msgstr "無効なGitHubアプリのインストールです。もう一度お試しください。"
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:32
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:31
+#, elixir-autogen, elixir-format
 msgid "Invalid installation request. Please try again."
-msgstr "インストール要求が無効です。再試行してください。"
+msgstr "無効なインストールリクエストです。もう一度お試しください。"
 
 #: lib/tuist_web/components/layouts/ops.html.heex:26
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Jobs"
-msgstr "求人情報"
+msgstr "ジョブ"
 
-#: lib/tuist_web/components/empty_state.ex:42
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/empty_state.ex:43
+#, elixir-autogen, elixir-format
 msgid "Learn more"
-msgstr "さらに詳しく"
+msgstr "詳細を見る"
 
 #: lib/tuist_web/components/layouts/ops.html.heex:21
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr "ライブダッシュボード"
 
 #: lib/tuist_web/components/account_dropdown.ex:93
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Log out"
 msgstr "ログアウト"
 
 #: lib/tuist_web/components/layouts/account.html.heex:20
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Members"
 msgstr "メンバー"
 
-#: lib/tuist_web/components/app_layout_components.ex:99
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:145
+#, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr "モジュールキャッシュ"
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:115
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:117
+#, elixir-autogen, elixir-format
 msgid "N/A"
 msgstr "該当なし"
 
 #: lib/tuist_web/components/app_components.ex:60
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Next"
-msgstr "次のページ"
+msgstr "次へ"
 
-#: lib/tuist_web/components/widget.ex:144
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/widget.ex:146
+#, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "データはまだない"
+msgstr "まだデータがありません"
 
-#: lib/tuist_web/controllers/error_html.ex:52
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:64
+#, elixir-autogen, elixir-format
 msgid "Not found"
-msgstr "見つからなかった"
+msgstr "見つかりません"
 
 #: lib/tuist_web/authorization.ex:27
 #: lib/tuist_web/authorization.ex:46
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Only operations roles can access this page."
-msgstr "このページにアクセスできるのは、オペレーションロールのみです。"
+msgstr "このページにアクセスできるのはOperationsロールのみです。"
 
-#: lib/tuist_web/controllers/error_html.ex:86
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:98
+#, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
-msgstr "おっと！何かが間違っていた"
+msgstr "おっと！何か問題が発生しました"
 
-#: lib/tuist_web/controllers/error_html.ex:53
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:65
+#, elixir-autogen, elixir-format
 msgid "Oops, we couldn't find that page"
 msgstr "おっと、そのページは見つかりませんでした"
 
 #: lib/tuist_web/components/account_dropdown.ex:68
 #: lib/tuist_web/components/layouts/ops.html.heex:11
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Operations"
-msgstr "オペレーション"
+msgstr "Operations"
 
-#: lib/tuist_web/components/app_layout_components.ex:21
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:23
+#, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "概要"
 
-#: lib/tuist_web/controllers/error_html.ex:32
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:44
+#, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
-msgstr ""
-"正しいリソースにアクセスし、アクセスするための権限を持っていることを確認して"
-"ください。"
+msgstr "正しいリソースにアクセスしていること、およびアクセス権があることを確認してください。"
 
 #: lib/tuist_web/components/app_components.ex:51
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Prev"
-msgstr "Prev"
+msgstr "前へ"
 
-#: lib/tuist_web/components/app_layout_components.ex:157
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:330
+#, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr "プレビュー"
 
 #: lib/tuist_web/components/layouts/account.html.heex:14
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr "プロジェクト"
 
-#: lib/tuist_web/components/app_layout_components.ex:169
-#: lib/tuist_web/components/layouts/ops.html.heex:16
-#, elixir-autogen, elixir-format, fuzzy
-msgid "QA"
-msgstr "QA"
-
-#: lib/tuist_web/controllers/error_html.ex:85
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:97
+#, elixir-autogen, elixir-format
 msgid "Server error"
 msgstr "サーバーエラー"
 
-#: lib/tuist_web/components/app_layout_components.ex:192
-#: lib/tuist_web/components/layouts/account.html.heex:56
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:353
+#: lib/tuist_web/components/layouts/account.html.heex:69
+#, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "設定"
 
-#: lib/tuist_web/controllers/error_html.ex:89
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:101
+#, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
-msgstr "申し訳ありません。contact@tuist.dev までご連絡ください。"
+msgstr "申し訳ありません、こちら側で問題が発生しました。contact@tuist.dev 宛にご連絡ください。調査いたします。"
 
-#: lib/tuist_web/controllers/error_html.ex:46
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:58
+#, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
-msgstr "申し訳ありませんが、お探しのページは存在しないか、移動されました。"
+msgstr "申し訳ありません。お探しのページは存在しないか、移動されています。"
 
-#: lib/tuist_web/controllers/error_html.ex:67
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:79
+#, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
-msgstr "申し訳ございません。後でもう一度お試しください。"
+msgstr "申し訳ありません、リクエストが多すぎます。後でもう一度お試しください。"
 
 #: lib/tuist_web/components/layouts/ops.html.heex:44
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "ストレージ"
 
 #: lib/tuist_web/components/account_dropdown.ex:84
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Switch to your preferred theme"
-msgstr "お好みのテーマに切り替える"
+msgstr "好みのテーマに切り替え"
 
-#: lib/tuist_web/components/app_layout_components.ex:86
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:94
+#: lib/tuist_web/components/app_layout_components.ex:269
+#, elixir-autogen, elixir-format
 msgid "Test Cases"
 msgstr "テストケース"
 
-#: lib/tuist_web/components/app_layout_components.ex:75
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:79
+#: lib/tuist_web/components/app_layout_components.ex:254
+#, elixir-autogen, elixir-format
 msgid "Test Runs"
-msgstr "テスト走行"
+msgstr "テスト実行"
 
-#: lib/tuist_web/components/app_layout_components.ex:58
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:62
+#: lib/tuist_web/components/app_layout_components.ex:237
+#, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr "テスト"
 
-#: lib/tuist_web/plugs/loader_plug.ex:52
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/plugs/loader_plug.ex:53
+#, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
 msgstr "アカウント %{account_handle} が見つかりませんでした。"
 
-#: lib/tuist_web/live/layout_live.ex:142
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/layout_live.ex:153
+#, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
-msgstr "お探しのアカウントは存在しないか、移動されました。"
+msgstr "お探しのアカウントは存在しないか、移動されています。"
 
-#: lib/tuist_web/controllers/auth_controller.ex:23
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/auth_controller.ex:25
+#, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
 msgstr "認証URLはサポートされていません"
 
 #: lib/tuist_web/authorization.ex:63
 #: lib/tuist_web/authorization.ex:79
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
-msgstr "お探しのページは存在しないか、移動されました。"
+msgstr "お探しのページは存在しないか、移動されています。"
 
-#: lib/tuist_web/controllers/preview_controller.ex:132
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/preview_controller.ex:133
+#, elixir-autogen, elixir-format
 msgid "The preview ipa doesn't exist or has expired."
-msgstr "プレビューipaが存在しないか、有効期限が切れています。"
+msgstr "プレビューのipaが存在しないか、期限切れです。"
 
-#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:34
-#: lib/tuist_web/plugs/loader_plug.ex:112
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
+#: lib/tuist_web/plugs/loader_plug.ex:116
+#, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
 msgstr "プロジェクト %{project_slug} が見つかりませんでした。"
 
-#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:43
-#: lib/tuist_web/plugs/loader_plug.ex:116
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:45
+#: lib/tuist_web/plugs/loader_plug.ex:120
+#, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
-msgstr ""
-"プロジェクト・フル・ハンドル %{project_slug} が無効です。account_handle/"
-"project_handle'の規約に従う必要があります。"
+msgstr "プロジェクトの完全なハンドル %{project_slug} は無効です。'account_handle/project_handle' の形式に従う必要があります。"
 
 #: lib/tuist_web/live/layout_live.ex:61
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
-msgstr "お探しのプロジェクトが存在しないか、移動されました。"
+msgstr "お探しのプロジェクトは存在しないか、移動されています。"
 
-#: lib/tuist_web/plugs/loader_plug.ex:93
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/plugs/loader_plug.ex:96
+#, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
-msgstr "ID %{run_id} のランが見つかりませんでした。"
+msgstr "ID %{run_id} の実行が見つかりませんでした。"
 
-#: lib/tuist_web/live/layout_live.ex:242
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/layout_live.ex:253
+#, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
-msgstr "お探しのランは存在しないか、移動されました。"
+msgstr "お探しの実行は存在しないか、移動されています。"
 
-#: lib/tuist_web/controllers/error_html.ex:73
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:85
+#, elixir-autogen, elixir-format
 msgid "Too many requests"
-msgstr "リクエストが多すぎる"
+msgstr "リクエストが多すぎます"
 
-#: lib/tuist_web/controllers/error_html.ex:74
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:86
+#, elixir-autogen, elixir-format
 msgid "Too many requests."
-msgstr "リクエストが多すぎる。"
+msgstr "リクエストが多すぎます。"
 
-#: lib/tuist_web/components/app_layout_components.ex:219
-#: lib/tuist_web/components/app_layout_components.ex:246
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:380
+#: lib/tuist_web/components/app_layout_components.ex:416
+#, elixir-autogen, elixir-format
 msgid "Tuist Icon"
-msgstr "Tuistアイコン"
+msgstr "Tuist アイコン"
 
 #: lib/tuist_web/components/layout_components.ex:56
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
-msgstr "TuistはAppleのツールを拡張し、際立ったアプリの出荷を支援します。"
+msgstr "TuistはAppleのツールを拡張し、目立つアプリをリリースするのを支援します。"
 
-#: lib/tuist_web/controllers/error_html.ex:28
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:40
+#, elixir-autogen, elixir-format
 msgid "Unauthorized"
-msgstr "無許可"
+msgstr "認証されていません"
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:29
 #: lib/tuist_web/components/runs/ran_by_badge.ex:77
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/runs/ran_by_badge.ex:104
+#, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "不明"
 
-#: lib/tuist_web/components/app_layout_components.ex:149
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:196
+#, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr "Xcodeキャッシュ"
 
-#: lib/tuist_web/controllers/error_html.ex:29
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:41
+#, elixir-autogen, elixir-format
 msgid "You are not authorized to view this page"
 msgstr "このページを表示する権限がありません"
 
@@ -427,31 +402,124 @@ msgstr "このページを表示する権限がありません"
 #: lib/tuist_web/authorization.ex:40
 #: lib/tuist_web/authorization.ex:56
 #: lib/tuist_web/authorization.ex:72
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You need to be authenticated to access this page."
 msgstr "このページにアクセスするには認証が必要です。"
 
 #: lib/tuist_web/controllers/user_session_controller.ex:28
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You've exceeded the rate limit. Try again later."
 msgstr "レート制限を超えました。後でもう一度お試しください。"
 
 #: lib/tuist_web/components/terminal.ex:10
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "bash"
-msgstr "バッシュ"
+msgstr "bash"
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:124
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:126
+#, elixir-autogen, elixir-format
 msgid "p50"
 msgstr "p50"
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:123
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:125
+#, elixir-autogen, elixir-format
 msgid "p90"
 msgstr "p90"
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:122
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:124
+#, elixir-autogen, elixir-format
 msgid "p99"
 msgstr "p99"
+
+#: lib/tuist_web/components/app_layout_components.ex:109
+#: lib/tuist_web/components/app_layout_components.ex:284
+#, elixir-autogen, elixir-format
+msgid "Flaky Tests"
+msgstr "不安定なテスト"
+
+#: lib/tuist_web/components/public_project_cta_banner.ex:33
+#, elixir-autogen, elixir-format
+msgid "Ready to speed up your builds and unlock insights for your app?"
+msgstr "ビルドを高速化し、アプリのインサイトを解放する準備はできていますか？"
+
+#: lib/tuist_web/components/public_project_cta_banner.ex:47
+#, elixir-autogen, elixir-format
+msgid "Talk to us"
+msgstr "お問い合わせ"
+
+#: lib/tuist_web/components/public_project_cta_banner.ex:26
+#, elixir-autogen, elixir-format
+msgid "This is a public dashboard for the %{account_name}/%{project_name} project."
+msgstr "これは %{account_name}/%{project_name} プロジェクトの公開ダッシュボードです。"
+
+#: lib/tuist_web/components/app_layout_components.ex:120
+#: lib/tuist_web/components/app_layout_components.ex:295
+#, elixir-autogen, elixir-format
+msgid "Quarantined Tests"
+msgstr "隔離されたテスト"
+
+#: lib/tuist_web/components/app_layout_components.ex:180
+#, elixir-autogen, elixir-format
+msgid "Generations"
+msgstr "世代"
+
+#: lib/tuist_web/components/app_layout_components.ex:319
+#, elixir-autogen, elixir-format
+msgid "Gradle Cache"
+msgstr "Gradleキャッシュ"
+
+#: lib/tuist_web/live/layout_live.ex:119
+#, elixir-autogen, elixir-format
+msgid "Create project"
+msgstr "プロジェクトを作成"
+
+#: lib/tuist_web/components/layouts/ops.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "Cache"
+msgstr "キャッシュ"
+
+#: lib/tuist_web/controllers/preview_controller.ex:154
+#, elixir-autogen, elixir-format
+msgid "The preview APK doesn't exist or has expired."
+msgstr "プレビューのAPKは存在しないか、期限切れです。"
+
+#: lib/tuist_web/components/layouts/account.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "SSO"
+msgstr "SSO"
+
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:73
+#, elixir-autogen, elixir-format
+msgid "Metrics"
+msgstr "メトリクス"
+
+#: lib/tuist_web/controllers/auth_controller.ex:289
+#, elixir-autogen, elixir-format
+msgid "Failed to authenticate."
+msgstr "認証に失敗しました。"
+
+#: lib/tuist_web/controllers/auth_controller.ex:65
+#: lib/tuist_web/controllers/auth_controller.ex:75
+#: lib/tuist_web/controllers/auth_controller.ex:85
+#: lib/tuist_web/controllers/auth_controller.ex:204
+#: lib/tuist_web/controllers/auth_controller.ex:214
+#: lib/tuist_web/controllers/auth_controller.ex:224
+#, elixir-autogen, elixir-format
+msgid "Failed to authenticate with Okta."
+msgstr "Oktaでの認証に失敗しました。"
+
+#: lib/tuist_web/controllers/error_html.ex:28
+#, elixir-autogen, elixir-format
+msgid "Authentication failed"
+msgstr "認証に失敗しました"
+
+#: lib/tuist_web/controllers/auth_controller.ex:280
+#, elixir-autogen, elixir-format
+msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
+msgstr "IDプロバイダーによってアクセスが拒否されました。組織の管理者にTuistアプリケーションへの割り当てを依頼してください。"
+
+#: lib/tuist_web/components/app_layout_components.ex:131
+#: lib/tuist_web/components/app_layout_components.ex:306
+#, elixir-autogen, elixir-format
+msgid "Shards"
+msgstr "シャード"

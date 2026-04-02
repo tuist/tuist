@@ -517,7 +517,6 @@
   }
 
   & > [data-part="builds-feature"],
-  & > [data-part="quality-assurance"],
   & > [data-part="tests-feature"],
   & > [data-part="other-features"] {
     display: flex;
@@ -692,18 +691,6 @@
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-large);
           font-family: var(--noora-font-body);
-        }
-      }
-    }
-  }
-
-  & > [data-part="quality-assurance"] {
-    & [data-part="feature-block"] {
-      &[data-variant="previews"] > [data-part="image-container"] > [data-part="illustration"] {
-        object-position: 0% center;
-
-        @media (min-width: 1180px) {
-          object-position: center;
         }
       }
     }
