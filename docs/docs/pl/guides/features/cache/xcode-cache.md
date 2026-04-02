@@ -7,9 +7,9 @@
 ---
 # Pamięć podręczna Xcode {#xcode-cache}
 
-Tuist zapewnia obsługę pamięci podręcznej kompilacji Xcode, która umożliwia
-zespołom współdzielenie artefaktów kompilacji poprzez wykorzystanie możliwości
-buforowania systemu kompilacji.
+Tuist obsługuje pamięć podręczną kompilacji Xcode, co pozwala zespołom na
+współdzielenie artefaktów kompilacji dzięki wykorzystaniu możliwości buforowania
+systemu kompilacji.
 
 ## Konfiguracja {#setup}
 
@@ -21,32 +21,33 @@ buforowania systemu kompilacji.
 <!-- -->
 :::
 
-Jeśli nie masz jeszcze konta Tuist i projektu, możesz je utworzyć, uruchamiając:
+Jeśli nie masz jeszcze konta i projektu w Tuist, możesz je utworzyć,
+uruchamiając:
 
 ```bash
 tuist init
 ```
 
-Po utworzeniu pliku `Tuist.swift` odwołującego się do `fullHandle`, możesz
+Gdy już masz plik `Tuist.swift` odwołujący się do `fullHandle`, możesz
 skonfigurować buforowanie dla swojego projektu, uruchamiając:
 
 ```bash
 tuist setup cache
 ```
 
-To polecenie tworzy
+To polecenie tworzy plik
 [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)
-w celu uruchomienia lokalnej usługi pamięci podręcznej podczas startu, której
-system kompilacji Swift [build system](https://github.com/swiftlang/swift-build)
-używa do udostępniania artefaktów kompilacji. Polecenie to należy uruchomić
-jednokrotnie zarówno w środowisku lokalnym, jak i CI.
+w celu uruchomienia lokalnej usługi pamięci podręcznej podczas startu systemu, z
+której korzysta [system kompilacji](https://github.com/swiftlang/swift-build)
+Swift do udostępniania artefaktów kompilacji. Polecenie to należy uruchomić
+jednokrotnie zarówno w środowisku lokalnym, jak i w środowisku CI.
 
 Aby skonfigurować pamięć podręczną w CI, upewnij się, że jesteś
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">uwierzytelniony</LocalizedLink>.
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">autoryzowany</LocalizedLink>.
 
-### Skonfiguruj ustawienia kompilacji Xcode {#configure-xcode-build-settings}
+### Skonfiguruj ustawienia kompilacji w Xcode {#configure-xcode-build-settings}
 
-Dodaj następujące ustawienia kompilacji do projektu Xcode:
+Dodaj następujące ustawienia kompilacji do swojego projektu Xcode:
 
 ```
 COMPILATION_CACHE_ENABLE_CACHING = YES
@@ -56,20 +57,20 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
 Należy pamiętać, że `COMPILATION_CACHE_REMOTE_SERVICE_PATH` oraz
-`COMPILATION_CACHE_ENABLE_PLUGIN` muszą zostać dodane jako **ustawienia
-kompilacji zdefiniowane przez użytkownika**, ponieważ nie są one bezpośrednio
-widoczne w interfejsie użytkownika ustawień kompilacji Xcode:
+`COMPILATION_CACHE_ENABLE_PLUGIN` należy dodać jako **ustawienia kompilacji
+zdefiniowane przez użytkownika**, ponieważ nie są one bezpośrednio widoczne w
+interfejsie użytkownika ustawień kompilacji Xcode:
 
 ::: info SOCKET PATH
 <!-- -->
-Ścieżka gniazda zostanie wyświetlona po uruchomieniu polecenia `tuist setup
-cache`. Jest ona oparta na pełnym uchwycie projektu, w którym ukośniki zostały
-zastąpione znakami podkreślenia.
+Ścieżka gniazda zostanie wyświetlona po uruchomieniu polecenia ` `tuist setup
+cache``. Jest ona oparta na pełnym identyfikatorze projektu, w którym ukośniki
+zostały zastąpione znakami podkreślenia.
 <!-- -->
 :::
 
-Możesz również określić te ustawienia podczas uruchamiania `xcodebuild`, dodając
-następujące flagi, takie jak:
+Możesz również określić te ustawienia podczas uruchamiania polecenia `
+`xcodebuild` `, dodając następujące flagi, na przykład:
 
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
@@ -81,7 +82,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ::: info GENERATED PROJECTS
 <!-- -->
-Ręczne ustawianie parametrów nie jest konieczne, jeśli projekt został
+Ręczne konfigurowanie ustawień nie jest konieczne, jeśli projekt został
 wygenerowany przez Tuist.
 
 W takim przypadku wystarczy dodać `enableCaching: true` do pliku `Tuist.swift`:
@@ -105,10 +106,10 @@ let tuist = Tuist(
 Aby włączyć buforowanie w środowisku CI, należy uruchomić to samo polecenie, co
 w środowiskach lokalnych: `tuist setup cache`.
 
-W celu uwierzytelnienia można użyć
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">uwierzytelnienia
+Do uwierzytelniania można użyć
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">uwierzytelniania
 OIDC</LocalizedLink> (zalecane dla obsługiwanych dostawców CI) lub
-<LocalizedLink href="/guides/server/authentication#account-tokens">tokenu
+<LocalizedLink href="/guides/server/authentication#account-tokens">tokena
 konta</LocalizedLink> poprzez zmienną środowiskową `TUIST_TOKEN`.
 
 Przykładowy przebieg pracy dla GitHub Actions z wykorzystaniem uwierzytelniania
@@ -131,7 +132,7 @@ jobs:
       - # Your build steps
 ```
 
-Więcej przykładów, w tym uwierzytelnianie oparte na tokenach i inne platformy
-CI, takie jak Xcode Cloud, CircleCI, Bitrise i Codemagic, można znaleźć w
+Więcej przykładów, w tym uwierzytelnianie oparte na tokenach oraz inne platformy
+CI, takie jak Xcode Cloud, CircleCI, Bitrise i Codemagic, znajdziesz w
 <LocalizedLink href="/guides/integrations/continuous-integration">przewodniku po
 ciągłej integracji</LocalizedLink>.
