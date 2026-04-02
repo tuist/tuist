@@ -56,6 +56,39 @@ struct AppleArchiverTests {
         #expect(content == "target content")
     }
 
+    @Test(.inTemporaryDirectory) func compress_and_decompress_handles_symlinked_sibling_directories() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let sourceDir = temporaryDirectory.appending(component: "source")
+        let supportDir = sourceDir.appending(component: "Support")
+        let testsDir = sourceDir.appending(component: "Tests")
+        try await fileSystem.makeDirectory(at: supportDir)
+        try await fileSystem.makeDirectory(at: testsDir)
+        try await fileSystem.writeText("xctestrun", at: supportDir.appending(component: "QontoCI.xctestrun"))
+        try await fileSystem.createSymbolicLink(
+            from: testsDir.appending(component: "SupportLink"),
+            to: try RelativePath(validating: "../Support")
+        )
+
+        let archivePath = temporaryDirectory.appending(component: "archive.aar")
+        try await subject.compress(directory: sourceDir, to: archivePath, excludePatterns: [])
+
+        let extractDir = temporaryDirectory.appending(component: "extracted")
+        try await fileSystem.makeDirectory(at: extractDir)
+        try await subject.decompress(archive: archivePath, to: extractDir)
+
+        let content = try await fileSystem.readTextFile(
+            at: extractDir.appending(components: ["Support", "QontoCI.xctestrun"])
+        )
+        #expect(content == "xctestrun")
+
+        let resolvedLink = try await fileSystem.resolveSymbolicLink(
+            extractDir.appending(components: ["Tests", "SupportLink"])
+        )
+        #expect(resolvedLink == extractDir.appending(component: "Support"))
+    }
+
     @Test(.inTemporaryDirectory) func compress_and_decompress_preserves_directory_structure() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
