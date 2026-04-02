@@ -435,7 +435,7 @@ defmodule Cache.KeyValueReplicationPollerTest do
   end
 
   @tag capture_log: true
-  test "crashes on repeated post-commit invalidation failures and eventually clears stale cache entries" do
+  test "survives post-commit invalidation failures and eventually clears stale cache entries" do
     capture_log(fn ->
       parent = self()
       :ok = KeyValueEntries.put_distributed_watermark(~U[1970-01-01 00:00:00Z], "")
@@ -491,27 +491,18 @@ defmodule Cache.KeyValueReplicationPollerTest do
       end)
 
       pid_1 = start_supervised!(KeyValueReplicationPoller)
-      ref_1 = Process.monitor(pid_1)
 
       assert_receive {:cache_del_failed, 1, ^pid_1}, 10_000
-      assert_receive {:DOWN, ^ref_1, :process, ^pid_1, _reason}, 10_000
+      assert_receive {:cache_del_failed, 2, ^pid_1}, 10_000
+      assert_receive {:cache_del_succeeded, 3, ^pid_1}, 10_000
 
-      assert_receive {:cache_del_failed, 2, pid_2}, 10_000
-      refute pid_2 == pid_1
-
-      assert_eventually(fn -> not Process.alive?(pid_2) end)
-
-      assert_receive {:cache_del_succeeded, 3, pid_3}, 10_000
-      refute pid_3 in [pid_1, pid_2]
-
-      assert_eventually(fn -> Process.whereis(KeyValueReplicationPoller) == pid_3 end)
+      assert Process.alive?(pid_1)
 
       assert_eventually(fn ->
         match?(%{watermark_updated_at: ^updated_at, watermark_key: ^row_key}, KeyValueEntries.distributed_watermark())
       end)
 
       assert {:ok, nil} = Cachex.get(:cache_keyvalue_store, row_key)
-      assert Process.alive?(pid_3)
 
       record = KeyValueRepo.get_by!(KeyValueEntry, key: row_key)
       assert Jason.decode!(record.json_payload)["entries"] == [%{"value" => "artifact"}]

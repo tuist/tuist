@@ -155,7 +155,7 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
 
       expect(Cleanup, :put_local_applied_generation, fn ^account_handle, ^project_handle, 1 ->
-        raise "local state write failed"
+        raise %DBConnection.ConnectionError{message: "local state write failed"}
       end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}

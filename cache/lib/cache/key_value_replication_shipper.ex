@@ -37,22 +37,50 @@ defmodule Cache.KeyValueReplicationShipper do
     GenServer.call(__MODULE__, :flush, :infinity)
   end
 
+  @max_backoff_ms 30_000
+  @base_backoff_ms 1_000
+
   @impl true
   def init(_opts) do
     schedule_flush(0)
-    {:ok, %{}}
+    {:ok, %{consecutive_errors: 0}}
   end
 
   @impl true
   def handle_call(:flush, _from, state) do
-    {:reply, flush_pending_rows(), state}
+    {result, new_state} = safe_flush(state)
+    {:reply, result, new_state}
   end
 
   @impl true
   def handle_info(:flush, state) do
-    _ = flush_pending_rows()
-    schedule_flush(Config.distributed_kv_ship_interval_ms())
-    {:noreply, state}
+    {_result, new_state} = safe_flush(state)
+
+    delay =
+      if new_state.consecutive_errors > 0 do
+        min(@base_backoff_ms * Integer.pow(2, min(new_state.consecutive_errors - 1, 14)), @max_backoff_ms)
+      else
+        Config.distributed_kv_ship_interval_ms()
+      end
+
+    schedule_flush(delay)
+    {:noreply, new_state}
+  end
+
+  defp safe_flush(state) do
+    flush_pending_rows()
+    {:ok, %{state | consecutive_errors: 0}}
+  rescue
+    error ->
+      Logger.error("Replication shipper flush failed: #{Exception.message(error)}")
+
+      :telemetry.execute(
+        @telemetry_event,
+        %{duration_ms: 0, batch_size: 0},
+        %{status: :error}
+      )
+
+      {{:error, error}, %{state | consecutive_errors: state.consecutive_errors + 1}}
   end
 
   defp flush_pending_rows do

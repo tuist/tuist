@@ -323,10 +323,17 @@ defmodule Cache.S3 do
   defp delete_objects_in_chunk_if_before(bucket, objects, cutoff) do
     keys_to_delete =
       objects
-      |> Enum.filter(fn {_key, last_modified_iso} ->
+      |> Enum.filter(fn {key, last_modified_iso} ->
         case parse_iso8601_datetime(last_modified_iso) do
-          {:ok, last_modified} -> DateTime.before?(last_modified, cutoff)
-          :error -> false
+          {:ok, last_modified} ->
+            DateTime.before?(last_modified, cutoff)
+
+          :error ->
+            Logger.warning(
+              "Skipping S3 object with unparseable last_modified: key=#{key} value=#{inspect(last_modified_iso)}"
+            )
+
+            false
         end
       end)
       |> Enum.map(fn {key, _} -> key end)

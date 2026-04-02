@@ -29,14 +29,20 @@ defmodule Cache.KeyValueAccessTracker do
   def allow_access_bump?(key) when is_binary(key) do
     now_ms = System.monotonic_time(:millisecond)
     throttle_ms = Config.distributed_kv_access_throttle_ms()
+    ets_key = {:throttle, key}
 
-    case :ets.lookup(@table, {:throttle, key}) do
-      [{{:throttle, ^key}, last_ms}] when now_ms - last_ms < throttle_ms ->
-        false
+    replaced =
+      :ets.select_replace(@table, [
+        {
+          {ets_key, :"$1"},
+          [{:>=, {:-, now_ms, :"$1"}, throttle_ms}],
+          [{:const, {ets_key, now_ms}}]
+        }
+      ])
 
-      _ ->
-        :ets.insert(@table, {{:throttle, key}, now_ms})
-        true
+    case replaced do
+      1 -> true
+      0 -> :ets.insert_new(@table, {ets_key, now_ms})
     end
   end
 

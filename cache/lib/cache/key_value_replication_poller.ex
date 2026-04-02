@@ -13,6 +13,8 @@ defmodule Cache.KeyValueReplicationPoller do
   alias Cache.KeyValueEntries
   alias Cache.KeyValueStore
 
+  require Logger
+
   @completion_event [:cache, :kv, :replication, :poll, :complete]
   @lag_event [:cache, :kv, :replication, :poll, :lag_ms]
   @local_store_event [:cache, :kv, :replication, :local_store, :size_bytes]
@@ -21,6 +23,8 @@ defmodule Cache.KeyValueReplicationPoller do
   @bootstrap_page_size 500
   @max_poll_run_ms 10_000
   @local_store_emit_interval_ms to_timeout(minute: 10)
+  @max_backoff_ms 30_000
+  @base_backoff_ms 1_000
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -33,20 +37,44 @@ defmodule Cache.KeyValueReplicationPoller do
   @impl true
   def init(_opts) do
     schedule_poll(0)
-    {:ok, %{last_local_store_size_emitted_at_ms: nil}}
+    {:ok, %{last_local_store_size_emitted_at_ms: nil, consecutive_errors: 0}}
   end
 
   @impl true
   def handle_call(:poll, _from, state) do
-    {result, new_state} = poll_once(state)
+    {result, new_state} = safe_poll(state)
     {:reply, result, new_state}
   end
 
   @impl true
   def handle_info(:poll, state) do
-    {_result, new_state} = poll_once(state)
-    schedule_poll(Config.distributed_kv_sync_interval_ms())
+    {_result, new_state} = safe_poll(state)
+
+    delay =
+      if new_state.consecutive_errors > 0 do
+        min(@base_backoff_ms * Integer.pow(2, min(new_state.consecutive_errors - 1, 14)), @max_backoff_ms)
+      else
+        Config.distributed_kv_sync_interval_ms()
+      end
+
+    schedule_poll(delay)
     {:noreply, new_state}
+  end
+
+  defp safe_poll(state) do
+    {result, new_state} = poll_once(state)
+    {result, %{new_state | consecutive_errors: 0}}
+  rescue
+    error ->
+      Logger.error("Replication poller poll failed: #{Exception.message(error)}")
+
+      :telemetry.execute(
+        @completion_event,
+        %{duration_ms: 0, rows_materialized: 0, rows_deleted: 0},
+        %{status: :error}
+      )
+
+      {{:error, error}, %{state | consecutive_errors: state.consecutive_errors + 1}}
   end
 
   defp poll_once(state) do
@@ -112,7 +140,7 @@ defmodule Cache.KeyValueReplicationPoller do
              {processed_acc + result.processed_count, materialized_acc + alive_row_count(chunk),
               deleted_acc + result.deleted_count}}
 
-          {:error, :busy} ->
+          {:error, _reason} ->
             {:halt, {processed_acc, materialized_acc, deleted_acc}}
         end
       end)
@@ -265,7 +293,8 @@ defmodule Cache.KeyValueReplicationPoller do
           {:halt, :busy}
 
         {:error, reason} ->
-          raise "unexpected bootstrap apply error: #{inspect(reason)}"
+          Logger.error("Unexpected bootstrap apply error: #{inspect(reason)}")
+          {:halt, :error}
       end
     end)
   end
@@ -282,7 +311,8 @@ defmodule Cache.KeyValueReplicationPoller do
         {:error, :busy}
 
       {:error, reason} ->
-        raise "unexpected remote batch apply error: #{inspect(reason)}"
+        Logger.error("Unexpected remote batch apply error: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 

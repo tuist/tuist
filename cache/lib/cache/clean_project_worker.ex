@@ -27,27 +27,31 @@ defmodule Cache.CleanProjectWorker do
       perform_distributed_cleanup(account_handle, project_handle, attempt)
     else
       perform_local_cleanup(account_handle, project_handle)
-      :ok
     end
   end
 
   defp perform_local_cleanup(account_handle, project_handle) do
     :ok = delete_project_kv_entries(account_handle, project_handle, DateTime.utc_now(), fn -> :ok end)
 
-    case Disk.delete_project(account_handle, project_handle) do
-      :ok ->
-        :ok = CacheArtifacts.delete_by_project(account_handle, project_handle)
-        Logger.info("Cleaned disk cache for project #{account_handle}/#{project_handle}")
+    disk_result =
+      case Disk.delete_project(account_handle, project_handle) do
+        :ok ->
+          :ok = CacheArtifacts.delete_by_project(account_handle, project_handle)
+          Logger.info("Cleaned disk cache for project #{account_handle}/#{project_handle}")
+          :ok
 
-      {:error, reason} ->
-        Logger.error("Failed to clean disk cache for project #{account_handle}/#{project_handle}: #{inspect(reason)}")
-    end
+        {:error, reason} = error ->
+          Logger.error("Failed to clean disk cache for project #{account_handle}/#{project_handle}: #{inspect(reason)}")
+
+          error
+      end
 
     if Config.xcode_cache_bucket() do
       delete_s3_artifacts(account_handle, project_handle, :xcode_cache, "xcode cache")
     end
 
     delete_s3_artifacts(account_handle, project_handle, :cache, "cache")
+    disk_result
   end
 
   defp perform_distributed_cleanup(account_handle, project_handle, attempt) do
@@ -196,7 +200,7 @@ defmodule Cache.CleanProjectWorker do
   defp put_local_applied_generation_after_publish(account_handle, project_handle, generation) do
     Cleanup.put_local_applied_generation(account_handle, project_handle, generation)
   rescue
-    error in [Exqlite.Error, Ecto.StaleEntryError, DBConnection.ConnectionError, RuntimeError] ->
+    error in [Exqlite.Error, Ecto.StaleEntryError, DBConnection.ConnectionError] ->
       Logger.warning(
         "Distributed cleanup was already published for #{account_handle}/#{project_handle}, " <>
           "but persisting the local applied generation failed: #{inspect(error)}"
