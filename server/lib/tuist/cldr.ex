@@ -5,7 +5,7 @@ defmodule Tuist.Cldr do
     default_locale: "en",
     data_dir: Path.expand("../../_build/cldr", __DIR__),
     gettext: TuistWeb.Gettext,
-    locales: ["ar", "en", "es", "ja", "ko", "pl", "pt", "ru", "tr", "yue-Hant", "zh-Hans", "zh-Hant"],
+    locales: ["ar", "en", "es", "ja", "ko", "ru", "yue-Hant", "zh-Hans", "zh-Hant"],
     precompile_number_formats: ["#,##0"],
     providers: [Cldr.Number]
 end
