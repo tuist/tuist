@@ -55,8 +55,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   end
 
   defp process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
-    with true <- function_exported?(Processor.BuildProcessor, :process_build, 2),
-         {:ok, account} <- Accounts.get_account_by_id(account_id) do
+    with {:ok, account} <- Accounts.get_account_by_id(account_id) do
       temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}.zip")
 
       try do
@@ -70,13 +69,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       after
         File.rm(temp_path)
       end
-    else
-      false ->
-        Logger.error("Embedded build processor is not available for build #{build_id}")
-        {:error, :embedded_build_processor_not_available}
-
-      {:error, _} = error ->
-        error
     end
   end
 
