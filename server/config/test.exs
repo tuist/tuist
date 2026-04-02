@@ -27,7 +27,6 @@ config :sentry, dsn: nil
 
 # Oban
 config :tuist, Oban, testing: :manual
-config :tuist, Tuist.Tasks, sync: true
 
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
@@ -66,6 +65,8 @@ config :tuist, Tuist.Repo,
   pool_size: System.schedulers_online() * 2,
   queue_target: 5000,
   queue_interval: 1000
+
+config :tuist, Tuist.Tasks, sync: true
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.

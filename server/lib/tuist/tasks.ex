@@ -24,7 +24,8 @@ defmodule Tuist.Tasks do
   end
 
   defp sync? do
-    Application.get_env(:tuist, __MODULE__, [])
+    :tuist
+    |> Application.get_env(__MODULE__, [])
     |> Keyword.get(:sync, false)
   end
 end
