@@ -32,10 +32,14 @@ enum CacheVersion: String, Equatable, Hashable {
     /// Reverted static framework resource embedding (resources go back into separate .bundle targets).
     /// Existing caches from the embedding approach must be invalidated.
     case version5 = "5"
+
+    /// Cached xcframework slices now embed Metadata.appintents for App Intents frameworks.
+    /// Existing caches without that metadata must be invalidated.
+    case version6 = "6"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version5
+        .version6
     }
 }
