@@ -63,14 +63,25 @@ defmodule TuistWeb.Locale do
   defp exact_supported_locale(locale) do
     candidate =
       case String.split(locale, "-", trim: true) do
-        [language, script | _] when String.match?(script, ~r/^[A-Za-z]{4}$/) ->
-          "#{String.downcase(language)}_#{normalize_script(script)}"
+        [] ->
+          nil
+
+        [language, script | _] ->
+          if script_locale?(script) do
+            "#{String.downcase(language)}_#{normalize_script(script)}"
+          else
+            String.downcase(language)
+          end
 
         [language | _] ->
           String.downcase(language)
       end
 
     if candidate in supported_locales(), do: candidate
+  end
+
+  defp script_locale?(script) do
+    String.length(script) == 4 and String.match?(script, ~r/^[A-Za-z]+$/)
   end
 
   defp normalize_script(nil), do: nil

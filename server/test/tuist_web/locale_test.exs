@@ -26,11 +26,20 @@ defmodule TuistWeb.LocaleTest do
       assert Locale.normalize_locale("fr-FR") == nil
       assert Locale.normalize_locale("pt-BR") == nil
     end
+
+    test "returns nil for malformed separator-only locales" do
+      assert Locale.normalize_locale("-") == nil
+      assert Locale.normalize_locale("_") == nil
+    end
   end
 
   describe "locale_from_accept_language/1" do
     test "returns the first supported locale from the browser preference list" do
       assert Locale.locale_from_accept_language("fr-FR,zh-CN;q=0.8,es-ES;q=0.7") == "zh_Hans"
+    end
+
+    test "skips malformed tokens and keeps searching" do
+      assert Locale.locale_from_accept_language("-,_,es-ES;q=0.7") == "es"
     end
   end
 
