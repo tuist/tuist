@@ -27,6 +27,7 @@ config :sentry, dsn: nil
 
 # Oban
 config :tuist, Oban, testing: :manual
+config :tuist, Tuist.Tasks, sync: true
 
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
