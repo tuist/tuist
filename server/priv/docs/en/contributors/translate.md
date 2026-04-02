@@ -1,15 +1,15 @@
 ---
 {
-  "title": "Translate",
+  "title": "Languages",
   "titleTemplate": ":title · Contributors · Tuist",
-  "description": "Help translate Tuist documentation into other languages."
+  "description": "Help Tuist support new languages and improve its localization context."
 }
 ---
-# Translate {#translate}
+# Languages {#translate}
 
-Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist.
+Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist does not support yet, you can help Tuist speak that language by improving the English source and the localization context that drives our translation pipeline.
 
-Since maintaining translations is a continuous effort, we add languages as we see contributors willing to help us maintain them. The following languages are currently supported:
+Since language support is a continuous effort, we add languages as we see contributors willing to help us maintain them. The following languages are currently supported:
 
 - English
 - Spanish
@@ -26,9 +26,9 @@ Since maintaining translations is a continuous effort, we add languages as we se
 > If you believe Tuist would benefit from supporting a new language, please create a new [topic in the community forum](https://community.tuist.io/c/general/4) to discuss it with the community.
 
 
-## How to translate {#how-to-translate}
+## How to help {#how-to-translate}
 
-Tuist translations are driven from the repository. Contributors update the English source and the translation context, and our translation pipeline produces the localized files automatically.
+Tuist language support is driven from the repository. Contributors update the English source and the translation context, and our translation pipeline produces the localized files automatically.
 
 The workflow is:
 
@@ -45,7 +45,7 @@ The workflow is:
 
 ## L10N.md structure {#l10n-md-structure}
 
-`L10N.md` files define the context that is sent to the translation model. The easiest way to think about them is as scoped translation instructions that can live at different directory levels.
+`L10N.md` files define the context that is sent to the translation model. The easiest way to think about them is as scoped language instructions that can live at different directory levels.
 
 For example:
 
@@ -91,20 +91,20 @@ It runs when relevant translation inputs change on `main`, including:
 - files under `server/L10N/`
 - server `.pot` files under `server/priv/gettext/`
 
-The workflow runs `elixir translate.exs --model "openai:gpt-4.1-mini"` and generates updated `.po` files. It also updates `.l10n` lock files, which record the source file hash and the full `L10N.md` context tree used for each translation.
+The workflow runs `elixir translate.exs --model "openai:gpt-4.1-mini"` and generates updated `.po` files. It also updates `.l10n` lock files, which record the source file hash and the full `L10N.md` context tree used for each generated translation.
 
 Those lock files are important because they allow the pipeline to detect when a translation is stale not only because the source string changed, but also because the translation context changed. For example, updating `server/L10N.md` or `server/L10N/es.md` can trigger a re-translation even if the `.pot` file itself did not change.
 
-In practice, if you want to improve translation quality, you should often update the relevant `L10N.md` file rather than editing generated translations by hand.
+In practice, if you want to improve how Tuist speaks a language, you should often update the relevant `L10N.md` file rather than editing generated translations by hand.
 
 
 ## Guidelines {#guidelines}
 
-The following are the guidelines we follow when translating.
+The following are the guidelines we follow when improving language support.
 
 ### Custom containers and GitHub alerts {#custom-containers-and-github-alerts}
 
-When translating [custom containers](https://vitepress.dev/guide/markdown#custom-containers) only translate the title and the content **but not the type of alert**.
+When adapting [custom containers](https://vitepress.dev/guide/markdown#custom-containers) for a new language, only translate the title and the content **but not the type of alert**.
 
 ```markdown
 <!-- -->
@@ -117,7 +117,7 @@ When translating [custom containers](https://vitepress.dev/guide/markdown#custom
 
 ### Heading titles {#heading-titles}
 
-When translating headings, only translate the title but not the id. For example, when translating the following heading:
+When adapting headings, only translate the title but not the id. For example, when working from the following heading:
 
 ```markdown
 # Add dependencies {#add-dependencies}

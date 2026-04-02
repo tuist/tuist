@@ -402,7 +402,7 @@ defmodule Tuist.Docs.Sidebar do
           %Item{label: "Code reviews", slug: "/en/contributors/code-reviews"},
           %Item{label: "Principles", slug: "/en/contributors/principles"},
           %Item{label: "Debugging", slug: "/en/contributors/debugging"},
-          %Item{label: "Translate", slug: "/en/contributors/translate"},
+          %Item{label: "Languages", slug: "/en/contributors/translate"},
           %Item{label: "Releases", slug: "/en/contributors/releases"},
           %Item{
             label: "CLI",
