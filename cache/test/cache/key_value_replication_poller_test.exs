@@ -208,6 +208,60 @@ defmodule Cache.KeyValueReplicationPollerTest do
     assert_receive :poll_query_seen, 10_000
   end
 
+  test "advances the watermark when an entire fetched page is filtered by published cleanup barriers" do
+    parent = self()
+
+    {:ok, watermark_agent} =
+      Agent.start_link(fn -> %{watermark_updated_at: ~U[1970-01-01 00:00:00Z], watermark_key: ""} end)
+
+    {:ok, calls_agent} = Agent.start_link(fn -> 0 end)
+
+    base_time = DateTime.add(DateTime.utc_now(), -120, :second)
+
+    row = %Entry{
+      key: "keyvalue:acme:ios:filtered",
+      account_handle: "acme",
+      project_handle: "ios",
+      cas_id: "filtered",
+      json_payload: Jason.encode!(%{entries: []}),
+      source_node: "node-a",
+      source_updated_at: base_time,
+      last_accessed_at: base_time,
+      updated_at: base_time,
+      deleted_at: nil
+    }
+
+    row_key = row.key
+    row_updated_at = row.updated_at
+
+    stub(KeyValueEntries, :distributed_watermark, fn -> Agent.get(watermark_agent, & &1) end)
+    stub(KeyValueEntries, :estimated_size_bytes, fn -> 0 end)
+
+    stub(Cleanup, :published_cleanup_barriers_for_projects, fn _scope_pairs ->
+      %{{"acme", "ios"} => row.source_updated_at}
+    end)
+
+    stub(KeyValueEntries, :put_distributed_watermark, fn updated_at, key ->
+      Agent.update(watermark_agent, fn _ -> %{watermark_updated_at: updated_at, watermark_key: key} end)
+      send(parent, {:watermark_advanced, key})
+      :ok
+    end)
+
+    stub(Repo, :all, fn _query, _opts ->
+      Agent.get_and_update(calls_agent, fn count ->
+        next_count = count + 1
+        result = if next_count == 1, do: [row], else: []
+        {result, next_count}
+      end)
+    end)
+
+    start_supervised!(KeyValueReplicationPoller)
+
+    assert_receive {:watermark_advanced, ^row_key}, 10_000
+    assert %{watermark_updated_at: ^row_updated_at, watermark_key: ^row_key} = Agent.get(watermark_agent, & &1)
+    assert Agent.get(calls_agent, & &1) == 1
+  end
+
   test "throttles local store size measurement across repeated polls" do
     parent = self()
 
