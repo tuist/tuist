@@ -62,7 +62,9 @@ defmodule TuistWeb.Marketing.MarketingCustomersLive do
       |> assign(:total_pages, total_pages)
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(path: "/marketing/images/og/customers.jpg")
+        Tuist.Environment.app_url(
+          path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/customers.jpg")
+        )
       )
       |> assign(:head_title, dgettext("marketing", "Customers"))
       |> assign(:head_include_case_studies_rss_and_atom, true)

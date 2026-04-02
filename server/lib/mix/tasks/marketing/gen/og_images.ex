@@ -7,6 +7,7 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
   use Gettext, backend: TuistWeb.Gettext
 
   alias Tuist.Marketing.Changelog.OgImage, as: ChangelogOgImage
+  alias Tuist.Marketing.OgImages
   alias Tuist.Marketing.OpenGraph
 
   # Available locales for OG image generation
@@ -14,19 +15,48 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
 
   @pool Tuist.Marketing.OgImagePool
 
+  # Marketing pages that get Carta-based OG images with localized titles.
+  # Each entry is {filename, gettext_title, opts} where opts may include :icon_path_suffix.
+  @carta_pages [
+    {"about", "About Tuist", [icon_path_suffix: "static/marketing/images/about/logo.webp"]},
+    {"pricing", "Pricing", []},
+    {"blog", "Blog", []},
+    {"changelog", "Changelog", []},
+    {"tuist-digest", "Tuist Digest Newsletter", []},
+    {"support", "Support", []},
+    {"customers", "Customers", []},
+    {"cache", "Cache", []},
+    {"build-insights", "Build Insights", []},
+    {"previews", "Previews", []},
+    {"selective-testing", "Selective Testing", []},
+    {"flaky-tests", "Flaky Tests", []},
+    {"test-insights", "Test Insights", []}
+  ]
+
   def run(_args) do
     ensure_dependencies_started()
+
+    pool_size = max(System.schedulers_online(), 4)
+    {:ok, _} = Browse.start_link(@pool, implementation: BrowseChrome.Browser, pool_size: pool_size)
 
     og_images_directory =
       :tuist |> Application.app_dir("priv") |> Path.join("static/marketing/images/og/generated")
 
-    # Newsletter, blog posts, and changelog are English-only, so no localization needed
+    # Newsletter issues and blog posts are English-only
     generate_newsletter_og_images(og_images_directory)
     generate_posts_og_images(og_images_directory)
+
+    # Changelog entries use their own Carta template (English-only)
     generate_changelog_og_images(og_images_directory)
 
-    # Pages need to be generated for all locales
-    generate_pages_og_images(og_images_directory)
+    # Dynamic pages from markdown (terms, privacy, cookies, etc.)
+    generate_dynamic_pages_og_images(og_images_directory)
+
+    # Carta-based OG images for all static marketing pages, localized
+    generate_marketing_page_og_images(og_images_directory)
+
+    # Home page uses a special layout with phone mockup
+    generate_home_og_images(og_images_directory)
   end
 
   defp ensure_dependencies_started do
@@ -43,49 +73,132 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     end)
   end
 
-  defp generate_pages_og_images(og_images_directory) do
+  defp generate_dynamic_pages_og_images(og_images_directory) do
     dynamic_pages = Tuist.Marketing.Pages.get_pages()
 
-    # Generate OG images for all locales
     for locale <- @locales do
-      # Set the locale for gettext
       Gettext.put_locale(TuistWeb.Gettext, locale)
 
-      # Generate images for dynamic pages (these use the page title from markdown)
       Enum.each(dynamic_pages, fn page ->
-        OpenGraph.generate_og_image(
+        filename = page.slug |> String.split("/") |> List.last()
+
+        render_carta_page(
+          og_images_directory,
+          filename,
           page.title,
-          Path.join(og_images_directory, "#{page.slug |> String.split("/") |> List.last()}.jpg"),
-          locale
+          locale,
+          nil
         )
       end)
+    end
+  end
 
-      # Generate images for static pages with localized titles
-      OpenGraph.generate_og_image(
-        dgettext("marketing", "About us"),
-        Path.join(og_images_directory, "about.jpg"),
-        locale
-      )
+  defp generate_marketing_page_og_images(og_images_directory) do
+    priv_dir = Application.app_dir(:tuist, "priv")
 
-      OpenGraph.generate_og_image(
-        dgettext("marketing", "Tuist Digest Newsletter"),
-        Path.join(og_images_directory, "tuist-digest.jpg"),
-        locale
-      )
+    IO.puts("Generating Carta-based OG images for #{length(@carta_pages)} pages x #{length(@locales)} locales...")
 
-      OpenGraph.generate_og_image(
-        dgettext("marketing", "Support"),
-        Path.join(og_images_directory, "support.jpg"),
-        locale
-      )
+    for locale <- @locales do
+      Gettext.put_locale(TuistWeb.Gettext, locale)
+
+      Enum.each(@carta_pages, fn {filename, title_msgid, opts} ->
+        icon_path =
+          case Keyword.get(opts, :icon_path_suffix) do
+            nil -> nil
+            suffix -> Path.join(priv_dir, suffix)
+          end
+
+        render_carta_page(
+          og_images_directory,
+          filename,
+          Gettext.dgettext(TuistWeb.Gettext, "marketing", title_msgid),
+          locale,
+          icon_path
+        )
+      end)
+    end
+  end
+
+  defp render_carta_page(og_images_directory, filename, title, locale, icon_path) do
+    priv_dir = Application.app_dir(:tuist, "priv")
+    fonts_dir = Path.join(priv_dir, "static/fonts")
+    logo_path = Path.join(priv_dir, "docs/images/logo.webp")
+
+    image_path =
+      if locale == "en" do
+        Path.join(og_images_directory, "#{filename}.jpg")
+      else
+        Path.join(og_images_directory, "#{locale}/#{filename}.jpg")
+      end
+
+    File.mkdir_p!(Path.dirname(image_path))
+
+    html_opts = [
+      title: title,
+      fonts_dir: fonts_dir,
+      logo_path: logo_path
+    ]
+
+    html_opts = if icon_path, do: Keyword.put(html_opts, :icon_path, icon_path), else: html_opts
+
+    html = OgImages.render_html(html_opts)
+
+    case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
+      {:ok, jpeg_binary} ->
+        File.write!(image_path, jpeg_binary)
+        IO.puts("  Generated: #{Path.relative_to(image_path, File.cwd!())}")
+
+      {:error, reason} ->
+        IO.warn("Failed to generate OG image for #{filename} (#{locale}): #{inspect(reason)}")
+    end
+  end
+
+  defp generate_home_og_images(og_images_directory) do
+    priv_dir = Application.app_dir(:tuist, "priv")
+    fonts_dir = Path.join(priv_dir, "static/fonts")
+    logo_path = Path.join(priv_dir, "docs/images/logo.webp")
+    phone_path = Path.join(priv_dir, "static/marketing/images/og/phone.png")
+
+    IO.puts("Generating Home OG images for #{length(@locales)} locales...")
+
+    for locale <- @locales do
+      Gettext.put_locale(TuistWeb.Gettext, locale)
+
+      title =
+        Gettext.dgettext(TuistWeb.Gettext, "marketing", "Your mobile platform team,") <>
+          " " <> Gettext.dgettext(TuistWeb.Gettext, "marketing", "as a service")
+
+      image_path =
+        if locale == "en" do
+          Path.join(og_images_directory, "home.jpg")
+        else
+          Path.join(og_images_directory, "#{locale}/home.jpg")
+        end
+
+      File.mkdir_p!(Path.dirname(image_path))
+
+      html =
+        OgImages.render_home_html(
+          title: title,
+          fonts_dir: fonts_dir,
+          logo_path: logo_path,
+          phone_path: phone_path
+        )
+
+      case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
+        {:ok, jpeg_binary} ->
+          File.write!(image_path, jpeg_binary)
+          IO.puts("  Generated: #{Path.relative_to(image_path, File.cwd!())}")
+
+        {:error, reason} ->
+          IO.warn("Failed to generate Home OG image for #{locale}: #{inspect(reason)}")
+      end
     end
   end
 
   defp generate_changelog_og_images(og_images_directory) do
     entries = Tuist.Marketing.Changelog.get_entries()
     pool_size = max(System.schedulers_online(), 4)
-
-    {:ok, _} = Browse.start_link(@pool, implementation: BrowseChrome.Browser, pool_size: pool_size)
 
     fonts_dir = :tuist |> Application.app_dir("priv") |> Path.join("static/fonts")
     logo_path = :tuist |> Application.app_dir("priv") |> Path.join("docs/images/logo.webp")

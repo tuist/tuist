@@ -24,7 +24,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_title, "Tuist · A virtual platform team for mobile devs who ship")
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
+      Tuist.Environment.app_url(path: og_image_path("/marketing/images/og/generated/home.jpg"))
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:read_more_posts, read_more_posts)
@@ -45,7 +45,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: "/marketing/images/og/home.jpg")
+      Tuist.Environment.app_url(path: og_image_path("/marketing/images/og/generated/home.jpg"))
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:featured_testimonials, get_featured_testimonials(locale))
@@ -626,7 +626,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:plans, plans)
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: "/marketing/images/og/pricing.jpg")
+      Tuist.Environment.app_url(path: og_image_path("/marketing/images/og/generated/pricing.jpg"))
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(get_faq_structured_data(faqs))
@@ -698,21 +698,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     put_resp_header(conn, "server", "Bandit")
   end
 
-  # Builds a locale-specific OG image path. For English, returns the path as-is.
-  # For other locales, inserts the locale before the filename.
-  #
-  # Examples:
-  #   - og_image_path("/marketing/images/og/about.jpg", "en") -> "/marketing/images/og/about.jpg"
-  #   - og_image_path("/marketing/images/og/about.jpg", "ko") -> "/marketing/images/og/ko/about.jpg"
-  defp og_image_path(path, locale \\ nil) do
-    locale = locale || Gettext.get_locale(TuistWeb.Gettext)
-
-    if locale == "en" do
-      path
-    else
-      dirname = Path.dirname(path)
-      basename = Path.basename(path)
-      Path.join([dirname, locale, basename])
-    end
+  defp og_image_path(path, _locale \\ nil) do
+    TuistWeb.Helpers.OpenGraph.marketing_og_image_path(path)
   end
 end
