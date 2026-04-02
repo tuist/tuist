@@ -7,8 +7,8 @@
 ---
 # Xcode önbelleği {#xcode-cache}
 
-Tuist, Xcode derleme önbelleği için destek sağlar. Bu sayede ekipler, derleme
-sisteminin önbellek özelliklerinden yararlanarak derleme çıktılarını
+Tuist, Xcode derleme önbelleği desteği sunar; bu sayede ekipler, derleme
+sisteminin önbellekleme özelliklerinden yararlanarak derleme çıktılarını
 paylaşabilir.
 
 ## Kurulum {#setup}
@@ -21,34 +21,34 @@ paylaşabilir.
 <!-- -->
 :::
 
-Henüz bir Tuist hesabınız ve projeniz yoksa, aşağıdaki komutu çalıştırarak bir
-tane oluşturabilirsiniz:
+Henüz bir Tuist hesabınız ve projeniz yoksa, aşağıdakini çalıştırarak bir tane
+oluşturabilirsiniz:
 
 ```bash
 tuist init
 ```
 
-`Tuist.swift` dosyası ile `fullHandle` dosyasını referansladıktan sonra,
-aşağıdaki komutu çalıştırarak projeniz için önbelleklemeyi ayarlayabilirsiniz:
+`fullHandle` dosyasına referans veren bir `Tuist.swift` dosyanız olduğunda,
+aşağıdakini çalıştırarak projeniz için önbelleklemeyi ayarlayabilirsiniz:
 
 ```bash
 tuist setup cache
 ```
 
-Bu komut, Swift [derleme sistemi](https://github.com/swiftlang/swift-build)
-tarafından derleme artefaktlarını paylaşmak için kullanılan yerel önbellek
-hizmetini başlangıçta çalıştırmak üzere bir
+Bu komut, Swift [derleme sistemi](https://github.com/swiftlang/swift-build)'nin
+derleme çıktılarını paylaşmak için kullandığı yerel önbellek hizmetini
+başlangıçta çalıştırmak üzere bir
 [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)
-oluşturur. Bu komut, hem yerel hem de CI ortamlarınızda bir kez
-çalıştırılmalıdır.
+oluşturur. Bu komutun hem yerel hem de CI ortamlarınızda bir kez çalıştırılması
+gerekir.
 
 CI'da önbelleği ayarlamak için
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">kimlik
-doğrulaması</LocalizedLink> yapıldığından emin olun.
+doğrulamanızın</LocalizedLink> yapıldığından emin olun.
 
 ### Xcode Derleme Ayarlarını Yapılandırın {#configure-xcode-build-settings}
 
-Xcode projenize aşağıdaki yapı ayarlarını ekleyin:
+Xcode projenize aşağıdaki derleme ayarlarını ekleyin:
 
 ```
 COMPILATION_CACHE_ENABLE_CACHING = YES
@@ -57,9 +57,10 @@ COMPILATION_CACHE_ENABLE_PLUGIN = YES
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
-`COMPILATION_CACHE_REMOTE_SERVICE_PATH` ve `COMPILATION_CACHE_ENABLE_PLUGIN`,
-Xcode'un derleme ayarları kullanıcı arayüzünde doğrudan gösterilmediğinden,
-**kullanıcı tanımlı derleme ayarları** olarak eklenmesi gerektiğini unutmayın.
+`, COMPILATION_CACHE_REMOTE_SERVICE_PATH,` ve `,
+COMPILATION_CACHE_ENABLE_PLUGIN,`, Xcode'un derleme ayarları kullanıcı
+arayüzünde doğrudan görünmedikleri için **kullanıcı tanımlı derleme ayarları**
+olarak eklenmeleri gerektiğini unutmayın:
 
 ::: info SOCKET PATH
 <!-- -->
@@ -85,8 +86,8 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 Projeniz Tuist tarafından oluşturulmuşsa, ayarları manuel olarak yapmanız
 gerekmez.
 
-Bu durumda, tek yapmanız gereken `enableCaching: true` dosyasını `Tuist.swift`
-dosyasına eklemektir:
+Bu durumda, tek yapmanız gereken `Tuist.swift` dosyanıza `enableCaching: true`
+eklemektir:
 ```swift
 import ProjectDescription
 
@@ -105,12 +106,12 @@ let tuist = Tuist(
 ### Sürekli entegrasyon #{continuous-integration}
 
 CI ortamınızda önbelleklemeyi etkinleştirmek için, yerel ortamlarda olduğu gibi
-aynı komutu çalıştırmanız gerekir: `tuist setup cache`.
+şu komutu çalıştırmanız gerekir: `tuist setup cache`.
 
-Kimlik doğrulama için
+Kimlik doğrulama için,
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC kimlik
 doğrulama</LocalizedLink> (desteklenen CI sağlayıcıları için önerilir) veya
-`TUIST_TOKEN` ortam değişkeni aracılığıyla
+`TUIST_TOKEN` ortam değişkeni aracılığıyla bir
 <LocalizedLink href="/guides/server/authentication#account-tokens">hesap
 jetonu</LocalizedLink> kullanabilirsiniz.
 
