@@ -110,7 +110,7 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 | `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` | No | `1` | Minimum age a key-value entry must reach before size-based KV eviction can remove it. |
 | `KEY_VALUE_EVICTION_MAX_DURATION_MS` | No | `300000` | Maximum runtime for a single KV eviction pass. |
 | `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES` | No | `24696061952` | Target size after KV eviction finishes, providing hysteresis so the worker does not thrash near the limit. |
-| `KEY_VALUE_READ_BUSY_TIMEOUT_MS` | No | `2000` | SQLite busy-timeout (in milliseconds) for KV read-through requests. If the database is locked longer than this, the read is treated as a cache miss and the value is fetched from S3. |
+| `KEY_VALUE_READ_BUSY_TIMEOUT_MS` | No | `2000` | SQLite busy-timeout (in milliseconds) for KV read-through requests. If the database is locked longer than this, the read is treated as a cache miss and returns not found. |
 | `KEY_VALUE_MAINTENANCE_BUSY_TIMEOUT_MS` | No | `50` | SQLite busy-timeout (in milliseconds) for background maintenance operations (PRAGMA queries, incremental vacuum). A low value prevents maintenance from blocking read traffic. |
 | `PHX_SOCKET_PATH` | No | `/run/cache/cache.sock` | Path where the service creates its Unix socket (when enabled). |
 | `PHX_SOCKET_LINK` | No | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service. |
