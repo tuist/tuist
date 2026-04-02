@@ -50,6 +50,7 @@ public enum Constants {
         public static let sources = "Sources"
         public static let signingKeychain = "signing.keychain"
         public static let dependenciesDerivedDirectory = "tuist-derived"
+        public static let dependenciesProjectDirectory = "Projects"
     }
 
     /// Pass these variables to make custom configuration of tuist
