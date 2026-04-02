@@ -874,7 +874,7 @@ jobs:
         with:
           context: .
           file: ./server/Dockerfile
-          target: runner-selfhosted
+          target: runner
           push: true
           build-args: |
             TUIST_HOSTED=0
