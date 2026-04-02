@@ -8,13 +8,17 @@
           {dgettext("marketing", "Changelog")}
         </.link>
       </nav>
-      <div data-part="meta">
+      <div data-part="category">
         <.tag label={@entry.category} />
+      </div>
+      <h1 data-part="title">{@entry.title}</h1>
+      <div data-part="meta">
         <time>{Timex.format!(@entry.date, "{Mfull} {D}, {YYYY}")}</time>
-        <.button
+        <span :if={not is_nil(@entry.pull_request)} data-part="separator">•</span>
+        <.link_button
           :if={not is_nil(@entry.pull_request)}
           variant="secondary"
-          size="medium"
+          size="large"
           label={"##{@entry.pull_request}"}
           href={"https://github.com/tuist/tuist/pull/#{@entry.pull_request}"}
           target="_blank"
@@ -22,9 +26,8 @@
           <:icon_left>
             <.git_merge />
           </:icon_left>
-        </.button>
+        </.link_button>
       </div>
-      <h1 data-part="title">{@entry.title}</h1>
     </header>
     <section data-part="body" data-prose>
       {raw(@entry.body)}
