@@ -350,7 +350,7 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={Tuist.Authorization.authorize(:project_update, @current_user, @selected_project) == :ok}
-        label={dgettext("dashboard", "Settings")}
+        label={dgettext("dashboard", "Project Settings")}
         icon="settings"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
         selected={

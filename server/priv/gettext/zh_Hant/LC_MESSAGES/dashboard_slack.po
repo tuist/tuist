@@ -1,0 +1,58 @@
+msgid ""
+msgstr ""
+"Language: zh_Hant\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:140
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:231
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:246
+#, elixir-autogen, elixir-format
+msgid "Account not found. Please try again."
+msgstr "找不到帳號。請再試一次。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:148
+#, elixir-autogen, elixir-format
+msgid "Failed to save Slack installation. Please try again."
+msgstr "儲存 Slack 安裝失敗。請再試一次。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:47
+#, elixir-autogen, elixir-format
+msgid "Invalid Slack authorization. Please try again."
+msgstr "Slack 授權無效。請再試一次。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:97
+#, elixir-autogen, elixir-format
+msgid "Invalid authorization request. Please try again."
+msgstr "授權請求無效。請再試一次。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:144
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:162
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:178
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:196
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:210
+#, elixir-autogen, elixir-format
+msgid "Slack authorization failed: %{reason}"
+msgstr "Slack 授權失敗：%{reason}"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:182
+#, elixir-autogen, elixir-format
+msgid "Failed to save channel selection. Please try again."
+msgstr "儲存頻道選擇失敗。請再試一次。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:242
+#, elixir-autogen, elixir-format
+msgid "Project not found. Please try again."
+msgstr "找不到專案。請再試一次。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:174
+#, elixir-autogen, elixir-format
+msgid "Alert rule not found. Please try again."
+msgstr "找不到警示規則。請再試一次。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:89
+#, elixir-autogen, elixir-format
+msgid "Authorization request expired. Please start the Slack connection process again."
+msgstr "授權請求已過期。請重新開始 Slack 連接流程。"

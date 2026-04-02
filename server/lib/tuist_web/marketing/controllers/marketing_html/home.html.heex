@@ -369,7 +369,7 @@
         <p data-part="description">
           {dgettext(
             "marketing",
-            "From code to feedback in minutes. Instant previews close the loop between building and validating."
+            "Instantly generate and share app previews so your team can test changes and give feedback faster."
           )}
         </p>
       </header>
@@ -378,9 +378,11 @@
         <div data-part="feature-block" data-variant="previews">
           <a
             data-part="overlay-link"
-            href={localized_href("/previews")}
+            href={localized_href("https://docs.tuist.dev/guides/features/previews")}
+            target="_blank"
+            rel="noopener noreferrer"
             aria-label={
-              dgettext("marketing", "Open the %{feature} feature page",
+              dgettext("marketing", "Open the %{feature} feature documentation",
                 feature: dgettext("marketing", "Previews")
               )
             }
@@ -412,7 +414,6 @@
         </div>
       </div>
     </section>
-
     <section data-part="other-features" aria-labelledby="other-features-heading">
       <header data-part="sidebar">
         <h2 id="other-features-heading" data-part="title">

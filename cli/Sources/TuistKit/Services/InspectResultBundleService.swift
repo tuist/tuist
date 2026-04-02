@@ -171,8 +171,12 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             throw UploadResultBundleServiceError.missingFullHandle
         }
 
+        // xcodebuild creates result-bundle as a symlink to result-bundle.xcresult,
+        // so we resolve it to ensure the archiver zips the actual directory.
+        let resolvedResultBundlePath = try await fileSystem.resolveSymbolicLink(resultBundlePath)
+
         if !quarantinedTests.isEmpty {
-            try await writeQuarantinedTests(quarantinedTests, to: resultBundlePath)
+            try await writeQuarantinedTests(quarantinedTests, to: resolvedResultBundlePath)
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -186,7 +190,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         let testRunId = UUID().uuidString.lowercased()
 
         try await analyticsArtifactUploadService.uploadResultBundle(
-            resultBundlePath,
+            resolvedResultBundlePath,
             fullHandle: fullHandle,
             commandEventId: testRunId,
             serverURL: serverURL
