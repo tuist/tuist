@@ -1,5 +1,6 @@
 import Mockable
 import Path
+import TuistConstants
 import TuistCore
 import TuistTesting
 import XCTest
@@ -63,6 +64,71 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
             for: .header(
                 publicHeadersPath.appending(components: "Module", "Module.h"),
                 moduleMapPath: packageDirectory.appending(components: "Derived", "Module.modulemap")
+            )
+        )
+    }
+
+    func test_generate_when_external_package() async throws {
+        // Given
+        let packageDirectory = try temporaryPath()
+            .appending(components: ".build", "checkouts", "PackageDir")
+        let publicHeadersPath = packageDirectory.appending(components: "Sources", "Module", "include")
+        try await fileSystem.makeDirectory(at: publicHeadersPath)
+        try await fileSystem.touch(publicHeadersPath.appending(component: "Module.h"))
+
+        // When
+        let got = try await subject.generate(
+            packageDirectory: packageDirectory,
+            moduleName: "Module",
+            publicHeadersPath: publicHeadersPath
+        )
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .header(
+                publicHeadersPath.appending(component: "Module.h"),
+                moduleMapPath: packageDirectory.parentDirectory.parentDirectory.appending(
+                    components: [
+                        Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                        Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
+                        "Module",
+                        "Module.modulemap",
+                    ]
+                )
+            )
+        )
+    }
+
+    func test_generate_when_external_package_and_moduleMapsDirectoryAlreadyExists() async throws {
+        // Given
+        let packageDirectory = try temporaryPath()
+            .appending(components: ".build", "checkouts", "PackageDir")
+        let publicHeadersPath = packageDirectory.appending(components: "Sources", "Module", "include")
+        try await fileSystem.makeDirectory(at: publicHeadersPath)
+        try await fileSystem.touch(publicHeadersPath.appending(component: "Module.h"))
+
+        let namespaceDirectory = packageDirectory.parentDirectory.parentDirectory.appending(
+            components: [
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
+            ]
+        )
+        try await fileSystem.makeDirectory(at: namespaceDirectory)
+
+        // When
+        let got = try await subject.generate(
+            packageDirectory: packageDirectory,
+            moduleName: "Module",
+            publicHeadersPath: publicHeadersPath
+        )
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .header(
+                publicHeadersPath.appending(component: "Module.h"),
+                moduleMapPath: namespaceDirectory.appending(components: "Module", "Module.modulemap")
             )
         )
     }

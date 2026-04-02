@@ -76,6 +76,7 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
                 .parentDirectory
                 .appending(
                     components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
                     sanitizedModuleName,
                     "\(sanitizedModuleName).modulemap"
                 )
@@ -85,9 +86,7 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
             )
         }
 
-        if try await !fileSystem.exists(generatedModuleMapPath.parentDirectory) {
-            try await fileSystem.makeDirectory(at: generatedModuleMapPath.parentDirectory)
-        }
+        try await createDirectoryIfNeeded(at: generatedModuleMapPath.parentDirectory)
 
         if try await fileSystem.exists(umbrellaHeaderPath) {
             if let customModuleMapPath {
@@ -171,6 +170,20 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
             return nestedHeadersPath.appending(moduleMapPath)
         } else {
             return nil
+        }
+    }
+
+    private func createDirectoryIfNeeded(at path: AbsolutePath) async throws {
+        guard try await !fileSystem.exists(path) else { return }
+        if path.parentDirectory != path {
+            try await createDirectoryIfNeeded(at: path.parentDirectory)
+        }
+        do {
+            try await fileSystem.makeDirectory(at: path, options: [])
+        } catch {
+            // Concurrent generation can create the directory first while we walk the path.
+            guard try await !fileSystem.exists(path) else { return }
+            throw error
         }
     }
 
