@@ -38,9 +38,9 @@ The workflow is:
 4. After the changes land on `main`, the translation workflow regenerates the target `.po` files and opens a follow-up pull request with the translated updates.
 
 > [!WARNING]
-> **Don't Modify Generated Translation Files**
+> **Don't Modify Generated Localized Content**
 >
-> Do not edit `.po` files or non-English content directly. Update the English source and the translation context instead.
+> Do not edit generated localized content directly. Update the English source and the language context instead.
 
 
 ## L10N.md structure {#l10n-md-structure}
