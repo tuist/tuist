@@ -99,6 +99,14 @@
         inset;
   }
 
+  & .noora-alert :is(ul, ol) {
+    padding-left: var(--noora-spacing-5);
+  }
+
+  & .noora-alert [data-part="description"] > * + * {
+    margin-top: var(--noora-spacing-5);
+  }
+
   & [data-part="feature-cards"] {
     display: flex;
     flex-wrap: wrap;
