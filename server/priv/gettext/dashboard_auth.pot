@@ -16,17 +16,17 @@ msgstr ""
 msgid "Account confirmed!"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:294
+#: lib/tuist_web/live/user_registration_live.ex:295
 #, elixir-autogen, elixir-format
 msgid "Account created successfully! Please log in."
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:306
+#: lib/tuist_web/live/user_registration_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "Account name is already taken"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:187
+#: lib/tuist_web/live/user_registration_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Already have an account?"
 msgstr ""
@@ -56,7 +56,7 @@ msgstr ""
 msgid "Check your email"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:220
+#: lib/tuist_web/live/user_registration_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Check your inbox for a confirmation email and click the link to continue."
 msgstr ""
@@ -66,12 +66,12 @@ msgstr ""
 msgid "Choose a username"
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:52
+#: lib/tuist_web/live/user_reset_password_live.ex:53
 #, elixir-autogen, elixir-format
 msgid "Confirm password"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:218
+#: lib/tuist_web/live/user_registration_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "Confirm your account"
 msgstr ""
@@ -122,7 +122,7 @@ msgstr ""
 msgid "Discover how selective testing is reducing your test time."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:200
+#: lib/tuist_web/live/user_login_live.ex:201
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr ""
@@ -136,7 +136,7 @@ msgstr ""
 msgid "Email address"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:309
+#: lib/tuist_web/live/user_registration_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
 msgstr ""
@@ -151,7 +151,7 @@ msgstr ""
 msgid "Explore how binary caching is enhancing your build times."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:169
+#: lib/tuist_web/live/user_login_live.ex:170
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
 msgstr ""
@@ -182,16 +182,16 @@ msgstr ""
 msgid "Interested in SSO?"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:162
+#: lib/tuist_web/live/user_login_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:79
 #: lib/tuist_web/live/user_login_live.ex:17
-#: lib/tuist_web/live/user_login_live.ex:175
+#: lib/tuist_web/live/user_login_live.ex:176
 #: lib/tuist_web/live/user_okta_login_live.ex:82
-#: lib/tuist_web/live/user_registration_live.ex:192
+#: lib/tuist_web/live/user_registration_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
@@ -214,7 +214,7 @@ msgstr ""
 msgid "Logging in via Okta failed"
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:44
+#: lib/tuist_web/live/user_reset_password_live.ex:45
 #, elixir-autogen, elixir-format
 msgid "New password"
 msgstr ""
@@ -281,9 +281,9 @@ msgstr ""
 msgid "Selective testing"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:205
-#: lib/tuist_web/live/user_registration_live.ex:181
-#: lib/tuist_web/live/user_registration_live.ex:264
+#: lib/tuist_web/live/user_login_live.ex:206
+#: lib/tuist_web/live/user_registration_live.ex:182
+#: lib/tuist_web/live/user_registration_live.ex:265
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr ""
@@ -311,7 +311,7 @@ msgstr ""
 #: lib/tuist_web/live/user_login_live.ex:40
 #: lib/tuist_web/live/user_okta_login_live.ex:49
 #: lib/tuist_web/live/user_registration_live.ex:67
-#: lib/tuist_web/live/user_registration_live.ex:210
+#: lib/tuist_web/live/user_registration_live.ex:211
 #: lib/tuist_web/live/user_reset_password_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
@@ -343,13 +343,13 @@ msgid "User confirmation link is invalid or it has expired."
 msgstr ""
 
 #: lib/tuist_web/live/choose_username_live.ex:65
-#: lib/tuist_web/live/user_registration_live.ex:169
+#: lib/tuist_web/live/user_registration_live.ex:170
 #, elixir-autogen, elixir-format
 msgid "Username"
 msgstr ""
 
 #: lib/tuist_web/live/choose_username_live.ex:66
-#: lib/tuist_web/live/user_registration_live.ex:172
+#: lib/tuist_web/live/user_registration_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "Username may only contain alphanumeric characters"
 msgstr ""
@@ -446,7 +446,7 @@ msgstr ""
 msgid "and"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:195
+#: lib/tuist_web/live/user_login_live.ex:196
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
 msgstr ""
