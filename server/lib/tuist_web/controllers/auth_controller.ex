@@ -261,9 +261,7 @@ defmodule TuistWeb.AuthController do
 
             return_to =
               oauth_return_url ||
-                if user |> Accounts.get_user_organization_accounts() |> Enum.empty?(),
-                  do: ~p"/organizations/new",
-                  else: nil
+                if user |> Accounts.get_user_organization_accounts() |> Enum.empty?(), do: ~p"/organizations/new"
 
             conn
             |> delete_session(:pending_oauth_signup)

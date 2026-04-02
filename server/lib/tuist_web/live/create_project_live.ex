@@ -158,6 +158,7 @@ defmodule TuistWeb.CreateProjectLive do
 
   defp preselected_account_id(params, current_user, organization_accounts) do
     explicit_id = param_account_id(params, organization_accounts)
+
     explicit_id || last_visited_account_id(current_user, organization_accounts) ||
       first_account_id(organization_accounts)
   end
