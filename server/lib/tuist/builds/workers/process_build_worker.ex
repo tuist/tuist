@@ -11,12 +11,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{
         args:
-          %{
-            "build_id" => build_id,
-            "storage_key" => storage_key,
-            "account_id" => account_id,
-            "project_id" => project_id
-          } =
+          %{"build_id" => build_id, "storage_key" => storage_key, "account_id" => account_id, "project_id" => project_id} =
             args,
         attempt: attempt,
         max_attempts: max_attempts
@@ -85,14 +80,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp send_to_processor(
-         processor_url,
-         build_id,
-         storage_key,
-         account_id,
-         project_id,
-         xcode_cache_upload_enabled
-       ) do
+  defp send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled) do
     webhook_secret = Tuist.Environment.processor_webhook_secret()
 
     if is_nil(webhook_secret) or webhook_secret == "" do

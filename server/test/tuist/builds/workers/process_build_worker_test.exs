@@ -184,9 +184,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, _} =
-               ProcessBuildWorker.perform(
-                 oban_job(job_args(build.id, account.id, project.id), 3, 3)
-               )
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
     test "does not mark build as failed on non-final attempt", %{
@@ -201,9 +199,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       reject(&Tuist.Builds.create_build/1)
 
       assert {:error, :closed} =
-               ProcessBuildWorker.perform(
-                 oban_job(job_args(build.id, account.id, project.id), 1, 3)
-               )
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 3))
     end
 
     test "marks build as failed on final attempt when HTTP request fails", %{
@@ -221,9 +217,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, :timeout} =
-               ProcessBuildWorker.perform(
-                 oban_job(job_args(build.id, account.id, project.id), 3, 3)
-               )
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
   end
 
@@ -302,9 +296,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, :not_found} =
-               ProcessBuildWorker.perform(
-                 oban_job(job_args(build.id, account.id, project.id), 3, 3)
-               )
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
     test "marks build as failed when local processing returns error on final attempt", %{
@@ -326,9 +318,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, {:parse_failed, "NIF not loaded"}} =
-               ProcessBuildWorker.perform(
-                 oban_job(job_args(build.id, account.id, project.id), 3, 3)
-               )
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
     test "marks build as failed when account is not found on final attempt", %{
@@ -345,9 +335,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, :not_found} =
-               ProcessBuildWorker.perform(
-                 oban_job(job_args(build.id, "999999", project.id), 3, 3)
-               )
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, "999999", project.id), 3, 3))
     end
   end
 
@@ -450,9 +438,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
 
       assert {:error, _} =
-               ProcessBuildWorker.perform(
-                 oban_job(job_args(build.id, account.id, project.id), 3, 3)
-               )
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
   end
 
@@ -484,9 +470,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, :timeout} =
-               ProcessBuildWorker.perform(
-                 oban_job(job_args(build.id, account.id, project.id), 3, 3)
-               )
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
     test "uses build metadata when no existing build found", %{
