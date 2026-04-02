@@ -1,5 +1,5 @@
 {
-  "originHash" : "79291f123bbc59dbce1c22ef39127f2fad2460a56e2d28e33ec46788d430b491",
+  "originHash" : "4e8c23844269f6ec7212ffb6a8c99734f3df2f53d7fed06d1cfb69deb5e6a305",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -403,27 +403,11 @@
       }
     },
     {
-      "identity" : "mattt.eventsource",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.3.0"
-      }
-    },
-    {
       "identity" : "MobileNativeFoundation.XCLogParser",
       "kind" : "registry",
       "location" : "",
       "state" : {
         "version" : "0.2.46"
-      }
-    },
-    {
-      "identity" : "modelcontextprotocol.swift-sdk",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "0.10.2"
       }
     },
     {
