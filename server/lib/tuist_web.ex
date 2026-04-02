@@ -75,6 +75,7 @@ defmodule TuistWeb do
 
       import TuistWeb.AppLayoutComponents
 
+      on_mount({TuistWeb.Locale, :assign_locale})
       on_mount(TuistWeb.CSP)
       on_mount({TuistWeb.Timezone, :assign_timezone})
 

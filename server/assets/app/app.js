@@ -36,6 +36,7 @@ import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
 import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
+import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
@@ -63,6 +64,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
   params: {
     _csrf_token: csrfToken,
     _csp_nonce: cspNonce,
+    user_locale: getUserLocale(),
     user_timezone: getUserTimezone(),
   },
   hooks: { ...Hooks, ...Noora.Hooks },

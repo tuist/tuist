@@ -10,6 +10,8 @@ defmodule TuistWeb.Marketing.Localization do
 
   import Plug.Conn
 
+  alias TuistWeb.Locale
+
   @languages [
     %{code: "en", label: "English", native: "English"},
     %{code: "es", label: "Spanish", native: "Castellano"},
@@ -122,50 +124,9 @@ defmodule TuistWeb.Marketing.Localization do
 
   defp fetch_locale_from_headers(conn) do
     conn
-    |> locales_from_accept_language()
-    |> Enum.map(fn locale -> validate_locale(locale) end)
-    |> Enum.find(&(not is_nil(&1)))
-  end
-
-  # Accept-Language: en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7
-  defp locales_from_accept_language(conn) do
-    case get_req_header(conn, "accept-language") do
-      [value | _] ->
-        values = String.split(value, ",")
-        Enum.map(values, &resolve_locale_from_accept_language/1)
-
-      _ ->
-        []
-    end
-  end
-
-  defp resolve_locale_from_accept_language(language) do
-    language
-    |> String.split(";")
+    |> get_req_header("accept-language")
     |> List.first()
-    |> language_to_locale()
-  end
-
-  defp language_to_locale(language) do
-    String.replace(language, "-", "_", global: false)
-  end
-
-  defp validate_locale(nil), do: nil
-
-  defp validate_locale(locale) do
-    supported_locales = Gettext.known_locales(TuistWeb.Gettext)
-
-    case String.split(locale, "_") do
-      [language, _] ->
-        Enum.find([language, locale], fn locale ->
-          locale in supported_locales
-        end)
-
-      [^locale] ->
-        if locale in supported_locales do
-          locale
-        end
-    end
+    |> Locale.locale_from_accept_language()
   end
 
   defp has_user_locale_preference?(conn) do
