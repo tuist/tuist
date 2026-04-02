@@ -637,7 +637,7 @@ expone métricas detalladas sobre las peticiones HTTP:
 - `tuist_prom_ex_finch_queue_duration_milliseconds` - Tiempo de espera en la
   cola del pool de conexiones (histograma)
   - Etiquetas: `finch_name`, `scheme`, `host`, `port`, `pool`
-  - Cubos: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
+  - Cubos: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
 - `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Tiempo que la conexión
   pasó inactiva antes de ser utilizada (histograma)
   - Etiquetas: `finch_name`, `scheme`, `host`, `port`, `pool`
@@ -659,7 +659,7 @@ expone métricas detalladas sobre las peticiones HTTP:
 - `tuist_prom_ex_finch_send_duration_milliseconds` - Tiempo empleado en enviar
   la solicitud (histograma)
   - Etiquetas: `finch_name`, `método`, `esquema`, `host`, `puerto`, `error`
-  - Cubos: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
+  - Cubos: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
 - `tuist_prom_ex_finch_send_idle_time_milliseconds` - Tiempo de inactividad de
   la conexión antes del envío (histograma)
   - Etiquetas: `finch_name`, `método`, `esquema`, `host`, `puerto`, `error`
