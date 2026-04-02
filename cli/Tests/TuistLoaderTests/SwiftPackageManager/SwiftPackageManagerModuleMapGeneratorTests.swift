@@ -32,6 +32,9 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
         given(contentHasher)
             .hash(Parameter<String>.any)
             .willProduce { $0 }
+        given(contentHasher)
+            .hash(path: .any)
+            .willProduce { $0.pathString }
     }
 
     override func tearDown() {

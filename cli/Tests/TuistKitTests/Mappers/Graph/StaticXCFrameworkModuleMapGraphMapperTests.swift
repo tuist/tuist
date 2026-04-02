@@ -61,6 +61,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 Constants.tuistDirectoryName,
                 Constants.SwiftPackageManager.packageBuildDirectoryName,
                 Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
             ]
         )
 
@@ -668,6 +669,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 Constants.tuistDirectoryName,
                 Constants.SwiftPackageManager.packageBuildDirectoryName,
                 Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
             ]
         )
 
@@ -1197,6 +1199,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                 Constants.tuistDirectoryName,
                 Constants.SwiftPackageManager.packageBuildDirectoryName,
                 Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
             ]
         )
 
