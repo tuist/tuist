@@ -7,31 +7,31 @@
 ---
 # Xcodeキャッシュ {#xcode-cache}
 
-TuistはXcodeコンパイルキャッシュのサポートを提供し、ビルドシステムのキャッシュ機能を活用することでチーム間でコンパイル成果物を共有できるようにします。
+TuistはXcodeのコンパイルキャッシュに対応しており、ビルドシステムのキャッシュ機能を活用することで、チーム間でコンパイル成果物を共有することができます。
 
 ## 設定{#setup}
 
 警告 要件
 <!-- -->
 - <LocalizedLink href="/guides/server/accounts-and-projects">Tuistアカウントとプロジェクト</LocalizedLink>
-- Xcode 26.0以降
+- Xcode 26.0 以降
 <!-- -->
 :::
 
-Tuistアカウントとプロジェクトをお持ちでない場合は、以下を実行して作成できます：
+まだTuistのアカウントやプロジェクトをお持ちでない場合は、以下のコマンドを実行して作成できます：
 
 ```bash
 tuist init
 ```
 
-`Tuist.swift ファイルが用意できたら、` ファイルで`fullHandle`
-を参照するように設定し、以下のコマンドを実行してプロジェクトのキャッシュを設定できます：
+`の fullHandle` を参照する`Tuist.swift`
+ファイルを作成したら、以下のコマンドを実行してプロジェクトのキャッシュ設定を行うことができます:
 
 ```bash
 tuist setup cache
 ```
 
-このコマンドは、起動時にローカルキャッシュサービスを実行する[LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)を作成します。このサービスはSwiftの[ビルドシステム](https://github.com/swiftlang/swift-build)がコンパイル成果物を共有するために使用します。このコマンドは、ローカル環境とCI環境の両方で一度実行する必要があります。
+このコマンドは、Swiftの[ビルドシステム](https://github.com/swiftlang/swift-build)がコンパイル結果の共有に使用するローカルキャッシュサービスを起動時に実行するための[LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)を作成します。このコマンドは、ローカル環境とCI環境の両方で一度ずつ実行する必要があります。
 
 CI上でキャッシュを設定するには、<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証済み</LocalizedLink>であることを確認してください。
 
@@ -46,17 +46,18 @@ COMPILATION_CACHE_ENABLE_PLUGIN = YES
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
-`COMPILATION_CACHE_REMOTE_SERVICE_PATH` および`COMPILATION_CACHE_ENABLE_PLUGIN`
-は、Xcodeのビルド設定UIに直接表示されないため、**のユーザー定義ビルド設定** として追加する必要があります。
+`、COMPILATION_CACHE_REMOTE_SERVICE_PATH、`
+、および`、COMPILATION_CACHE_ENABLE_PLUGIN、`
+は、Xcodeのビルド設定UIには直接表示されないため、**のユーザー定義ビルド設定** として追加する必要があります。
 
 ::: info SOCKET PATH
 <!-- -->
 `tuist setup cache`
-を実行するとソケットパスが表示されます。これはプロジェクトのフルハンドルをスラッシュからアンダースコアに置換したものです。
+を実行すると、ソケットパスが表示されます。これは、プロジェクトのフルハンドルからスラッシュをアンダースコアに置き換えたものです。
 <!-- -->
 :::
 
-`の実行時に以下のフラグを追加することで、これらの設定を指定することもできます。例：`xcodebuild` `
+`xcodebuild` を実行する際、次のようなフラグを追加することで、これらの設定を指定することもできます。
 
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
@@ -68,9 +69,9 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ::: info GENERATED PROJECTS
 <!-- -->
-プロジェクトがTuistで生成されている場合、設定を手動で設定する必要はありません。
+プロジェクトがTuistによって生成されている場合、手動で設定を行う必要はありません。
 
-`その場合、必要なのは以下のコードを Tuist.swift ファイルに追加することだけです:`` enableCaching: true`
+その場合は、`Tuist.swift` ファイルに、`enableCaching: true` を追加するだけで済みます：
 ```swift
 import ProjectDescription
 
@@ -88,9 +89,9 @@ let tuist = Tuist(
 
 ### 継続的インテグレーション #{continuous-integration}
 
-CI環境でキャッシュを有効化するには、ローカル環境と同様のコマンドを実行する必要があります：`tuist setup cache`
+CI環境でキャッシュを有効にするには、ローカル環境と同じコマンドを実行する必要があります：`tuist setup cache` 。
 
-認証には、<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC認証</LocalizedLink>（対応するCIプロバイダーに推奨）または、`のTUIST_TOKEN環境変数`
+認証には、<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC認証</LocalizedLink>（対応しているCIプロバイダーの場合、推奨）または、`環境変数TUIST_TOKEN`
 経由の<LocalizedLink href="/guides/server/authentication#account-tokens">アカウントトークン</LocalizedLink>のいずれかを使用できます。
 
 OIDC認証を使用したGitHub Actionsのワークフロー例：
@@ -112,5 +113,5 @@ jobs:
       - # Your build steps
 ```
 
-トークンベース認証やXcode
-Cloud、CircleCI、Bitrise、Codemagicなどの他のCIプラットフォームを含む、より多くの例については<LocalizedLink href="/guides/integrations/continuous-integration">継続的インテグレーションガイド</LocalizedLink>を参照してください。
+トークンベースの認証や、Xcode Cloud、CircleCI、Bitrise、Codemagic などの他の CI
+プラットフォームに関する例については、<LocalizedLink href="/guides/integrations/continuous-integration">継続的インテグレーションガイド</LocalizedLink>を参照してください。
