@@ -305,7 +305,7 @@
         @Argument(
             parsing: .postTerminator,
             help:
-            "Arguments that will be passed through to xcodebuild. Use -- followed by xcodebuild arguments. Example: tuist test -- -destination 'platform=iOS Simulator,name=iPhone 15' -parallel-testing-enabled YES"
+            "Arguments passed through to xcodebuild. Place them after --. Use this for xcodebuild-only flags such as -destination, -derivedDataPath, or -testProductsPath. Example: tuist test -- -destination 'platform=iOS Simulator,name=iPhone 15' -parallel-testing-enabled YES"
         )
         var passthroughXcodeBuildArguments: [String] = []
 
