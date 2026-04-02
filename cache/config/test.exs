@@ -62,7 +62,7 @@ config :cache, :s3,
 config :cache,
   server_url: "http://localhost:8080",
   storage_dir: test_storage_dir,
-  api_key: "test-secret-key",
+  api_key: nil,
   key_value_mode: :local,
   distributed_kv_node_name: "test-node"
 

@@ -141,21 +141,42 @@ defmodule Cache.AuthenticationTest do
       projects = [%{"full_name" => "account/project"}]
       conn = build_conn([{"authorization", @test_auth_header}])
       counter = start_supervised!({Agent, fn -> 0 end})
+      parent = self()
+      release_ref = make_ref()
 
       Req.Test.stub(Authentication, fn conn ->
         Agent.update(counter, &(&1 + 1))
-        Process.sleep(50)
-        Req.Test.json(conn, %{"projects" => projects})
+
+        send(parent, {:request_started, self()})
+
+        receive do
+          {^release_ref, :continue} ->
+            Req.Test.json(conn, %{"projects" => projects})
+        after
+          1_000 ->
+            raise "timed out waiting to release auth request"
+        end
       end)
 
-      tasks =
-        Enum.map(1..15, fn _ ->
+      lead_task =
+        Task.async(fn ->
+          Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+        end)
+
+      assert_receive {:request_started, request_pid}
+
+      follower_tasks =
+        Enum.map(1..14, fn _ ->
           Task.async(fn ->
             Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
           end)
         end)
 
-      results = Enum.map(tasks, &Task.await(&1, 5_000))
+      refute_receive {:request_started, _}, 100
+
+      send(request_pid, {release_ref, :continue})
+
+      results = Enum.map([lead_task | follower_tasks], &Task.await(&1, 5_000))
 
       assert Enum.all?(results, &(&1 == {:ok, @test_auth_header}))
       assert Agent.get(counter, & &1) == 1

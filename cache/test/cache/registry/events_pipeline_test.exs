@@ -19,6 +19,8 @@ defmodule Cache.Registry.EventsPipelineTest do
         version: "1.0.0"
       }
 
+      expect(OffBroadwayMemory.Buffer, :async_push, fn :registry_events_buffer, ^event -> :ok end)
+
       assert :ok = EventsPipeline.async_push(event)
     end
   end
@@ -74,6 +76,8 @@ defmodule Cache.Registry.EventsPipelineTest do
     end
 
     test "sends batch of events to the registry webhook with correct payload shape" do
+      stub(Cache.Config, :api_key, fn -> "test-api-key-secret" end)
+
       events = [
         %{scope: "apple", name: "swift-argument-parser", version: "1.0.0"},
         %{scope: "pointfreeco", name: "swift-composable-architecture", version: "0.52.0"}

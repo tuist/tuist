@@ -607,14 +607,16 @@ defmodule Cache.KeyValueReplicationPollerTest do
       pid_1 = start_supervised!(KeyValueReplicationPoller)
 
       assert_receive {:cache_del_failed, 1, ^pid_1}, 10_000
+
+      assert {:error, %RuntimeError{message: "boom"}} = KeyValueReplicationPoller.poll_now()
       assert_receive {:cache_del_failed, 2, ^pid_1}, 10_000
+
+      assert :ok = KeyValueReplicationPoller.poll_now()
       assert_receive {:cache_del_succeeded, 3, ^pid_1}, 10_000
 
       assert Process.alive?(pid_1)
 
-      assert_eventually(fn ->
-        match?(%{watermark_updated_at: ^updated_at, watermark_key: ^row_key}, KeyValueEntries.distributed_watermark())
-      end)
+      assert %{watermark_updated_at: ^updated_at, watermark_key: ^row_key} = KeyValueEntries.distributed_watermark()
 
       assert {:ok, nil} = Cachex.get(:cache_keyvalue_store, row_key)
 

@@ -4,6 +4,13 @@ defmodule Cache.Gradle.EventsPipelineTest do
 
   alias Cache.Gradle.EventsPipeline
 
+  setup :set_mimic_from_context
+
+  setup do
+    stub(Cache.Authentication, :server_url, fn -> "http://localhost:4000" end)
+    :ok
+  end
+
   describe "handle_batch/4" do
     test "skips sending events when API key is not configured" do
       stub(Cache.Config, :api_key, fn -> nil end)
@@ -35,8 +42,6 @@ defmodule Cache.Gradle.EventsPipelineTest do
     end
 
     test "sends batch of events to the gradle-cache webhook" do
-      stub(Cache.Authentication, :server_url, fn -> "http://localhost:4000" end)
-
       account_handle = "test-account"
       project_handle = "test-project"
 
@@ -65,11 +70,11 @@ defmodule Cache.Gradle.EventsPipelineTest do
           }
         end)
 
-      expect(Req, :request, fn options ->
-        assert options[:url] == "http://localhost:4000/webhooks/gradle-cache"
-        assert options[:method] == :post
+      expect(Cache.WebhookClient, :signed_post, fn url, body, log_label ->
+        assert url == "http://localhost:4000/webhooks/gradle-cache"
+        assert log_label == "Gradle cache analytics"
 
-        decoded_body = JSON.decode!(options[:body])
+        decoded_body = JSON.decode!(body)
 
         assert decoded_body["events"] == [
                  %{
@@ -88,12 +93,7 @@ defmodule Cache.Gradle.EventsPipelineTest do
                  }
                ]
 
-        headers = options[:headers]
-        assert {"content-type", "application/json"} in headers
-        assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-signature" end)
-        assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-endpoint" end)
-
-        {:ok, %{status: 202, body: ""}}
+        :ok
       end)
 
       result =

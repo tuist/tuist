@@ -70,6 +70,8 @@ defmodule Cache.Xcode.EventsPipelineTest do
     end
 
     test "sends batch of events to the cache webhook successfully" do
+      stub(Cache.Config, :api_key, fn -> "test-api-key-secret" end)
+
       account_handle = "test-account"
       project_handle = "test-project"
 
