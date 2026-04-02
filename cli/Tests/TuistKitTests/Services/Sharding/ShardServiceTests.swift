@@ -315,18 +315,21 @@ struct ShardServiceTests {
         let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
         try await fileSystem.makeDirectory(at: testProductsPath)
 
-        let xctestrunData = try makePlist([
-            "TestConfigurations": [
-                [
-                    "TestTargets": [
-                        ["BlueprintName": "AppTests", "TestHostPath": "/path/to/host"],
-                        ["BlueprintName": "CoreTests", "TestHostPath": "/path/to/core"],
-                    ],
-                ],
-            ],
-        ])
         let xctestrunPath = testProductsPath.appending(component: "MyApp.xctestrun")
-        try xctestrunData.write(to: URL(fileURLWithPath: xctestrunPath.pathString))
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            .init(blueprintName: "AppTests", testHostPath: "/path/to/host"),
+                            .init(blueprintName: "CoreTests", testHostPath: "/path/to/core"),
+                        ]
+                    ),
+                ]
+            ),
+            at: xctestrunPath,
+            encoder: plistEncoder()
+        )
 
         let ciController = MockCIControlling()
         given(ciController).ciInfo().willReturn(.test(provider: .github))
@@ -427,18 +430,21 @@ struct ShardServiceTests {
         let sourceProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
         try await fileSystem.makeDirectory(at: sourceProductsPath)
 
-        let xctestrunData = try makePlist([
-            "TestConfigurations": [
-                [
-                    "TestTargets": [
-                        ["BlueprintName": "AppTests", "TestHostPath": "/path/to/host"],
-                        ["BlueprintName": "CoreTests", "TestHostPath": "/path/to/core"],
-                    ],
-                ],
-            ],
-        ])
         let originalXCTestRunPath = sourceProductsPath.appending(component: "MyApp.xctestrun")
-        try xctestrunData.write(to: URL(fileURLWithPath: originalXCTestRunPath.pathString))
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            .init(blueprintName: "AppTests", testHostPath: "/path/to/host"),
+                            .init(blueprintName: "CoreTests", testHostPath: "/path/to/core"),
+                        ]
+                    ),
+                ]
+            ),
+            at: originalXCTestRunPath,
+            encoder: plistEncoder()
+        )
         try await fileSystem.writeText("fixture", at: sourceProductsPath.appending(component: "file.txt"))
 
         let archivePath = temporaryDirectory.appending(component: "bundle.aar")
@@ -517,4 +523,36 @@ struct ShardServiceTests {
         let targets = config["TestTargets"] as? [[String: Any]] ?? []
         return targets.compactMap { $0["BlueprintName"] as? String }
     }
+}
+
+private struct XCTestRunFixture: Encodable {
+    let testConfigurations: [TestConfigurationFixture]
+
+    enum CodingKeys: String, CodingKey {
+        case testConfigurations = "TestConfigurations"
+    }
+}
+
+private struct TestConfigurationFixture: Encodable {
+    let testTargets: [TestTargetFixture]
+
+    enum CodingKeys: String, CodingKey {
+        case testTargets = "TestTargets"
+    }
+}
+
+private struct TestTargetFixture: Encodable {
+    let blueprintName: String
+    let testHostPath: String?
+
+    enum CodingKeys: String, CodingKey {
+        case blueprintName = "BlueprintName"
+        case testHostPath = "TestHostPath"
+    }
+}
+
+private func plistEncoder() -> PropertyListEncoder {
+    let encoder = PropertyListEncoder()
+    encoder.outputFormat = .xml
+    return encoder
 }

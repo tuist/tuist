@@ -30,6 +30,17 @@
         }
     }
 
+    private let notAllowedPassthroughXcodeBuildArguments = [
+        "-scheme",
+        "-workspace",
+        "-project",
+        "-testPlan",
+        "-skip-test-configuration",
+        "-only-test-configuration",
+        "-only-testing",
+        "-skip-testing",
+    ]
+
     public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
         RecentPathRememberableCommand, TrackableParsableCommand
     {
@@ -327,17 +338,6 @@
                 skipTestTargets: skipTestTargets
             )
         }
-
-        private var notAllowedPassthroughXcodeBuildArguments = [
-            "-scheme",
-            "-workspace",
-            "-project",
-            "-testPlan",
-            "-skip-test-configuration",
-            "-only-test-configuration",
-            "-only-testing",
-            "-skip-testing",
-        ]
 
         public func run() async throws {
             try notAllowedPassthroughXcodeBuildArguments.forEach {

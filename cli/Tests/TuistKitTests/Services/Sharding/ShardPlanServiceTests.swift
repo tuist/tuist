@@ -18,20 +18,19 @@ struct ShardPlanServiceTests {
         let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
         try await fileSystem.makeDirectory(at: testProductsPath)
         try await fileSystem.writeText("payload", at: testProductsPath.appending(component: "file.txt"))
-        let xctestrunData = try PropertyListSerialization.data(
-            fromPropertyList: [
-                "TestConfigurations": [
-                    [
-                        "TestTargets": [
-                            ["BlueprintName": "AppTests"],
-                        ],
-                    ],
-                ],
-            ],
-            format: .xml,
-            options: 0
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            .init(blueprintName: "AppTests"),
+                        ]
+                    ),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
         )
-        try xctestrunData.write(to: URL(fileURLWithPath: testProductsPath.appending(component: "MyApp.xctestrun").pathString))
 
         let dsymPath = testProductsPath.appending(components: "MyApp.framework.dSYM", "Contents", "Resources")
         try await fileSystem.makeDirectory(at: dsymPath)
@@ -111,4 +110,34 @@ struct ShardPlanServiceTests {
             .startUpload(fullHandle: .any, serverURL: .any, reference: .any)
             .called(0)
     }
+}
+
+private struct XCTestRunFixture: Encodable {
+    let testConfigurations: [TestConfigurationFixture]
+
+    enum CodingKeys: String, CodingKey {
+        case testConfigurations = "TestConfigurations"
+    }
+}
+
+private struct TestConfigurationFixture: Encodable {
+    let testTargets: [TestTargetFixture]
+
+    enum CodingKeys: String, CodingKey {
+        case testTargets = "TestTargets"
+    }
+}
+
+private struct TestTargetFixture: Encodable {
+    let blueprintName: String
+
+    enum CodingKeys: String, CodingKey {
+        case blueprintName = "BlueprintName"
+    }
+}
+
+private func plistEncoder() -> PropertyListEncoder {
+    let encoder = PropertyListEncoder()
+    encoder.outputFormat = .xml
+    return encoder
 }
