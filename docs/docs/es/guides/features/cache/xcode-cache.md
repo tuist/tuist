@@ -7,21 +7,21 @@
 ---
 # Caché de Xcode {#xcode-cache}
 
-Tuist ofrece compatibilidad con la caché de compilación de Xcode, lo que permite
-a los equipos compartir artefactos de compilación aprovechando las capacidades
-de almacenamiento en caché del sistema de compilación.
+Tuist es compatible con la caché de compilación de Xcode, lo que permite a los
+equipos compartir artefactos de compilación aprovechando las capacidades de
+almacenamiento en caché del sistema de compilación.
 
 ## Configuración {#setup}
 
 ::: advertencia REQUISITOS
 <!-- -->
-- Una cuenta y un proyecto
-  <LocalizedLink href="/guides/server/accounts-and-projects">Tuist.</LocalizedLink>
-- Xcode 26.0 o posterior.
+- Una cuenta y un proyecto de
+  <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
+- Xcode 26.0 o posterior
 <!-- -->
 :::
 
-Si aún no tienes una cuenta y un proyecto en Tuist, puedes crear uno ejecutando:
+Si aún no tienes una cuenta y un proyecto de Tuist, puedes crear uno ejecutando:
 
 ```bash
 tuist init
@@ -47,7 +47,7 @@ Para configurar la caché en el CI, asegúrate de estar
 
 ### Configurar los ajustes de compilación de Xcode {#configure-xcode-build-settings}
 
-Añade los siguientes ajustes de compilación a tu proyecto Xcode:
+Añade la siguiente configuración de compilación a tu proyecto de Xcode:
 
 ```
 COMPILATION_CACHE_ENABLE_CACHING = YES
@@ -63,14 +63,14 @@ usuario de los ajustes de compilación de Xcode:
 
 ::: info SOCKET PATH
 <!-- -->
-La ruta del socket se mostrará cuando ejecute `tuist setup cache`. Se basa en el
-identificador completo de su proyecto, sustituyendo las barras inclinadas por
-guiones bajos.
+La ruta del socket se mostrará cuando ejecutes `tuist setup cache`. Se basa en
+el identificador completo de tu proyecto, sustituyendo las barras por guiones
+bajos.
 <!-- -->
 :::
 
-También puede especificar estos ajustes al ejecutar `xcodebuild` añadiendo los
-siguientes indicadores, como por ejemplo:
+También puedes especificar esta configuración al ejecutar `xcodebuild` añadiendo
+los siguientes indicadores, como por ejemplo:
 
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
@@ -82,8 +82,8 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ::: info GENERATED PROJECTS
 <!-- -->
-No es necesario configurar los ajustes manualmente si tu proyecto ha sido
-generado por Tuist.
+No es necesario configurar los ajustes manualmente si tu proyecto lo genera
+Tuist.
 
 En ese caso, solo tienes que añadir `enableCaching: true` a tu archivo
 `Tuist.swift`:
@@ -104,16 +104,16 @@ let tuist = Tuist(
 
 ### Integración continua (CI) {#continuous-integration-ci}
 
-Para habilitar el almacenamiento en caché en su entorno CI, debe ejecutar el
-mismo comando que en entornos locales: `tuist setup cache`.
+Para habilitar el almacenamiento en caché en tu entorno de CI, debes ejecutar el
+mismo comando que en los entornos locales: `tuist setup cache`.
 
 Para la autenticación, puede utilizar
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">la autenticación
-OIDC</LocalizedLink> (recomendada para proveedores de CI compatibles) o un
+OIDC</LocalizedLink> (recomendada para los proveedores de CI compatibles) o un
 <LocalizedLink href="/guides/server/authentication#account-tokens">token de
 cuenta</LocalizedLink> a través de la variable de entorno `TUIST_TOKEN`.
 
-Un ejemplo de flujo de trabajo para GitHub Actions utilizando la autenticación
+Un ejemplo de flujo de trabajo para GitHub Actions que utiliza la autenticación
 OIDC:
 ```yaml
 name: Build
