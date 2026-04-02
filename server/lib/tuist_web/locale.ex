@@ -6,11 +6,10 @@ defmodule TuistWeb.Locale do
   import Phoenix.Component, only: [assign: 3]
 
   alias Phoenix.LiveView
+  alias Tuist.Locale, as: SharedLocale
   alias TuistWeb.Gettext, as: GettextBackend
 
-  @supported_locales ~w(en es ja ko ru yue_Hant zh_Hans zh_Hant)
-
-  def supported_locales, do: @supported_locales
+  def supported_locales, do: SharedLocale.supported_locales()
 
   def on_mount(:assign_locale, _params, session, socket) do
     locale =
@@ -98,15 +97,23 @@ defmodule TuistWeb.Locale do
 
     cond do
       locale == "yue" or String.starts_with?(locale, "yue-") -> "yue_Hant"
-      String.starts_with?(locale, "zh-hans") -> "zh_Hans"
-      String.starts_with?(locale, "zh-hant") -> "zh_Hant"
-      String.starts_with?(locale, "zh-cn") -> "zh_Hans"
-      String.starts_with?(locale, "zh-my") -> "zh_Hans"
-      String.starts_with?(locale, "zh-sg") -> "zh_Hans"
-      String.starts_with?(locale, "zh-hk") -> "zh_Hant"
-      String.starts_with?(locale, "zh-mo") -> "zh_Hant"
-      String.starts_with?(locale, "zh-tw") -> "zh_Hant"
+      zh_hans_locale?(locale) -> "zh_Hans"
+      zh_hant_locale?(locale) -> "zh_Hant"
       true -> nil
     end
+  end
+
+  defp zh_hans_locale?(locale) do
+    String.starts_with?(locale, "zh-hans") or
+      String.starts_with?(locale, "zh-cn") or
+      String.starts_with?(locale, "zh-my") or
+      String.starts_with?(locale, "zh-sg")
+  end
+
+  defp zh_hant_locale?(locale) do
+    String.starts_with?(locale, "zh-hant") or
+      String.starts_with?(locale, "zh-hk") or
+      String.starts_with?(locale, "zh-mo") or
+      String.starts_with?(locale, "zh-tw")
   end
 end

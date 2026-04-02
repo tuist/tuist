@@ -2,9 +2,9 @@ defmodule Tuist.Docs.Loader do
   @moduledoc false
 
   alias Tuist.Docs.HTML
+  alias Tuist.Locale
   alias Tuist.Docs.Page
   alias Tuist.Docs.Paths
-  alias TuistWeb.Locale
 
   # Paths
   @docs_root Path.expand("../../priv/docs", __DIR__)
