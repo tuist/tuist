@@ -198,10 +198,10 @@ ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
 
 # ========================================
-# Stage: Default runtime
-# Includes the embedded Linux build processor used by self-hosted deployments
+# Stage: Self-hosted runtime — includes Swift NIF
+# Build with: docker build --target runner-selfhosted .
 # ========================================
-FROM runner-base AS runner
+FROM runner-base AS runner-selfhosted
 
 # Swift runtime libraries needed by the NIF
 COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
@@ -209,6 +209,17 @@ RUN ldconfig
 
 # Copy compiled NIF .so files into processor priv dir
 COPY --from=nif-bridge-builder /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/ /app/lib/processor-0.1.0/priv/native/
+
+USER nobody
+
+CMD ["sh", "-c", "/app/bin/start"]
+
+# ========================================
+# Stage: Default runtime (hosted) — no Swift NIF
+# BuildKit skips swift-builder since it's not referenced by this target
+# This must be the LAST stage so it's the default docker build target
+# ========================================
+FROM runner-base AS runner
 
 USER nobody
 
