@@ -70,6 +70,7 @@ struct XcodeBuildTestCommandService {
         passthroughXcodebuildArguments: [String],
         skipQuarantine: Bool = false,
         shardIndex: Int? = nil,
+        shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode = .local
     ) async throws {
         var passthroughXcodebuildArguments = passthroughXcodebuildArguments
@@ -98,7 +99,8 @@ struct XcodeBuildTestCommandService {
                 shardIndex: shardIndex,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                testProductsPath: testProductsPath
+                testProductsPath: testProductsPath,
+                testProductsArchivePath: shardArchivePath
             )
             shardPlanId = shard.shardPlanId
 

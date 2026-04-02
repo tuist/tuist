@@ -36,7 +36,7 @@ This command:
 1. Generates the Xcode project from your manifests
 2. Builds your tests
 3. Creates a shard plan on the Tuist server using historical timing data
-4. Uploads the `.xctestproducts` bundle for use by shard runners
+4. Uploads the `.xctestproducts` bundle or writes a shard archive for use by shard runners
 5. Outputs a shard matrix for your CI system
 6. Persists the <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link> graph (if applicable) so shard runners don't need to regenerate the project
 
@@ -50,6 +50,7 @@ This command:
 | `--shard-max-duration <MS>` | `TUIST_TEST_SHARD_MAX_DURATION` | Target maximum duration per shard in milliseconds |
 | `--shard-granularity <LEVEL>` | `TUIST_TEST_SHARD_GRANULARITY` | `module` (default) distributes entire test modules across shards; `suite` distributes individual test classes for finer-grained balancing |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
+| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path where Tuist writes the optimized shard archive instead of uploading test products to remote storage |
 
 ## Test phase {#test-phase}
 
@@ -65,6 +66,7 @@ tuist test
 |------|---------------------|-------------|
 | `--shard-index <N>` | `TUIST_SHARD_INDEX` | Zero-based index of the shard to execute |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
+| `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path to a locally managed shard archive; Tuist extracts it instead of downloading test products from remote storage |
 
 Tuist downloads the `.xctestproducts` bundle and filters it to include only the tests assigned to that shard.
 
@@ -416,6 +418,29 @@ tuist test -- -testProductsPath /path/to/shared/volume/$UNIQUE_ID/MyScheme.xctes
 |------|---------------------|-------------|
 | `--shard-skip-upload` | `TUIST_TEST_SHARD_SKIP_UPLOAD` | Skip uploading the test products bundle to remote storage |
 
+## Self-managed artifacts {#self-managed-artifacts}
+
+If your CI provider already has artifact upload and download steps, you can let Tuist handle archive and extraction while your CI handles transport.
+
+1. In the **build phase**, pass `--shard-archive-path` so Tuist writes its optimized shard archive locally instead of uploading test products:
+
+```sh
+tuist test \
+  --shard-total 5 \
+  --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
+```
+
+2. Upload that archive using your CI's native artifact step.
+
+3. In each **test phase** job, download the archive and pass the same path back to Tuist:
+
+```sh
+tuist test \
+  --shard-archive-path /tmp/shards/${UNIQUE_ID}/bundle.aar
+```
+
+When `--shard-archive-path` is set, Tuist skips remote test-products transfer and uses the local archive instead. If you also pass `--shard-skip-upload`, the archive path takes precedence.
+
 > [!IMPORTANT]
 > Use a unique path per workflow run (e.g. include the CI run ID) to avoid collisions between concurrent runs. You should also clean up the test products after sharding completes to avoid accumulating stale data on the volume.
 
@@ -473,4 +498,3 @@ jobs:
       - if: always()
         run: rm -rf /Volumes/test-products/${{ github.run_id }}
 ```
-

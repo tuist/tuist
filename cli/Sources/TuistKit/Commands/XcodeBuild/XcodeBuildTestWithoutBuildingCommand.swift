@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistEnvironment
 import TuistEnvKey
 import TuistSupport
 
@@ -35,17 +36,32 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
 
     @Option(
         name: .long,
+        help: "Path to a locally managed shard archive. Tuist extracts this archive instead of downloading test products from remote storage.",
+        completion: .file(),
+        envKey: .testShardArchivePath
+    )
+    var shardArchivePath: String?
+
+    @Option(
+        name: .long,
         help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
         envKey: .inspectTestMode
     )
     var inspectMode: TestProcessingMode = .local
 
     public func run() async throws {
+        let shardArchivePath = try await {
+            if let shardArchivePath {
+                return try await Environment.current.pathRelativeToWorkingDirectory(shardArchivePath)
+            }
+            return nil
+        }()
         try await XcodeBuildTestCommandService()
             .run(
                 passthroughXcodebuildArguments: ["test-without-building"] + passthroughXcodebuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue(),
+                shardArchivePath: shardArchivePath,
                 mode: inspectMode
             )
     }

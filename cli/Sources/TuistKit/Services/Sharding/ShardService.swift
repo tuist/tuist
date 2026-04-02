@@ -25,7 +25,8 @@ public protocol ShardServicing {
         shardIndex: Int,
         fullHandle: String,
         serverURL: URL,
-        testProductsPath: AbsolutePath?
+        testProductsPath: AbsolutePath?,
+        testProductsArchivePath: AbsolutePath?
     ) async throws -> Shard
 }
 
@@ -75,7 +76,8 @@ public struct ShardService: ShardServicing {
         shardIndex: Int,
         fullHandle: String,
         serverURL: URL,
-        testProductsPath: AbsolutePath? = nil
+        testProductsPath: AbsolutePath? = nil,
+        testProductsArchivePath: AbsolutePath? = nil
     ) async throws -> Shard {
         guard let reference = ciController.ciInfo()?.shardReference else {
             throw ShardServiceError.cannotDeriveReference
@@ -104,6 +106,10 @@ public struct ShardService: ShardServicing {
         if let testProductsPath {
             resolvedTestProductsPath = testProductsPath
             Logger.current.debug("Using local test products at \(testProductsPath.pathString)")
+        } else if let testProductsArchivePath {
+            resolvedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+            try await appleArchiver.decompress(archive: testProductsArchivePath, to: resolvedTestProductsPath)
+            Logger.current.debug("Extracted local shard archive to \(resolvedTestProductsPath.pathString)")
         } else {
             guard let downloadURL = URL(string: shard.download_url) else {
                 throw ShardServiceError.invalidDownloadURL(shard.download_url)

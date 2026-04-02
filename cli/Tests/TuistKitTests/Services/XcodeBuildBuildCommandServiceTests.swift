@@ -8,6 +8,7 @@ import TuistAutomation
 import TuistConfigLoader
 import TuistCore
 import TuistLoader
+import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistUniqueIDGenerator
@@ -25,6 +26,8 @@ struct XcodeBuildBuildCommandServiceTests {
     private let xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
     private let derivedDataLocator = MockDerivedDataLocating()
     private let xcActivityLogController = MockXCActivityLogControlling()
+    private let shardPlanService = MockShardPlanServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let uploadBuildRunService = MockUploadBuildRunServicing()
     private let subject: XcodeBuildBuildCommandService
 
@@ -38,6 +41,8 @@ struct XcodeBuildBuildCommandServiceTests {
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
             derivedDataLocator: derivedDataLocator,
             xcActivityLogController: xcActivityLogController,
+            shardPlanService: shardPlanService,
+            serverEnvironmentService: serverEnvironmentService,
             uploadBuildRunService: uploadBuildRunService
         )
     }
@@ -45,7 +50,6 @@ struct XcodeBuildBuildCommandServiceTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func runsXcodeBuildWithPassthroughArguments() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        // Given
         let arguments = ["-scheme", "MyApp"]
         let uniqueID = "unique-id-123"
         let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
@@ -84,10 +88,8 @@ struct XcodeBuildBuildCommandServiceTests {
             .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
             .willReturn(URL(string: "https://tuist.dev/test")!)
 
-        // When
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
-        // Then
         verify(xcodeBuildController)
             .run(arguments: .any)
             .called(1)
@@ -100,7 +102,6 @@ struct XcodeBuildBuildCommandServiceTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func uploadsBuildRunWhenFullHandleConfigured() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        // Given
         let arguments = ["-scheme", "MyApp"]
         let uniqueID = "unique-id-123"
         let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
@@ -139,10 +140,8 @@ struct XcodeBuildBuildCommandServiceTests {
             .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
             .willReturn(URL(string: "https://tuist.dev/test")!)
 
-        // When
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
-        // Then
         verify(uploadBuildRunService)
             .uploadBuildRun(
                 activityLogPath: .value(activityLogFile.path),
@@ -157,7 +156,6 @@ struct XcodeBuildBuildCommandServiceTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func doesNotUploadBuildRunWhenNoFullHandle() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        // Given
         let arguments = ["-scheme", "MyApp"]
         let uniqueID = "unique-id-123"
         let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
@@ -192,10 +190,8 @@ struct XcodeBuildBuildCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: nil))
 
-        // When
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
-        // Then
         verify(uploadBuildRunService)
             .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
             .called(0)
@@ -204,7 +200,6 @@ struct XcodeBuildBuildCommandServiceTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func doesNotFailWhenUploadBuildRunFails() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        // Given
         let arguments = ["-scheme", "MyApp"]
         let uniqueID = "unique-id-123"
         let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
@@ -245,7 +240,90 @@ struct XcodeBuildBuildCommandServiceTests {
                 throw NSError(domain: "test", code: 1)
             }
 
-        // When / Then - should not throw despite upload failure
         try await subject.run(passthroughXcodebuildArguments: arguments)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func passesShardArchivePathToShardPlanService() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testProductsPath = temporaryDirectory.appending(component: "MyAppTests.xctestproducts")
+        let shardArchivePath = temporaryDirectory.appending(components: "artifacts", "bundle.aar")
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(
+                .test(
+                    derivedDataPath: derivedDataPath
+                )
+            )
+
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(URL(string: "https://tuist.dev")!)
+
+        given(shardPlanService)
+            .plan(
+                xctestproductsPath: .any,
+                destination: .any,
+                reference: .any,
+                shardGranularity: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .any,
+                archivePath: .any
+            )
+            .willReturn(
+                Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 2,
+                    shards: []
+                )
+            )
+
+        try await subject.run(
+            passthroughXcodebuildArguments: [
+                "build-for-testing",
+                "-scheme", "MyAppTests",
+                "-destination", "platform=iOS Simulator,name=iPhone 16",
+                "-testProductsPath", testProductsPath.pathString,
+            ],
+            shardTotal: 2,
+            shardArchivePath: shardArchivePath
+        )
+
+        verify(shardPlanService)
+            .plan(
+                xctestproductsPath: .value(testProductsPath),
+                destination: .value("platform=iOS Simulator,name=iPhone 16"),
+                reference: .any,
+                shardGranularity: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .value(2),
+                shardMaxDuration: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .value(false),
+                archivePath: .value(shardArchivePath)
+            )
+            .called(1)
     }
 }
