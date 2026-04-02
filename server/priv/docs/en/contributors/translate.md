@@ -17,7 +17,6 @@ Since maintaining translations is a continuous effort, we add languages as we se
 - Russian
 - Chinese
 - Spanish
-- Portuguese
 
 > [!TIP]
 > **Request A New Language**

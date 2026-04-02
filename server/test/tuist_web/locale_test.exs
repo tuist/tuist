@@ -10,7 +10,7 @@ defmodule TuistWeb.LocaleTest do
   describe "normalize_locale/1" do
     test "normalizes language and region locales" do
       assert Locale.normalize_locale("es-ES") == "es"
-      assert Locale.normalize_locale("pt-BR") == "pt"
+      assert Locale.normalize_locale("ru-RU") == "ru"
     end
 
     test "normalizes chinese script variants" do
@@ -24,6 +24,7 @@ defmodule TuistWeb.LocaleTest do
 
     test "returns nil for unsupported locales" do
       assert Locale.normalize_locale("fr-FR") == nil
+      assert Locale.normalize_locale("pt-BR") == nil
     end
   end
 

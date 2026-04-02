@@ -8,6 +8,10 @@ defmodule TuistWeb.Locale do
   alias Phoenix.LiveView
   alias TuistWeb.Gettext, as: GettextBackend
 
+  @supported_locales ~w(en es ja ko ru yue_Hant zh_Hans zh_Hant)
+
+  def supported_locales, do: @supported_locales
+
   def on_mount(:assign_locale, _params, session, socket) do
     locale =
       session
@@ -57,8 +61,6 @@ defmodule TuistWeb.Locale do
   end
 
   defp exact_supported_locale(locale) do
-    supported_locales = Gettext.known_locales(GettextBackend)
-
     candidate =
       case String.split(locale, "-", trim: true) do
         [language, script | _] when String.match?(script, ~r/^[A-Za-z]{4}$/) ->
@@ -68,7 +70,7 @@ defmodule TuistWeb.Locale do
           String.downcase(language)
       end
 
-    if candidate in supported_locales, do: candidate
+    if candidate in supported_locales(), do: candidate
   end
 
   defp normalize_script(nil), do: nil
