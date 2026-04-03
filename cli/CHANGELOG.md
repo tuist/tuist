@@ -1,15 +1,60 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.172.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.174.2<!-- RELEASE NOTES START -->
 
+### 🐛 Bug Fixes
+
+* deduplicate entries during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10164](https://github.com/tuist/tuist/pull/10164)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.1...4.174.2
+
+## What's Changed in 4.174.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* dereference symlinks during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10163](https://github.com/tuist/tuist/pull/10163)
+* resolve result bundle symlink before remote upload by [@fortmarek](https://github.com/fortmarek) in [#10161](https://github.com/tuist/tuist/pull/10161)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.0...4.174.1
+
+## What's Changed in 4.174.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add defaultSwiftVersion generation option and respect package-declared Swift versions by [@pepicrft](https://github.com/pepicrft) in [#10151](https://github.com/tuist/tuist/pull/10151)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.173.1...4.174.0
+
+## What's Changed in 4.173.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* resource/file glob excluding with ** pattern incorrectly excludes all sibling files by [@stefanomondino](https://github.com/stefanomondino) in [#10114](https://github.com/tuist/tuist/pull/10114)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.173.0...4.173.1
+
+## What's Changed in 4.173.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add --inspect-mode flag for remote xcresult processing by [@fortmarek](https://github.com/fortmarek) in [#10145](https://github.com/tuist/tuist/pull/10145)
+* support shared volumes for test shard distribution by [@fortmarek](https://github.com/fortmarek) in [#10144](https://github.com/tuist/tuist/pull/10144)
 ### 🐛 Bug Fixes
 
 * preserve .swiftmodule directories in shard archives by [@fortmarek](https://github.com/fortmarek) in [#10137](https://github.com/tuist/tuist/pull/10137)
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.172.0...4.172.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.172.0...4.173.0
 
 ## What's Changed in 4.172.0<!-- RELEASE NOTES START -->
 
@@ -1580,7 +1625,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* clean up warnings by [@waltflanagan](https://github.com/waltflanagan) in [#7666](https://github.com/tuist/tuist/pull/7666)
+* clean up warnings by [@waltflanagan](https://github.com/waltflanagan)
 * fix content hashing to use relative path when file does not exist by [@waltflanagan](https://github.com/waltflanagan) in [#8557](https://github.com/tuist/tuist/pull/8557)
 
 
@@ -2378,7 +2423,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add commands to list and read bundles by [@pepicrft](https://github.com/pepicrft) in [#7893](https://github.com/tuist/tuist/pull/7893)
+* Add commands to list and read bundles by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -2523,7 +2568,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Ignore internal server errors when interating with the cache by [@pepicrft](https://github.com/pepicrft) in [#7924](https://github.com/tuist/tuist/pull/7924)
+* Ignore internal server errors when interating with the cache by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -2533,7 +2578,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* do not link cached frameworks with linking status .none by [@fortmarek](https://github.com/fortmarek) in [#7918](https://github.com/tuist/tuist/pull/7918)
+* do not link cached frameworks with linking status .none by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -2554,7 +2599,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * fix cli not launching because ProjectAutomation's dynamic framework can't be found by [@pepicrft](https://github.com/pepicrft)
-* token refresh race condition by [@pepicrft](https://github.com/pepicrft) in [#7907](https://github.com/tuist/tuist/pull/7907)
+* token refresh race condition by [@pepicrft](https://github.com/pepicrft)
 
 
 

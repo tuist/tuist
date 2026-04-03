@@ -69,7 +69,23 @@ public struct XCResultParser: Sendable {
     }
 
     public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
-        let testOutput: XCResultTestOutput = try await fileSystem
+        let testOutput = try await loadTestOutput(path: path)
+        return try await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
+    }
+
+    public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {
+        let testOutput = try await loadTestOutput(path: path)
+
+        var results: [TestResultStatuses.TestCaseStatus] = []
+        for testNode in testOutput.testNodes {
+            extractTestCaseStatuses(from: testNode, module: nil, into: &results)
+        }
+
+        return TestResultStatuses(testCases: results)
+    }
+
+    private func loadTestOutput(path: AbsolutePath) async throws -> XCResultTestOutput {
+        try await fileSystem
             .runInTemporaryDirectory(prefix: "xcresult-test-results") { temporaryDirectory in
                 let tempFile = temporaryDirectory.appending(component: "test-results.json")
 
@@ -87,8 +103,29 @@ public struct XCResultParser: Sendable {
                 }
                 return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
             }
+    }
 
-        return try await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
+    private func extractTestCaseStatuses(
+        from node: TestNode,
+        module: String?,
+        into results: inout [TestResultStatuses.TestCaseStatus]
+    ) {
+        let currentModule = node.nodeType == "Unit test bundle" ? node.name : module
+
+        if node.nodeType == "Test Case", let name = node.name {
+            results.append(
+                TestResultStatuses.TestCaseStatus(
+                    name: name,
+                    testSuite: extractSuiteName(from: node.nodeIdentifier),
+                    module: currentModule,
+                    status: testStatus(from: node.result)
+                )
+            )
+        }
+
+        for child in node.children ?? [] {
+            extractTestCaseStatuses(from: child, module: currentModule, into: &results)
+        }
     }
 
     private func extractJSON(from output: String) -> String {

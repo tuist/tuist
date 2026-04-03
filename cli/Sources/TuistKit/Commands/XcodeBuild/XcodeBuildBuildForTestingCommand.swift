@@ -60,6 +60,13 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
     )
     var shardReference: String?
 
+    @Flag(
+        name: .long,
+        help: "Skip uploading test products to remote storage. Use when you provide test products to shard runners yourself, for example via shared volumes.",
+        envKey: .testShardSkipUpload
+    )
+    var shardSkipUpload: Bool = false
+
     @Argument(
         parsing: .captureForPassthrough,
         help: "Arguments that will be passed through to the xcodebuild CLI. All arguments are forwarded to xcodebuild. Example: tuist xcodebuild build-for-testing -scheme MyAppTests -destination 'platform=iOS Simulator,name=iPhone 15'"
@@ -75,7 +82,8 @@ public struct XcodeBuildBuildForTestingCommand: AsyncParsableCommand, TrackableP
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,
-                shardMaxDuration: shardMaxDuration
+                shardMaxDuration: shardMaxDuration,
+                shardSkipUpload: shardSkipUpload
             )
     }
 }

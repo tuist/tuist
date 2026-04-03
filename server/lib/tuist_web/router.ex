@@ -223,6 +223,11 @@ defmodule TuistWeb.Router do
              metadata: %{type: :marketing},
              private: private
 
+        live Path.join(locale_path_prefix, "/changelog/:id"),
+             TuistWeb.Marketing.MarketingChangelogEntryLive,
+             metadata: %{type: :marketing},
+             private: private
+
         live Path.join(locale_path_prefix, "/customers"),
              TuistWeb.Marketing.MarketingCustomersLive,
              metadata: %{type: :marketing},

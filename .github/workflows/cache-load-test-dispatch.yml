@@ -1,0 +1,78 @@
+name: Cache Load Test Dispatch
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  dispatch:
+    name: Dispatch load test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch when load-test label is added
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LABEL_NAME: ${{ github.event.label.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          remove_label() {
+            gh pr edit "$PR_NUMBER" --repo "$REPOSITORY" --remove-label load-test || true
+          }
+
+          if [ "$LABEL_NAME" != 'load-test' ]; then
+            echo "Ignoring label: ${LABEL_NAME}"
+            exit 0
+          fi
+
+          pr_json=$(gh api "/repos/${REPOSITORY}/pulls/${PR_NUMBER}")
+          head_repo=$(jq -r '.head.repo.full_name' <<<"$pr_json")
+
+          if [ "$head_repo" != "$REPOSITORY" ]; then
+            echo "Ignoring load-test label for fork PR #${PR_NUMBER}"
+            remove_label
+            exit 0
+          fi
+
+          changed_files=$(gh api "/repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')
+
+          has_relevant_changes=false
+          while IFS= read -r path; do
+            case "$path" in
+              cache/*|tuist_common/*|.github/actions/cache-deploy-staging/*|.github/actions/cache-run-k6/*|.github/workflows/cache-load-test.yml|.github/workflows/cache-load-test-dispatch.yml)
+                has_relevant_changes=true
+                break
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          if [ "$has_relevant_changes" != 'true' ]; then
+            echo "Ignoring load-test label for PR #${PR_NUMBER} without cache-related changes"
+            remove_label
+            exit 0
+          fi
+
+          pr_ref=$(jq -r '.head.ref' <<<"$pr_json")
+          pr_sha=$(jq -r '.head.sha' <<<"$pr_json")
+          base_ref=$(jq -r '.base.ref' <<<"$pr_json")
+          base_sha=$(jq -r '.base.sha' <<<"$pr_json")
+
+          gh workflow run cache-load-test.yml \
+            --repo "$REPOSITORY" \
+            --ref "$pr_ref" \
+            -f pr_number="$PR_NUMBER" \
+            -f pr_ref="$pr_ref" \
+            -f pr_sha="$pr_sha" \
+            -f base_ref="$base_ref" \
+            -f base_sha="$base_sha"
+
+          remove_label

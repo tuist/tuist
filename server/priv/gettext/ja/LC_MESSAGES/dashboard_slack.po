@@ -1,0 +1,58 @@
+msgid ""
+msgstr ""
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:140
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:231
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:246
+#, elixir-autogen, elixir-format
+msgid "Account not found. Please try again."
+msgstr "アカウントが見つかりません。もう一度お試しください。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:148
+#, elixir-autogen, elixir-format
+msgid "Failed to save Slack installation. Please try again."
+msgstr "Slackインストールの保存に失敗しました。もう一度お試しください。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:47
+#, elixir-autogen, elixir-format
+msgid "Invalid Slack authorization. Please try again."
+msgstr "Slack認証が無効です。もう一度お試しください。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:97
+#, elixir-autogen, elixir-format
+msgid "Invalid authorization request. Please try again."
+msgstr "認証リクエストが無効です。もう一度お試しください。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:144
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:162
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:178
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:196
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:210
+#, elixir-autogen, elixir-format
+msgid "Slack authorization failed: %{reason}"
+msgstr "Slack認証に失敗しました: %{reason}"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:182
+#, elixir-autogen, elixir-format
+msgid "Failed to save channel selection. Please try again."
+msgstr "チャンネル選択の保存に失敗しました。もう一度お試しください。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:242
+#, elixir-autogen, elixir-format
+msgid "Project not found. Please try again."
+msgstr "プロジェクトが見つかりません。もう一度お試しください。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:174
+#, elixir-autogen, elixir-format
+msgid "Alert rule not found. Please try again."
+msgstr "アラートルールが見つかりません。もう一度お試しください。"
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:89
+#, elixir-autogen, elixir-format
+msgid "Authorization request expired. Please start the Slack connection process again."
+msgstr "認証リクエストの有効期限が切れました。Slack連携を再度開始してください。"

@@ -3,6 +3,7 @@ defmodule TuistWeb.API.SelectiveTestingTargetsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.CommandEvents
   alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistWeb.API.Schemas.Error
@@ -106,47 +107,47 @@ defmodule TuistWeb.API.SelectiveTestingTargetsController do
         %{assigns: %{selected_project: selected_project}, params: %{test_run_id: test_run_id} = params} = conn,
         _params
       ) do
-    case Tests.get_test(test_run_id) do
-      {:ok, %{project_id: project_id} = run}
-      when project_id == selected_project.id ->
-        page = params.page
-        page_size = params.page_size
+    with {:ok, %{project_id: project_id} = test_run} when project_id == selected_project.id <-
+           Tests.get_test(test_run_id),
+         {:ok, command_event} <- CommandEvents.get_command_event_by_test_run_id(test_run.id) do
+      page = params.page
+      page_size = params.page_size
 
-        filters =
-          case Map.get(params, :hit_status) do
-            nil -> []
-            hit_status -> [%{field: :selective_testing_hit, op: :==, value: hit_status}]
-          end
+      filters =
+        case Map.get(params, :hit_status) do
+          nil -> []
+          hit_status -> [%{field: :selective_testing_hit, op: :==, value: hit_status}]
+        end
 
-        flop_params = %{
-          filters: filters,
-          page: page,
-          page_size: page_size
+      flop_params = %{
+        filters: filters,
+        page: page,
+        page_size: page_size
+      }
+
+      {analytics, meta} = Xcode.selective_testing_analytics(command_event, flop_params)
+      test_modules = Map.get(analytics, :test_modules, [])
+
+      json(conn, %{
+        targets:
+          Enum.map(test_modules, fn target ->
+            %{
+              name: target.name,
+              hit_status: to_string(target.selective_testing_hit),
+              hash: target.selective_testing_hash
+            }
+          end),
+        pagination_metadata: %{
+          has_next_page: meta.has_next_page?,
+          has_previous_page: meta.has_previous_page?,
+          current_page: meta.current_page,
+          page_size: meta.page_size,
+          total_count: meta.total_count,
+          total_pages: meta.total_pages
         }
-
-        {analytics, meta} = Xcode.selective_testing_analytics(run, flop_params)
-        test_modules = Map.get(analytics, :test_modules, [])
-
-        json(conn, %{
-          targets:
-            Enum.map(test_modules, fn target ->
-              %{
-                name: target.name,
-                hit_status: to_string(target.selective_testing_hit),
-                hash: target.selective_testing_hash
-              }
-            end),
-          pagination_metadata: %{
-            has_next_page: meta.has_next_page?,
-            has_previous_page: meta.has_previous_page?,
-            current_page: meta.current_page,
-            page_size: meta.page_size,
-            total_count: meta.total_count,
-            total_pages: meta.total_pages
-          }
-        })
-
-      _error ->
+      })
+    else
+      _ ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Test run not found."})

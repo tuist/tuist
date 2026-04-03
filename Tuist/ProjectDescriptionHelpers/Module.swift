@@ -401,6 +401,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.environment.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.initCommand.targetName),
                     .target(name: Module.support.targetName),
@@ -1872,6 +1873,7 @@ public enum Module: String, CaseIterable {
             case .xcResultService:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: "XCResultParser"),
                     .external(name: "FileSystemTesting"),
                 ]
             case .cas:

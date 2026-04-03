@@ -3210,6 +3210,7 @@ struct PackageInfoMapperTests {
                     settings: .settings(
                         base: [
                             "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
+                            "SWIFT_VERSION": "5",
                         ],
                         configurations: [
                             .debug(
@@ -4250,7 +4251,7 @@ struct PackageInfoMapperTests {
             project ==
                 .testWithDefaultConfigs(
                     name: "Package",
-                    settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99"]),
+                    settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99", "SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target1", basePath: basePath),
                     ]
@@ -4289,7 +4290,7 @@ struct PackageInfoMapperTests {
             project ==
                 .testWithDefaultConfigs(
                     name: "Package",
-                    settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14"]),
+                    settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14", "SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target1", basePath: basePath),
                     ]
@@ -4800,7 +4801,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target", basePath: basePath),
                         .test(
@@ -4867,7 +4868,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test(
                             "Target",
@@ -4967,7 +4968,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target", basePath: basePath),
                         .test(
@@ -5054,7 +5055,7 @@ struct PackageInfoMapperTests {
                         automaticSchemesOptions: .enabled(),
                         disableSynthesizedResourceAccessors: true
                     ),
-                    settings: .settings(),
+                    settings: .settings(base: ["SWIFT_VERSION": "5"]),
                     targets: [
                         .test("Target", basePath: basePath),
                         .test(
@@ -6656,10 +6657,13 @@ extension ProjectDescription.Project {
             disableSynthesizedResourceAccessors: true,
             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
         ),
-        settings: ProjectDescription.Settings = .settings(configurations: [
-            .debug(name: .debug),
-            .release(name: .release),
-        ]),
+        settings: ProjectDescription.Settings = .settings(
+            base: ["SWIFT_VERSION": "5"],
+            configurations: [
+                .debug(name: .debug),
+                .release(name: .release),
+            ]
+        ),
         customSettings: ProjectDescription.SettingsDictionary = [:],
         targets: [ProjectDescription.Target]
     ) -> Self {
