@@ -1344,11 +1344,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let result = try XCTUnwrap(got)
-        // Path should be relative to the directory containing the .xcworkspace, not the bundle itself.
-        // This means no leading "../" to escape the .xcworkspace bundle.
+        // Path should be relative to the .xcworkspace bundle path itself.
         XCTAssertEqual(
             result.storeKitConfigurationFileReference,
-            .init(identifier: "iOS/App/Resources/Products.storekit")
+            .init(identifier: "../iOS/App/Resources/Products.storekit")
         )
     }
 
