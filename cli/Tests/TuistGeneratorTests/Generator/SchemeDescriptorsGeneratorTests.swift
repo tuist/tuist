@@ -1291,7 +1291,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
         XCTAssertEqual(
             result.storeKitConfigurationFileReference,
-            .init(identifier: "Projects/Project/nested/configuration/configuration.storekit")
+            .init(identifier: "../Projects/Project/nested/configuration/configuration.storekit")
         )
         XCTAssertEqual(result.locationScenarioReference?.referenceType, "1")
         XCTAssertEqual(result.locationScenarioReference?.identifier, "New York, NY, USA")
