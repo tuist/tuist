@@ -38,7 +38,7 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(searchPaths.map(\.includeSearchPath), [
-            "/path/to/tuist/.build/debug",
+            "/path/to/tuist/.build/debug/Modules",
             "/path/to/DerivedData/Debug",
             "/path/to/DerivedData/Debug",
         ])
