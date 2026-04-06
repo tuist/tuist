@@ -10,12 +10,12 @@
 如果您有 Tuist**全局安裝** (例如透過 Homebrew)，您可以為 Bash 和 Zsh 安裝 shell
 completions，以自動完成指令和選項。
 
-::: warning WHAT IS A GLOBAL INSTALLATION
-<!-- -->
-全局安裝是指在您 shell 的`$PATH` 環境變數中可用的安裝。這表示您可以從終端機的任何目錄執行`tuist` 。這是 Homebrew
-的預設安裝方式。
-<!-- -->
-:::
+> [!WARNING]
+> **What Is A Global Installation**
+>
+> 全局安裝是指在您 shell 的`$PATH` 環境變數中可用的安裝。這表示您可以從終端機的任何目錄執行`tuist` 。這是 Homebrew
+> 的預設安裝方式。
+
 
 #### Zsh{#zsh}
 

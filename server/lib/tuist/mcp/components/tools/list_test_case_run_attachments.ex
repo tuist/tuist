@@ -42,6 +42,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRunAttachments do
                Tests.attachment_storage_key(%{
                  account_handle: project.account.name,
                  project_handle: project.name,
+                 test_run_id: attachment.test_run_id,
                  test_case_run_id: test_case_run_id,
                  attachment_id: attachment.id,
                  file_name: attachment.file_name

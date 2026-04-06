@@ -32,11 +32,11 @@ The intricacies and implementation details are abstracted away from you.
 
 In the following sections you'll learn how to declare dependencies in your project.
 
-::: tip GRAPH VALIDATION
-<!-- -->
-Tuist validates the graph when generating the project to ensure that there are no cycles and that all the dependencies are valid. Thanks to this, any team can take part in evolving the dependency graph without worrying about breaking it.
-<!-- -->
-:::
+> [!TIP]
+> **Graph Validation**
+>
+> Tuist validates the graph when generating the project to ensure that there are no cycles and that all the dependencies are valid. Thanks to this, any team can take part in evolving the dependency graph without worrying about breaking it.
+
 
 ## Local dependencies {#local-dependencies}
 
@@ -51,11 +51,11 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 - `SDK`: Declares a dependency with a system SDK.
 - `XCTest`: Declares a dependency with XCTest.
 
-::: info DEPENDENCY CONDITIONS
-<!-- -->
-Every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
-<!-- -->
-:::
+> [!NOTE]
+> **Dependency Conditions**
+>
+> Every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
+
 
 ## External dependencies {#external-dependencies}
 
@@ -111,11 +111,11 @@ let package = Package(
 <!-- -->
 :::
 
-::: tip PACKAGE SETTINGS
-<!-- -->
-The `PackageSettings` instance wrapped in a compiler directive allows you to configure how packages are integrated. For example, in the example above it's used to override the default product type used for packages. By default, you shouldn't need it. You can also use it to configure expected signatures for SwiftPM binary targets through `expectedSignatures`.
-<!-- -->
-:::
+> [!TIP]
+> **Package Settings**
+>
+> The `PackageSettings` instance wrapped in a compiler directive allows you to configure how packages are integrated. For example, in the example above it's used to override the default product type used for packages. By default, you shouldn't need it. You can also use it to configure expected signatures for SwiftPM binary targets through `expectedSignatures`.
+
 
 ### Binary Target Signatures
 
@@ -192,11 +192,11 @@ let project = Project(
 <!-- -->
 :::
 
-::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
-<!-- -->
-The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
-<!-- -->
-:::
+> [!NOTE]
+> **No Schemes Generated For External Packages**
+>
+> The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
+
 
 #### Xcode's default integration {#xcodes-default-integration}
 
@@ -218,11 +218,11 @@ let target = .target(name: "MyTarget", dependencies: [
 
 For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro` and `.plugin` respectively.
 
-::: warning SPM Build Tool Plugins
-<!-- -->
-SPM build tool plugins must be declared using [Xcode's default integration](#xcode-s-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your project dependencies.
-<!-- -->
-:::
+> [!WARNING]
+> **Spm Build Tool Plugins**
+>
+> SPM build tool plugins must be declared using [Xcode's default integration](#xcode-s-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your project dependencies.
+
 
 A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this is defined as follows:
 
@@ -281,11 +281,11 @@ carthage update
 tuist generate
 ```
 
-::: warning BUILD AND TEST
-<!-- -->
-If you build and test your project through `xcodebuild build` and `tuist test`, you will similarly need to ensure that the Carthage-resolved dependencies are present by running the `carthage update` command before building or testing.
-<!-- -->
-:::
+> [!WARNING]
+> **Build And Test**
+>
+> If you build and test your project through `xcodebuild build` and `tuist test`, you will similarly need to ensure that the Carthage-resolved dependencies are present by running the `carthage update` command before building or testing.
+
 
 ### CocoaPods {#cocoapods}
 
@@ -298,11 +298,9 @@ tuist generate
 pod install
 ```
 
-::: warning
-<!-- -->
-CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
-<!-- -->
-:::
+> [!WARNING]
+> CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
+
 
 ## Static or dynamic {#static-or-dynamic}
 
@@ -327,11 +325,11 @@ func productType() -> Product {
 
 Note that Tuist <LocalizedLink href="/guides/features/projects/cost-of-convenience">does not default to convenience through implicit configuration due to its costs</LocalizedLink>. What this means is that we rely on you setting the linking type and any additional build settings that are sometimes required, like the [`-ObjC` linker flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184), to ensure the resulting binaries are correct. Therefore, the stance that we take is providing you with the resources, usually in the shape of documentation, to make the right decisions.
 
-::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
-<!-- -->
-A Swift Package that many projects integrate is [The Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). See more details in [this section](#the-composable-architecture).
-<!-- -->
-:::
+> [!TIP]
+> **Example: The Composable Architecture**
+>
+> A Swift Package that many projects integrate is [The Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture). See more details in [this section](#the-composable-architecture).
+
 
 ### Scenarios {#scenarios}
 
@@ -411,11 +409,11 @@ When linking statically, test and app targets typically work without any issues,
 
 Following configuration will link everything dynamically - so app + test targets and SwiftUI previews are working.
 
-::: tip STATIC OR DYNAMIC
-<!-- -->
-Dynamic linking is not always recommended. See the section [Static or dynamic](#static-or-dynamic) for more details. In this example, all dependencies are linked dynamically without conditions for simplicity.
-<!-- -->
-:::
+> [!TIP]
+> **Static Or Dynamic**
+>
+> Dynamic linking is not always recommended. See the section [Static or dynamic](#static-or-dynamic) for more details. In this example, all dependencies are linked dynamically without conditions for simplicity.
+
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 6.0
@@ -464,11 +462,9 @@ let packageSettings = PackageSettings(
 #endif
 ```
 
-::: warning
-<!-- -->
-Instead of `import Sharing` you'll have to `import SwiftSharing` instead.
-<!-- -->
-:::
+> [!WARNING]
+> Instead of `import Sharing` you'll have to `import SwiftSharing` instead.
+
 
 ### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
@@ -478,11 +474,9 @@ When a dynamic framework or library depends on static ones through `import Stati
 internal import StaticModule
 ```
 
-::: info
-<!-- -->
-Access level on imports was included in Swift 6. If you're using older versions of Swift, you need to use <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink> instead:
-<!-- -->
-:::
+> [!NOTE]
+> Access level on imports was included in Swift 6. If you're using older versions of Swift, you need to use <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink> instead:
+
 
 ```swift
 @_implementationOnly import StaticModule

@@ -31,12 +31,20 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
     @Option(name: .long, help: "The zero-based shard index to execute.")
     var shardIndex: Int?
 
+    @Option(
+        name: .long,
+        help: "Inspect mode: 'local' parses the xcresult on this machine, 'remote' uploads it for server-side processing.",
+        envKey: .inspectTestMode
+    )
+    var inspectMode: TestProcessingMode = .local
+
     public func run() async throws {
         try await XcodeBuildTestCommandService()
             .run(
                 passthroughXcodebuildArguments: ["test"] + passthroughXcodebuildArguments,
                 skipQuarantine: skipQuarantine,
-                shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue()
+                shardIndex: shardIndex ?? EnvKey.testShardIndex.envValue(),
+                mode: inspectMode
             )
     }
 }

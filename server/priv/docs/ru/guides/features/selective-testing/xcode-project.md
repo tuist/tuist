@@ -7,11 +7,11 @@
 ---
 # Проект Xcode {#xcode-project}
 
-::: предупреждение РЕКВИЗИТЫ
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Реквизиты**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
+
 
 Вы можете запускать тесты ваших проектов Xcode выборочно через командную строку.
 Для этого вы можете дополнить команду `xcodebuild` командой `tuist` - например,

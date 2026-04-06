@@ -15,11 +15,9 @@
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-::: warning
-<!-- -->
-도메인을 설정하려는 조직과 연결된 이메일을 사용하여 Google에 인증되어야 합니다.
-<!-- -->
-:::
+> [!WARNING]
+> 도메인을 설정하려는 조직과 연결된 이메일을 사용하여 Google에 인증되어야 합니다.
+
 
 ## Okta {#okta}
 
@@ -51,9 +49,7 @@ Okta를 사용한 SSO는 기업 고객만 사용할 수 있습니다. 설정에 
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-::: warning
-<!-- -->
-현재 Tuist는 Okta 조직에서 사용자의 자동 프로비저닝 및 프로비저닝 해제를 지원하지 않으므로 사용자는 처음에 자신의 Okta 대시보드를
-통해 로그인해야 합니다. 사용자가 Okta 대시보드를 통해 로그인하면 자동으로 Tuist 조직에 추가됩니다.
-<!-- -->
-:::
+> [!WARNING]
+> 현재 Tuist는 Okta 조직에서 사용자의 자동 프로비저닝 및 프로비저닝 해제를 지원하지 않으므로 사용자는 처음에 자신의 Okta 대시보드를
+> 통해 로그인해야 합니다. 사용자가 Okta 대시보드를 통해 로그인하면 자동으로 Tuist 조직에 추가됩니다.
+

@@ -59,15 +59,13 @@ let project = Project(
 <!-- -->
 :::
 
-::: info
-<!-- -->
-Mantenemos intencionadamente corta la lista de plantillas disponibles para
-minimizar la sobrecarga de mantenimiento. Si quieres crear un proyecto que no
-represente una aplicación, por ejemplo un framework, puedes utilizar `tuist
-init` como punto de partida y luego modificar el proyecto generado para
-adaptarlo a tus necesidades.
-<!-- -->
-:::
+> [!NOTE]
+> Mantenemos intencionadamente corta la lista de plantillas disponibles para
+> minimizar la sobrecarga de mantenimiento. Si quieres crear un proyecto que no
+> represente una aplicación, por ejemplo un framework, puedes utilizar `tuist
+> init` como punto de partida y luego modificar el proyecto generado para
+> adaptarlo a tus necesidades.
+
 
 ## Creación manual de un proyecto {#manually-creating-a-project}
 
@@ -110,11 +108,9 @@ let tuist = Tuist()
 <!-- -->
 :::
 
-::: advertencia
-<!-- -->
-Tuist utiliza el directorio `Tuist/` para determinar la raíz de tu proyecto, y a
-partir de ahí busca otros archivos de manifiesto globbing los directorios.
-Recomendamos crear esos archivos con el editor de tu elección, y a partir de
-ahí, puedes usar `tuist edit` para editar el proyecto con Xcode.
-<!-- -->
-:::
+> [!WARNING]
+> Tuist utiliza el directorio `Tuist/` para determinar la raíz de tu proyecto, y a
+> partir de ahí busca otros archivos de manifiesto globbing los directorios.
+> Recomendamos crear esos archivos con el editor de tu elección, y a partir de
+> ahí, puedes usar `tuist edit` para editar el proyecto con Xcode.
+

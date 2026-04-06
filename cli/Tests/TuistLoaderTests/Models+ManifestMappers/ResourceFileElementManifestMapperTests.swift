@@ -367,6 +367,43 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_excluding_glob_by_extension_does_not_exclude_siblings() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        let sourcesFolder = temporaryPath.appending(component: "Sources")
+        let jsonFile = sourcesFolder.appending(component: "config.json")
+        let txtFile = sourcesFolder.appending(component: "readme.txt")
+        try await fileSystem.makeDirectory(at: sourcesFolder)
+        try await fileSystem.writeText("{}", at: jsonFile)
+        try await fileSystem.writeText("", at: txtFile)
+        try await fileSystem.writeText("", at: sourcesFolder.appending(component: "MyApp.swift"))
+        let manifest = ProjectDescription.ResourceFileElement.glob(
+            pattern: "Sources/**",
+            excluding: ["Sources/**/*.swift"]
+        )
+
+        // When
+        let got = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            got,
+            [
+                .file(path: jsonFile, tags: []),
+                .file(path: txtFile, tags: []),
+            ]
+        )
+    }
+
     func test_excluding_when_pattern_is_file() async throws {
         // Given
         let temporaryPath = try temporaryPath()

@@ -12,12 +12,12 @@
 
 ## الإعداد {#setup}
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع Tuist</LocalizedLink>
-- Xcode 26.0 أو أحدث
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع Tuist</LocalizedLink>
+> - Xcode 26.0 أو أحدث
+
 
 إذا لم يكن لديك حساب ومشروع تويست بالفعل، يمكنك إنشاء حساب ومشروع عن طريق
 التشغيل:
@@ -57,12 +57,12 @@ COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 المستخدم** نظرًا لأنها غير مكشوفة مباشرة في واجهة مستخدم إعدادات البناء في
 Xcode:
 
-::: info SOCKET PATH
-<!-- -->
-سيتم عرض مسار المقبس عند تشغيل `tuist إعداد ذاكرة التخزين المؤقت`. وهو يستند إلى
-المقبض الكامل لمشروعك مع استبدال الشرطات المائلة بشرطة سفلية.
-<!-- -->
-:::
+> [!NOTE]
+> **Socket Path**
+>
+> سيتم عرض مسار المقبس عند تشغيل `tuist إعداد ذاكرة التخزين المؤقت`. وهو يستند إلى
+> المقبض الكامل لمشروعك مع استبدال الشرطات المائلة بشرطة سفلية.
+
 
 يمكنك أيضًا تحديد هذه الإعدادات عند تشغيل `xcodebuild` عن طريق إضافة الأعلام
 التالية، مثل
@@ -75,26 +75,26 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
-::: info GENERATED PROJECTS
-<!-- -->
-لا حاجة إلى ضبط الإعدادات يدويًا إذا كان مشروعك قد تم إنشاؤه بواسطة Tuist.
+> [!NOTE]
+> **Generated Projects**
+>
+> لا حاجة إلى ضبط الإعدادات يدويًا إذا كان مشروعك قد تم إنشاؤه بواسطة Tuist.
+>
+> في هذه الحالة، كل ما تحتاجه هو إضافة `enableCaching: true` إلى ملف
+> `Tuist.swift.swift` الخاص بك :
+> ```swift
+> import ProjectDescription
+>
+> let tuist = Tuist(
+>     fullHandle: "your-org/your-project",
+>     project: .tuist(
+>         generationOptions: .options(
+>             enableCaching: true
+>         )
+>     )
+> )
+> ```
 
-في هذه الحالة، كل ما تحتاجه هو إضافة `enableCaching: true` إلى ملف
-`Tuist.swift.swift` الخاص بك :
-```swift
-import ProjectDescription
-
-let tuist = Tuist(
-    fullHandle: "your-org/your-project",
-    project: .tuist(
-        generationOptions: .options(
-            enableCaching: true
-        )
-    )
-)
-```
-<!-- -->
-:::
 
 ### التكامل المستمر {#continuous-integration}
 

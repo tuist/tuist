@@ -23,11 +23,11 @@ tuist init
 
 The command will walk you through the steps to <LocalizedLink href="/guides/features/projects">create a generated project</LocalizedLink> or integrate an existing Xcode project or workspace. It helps you connect your setup to the remote server, giving you access to features like <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>, <LocalizedLink href="/guides/features/previews">previews</LocalizedLink>, and the <LocalizedLink href="/guides/features/registry">registry</LocalizedLink>.
 
-::: info MIGRATE AN EXISTING PROJECT
-<!-- -->
-If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out our <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
-<!-- -->
-:::
+> [!NOTE]
+> **Migrate An Existing Project**
+>
+> If you want to migrate an existing project to generated projects to improve the developer experience and take advantage of our <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>, check out our <LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">migration guide</LocalizedLink>.
+
 
 ## Add dependencies {#add-dependencies}
 
@@ -107,11 +107,11 @@ let project = Project(
 
 Then run `tuist install` to resolve and pull the dependencies using the [Swift Package Manager](https://www.swift.org/documentation/package-manager/).
 
-::: info SPM AS A DEPENDENCY RESOLVER
-<!-- -->
-Tuist recommended approach to dependencies uses the Swift Package Manager (SPM) only to resolve dependencies. Tuist then converts them into Xcode projects and targets for maximum configurability and control.
-<!-- -->
-:::
+> [!NOTE]
+> **Spm As A Dependency Resolver**
+>
+> Tuist recommended approach to dependencies uses the Swift Package Manager (SPM) only to resolve dependencies. Tuist then converts them into Xcode projects and targets for maximum configurability and control.
+
 
 ## Visualize the project {#visualize-the-project}
 

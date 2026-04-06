@@ -24,13 +24,13 @@ Actualmente se admiten los siguientes idiomas:
 - Español
 - Portugués
 
-::: tip REQUEST A NEW LANGUAGE
-<!-- -->
-Si crees que Tuist se beneficiaría de apoyar un nuevo idioma, por favor crea un
-nuevo [tema en el foro de la comunidad](https://community.tuist.io/c/general/4)
-para discutirlo con la comunidad.
-<!-- -->
-:::
+> [!TIP]
+> **Request A New Language**
+>
+> Si crees que Tuist se beneficiaría de apoyar un nuevo idioma, por favor crea un
+> nuevo [tema en el foro de la comunidad](https://community.tuist.io/c/general/4)
+> para discutirlo con la comunidad.
+
 
 ## Cómo traducir {#how-to-translate}
 
@@ -42,13 +42,13 @@ a traducir.
 Las traducciones se sincronizan con el repositorio fuente mediante pull requests
 de GitHub que los mantenedores revisarán y fusionarán.
 
-::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
-<!-- -->
-Weblate segmenta los archivos para enlazar los idiomas de origen y de destino.
-Si modificas el idioma de origen, romperás el enlace y la reconciliación podría
-dar resultados inesperados.
-<!-- -->
-:::
+> [!WARNING]
+> **Don't Modify The Resources In The Target Language**
+>
+> Weblate segmenta los archivos para enlazar los idiomas de origen y de destino.
+> Si modificas el idioma de origen, romperás el enlace y la reconciliación podría
+> dar resultados inesperados.
+
 
 ## Directrices {#guidelines}
 
@@ -62,11 +62,11 @@ traducen el título y el contenido **pero no el tipo de alerta**.
 
 ```markdown
 <!-- -->
-::: warning 루트 변수
-<!-- -->
-매니페스트의 루트에 있어야 하는 변수는...
-<!-- -->
-:::
+> [!WARNING]
+> **루트 변수**
+>
+> 매니페스트의 루트에 있어야 하는 변수는...
+
 ```
 
 ### Títulos de las rúbricas {#heading-titles}

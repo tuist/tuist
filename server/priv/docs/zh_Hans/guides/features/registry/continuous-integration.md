@@ -9,11 +9,11 @@
 
 要在 CI 上使用注册表，需要在工作流程中运行`tuist registry login` ，确保已登录注册表。
 
-::: info ONLY XCODE INTEGRATION
-<!-- -->
-只有在使用 Xcode 集成软件包时，才需要创建新的预解锁钥匙串。
-<!-- -->
-:::
+> [!NOTE]
+> **Only Xcode Integration**
+>
+> 只有在使用 Xcode 集成软件包时，才需要创建新的预解锁钥匙串。
+
 
 由于注册表凭据存储在钥匙串中，因此需要确保在 CI 环境中可以访问钥匙串。请注意，一些 CI 提供商或自动化工具（如
 [Fastlane](https://fastlane.tools/)

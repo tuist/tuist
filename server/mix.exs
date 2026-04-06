@@ -155,6 +155,7 @@ defmodule Tuist.MixProject do
       {:opentelemetry_broadway, "~> 0.3"},
       {:loki_logger_handler, "~> 0.2"},
       {:processor, path: "../processor", runtime: false},
+      {:xcode_processor, path: "../xcode_processor", runtime: false},
       {:tidewave, "~> 0.5", only: :dev},
       {:carta, "~> 0.2.0"},
       {:browse_chrome, "~> 0.4.0"},

@@ -30,18 +30,18 @@ Skracamy wersję Swift uzyskaną po uruchomieniu polecenia `/usr/bin/xcrun swift
 --version`, aby zapobiec błędom kompilacji spowodowanym niezgodnością wersji
 Swift między celami a plikami binarnymi.
 
-::: info STABILNOŚĆ MODUŁU
-<!-- -->
-Poprzednie wersje buforowania binarnego opierały się na ustawieniu kompilacji
-`BUILD_LIBRARY_FOR_DISTRIBUTION`, aby włączyć [stabilność
-modułu](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
-i umożliwić korzystanie z plików binarnych z dowolną wersją kompilatora.
-Powodowało to jednak problemy z kompilacją w projektach z celami, które nie
-obsługują stabilności modułów. Wygenerowane pliki binarne są powiązane z wersją
-Swift użytą do ich kompilacji, a wersja Swift musi być zgodna z wersją użytą do
-kompilacji projektu.
-<!-- -->
-:::
+> [!NOTE]
+> **Stabilność Modułu**
+>
+> Poprzednie wersje buforowania binarnego opierały się na ustawieniu kompilacji
+> `BUILD_LIBRARY_FOR_DISTRIBUTION`, aby włączyć [stabilność
+> modułu](https://www.swift.org/blog/library-evolution#enabling-library-evolution-support)
+> i umożliwić korzystanie z plików binarnych z dowolną wersją kompilatora.
+> Powodowało to jednak problemy z kompilacją w projektach z celami, które nie
+> obsługują stabilności modułów. Wygenerowane pliki binarne są powiązane z wersją
+> Swift użytą do ich kompilacji, a wersja Swift musi być zgodna z wersją użytą do
+> kompilacji projektu.
+
 
 #### Konfiguracja {#configuration}
 
@@ -74,11 +74,11 @@ Jeśli hashe nadal są niedeterministyczne, daj nam znać, a my pomożemy w
 debugowaniu.
 
 
-::: info PLANOWANE LEPSZE DOŚWIADCZENIE DEBUGOWANIA
-<!-- -->
-Ulepszenie naszego doświadczenia w debugowaniu jest na naszej mapie drogowej.
-Polecenie print-hashes, któremu brakuje kontekstu do zrozumienia różnic,
-zostanie zastąpione bardziej przyjaznym dla użytkownika poleceniem, które
-wykorzystuje strukturę podobną do drzewa, aby pokazać różnice między hashami.
-<!-- -->
-:::
+> [!NOTE]
+> **Planowane Lepsze Doświadczenie Debugowania**
+>
+> Ulepszenie naszego doświadczenia w debugowaniu jest na naszej mapie drogowej.
+> Polecenie print-hashes, któremu brakuje kontekstu do zrozumienia różnic,
+> zostanie zastąpione bardziej przyjaznym dla użytkownika poleceniem, które
+> wykorzystuje strukturę podobną do drzewa, aby pokazać różnice między hashami.
+

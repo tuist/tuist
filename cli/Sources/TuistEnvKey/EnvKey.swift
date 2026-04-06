@@ -130,6 +130,7 @@ public enum EnvKey: String, CaseIterable {
     case inspectTestPath = "TUIST_INSPECT_TEST_PATH"
     case inspectTestDerivedDataPath = "TUIST_INSPECT_TEST_DERIVED_DATA_PATH"
     case inspectTestResultBundlePath = "TUIST_INSPECT_TEST_RESULT_BUNDLE_PATH"
+    case inspectTestMode = "TUIST_INSPECT_TEST_MODE"
 
     // RUN
 
@@ -188,6 +189,7 @@ public enum EnvKey: String, CaseIterable {
     case testShardGranularity = "TUIST_TEST_SHARD_GRANULARITY"
     case testShardIndex = "TUIST_SHARD_INDEX"
     case testShardReference = "TUIST_SHARD_REFERENCE"
+    case testShardSkipUpload = "TUIST_TEST_SHARD_SKIP_UPLOAD"
 
     // TEST SHOW
 

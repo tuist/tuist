@@ -44,13 +44,13 @@ frecuencia:
 Tuist resuelve los problemas anteriores sintetizando en **una interfaz unificada
 para acceder a paquetes y recursos** que abstrae los detalles de implementación.
 
-::: warning RECOMMENDED
-<!-- -->
-Aunque acceder a los recursos a través de la interfaz sintetizada por Tuist no
-es obligatorio, lo recomendamos porque facilita el razonamiento sobre el código
-y la movilidad de los recursos.
-<!-- -->
-:::
+> [!WARNING]
+> **Recommended**
+>
+> Aunque acceder a los recursos a través de la interfaz sintetizada por Tuist no
+> es obligatorio, lo recomendamos porque facilita el razonamiento sobre el código
+> y la movilidad de los recursos.
+
 
 ## Recursos {#resources}
 
@@ -64,12 +64,12 @@ Cuando se genere tu proyecto, Tuist sintetizará el contenido de esos archivos y
 los escribirá en el directorio `Derived` relativo al directorio que contiene el
 proyecto que los define.
 
-::: tip GITIGNORE THE DERIVED DIRECTORY
-<!-- -->
-Le recomendamos que añada el directorio `Derived` al archivo `.gitignore` de su
-proyecto.
-<!-- -->
-:::
+> [!TIP]
+> **Gitignore The Derived Directory**
+>
+> Le recomendamos que añada el directorio `Derived` al archivo `.gitignore` de su
+> proyecto.
+
 
 ## Accesorios del paquete {#bundle-accessors}
 
@@ -93,23 +93,23 @@ bundle:
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-::: warning LIMITATION WITH INTERNAL TARGETS
-<!-- -->
-Actualmente, Tuist no genera accesores de paquetes de recursos para objetivos
-internos que contienen sólo fuentes Objective-C. Se trata de una limitación
-conocida de la que se hace un seguimiento en [issue
-#6456](https://github.com/tuist/tuist/issues/6456).
-<!-- -->
-:::
+> [!WARNING]
+> **Limitation With Internal Targets**
+>
+> Actualmente, Tuist no genera accesores de paquetes de recursos para objetivos
+> internos que contienen sólo fuentes Objective-C. Se trata de una limitación
+> conocida de la que se hace un seguimiento en [issue
+> #6456](https://github.com/tuist/tuist/issues/6456).
 
-::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
-<!-- -->
-Si un producto de destino, por ejemplo una biblioteca, no admite recursos, Tuist
-incluirá los recursos en un destino del tipo de producto `bundle` asegurándose
-de que acaba en el producto final y de que la interfaz apunta al bundle
-correcto.
-<!-- -->
-:::
+
+> [!TIP]
+> **Supporting Resources In Libraries Through Bundles**
+>
+> Si un producto de destino, por ejemplo una biblioteca, no admite recursos, Tuist
+> incluirá los recursos en un destino del tipo de producto `bundle` asegurándose
+> de que acaba en el producto final y de que la interfaz apunta al bundle
+> correcto.
+
 
 ## Accesores de recursos {#resource-accessors}
 
@@ -165,11 +165,11 @@ lista de sintetizadores de recursos que desea utilizar:
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-::: info REFERENCE
-<!-- -->
-Puedes consultar [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
-para ver un ejemplo de cómo utilizar plantillas personalizadas para sintetizar
-accesores a recursos.
-<!-- -->
-:::
+> [!NOTE]
+> **Reference**
+>
+> Puedes consultar [this
+> fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
+> para ver un ejemplo de cómo utilizar plantillas personalizadas para sintetizar
+> accesores a recursos.
+

@@ -11,14 +11,14 @@ Si tienes Tuist **instalado globalmente** (por ejemplo, a través de Homebrew),
 puedes instalar completions de shell para Bash y Zsh para autocompletar comandos
 y opciones.
 
-::: warning WHAT IS A GLOBAL INSTALLATION
-<!-- -->
-Una instalación global es una instalación que está disponible en la variable de
-entorno `$PATH` de su shell. Esto significa que puedes ejecutar `tuist` desde
-cualquier directorio de tu terminal. Este es el método de instalación por
-defecto para Homebrew.
-<!-- -->
-:::
+> [!WARNING]
+> **What Is A Global Installation**
+>
+> Una instalación global es una instalación que está disponible en la variable de
+> entorno `$PATH` de su shell. Esto significa que puedes ejecutar `tuist` desde
+> cualquier directorio de tu terminal. Este es el método de instalación por
+> defecto para Homebrew.
+
 
 #### Zsh {#zsh}
 

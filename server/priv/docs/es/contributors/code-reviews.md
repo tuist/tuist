@@ -30,14 +30,14 @@ Los pull requests grandes son difíciles de revisar y es más fácil perderse
 detalles. Si una pull request se vuelve demasiado grande e inmanejable, sugiera
 al autor que la divida.
 
-::: info EXCEPCIONES
-<!-- -->
-Hay algunos casos en los que no es posible dividir la solicitud de extracción,
-como cuando los cambios están estrechamente vinculados y no pueden dividirse. En
-esos casos, el autor debe proporcionar una explicación clara de los cambios y el
-razonamiento detrás de ellos.
-<!-- -->
-:::
+> [!NOTE]
+> **Excepciones**
+>
+> Hay algunos casos en los que no es posible dividir la solicitud de extracción,
+> como cuando los cambios están estrechamente vinculados y no pueden dividirse. En
+> esos casos, el autor debe proporcionar una explicación clara de los cambios y el
+> razonamiento detrás de ellos.
+
 
 ## Coherencia {#consistency}
 

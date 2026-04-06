@@ -24,12 +24,10 @@ cliente a él, puedes usar el lenguaje para interactuar con tus proyectos.
 
 En esta página aprenderás cómo configurarlo y sus funciones.
 
-::: info
-<!-- -->
-El servidor MCP de Tuist utiliza los proyectos más recientes de Xcode como
-fuente de verdad de los proyectos con los que quieres interactuar.
-<!-- -->
-:::
+> [!NOTE]
+> El servidor MCP de Tuist utiliza los proyectos más recientes de Xcode como
+> fuente de verdad de los proyectos con los que quieres interactuar.
+
 
 ## Póngalo en marcha
 

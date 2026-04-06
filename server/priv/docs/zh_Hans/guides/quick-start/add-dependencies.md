@@ -84,12 +84,12 @@ let project = Project(
 然后运行`tuist install` ，使用[Swift
 软件包管理器](https://www.swift.org/documentation/package-manager/)解析并提取依赖项。
 
-::: info SPM AS A DEPENDENCY RESOLVER
-<!-- -->
-Tuist 推荐的依赖关系处理方法仅使用 Swift 包管理器 (SPM) 来解决依赖关系。然后，Tuist 将它们转换为 Xcode
-项目和目标，以实现最大程度的可配置性和可控性。
-<!-- -->
-:::
+> [!NOTE]
+> **Spm As A Dependency Resolver**
+>
+> Tuist 推荐的依赖关系处理方法仅使用 Swift 包管理器 (SPM) 来解决依赖关系。然后，Tuist 将它们转换为 Xcode
+> 项目和目标，以实现最大程度的可配置性和可控性。
+
 
 ## 项目可视化{#visualize-the-project}
 

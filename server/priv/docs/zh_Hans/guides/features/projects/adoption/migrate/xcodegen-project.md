@@ -14,12 +14,12 @@ Xcode 项目。许多组织**都采用了该工具，试图摆脱在处理 Xcode
 在设计上存在不足，因为它只是一个生成 Xcode 项目的工具，而不是一个项目管理器。如果您除了需要一个生成 Xcode
 项目的工具外，还需要一个其他的工具，那么您可以考虑 Tuist。
 
-::: tip SWIFT OVER YAML
-<!-- -->
-许多组织也喜欢将 Tuist 作为项目生成工具，因为它使用 Swift 作为配置格式。Swift 是一种开发人员非常熟悉的编程语言，可以方便地使用 Xcode
-的自动完成、类型检查和验证功能。
-<!-- -->
-:::
+> [!TIP]
+> **Swift Over Yaml**
+>
+> 许多组织也喜欢将 Tuist 作为项目生成工具，因为它使用 Swift 作为配置格式。Swift 是一种开发人员非常熟悉的编程语言，可以方便地使用 Xcode
+> 的自动完成、类型检查和验证功能。
+
 
 以下是一些注意事项和指南，可帮助您将项目从 XcodeGen 移植到 Tuist。
 
@@ -64,12 +64,12 @@ Xcode 工作区。
 <!-- -->
 :::
 
-::: tip XCODE'S LANGUAGE
-<!-- -->
-XcodeGen 和 Tuist 都采用了 Xcode 的语言和概念。不过，Tuist 基于 Swift 的配置为您提供了使用 Xcode
-的自动完成、类型检查和验证功能的便利。
-<!-- -->
-:::
+> [!TIP]
+> **Xcode's Language**
+>
+> XcodeGen 和 Tuist 都采用了 Xcode 的语言和概念。不过，Tuist 基于 Swift 的配置为您提供了使用 Xcode
+> 的自动完成、类型检查和验证功能的便利。
+
 
 ## 规格模板{#spec-templates}
 

@@ -67,14 +67,14 @@ Tokenom OIDC przyznawana jest grupa `ci` scope, która zapewnia dostęp do
 wszystkich projektów połączonych z repozytorium. Zobacz [Grupy
 zakresów](#scope-groups) by dowiedzieć się więcej o tym, co zawiera zakres `ci`.
 
-::: tip SECURITY BENEFITS
-<!-- -->
-Uwierzytelnianie OIDC jest bezpieczniejsze niż długotrwałe tokeny, ponieważ
-- Brak sekretów do rotacji lub zarządzania
-- Tokeny są krótkotrwałe i przypisane do poszczególnych przepływów pracy
-- Uwierzytelnianie jest powiązane z tożsamością repozytorium.
-<!-- -->
-:::
+> [!TIP]
+> **Security Benefits**
+>
+> Uwierzytelnianie OIDC jest bezpieczniejsze niż długotrwałe tokeny, ponieważ
+> - Brak sekretów do rotacji lub zarządzania
+> - Tokeny są krótkotrwałe i przypisane do poszczególnych przepływów pracy
+> - Uwierzytelnianie jest powiązane z tożsamością repozytorium.
+
 
 ## Tokeny konta {#account-tokens}
 
@@ -171,12 +171,12 @@ Tokeny konta powinny być zdefiniowane jako zmienna środowiskowa `TUIST_TOKEN`:
 export TUIST_TOKEN=your-account-token
 ```
 
-::: tip WHEN TO USE ACCOUNT TOKENS
-<!-- -->
-Korzystaj z tokenów konta, gdy tego potrzebujesz:
-- Uwierzytelnianie w środowiskach CI, które nie obsługują OIDC
-- Szczegółowa kontrola nad tym, jakie operacje może wykonywać token
-- Token umożliwiający dostęp do wielu projektów w ramach konta
-- Ograniczone czasowo tokeny, które automatycznie wygasają
-<!-- -->
-:::
+> [!TIP]
+> **When To Use Account Tokens**
+>
+> Korzystaj z tokenów konta, gdy tego potrzebujesz:
+> - Uwierzytelnianie w środowiskach CI, które nie obsługują OIDC
+> - Szczegółowa kontrola nad tym, jakie operacje może wykonywać token
+> - Token umożliwiający dostęp do wielu projektów w ramach konta
+> - Ograniczone czasowo tokeny, które automatycznie wygasają
+

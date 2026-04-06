@@ -17,12 +17,12 @@
 
 借助**项目描述助手** 这一概念，Tuist 可以在清单文件中重复使用代码。
 
-::: tip A TUIST UNIQUE ASSET
-<!-- -->
-许多组织之所以喜欢 Tuist，是因为他们从项目描述助手中看到了一个平台，平台团队可以通过这个平台编纂自己的约定，并提出自己的项目描述语言。例如，基于 YAML
-的项目生成器必须提出自己的基于 YAML 的专用模板解决方案，或者迫使组织在此基础上构建自己的工具。
-<!-- -->
-:::
+> [!TIP]
+> **A Tuist Unique Asset**
+>
+> 许多组织之所以喜欢 Tuist，是因为他们从项目描述助手中看到了一个平台，平台团队可以通过这个平台编纂自己的约定，并提出自己的项目描述语言。例如，基于 YAML
+> 的项目生成器必须提出自己的基于 YAML 的专用模板解决方案，或者迫使组织在此基础上构建自己的工具。
+
 
 ## 项目描述助手{#project-description-helpers}
 
@@ -90,8 +90,8 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip A TOOL TO ESTABLISH CONVENTIONS
-<!-- -->
-请注意我们是如何通过该函数定义目标名称、捆绑标识符和文件夹结构的。
-<!-- -->
-:::
+> [!TIP]
+> **A Tool To Establish Conventions**
+>
+> 请注意我们是如何通过该函数定义目标名称、捆绑标识符和文件夹结构的。
+

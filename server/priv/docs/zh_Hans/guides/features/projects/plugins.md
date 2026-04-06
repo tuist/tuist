@@ -93,12 +93,12 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### 任务插件 <Badge type="warning" text="deprecated" />{#task-plugin-badge-typewarning-textdeprecated-}
 
-::: warning DEPRECATED
-<!-- -->
-任务插件已过时。如果您正在为您的项目寻找自动化解决方案，请查看
-[本博文](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)。
-<!-- -->
-:::
+> [!WARNING]
+> **Deprecated**
+>
+> 任务插件已过时。如果您正在为您的项目寻找自动化解决方案，请查看
+> [本博文](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)。
+
 
 任务是`$PATH`-exposed executables（暴露的可执行文件），如果它们遵循命名规范`tuist-<task-name>`
 ，则可通过`tuist` 命令调用。在早期版本中，Tuist 在`tuist plugin`
@@ -114,13 +114,13 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 - 如果将工具命名为`tuist-{xxx}` ，用户可以通过运行`mise install` 来安装它，他们可以直接调用它，也可以通过`tuist xxx`
   运行它。
 
-::: info THE FUTURE OF PROJECTAUTOMATION
-<!-- -->
-我们计划将`ProjectAutomation` 和`XcodeGraph`
-的模型合并为一个单一的向后兼容框架，向用户公开项目图的整体性。此外，我们还将把生成逻辑提取到一个新的层中，即`XcodeGraph` ，您也可以通过自己的
-CLI 使用该层。将其视为构建您自己的 Tuist。
-<!-- -->
-:::
+> [!NOTE]
+> **The Future Of Projectautomation**
+>
+> 我们计划将`ProjectAutomation` 和`XcodeGraph`
+> 的模型合并为一个单一的向后兼容框架，向用户公开项目图的整体性。此外，我们还将把生成逻辑提取到一个新的层中，即`XcodeGraph` ，您也可以通过自己的
+> CLI 使用该层。将其视为构建您自己的 Tuist。
+
 
 ## 使用插件{#using-plugins}
 
@@ -155,19 +155,19 @@ let tuist = Tuist(
 
 添加插件后，`tuist install` 将从全局缓存目录中获取插件。
 
-::: info NO VERSION RESOLUTION
-<!-- -->
-您可能已经注意到，我们不提供插件的版本解析。我们建议使用 Git 标签或 SHA 以确保可重复性。
-<!-- -->
-:::
+> [!NOTE]
+> **No Version Resolution**
+>
+> 您可能已经注意到，我们不提供插件的版本解析。我们建议使用 Git 标签或 SHA 以确保可重复性。
 
-::: tip PROJECT DESCRIPTION HELPERS PLUGINS
-<!-- -->
-使用项目描述帮助插件时，包含帮助程序的模块名称就是插件名称
-```swift
-import ProjectDescription
-import MyTuistPlugin
-let project = Project.app(name: "MyCoolApp", platform: .iOS)
-```
-<!-- -->
-:::
+
+> [!TIP]
+> **Project Description Helpers Plugins**
+>
+> 使用项目描述帮助插件时，包含帮助程序的模块名称就是插件名称
+> ```swift
+> import ProjectDescription
+> import MyTuistPlugin
+> let project = Project.app(name: "MyCoolApp", platform: .iOS)
+> ```
+

@@ -17,11 +17,11 @@
 
 このプロセスをより合理化するために、Tuistはアプリのプレビューを生成して誰とでも共有する方法を提供する。
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
-<!-- -->
-デバイス用にビルドする場合、アプリが正しく署名されていることを確認するのは、現在のところお客様の責任です。将来的にはこれを合理化する予定です。
-<!-- -->
-:::
+> [!WARNING]
+> **Device Builds Need To Be Signed**
+>
+> デバイス用にビルドする場合、アプリが正しく署名されていることを確認するのは、現在のところお客様の責任です。将来的にはこれを合理化する予定です。
+
 
 コードグループ
 ```bash [Tuist Project]
@@ -58,15 +58,15 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning UNIQUE BUILD NUMBERS IN CI
-<!-- -->
-`CFBundleVersion` (ビルドバージョン) が一意であることを確認するには、ほとんどの CI プロバイダが公開している CI run number
-を利用します。例えば、GitHub Actions では、`CFBundleVersion` を <code v-pre>${{
-github.run_number }}</code> 変数に設定できます。
+> [!WARNING]
+> **Unique Build Numbers In Ci**
+>
+> `CFBundleVersion` (ビルドバージョン) が一意であることを確認するには、ほとんどの CI プロバイダが公開している CI run number
+> を利用します。例えば、GitHub Actions では、`CFBundleVersion` を <code v-pre>${{
+> github.run_number }}</code> 変数に設定できます。
+>
+> 同じバイナリ（ビルド）と同じ`CFBundleVersion` を持つプレビューのアップロードは失敗します。
 
-同じバイナリ（ビルド）と同じ`CFBundleVersion` を持つプレビューのアップロードは失敗します。
-<!-- -->
-:::
 
 ## トラック{#tracks}
 
@@ -86,11 +86,11 @@ tuist share App --track nightly
 - **アプリ内アップデート** ：Tuist SDKは、どのアップデートをユーザーに通知するかを決定するためにトラックを使用します。
 - **フィルタリング** ：Tuistのダッシュボードでトラックごとのプレビューを簡単に検索・管理できる
 
-::: warning PREVIEWS' VISIBILITY
-<!-- -->
-プレビューにアクセスできるのは、プロジェクトが所属する組織にアクセスできる人だけです。期限切れリンクのサポートを追加する予定です。
-<!-- -->
-:::
+> [!WARNING]
+> **Previews' Visibility**
+>
+> プレビューにアクセスできるのは、プロジェクトが所属する組織にアクセスできる人だけです。期限切れリンクのサポートを追加する予定です。
+
 
 ## TuistのmacOSアプリ{#tuist-macos-app}
 
@@ -128,11 +128,11 @@ macOSアプリと同様に、Tuist iOSアプリはプレビューへのアクセ
 
 ## プル/マージリクエストのコメント{#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">リモートプロジェクト</LocalizedLink>と<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>を統合します。
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">リモートプロジェクト</LocalizedLink>と<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>を統合します。
+
 
 新しい機能のテストは、あらゆるコードレビューの一部であるべきだ。しかし、アプリをローカルでビルドしなければならないことは、不必要な摩擦を増やし、開発者が自分のデバイスで機能をテストすることをスキップしてしまうことになりがちだ。しかし、*、各プルリクエストに、Tuist
 macOSアプリで選択したデバイス上でアプリを自動的に実行するビルドへのリンクが含まれていたらどうだろう？*
@@ -210,11 +210,9 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: info
-<!-- -->
-アップデートチェックは、シミュレータおよびApp Storeビルドでは自動的に無効になります。
-<!-- -->
-:::
+> [!NOTE]
+> アップデートチェックは、シミュレータおよびApp Storeビルドでは自動的に無効になります。
+
 
 ## READMEバッジ{#readme-badge}
 

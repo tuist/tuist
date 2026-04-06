@@ -27,12 +27,12 @@ PostHog 集成是可选的，可以通过设置相应的环境变量来启用。
 | `TUIST_POSTHOG_API_KEY` | 您的 PostHog 项目 API 密钥 | 没有  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `TUIST_POSTHOG_URL`     | PostHog API 端点 URL   | 没有  |     | `https://eu.i.posthog.com`                        |
 
-::: info 分析功能启用
-<!-- -->
-只有同时配置了 `TUIST_POSTHOG_API_KEY` 和 `TUIST_POSTHOG_URL`
-时，分析功能才会启用。如果缺少任一变量，将不会发送任何分析事件。
-<!-- -->
-:::
+> [!NOTE]
+> **分析功能启用**
+>
+> 只有同时配置了 `TUIST_POSTHOG_API_KEY` 和 `TUIST_POSTHOG_URL`
+> 时，分析功能才会启用。如果缺少任一变量，将不会发送任何分析事件。
+
 
 ### 功能特性 {#posthog-features}
 
@@ -147,11 +147,9 @@ Tuist 运行的总次数。
 
 与在远程存储（如 S3）中存储构建产物相关的一组指标。
 
-::: tip
-<!-- -->
-这些指标有助于了解存储操作的性能并识别潜在的瓶颈。
-<!-- -->
-:::
+> [!TIP]
+> 这些指标有助于了解存储操作的性能并识别潜在的瓶颈。
+
 
 ### `tuist_storage_get_object_size_size_bytes` (直方图) {#tuist_storage_get_object_size_size_bytes-histogram}
 

@@ -5,7 +5,7 @@ defmodule Tuist.Docs.Sidebar do
 
   defmodule Item do
     @moduledoc false
-    defstruct [:label, :slug, :icon, :url, items: []]
+    defstruct [:label, :slug, :url, items: []]
   end
 
   defmodule Group do
@@ -152,8 +152,8 @@ defmodule Tuist.Docs.Sidebar do
             label: "Cache",
             slug: "/en/guides/features/cache",
             items: [
-              %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache", icon: "xcode"},
-              %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache", icon: "xcode"},
+              %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache"},
+              %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache"},
               %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"}
             ]
           },
@@ -161,7 +161,7 @@ defmodule Tuist.Docs.Sidebar do
             label: "Build insights",
             slug: "/en/guides/features/build-insights",
             items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode", icon: "xcode"},
+              %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode"},
               %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle"}
             ]
           }
@@ -176,7 +176,7 @@ defmodule Tuist.Docs.Sidebar do
             label: "Test insights",
             slug: "/en/guides/features/test-insights",
             items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "xcode"},
+              %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode"},
               %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle"}
             ]
           },
@@ -186,8 +186,7 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{
                 label: "Xcode",
-                slug: "/en/guides/features/test-insights/flaky-tests/xcode",
-                icon: "xcode"
+                slug: "/en/guides/features/test-insights/flaky-tests/xcode"
               },
               %Item{
                 label: "Gradle",
@@ -199,11 +198,10 @@ defmodule Tuist.Docs.Sidebar do
             label: "Test sharding",
             slug: "/en/guides/features/test-sharding",
             items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/test-sharding/xcode", icon: "xcode"},
+              %Item{label: "Xcode", slug: "/en/guides/features/test-sharding/xcode"},
               %Item{
                 label: "Generated projects",
-                slug: "/en/guides/features/test-sharding/generated-projects",
-                icon: "xcode"
+                slug: "/en/guides/features/test-sharding/generated-projects"
               },
               %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle"}
             ]
@@ -440,6 +438,10 @@ defmodule Tuist.Docs.Sidebar do
           %Item{label: "tuist.toml", slug: "/en/references/tuist-toml"},
           %Item{
             label: "Project description",
+            url: "https://projectdescription.tuist.dev/documentation/projectdescription"
+          },
+          %Item{
+            label: "Server API",
             url: "https://tuist.dev/api/docs"
           },
           %Item{

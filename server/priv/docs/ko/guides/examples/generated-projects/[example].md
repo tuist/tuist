@@ -12,7 +12,6 @@ const { params } = useData()
 </script>
 
 
-
 <!-- @content -->
 
 <a :href="params.url" target="blank">예제 확인</a>

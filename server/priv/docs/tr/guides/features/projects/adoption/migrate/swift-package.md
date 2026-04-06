@@ -36,14 +36,14 @@ proje yöneticisi olarak mantıklı olmayan, örneğin projeleri tanımlamak iç
 arayüz olarak derlenmiş bir dilin kullanılması gibi bazı kararları yeniden
 gözden geçirmesi gerektiğine inanıyoruz.
 
-::: tip SPM AS JUST A DEPENDENCY MANAGER
-<!-- -->
-Tuist, Swift paketi Paket Yöneticisi'ni bir bağımlılık yöneticisi olarak ele
-alıyor ve bu harika bir şey. Onu bağımlılıkları çözmek ve inşa etmek için
-kullanıyoruz. Projeleri tanımlamak için kullanmıyoruz çünkü bunun için
-tasarlanmadı.
-<!-- -->
-:::
+> [!TIP]
+> **Spm As Just A Dependency Manager**
+>
+> Tuist, Swift paketi Paket Yöneticisi'ni bir bağımlılık yöneticisi olarak ele
+> alıyor ve bu harika bir şey. Onu bağımlılıkları çözmek ve inşa etmek için
+> kullanıyoruz. Projeleri tanımlamak için kullanmıyoruz çünkü bunun için
+> tasarlanmadı.
+
 
 ## Swift paketi Yöneticisinden Tuist'e Geçiş {#migrating-from-swift-package-manager-to-tuist}
 

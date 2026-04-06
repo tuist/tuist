@@ -7,12 +7,12 @@
 ---
 # Oluşturulmuş projele {#generated-project}
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/features/projects">Tuist tarafından oluşturulan bir proje</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/features/projects">Tuist tarafından oluşturulan bir proje</LocalizedLink>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+
 
 Oluşturulmuş projele ile testleri seçerek çalıştırmak için `tuist test` komutunu
 kullanın. Bu komut <LocalizedLink href="/guides/features/projects/hashing"> Xcode projenizi </LocalizedLink> önbelleği

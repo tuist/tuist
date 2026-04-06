@@ -16,6 +16,7 @@ import TuistServer
 import TuistSupport
 import TuistXCResultService
 import XcodeGraph
+import XCResultParser
 import XCTest
 
 @testable import TuistKit
@@ -136,9 +137,12 @@ final class TestServiceTests: TuistUnitTestCase {
         given(testQuarantineService)
             .onlyQuarantinedTestsFailed(testSummary: .any)
             .willReturn(false)
+        given(testQuarantineService)
+            .onlyQuarantinedTestsFailed(testStatuses: .any, quarantinedTests: .any)
+            .willReturn(false)
 
         given(uploadResultBundleService)
-            .uploadResultBundle(
+            .uploadTestSummary(
                 testSummary: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
@@ -159,6 +163,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
 
         subject = TestService(
             generatorFactory: generatorFactory,
@@ -499,7 +506,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .value(.test(device: .test(name: "Test iPhone")))
+                destination: .value(.test(device: .test(name: "Test iPhone"))),
+                schemeName: .any
             )
             .called(1)
         verify(xcodebuildController)
@@ -1378,6 +1386,19 @@ final class TestServiceTests: TuistUnitTestCase {
                     ]
                 )
             )
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(
+                TestResultStatuses(testCases: [
+                    .init(name: "testA", testSuite: nil, module: "FrameworkATests", status: .failed),
+                    .init(name: "testB", testSuite: nil, module: "FrameworkBTests", status: .passed),
+                ])
+            )
+
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(project: .testGeneratedProject()))
@@ -1582,7 +1603,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .willReturn(generator)
         given(buildGraphInspector)
@@ -1643,7 +1665,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .willReturn(generator)
         given(generator)
@@ -2724,7 +2747,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
             uploadResultBundleService.reset()
             given(uploadResultBundleService)
-                .uploadResultBundle(
+                .uploadTestSummary(
                     testSummary: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
@@ -3106,7 +3129,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .willReturn(generator)
     }
@@ -3154,7 +3178,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .called(0)
 
@@ -3207,7 +3232,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: .any,
                 ignoreSelectiveTesting: .any,
                 cacheStorage: .any,
-                destination: .any
+                destination: .any,
+                schemeName: .any
             )
             .called(1)
     }

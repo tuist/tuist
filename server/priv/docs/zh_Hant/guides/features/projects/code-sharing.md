@@ -17,12 +17,12 @@
 
 透過**專案描述輔助工具** 的概念，Tuist 可以在不同的清單檔案中重複使用程式碼。
 
-::: tip A TUIST UNIQUE ASSET
-<!-- -->
-許多組織喜歡 Tuist，因為他們在專案描述輔助工具中看到了一個平台，讓平台團隊可以編纂他們自己的慣例，並提出他們自己的專案描述語言。例如，基於 YAML
-的專案產生器必須提出他們自己的基於 YAML 的專利模板解決方案，或強迫組織建立他們的工具。
-<!-- -->
-:::
+> [!TIP]
+> **A Tuist Unique Asset**
+>
+> 許多組織喜歡 Tuist，因為他們在專案描述輔助工具中看到了一個平台，讓平台團隊可以編纂他們自己的慣例，並提出他們自己的專案描述語言。例如，基於 YAML
+> 的專案產生器必須提出他們自己的基於 YAML 的專利模板解決方案，或強迫組織建立他們的工具。
+
 
 ## 專案描述協助{#project-description-helpers}
 
@@ -90,8 +90,8 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip A TOOL TO ESTABLISH CONVENTIONS
-<!-- -->
-請注意我們如何透過函式定義目標名稱、bundle 識別符和資料夾結構的慣例。
-<!-- -->
-:::
+> [!TIP]
+> **A Tool To Establish Conventions**
+>
+> 請注意我們如何透過函式定義目標名稱、bundle 識別符和資料夾結構的慣例。
+

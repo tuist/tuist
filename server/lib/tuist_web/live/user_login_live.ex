@@ -148,6 +148,7 @@ defmodule TuistWeb.UserLoginLive do
               field={@form[:password]}
               label={dgettext("dashboard_auth", "Password")}
               id="password"
+              type="password"
               input_type="password"
               show_prefix={false}
               error={Flash.get(@flash, :error)}

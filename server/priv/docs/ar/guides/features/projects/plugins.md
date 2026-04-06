@@ -98,13 +98,13 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ### المكون الإضافي للمهمة <Badge type="warning" text="deprecated" /> {#task-plugin-badge-typewarning-textdeprecated-}
 
-::: warning DEPRECATED
-<!-- -->
-تم إهمال المكونات الإضافية للمهام. راجع [هذه التدوينة]
-(https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) إذا كنت تبحث عن
-حل أتمتة لمشروعك.
-<!-- -->
-:::
+> [!WARNING]
+> **Deprecated**
+>
+> تم إهمال المكونات الإضافية للمهام. راجع [هذه التدوينة]
+> (https://tuist.dev/blog/2025/04/15/automation-in-swift-projects) إذا كنت تبحث عن
+> حل أتمتة لمشروعك.
+
 
 المهام هي `$ PATH`-المسار -المسارات التنفيذية المكشوفة التي يمكن استدعاؤها من
 خلال الأمر `tuist` إذا كانت تتبع اصطلاح التسمية `tuist-<task-name>`. في الإصدارات السابقة، وفرت تويست بعض الاصطلاحات والأدوات الضعيفة تحت `tuist plugin` إلى `بناء` و `تشغيل` و `اختبار` و `أرشفة` المهام التي تمثلها الملفات التنفيذية في حزم سويفت، لكننا أهملنا هذه الميزة لأنها تزيد من عبء الصيانة وتعقيد الأداة.
@@ -121,14 +121,14 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 - إذا قمت بتسمية أداتك `tuist-{xxx}` ويمكن للمستخدمين تثبيتها عن طريق تشغيل
   `mise install` ، يمكنهم تشغيلها إما باستدعائها مباشرة، أو من خلال `tuist xxx`.
 
-::: info THE FUTURE OF PROJECTAUTOMATION
-<!-- -->
-نحن نخطط لدمج نماذج `ProjectAutomation` و `XcodeGraph` في إطار عمل واحد متوافق
-مع الإصدارات السابقة يعرض جوهر الرسم البياني للمشروع للمستخدم. علاوة على ذلك،
-سنقوم باستخراج منطق التوليد في طبقة جديدة، `XcodeGraph` التي يمكنك استخدامها
-أيضًا من CLI الخاص بك. فكر في الأمر على أنه بناء تويست الخاص بك.
-<!-- -->
-:::
+> [!NOTE]
+> **The Future Of Projectautomation**
+>
+> نحن نخطط لدمج نماذج `ProjectAutomation` و `XcodeGraph` في إطار عمل واحد متوافق
+> مع الإصدارات السابقة يعرض جوهر الرسم البياني للمشروع للمستخدم. علاوة على ذلك،
+> سنقوم باستخراج منطق التوليد في طبقة جديدة، `XcodeGraph` التي يمكنك استخدامها
+> أيضًا من CLI الخاص بك. فكر في الأمر على أنه بناء تويست الخاص بك.
+
 
 ## استخدام المكونات الإضافية {#using-plugins}
 
@@ -166,21 +166,21 @@ let tuist = Tuist(
 بعد إضافة الإضافات، سيقوم `tuist install` بجلب الإضافات في دليل ذاكرة التخزين
 المؤقت العامة.
 
-::: info NO VERSION RESOLUTION
-<!-- -->
-كما لاحظت، نحن لا نوفر دقة الإصدار للإضافات. نوصي باستخدام علامات Git أو SHAs
-لضمان إمكانية التكرار.
-<!-- -->
-:::
+> [!NOTE]
+> **No Version Resolution**
+>
+> كما لاحظت، نحن لا نوفر دقة الإصدار للإضافات. نوصي باستخدام علامات Git أو SHAs
+> لضمان إمكانية التكرار.
 
-::: tip PROJECT DESCRIPTION HELPERS PLUGINS
-<!-- -->
-عند استخدام المكون الإضافي لمساعدي وصف المشروع، يكون اسم الوحدة النمطية التي
-تحتوي على المساعدين هو اسم المكون الإضافي
-```swift
-import ProjectDescription
-import MyTuistPlugin
-let project = Project.app(name: "MyCoolApp", platform: .iOS)
-```
-<!-- -->
-:::
+
+> [!TIP]
+> **Project Description Helpers Plugins**
+>
+> عند استخدام المكون الإضافي لمساعدي وصف المشروع، يكون اسم الوحدة النمطية التي
+> تحتوي على المساعدين هو اسم المكون الإضافي
+> ```swift
+> import ProjectDescription
+> import MyTuistPlugin
+> let project = Project.app(name: "MyCoolApp", platform: .iOS)
+> ```
+

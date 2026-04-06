@@ -24,15 +24,15 @@ wykorzystania definicji projektu jest przydatna z następujących powodów:
 Ponowne wykorzystanie kodu w plikach manifestu jest możliwe w Tuist dzięki
 koncepcji pomocników opisu projektu **** .
 
-::: tip A TUIST UNIQUE ASSET
-<!-- -->
-Wiele organizacji lubi Tuist, ponieważ widzą w narzędziach pomocniczych do opisu
-projektów platformę dla zespołów platformowych do kodyfikowania własnych
-konwencji i wymyślania własnego języka do opisywania swoich projektów. Na
-przykład, generatory projektów oparte na YAML muszą wymyślić własne rozwiązanie
-szablonowe oparte na YAML lub zmusić organizacje do budowania swoich narzędzi.
-<!-- -->
-:::
+> [!TIP]
+> **A Tuist Unique Asset**
+>
+> Wiele organizacji lubi Tuist, ponieważ widzą w narzędziach pomocniczych do opisu
+> projektów platformę dla zespołów platformowych do kodyfikowania własnych
+> konwencji i wymyślania własnego języka do opisywania swoich projektów. Na
+> przykład, generatory projektów oparte na YAML muszą wymyślić własne rozwiązanie
+> szablonowe oparte na YAML lub zmusić organizacje do budowania swoich narzędzi.
+
 
 ## Pomocnicy opisu projektu {#project-description-helpers}
 
@@ -104,9 +104,9 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip A TOOL TO ESTABLISH CONVENTIONS
-<!-- -->
-Zwróć uwagę, jak za pomocą funkcji definiujemy konwencje dotyczące nazw obiektów
-docelowych, identyfikatora pakietu i struktury folderów.
-<!-- -->
-:::
+> [!TIP]
+> **A Tool To Establish Conventions**
+>
+> Zwróć uwagę, jak za pomocą funkcji definiujemy konwencje dotyczące nazw obiektów
+> docelowych, identyfikatora pakietu i struktury folderów.
+

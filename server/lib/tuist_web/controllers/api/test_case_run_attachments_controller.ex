@@ -77,6 +77,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
               Tests.attachment_storage_key(%{
                 account_handle: project.account.name,
                 project_handle: project.name,
+                test_run_id: attachment.test_run_id,
                 test_case_run_id: test_case_run_id,
                 attachment_id: attachment.id,
                 file_name: attachment.file_name
@@ -180,11 +181,14 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
   def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
     attachment_id = UUIDv7.generate()
 
+    test_run_id = Map.get(body_params, :test_run_id)
+
     attrs =
       then(
         %{
           id: attachment_id,
           test_case_run_id: body_params.test_case_run_id,
+          test_run_id: test_run_id,
           file_name: body_params.file_name,
           inserted_at: NaiveDateTime.utc_now()
         },
@@ -204,6 +208,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
       Tests.attachment_storage_key(%{
         account_handle: project.account.name,
         project_handle: project.name,
+        test_run_id: test_run_id,
         test_case_run_id: body_params.test_case_run_id,
         attachment_id: attachment_id,
         file_name: body_params.file_name

@@ -7,11 +7,11 @@
 ---
 # Zapowiedzi {#previews}
 
-::: ostrzeżenie WYMAGANIA
-<!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Wymagania**
+>
+> - Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+
 
 Podczas tworzenia aplikacji możesz chcieć udostępnić ją innym, aby uzyskać
 opinie. Tradycyjnie, zespoły robią to poprzez tworzenie, podpisywanie i
@@ -23,12 +23,12 @@ szybkiej informacji zwrotnej od współpracownika lub znajomego.
 Aby usprawnić ten proces, Tuist zapewnia sposób generowania i udostępniania
 podglądów aplikacji każdemu.
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
-<!-- -->
-Podczas tworzenia aplikacji na urządzenie użytkownik jest obecnie odpowiedzialny
-za prawidłowe podpisanie aplikacji. Planujemy usprawnić to w przyszłości.
-<!-- -->
-:::
+> [!WARNING]
+> **Device Builds Need To Be Signed**
+>
+> Podczas tworzenia aplikacji na urządzenie użytkownik jest obecnie odpowiedzialny
+> za prawidłowe podpisanie aplikacji. Planujemy usprawnić to w przyszłości.
+
 
 ::: code-group
 ```bash [Tuist Project]
@@ -71,17 +71,17 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning UNIQUE BUILD NUMBERS IN CI
-<!-- -->
-Upewnij się, że `CFBundleVersion` (wersja kompilacji) jest unikalna,
-wykorzystując numer przebiegu CI, który ujawnia większość dostawców CI. Na
-przykład w GitHub Actions można ustawić `CFBundleVersion` na zmienną
-<code v-pre>${{ github.run_number }}</code>.
+> [!WARNING]
+> **Unique Build Numbers In Ci**
+>
+> Upewnij się, że `CFBundleVersion` (wersja kompilacji) jest unikalna,
+> wykorzystując numer przebiegu CI, który ujawnia większość dostawców CI. Na
+> przykład w GitHub Actions można ustawić `CFBundleVersion` na zmienną
+> <code v-pre>${{ github.run_number }}</code>.
+>
+> Przesłanie podglądu z tą samą wersją binarną (kompilacją) i tą samą
+> `CFBundleVersion` nie powiedzie się.
 
-Przesłanie podglądu z tą samą wersją binarną (kompilacją) i tą samą
-`CFBundleVersion` nie powiedzie się.
-<!-- -->
-:::
 
 ## Utwory {#tracks}
 
@@ -106,12 +106,12 @@ Jest to przydatne dla:
 - **Filtrowanie**: Łatwe wyszukiwanie i zarządzanie podglądami według utworów na
   pulpicie nawigacyjnym Tuist.
 
-::: warning PREVIEWS' VISIBILITY
-<!-- -->
-Tylko osoby z dostępem do organizacji, do której należy projekt, mogą uzyskać
-dostęp do podglądu. Planujemy dodać obsługę wygasających linków.
-<!-- -->
-:::
+> [!WARNING]
+> **Previews' Visibility**
+>
+> Tylko osoby z dostępem do organizacji, do której należy projekt, mogą uzyskać
+> dostęp do podglądu. Planujemy dodać obsługę wygasających linków.
+
 
 ## Aplikacja Tuist macOS {#tuist-macos-app}
 
@@ -131,12 +131,12 @@ tuist/tuist/tuist`.
 Po kliknięciu przycisku "Uruchom" na stronie podglądu, aplikacja macOS
 automatycznie uruchomi się na aktualnie wybranym urządzeniu.
 
-::: ostrzeżenie WYMAGANIA
-<!-- -->
-Musisz mieć zainstalowany lokalnie Xcode i korzystać z systemu macOS 14 lub
-nowszego.
-<!-- -->
-:::
+> [!WARNING]
+> **Wymagania**
+>
+> Musisz mieć zainstalowany lokalnie Xcode i korzystać z systemu macOS 14 lub
+> nowszego.
+
 
 ## Aplikacja Tuist iOS {#tuist-ios-app}
 
@@ -154,13 +154,13 @@ podglądów i ich uruchamianie.
 
 ## Komentarze do żądań ściągnięcia/łączenia {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj swój
-<LocalizedLink href="/guides/server/accounts-and-projects"> zdalny projekt</LocalizedLink> z platformą
-<LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj swój
+> <LocalizedLink href="/guides/server/accounts-and-projects"> zdalny projekt</LocalizedLink> z platformą
+> <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
+
 
 Testowanie nowych funkcji powinno być częścią każdego przeglądu kodu. Jednak
 konieczność tworzenia aplikacji lokalnie zwiększa niepotrzebne tarcia, często

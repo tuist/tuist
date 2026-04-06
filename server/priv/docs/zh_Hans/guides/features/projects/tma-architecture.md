@@ -12,11 +12,11 @@ TMA 是一种架构方法，用于构建 Apple OS
 
 这些指南介绍了架构的原则，帮助您识别和组织不同层中的应用程序功能。如果您决定使用这种架构，它还会介绍提示、工具和建议。
 
-::: info µFEATURES
-<!-- -->
-该架构以前称为 µFeatures。我们已将其更名为模块化架构 (TMA)，以更好地反映其目的和背后的原则。
-<!-- -->
-:::
+> [!NOTE]
+> **Μfeatures**
+>
+> 该架构以前称为 µFeatures。我们已将其更名为模块化架构 (TMA)，以更好地反映其目的和背后的原则。
+
 
 ## 核心原则{#core-principle}
 
@@ -42,18 +42,18 @@ TMA 是一种架构方法，用于构建 Apple OS
 | `功能测试` | `功能接口`      | 测试数据和模拟   |
 | `功能示例` | `功能测试`,`功能` | 应用程序示例    |
 
-::: tip UI Previews
-<!-- -->
-`功能` 可以使用`FeatureTesting` 作为开发资产，以便进行用户界面预览
-<!-- -->
-:::
+> [!TIP]
+> **Ui Previews**
+>
+> `功能` 可以使用`FeatureTesting` 作为开发资产，以便进行用户界面预览
 
-::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
-<!-- -->
-或者，在编译`Debug` 时，可以使用编译器指令在`Feature` 或`FeatureInterface`
-目标中包含测试数据和模拟。这样可以简化图表，但最终编译的代码在运行应用程序时可能用不上。
-<!-- -->
-:::
+
+> [!WARNING]
+> **Compiler Directives Instead Of Testing Targets**
+>
+> 或者，在编译`Debug` 时，可以使用编译器指令在`Feature` 或`FeatureInterface`
+> 目标中包含测试数据和模拟。这样可以简化图表，但最终编译的代码在运行应用程序时可能用不上。
+
 
 ## 为什么需要模块{#why-a-module}
 
@@ -108,11 +108,11 @@ func productType() -> Product {
 ```
 
 
-::: warning MERGEABLE LIBRARIES
-<!-- -->
-苹果试图通过引入[可合并库](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)来减轻在静态库和动态库之间切换的麻烦。不过，这引入了构建时的非确定性，使你的构建不可重现，也更难优化，因此我们不建议使用。
-<!-- -->
-:::
+> [!WARNING]
+> **Mergeable Libraries**
+>
+> 苹果试图通过引入[可合并库](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)来减轻在静态库和动态库之间切换的麻烦。不过，这引入了构建时的非确定性，使你的构建不可重现，也更难优化，因此我们不建议使用。
+
 
 ## 代码{#code}
 

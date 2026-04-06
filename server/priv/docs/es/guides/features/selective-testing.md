@@ -28,40 +28,39 @@ instrucciones basadas en la configuración de su proyecto:
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
 
-::: warning MODULE VS FILE-LEVEL GRANULARITY
-<!-- -->
-Debido a la imposibilidad de detectar las dependencias dentro del código entre
-las pruebas y las fuentes, la granularidad máxima de las pruebas selectivas es a
-nivel de objetivo. Por lo tanto, recomendamos mantener los objetivos pequeños y
-centrados para maximizar los beneficios de las pruebas selectivas.
-<!-- -->
-:::
+> [!WARNING]
+> **Module Vs File-level Granularity**
+>
+> Debido a la imposibilidad de detectar las dependencias dentro del código entre
+> las pruebas y las fuentes, la granularidad máxima de las pruebas selectivas es a
+> nivel de objetivo. Por lo tanto, recomendamos mantener los objetivos pequeños y
+> centrados para maximizar los beneficios de las pruebas selectivas.
 
-::: warning TEST COVERAGE
-<!-- -->
-Las herramientas de cobertura de pruebas asumen que todo el conjunto de pruebas
-se ejecuta a la vez, lo que las hace incompatibles con las ejecuciones de
-pruebas selectivas; esto significa que los datos de cobertura podrían no
-reflejar la realidad cuando se utiliza la selección de pruebas. Se trata de una
-limitación conocida y no significa que se esté haciendo nada mal. Animamos a los
-equipos a reflexionar sobre si la cobertura sigue aportando información
-significativa en este contexto y, si es así, ten por seguro que ya estamos
-pensando en cómo hacer que la cobertura funcione correctamente con ejecuciones
-selectivas en el futuro.
-<!-- -->
-:::
+
+> [!WARNING]
+> **Test Coverage**
+>
+> Las herramientas de cobertura de pruebas asumen que todo el conjunto de pruebas
+> se ejecuta a la vez, lo que las hace incompatibles con las ejecuciones de
+> pruebas selectivas; esto significa que los datos de cobertura podrían no
+> reflejar la realidad cuando se utiliza la selección de pruebas. Se trata de una
+> limitación conocida y no significa que se esté haciendo nada mal. Animamos a los
+> equipos a reflexionar sobre si la cobertura sigue aportando información
+> significativa en este contexto y, si es así, ten por seguro que ya estamos
+> pensando en cómo hacer que la cobertura funcione correctamente con ejecuciones
+> selectivas en el futuro.
 
 
 ## Comentarios a las solicitudes de extracción/fusión {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
-<!-- -->
-Para obtener comentarios automáticos de pull/merge request, integra tu proyecto
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
-con una plataforma
-<LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
-<!-- -->
-:::
+> [!WARNING]
+> **Integration With Git Platform Required**
+>
+> Para obtener comentarios automáticos de pull/merge request, integra tu proyecto
+> <LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
+> con una plataforma
+> <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
+
 
 Una vez que tu proyecto Tuist esté conectado con tu plataforma Git como
 [GitHub](https://github.com), y empieces a usar `tuist xcodebuild test` o `tuist

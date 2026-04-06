@@ -44,15 +44,15 @@ soluciones de almacenamiento en caché para obtener los mejores resultados.
 
 ## Caché de Xcode {#xcode-cache}
 
-::: aviso ESTADO DE CACHE EN XCODE
-<!-- -->
-La caché de Xcode está actualmente optimizada para compilaciones incrementales
-locales y todo el espectro de tareas de compilación aún no es independiente de
-la ruta. Aún así puedes experimentar beneficios conectando la caché remota de
-Tuist, y esperamos que los tiempos de compilación mejoren con el tiempo a medida
-que la capacidad del sistema de compilación siga mejorando.
-<!-- -->
-:::
+> [!WARNING]
+> **Estado De Cache En Xcode**
+>
+> La caché de Xcode está actualmente optimizada para compilaciones incrementales
+> locales y todo el espectro de tareas de compilación aún no es independiente de
+> la ruta. Aún así puedes experimentar beneficios conectando la caché remota de
+> Tuist, y esperamos que los tiempos de compilación mejoren con el tiempo a medida
+> que la capacidad del sistema de compilación siga mejorando.
+
 
 Apple ha estado trabajando en una nueva solución de almacenamiento en caché a
 nivel de compilación, similar a otros sistemas de compilación como Bazel y Buck.

@@ -1243,12 +1243,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert module2.duration == 5000
 
       # Verify test cases were stored
-      {test_cases, _meta} =
-        Tests.list_test_case_runs(%{
-          filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
-          order_by: [:name],
-          order_directions: [:asc]
-        })
+      {test_cases, _meta} = wait_for_test_case_runs(test_run.id)
 
       assert length(test_cases) == 3
 
@@ -1612,6 +1607,27 @@ defmodule TuistWeb.API.RunsControllerTest do
                "project_id" => project.id,
                "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
+    end
+  end
+
+  defp wait_for_test_case_runs(test_run_id, attempts \\ 10) do
+    result =
+      Tests.list_test_case_runs(%{
+        filters: [%{field: :test_run_id, op: :==, value: test_run_id}],
+        order_by: [:name],
+        order_directions: [:asc]
+      })
+
+    case result do
+      {test_cases, _meta} when test_cases != [] ->
+        result
+
+      _ when attempts > 1 ->
+        Process.sleep(50)
+        wait_for_test_case_runs(test_run_id, attempts - 1)
+
+      _ ->
+        result
     end
   end
 end

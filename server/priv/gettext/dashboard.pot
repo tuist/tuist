@@ -258,10 +258,14 @@ msgstr ""
 msgid "Server error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:353
 #: lib/tuist_web/components/layouts/account.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Settings"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:353
+#, elixir-autogen, elixir-format
+msgid "Project Settings"
 msgstr ""
 
 #: lib/tuist_web/controllers/error_html.ex:101
@@ -498,7 +502,7 @@ msgstr ""
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:289
+#: lib/tuist_web/controllers/auth_controller.ex:293
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate."
 msgstr ""
@@ -518,7 +522,7 @@ msgstr ""
 msgid "Authentication failed"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:280
+#: lib/tuist_web/controllers/auth_controller.ex:284
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""

@@ -448,8 +448,8 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
            id: "run-1",
            project_id: 1,
            attachments: [
-             %{id: "att-1", file_name: "crash-report.ips"},
-             %{id: "att-2", file_name: "screenshot.png"}
+             %{id: "att-1", test_run_id: "run-0", file_name: "crash-report.ips"},
+             %{id: "att-2", test_run_id: "run-0", file_name: "screenshot.png"}
            ]
          }}
       end)

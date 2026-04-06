@@ -58,15 +58,13 @@ let project = Project(
 <!-- -->
 :::
 
-::: info
-<!-- -->
-Bakım yükünü en aza indirmek için mevcut şablonların listesini kasıtlı olarak
-kısa tutuyoruz. Bir uygulamayı temsil etmeyen bir proje, örneğin bir çerçeve
-oluşturmak istiyorsanız, başlangıç noktası olarak `tuist init` adresini
-kullanabilir ve ardından oluşturulmuş projele ihtiyaçlarınıza uyacak şekilde
-değiştirebilirsiniz.
-<!-- -->
-:::
+> [!NOTE]
+> Bakım yükünü en aza indirmek için mevcut şablonların listesini kasıtlı olarak
+> kısa tutuyoruz. Bir uygulamayı temsil etmeyen bir proje, örneğin bir çerçeve
+> oluşturmak istiyorsanız, başlangıç noktası olarak `tuist init` adresini
+> kullanabilir ve ardından oluşturulmuş projele ihtiyaçlarınıza uyacak şekilde
+> değiştirebilirsiniz.
+
 
 ## Manuel olarak proje oluşturma {#manually-creating-a-project}
 
@@ -109,11 +107,9 @@ let tuist = Tuist()
 <!-- -->
 :::
 
-::: warning
-<!-- -->
-Tuist, projenizin kök dizinini belirlemek için `Tuist/` dizinini kullanır ve
-buradan dizinleri globlayan diğer manifesto dosyalarını arar. Bu dosyaları
-tercih ettiğiniz editörle oluşturmanızı öneririz ve bu noktadan sonra projeyi
-Xcode ile düzenlemek için `tuist edit` adresini kullanabilirsiniz.
-<!-- -->
-:::
+> [!WARNING]
+> Tuist, projenizin kök dizinini belirlemek için `Tuist/` dizinini kullanır ve
+> buradan dizinleri globlayan diğer manifesto dosyalarını arar. Bu dosyaları
+> tercih ettiğiniz editörle oluşturmanızı öneririz ve bu noktadan sonra projeyi
+> Xcode ile düzenlemek için `tuist edit` adresini kullanabilirsiniz.
+

@@ -7,11 +7,11 @@
 ---
 # Proyecto Xcode {#xcode-project}
 
-::: advertencia REQUISITOS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requisitos**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+
 
 Puede ejecutar las pruebas de sus proyectos Xcode de forma selectiva a través de
 la línea de comandos. Para ello, puede anteponer al comando `xcodebuild` `

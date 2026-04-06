@@ -10,23 +10,21 @@
 Tuist obsługuje korzystanie z `Package.swift` jako DSL dla projektów i
 konwertuje cele pakietu na natywny projekt Xcode i cele.
 
-::: warning
-<!-- -->
-Celem tej funkcji jest zapewnienie programistom łatwego sposobu oceny wpływu
-przyjęcia Tuist w ich pakietach Swift. W związku z tym nie planujemy obsługiwać
-pełnego zakresu funkcji menedżera pakietów Swift ani wprowadzać wszystkich
-unikalnych funkcji Tuist, takich jak
-<LocalizedLink href="/guides/features/projects/code-sharing">pomocnicy opisu projektu</LocalizedLink> do świata pakietów.
-<!-- -->
-:::
+> [!WARNING]
+> Celem tej funkcji jest zapewnienie programistom łatwego sposobu oceny wpływu
+> przyjęcia Tuist w ich pakietach Swift. W związku z tym nie planujemy obsługiwać
+> pełnego zakresu funkcji menedżera pakietów Swift ani wprowadzać wszystkich
+> unikalnych funkcji Tuist, takich jak
+> <LocalizedLink href="/guides/features/projects/code-sharing">pomocnicy opisu projektu</LocalizedLink> do świata pakietów.
 
-::: info ROOT DIRECTORY
-<!-- -->
-Polecenia Tuist oczekują określonej
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects"> struktury katalogów</LocalizedLink>, której korzeń jest identyfikowany przez
-katalog `Tuist` lub `.git`.
-<!-- -->
-:::
+
+> [!NOTE]
+> **Root Directory**
+>
+> Polecenia Tuist oczekują określonej
+> <LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects"> struktury katalogów</LocalizedLink>, której korzeń jest identyfikowany przez
+> katalog `Tuist` lub `.git`.
+
 
 ## Korzystanie z Tuist z pakietem Swift {#using-tuist-with-a-swift-package}
 

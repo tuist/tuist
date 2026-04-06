@@ -60,13 +60,13 @@ a continuación:
 **El proyecto generado se abre automáticamente**. Si necesita abrirlo de nuevo
 sin generarlo, ejecute `abra Tuist.xcworkspace` (o utilice Finder).
 
-::: info XED .
-<!-- -->
-Si intentas abrir el proyecto usando `xed .`, abrirá el paquete, y no el
-proyecto generado por Tuist. Te recomendamos que utilices el proyecto generado
-por Tuist para probar la herramienta.
-<!-- -->
-:::
+> [!NOTE]
+> **Xed .**
+>
+> Si intentas abrir el proyecto usando `xed .`, abrirá el paquete, y no el
+> proyecto generado por Tuist. Te recomendamos que utilices el proyecto generado
+> por Tuist para probar la herramienta.
+
 
 ## Editar el proyecto {#edit-the-project}
 
@@ -96,14 +96,14 @@ se muestra a continuación:
 ![Un ejemplo de cómo establecer el directorio de trabajo para ejecutar
 Tuist](/images/contributors/scheme-working-directory.png)
 
-::: warning PROJECTDESCRIPTION COMPILATION
-<!-- -->
-El CLI `tuist` depende de la presencia del framework `ProjectDescription` en el
-directorio de productos construidos. Si `tuist` no se ejecuta porque no
-encuentra el framework `ProjectDescription`, construya primero el esquema
-`Tuist-Workspace`.
-<!-- -->
-:::
+> [!WARNING]
+> **Projectdescription Compilation**
+>
+> El CLI `tuist` depende de la presencia del framework `ProjectDescription` en el
+> directorio de productos construidos. Si `tuist` no se ejecuta porque no
+> encuentra el framework `ProjectDescription`, construya primero el esquema
+> `Tuist-Workspace`.
+
 
 ### Desde el terminal {#from-the-terminal}
 

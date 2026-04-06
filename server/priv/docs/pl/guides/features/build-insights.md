@@ -7,11 +7,11 @@
 ---
 # Spostrzeżenia {#insights}
 
-::: ostrzeżenie WYMAGANIA
-<!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Wymagania**
+>
+> - Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+
 
 Praca nad dużymi projektami nie powinna być przykrym obowiązkiem. W
 rzeczywistości powinna być tak przyjemna, jak praca nad projektem rozpoczętym
@@ -79,15 +79,14 @@ aktywować `tuist` w środowisku post-action:
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: tip MISE & PROJECT PATHS
-<!-- -->
-Zmienna środowiskowa `PATH` nie jest dziedziczona przez akcję post schematu,
-dlatego należy użyć bezwzględnej ścieżki Mise, która będzie zależeć od sposobu
-instalacji Mise. Co więcej, nie zapomnij o odziedziczeniu ustawień kompilacji z
-celu w projekcie, tak abyś mógł uruchomić Mise z katalogu wskazywanego przez
-$SRCROOT.
-<!-- -->
-:::
+> [!TIP]
+> **Mise & Project Paths**
+>
+> Zmienna środowiskowa `PATH` nie jest dziedziczona przez akcję post schematu,
+> dlatego należy użyć bezwzględnej ścieżki Mise, która będzie zależeć od sposobu
+> instalacji Mise. Co więcej, nie zapomnij o odziedziczeniu ustawień kompilacji z
+> celu w projekcie, tak abyś mógł uruchomić Mise z katalogu wskazywanego przez
+> $SRCROOT.
 
 
 Lokalne kompilacje są teraz śledzone tak długo, jak długo jesteś zalogowany na
@@ -95,12 +94,10 @@ swoje konto Tuist. Możesz teraz uzyskać dostęp do czasów kompilacji na pulpi
 nawigacyjnym Tuist i zobaczyć, jak zmieniają się one w czasie:
 
 
-::: napiwek
-<!-- -->
-Aby szybko uzyskać dostęp do pulpitu nawigacyjnego, uruchom `tuist project show
---web` z CLI.
-<!-- -->
-:::
+> [!TIP]
+> Aby szybko uzyskać dostęp do pulpitu nawigacyjnego, uruchom `tuist project show
+> --web` z CLI.
+
 
 ![Pulpit nawigacyjny z informacjami o
 kompilacji](/images/guides/features/build-insights/builds-dashboard.png)
@@ -125,15 +122,15 @@ aktywować `tuist` w środowisku post-action:
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: tip MISE & PROJECT PATHS
-<!-- -->
-Zmienna środowiskowa `PATH` nie jest dziedziczona przez akcję post schematu,
-dlatego należy użyć bezwzględnej ścieżki Mise, która będzie zależeć od sposobu
-instalacji Mise. Co więcej, nie zapomnij o odziedziczeniu ustawień kompilacji z
-celu w projekcie, tak abyś mógł uruchomić Mise z katalogu wskazywanego przez
-$SRCROOT.
-<!-- -->
-:::
+> [!TIP]
+> **Mise & Project Paths**
+>
+> Zmienna środowiskowa `PATH` nie jest dziedziczona przez akcję post schematu,
+> dlatego należy użyć bezwzględnej ścieżki Mise, która będzie zależeć od sposobu
+> instalacji Mise. Co więcej, nie zapomnij o odziedziczeniu ustawień kompilacji z
+> celu w projekcie, tak abyś mógł uruchomić Mise z katalogu wskazywanego przez
+> $SRCROOT.
+
 
 Twoje testy są teraz śledzone tak długo, jak długo jesteś zalogowany na swoje
 konto Tuist. Możesz uzyskać dostęp do swoich spostrzeżeń z testów na pulpicie

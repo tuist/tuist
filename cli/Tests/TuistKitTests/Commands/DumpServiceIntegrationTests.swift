@@ -227,6 +227,7 @@ final class DumpServiceTests: TuistTestCase {
 
                     ],
                     "buildInsightsDisabled": false,
+                    "defaultSwiftVersion": "5",
                     "disablePackageVersionLocking": false,
                     "disableSandbox": true,
                     "enableCaching": false,

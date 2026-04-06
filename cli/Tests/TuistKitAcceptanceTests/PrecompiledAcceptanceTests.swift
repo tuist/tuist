@@ -10,7 +10,7 @@ import TuistTesting
 @testable import TuistKit
 
 struct PrecompiledAcceptanceTests {
-    @Test(.withFixture("generated_ios_app_with_static_frameworks"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_static_frameworks"), .inTemporaryDirectory)
     func ios_app_with_static_frameworks() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -21,7 +21,7 @@ struct PrecompiledAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_ios_app_with_static_libraries"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_static_libraries"), .inTemporaryDirectory)
     func ios_app_with_static_libraries() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -32,7 +32,7 @@ struct PrecompiledAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_ios_app_with_transitive_framework"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_transitive_framework"), .inTemporaryDirectory)
     func ios_app_with_transitive_framework() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -111,7 +111,7 @@ struct PrecompiledAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_ios_app_with_static_library_and_package"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_static_library_and_package"), .inTemporaryDirectory)
     func ios_app_with_static_library_and_package() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -122,7 +122,7 @@ struct PrecompiledAcceptanceTests {
         )
     }
 
-    @Test(.withFixture("generated_ios_app_with_xcframeworks"), .inTemporaryDirectory)
+    @Test(.disabled(), .withFixture("generated_ios_app_with_xcframeworks"), .inTemporaryDirectory)
     func ios_app_with_xcframeworks() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)

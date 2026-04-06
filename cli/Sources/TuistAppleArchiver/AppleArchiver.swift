@@ -2,6 +2,7 @@ import AppleArchive
 import Foundation
 import Mockable
 import Path
+import Synchronization
 import System
 
 public enum AppleArchiverError: LocalizedError, Equatable {
@@ -20,14 +21,22 @@ public enum AppleArchiverError: LocalizedError, Equatable {
 
 @Mockable
 public protocol AppleArchiving {
-    func compress(directory: AbsolutePath, to archivePath: AbsolutePath) async throws
+    func compress(
+        directory: AbsolutePath,
+        to archivePath: AbsolutePath,
+        excludePatterns: [String]
+    ) async throws
     func decompress(archive: AbsolutePath, to directory: AbsolutePath) async throws
 }
 
 public struct AppleArchiver: AppleArchiving {
     public init() {}
 
-    public func compress(directory: AbsolutePath, to archivePath: AbsolutePath) async throws {
+    public func compress(
+        directory: AbsolutePath,
+        to archivePath: AbsolutePath,
+        excludePatterns: [String] = []
+    ) async throws {
         let source = FilePath(directory.pathString)
         let destination = FilePath(archivePath.pathString)
 
@@ -55,7 +64,25 @@ public struct AppleArchiver: AppleArchiving {
         defer { try? encodeStream.close() }
 
         let keySet = ArchiveHeader.FieldKeySet("TYP,PAT,DAT,UID,GID,MOD,FLG,MTM,CTM,SLC,LNK")!
-        try encodeStream.writeDirectoryContents(archiveFrom: source, keySet: keySet)
+
+        // writeDirectoryContents may visit the same file twice when the source
+        // directory contains symlinks to sibling directories. Track seen paths
+        // and skip duplicates to prevent EEXIST errors during extraction.
+        let seenPaths = Mutex(Set<String>())
+        let filter: ArchiveHeader.EntryFilter = { _, path, _ in
+            let pathString = path.string
+            if excludePatterns.contains(where: { pathString.contains($0) }) {
+                return .skip
+            }
+            let inserted = seenPaths.withLock { $0.insert(pathString).inserted }
+            guard inserted else { return .skip }
+            return .ok
+        }
+        try encodeStream.writeDirectoryContents(
+            archiveFrom: source,
+            keySet: keySet,
+            selectUsing: filter
+        )
 
         try encodeStream.close()
         try compressStream.close()

@@ -8,6 +8,7 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistXCResultService
+import XCResultParser
 
 @testable import TuistKit
 
@@ -340,6 +341,55 @@ struct TestQuarantineServiceTests {
         )
 
         #expect(subject.onlyQuarantinedTestsFailed(testSummary: summary) == false)
+    }
+
+    // MARK: - onlyQuarantinedTestsFailed (TestResultStatuses)
+
+    @Test
+    func onlyQuarantinedTestsFailed_statuses_returnsFalse_whenNoQuarantinedTests() throws {
+        let statuses = TestResultStatuses(testCases: [
+            .init(name: "testA()", testSuite: "Suite", module: "AppTests", status: .failed),
+        ])
+        #expect(subject.onlyQuarantinedTestsFailed(testStatuses: statuses, quarantinedTests: []) == false)
+    }
+
+    @Test
+    func onlyQuarantinedTestsFailed_statuses_returnsFalse_whenNoFailures() throws {
+        let statuses = TestResultStatuses(testCases: [
+            .init(name: "testA()", testSuite: "Suite", module: "AppTests", status: .passed),
+        ])
+        let quarantined = [try TestIdentifier(target: "AppTests", class: "Suite", method: "testA()")]
+        #expect(subject.onlyQuarantinedTestsFailed(testStatuses: statuses, quarantinedTests: quarantined) == false)
+    }
+
+    @Test
+    func onlyQuarantinedTestsFailed_statuses_returnsTrue_whenAllFailuresQuarantined() throws {
+        let statuses = TestResultStatuses(testCases: [
+            .init(name: "testA()", testSuite: "Suite", module: "AppTests", status: .failed),
+            .init(name: "testB()", testSuite: "Suite", module: "AppTests", status: .passed),
+        ])
+        let quarantined = [try TestIdentifier(target: "AppTests", class: "Suite", method: "testA()")]
+        #expect(subject.onlyQuarantinedTestsFailed(testStatuses: statuses, quarantinedTests: quarantined) == true)
+    }
+
+    @Test
+    func onlyQuarantinedTestsFailed_statuses_returnsFalse_whenNonQuarantinedTestFailed() throws {
+        let statuses = TestResultStatuses(testCases: [
+            .init(name: "testA()", testSuite: "Suite", module: "AppTests", status: .failed),
+            .init(name: "testB()", testSuite: "Suite", module: "AppTests", status: .failed),
+        ])
+        let quarantined = [try TestIdentifier(target: "AppTests", class: "Suite", method: "testA()")]
+        #expect(subject.onlyQuarantinedTestsFailed(testStatuses: statuses, quarantinedTests: quarantined) == false)
+    }
+
+    @Test
+    func onlyQuarantinedTestsFailed_statuses_matchesByTargetOnly() throws {
+        let statuses = TestResultStatuses(testCases: [
+            .init(name: "testA()", testSuite: "Suite", module: "AppTests", status: .failed),
+            .init(name: "testB()", testSuite: "Other", module: "AppTests", status: .failed),
+        ])
+        let quarantined = [try TestIdentifier(target: "AppTests")]
+        #expect(subject.onlyQuarantinedTestsFailed(testStatuses: statuses, quarantinedTests: quarantined) == true)
     }
 }
 

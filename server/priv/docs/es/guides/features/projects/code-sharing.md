@@ -25,16 +25,16 @@ definiciones de proyecto es útil por las siguientes razones:
 Tuist permite reutilizar código en distintos archivos de manifiesto gracias al
 concepto de ayuda para la descripción de proyectos **** .
 
-::: tip A TUIST UNIQUE ASSET
-<!-- -->
-A muchas organizaciones les gusta Tuist porque ven en los ayudantes de
-descripción de proyectos una plataforma para que los equipos de la plataforma
-codifiquen sus propias convenciones y creen su propio lenguaje para describir
-sus proyectos. Por ejemplo, los generadores de proyectos basados en YAML tienen
-que idear su propia solución de plantillas propietarias basadas en YAML, o
-forzar a las organizaciones a construir sus herramientas sobre ellas.
-<!-- -->
-:::
+> [!TIP]
+> **A Tuist Unique Asset**
+>
+> A muchas organizaciones les gusta Tuist porque ven en los ayudantes de
+> descripción de proyectos una plataforma para que los equipos de la plataforma
+> codifiquen sus propias convenciones y creen su propio lenguaje para describir
+> sus proyectos. Por ejemplo, los generadores de proyectos basados en YAML tienen
+> que idear su propia solución de plantillas propietarias basadas en YAML, o
+> forzar a las organizaciones a construir sus herramientas sobre ellas.
+
 
 ## Ayudantes para la descripción de proyectos {#project-description-helpers}
 
@@ -107,10 +107,10 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip A TOOL TO ESTABLISH CONVENTIONS
-<!-- -->
-Observe cómo a través de la función estamos definiendo convenciones sobre el
-nombre de los objetivos, el identificador del paquete y la estructura de
-carpetas.
-<!-- -->
-:::
+> [!TIP]
+> **A Tool To Establish Conventions**
+>
+> Observe cómo a través de la función estamos definiendo convenciones sobre el
+> nombre de los objetivos, el identificador del paquete y la estructura de
+> carpetas.
+

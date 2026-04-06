@@ -11,13 +11,11 @@ The registry works out of the box on CI without any additional authentication se
 
 If you need a higher rate limit of **20,000 requests per minute**, you can authenticate by running `tuist registry login`. This requires the `TUIST_TOKEN` environment variable to be set. You can create a project token by following the documentation <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
 
-::: info
-<!-- -->
-The keychain setup below is only required if you use `tuist registry login` to get higher rate limits. In most cases, the default unauthenticated rate limit is sufficient and you can skip this entirely.
+> [!NOTE]
+> The keychain setup below is only required if you use `tuist registry login` to get higher rate limits. In most cases, the default unauthenticated rate limit is sufficient and you can skip this entirely.
+>
+> Additionally, creating a new pre-unlocked keychain is only needed when using the Xcode integration of packages.
 
-Additionally, creating a new pre-unlocked keychain is only needed when using the Xcode integration of packages.
-<!-- -->
-:::
 
 Since `tuist registry login` stores credentials in a keychain, you need to ensure the keychain can be accessed in the CI environment. Note some CI providers or automation tools like [Fastlane](https://fastlane.tools/) already create a temporary keychain or provide a built-in way how to create one. However, you can also create one by creating a custom step with the following code:
 ```bash

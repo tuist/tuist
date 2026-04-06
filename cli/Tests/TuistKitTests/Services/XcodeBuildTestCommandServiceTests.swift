@@ -17,6 +17,7 @@ import TuistXCActivityLog
 import TuistXCResultService
 import XcodeGraph
 import protocol XcodeGraphMapper.XcodeGraphMapping
+import XCResultParser
 
 @testable import TuistKit
 
@@ -206,7 +207,7 @@ struct XcodeBuildTestCommandServiceTests {
                 .willReturn()
 
             given(uploadResultBundleService)
-                .uploadResultBundle(
+                .uploadTestSummary(
                     testSummary: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
@@ -220,7 +221,7 @@ struct XcodeBuildTestCommandServiceTests {
 
             // Then
             verify(uploadResultBundleService)
-                .uploadResultBundle(
+                .uploadTestSummary(
                     testSummary: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,

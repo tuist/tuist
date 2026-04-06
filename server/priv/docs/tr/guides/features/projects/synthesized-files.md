@@ -42,13 +42,13 @@ kaynakların ve kaynakların sık sık yer değiştirdiği modüler bir projeyle
 Tuist yukarıdaki sorunları **demetlere ve kaynaklara erişmek için** uygulama
 ayrıntılarını soyutlayan birleşik bir arayüz sentezleyerek çözmektedir.
 
-::: warning RECOMMENDED
-<!-- -->
-Kaynaklara Tuist tarafından sentezlenen arayüz üzerinden erişmek zorunlu olmasa
-da, kod hakkında mantık yürütmeyi ve kaynakların hareket etmesini
-kolaylaştırdığı için bunu öneriyoruz.
-<!-- -->
-:::
+> [!WARNING]
+> **Recommended**
+>
+> Kaynaklara Tuist tarafından sentezlenen arayüz üzerinden erişmek zorunlu olmasa
+> da, kod hakkında mantık yürütmeyi ve kaynakların hareket etmesini
+> kolaylaştırdığı için bunu öneriyoruz.
+
 
 ## Kaynaklar {#resources}
 
@@ -61,11 +61,11 @@ paylaşmak için kendi soyutlamalarınızı da oluşturabilirsiniz.
 Projeniz oluşturulduğunda, Tuist bu dosyaların içeriğini sentezleyecek ve
 bunları tanımlayan projeyi içeren dizine göre `Türetilmiş` dizinine yazacaktır.
 
-::: tip GITIGNORE THE DERIVED DIRECTORY
-<!-- -->
-`Derived` dizinini projenizin `.gitignore` dosyasına eklemenizi öneririz.
-<!-- -->
-:::
+> [!TIP]
+> **Gitignore The Derived Directory**
+>
+> `Derived` dizinini projenizin `.gitignore` dosyasına eklemenizi öneririz.
+
 
 ## Paket erişimcileri {#bundle-accessors}
 
@@ -88,22 +88,22 @@ edersiniz:
 NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
-::: warning LIMITATION WITH INTERNAL TARGETS
-<!-- -->
-Şu anda Tuist, yalnızca Objective-C kaynakları içeren dahili hedefler için
-kaynak paketi erişicileri oluşturmamaktadır. Bu, [issue
-#6456](https://github.com/tuist/tuist/issues/6456)'de izlenen bilinen bir
-sınırlamadır.
-<!-- -->
-:::
+> [!WARNING]
+> **Limitation With Internal Targets**
+>
+> Şu anda Tuist, yalnızca Objective-C kaynakları içeren dahili hedefler için
+> kaynak paketi erişicileri oluşturmamaktadır. Bu, [issue
+> #6456](https://github.com/tuist/tuist/issues/6456)'de izlenen bilinen bir
+> sınırlamadır.
 
-::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
-<!-- -->
-Bir hedef ürün, örneğin bir kütüphane, kaynakları desteklemiyorsa, Tuist
-kaynakları `bundle` ürün türündeki bir hedefe dahil ederek nihai ürüne
-ulaşmasını ve arayüzün doğru pakete işaret etmesini sağlayacaktır.
-<!-- -->
-:::
+
+> [!TIP]
+> **Supporting Resources In Libraries Through Bundles**
+>
+> Bir hedef ürün, örneğin bir kütüphane, kaynakları desteklemiyorsa, Tuist
+> kaynakları `bundle` ürün türündeki bir hedefe dahil ederek nihai ürüne
+> ulaşmasını ve arayüzün doğru pakete işaret etmesini sağlayacaktır.
+
 
 ## Kaynak erişimcileri {#resource-accessors}
 
@@ -158,11 +158,11 @@ istiyorsanız, kullanmak istediğiniz kaynak sentezleyicilerinin listesini aktar
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
 
-::: info REFERENCE
-<!-- -->
-Kaynaklara erişimcileri sentezlemek için özel şablonların nasıl kullanılacağına
-dair bir örnek görmek için [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
-sayfasına göz atabilirsiniz.
-<!-- -->
-:::
+> [!NOTE]
+> **Reference**
+>
+> Kaynaklara erişimcileri sentezlemek için özel şablonların nasıl kullanılacağına
+> dair bir örnek görmek için [this
+> fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
+> sayfasına göz atabilirsiniz.
+

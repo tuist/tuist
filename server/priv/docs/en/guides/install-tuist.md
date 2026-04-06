@@ -11,11 +11,9 @@ Tuist runs on **macOS** and **Linux**. Although you could manually build Tuist f
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-::: info
-<!-- -->
-If you don't have Mise installed, follow the [getting started guide](https://mise.jdx.dev/getting-started.html) first. Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
-<!-- -->
-:::
+> [!NOTE]
+> If you don't have Mise installed, follow the [getting started guide](https://mise.jdx.dev/getting-started.html) first. Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
+
 
 Unlike tools like Homebrew, which install and activate a single version of the tool globally, **Mise pins a version** either globally or scoped to a project. Run `mise use` to install and activate Tuist:
 
@@ -28,9 +26,13 @@ mise use -g tuist@system       # Use the system's tuist as the global default
 
 If you clone a project that already has a Tuist version pinned in `mise.toml`, run `mise install` to install it.
 
-::: details Linux support
+<details>
+<summary>Linux support</summary>
+
 On Linux, Tuist is available exclusively via Mise. Commands that depend on Xcode (such as `tuist generate`) are not available on Linux, but platform-independent commands like `tuist inspect bundle` work as expected.
-:::
+
+</details>
+
 
 ### <a href="https://brew.sh">Homebrew</a> (macOS only) {#recommended-homebrew}
 
@@ -42,12 +44,12 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
-<!-- -->
-You can verify that your installation's binaries have been built by us by running the following command, which checks if the certificate's team is `U6LC622NKF`:
+> [!TIP]
+> **Verifying The Authenticity Of The Binaries**
+>
+> You can verify that your installation's binaries have been built by us by running the following command, which checks if the certificate's team is `U6LC622NKF`:
+>
+> ```bash
+> curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
+> ```
 
-```bash
-curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
-```
-<!-- -->
-:::

@@ -7,11 +7,11 @@
 ---
 # Xcode project {#xcode-project}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+
 
 You can run the tests of your Xcode projects selectively through the command
 line. For that, you can prepend your `xcodebuild` command with `tuist` – for

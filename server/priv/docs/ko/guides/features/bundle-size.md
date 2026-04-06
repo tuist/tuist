@@ -7,11 +7,11 @@
 ---
 # 번들 인사이트 {#bundle-size}
 
-::: warning REQUIREMENTS
-<!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
-<!-- -->
-:::
+> [!WARNING]
+> **Requirements**
+>
+> - <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
+
 
 앱에 더 많은 기능을 추가하면 앱 번들 크기가 계속 커집니다. 더 많은 코드와 에셋을 제공하면 번들 크기가 커지는 것은 불가피하지만, 에셋이
 번들 간에 중복되지 않도록 하거나 사용하지 않는 바이너리 심볼을 제거하는 등 여러 가지 방법으로 크기를 최소화할 수 있습니다. 튜이스트는 앱
@@ -63,11 +63,11 @@ jobs:
 
 ## 요청 댓글 풀/병합 {#pullmerge-request-comments}
 
-::: warning GIT PLATFORM INTEGRATION REQUIRED
-<!-- -->
-자동 풀/병합 요청 코멘트를 받으려면 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git 플랫폼</LocalizedLink>과 통합하세요.
-<!-- -->
-:::
+> [!WARNING]
+> **Git Platform Integration Required**
+>
+> 자동 풀/병합 요청 코멘트를 받으려면 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git 플랫폼</LocalizedLink>과 통합하세요.
+
 
 튜이스트 프로젝트가 [GitHub](https://github.com)와 같은 Git 플랫폼에 연결되면, 튜이스트는 풀/머지 요청을 실행할
 때마다 `tuist 검사 번들`: ![검사된 번들이 있는 GitHub 앱

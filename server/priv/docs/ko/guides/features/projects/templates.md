@@ -14,11 +14,11 @@
 - 주어진 아키텍처를 따르는 새 기능을 만듭니다: `tuist scaffold viper --name MyFeature`.
 - 새 프로젝트 만들기: `튜스트 스캐폴드 기능 프로젝트 --이름 홈`
 
-::: info NON-OPINIONATED
-<!-- -->
-Tuist는 템플릿의 콘텐츠와 템플릿의 용도에 대해 의견을 제시하지 않습니다. 템플릿은 특정 디렉토리에만 있어야 합니다.
-<!-- -->
-:::
+> [!NOTE]
+> **Non-opinionated**
+>
+> Tuist는 템플릿의 콘텐츠와 템플릿의 용도에 대해 의견을 제시하지 않습니다. 템플릿은 특정 디렉토리에만 있어야 합니다.
+
 
 ## 템플릿 정의하기 {#defining-a-template}
 
@@ -64,11 +64,11 @@ let template = Template(
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: info Mise란?
-<!-- -->
-플랫폼은 선택적 인자이므로 `--platform macos` 인수 없이 명령을 호출할 수도 있습니다.
-<!-- -->
-:::
+> [!NOTE]
+> **Mise란?**
+>
+> 플랫폼은 선택적 인자이므로 `--platform macos` 인수 없이 명령을 호출할 수도 있습니다.
+
 
 `.문자열` 및 `.파일` 이 충분한 유연성을 제공하지 않는 경우 `.파일` 케이스를 통해
 [스텐실](https://stencil.fuller.li/en/latest/) 템플릿 언어를 활용할 수 있습니다. 그 외에도 여기에 정의된 추가
@@ -80,8 +80,8 @@ tuist scaffold name_of_template --name Name --platform macos
 
 전체 폴더를 지정된 경로에 복사할 수 있는 `.디렉토리` 를 사용할 수도 있습니다.
 
-::: tip PROJECT DESCRIPTION HELPERS
-<!-- -->
-템플릿은 <LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>를 사용하여 여러 템플릿에서 코드를 재사용할 수 있도록 지원합니다.
-<!-- -->
-:::
+> [!TIP]
+> **Project Description Helpers**
+>
+> 템플릿은 <LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>를 사용하여 여러 템플릿에서 코드를 재사용할 수 있도록 지원합니다.
+

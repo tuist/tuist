@@ -115,14 +115,16 @@ jobs:
 
 ::::
 
-::: info OIDC SETUP
-قبل استخدام مصادقة OIDC، تحتاج إلى <LocalizedLink href="/guides/integrations/gitforge/github">ربط مستودع GitHub الخاص بك</LocalizedLink> بمشروعك Tuist. الأذونات `: الرمز المميز للمعرف: الكتابة` مطلوب لكي يعمل OIDC. وبدلاً من ذلك، يمكنك استخدام <LocalizedLink href="/guides/server/authentication#project-tokens">رمز المشروع</LocalizedLink> مع `TUIST_TOKEN` السري.
-:::
+> [!NOTE]
+> **Oidc Setup**
+>
+> قبل استخدام مصادقة OIDC، تحتاج إلى <LocalizedLink href="/guides/integrations/gitforge/github">ربط مستودع GitHub الخاص بك</LocalizedLink> بمشروعك Tuist. الأذونات `: الرمز المميز للمعرف: الكتابة` مطلوب لكي يعمل OIDC. وبدلاً من ذلك، يمكنك استخدام <LocalizedLink href="/guides/server/authentication#project-tokens">رمز المشروع</LocalizedLink> مع `TUIST_TOKEN` السري.
 
-::: tip
-نوصي باستخدام `mise استخدام --pin` في مشاريع تويست الخاصة بك لتثبيت إصدار تويست
-عبر البيئات. سينشئ الأمر ملف `.tool-versions` يحتوي على إصدار تويست.
-:::
+
+> [!TIP]
+> نوصي باستخدام `mise استخدام --pin` في مشاريع تويست الخاصة بك لتثبيت إصدار تويست
+> عبر البيئات. سينشئ الأمر ملف `.tool-versions` يحتوي على إصدار تويست.
+
 
 ### سحابة Xcode السحابية {#xcode-cloud}
 
@@ -156,14 +158,14 @@ tuist generate
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-استخدم رمزًا مميزًا
-<LocalizedLink href="/guides/server/authentication#project-tokens"> للمشروع
-</LocalizedLink> عن طريق تعيين متغير البيئة `TUIST_TOKEN` في إعدادات سير عمل
-Xcode Cloud الخاص بك.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> استخدم رمزًا مميزًا
+> <LocalizedLink href="/guides/server/authentication#project-tokens"> للمشروع
+> </LocalizedLink> عن طريق تعيين متغير البيئة `TUIST_TOKEN` في إعدادات سير عمل
+> Xcode Cloud الخاص بك.
+
 
 ### سيركلسي {#circleci}
 
@@ -220,17 +222,17 @@ jobs:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-قبل استخدام مصادقة OIDC، تحتاج إلى
-<LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
-الخاص بك </LocalizedLink> بمستودع GitHub الخاص بك بمشروع Tuist الخاص بك. تتضمن
-رموز CircleCI OIDC الرموز المميزة لمستودع GitHub المتصل الخاص بك، والتي يستخدمها
-Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، يمكنك استخدام
-<LocalizedLink href="/guides/server/authentication#project-tokens"> رمز المشروع
-المميز</LocalizedLink> مع متغير البيئة `TUIST_TOKEN`.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> قبل استخدام مصادقة OIDC، تحتاج إلى
+> <LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
+> الخاص بك </LocalizedLink> بمستودع GitHub الخاص بك بمشروع Tuist الخاص بك. تتضمن
+> رموز CircleCI OIDC الرموز المميزة لمستودع GitHub المتصل الخاص بك، والتي يستخدمها
+> Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، يمكنك استخدام
+> <LocalizedLink href="/guides/server/authentication#project-tokens"> رمز المشروع
+> المميز</LocalizedLink> مع متغير البيئة `TUIST_TOKEN`.
+
 
 ### بيترايز {#bitrise}
 
@@ -289,17 +291,17 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-قبل استخدام مصادقة OIDC، تحتاج إلى
-<LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
-الخاص بك </LocalizedLink> بمستودع GitHub الخاص بك بمشروع Tuist الخاص بك. تتضمن
-رموز Bitrise OIDC الرموز المميزة لمستودع GitHub المتصل الخاص بك، والذي يستخدمه
-Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، يمكنك استخدام
-<LocalizedLink href="/guides/server/authentication#project-tokens"> رمز المشروع
-المميز</LocalizedLink> مع متغير البيئة `TUIST_TOKEN`.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> قبل استخدام مصادقة OIDC، تحتاج إلى
+> <LocalizedLink href="/guides/integrations/gitforge/github"> ربط مستودع GitHub
+> الخاص بك </LocalizedLink> بمستودع GitHub الخاص بك بمشروع Tuist الخاص بك. تتضمن
+> رموز Bitrise OIDC الرموز المميزة لمستودع GitHub المتصل الخاص بك، والذي يستخدمه
+> Tuist لتخويل الوصول إلى مشاريعك. بدلاً من ذلك، يمكنك استخدام
+> <LocalizedLink href="/guides/server/authentication#project-tokens"> رمز المشروع
+> المميز</LocalizedLink> مع متغير البيئة `TUIST_TOKEN`.
+
 
 ### كودماغك {#codemagic}
 
@@ -343,9 +345,9 @@ workflows:
 <!-- -->
 :::
 
-::: info AUTHENTICATION
-<!-- -->
-قم بإنشاء <LocalizedLink href="/guides/server/authentication#project-tokens">رمز
-مميز </LocalizedLink> للمشروع وأضفه كمتغير بيئة سري باسم `TUIST_TOKEN`.
-<!-- -->
-:::
+> [!NOTE]
+> **Authentication**
+>
+> قم بإنشاء <LocalizedLink href="/guides/server/authentication#project-tokens">رمز
+> مميز </LocalizedLink> للمشروع وأضفه كمتغير بيئة سري باسم `TUIST_TOKEN`.
+

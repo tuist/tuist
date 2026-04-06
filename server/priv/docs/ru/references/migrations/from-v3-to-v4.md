@@ -35,23 +35,23 @@ curl -Ls https://uninstall.tuist.io | bash
 <!-- -->
 :::
 
-::: предупреждение MISE в CI ENVIRONMENTS и XCODE PROJECTS
-<!-- -->
-Если вы решили использовать детерминизм, который привносит Mise, мы рекомендуем
-ознакомиться с документацией по использованию Mise в
-[CI-средах](https://mise.jdx.dev/continuous-integration.html) и
-[Xcode-проектах](https://mise.jdx.dev/ide-integration.html#xcode).
-<!-- -->
-:::
+> [!WARNING]
+> **Mise В Ci Environments И Xcode Projects**
+>
+> Если вы решили использовать детерминизм, который привносит Mise, мы рекомендуем
+> ознакомиться с документацией по использованию Mise в
+> [CI-средах](https://mise.jdx.dev/continuous-integration.html) и
+> [Xcode-проектах](https://mise.jdx.dev/ide-integration.html#xcode).
 
-::: инфо HOMEBREW IS SUPPORTED
-<!-- -->
-Обратите внимание, что вы все еще можете установить Tuist с помощью Homebrew -
-популярного менеджера пакетов для macOS. Инструкции по установке Tuist с помощью
-Homebrew вы найдете в руководстве по установке
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew"></LocalizedLink>.
-<!-- -->
-:::
+
+> [!NOTE]
+> **Homebrew Is Supported**
+>
+> Обратите внимание, что вы все еще можете установить Tuist с помощью Homebrew -
+> популярного менеджера пакетов для macOS. Инструкции по установке Tuist с помощью
+> Homebrew вы найдете в руководстве по установке
+> <LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew"></LocalizedLink>.
+
 
 ### Удалены конструкторы `unit` из моделей `ProjectDescription` {#dropped-init-constructors-from-projectdescription-models}
 
@@ -62,12 +62,12 @@ Homebrew вы найдете в руководстве по установке
 придется обновить свой проект, чтобы использовать вместо них статические
 конструкторы.
 
-::: tip NAMING CONVENTION
-<!-- -->
-В качестве имени статического конструктора мы используем имя модели. Например,
-статический конструктор для модели `Target` имеет имя `Target.target`.
-<!-- -->
-:::
+> [!TIP]
+> **Naming Convention**
+>
+> В качестве имени статического конструктора мы используем имя модели. Например,
+> статический конструктор для модели `Target` имеет имя `Target.target`.
+
 
 ### Переименовали `--no-cache` в `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
 
@@ -162,15 +162,15 @@ tuist generate Foo
   - Сценарий, который может взять существующие профили и сертификаты и
     зашифровать их.
 
-::: РЕКОМЕНДАЦИИ ПО ПОДПИСКЕ
-<!-- -->
-Подписание требует наличия нужных сертификатов в связке ключей и профилей
-инициализации в каталоге `~/Library/MobileDevice/Provisioning\ Profiles`. Для
-установки сертификатов в связку ключей можно использовать инструмент командной
-строки `security`, а для копирования профилей предоставления в нужный каталог -
-команду `cp`.
-<!-- -->
-:::
+> [!NOTE]
+> **По Подписке**
+>
+> Подписание требует наличия нужных сертификатов в связке ключей и профилей
+> инициализации в каталоге `~/Library/MobileDevice/Provisioning\ Profiles`. Для
+> установки сертификатов в связку ключей можно использовать инструмент командной
+> строки `security`, а для копирования профилей предоставления в нужный каталог -
+> команду `cp`.
+
 
 ### Убрали интеграцию Карфагена через `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
 
@@ -185,15 +185,15 @@ tuist generate Foo
 тегов, используя случаи `TargetDependency.xcframework` и
 `TargetDependency.framework`.
 
-::: инфо КАРТАЖ ОСТАЕТСЯ ПОДДЕРЖКОЙ
-<!-- -->
-Некоторые пользователи поняли, что мы отказались от поддержки Carthage. Это не
-так. Контракт между Tuist и выходом Carthage распространяется на фреймворки,
-хранящиеся в системе, и XCFrameworks. Единственное, что изменилось, - это то,
-кто отвечает за получение зависимостей. Раньше это был Tuist через Carthage,
-теперь - Carthage.
-<!-- -->
-:::
+> [!NOTE]
+> **Картаж Остается Поддержкой**
+>
+> Некоторые пользователи поняли, что мы отказались от поддержки Carthage. Это не
+> так. Контракт между Tuist и выходом Carthage распространяется на фреймворки,
+> хранящиеся в системе, и XCFrameworks. Единственное, что изменилось, - это то,
+> кто отвечает за получение зависимостей. Раньше это был Tuist через Carthage,
+> теперь - Carthage.
+
 
 ### Удален `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}
 

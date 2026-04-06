@@ -21,24 +21,20 @@ wartość `~/.local/state` jeśli zmienna środowiskowa nie jest ustawiona. Moż
 również użyć `$TUIST_XDG_STATE_HOME` do ustawienia katalogu stanu specyficznego
 dla Tuist, który ma pierwszeństwo przed `$XDG_STATE_HOME`.
 
-::: napiwek
-<!-- -->
-Więcej informacji na temat organizacji katalogów Tuist i sposobu konfigurowania
-niestandardowych katalogów można znaleźć w dokumentacji
-<LocalizedLink href="/cli/directories">Directories</LocalizedLink>.
-<!-- -->
-:::
+> [!TIP]
+> Więcej informacji na temat organizacji katalogów Tuist i sposobu konfigurowania
+> niestandardowych katalogów można znaleźć w dokumentacji
+> <LocalizedLink href="/cli/directories">Directories</LocalizedLink>.
+
 
 Domyślnie CLI wyświetla ścieżkę dziennika, gdy wykonanie kończy się
 nieoczekiwanie. Jeśli tak się nie stanie, dzienniki można znaleźć w ścieżce
 wspomnianej powyżej (tj. w najnowszym pliku dziennika).
 
-::: warning
-<!-- -->
-Wrażliwe informacje nie są redagowane, więc należy zachować ostrożność podczas
-udostępniania dzienników.
-<!-- -->
-:::
+> [!WARNING]
+> Wrażliwe informacje nie są redagowane, więc należy zachować ostrożność podczas
+> udostępniania dzienników.
+
 
 ### Ciągła integracja {#diagnose-issues-using-logs-ci}
 

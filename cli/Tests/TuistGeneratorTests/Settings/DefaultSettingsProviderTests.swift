@@ -60,7 +60,7 @@ struct DefaultSettingsProvider_iOSTests {
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "TARGETED_DEVICE_FAMILY": "1,2",
-        "SWIFT_VERSION": "5.0",
+        "SWIFT_VERSION": "5",
     ]
 
     private let appTargetEssentialReleaseSettings: [String: SettingValue] = [
@@ -71,7 +71,7 @@ struct DefaultSettingsProvider_iOSTests {
         "SDKROOT": "iphoneos",
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-O",
-        "SWIFT_VERSION": "5.0",
+        "SWIFT_VERSION": "5",
     ]
 
     private let frameworkTargetEssentialDebugSettings: [String: SettingValue] = [
@@ -91,7 +91,7 @@ struct DefaultSettingsProvider_iOSTests {
         "INSTALL_PATH": "$(LOCAL_LIBRARY_DIR)/Frameworks",
         "DYLIB_CURRENT_VERSION": "1",
         "DYLIB_COMPATIBILITY_VERSION": "1",
-        "SWIFT_VERSION": "5.0",
+        "SWIFT_VERSION": "5",
     ]
 
     private let frameworkTargetEssentialReleaseSettings: [String: SettingValue] = [
@@ -110,7 +110,7 @@ struct DefaultSettingsProvider_iOSTests {
         "CODE_SIGN_IDENTITY": "",
         "SKIP_INSTALL": "YES",
         "DYLIB_CURRENT_VERSION": "1",
-        "SWIFT_VERSION": "5.0",
+        "SWIFT_VERSION": "5",
     ]
 
     private let testTargetEssentialDebugSettings: [String: SettingValue] = [
@@ -120,7 +120,7 @@ struct DefaultSettingsProvider_iOSTests {
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "TARGETED_DEVICE_FAMILY": "1,2",
-        "SWIFT_VERSION": "5.0",
+        "SWIFT_VERSION": "5",
     ]
 
     private let multiplatformFrameworkTargetEssentialDebugSettings: [String: SettingValue] = [
@@ -138,7 +138,7 @@ struct DefaultSettingsProvider_iOSTests {
         "CURRENT_PROJECT_VERSION": "1",
         "INSTALL_PATH": "$(LOCAL_LIBRARY_DIR)/Frameworks",
         "DYLIB_COMPATIBILITY_VERSION": "1",
-        "SWIFT_VERSION": "5.0",
+        "SWIFT_VERSION": "5",
     ]
 
     init() {
@@ -646,7 +646,7 @@ struct DefaultSettingsProvider_iOSTests {
         )
 
         // Then
-        #expect(got["SWIFT_VERSION"] == .string("5.0"))
+        #expect(got["SWIFT_VERSION"] == .string("5"))
     }
 
     @Test(
@@ -712,7 +712,7 @@ struct DefaultSettingsProvider_iOSTests {
         )
 
         // Then
-        #expect(got["SWIFT_VERSION"] == .string("5.0"))
+        #expect(got["SWIFT_VERSION"] == .string("5"))
     }
 
     @Test(.withMockedXcodeController) func targetSettings_whenNone_doesNotContainDefaultSwiftVersion() async throws {
@@ -736,6 +736,48 @@ struct DefaultSettingsProvider_iOSTests {
         )
 
         // Then
+        #expect(got["SWIFT_VERSION"] == nil)
+    }
+
+    @Test(.withMockedXcodeController)
+    func targetSettings_whenRemoteTarget_doesNotInjectDefaultSwiftVersion() async throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let settings = Settings(
+            base: [:],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .recommended
+        )
+        let target = Target(
+            name: "Target",
+            destinations: .iOS,
+            product: .framework,
+            productName: nil,
+            bundleId: "io.tuist.Target",
+            settings: settings,
+            filesGroup: .group(name: "Project"),
+            type: .remote
+        )
+        let project = Project.test()
+        let graph = Graph.test(path: project.path)
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let got = try await subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration,
+            graphTraverser: GraphTraverser(graph: graph)
+        )
+
+        // Then
+        // PackageInfoMapper always sets SWIFT_VERSION for remote targets
+        // (from swiftLanguageVersions or tools-version), so DefaultSettingsProvider
+        // should never inject its own default.
         #expect(got["SWIFT_VERSION"] == nil)
     }
 
@@ -1091,7 +1133,7 @@ struct DefaultSettingsProvider_MacosTests {
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "DEBUG"]),
         "SKIP_INSTALL": "YES",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
-        "SWIFT_VERSION": "5.0",
+        "SWIFT_VERSION": "5",
         "SDKROOT": "macosx",
         "CODE_SIGN_IDENTITY": "-",
     ]
@@ -1099,7 +1141,7 @@ struct DefaultSettingsProvider_MacosTests {
     private let macroTargetEssentialReleaseSettings: [String: SettingValue] = [
         "SKIP_INSTALL": "YES",
         "SWIFT_OPTIMIZATION_LEVEL": "-O",
-        "SWIFT_VERSION": "5.0",
+        "SWIFT_VERSION": "5",
         "SDKROOT": "macosx",
         "CODE_SIGN_IDENTITY": "-",
     ]

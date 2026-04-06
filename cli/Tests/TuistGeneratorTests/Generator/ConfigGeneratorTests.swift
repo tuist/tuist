@@ -65,7 +65,7 @@ struct ConfigGeneratorTests {
             "INFOPLIST_FILE": "$(SRCROOT)/Info.plist",
             "PRODUCT_BUNDLE_IDENTIFIER": "com.test.bundle_id",
             "CODE_SIGN_ENTITLEMENTS": "$(SRCROOT)/Test.entitlements",
-            "SWIFT_VERSION": "5.0",
+            "SWIFT_VERSION": "5",
         ]
 
         let debugSettings: SettingsDictionary = [
