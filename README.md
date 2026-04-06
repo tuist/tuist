@@ -257,7 +257,7 @@ Some companies support our community and open source efforts with contributions 
       </td>
       <td width="20%" align="center">
         <a href="https://business.berekebank.kz" target="_blank">
-          <img src="assets/companies/bereke_business_logo" alt="bereke_business_logo" height="75"/>
+          <img src="assets/companies/bereke_business_logo.svg" alt="bereke_business_logo" height="75"/>
         </a>
       </td>
       <td width="20%"></td>
