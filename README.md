@@ -261,9 +261,6 @@ Some companies support our community and open source efforts with contributions 
         </a>
       </td>
       <td width="20%"></td>
-      <td width="20%"></td>
-      <td width="20%"></td>
-      <td width="20%"></td>
     </tr>
   </tbody>
 </table>
