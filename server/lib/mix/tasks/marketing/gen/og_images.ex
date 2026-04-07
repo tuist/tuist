@@ -19,10 +19,10 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
   # Each entry is {filename, gettext_title, opts} where opts may include :icon_path_suffix.
   @carta_pages [
     {"about", "About Tuist", [icon_path_suffix: "static/marketing/images/about/logo.webp"]},
-    {"pricing", "Pricing", [icon_path_suffix: "static/marketing/images/pricing/logo-transparent.png"]},
-    {"blog", "Blog", []},
-    {"changelog", "Changelog", []},
-    {"tuist-digest", "Tuist Digest Newsletter", []},
+    {"pricing", "Pricing", [icon_path_suffix: "static/marketing/images/pricing/logo-og.svg"]},
+    {"blog", "Blog", [template: :blog]},
+    {"changelog", "Changelog", [template: :changelog]},
+    {"tuist-digest", "Newsletter", [template: :newsletter, icon_path_suffix: "static/marketing/images/newsletter/envelope.webp"]},
     {"support", "Support", []},
     {"customers", "Customers", []},
     {"cache", "Cache", []},
@@ -30,7 +30,8 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     {"previews", "Previews", []},
     {"selective-testing", "Selective Testing", []},
     {"flaky-tests", "Flaky Tests", []},
-    {"test-insights", "Test Insights", []}
+    {"test-insights", "Test Insights", []},
+    {"api-docs", "API Docs", [template: :api_docs]}
   ]
 
   def run(_args) do
@@ -108,21 +109,25 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
             suffix -> Path.join(priv_dir, suffix)
           end
 
+        template = Keyword.get(opts, :template, :default)
+
         render_carta_page(
           og_images_directory,
           filename,
           Gettext.dgettext(TuistWeb.Gettext, "marketing", title_msgid),
           locale,
-          icon_path
+          icon_path,
+          template
         )
       end)
     end
   end
 
-  defp render_carta_page(og_images_directory, filename, title, locale, icon_path) do
+  defp render_carta_page(og_images_directory, filename, title, locale, icon_path, template \\ :default) do
     priv_dir = Application.app_dir(:tuist, "priv")
     fonts_dir = Path.join(priv_dir, "static/fonts")
     logo_path = Path.join(priv_dir, "docs/images/logo.webp")
+    bg_path = Path.join(priv_dir, "static/marketing/images/background.webp")
 
     image_path =
       if locale == "en" do
@@ -136,12 +141,21 @@ defmodule Mix.Tasks.Marketing.Gen.OgImages do
     html_opts = [
       title: title,
       fonts_dir: fonts_dir,
-      logo_path: logo_path
+      logo_path: logo_path,
+      bg_path: bg_path
     ]
 
     html_opts = if icon_path, do: Keyword.put(html_opts, :icon_path, icon_path), else: html_opts
 
-    html = OgImages.render_html(html_opts)
+    html =
+      case template do
+        :blog -> OgImages.render_blog_html(html_opts)
+        :changelog ->
+          timeline_path = Path.join(priv_dir, "static/marketing/images/og/changelog-timeline.svg")
+          OgImages.render_changelog_list_html(Keyword.put(html_opts, :timeline_path, timeline_path))
+        :newsletter -> OgImages.render_newsletter_html(html_opts)
+        _ -> OgImages.render_html(html_opts)
+      end
 
     case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
       {:ok, jpeg_binary} ->
