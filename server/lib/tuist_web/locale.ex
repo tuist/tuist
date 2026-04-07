@@ -12,7 +12,7 @@ defmodule TuistWeb.Locale do
   def supported_locales, do: SharedLocale.supported_locales()
 
   def on_mount(:assign_locale, _params, session, socket) do
-    user_locale = user_dashboard_locale(socket)
+    user_locale = user_preferred_locale(socket)
 
     locale =
       user_locale ||
@@ -52,7 +52,7 @@ defmodule TuistWeb.Locale do
     end
   end
 
-  defp user_dashboard_locale(socket) do
+  defp user_preferred_locale(socket) do
     case socket.assigns do
       %{current_user: %{preferred_locale: lang}} when is_binary(lang) and lang != "" ->
         if lang in supported_locales(), do: lang
