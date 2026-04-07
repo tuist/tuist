@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAppleArchiver
 import TuistCI
 import TuistServer
 import TuistSupport
@@ -372,6 +373,80 @@ struct ShardServiceTests {
         let originalPlist = try parsePlist(originalXCTestRunData)
         let originalTargets = blueprintNames(from: originalPlist)
         #expect(originalTargets == ["AppTests", "CoreTests"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func shard_withDownloadedTestProducts_overwritesExistingXCTestRun() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let archiveSourcePath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: archiveSourcePath)
+
+        let xctestrunData = try makePlist([
+            "TestConfigurations": [
+                [
+                    "TestTargets": [
+                        ["BlueprintName": "AppTests", "TestHostPath": "/path/to/host"],
+                        ["BlueprintName": "CoreTests", "TestHostPath": "/path/to/core"],
+                    ],
+                ],
+            ],
+        ])
+        let xctestrunPath = archiveSourcePath.appending(component: "MyApp.xctestrun")
+        try xctestrunData.write(to: URL(fileURLWithPath: xctestrunPath.pathString))
+
+        let archivePath = temporaryDirectory.appending(component: "MyApp.xctestproducts.aar")
+        try await AppleArchiver().compress(directory: archiveSourcePath, to: archivePath, excludePatterns: [])
+
+        let ciController = MockCIControlling()
+        given(ciController).ciInfo().willReturn(.test(provider: .github))
+
+        let getShardService = MockGetShardServicing()
+        given(getShardService).getShard(
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .any,
+            shardIndex: .any
+        ).willReturn(
+            Components.Schemas.Shard(
+                download_url: "https://example.com/test-products.aar",
+                modules: ["AppTests"],
+                shard_plan_id: "plan-123",
+                suites: .init()
+            )
+        )
+
+        let fileClient = MockFileClient()
+        fileClient.stubbedDownloadResult = archivePath
+
+        let subject = ShardService(
+            getShardService: getShardService,
+            ciController: ciController,
+            fileClient: fileClient,
+            fileSystem: fileSystem
+        )
+
+        let shard = try await subject.shard(
+            shardIndex: 0,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!
+        )
+
+        #expect(shard.xcTestRunPath == nil)
+        #expect(shard.modules == ["AppTests"])
+        #expect(shard.shardPlanId == "plan-123")
+
+        let extractedXCTestRunPath = try #require(
+            try await fileSystem
+                .glob(directory: shard.testProductsPath, include: ["**/*.xctestrun"])
+                .collect()
+                .first
+        )
+        let filteredXCTestRunData = try await fileSystem.readFile(at: extractedXCTestRunPath)
+        let filteredPlist = try parsePlist(filteredXCTestRunData)
+        let targets = blueprintNames(from: filteredPlist)
+        #expect(targets == ["AppTests"])
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
