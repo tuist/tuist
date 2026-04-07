@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.174.5<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix cross-project test host embed and TEST_HOST settings by [@pepicrft](https://github.com/pepicrft) in [#10139](https://github.com/tuist/tuist/pull/10139)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.174.4...4.174.5
+
 ## What's Changed in 4.174.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
