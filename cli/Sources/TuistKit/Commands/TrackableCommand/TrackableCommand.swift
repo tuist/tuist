@@ -163,7 +163,7 @@ public class TrackableCommand {
                 if let buildRunURL {
                     Logger.current
                         .info(
-                            "You can view a detailed build report at: \(buildRunURL.absoluteString)"
+                            "Build uploaded for processing. You can view the build report at: \(buildRunURL.absoluteString)"
                         )
                 } else if let testRunURL = serverCommandEvent.testRunURL {
                     Logger.current
