@@ -20,7 +20,6 @@ defmodule Cache.KeyValueReplicationPoller do
   @local_store_event [:cache, :kv, :replication, :local_store, :size_bytes]
   @page_size 1000
   @apply_chunk_size 100
-  @bootstrap_page_size 500
   @max_poll_run_ms 10_000
   @local_store_emit_interval_ms to_timeout(minute: 10)
   @max_backoff_ms 30_000
@@ -95,16 +94,8 @@ defmodule Cache.KeyValueReplicationPoller do
   end
 
   defp poll_totals(started_at) do
-    case maybe_bootstrap() do
-      :ok ->
-        watermark = KeyValueEntries.distributed_watermark()
-        drain_pages(watermark, started_at, {0, 0})
-
-      :busy ->
-        {:ok, {0, 0}}
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, watermark} <- ensure_initial_watermark() do
+      drain_pages(watermark, started_at, {0, 0})
     end
   end
 
@@ -242,28 +233,20 @@ defmodule Cache.KeyValueReplicationPoller do
     left.key == right.key and DateTime.compare(left.updated_at, right.updated_at) == :eq
   end
 
-  defp maybe_bootstrap do
-    if is_nil(KeyValueEntries.distributed_watermark()) do
-      cutoff = latest_cutoff()
-      budget = Application.get_env(:cache, :key_value_max_db_size_bytes, 25 * 1024 * 1024 * 1024)
-      current_size = KeyValueEntries.estimated_size_bytes()
+  defp ensure_initial_watermark do
+    case KeyValueEntries.distributed_watermark() do
+      nil ->
+        case latest_cutoff() do
+          nil ->
+            {:ok, nil}
 
-      case bootstrap_rows(current_size, budget, nil) do
-        :complete ->
-          if cutoff do
+          cutoff ->
             :ok = KeyValueEntries.put_distributed_watermark(cutoff.updated_at, cutoff.key)
-          end
+            {:ok, %{watermark_updated_at: cutoff.updated_at, watermark_key: cutoff.key}}
+        end
 
-          :ok
-
-        :busy ->
-          :busy
-
-        {:error, reason} ->
-          {:error, reason}
-      end
-    else
-      :ok
+      watermark ->
+        {:ok, watermark}
     end
   end
 
@@ -272,71 +255,6 @@ defmodule Cache.KeyValueReplicationPoller do
     |> order_by([entry], desc: entry.updated_at, desc: entry.key)
     |> limit(1)
     |> Repo.one(timeout: Config.distributed_kv_database_timeout_ms())
-  end
-
-  defp bootstrap_rows(current_size, budget, _cursor) when current_size >= budget, do: :complete
-
-  defp bootstrap_rows(current_size, budget, cursor) do
-    query =
-      Entry
-      |> where([entry], is_nil(entry.deleted_at))
-      |> apply_bootstrap_cursor(cursor)
-      |> order_by([entry], desc: entry.last_accessed_at, desc: entry.key)
-      |> limit(^@bootstrap_page_size)
-
-    fetched_rows = Repo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
-    rows = filter_rows_against_published_barriers(fetched_rows)
-
-    case fetched_rows do
-      [] ->
-        :complete
-
-      _ ->
-        {rows_to_materialize, size_after_page} = bootstrap_materializable_rows(rows, current_size, budget)
-
-        case materialize_bootstrap_rows(rows_to_materialize) do
-          :ok ->
-            last_row = List.last(fetched_rows)
-            bootstrap_rows(size_after_page, budget, {last_row.last_accessed_at, last_row.key})
-
-          :busy ->
-            :busy
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-    end
-  end
-
-  defp bootstrap_materializable_rows(rows, current_size, budget) do
-    {selected, final_size} =
-      Enum.reduce_while(rows, {[], current_size}, fn row, {selected_rows, size_acc} ->
-        if size_acc >= budget do
-          {:halt, {selected_rows, size_acc}}
-        else
-          {:cont, {[row | selected_rows], size_acc + byte_size(row.json_payload)}}
-        end
-      end)
-
-    {Enum.reverse(selected), final_size}
-  end
-
-  defp materialize_bootstrap_rows(rows) do
-    rows
-    |> Enum.chunk_every(@apply_chunk_size)
-    |> Enum.reduce_while(:ok, fn chunk, :ok ->
-      case KeyValueEntries.materialize_remote_entries(chunk) do
-        {:ok, result} ->
-          Enum.each(result.invalidate_keys, &KeyValueAccessTracker.mark_shared_lineage/1)
-          {:cont, :ok}
-
-        {:error, :busy} ->
-          {:halt, :busy}
-
-        {:error, reason} ->
-          {:halt, {:error, {:bootstrap_apply_failed, reason}}}
-      end
-    end)
   end
 
   defp apply_remote_chunk(rows) do
@@ -398,16 +316,6 @@ defmodule Cache.KeyValueReplicationPoller do
       where:
         entry.updated_at > ^watermark_updated_at or
           (entry.updated_at == ^watermark_updated_at and entry.key > ^watermark_key)
-    )
-  end
-
-  defp apply_bootstrap_cursor(query, nil), do: query
-
-  defp apply_bootstrap_cursor(query, {last_accessed_at, key}) do
-    from(entry in query,
-      where:
-        entry.last_accessed_at < ^last_accessed_at or
-          (entry.last_accessed_at == ^last_accessed_at and entry.key < ^key)
     )
   end
 
